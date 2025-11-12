@@ -1,0 +1,767 @@
+services:
+  # ==============================================================================
+  # Traefik Reverse Proxy
+  # ==============================================================================
+  traefik:
+    image: traefik:v3.1
+    container_name: bo1_traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"      # HTTP
+      - "443:443"    # HTTPS
+      # SECURITY: Dashboard port closed for production. Access via Traefik labels only.
+      # - "8080:8080"  # Traefik Dashboard (CLOSED - use internal network)
+    environment:
+      # Let's Encrypt (for production)
+      - LETSENCRYPT_EMAIL=admin@boardof.one
+      # CloudFlare DNS (optional, for wildcard certs)
+      # - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+    volumes:
+      # Traefik configuration
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      # Docker socket (read-only for security)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Local development TLS certificates (mkcert)
+      - ./traefik/certs:/etc/traefik/certs:ro
+      # Let's Encrypt certificates (production)
+      - traefik_letsencrypt:/letsencrypt
+      # Logs
+      - traefik_logs:/var/log/traefik
+    networks:
+      - bo1_network
+    labels:
+      # Enable Traefik for itself (dashboard)
+      - "traefik.enable=true"
+
+      # Dashboard router
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`) || (Host(`localhost`) && PathPrefix(`/dashboard`) || PathPrefix(`/api`))"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=traefik"
+      - "traefik.http.routers.dashboard.middlewares=dashboard-auth@file"
+
+      # Health check
+      - "traefik.http.routers.ping.rule=PathPrefix(`/ping`)"
+      - "traefik.http.routers.ping.service=ping@internal"
+      - "traefik.http.routers.ping.entrypoints=traefik"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # ==============================================================================
+  # PostgreSQL with pgvector - SSL Encrypted
+  # ==============================================================================
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: bo1_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      POSTGRES_DB: bo1
+    command: >
+      -c ssl=on
+      -c ssl_cert_file=/var/lib/postgresql/certs/server.crt
+      -c ssl_key_file=/var/lib/postgresql/certs/server.key
+      -c ssl_ca_file=/var/lib/postgresql/certs/root.crt
+    # SECURITY: Database port exposed on LOCALHOST ONLY (127.0.0.1), not internet (0.0.0.0)
+    ports:
+      - "127.0.0.1:5432:5432"  # ✅ Localhost only - secure local access
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+      - ./database/certs:/var/lib/postgresql/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bo1_network
+
+  # ==============================================================================
+  # PostgreSQL Backup Service (PRODUCTION ONLY - COMMENTED OUT FOR DEVELOPMENT)
+  # ==============================================================================
+  # Uncomment in production to enable automated backups to Digital Ocean Spaces
+  #
+  # backup:
+  #   build:
+  #     context: ./backups
+  #     dockerfile: Dockerfile
+  #   container_name: bo1_backup
+  #   restart: unless-stopped
+  #   environment:
+  #     # Database connection
+  #     DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD:-postgres}@postgres:5432/bo1
+  #
+  #     # Digital Ocean Spaces (S3-compatible) credentials
+  #     SPACES_REGION: ${SPACES_REGION:-nyc3}
+  #     SPACES_BUCKET: ${SPACES_BACKUP_BUCKET:-boardofone-backups}
+  #     SPACES_ACCESS_KEY: ${SPACES_ACCESS_KEY}
+  #     SPACES_SECRET_KEY: ${SPACES_SECRET_KEY}
+  #
+  #     # Backup configuration
+  #     BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+  #
+  #     # Optional: Slack/Discord webhook for notifications
+  #     WEBHOOK_URL: ${BACKUP_WEBHOOK_URL:-}
+  #   volumes:
+  #     - backup_data:/backups
+  #   networks:
+  #     - bo1_network
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   # Run daily backup at 2 AM
+  #   # Override command for weekly/monthly: docker-compose run backup backup weekly
+  #   command: ["sh", "-c", "while true; do backup daily && sleep 86400; done"]
+  #
+  #   # Alternative: Use cron for more flexible scheduling
+  #   # command: ["sh", "-c", "echo '0 2 * * * backup daily' | crontab - && crond -f"]
+  #
+  #   # Manual backup: docker-compose run --rm backup backup daily
+  #   # Manual restore: docker-compose run --rm backup restore bo1_daily_20251018_220000.sql.gz
+
+  # ==============================================================================
+  # PgBouncer - Database Connection Pooler
+  # ==============================================================================
+  pgbouncer:
+    image: bitnami/pgbouncer:1.22
+    container_name: bo1_pgbouncer
+    restart: unless-stopped
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: bo1
+      POSTGRESQL_USERNAME: postgres
+      POSTGRESQL_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 200
+      PGBOUNCER_DEFAULT_POOL_SIZE: 25
+      PGBOUNCER_MIN_POOL_SIZE: 5
+      PGBOUNCER_RESERVE_POOL_SIZE: 5
+      PGBOUNCER_MAX_DB_CONNECTIONS: 100
+      PGBOUNCER_SERVER_IDLE_TIMEOUT: 600
+      PGBOUNCER_SERVER_LIFETIME: 3600
+      PGBOUNCER_AUTH_TYPE: md5
+    # SECURITY: PgBouncer port CLOSED for production. Use internal Docker network only.
+    # ports:
+    #   - "6432:5432"  # CLOSED - connection pooler not exposed externally
+    volumes:
+      - pgbouncer_logs:/opt/bitnami/pgbouncer/logs
+    networks:
+      - bo1_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Supabase Auth (GoTrue)
+  auth:
+    image: supabase/gotrue:v2.158.1
+    container_name: bo1_auth
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://127.0.0.1:9999
+      GOTRUE_DB_DRIVER: postgres
+      DATABASE_URL: ${AUTH_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/bo1?search_path=auth}
+      GOTRUE_SITE_URL: http://127.0.0.1:3000
+      GOTRUE_URI_ALLOW_LIST: http://127.0.0.1:3000,http://127.0.0.1:3000/,http://localhost:3000,http://localhost:3000/
+      GOTRUE_DISABLE_SIGNUP: false
+      # CORS Configuration
+      GOTRUE_CORS_ALLOWED_ORIGINS: "http://127.0.0.1:3000,http://localhost:3000"
+      GOTRUE_CORS_ALLOWED_HEADERS: "Authorization,Content-Type,apikey,x-client-info"
+      GOTRUE_CORS_ALLOWED_METHODS: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: true
+      GOTRUE_MAILER_AUTOCONFIRM: false  # Require email verification for security
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "Confirm your Board of One account"
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Reset your Board of One password"
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "Your Board of One magic link"
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: "Confirm your email change"
+      # Resend SMTP Configuration
+      GOTRUE_SMTP_ADMIN_EMAIL: noreply@boardof.one
+      GOTRUE_SMTP_HOST: smtp.resend.com
+      GOTRUE_SMTP_PORT: 587
+      GOTRUE_SMTP_USER: resend
+      GOTRUE_SMTP_PASS: ${RESEND_API_KEY:-}
+      GOTRUE_SMTP_SENDER_NAME: Board of One
+      GOTRUE_SMTP_MAX_FREQUENCY: 60s  # Prevent email spam
+      # Rate Limiting (prevents brute force and email flooding)
+      GOTRUE_RATE_LIMIT_HEADER: X-Real-IP
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: 3  # Max 3 emails (signup, password reset) per hour per IP
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: 30  # Max 30 token refreshes per hour per IP
+      GOTRUE_RATE_LIMIT_VERIFY: 10  # Max 10 verification attempts per hour per IP
+      # Security Settings
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: true
+      GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION: false
+      # MFA Settings (SECURITY FIX: Enable Multi-Factor Authentication)
+      GOTRUE_MFA_ENABLED: true
+      GOTRUE_MFA_MAX_ENROLLED_FACTORS: 10
+      GOTRUE_MFA_TOTP_ISSUER: "Board of One"
+      # GitHub OAuth
+      GOTRUE_EXTERNAL_GITHUB_ENABLED: ${GITHUB_ENABLED:-false}
+      GOTRUE_EXTERNAL_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GITHUB_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI: http://127.0.0.1/auth/v1/callback
+      # Google OAuth
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED:-false}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: http://127.0.0.1/auth/v1/callback
+    ports:
+      - "9999:9999"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - bo1_network
+    labels:
+      # Enable Traefik
+      - "traefik.enable=true"
+      # HTTP Router for /auth/v1 path (development)
+      - "traefik.http.routers.auth.rule=PathPrefix(`/auth/v1`)"
+      - "traefik.http.routers.auth.entrypoints=web"
+      - "traefik.http.routers.auth.service=auth"
+      - "traefik.http.routers.auth.middlewares=auth-stripprefix"
+      # HTTPS Router for /auth/v1 path (local dev + production)
+      - "traefik.http.routers.auth-secure.rule=PathPrefix(`/auth/v1`)"
+      - "traefik.http.routers.auth-secure.entrypoints=websecure"
+      - "traefik.http.routers.auth-secure.service=auth"
+      - "traefik.http.routers.auth-secure.middlewares=auth-stripprefix"
+      - "traefik.http.routers.auth-secure.tls=true"
+      # Middleware to strip /auth/v1 prefix (GoTrue expects / not /auth/v1)
+      - "traefik.http.middlewares.auth-stripprefix.stripprefix.prefixes=/auth/v1"
+      - "traefik.http.middlewares.auth-stripprefix.stripprefix.forceSlash=false"
+      # Service pointing to GoTrue container
+      - "traefik.http.services.auth.loadbalancer.server.port=9999"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==============================================================================
+  # Redis - REQUIRED for Production Rate Limiting
+  # ==============================================================================
+  # ⚠️  CRITICAL: Redis is REQUIRED for production deployments!
+  #
+  # Why Redis is required:
+  # - Rate limiting must work across ALL backend instances (load balanced)
+  # - In-memory rate limiting only works for single-instance setups
+  # - Backend will REFUSE to start in production mode without Redis
+  #
+  # See backend/docs/RATE_LIMITING.md for full details
+  redis:
+    image: redis:7-alpine
+    container_name: bo1_redis
+    command: >
+      sh -c "sed 's/REDIS_PASSWORD_PLACEHOLDER/${REDIS_PASSWORD:-redis_dev_password}/'
+      /etc/redis/redis.conf > /tmp/redis.conf &&
+      redis-server /tmp/redis.conf"
+    # SECURITY: Redis port CLOSED for production. Use internal Docker network only.
+    # ports:
+    #   - "6379:6379"  # CLOSED - cache not exposed externally
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/etc/redis/redis.conf:ro
+      - ./redis/certs:/etc/redis/certs:ro
+    networks:
+      - bo1_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_dev_password}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ==============================================================================
+  # Web Application Firewall (ModSecurity + OWASP CRS)
+  # ==============================================================================
+  waf:
+    image: owasp/modsecurity-crs:nginx-alpine
+    container_name: bo1_waf
+    restart: unless-stopped
+    environment:
+      # Backend upstream
+      BACKEND: http://backend:8000
+      # ModSecurity settings
+      MODSEC_RULE_ENGINE: On  # ✅ BLOCKING MODE ENABLED - WAF will block malicious requests
+      PARANOIA: 1  # Paranoia level (1-4)
+      ANOMALY_INBOUND: 5  # Inbound anomaly score threshold
+      ANOMALY_OUTBOUND: 4  # Outbound anomaly score threshold
+      # Logging
+      MODSEC_AUDIT_LOG: /var/log/modsec_audit.log
+      MODSEC_DEBUG_LOG: /var/log/modsec_debug.log
+      MODSEC_DEBUG_LOGLEVEL: 0  # 0=no debug, 9=max debug
+      # Request body limits
+      MODSEC_REQ_BODY_LIMIT: 13107200  # 12.5 MB
+      MODSEC_REQ_BODY_NOFILES_LIMIT: 131072  # 128 KB
+      # Response body limits
+      MODSEC_RESP_BODY_LIMIT: 524288  # 512 KB
+    volumes:
+      - ./waf/modsecurity/modsecurity.conf:/etc/modsecurity.d/modsecurity-override.conf:ro
+      - ./waf/modsecurity/crs-setup.conf:/etc/modsecurity.d/owasp-crs/crs-setup-override.conf:ro
+      - waf_logs:/var/log
+    networks:
+      - bo1_network
+    depends_on:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.waf.rule=Host(`api.localhost`) || Host(`api.boardof.one`) || (Host(`localhost`) && PathPrefix(`/api`))"
+      - "traefik.http.routers.waf.entrypoints=websecure"
+      - "traefik.http.routers.waf.tls=true"
+      - "traefik.http.routers.waf.middlewares=waf-chain@docker"
+      - "traefik.http.services.waf.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.waf-chain.chain.middlewares=security-headers@file,cors-headers@file,compression@file"
+
+  # ==============================================================================
+  # FastAPI Backend
+  # ==============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bo1_backend
+    environment:
+      # Database
+      DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD:-postgres}@postgres:5432/bo1
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      POSTGRES_DB: bo1
+
+      # API Keys
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: 10080
+
+      # Supabase Auth (SUPABASE_JWT_SECRET must match JWT_SECRET)
+      SUPABASE_URL: http://auth:9999
+      SUPABASE_JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-change_me_in_production}
+
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev_password}@redis:6379/0
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_dev_password}
+
+      # CORS - Allow all development origins
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:5173,http://frontend:3000,https://boardof.one,https://app.boardof.one
+
+      # Security
+      CSRF_SECRET_KEY: ${CSRF_SECRET_KEY}
+      API_SIGNATURE_SECRET: ${API_SIGNATURE_SECRET}
+
+      # Digital Ocean Spaces (S3-compatible storage)
+      SPACES_ACCESS_KEY: ${SPACES_ACCESS_KEY:-dummy_access_key_for_local_dev}
+      SPACES_SECRET_KEY: ${SPACES_SECRET_KEY:-dummy_secret_key_for_local_dev}
+
+      # App
+      ENVIRONMENT: development
+    ports:
+      - "8000:8000"  # Keep for local development
+    volumes:
+      - ./backend:/app
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      traefik:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - bo1_network
+    labels:
+      # Enable Traefik
+      - "traefik.enable=true"
+
+      # HTTP Router (redirects to HTTPS)
+      - "traefik.http.routers.backend-http.rule=Host(`api.localhost`) || Host(`api.boardof.one`) || (Host(`localhost`) && PathPrefix(`/api`))"
+      - "traefik.http.routers.backend-http.entrypoints=web"
+      - "traefik.http.routers.backend-http.middlewares=redirect-to-https@docker"
+
+      # HTTPS Router
+      - "traefik.http.routers.backend.rule=Host(`api.localhost`) || Host(`api.boardof.one`) || (Host(`localhost`) && PathPrefix(`/api`))"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls=true"
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.backend.middlewares=backend-chain@docker"
+
+      # Service
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      - "traefik.http.services.backend.loadbalancer.healthcheck.path=/health"
+      - "traefik.http.services.backend.loadbalancer.healthcheck.interval=10s"
+
+      # Middleware Chain
+      - "traefik.http.middlewares.backend-chain.chain.middlewares=security-headers@file,cors-headers@file,compression@file,rate-limit@file"
+
+      # Redirect to HTTPS
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+      # Auth endpoints - stricter rate limiting
+      - "traefik.http.routers.backend-auth.rule=(Host(`api.localhost`) || Host(`api.boardof.one`)) && (PathPrefix(`/api/auth/login`) || PathPrefix(`/api/auth/signup`))"
+      - "traefik.http.routers.backend-auth.entrypoints=websecure"
+      - "traefik.http.routers.backend-auth.tls=true"
+      - "traefik.http.routers.backend-auth.middlewares=backend-auth-chain@docker"
+      - "traefik.http.routers.backend-auth.priority=100"
+      - "traefik.http.middlewares.backend-auth-chain.chain.middlewares=security-headers@file,cors-headers@file,rate-limit-auth@file"
+
+  # ==============================================================================
+  # SvelteKit Frontend
+  # ==============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: bo1_frontend
+    environment:
+      PUBLIC_API_URL: http://backend:8000
+    ports:
+      - "3000:3000"  # Keep for local development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # Prevent volume mount from overriding node_modules
+    depends_on:
+      - backend
+      - traefik
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+    networks:
+      - bo1_network
+    labels:
+      # Enable Traefik
+      - "traefik.enable=true"
+
+      # HTTP Router (redirects to HTTPS)
+      - "traefik.http.routers.frontend-http.rule=Host(`localhost`) || Host(`boardof.one`) || Host(`app.boardof.one`) || Host(`www.boardof.one`)"
+      - "traefik.http.routers.frontend-http.entrypoints=web"
+      - "traefik.http.routers.frontend-http.middlewares=redirect-to-https@docker"
+
+      # HTTPS Router
+      - "traefik.http.routers.frontend.rule=Host(`localhost`) || Host(`boardof.one`) || Host(`app.boardof.one`) || Host(`www.boardof.one`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls=true"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.frontend.middlewares=frontend-chain@docker"
+
+      # Service
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+
+      # Middleware Chain
+      - "traefik.http.middlewares.frontend-chain.chain.middlewares=security-headers@file,compression@file,rate-limit@file"
+
+      # Redirect www to non-www
+      - "traefik.http.middlewares.redirect-www-to-root.redirectregex.regex=^https://www\\.(.*)"
+      - "traefik.http.middlewares.redirect-www-to-root.redirectregex.replacement=https://$${1}"
+      - "traefik.http.middlewares.redirect-www-to-root.redirectregex.permanent=true"
+
+  # ==============================================================================
+  # Security Services
+  # ==============================================================================
+
+  # ClamAV - Malware Scanning
+  clamav:
+    image: clamav/clamav:latest
+    container_name: bo1_clamav
+    restart: unless-stopped
+    ports:
+      - "3310:3310"  # ClamAV daemon port
+    volumes:
+      - clamav_data:/var/lib/clamav
+    environment:
+      # ClamAV configuration
+      - CLAMAV_NO_FRESHCLAM=false  # Enable virus definition updates
+      - CLAMAV_NO_CLAMD=false  # Enable ClamAV daemon
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # ClamAV takes time to download virus definitions on first start
+    networks:
+      - bo1_network
+
+  # ==============================================================================
+  # Monitoring Stack
+  # ==============================================================================
+
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: bo1_prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    # SECURITY: Prometheus port CLOSED for production. Access via Traefik with IP whitelist.
+    # ports:
+    #   - "9090:9090"  # CLOSED - metrics not exposed externally
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    networks:
+      - bo1_network
+    depends_on:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.localhost`) || Host(`prometheus.boardof.one`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.middlewares=ip-whitelist@file"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  # ntfy - Simple notification service (push notifications)
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: bo1_ntfy
+    restart: unless-stopped
+    command:
+      - serve
+    environment:
+      - TZ=UTC
+      - NTFY_BASE_URL=http://localhost:8080
+      - NTFY_CACHE_FILE=/var/cache/ntfy/cache.db
+      - NTFY_AUTH_FILE=/var/lib/ntfy/auth.db
+      - NTFY_ATTACHMENT_CACHE_DIR=/var/cache/ntfy/attachments
+    volumes:
+      - ntfy_cache:/var/cache/ntfy
+      - ntfy_data:/var/lib/ntfy
+    ports:
+      - "8080:80"  # ntfy web UI and API
+    networks:
+      - bo1_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ntfy.rule=Host(`ntfy.localhost`) || Host(`ntfy.boardof.one`)"
+      - "traefik.http.routers.ntfy.entrypoints=websecure"
+      - "traefik.http.routers.ntfy.tls=true"
+      - "traefik.http.services.ntfy.loadbalancer.server.port=80"
+
+  # Alertmanager - Alert Notifications
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: bo1_alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    networks:
+      - bo1_network
+    ports:
+      - "9093:9093"  # Alertmanager UI
+    depends_on:
+      - ntfy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`alerts.localhost`) || Host(`alerts.boardof.one`)"
+      - "traefik.http.routers.alertmanager.entrypoints=websecure"
+      - "traefik.http.routers.alertmanager.tls=true"
+      - "traefik.http.routers.alertmanager.middlewares=ip-whitelist@file"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
+
+  # Grafana - Metrics Visualization
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: bo1_grafana
+    restart: unless-stopped
+    environment:
+      # Admin credentials
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Server settings
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/
+      - GF_SERVER_DOMAIN=grafana.boardof.one
+      # Database (use PostgreSQL instead of SQLite)
+      - GF_DATABASE_TYPE=postgres
+      - GF_DATABASE_HOST=postgres:5432
+      - GF_DATABASE_NAME=grafana
+      - GF_DATABASE_USER=postgres
+      - GF_DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
+      # Auth settings
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+      # Security
+      - GF_SECURITY_COOKIE_SECURE=true
+      - GF_SECURITY_COOKIE_SAMESITE=lax
+      # Analytics
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - bo1_network
+    depends_on:
+      - prometheus
+      - postgres
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`) || Host(`grafana.boardof.one`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # PostgreSQL Exporter - Database Metrics
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: bo1_postgres_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:${DATABASE_PASSWORD:-postgres}@postgres:5432/bo1?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - bo1_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Redis Exporter - Cache Metrics
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.55.0
+    container_name: bo1_redis_exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: "redis:6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-redis_dev_password}"
+    ports:
+      - "9121:9121"
+    networks:
+      - bo1_network
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Node Exporter - System Metrics
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: bo1_node_exporter
+    restart: unless-stopped
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - bo1_network
+
+  # cAdvisor - Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: bo1_cadvisor
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+    networks:
+      - bo1_network
+
+  # ==============================================================================
+  # Logging Stack
+  # ==============================================================================
+
+  # Loki - Log Aggregation
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: bo1_loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - bo1_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.loki.rule=Host(`loki.localhost`) || Host(`loki.boardof.one`)"
+      - "traefik.http.routers.loki.entrypoints=websecure"
+      - "traefik.http.routers.loki.tls=true"
+      - "traefik.http.routers.loki.middlewares=ip-whitelist@file"
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
+
+  # Promtail - Log Collection
+  promtail:
+    image: grafana/promtail:2.9.3
+    container_name: bo1_promtail
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_logs:/var/log/traefik:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - bo1_network
+    depends_on:
+      - loki
+
+networks:
+  bo1_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads:
+  traefik_letsencrypt:
+  traefik_logs:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  waf_logs:
+  pgbouncer_logs:
+  ntfy_cache:
+  ntfy_data:
+  alertmanager_data:
+  clamav_data:  # ClamAV virus definitions
+  backup_data:  # PostgreSQL backup storage (production only)

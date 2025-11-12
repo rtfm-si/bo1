@@ -1,0 +1,51 @@
+# ==============================================================================
+# Docker Compose Development Override
+# ==============================================================================
+#
+# This file overrides docker-compose.yml for local development.
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Or create an alias:
+#   alias dcup='docker-compose -f docker-compose.yml -f docker-compose.dev.yml up'
+#
+# ==============================================================================
+
+services:
+  # Traefik - Development Configuration
+  traefik:
+    command:
+      - "--api.insecure=true"  # Insecure dashboard (no auth) for dev
+      - "--log.level=DEBUG"     # Verbose logging
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.traefik.address=:8080"
+    ports:
+      - "80:80"      # HTTP only (no HTTPS in dev)
+      - "8080:8080"  # Dashboard
+    volumes:
+      - ./traefik/traefik.dev.yml:/etc/traefik/traefik.yml:ro  # Dev config
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_logs:/var/log/traefik
+
+  # Backend - Development Configuration
+  backend:
+    labels:
+      # Simplified routing for localhost (HTTP only)
+      - "traefik.http.routers.backend.rule=Host(`localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.routers.backend.middlewares=backend-dev-chain@docker"
+      - "traefik.http.middlewares.backend-dev-chain.chain.middlewares=cors-headers@file,compression@file"
+
+  # Frontend - Development Configuration
+  frontend:
+    labels:
+      # Simplified routing for localhost (HTTP only)
+      - "traefik.http.routers.frontend.rule=Host(`localhost`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.middlewares=frontend-dev-chain@docker"
+      - "traefik.http.middlewares.frontend-dev-chain.chain.middlewares=compression@file"

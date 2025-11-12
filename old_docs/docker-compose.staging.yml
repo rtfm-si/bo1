@@ -1,0 +1,294 @@
+services:
+  # ==============================================================================
+  # Traefik Reverse Proxy (Staging)
+  # ==============================================================================
+  traefik_staging:
+    image: traefik:v3.1
+    container_name: bo1_traefik_staging
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "8080:80"      # HTTP (staging port)
+      - "8443:443"     # HTTPS (staging port)
+    environment:
+      - LETSENCRYPT_EMAIL=admin@boardof.one
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/certs:/etc/traefik/certs:ro
+      - traefik_letsencrypt_staging:/letsencrypt
+      - traefik_logs_staging:/var/log/traefik
+    networks:
+      - bo1_network_staging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard_staging.rule=Host(`traefik.staging.localhost`) || (Host(`staging.localhost`) && PathPrefix(`/dashboard`) || PathPrefix(`/api`))"
+      - "traefik.http.routers.dashboard_staging.service=api@internal"
+      - "traefik.http.routers.dashboard_staging.entrypoints=traefik"
+      - "traefik.http.routers.dashboard_staging.middlewares=dashboard-auth@file"
+      - "traefik.http.routers.ping_staging.rule=PathPrefix(`/ping`)"
+      - "traefik.http.routers.ping_staging.service=ping@internal"
+      - "traefik.http.routers.ping_staging.entrypoints=traefik"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # ==============================================================================
+  # PostgreSQL with pgvector - Staging
+  # ==============================================================================
+  postgres_staging:
+    image: ankane/pgvector:latest
+    container_name: bo1_postgres_staging
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres_staging}
+      POSTGRES_DB: bo1_staging
+    command: >
+      -c ssl=on
+      -c ssl_cert_file=/var/lib/postgresql/certs/server.crt
+      -c ssl_key_file=/var/lib/postgresql/certs/server.key
+      -c ssl_ca_file=/var/lib/postgresql/certs/root.crt
+    ports:
+      - "127.0.0.1:5433:5432"  # Staging on port 5433
+    volumes:
+      - postgres_data_staging:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+      - ./database/certs:/var/lib/postgresql/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bo1_network_staging
+
+  # ==============================================================================
+  # PgBouncer - Staging
+  # ==============================================================================
+  pgbouncer_staging:
+    image: bitnami/pgbouncer:1.22
+    container_name: bo1_pgbouncer_staging
+    restart: unless-stopped
+    environment:
+      POSTGRESQL_HOST: postgres_staging
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: bo1_staging
+      POSTGRESQL_USERNAME: postgres
+      POSTGRESQL_PASSWORD: ${DATABASE_PASSWORD:-postgres_staging}
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 200
+      PGBOUNCER_DEFAULT_POOL_SIZE: 25
+      PGBOUNCER_MIN_POOL_SIZE: 5
+      PGBOUNCER_RESERVE_POOL_SIZE: 5
+      PGBOUNCER_MAX_DB_CONNECTIONS: 100
+      PGBOUNCER_SERVER_IDLE_TIMEOUT: 600
+      PGBOUNCER_SERVER_LIFETIME: 3600
+      PGBOUNCER_AUTH_TYPE: md5
+    volumes:
+      - pgbouncer_logs_staging:/opt/bitnami/pgbouncer/logs
+    networks:
+      - bo1_network_staging
+    depends_on:
+      postgres_staging:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==============================================================================
+  # Supabase Auth (GoTrue) - Staging
+  # ==============================================================================
+  auth_staging:
+    image: supabase/gotrue:v2.158.1
+    container_name: bo1_auth_staging
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://127.0.0.1:9999
+      GOTRUE_DB_DRIVER: postgres
+      DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD:-postgres_staging}@postgres_staging:5432/bo1_staging?search_path=auth
+      GOTRUE_SITE_URL: http://127.0.0.1:3001
+      GOTRUE_URI_ALLOW_LIST: http://127.0.0.1:3001,http://127.0.0.1:3001/,http://localhost:3001,http://localhost:3001/
+      GOTRUE_DISABLE_SIGNUP: false
+      GOTRUE_CORS_ALLOWED_ORIGINS: "http://127.0.0.1:3001,http://localhost:3001"
+      GOTRUE_CORS_ALLOWED_HEADERS: "Authorization,Content-Type,apikey,x-client-info"
+      GOTRUE_CORS_ALLOWED_METHODS: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:-change_me_in_staging}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: true
+      GOTRUE_MAILER_AUTOCONFIRM: true  # Auto-confirm for staging
+      GOTRUE_SMTP_ADMIN_EMAIL: noreply@boardof.one
+      GOTRUE_SMTP_HOST: smtp.resend.com
+      GOTRUE_SMTP_PORT: 587
+      GOTRUE_SMTP_USER: resend
+      GOTRUE_SMTP_PASS: ${RESEND_API_KEY:-}
+      GOTRUE_SMTP_SENDER_NAME: Board of One (Staging)
+      GOTRUE_RATE_LIMIT_HEADER: X-Real-IP
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: 10  # More lenient for testing
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: 100
+      GOTRUE_RATE_LIMIT_VERIFY: 30
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: true
+      GOTRUE_MFA_ENABLED: true
+      GOTRUE_MFA_MAX_ENROLLED_FACTORS: 10
+      GOTRUE_MFA_TOTP_ISSUER: "Board of One (Staging)"
+    ports:
+      - "9998:9999"  # Staging port
+    depends_on:
+      postgres_staging:
+        condition: service_healthy
+    networks:
+      - bo1_network_staging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth_staging.rule=PathPrefix(`/auth/v1`)"
+      - "traefik.http.routers.auth_staging.entrypoints=web"
+      - "traefik.http.routers.auth_staging.service=auth_staging"
+      - "traefik.http.routers.auth_staging.middlewares=auth-stripprefix"
+      - "traefik.http.services.auth_staging.loadbalancer.server.port=9999"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==============================================================================
+  # Redis - Staging (Isolated Instance)
+  # ==============================================================================
+  redis_staging:
+    image: redis:7-alpine
+    container_name: bo1_redis_staging
+    command: >
+      sh -c "sed 's/REDIS_PASSWORD_PLACEHOLDER/${REDIS_PASSWORD:-redis_staging_password}/'
+      /etc/redis/redis.conf > /tmp/redis.conf &&
+      redis-server /tmp/redis.conf"
+    ports:
+      - "127.0.0.1:6380:6379"  # Staging Redis on port 6380
+    volumes:
+      - redis_data_staging:/data
+      - ./redis/redis.conf:/etc/redis/redis.conf:ro
+      - ./redis/certs:/etc/redis/certs:ro
+    networks:
+      - bo1_network_staging
+    healthcheck:
+      test: ["CMD", "redis-cli", "--tls", "--cert", "/etc/redis/certs/redis.crt", "--key", "/etc/redis/certs/redis.key", "--cacert", "/etc/redis/certs/ca.crt", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ==============================================================================
+  # FastAPI Backend - Staging
+  # ==============================================================================
+  backend_staging:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bo1_backend_staging
+    environment:
+      # Database
+      DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD:-postgres_staging}@postgres_staging:5432/bo1_staging
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres_staging}
+
+      # API Keys
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_staging}
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: 10080
+
+      # Supabase Auth
+      SUPABASE_URL: http://auth_staging:9999
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-change_me_in_staging}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-change_me_in_staging}
+
+      # Redis (Staging Instance)
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_staging_password}@redis_staging:6379/0
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_staging_password}
+
+      # CORS - Allow all staging origins
+      ALLOWED_ORIGINS: http://localhost:3001,http://localhost:5173,http://127.0.0.1:3001,http://127.0.0.1:5173,http://frontend_staging:3001
+
+      # Security
+      CSRF_SECRET_KEY: ${CSRF_SECRET_KEY}
+      API_SIGNATURE_SECRET: ${API_SIGNATURE_SECRET}
+
+      # Digital Ocean Spaces
+      SPACES_ACCESS_KEY: ${SPACES_ACCESS_KEY:-dummy_access_key_for_staging}
+      SPACES_SECRET_KEY: ${SPACES_SECRET_KEY:-dummy_secret_key_for_staging}
+
+      # App - STAGING ENVIRONMENT
+      ENVIRONMENT: staging
+    ports:
+      - "8001:8000"  # Staging backend on port 8001
+    volumes:
+      - ./backend:/app
+      - uploads_staging:/app/uploads
+    depends_on:
+      postgres_staging:
+        condition: service_healthy
+      redis_staging:
+        condition: service_healthy
+      traefik_staging:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - bo1_network_staging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend_staging.rule=Host(`api.staging.localhost`)"
+      - "traefik.http.routers.backend_staging.entrypoints=web"
+      - "traefik.http.routers.backend_staging.service=backend_staging"
+      - "traefik.http.services.backend_staging.loadbalancer.server.port=8000"
+
+  # ==============================================================================
+  # SvelteKit Frontend - Staging
+  # ==============================================================================
+  frontend_staging:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: bo1_frontend_staging
+    environment:
+      PUBLIC_API_URL: http://backend_staging:8000
+      VITE_SUPABASE_URL: http://127.0.0.1:9998
+    ports:
+      - "3001:3000"  # Staging frontend on port 3001
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend_staging
+      - traefik_staging
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+    networks:
+      - bo1_network_staging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend_staging.rule=Host(`staging.localhost`)"
+      - "traefik.http.routers.frontend_staging.entrypoints=web"
+      - "traefik.http.routers.frontend_staging.service=frontend_staging"
+      - "traefik.http.services.frontend_staging.loadbalancer.server.port=3000"
+
+networks:
+  bo1_network_staging:
+    driver: bridge
+
+volumes:
+  postgres_data_staging:
+  redis_data_staging:
+  uploads_staging:
+  traefik_letsencrypt_staging:
+  traefik_logs_staging:
+  pgbouncer_logs_staging:

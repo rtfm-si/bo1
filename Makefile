@@ -45,8 +45,8 @@ run: ## Run deliberation in container (interactive)
 	docker-compose run --rm bo1 python -m bo1.main
 
 .PHONY: demo
-demo: ## Run demo script (Days 8-11)
-	docker-compose exec bo1 python bo1/demo.py
+demo: ## Run multi-round deliberation demo (Days 12-13)
+	docker-compose exec bo1 python bo1/demo_multiround.py
 
 .PHONY: redis-cli
 redis-cli: ## Open Redis CLI

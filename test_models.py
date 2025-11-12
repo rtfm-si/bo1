@@ -197,24 +197,32 @@ def test_config_functions() -> None:
     summarizer_model = get_model_for_role("SUMMARIZER")
     print(f"   ✅ Model for SUMMARIZER: {summarizer_model}")
 
-    # Test cost calculation
+    # Test cost calculation using simple aliases
     cost_no_cache = calculate_cost(
-        model_id="claude-sonnet-4-5-20250929",
+        model_id="sonnet",  # Simple alias!
         input_tokens=1000,
         output_tokens=200,
     )
-    print(f"   💰 Cost (no cache): ${cost_no_cache:.6f}")
+    print(f"   💰 Cost (no cache, using 'sonnet' alias): ${cost_no_cache:.6f}")
 
     cost_with_cache = calculate_cost(
-        model_id="claude-sonnet-4-5-20250929",
+        model_id="sonnet",  # Simple alias!
         input_tokens=0,  # No regular input
         output_tokens=200,
         cache_read_tokens=1000,  # All from cache
     )
-    print(f"   💰 Cost (with cache): ${cost_with_cache:.6f}")
+    print(f"   💰 Cost (with cache, using 'sonnet' alias): ${cost_with_cache:.6f}")
 
     savings = (cost_no_cache - cost_with_cache) / cost_no_cache * 100
     print(f"   📊 Cache savings: {savings:.1f}%")
+
+    # Test with haiku alias too
+    haiku_cost = calculate_cost(
+        model_id="haiku",  # Simple alias!
+        input_tokens=1000,
+        output_tokens=200,
+    )
+    print(f"   💰 Haiku cost (using 'haiku' alias): ${haiku_cost:.6f}")
 
 
 def main():

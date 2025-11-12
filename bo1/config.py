@@ -9,6 +9,17 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+__all__ = [
+    "Settings",
+    "get_settings",
+    "MODEL_ALIASES",
+    "MODEL_BY_ROLE",
+    "MODEL_PRICING",
+    "resolve_model_alias",
+    "get_model_for_role",
+    "calculate_cost",
+]
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -56,20 +67,42 @@ class Settings(BaseSettings):
         return path
 
 
-# Model configurations (Day 19-20 optimization)
-# Research shows Sonnet + caching is cheaper than Haiku for personas
-MODEL_BY_ROLE = {
-    "PERSONA": "claude-sonnet-4-5-20250929",  # Sonnet 4.5 with caching
-    "FACILITATOR": "claude-sonnet-4-5-20250929",  # Needs reasoning
-    "SUMMARIZER": "claude-haiku-4-5-20251001",  # Haiku 4.5 for simple compression
-    "DECOMPOSER": "claude-sonnet-4-5-20250929",  # Complex analysis
-    "MODERATOR": "claude-haiku-4-5-20251001",  # Simple interventions
-    "RESEARCHER": "claude-haiku-4-5-20251001",  # Future feature
+# =============================================================================
+# Model Aliases (Simple names that won't change when versions update)
+# =============================================================================
+# When Haiku 5 or Sonnet 5 are released, just update these mappings.
+# All code uses the simple aliases, so no changes needed elsewhere.
+
+MODEL_ALIASES = {
+    "sonnet": "claude-sonnet-4-5-20250929",  # Current: Sonnet 4.5 (Sep 2025)
+    "haiku": "claude-haiku-4-5-20251001",  # Current: Haiku 4.5 (Oct 2025)
+    "opus": "claude-opus-4-1-20250805",  # Current: Opus 4.1 (Aug 2025) - not used in v1
 }
 
-# Model pricing (per 1M tokens, current as of 2025)
+# =============================================================================
+# Model Assignment by Role (Day 19-20 optimization)
+# =============================================================================
+# Research shows Sonnet + caching is cheaper than Haiku for personas!
+# Use simple aliases so code doesn't need updates when models change.
+
+MODEL_BY_ROLE = {
+    "PERSONA": "sonnet",  # Needs reasoning, benefits from caching
+    "FACILITATOR": "sonnet",  # Complex orchestration decisions
+    "SUMMARIZER": "haiku",  # Simple compression task
+    "DECOMPOSER": "sonnet",  # Complex problem analysis
+    "MODERATOR": "haiku",  # Simple interventions
+    "RESEARCHER": "haiku",  # Future feature - simple web searches
+}
+
+# =============================================================================
+# Model Pricing (per 1M tokens, current as of 2025)
+# =============================================================================
 # Source: https://docs.claude.com/en/docs/about-claude/models/overview
 # Caching: https://claude.com/pricing
+#
+# NOTE: When updating to new model versions, update MODEL_ALIASES above,
+# then add pricing for the new model ID here.
+
 MODEL_PRICING = {
     "claude-sonnet-4-5-20250929": {
         "input": 3.00,  # $3 per 1M input tokens
@@ -87,9 +120,14 @@ MODEL_PRICING = {
         "context_window": 200_000,  # 200K tokens
         "max_output": 64_000,  # 64K tokens
     },
-    # Model aliases (for convenience)
-    "claude-sonnet-4-5": "claude-sonnet-4-5-20250929",
-    "claude-haiku-4-5": "claude-haiku-4-5-20251001",
+    "claude-opus-4-1-20250805": {
+        "input": 15.00,  # $15 per 1M input tokens
+        "output": 75.00,  # $75 per 1M output tokens
+        "cache_creation": 18.75,  # $18.75 per 1M cache write
+        "cache_read": 1.50,  # $1.50 per 1M cache read
+        "context_window": 200_000,  # 200K tokens
+        "max_output": 32_000,  # 32K tokens
+    },
 }
 
 
@@ -98,21 +136,49 @@ def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
 
 
+def resolve_model_alias(model_name: str) -> str:
+    """Resolve a model alias to its full model ID.
+
+    Args:
+        model_name: Model name (alias like 'sonnet' or full ID)
+
+    Returns:
+        Full model ID
+
+    Examples:
+        >>> resolve_model_alias("sonnet")
+        "claude-sonnet-4-5-20250929"
+        >>> resolve_model_alias("claude-sonnet-4-5-20250929")
+        "claude-sonnet-4-5-20250929"
+    """
+    # If it's an alias, resolve it
+    if model_name in MODEL_ALIASES:
+        return MODEL_ALIASES[model_name]
+    # Otherwise, assume it's already a full model ID
+    return model_name
+
+
 def get_model_for_role(role: str) -> str:
-    """Get the model ID for a given role.
+    """Get the full model ID for a given role.
 
     Args:
         role: Role name (e.g., 'PERSONA', 'FACILITATOR')
 
     Returns:
-        Model ID string
+        Full model ID string (resolved from alias)
 
     Raises:
         ValueError: If role is not recognized
+
+    Examples:
+        >>> get_model_for_role("PERSONA")
+        "claude-sonnet-4-5-20250929"
     """
     if role not in MODEL_BY_ROLE:
         raise ValueError(f"Unknown role: {role}. Valid roles: {list(MODEL_BY_ROLE.keys())}")
-    return MODEL_BY_ROLE[role]
+
+    model_alias = MODEL_BY_ROLE[role]
+    return resolve_model_alias(model_alias)
 
 
 def calculate_cost(
@@ -125,7 +191,7 @@ def calculate_cost(
     """Calculate cost for an LLM call.
 
     Args:
-        model_id: Model identifier
+        model_id: Model identifier (alias like 'sonnet' or full ID)
         input_tokens: Number of input tokens
         output_tokens: Number of output tokens
         cache_creation_tokens: Number of cache creation tokens
@@ -133,11 +199,24 @@ def calculate_cost(
 
     Returns:
         Total cost in USD
-    """
-    if model_id not in MODEL_PRICING:
-        raise ValueError(f"Unknown model: {model_id}")
 
-    pricing = MODEL_PRICING[model_id]
+    Raises:
+        ValueError: If model is not recognized
+
+    Examples:
+        >>> calculate_cost("sonnet", input_tokens=1000, output_tokens=200)
+        0.006
+    """
+    # Resolve alias to full model ID
+    full_model_id = resolve_model_alias(model_id)
+
+    if full_model_id not in MODEL_PRICING:
+        raise ValueError(
+            f"Unknown model: {model_id} (resolved to: {full_model_id}). "
+            f"Available models: {list(MODEL_PRICING.keys())}"
+        )
+
+    pricing = MODEL_PRICING[full_model_id]
 
     cost = (
         (input_tokens / 1_000_000) * pricing["input"]

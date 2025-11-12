@@ -24,11 +24,18 @@ ignore = [
     "B008",    # do not perform function calls in argument defaults
     "D100",    # missing docstring in public module
     "D104",    # missing docstring in public package
+    "D106",    # missing docstring in public nested class (Pydantic Config classes)
     "S101",    # use of assert detected (OK in tests)
+    "ANN401",  # allow typing.Any in function signatures (needed for Pydantic validators, wrappers)
 ]
 
 [lint.per-file-ignores]
 "tests/**/*.py" = [
+    "S101",    # assert allowed in tests
+    "ANN",     # annotations optional in tests
+    "D",       # docstrings optional in tests
+]
+"test_*.py" = [
     "S101",    # assert allowed in tests
     "ANN",     # annotations optional in tests
     "D",       # docstrings optional in tests

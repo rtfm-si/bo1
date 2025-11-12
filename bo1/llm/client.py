@@ -33,7 +33,12 @@ class TokenUsage(BaseModel):
     @property
     def total_tokens(self) -> int:
         """Total tokens used (input + output + cache)."""
-        return self.input_tokens + self.output_tokens + self.cache_creation_tokens + self.cache_read_tokens
+        return (
+            self.input_tokens
+            + self.output_tokens
+            + self.cache_creation_tokens
+            + self.cache_read_tokens
+        )
 
     @property
     def cache_hit_rate(self) -> float:

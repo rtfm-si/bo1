@@ -6,8 +6,6 @@ Provides functions to convert deliberation state into various formats:
 - Summary reports
 """
 
-import json
-from datetime import datetime
 from typing import Any
 
 from bo1.models.state import DeliberationState
@@ -218,7 +216,9 @@ def to_summary_dict(state: DeliberationState) -> dict[str, Any]:
         "current_round": state.current_round,
         "total_contributions": len(state.contributions),
         "total_votes": len(state.votes),
-        "participants": [p.code for p in state.selected_personas] if state.selected_personas else [],
+        "participants": [p.code for p in state.selected_personas]
+        if state.selected_personas
+        else [],
         "created_at": state.created_at.isoformat(),
         "completed_at": state.completed_at.isoformat() if state.completed_at else None,
         "duration_seconds": duration_seconds,

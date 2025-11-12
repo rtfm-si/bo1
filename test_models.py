@@ -9,7 +9,6 @@ Tests:
 
 import json
 import uuid
-from pathlib import Path
 
 from bo1.config import calculate_cost, get_model_for_role, get_settings
 from bo1.models import (
@@ -129,7 +128,7 @@ def test_create_deliberation_state(personas: list[PersonaProfile]) -> Deliberati
 
     # Test metrics update
     state.update_metrics(cost=0.0015, tokens=250, cache_hit=True, cache_read=100)
-    print(f"   ✅ Updated metrics:")
+    print("   ✅ Updated metrics:")
     print(f"      - Total cost: ${state.metrics.total_cost:.4f}")
     print(f"      - Total tokens: {state.metrics.total_tokens}")
     print(f"      - Cache hits: {state.metrics.cache_hits}")
@@ -174,7 +173,7 @@ def test_validate_all_models() -> None:
 
     # Test vote aggregation
     aggregation = aggregate_votes(votes)
-    print(f"   ✅ Aggregated votes:")
+    print("   ✅ Aggregated votes:")
     print(f"      - Simple majority: {aggregation.simple_majority}")
     print(f"      - Consensus level: {aggregation.consensus_level}")
     print(f"      - Confidence-weighted score: {aggregation.confidence_weighted_score:.2f}")
@@ -225,7 +224,7 @@ def test_config_functions() -> None:
     print(f"   💰 Haiku cost (using 'haiku' alias): ${haiku_cost:.6f}")
 
 
-def main():
+def main() -> None:
     """Run all tests."""
     print("=" * 70)
     print("Day 1-2 Implementation Validation Tests")
@@ -253,8 +252,8 @@ def main():
         print("\n📋 Summary:")
         print(f"   - Personas loaded: {len(personas)}")
         print(f"   - DeliberationState created: {state.session_id}")
-        print(f"   - All Pydantic models validated: ✅")
-        print(f"   - Configuration functions working: ✅")
+        print("   - All Pydantic models validated: ✅")
+        print("   - Configuration functions working: ✅")
         print("\n🎉 Day 1-2 Foundation Complete!")
 
     except Exception as e:

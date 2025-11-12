@@ -26,7 +26,9 @@ class Constraint(BaseModel):
 
     type: ConstraintType = Field(..., description="Type of constraint")
     description: str = Field(..., description="Human-readable description of the constraint")
-    value: Any | None = Field(None, description="Optional quantitative value (e.g., $10000, 30 days)")
+    value: Any | None = Field(
+        None, description="Optional quantitative value (e.g., $10000, 30 days)"
+    )
 
     class Config:
         json_schema_extra = {

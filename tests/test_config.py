@@ -22,10 +22,7 @@ def test_settings_has_required_fields():
 @pytest.mark.unit
 def test_settings_defaults():
     """Test default values are set correctly."""
-    settings = Settings(
-        anthropic_api_key="test_key",
-        voyage_api_key="test_key"
-    )
+    settings = Settings(anthropic_api_key="test_key", voyage_api_key="test_key")
 
     assert settings.redis_host == "localhost"
     assert settings.redis_port == 6379

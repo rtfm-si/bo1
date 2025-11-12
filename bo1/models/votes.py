@@ -24,16 +24,12 @@ class Vote(BaseModel):
     persona_name: str = Field(..., description="Display name of the persona")
     decision: VoteDecision = Field(..., description="The vote decision")
     reasoning: str = Field(..., description="Reasoning behind the vote")
-    confidence: float = Field(
-        ..., ge=0.0, le=1.0, description="Confidence in this vote (0-1)"
-    )
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in this vote (0-1)")
     conditions: list[str] = Field(
         default_factory=list,
         description="Conditions that must be met (if decision=conditional)",
     )
-    weight: float = Field(
-        default=1.0, ge=0.0, le=2.0, description="Voting weight for this persona"
-    )
+    weight: float = Field(default=1.0, ge=0.0, le=2.0, description="Voting weight for this persona")
 
     class Config:
         json_schema_extra = {
@@ -117,9 +113,7 @@ class VoteAggregation(BaseModel):
                     "consensus_level": "moderate",
                     "confidence_weighted_score": 0.72,
                     "average_confidence": 0.78,
-                    "dissenting_opinions": [
-                        "Risk is too high given current runway"
-                    ],
+                    "dissenting_opinions": ["Risk is too high given current runway"],
                     "conditions_summary": [
                         "CAC must be < $50",
                         "Payback period < 6 months",
@@ -205,9 +199,7 @@ def aggregate_votes(votes: list[Vote]) -> VoteAggregation:
 
     # Collect dissenting opinions
     dissenting_opinions = [
-        f"{v.persona_name}: {v.reasoning}"
-        for v in votes
-        if v.decision == VoteDecision.NO
+        f"{v.persona_name}: {v.reasoning}" for v in votes if v.decision == VoteDecision.NO
     ]
 
     # Collect all conditions

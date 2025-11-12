@@ -46,9 +46,7 @@ class Settings(BaseSettings):
     )
 
     # Cost Limits
-    max_cost_per_session: float = Field(
-        default=1.00, description="Maximum cost per session in USD"
-    )
+    max_cost_per_session: float = Field(default=1.00, description="Maximum cost per session in USD")
 
     # A/B Testing
     ab_testing_enabled: bool = Field(default=True, description="Enable A/B testing")

@@ -1,5 +1,4 @@
-"""
-Data module for Board of One.
+"""Data module for Board of One.
 
 This module contains static data files used by the application,
 including the persona catalog and configuration data.
@@ -14,20 +13,18 @@ DATA_DIR = Path(__file__).parent
 
 
 def load_personas() -> list[dict[str, Any]]:
-    """
-    Load the persona catalog from personas.json.
+    """Load the persona catalog from personas.json.
 
     Returns:
         List of persona dictionaries with all persona attributes
     """
     personas_path = DATA_DIR / "personas.json"
-    with open(personas_path, "r", encoding="utf-8") as f:
+    with open(personas_path, encoding="utf-8") as f:
         return json.load(f)
 
 
 def get_persona_by_code(code: str) -> dict[str, Any] | None:
-    """
-    Get a single persona by their code.
+    """Get a single persona by their code.
 
     Args:
         code: Persona code (e.g., "growth_hacker", "finance_strategist")
@@ -40,8 +37,7 @@ def get_persona_by_code(code: str) -> dict[str, Any] | None:
 
 
 def get_personas_by_category(category: str) -> list[dict[str, Any]]:
-    """
-    Get all personas in a specific category.
+    """Get all personas in a specific category.
 
     Args:
         category: Category name (e.g., "marketing", "finance", "technology")
@@ -54,8 +50,7 @@ def get_personas_by_category(category: str) -> list[dict[str, Any]]:
 
 
 def get_active_personas() -> list[dict[str, Any]]:
-    """
-    Get all active personas (where is_active=True).
+    """Get all active personas (where is_active=True).
 
     Returns:
         List of active persona dictionaries

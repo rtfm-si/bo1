@@ -1,5 +1,4 @@
-"""
-Prompts for the Summarizer agent.
+"""Prompts for the Summarizer agent.
 
 The Summarizer is a background agent that compresses completed deliberation rounds
 into concise summaries for context management. It runs asynchronously while the
@@ -61,12 +60,9 @@ NEVER:
 
 
 def compose_summarization_request(
-    round_number: int,
-    contributions: list[dict],
-    problem_statement: str = None
+    round_number: int, contributions: list[dict], problem_statement: str = None
 ) -> str:
-    """
-    Compose a summarization request for a completed round.
+    """Compose a summarization request for a completed round.
 
     Args:
         round_number: The round being summarized (1-7)
@@ -77,10 +73,9 @@ def compose_summarization_request(
         Formatted prompt for summarization
     """
     # Format contributions
-    contributions_text = "\n\n---\n\n".join([
-        f"[{contrib['persona']}]\n{contrib['content']}"
-        for contrib in contributions
-    ])
+    contributions_text = "\n\n---\n\n".join(
+        [f"[{contrib['persona']}]\n{contrib['content']}" for contrib in contributions]
+    )
 
     # Add problem context for Round 1 to help ground the summary
     context = ""
@@ -107,32 +102,34 @@ if __name__ == "__main__":
     example_contributions = [
         {
             "persona": "Zara Morales (Growth)",
-            "content": "I see significant opportunity in the SEO channel. Our CAC via paid ads is $80, while industry benchmarks show SEO can achieve $15-20 once ramped. The 6-month lag is real, but this is a long-term play. I'd propose a 70/30 split: $35K SEO, $15K paid to maintain pipeline."
+            "content": "I see significant opportunity in the SEO channel. Our CAC via paid ads is $80, while industry benchmarks show SEO can achieve $15-20 once ramped. The 6-month lag is real, but this is a long-term play. I'd propose a 70/30 split: $35K SEO, $15K paid to maintain pipeline.",
         },
         {
             "persona": "Maria Santos (Finance)",
-            "content": "The numbers concern me. $50K is 40% of our quarterly marketing budget. SEO ROI won't materialize for 6+ months, creating cash flow risk. I need to see: (1) sensitivity analysis on timeline, (2) contingency if results lag, (3) impact on runway. What's our break-even assumption?"
+            "content": "The numbers concern me. $50K is 40% of our quarterly marketing budget. SEO ROI won't materialize for 6+ months, creating cash flow risk. I need to see: (1) sensitivity analysis on timeline, (2) contingency if results lag, (3) impact on runway. What's our break-even assumption?",
         },
         {
             "persona": "Sarah Kim (Marketing)",
-            "content": "Both channels are necessary but serve different goals. Paid ads = predictable pipeline for Q4 targets. SEO = strategic moat for 2025. I agree with Zara's split approach but suggest starting 60/40 to derisk. We can shift allocation in Q1 based on early SEO signals."
-        }
+            "content": "Both channels are necessary but serve different goals. Paid ads = predictable pipeline for Q4 targets. SEO = strategic moat for 2025. I agree with Zara's split approach but suggest starting 60/40 to derisk. We can shift allocation in Q1 based on early SEO signals.",
+        },
     ]
 
     request = compose_summarization_request(
         round_number=1,
         contributions=example_contributions,
-        problem_statement="Should we invest $50K in SEO or paid ads for customer acquisition?"
+        problem_statement="Should we invest $50K in SEO or paid ads for customer acquisition?",
     )
 
     print("=== Example Summarization Request ===\n")
     print(request)
     print("\n=== Expected Summary (~100 tokens) ===")
-    print("""
+    print(
+        """
 Three investment approaches proposed: (1) Zara: 70/30 SEO/paid split based on
 $80 vs $15-20 CAC arbitrage; (2) Maria: financial risk from 6-month SEO lag
 and 40% budget concentration - needs sensitivity analysis and runway impact;
 (3) Sarah: 60/40 split to balance Q4 pipeline needs with 2025 strategic moat,
 shift allocation in Q1. Consensus on hybrid approach. Open: break-even timeline
 and contingency plan if SEO underperforms.
-""".strip())
+""".strip()
+    )

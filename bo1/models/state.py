@@ -110,17 +110,13 @@ class DeliberationState(BaseModel):
         default_factory=list,
         description="Summaries of previous rounds (for hierarchical context)",
     )
-    phase: DeliberationPhase = Field(
-        default=DeliberationPhase.INTAKE, description="Current phase"
-    )
+    phase: DeliberationPhase = Field(default=DeliberationPhase.INTAKE, description="Current phase")
     current_round: int = Field(default=0, ge=0, description="Current round number")
     max_rounds: int = Field(default=10, ge=1, le=15, description="Maximum rounds allowed")
     metrics: DeliberationMetrics = Field(
         default_factory=DeliberationMetrics, description="Deliberation metrics"
     )
-    votes: list[Any] = Field(
-        default_factory=list, description="Votes from personas (Vote objects)"
-    )
+    votes: list[Any] = Field(default_factory=list, description="Votes from personas (Vote objects)")
     synthesis: str | None = Field(None, description="Final synthesis report")
     created_at: datetime = Field(default_factory=datetime.now, description="When session started")
     updated_at: datetime = Field(default_factory=datetime.now, description="Last update time")

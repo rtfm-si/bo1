@@ -1,5 +1,4 @@
-"""
-Centralized reusable prompt components for the Board of One system.
+"""Centralized reusable prompt components for the Board of One system.
 
 This module contains common prompt sections that can be composed into
 agent-specific prompts, ensuring consistency and maintainability.
@@ -473,14 +472,14 @@ What remains uncertain or requires further investigation?
 # Helper Functions
 # =============================================================================
 
+
 def compose_persona_prompt(
     persona_system_role: str,
     problem_statement: str,
     participant_list: str,
-    current_phase: str = "discussion"
+    current_phase: str = "discussion",
 ) -> str:
-    """
-    Compose a complete framework-aligned persona system prompt.
+    """Compose a complete framework-aligned persona system prompt.
 
     This function takes the BESPOKE persona content (system_role) and combines it
     with GENERIC protocols and DYNAMIC context to create the full prompt.
@@ -508,13 +507,11 @@ def compose_persona_prompt(
     context = DELIBERATION_CONTEXT_TEMPLATE.format(
         problem_statement=problem_statement,
         participant_list=participant_list,
-        current_phase=current_phase
+        current_phase=current_phase,
     )
 
     # Build security addendum
-    security_task = SECURITY_ADDENDUM.format(
-        security_protocol=SECURITY_PROTOCOL
-    )
+    security_task = SECURITY_ADDENDUM.format(security_protocol=SECURITY_PROTOCOL)
 
     # Compose: BESPOKE + DYNAMIC + GENERIC
     return f"""{persona_system_role}
@@ -531,16 +528,14 @@ def compose_persona_prompt(
 
 
 def compose_facilitator_prompt(
-    current_phase: str,
-    discussion_history: str,
-    phase_objectives: str
+    current_phase: str, discussion_history: str, phase_objectives: str
 ) -> str:
     """Compose facilitator decision prompt."""
     return FACILITATOR_SYSTEM_TEMPLATE.format(
         current_phase=current_phase,
         discussion_history=discussion_history,
         phase_objectives=phase_objectives,
-        security_protocol=SECURITY_PROTOCOL
+        security_protocol=SECURITY_PROTOCOL,
     )
 
 
@@ -551,7 +546,7 @@ def compose_moderator_prompt(
     moderator_task_specific: str,
     problem_statement: str,
     discussion_excerpt: str,
-    trigger_reason: str
+    trigger_reason: str,
 ) -> str:
     """Compose moderator intervention prompt."""
     return MODERATOR_SYSTEM_TEMPLATE.format(
@@ -564,15 +559,12 @@ def compose_moderator_prompt(
         trigger_reason=trigger_reason,
         behavioral_guidelines=BEHAVIORAL_GUIDELINES,
         evidence_protocol=EVIDENCE_PROTOCOL,
-        security_protocol=SECURITY_PROTOCOL
+        security_protocol=SECURITY_PROTOCOL,
     )
 
 
 def compose_researcher_prompt(
-    problem_statement: str,
-    discussion_excerpt: str,
-    what_personas_need: str,
-    specific_query: str
+    problem_statement: str, discussion_excerpt: str, what_personas_need: str, specific_query: str
 ) -> str:
     """Compose research tool prompt."""
     return RESEARCHER_SYSTEM_TEMPLATE.format(
@@ -580,29 +572,21 @@ def compose_researcher_prompt(
         discussion_excerpt=discussion_excerpt,
         what_personas_need=what_personas_need,
         specific_query=specific_query,
-        security_protocol=SECURITY_PROTOCOL
+        security_protocol=SECURITY_PROTOCOL,
     )
 
 
-def compose_voting_prompt(
-    persona_name: str,
-    discussion_history: str
-) -> str:
+def compose_voting_prompt(persona_name: str, discussion_history: str) -> str:
     """Compose voting phase prompt."""
     return VOTING_PROMPT_TEMPLATE.format(
-        persona_name=persona_name,
-        discussion_history=discussion_history
+        persona_name=persona_name, discussion_history=discussion_history
     )
 
 
-def compose_synthesis_prompt(
-    problem_statement: str,
-    all_contributions_and_votes: str
-) -> str:
+def compose_synthesis_prompt(problem_statement: str, all_contributions_and_votes: str) -> str:
     """Compose final synthesis prompt."""
     return SYNTHESIS_PROMPT_TEMPLATE.format(
-        problem_statement=problem_statement,
-        all_contributions_and_votes=all_contributions_and_votes
+        problem_statement=problem_statement, all_contributions_and_votes=all_contributions_and_votes
     )
 
 
@@ -610,9 +594,9 @@ def compose_synthesis_prompt(
 # Response Prefilling Support
 # =============================================================================
 
+
 def get_prefill_text(persona_name: str) -> str:
-    """
-    Get the prefill text for response to maintain character consistency.
+    """Get the prefill text for response to maintain character consistency.
 
     According to the framework, prefilling helps maintain character by
     starting the assistant's response with the persona name and <thinking> tag.
@@ -638,7 +622,7 @@ if __name__ == "__main__":
         expertise_areas="financial modeling, ROI analysis, budget optimization, fundraising strategy",
         communication_style="analytical, data-driven, asks probing questions about numbers",
         problem_statement="Should we invest $500K in cloud migration?",
-        participant_list="Maria Santos (Financial Strategy), Tariq Osman (Security), Aria Hoffman (Engineering)"
+        participant_list="Maria Santos (Financial Strategy), Tariq Osman (Security), Aria Hoffman (Engineering)",
     )
 
     print("=== Example Framework-Aligned Persona Prompt ===\n")

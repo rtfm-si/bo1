@@ -13,7 +13,6 @@ import uuid
 from typing import Any
 
 import redis
-from pydantic import BaseModel
 
 from bo1.config import get_settings
 from bo1.models.state import DeliberationState

@@ -92,11 +92,13 @@ class Console:
         Args:
             problem: Problem to display
         """
-        self.console.print(Panel.fit(
-            f"[bold]{problem.title}[/bold]\n\n{problem.description}",
-            title="Problem Statement",
-            border_style="cyan",
-        ))
+        self.console.print(
+            Panel.fit(
+                f"[bold]{problem.title}[/bold]\n\n{problem.description}",
+                title="Problem Statement",
+                border_style="cyan",
+            )
+        )
 
         if problem.context:
             self.console.print(f"\n[dim]Context: {problem.context}[/dim]\n")
@@ -137,14 +139,18 @@ class Console:
         if sub_problem.dependencies:
             content += f"\n\n[bold]Dependencies:[/bold] {', '.join(sub_problem.dependencies)}"
 
-        self.console.print(Panel.fit(
-            content,
-            title=f"Sub-Problem: {sub_problem.id}",
-            border_style="yellow",
-        ))
+        self.console.print(
+            Panel.fit(
+                content,
+                title=f"Sub-Problem: {sub_problem.id}",
+                border_style="yellow",
+            )
+        )
         self.console.print()
 
-    def print_personas(self, personas: list[PersonaProfile], title: str = "Selected Personas") -> None:
+    def print_personas(
+        self, personas: list[PersonaProfile], title: str = "Selected Personas"
+    ) -> None:
         """Print selected personas.
 
         Args:
@@ -223,12 +229,14 @@ class Console:
         if tokens_used > 0:
             panel_content.append(f"\n[dim]Tokens: {tokens_used} | Cost: ${cost:.6f}[/dim]")
 
-        self.console.print(Panel(
-            "\n".join(panel_content),
-            title=title,
-            border_style=color,
-            padding=(1, 2),
-        ))
+        self.console.print(
+            Panel(
+                "\n".join(panel_content),
+                title=title,
+                border_style=color,
+                padding=(1, 2),
+            )
+        )
         self.console.print()
 
     def print_vote(self, vote: Vote) -> None:
@@ -252,12 +260,14 @@ class Console:
             for condition in vote.conditions:
                 content += f"\n  • {condition}"
 
-        self.console.print(Panel(
-            content,
-            title=f"{vote.persona_name} ({vote.persona_code})",
-            border_style=color,
-            padding=(1, 2),
-        ))
+        self.console.print(
+            Panel(
+                content,
+                title=f"{vote.persona_name} ({vote.persona_code})",
+                border_style=color,
+                padding=(1, 2),
+            )
+        )
 
     def print_votes_summary(self, votes: list[Vote]) -> None:
         """Print voting summary.
@@ -286,12 +296,14 @@ class Console:
         Args:
             synthesis: Synthesis text
         """
-        self.console.print(Panel(
-            Markdown(synthesis),
-            title="Final Synthesis",
-            border_style="green bold",
-            padding=(1, 2),
-        ))
+        self.console.print(
+            Panel(
+                Markdown(synthesis),
+                title="Final Synthesis",
+                border_style="green bold",
+                padding=(1, 2),
+            )
+        )
         self.console.print()
 
     def print_progress(self, message: str) -> None:

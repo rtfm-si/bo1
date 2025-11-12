@@ -52,7 +52,9 @@ async def test_basic_call(client):
 @pytest.mark.asyncio
 async def test_prompt_caching_creation(client):
     """Test that prompt caching creates cache on first call."""
-    system_prompt = "You are a strategic business advisor with 20 years of experience in SaaS startups."
+    system_prompt = (
+        "You are a strategic business advisor with 20 years of experience in SaaS startups."
+    )
 
     response, usage = await client.call(
         model="sonnet",
@@ -73,7 +75,9 @@ async def test_prompt_caching_creation(client):
 @pytest.mark.asyncio
 async def test_prompt_caching_hits(client):
     """Test that repeated calls with same system prompt hit cache."""
-    system_prompt = "You are a financial analyst specializing in SaaS business models and unit economics."
+    system_prompt = (
+        "You are a financial analyst specializing in SaaS business models and unit economics."
+    )
 
     # First call - creates cache
     response1, usage1 = await client.call(
@@ -100,7 +104,9 @@ async def test_prompt_caching_hits(client):
     assert usage2.cache_read_tokens > 0, "Second call should hit cache"
 
     # Cache hit rate should be significant
-    assert usage2.cache_hit_rate > 0.5, f"Cache hit rate should be >50%, got {usage2.cache_hit_rate}"
+    assert usage2.cache_hit_rate > 0.5, (
+        f"Cache hit rate should be >50%, got {usage2.cache_hit_rate}"
+    )
 
 
 @pytest.mark.asyncio
@@ -162,7 +168,7 @@ async def test_cache_cost_savings(client):
         max_tokens=200,
     )
 
-    cost1 = usage1.calculate_cost("sonnet")
+    _ = usage1.calculate_cost("sonnet")  # Just verify it doesn't error
 
     await asyncio.sleep(0.5)
 
@@ -175,7 +181,7 @@ async def test_cache_cost_savings(client):
         max_tokens=200,
     )
 
-    cost2 = usage2.calculate_cost("sonnet")
+    _ = usage2.calculate_cost("sonnet")  # Just verify it doesn't error
 
     # Second call should be cheaper due to cache
     if usage2.cache_read_tokens > 0:
@@ -184,7 +190,9 @@ async def test_cache_cost_savings(client):
         actual_cache_cost = (usage2.cache_read_tokens / 1_000_000) * 0.30  # Cache read rate
 
         savings_pct = (1 - actual_cache_cost / hypothetical_cost) * 100
-        assert savings_pct > 80, f"Cache should save >80% on cached tokens, saved {savings_pct:.1f}%"
+        assert savings_pct > 80, (
+            f"Cache should save >80% on cached tokens, saved {savings_pct:.1f}%"
+        )
 
 
 @pytest.mark.asyncio
@@ -234,11 +242,15 @@ if __name__ == "__main__":
                 max_tokens=20,
             )
             print(f"   ✅ Response: {response[:50]}")
-            print(f"   📊 Tokens: {usage.total_tokens} | Cost: ${usage.calculate_cost('haiku'):.6f}\n")
+            print(
+                f"   📊 Tokens: {usage.total_tokens} | Cost: ${usage.calculate_cost('haiku'):.6f}\n"
+            )
 
             # Test 2: Caching
             print("2️⃣  Testing prompt caching...")
-            system = "You are a business advisor with expertise in SaaS metrics and growth strategies."
+            system = (
+                "You are a business advisor with expertise in SaaS metrics and growth strategies."
+            )
 
             response1, usage1 = await client.call(
                 model="sonnet",

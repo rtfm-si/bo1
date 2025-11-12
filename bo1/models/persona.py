@@ -80,21 +80,15 @@ class PersonaProfile(BaseModel):
     default_weight: float = Field(
         ..., ge=0.0, le=2.0, description="Default voting weight (0-2, typically 0.8-1.2)"
     )
-    temperature: float = Field(
-        ..., ge=0.0, le=2.0, description="LLM temperature for this persona"
-    )
+    temperature: float = Field(..., ge=0.0, le=2.0, description="LLM temperature for this persona")
     system_prompt: str = Field(
         ...,
         description="Bespoke system prompt defining persona's identity and role (XML format)",
     )
     response_style: ResponseStyle = Field(..., description="Communication style")
     is_active: bool = Field(default=True, description="Whether this persona is available for use")
-    persona_type: PersonaType = Field(
-        default=PersonaType.STANDARD, description="Type of persona"
-    )
-    is_visible: bool = Field(
-        default=True, description="Whether this persona is visible in UI"
-    )
+    persona_type: PersonaType = Field(default=PersonaType.STANDARD, description="Type of persona")
+    is_visible: bool = Field(default=True, description="Whether this persona is visible in UI")
     display_name: str = Field(..., description="Short display name (e.g., 'Zara')")
     domain_expertise: list[str] | str = Field(
         ..., description="Areas of domain expertise (can be list or postgres array string)"

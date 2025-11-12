@@ -13,15 +13,15 @@
   - Day 3-4: LLM Client ✅
   - Day 5-6: Redis & State ✅
   - Day 7: Integration Test ✅
-- **Week 2**: Core Deliberation Flow (21/21 + **42 new** = 63 tasks)
+- **Week 2**: Core Deliberation Flow (21/21 + **58 new** = 79 tasks)
   - Day 8-9: Problem Decomposition ✅
   - Day 10-11: Persona Selection & Initial Round ✅
-  - **Day 11.5: Prompt Broker Infrastructure** ⚠️ **NEW - 0/42 tasks**
+  - **Day 11.5: Prompt Broker Infrastructure** ⚠️ **NEW - 0/58 tasks**
   - Day 12-13: Multi-Round Deliberation (0/21 tasks)
   - Day 14: Voting & Synthesis (0/21 tasks)
 - **Week 3**: Cost Optimization & Summarization (0/19 tasks)
 - **Week 4**: Quality & Adaptive Stopping (0/18 tasks)
-- **Total**: 77/156 tasks complete (49%)
+- **Total**: 77/172 tasks complete (45%)
 
 ---
 
@@ -282,6 +282,37 @@
 ### Day 11.5: Prompt Broker Infrastructure ⚠️ **NEW - CRITICAL**
 **Value**: Centralized, robust LLM interaction layer (prevents future issues like JSON prefill bugs)
 
+#### Standardized Response Model
+- [ ] Create `bo1/models/llm_response.py`
+  - [ ] `LLMResponse` Pydantic model
+    - [ ] content: str (the actual response text)
+    - [ ] Token breakdown:
+      - [ ] tokens_input: int
+      - [ ] tokens_output: int
+      - [ ] tokens_cache_write: int (cache creation)
+      - [ ] tokens_cache_read: int (cache hits)
+    - [ ] Cost breakdown in USD:
+      - [ ] cost_input: float
+      - [ ] cost_output: float
+      - [ ] cost_cache_write: float
+      - [ ] cost_cache_read: float
+      - [ ] cost_total: float
+    - [ ] Performance metrics:
+      - [ ] duration_ms: float
+      - [ ] cache_hit_rate: float (0.0-1.0)
+    - [ ] Request metadata:
+      - [ ] request_id: str
+      - [ ] model: str
+      - [ ] timestamp: datetime
+      - [ ] retry_count: int
+    - [ ] Computed properties:
+      - [ ] total_tokens property
+      - [ ] cache_savings property ($ saved via caching)
+  - [ ] Helper methods:
+    - [ ] to_dict() - Export as dictionary
+    - [ ] to_json() - Export as JSON string
+    - [ ] format_summary() - Human-readable summary
+
 #### Prompt Broker Core
 - [ ] Create `bo1/prompts/broker.py`
   - [ ] `PromptRequest` Pydantic model
@@ -291,13 +322,15 @@
     - [ ] temperature: float = 1.0
     - [ ] max_tokens: int = 4096
   - [ ] `PromptBroker` class
-    - [ ] `call()` method - Single point for all Claude API calls
+    - [ ] `call()` method - Returns `LLMResponse` with full metrics
     - [ ] Automatic prefill handling (prepend to response)
     - [ ] Smart caching with cache_control markers
     - [ ] Retry logic with exponential backoff
     - [ ] Rate limit handling (429 errors)
-    - [ ] Request logging and metrics
+    - [ ] Request logging and metrics tracking
     - [ ] Error normalization
+    - [ ] Duration tracking (start to finish)
+    - [ ] Automatic cost calculation for all token types
 
 #### Retry & Rate Limit Handling
 - [ ] Create `bo1/prompts/retry.py`
@@ -317,21 +350,32 @@
     - [ ] Handle 429 status codes
     - [ ] Extract Retry-After if present
 
-#### Observability
+#### Observability & Aggregation
 - [ ] Create `bo1/monitoring/request_tracker.py`
-  - [ ] `RequestMetrics` dataclass
-    - [ ] request_id: str
-    - [ ] model: str
-    - [ ] tokens: TokenUsage
-    - [ ] cost: float
-    - [ ] latency_ms: float
-    - [ ] cache_hit_rate: float
-    - [ ] retry_count: int
-    - [ ] error: str | None
   - [ ] `RequestTracker` class
-    - [ ] Log all requests with metrics
-    - [ ] Export to JSON for analysis
-    - [ ] Track aggregate stats per session
+    - [ ] Track all `LLMResponse` objects
+    - [ ] Log each request with full metrics
+    - [ ] Export individual requests to JSON
+    - [ ] Real-time logging (structured logs)
+- [ ] Create `bo1/monitoring/deliberation_metrics.py`
+  - [ ] `DeliberationMetrics` class
+    - [ ] Aggregate multiple `LLMResponse` objects
+    - [ ] responses: list[LLMResponse]
+    - [ ] Computed aggregates:
+      - [ ] total_cost property
+      - [ ] total_tokens property
+      - [ ] avg_cache_hit_rate property
+      - [ ] total_cache_savings property
+      - [ ] total_duration_ms property
+      - [ ] total_retry_count property
+    - [ ] `export_report()` method
+      - [ ] Total cost breakdown (input/output/cache)
+      - [ ] Token breakdown (input/output/cache)
+      - [ ] Efficiency metrics (cache rate, savings, avg duration)
+      - [ ] Request count and retry stats
+      - [ ] Per-agent breakdown (decomposer, selector, facilitator, etc.)
+    - [ ] `export_csv()` method for analysis
+    - [ ] `export_json()` method for archival
 
 #### Modular Prompt Templates
 - [ ] Create `bo1/prompts/templates.py`
@@ -346,39 +390,96 @@
     - [ ] `THINKING_TAG_PREFILL = "<thinking>"`
     - [ ] `CONTRIBUTION_TAG_PREFILL = "<contribution>"`
 
+#### Console Display Updates
+- [ ] Update `bo1/ui/console.py`
+  - [ ] `print_llm_response()` method
+    - [ ] Display LLMResponse metrics in Rich table
+    - [ ] Show cost breakdown (input/output/cache)
+    - [ ] Show token breakdown
+    - [ ] Show cache hit rate and savings
+    - [ ] Show duration and retries
+  - [ ] `print_deliberation_metrics()` method
+    - [ ] Display aggregated DeliberationMetrics
+    - [ ] Total cost with breakdown
+    - [ ] Total tokens with breakdown
+    - [ ] Cache efficiency stats
+    - [ ] Performance stats (avg duration, retries)
+    - [ ] Per-phase breakdown (decomposition, selection, deliberation, synthesis)
+  - [ ] Update existing `print_llm_cost()` to use LLMResponse
+    - [ ] Deprecate old tuple-based approach
+    - [ ] Use rich LLMResponse data
+
 #### Migration Plan
 - [ ] Migrate `DecomposerAgent` to use PromptBroker (proof of concept)
-  - [ ] Replace direct `ClaudeClient.call()` with `PromptBroker.call()`
+  - [ ] Replace `decompose_problem()` return: `(dict, TokenUsage, cost)` → `LLMResponse`
   - [ ] Use `PromptRequest` for structured requests
   - [ ] Verify retry logic works
   - [ ] Verify prefill works correctly
+  - [ ] Parse `response.content` for decomposition JSON
+  - [ ] Update tests to use `LLMResponse`
 - [ ] Migrate `PersonaSelectorAgent` to use PromptBroker
-- [ ] Update `ClaudeClient` to integrate with PromptBroker
+  - [ ] Replace `recommend_personas()` return: `(dict, TokenUsage, cost)` → `LLMResponse`
+  - [ ] Use `PromptRequest` for structured requests
+  - [ ] Parse `response.content` for recommendation JSON
+  - [ ] Update tests to use `LLMResponse`
+- [ ] Update `DeliberationEngine` to track metrics
+  - [ ] Add `metrics: DeliberationMetrics` field
+  - [ ] Collect all `LLMResponse` objects
+  - [ ] Aggregate at end of deliberation
+  - [ ] Export detailed cost report
+- [ ] Update `demo.py` to display metrics
+  - [ ] Show per-phase costs (decomposition, selection, deliberation)
+  - [ ] Show final aggregated metrics
+  - [ ] Use `print_deliberation_metrics()`
+- [ ] Update `ClaudeClient` integration
   - [ ] PromptBroker wraps ClaudeClient
   - [ ] ClaudeClient remains low-level API wrapper
   - [ ] PromptBroker provides high-level orchestration
+  - [ ] All metrics calculated in PromptBroker layer
 
 #### Testing
+- [ ] Test: LLMResponse model
+  - [ ] Verify all fields populate correctly
+  - [ ] Verify computed properties (total_tokens, cache_savings)
+  - [ ] Verify serialization (to_dict, to_json)
+  - [ ] Verify cost calculations accurate
+- [ ] Test: DeliberationMetrics aggregation
+  - [ ] Add multiple LLMResponse objects
+  - [ ] Verify totals correct
+  - [ ] Verify averages correct
+  - [ ] Verify export_report() complete
 - [ ] Test: Retry logic with simulated failures
   - [ ] Mock API to return 500 errors
   - [ ] Verify exponential backoff
   - [ ] Verify max retries respected
+  - [ ] Verify retry_count in LLMResponse
 - [ ] Test: Rate limit handling
   - [ ] Mock API to return 429 with Retry-After
   - [ ] Verify backoff respects Retry-After
   - [ ] Verify eventual success after rate limit clears
-- [ ] Test: Request metrics tracking
-  - [ ] Verify all fields populated
-  - [ ] Verify metrics export works
+  - [ ] Verify duration_ms includes retry time
+- [ ] Test: Cost tracking accuracy
+  - [ ] Verify cost_input calculation
+  - [ ] Verify cost_output calculation
+  - [ ] Verify cost_cache_write calculation
+  - [ ] Verify cost_cache_read calculation
+  - [ ] Verify cost_total matches sum
+  - [ ] Verify cache_savings calculation
 - [ ] Test: Prefill handling
   - [ ] JSON prefill prepended to response
   - [ ] Thinking tag prefill works
   - [ ] Response parsing correct
+  - [ ] Content includes prefill
 - [ ] Test: Template builder
   - [ ] Fluent API works
   - [ ] Components compose correctly
+- [ ] Test: End-to-end with migration
+  - [ ] Decomposer returns LLMResponse
+  - [ ] Selector returns LLMResponse
+  - [ ] Metrics aggregate correctly
+  - [ ] Console displays metrics correctly
 
-**Output**: ✅ Robust, centralized LLM interaction layer ready for all future agents
+**Output**: ✅ Robust, centralized LLM interaction layer with comprehensive cost tracking ready for all future agents
 
 **Dependencies**: Required before Day 12-13 (Multi-Round Deliberation)
 
@@ -1003,10 +1104,10 @@
 | Day | Milestone | Demo-able? | Tasks Complete | Value |
 |-----|-----------|------------|----------------|-------|
 | **7** | Foundation ready | ✅ | 56/56 | Enable all future work |
-| **11.5** | Prompt Broker ready | 🔄 | 0/42 | Robust LLM orchestration |
-| **14** | End-to-end MVP | ⏳ | 77/119 | **Can demo to users** |
-| **21** | Cost-optimized | ⏳ | 96/138 | 70% cost reduction |
-| **28** | Production-ready | ⏳ | 156/156 | **Ready to ship** |
+| **11.5** | Prompt Broker ready | 🔄 | 0/58 | Robust LLM orchestration + metrics |
+| **14** | End-to-end MVP | ⏳ | 77/135 | **Can demo to users** |
+| **21** | Cost-optimized | ⏳ | 96/154 | 70% cost reduction |
+| **28** | Production-ready | ⏳ | 172/172 | **Ready to ship** |
 
 ---
 
@@ -1024,4 +1125,4 @@
 **Last Updated**: 2025-11-12
 **Current Phase**: Week 2 - Days 8-11 Complete ✅ - **NEXT: Day 11.5 (Prompt Broker)** ⚠️
 **Blockers**: None (Prompt Broker is new task, not a blocker - enhances robustness)
-**Note**: Prompt Broker (Day 11.5) is NEW infrastructure task added after JSON prefill issues discovered in production. It centralizes LLM interaction, retry logic, rate limiting, and observability. All future agents (Days 12-14) will use PromptBroker for consistency.
+**Note**: Prompt Broker (Day 11.5) is NEW infrastructure task added after JSON prefill issues discovered in production. It centralizes LLM interaction, retry logic, rate limiting, and comprehensive cost tracking. All future agents (Days 12-14) will use PromptBroker and return standardized LLMResponse objects with full metrics (tokens, costs, duration, cache stats).

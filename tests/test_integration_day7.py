@@ -14,7 +14,6 @@ Run with: pytest tests/test_integration_day7.py -v
 """
 
 import asyncio
-from datetime import datetime
 
 import pytest
 
@@ -22,8 +21,8 @@ from bo1.config import get_settings
 from bo1.data import get_persona_by_code, load_personas
 from bo1.llm import ClaudeClient
 from bo1.models.persona import PersonaProfile
-from bo1.models.problem import Constraint, Problem, SubProblem
-from bo1.models.state import ContributionMessage, DeliberationState
+from bo1.models.problem import Constraint, ConstraintType, Problem, SubProblem
+from bo1.models.state import ContributionMessage, DeliberationPhase, DeliberationState
 from bo1.prompts.reusable_prompts import compose_persona_prompt
 from bo1.state.redis_manager import RedisManager
 from bo1.state.serialization import to_json, to_markdown
@@ -48,7 +47,6 @@ def redis_manager(settings):
         host=settings.redis_host,
         port=settings.redis_port,
         db=settings.redis_db,
-        password=settings.redis_password,
     )
 
 
@@ -61,12 +59,12 @@ def sample_problem():
         context="Early-stage B2B SaaS, currently at $10K MRR, 6-month runway",
         constraints=[
             Constraint(
-                type="budget",
+                type=ConstraintType.BUDGET,
                 description="Total marketing budget",
                 value="$50,000",
             ),
             Constraint(
-                type="timeline",
+                type=ConstraintType.TIME,
                 description="Decision needed within",
                 value="2 weeks",
             ),
@@ -78,6 +76,7 @@ def sample_problem():
 def sample_sub_problem(sample_problem):
     """Create a sample sub-problem for testing."""
     return SubProblem(
+        id="sp_001",
         goal="Determine ROI and risk profile for each channel",
         context=f"{sample_problem.description}\n{sample_problem.context}",
         complexity_score=6,
@@ -89,20 +88,20 @@ def sample_sub_problem(sample_problem):
 def sample_deliberation_state(sample_problem, sample_sub_problem):
     """Create a sample deliberation state."""
     # Load a few personas
-    maria = PersonaProfile(**get_persona_by_code("growth_hacker"))
-    zara = PersonaProfile(**get_persona_by_code("finance_strategist"))
+    maria_data = get_persona_by_code("growth_hacker")
+    zara_data = get_persona_by_code("finance_strategist")
+
+    if maria_data and zara_data:
+        selected_personas = [PersonaProfile(**maria_data), PersonaProfile(**zara_data)]
+    else:
+        selected_personas = []
 
     return DeliberationState(
         session_id="test-integration-001",
         problem=sample_problem,
-        sub_problems=[sample_sub_problem],
-        current_sub_problem_index=0,
-        personas=[maria, zara],
-        messages=[],
-        phase="discussion",
-        round_number=0,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
+        selected_personas=selected_personas,
+        current_sub_problem=sample_sub_problem,
+        phase=DeliberationPhase.DISCUSSION,
     )
 
 
@@ -126,7 +125,7 @@ async def test_week1_integration_full_pipeline(
     assert "system_prompt" in maria_data, "Persona should have system_prompt"
 
     maria = PersonaProfile(**maria_data)
-    print(f"   ✅ Loaded {maria.name} ({maria.role})")
+    print(f"   ✅ Loaded {maria.name} ({maria.archetype})")
 
     # Step 2: Compose persona prompt using compose_persona_prompt()
     print("\n2️⃣  Composing persona prompt...")
@@ -141,8 +140,8 @@ async def test_week1_integration_full_pipeline(
 
     assert len(system_prompt) > 500, "Composed prompt should be substantial"
     assert maria.name in system_prompt or "growth" in system_prompt.lower()
-    assert "BEHAVIORAL_GUIDELINES" in system_prompt
-    assert "EVIDENCE_PROTOCOL" in system_prompt
+    assert "<behavioral_guidelines>" in system_prompt
+    assert "<evidence_protocol>" in system_prompt
     print(f"   ✅ Composed prompt: {len(system_prompt)} characters")
 
     # Step 3: Make LLM call with prompt caching
@@ -170,19 +169,16 @@ async def test_week1_integration_full_pipeline(
 
     # Save first contribution to state
     contribution1 = ContributionMessage(
-        persona=maria,
+        persona_code=maria.code,
+        persona_name=maria.display_name,
         content=response1,
+        thinking=None,
         round_number=1,
-        timestamp=datetime.now(),
-        token_usage={
-            "input_tokens": usage1.input_tokens,
-            "output_tokens": usage1.output_tokens,
-            "cache_creation_tokens": usage1.cache_creation_tokens,
-            "cache_read_tokens": usage1.cache_read_tokens,
-        },
+        token_count=usage1.total_tokens,
+        cost=usage1.calculate_cost("sonnet"),
     )
-    sample_deliberation_state.messages.append(contribution1)
-    sample_deliberation_state.round_number = 1
+    sample_deliberation_state.add_contribution(contribution1)
+    sample_deliberation_state.current_round = 1
 
     # Step 4: Verify cache hit on second call
     print("\n4️⃣  Making second LLM call (should hit cache)...")
@@ -230,12 +226,12 @@ async def test_week1_integration_full_pipeline(
     loaded_state = await redis_manager.load_state(session_id)
     assert loaded_state is not None, "Should load state from Redis"
     assert loaded_state.session_id == session_id
-    assert loaded_state.round_number == 1
-    assert len(loaded_state.messages) == 1
-    assert loaded_state.messages[0].persona.code == maria.code
+    assert loaded_state.current_round == 1
+    assert len(loaded_state.contributions) == 1
+    assert loaded_state.contributions[0].persona_code == maria.code
     print(f"   ✅ Loaded from Redis: {loaded_state.session_id}")
-    print(f"   📝 Round: {loaded_state.round_number}")
-    print(f"   💬 Messages: {len(loaded_state.messages)}")
+    print(f"   📝 Round: {loaded_state.current_round}")
+    print(f"   💬 Contributions: {len(loaded_state.contributions)}")
 
     # Step 7: Export transcript to Markdown
     print("\n7️⃣  Exporting transcript to Markdown...")
@@ -256,7 +252,7 @@ async def test_week1_integration_full_pipeline(
     print("\n8️⃣  Final validation...")
     assert loaded_state.session_id == sample_deliberation_state.session_id
     assert loaded_state.problem.title == sample_deliberation_state.problem.title
-    assert len(loaded_state.personas) == len(sample_deliberation_state.personas)
+    assert len(loaded_state.selected_personas) == len(sample_deliberation_state.selected_personas)
     assert loaded_state.phase == sample_deliberation_state.phase
 
     print("   ✅ All components integrate correctly!")
@@ -278,7 +274,7 @@ def test_persona_data_quality():
         # Required fields
         assert "code" in persona_data, f"Persona missing code: {persona_data}"
         assert "name" in persona_data, f"Persona missing name: {persona_data}"
-        assert "role" in persona_data, f"Persona missing role: {persona_data}"
+        assert "archetype" in persona_data, f"Persona missing archetype: {persona_data}"
         assert "system_prompt" in persona_data, f"Persona missing system_prompt: {persona_data}"
 
         # Validate system_prompt is substantial (bespoke content)
@@ -289,7 +285,7 @@ def test_persona_data_quality():
 
         # Ensure system_prompt doesn't contain generic protocols
         # (those should be added via compose_persona_prompt)
-        assert "BEHAVIORAL_GUIDELINES" not in system_prompt, (
+        assert "<behavioral_guidelines>" not in system_prompt, (
             f"Persona {persona_data['code']} should not include generic protocols in system_prompt"
         )
 
@@ -305,6 +301,7 @@ def test_prompt_composition_modularity():
 
     # Load a persona
     maria_data = get_persona_by_code("growth_hacker")
+    assert maria_data is not None, "Should find growth_hacker persona"
     maria = PersonaProfile(**maria_data)
 
     # Compose prompt
@@ -320,9 +317,9 @@ def test_prompt_composition_modularity():
     assert "growth" in system_prompt.lower() or maria.name in system_prompt
 
     # 2. Generic protocols (from reusable_prompts.py)
-    assert "BEHAVIORAL_GUIDELINES" in system_prompt
-    assert "EVIDENCE_PROTOCOL" in system_prompt
-    assert "COMMUNICATION_PROTOCOL" in system_prompt
+    assert "<behavioral_guidelines>" in system_prompt
+    assert "<evidence_protocol>" in system_prompt
+    assert "<communication_protocol>" in system_prompt
 
     # 3. Dynamic context (problem statement)
     assert "Should we pivot to B2B or stay B2C?" in system_prompt
@@ -337,7 +334,7 @@ if __name__ == "__main__":
     """Run integration tests manually for quick verification."""
     import sys
 
-    async def main():
+    async def main() -> int:
         """Run integration tests."""
         print("🧪 Running Week 1 Integration Tests...\n")
 
@@ -347,14 +344,11 @@ if __name__ == "__main__":
             host=settings.redis_host,
             port=settings.redis_port,
             db=settings.redis_db,
-            password=settings.redis_password,
         )
 
         # Create sample state
         maria_data = get_persona_by_code("growth_hacker")
         zara_data = get_persona_by_code("finance_strategist")
-        maria = PersonaProfile(**maria_data)
-        zara = PersonaProfile(**zara_data)
 
         problem = Problem(
             title="Test Problem",
@@ -364,23 +358,24 @@ if __name__ == "__main__":
         )
 
         sub_problem = SubProblem(
+            id="sp_001",
             goal="Determine best channel",
             context="Limited budget",
             complexity_score=5,
             dependencies=[],
         )
 
+        if maria_data and zara_data:
+            selected_personas = [PersonaProfile(**maria_data), PersonaProfile(**zara_data)]
+        else:
+            selected_personas = []
+
         state = DeliberationState(
             session_id="manual-test-001",
             problem=problem,
-            sub_problems=[sub_problem],
-            current_sub_problem_index=0,
-            personas=[maria, zara],
-            messages=[],
-            phase="discussion",
-            round_number=0,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            selected_personas=selected_personas,
+            current_sub_problem=sub_problem,
+            phase=DeliberationPhase.DISCUSSION,
         )
 
         try:

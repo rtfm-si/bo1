@@ -13,10 +13,15 @@
   - Day 3-4: LLM Client ✅
   - Day 5-6: Redis & State ✅
   - Day 7: Integration Test ✅
-- **Week 2**: Core Deliberation Flow (21/21 tasks)
+- **Week 2**: Core Deliberation Flow (21/21 + **42 new** = 63 tasks)
+  - Day 8-9: Problem Decomposition ✅
+  - Day 10-11: Persona Selection & Initial Round ✅
+  - **Day 11.5: Prompt Broker Infrastructure** ⚠️ **NEW - 0/42 tasks**
+  - Day 12-13: Multi-Round Deliberation (0/21 tasks)
+  - Day 14: Voting & Synthesis (0/21 tasks)
 - **Week 3**: Cost Optimization & Summarization (0/19 tasks)
 - **Week 4**: Quality & Adaptive Stopping (0/18 tasks)
-- **Total**: 77/114 tasks complete (68%)
+- **Total**: 77/156 tasks complete (49%)
 
 ---
 
@@ -274,8 +279,115 @@
 
 ---
 
+### Day 11.5: Prompt Broker Infrastructure ⚠️ **NEW - CRITICAL**
+**Value**: Centralized, robust LLM interaction layer (prevents future issues like JSON prefill bugs)
+
+#### Prompt Broker Core
+- [ ] Create `bo1/prompts/broker.py`
+  - [ ] `PromptRequest` Pydantic model
+    - [ ] system: str | list[str] (system prompt components)
+    - [ ] user: str (user message)
+    - [ ] prefill: str | None (JSON "{", thinking tags, etc.)
+    - [ ] temperature: float = 1.0
+    - [ ] max_tokens: int = 4096
+  - [ ] `PromptBroker` class
+    - [ ] `call()` method - Single point for all Claude API calls
+    - [ ] Automatic prefill handling (prepend to response)
+    - [ ] Smart caching with cache_control markers
+    - [ ] Retry logic with exponential backoff
+    - [ ] Rate limit handling (429 errors)
+    - [ ] Request logging and metrics
+    - [ ] Error normalization
+
+#### Retry & Rate Limit Handling
+- [ ] Create `bo1/prompts/retry.py`
+  - [ ] `RetryPolicy` dataclass
+    - [ ] max_retries: int = 3
+    - [ ] base_delay: float = 1.0
+    - [ ] max_delay: float = 60.0
+    - [ ] backoff_factor: float = 2.0
+    - [ ] retryable_errors: list (overloaded, rate_limit, timeout)
+  - [ ] `retry_with_backoff()` decorator
+    - [ ] Exponential backoff: delay = base_delay * (backoff_factor ** attempt)
+    - [ ] Jitter: Add random 0-1s to prevent thundering herd
+    - [ ] Respect Retry-After header from 429 responses
+    - [ ] Log retry attempts
+  - [ ] Rate limit detection
+    - [ ] Parse error_type from Claude API errors
+    - [ ] Handle 429 status codes
+    - [ ] Extract Retry-After if present
+
+#### Observability
+- [ ] Create `bo1/monitoring/request_tracker.py`
+  - [ ] `RequestMetrics` dataclass
+    - [ ] request_id: str
+    - [ ] model: str
+    - [ ] tokens: TokenUsage
+    - [ ] cost: float
+    - [ ] latency_ms: float
+    - [ ] cache_hit_rate: float
+    - [ ] retry_count: int
+    - [ ] error: str | None
+  - [ ] `RequestTracker` class
+    - [ ] Log all requests with metrics
+    - [ ] Export to JSON for analysis
+    - [ ] Track aggregate stats per session
+
+#### Modular Prompt Templates
+- [ ] Create `bo1/prompts/templates.py`
+  - [ ] `SystemPromptBuilder` class (fluent API)
+    - [ ] `with_role(role: str)` - Add persona role
+    - [ ] `with_protocol(protocol: str)` - Add behavioral guidelines
+    - [ ] `with_examples(examples: list)` - Add few-shot examples
+    - [ ] `with_constraints(constraints: str)` - Add safety/scope limits
+    - [ ] `build() -> str` - Compose final prompt
+  - [ ] Common prefills as constants
+    - [ ] `JSON_PREFILL = "{"`
+    - [ ] `THINKING_TAG_PREFILL = "<thinking>"`
+    - [ ] `CONTRIBUTION_TAG_PREFILL = "<contribution>"`
+
+#### Migration Plan
+- [ ] Migrate `DecomposerAgent` to use PromptBroker (proof of concept)
+  - [ ] Replace direct `ClaudeClient.call()` with `PromptBroker.call()`
+  - [ ] Use `PromptRequest` for structured requests
+  - [ ] Verify retry logic works
+  - [ ] Verify prefill works correctly
+- [ ] Migrate `PersonaSelectorAgent` to use PromptBroker
+- [ ] Update `ClaudeClient` to integrate with PromptBroker
+  - [ ] PromptBroker wraps ClaudeClient
+  - [ ] ClaudeClient remains low-level API wrapper
+  - [ ] PromptBroker provides high-level orchestration
+
+#### Testing
+- [ ] Test: Retry logic with simulated failures
+  - [ ] Mock API to return 500 errors
+  - [ ] Verify exponential backoff
+  - [ ] Verify max retries respected
+- [ ] Test: Rate limit handling
+  - [ ] Mock API to return 429 with Retry-After
+  - [ ] Verify backoff respects Retry-After
+  - [ ] Verify eventual success after rate limit clears
+- [ ] Test: Request metrics tracking
+  - [ ] Verify all fields populated
+  - [ ] Verify metrics export works
+- [ ] Test: Prefill handling
+  - [ ] JSON prefill prepended to response
+  - [ ] Thinking tag prefill works
+  - [ ] Response parsing correct
+- [ ] Test: Template builder
+  - [ ] Fluent API works
+  - [ ] Components compose correctly
+
+**Output**: ✅ Robust, centralized LLM interaction layer ready for all future agents
+
+**Dependencies**: Required before Day 12-13 (Multi-Round Deliberation)
+
+---
+
 ### Day 12-13: Multi-Round Deliberation
 **Value**: Iterative debate with context management
+
+**⚠️ Prerequisite**: Day 11.5 (Prompt Broker) must be complete
 
 #### Facilitator Agent
 - [ ] Create `bo1/agents/facilitator.py`
@@ -283,6 +395,7 @@
   - [ ] `decide_next_action()` method
   - [ ] Options: continue, vote, research (research deferred to Week 4)
   - [ ] Use FACILITATOR_SYSTEM_TEMPLATE from reusable_prompts.py
+  - [ ] **Use PromptBroker for all LLM calls** (with retry/rate limit handling)
   - [ ] Parse facilitator decision (XML or structured output)
 
 #### Round Management
@@ -302,6 +415,7 @@
   - [ ] `ModeratorAgent` class
   - [ ] Three types: contrarian, skeptic, optimist
   - [ ] Use MODERATOR_SYSTEM_TEMPLATE from reusable_prompts.py
+  - [ ] **Use PromptBroker for all LLM calls** (consistent error handling)
 - [ ] Simple trigger logic
   - [ ] Every 5 rounds: invoke contrarian (prevent groupthink)
   - [ ] Track moderators used (don't repeat)
@@ -324,6 +438,7 @@
 - [ ] Create `bo1/orchestration/voting.py`
   - [ ] `collect_votes()` function
   - [ ] Each persona votes using VOTING_PROMPT_TEMPLATE
+  - [ ] **Use PromptBroker for all voting LLM calls**
   - [ ] Collect: decision, reasoning, confidence, conditions
   - [ ] Save votes to DeliberationState
 - [ ] Vote aggregation
@@ -336,6 +451,7 @@
 #### Synthesis
 - [ ] Update `FacilitatorAgent` with `synthesize_deliberation()` method
   - [ ] Use SYNTHESIS_PROMPT_TEMPLATE from reusable_prompts.py
+  - [ ] **Use PromptBroker for synthesis LLM call**
   - [ ] Input: Full discussion + all votes
   - [ ] Output: Comprehensive synthesis report
   - [ ] Include: executive summary, recommendation, rationale, dissenting views, implementation considerations, confidence assessment
@@ -373,6 +489,7 @@
 - [ ] Create `bo1/agents/summarizer.py`
   - [ ] `SummarizerAgent` class
   - [ ] Use Haiku 4.5 model
+  - [ ] **Use PromptBroker for summarization calls**
   - [ ] `summarize_round()` method
   - [ ] Target: 100-150 token summaries
   - [ ] Use compose_summarization_request()
@@ -419,8 +536,11 @@
 **Value**: 90% cost reduction on cached tokens
 
 #### Cache Breakpoints
-- [ ] Update `ClaudeClient` to support cache_control
-- [ ] Mark generic protocols for caching
+- [ ] Update `PromptBroker` to support advanced cache_control
+  - [ ] Accept cache_strategy parameter
+  - [ ] Mark generic protocols for caching (via strategy)
+- [ ] Cache strategies
+  - [ ] DEFAULT_CACHE: System prompt + problem statement
   - [ ] BEHAVIORAL_GUIDELINES (cache)
   - [ ] EVIDENCE_PROTOCOL (cache)
   - [ ] COMMUNICATION_PROTOCOL (cache)
@@ -883,9 +1003,10 @@
 | Day | Milestone | Demo-able? | Tasks Complete | Value |
 |-----|-----------|------------|----------------|-------|
 | **7** | Foundation ready | ✅ | 56/56 | Enable all future work |
-| **14** | End-to-end MVP | ✅ | 77/77 | **Can demo to users** |
-| **21** | Cost-optimized | ✅ | 96/96 | 70% cost reduction |
-| **28** | Production-ready | ✅ | 114/114 | **Ready to ship** |
+| **11.5** | Prompt Broker ready | 🔄 | 0/42 | Robust LLM orchestration |
+| **14** | End-to-end MVP | ⏳ | 77/119 | **Can demo to users** |
+| **21** | Cost-optimized | ⏳ | 96/138 | 70% cost reduction |
+| **28** | Production-ready | ⏳ | 156/156 | **Ready to ship** |
 
 ---
 
@@ -901,5 +1022,6 @@
 ---
 
 **Last Updated**: 2025-11-12
-**Current Phase**: Week 2 - Days 8-11 Complete ✅ - Ready for Day 12-13 (Multi-Round Deliberation)
-**Blockers**: None
+**Current Phase**: Week 2 - Days 8-11 Complete ✅ - **NEXT: Day 11.5 (Prompt Broker)** ⚠️
+**Blockers**: None (Prompt Broker is new task, not a blocker - enhances robustness)
+**Note**: Prompt Broker (Day 11.5) is NEW infrastructure task added after JSON prefill issues discovered in production. It centralizes LLM interaction, retry logic, rate limiting, and observability. All future agents (Days 12-14) will use PromptBroker for consistency.

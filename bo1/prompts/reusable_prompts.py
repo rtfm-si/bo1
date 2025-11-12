@@ -616,13 +616,17 @@ def get_prefill_text(persona_name: str) -> str:
 
 if __name__ == "__main__":
     # Example: Compose a persona prompt
+    example_system_role = """<system_role>
+You are Maria Santos, a financial strategy advisor who helps founders make data-driven investment decisions.
+Your expertise includes financial modeling, ROI analysis, budget optimization, and fundraising strategy.
+You are analytical, data-driven, and ask probing questions about numbers.
+</system_role>"""
+
     example_prompt = compose_persona_prompt(
-        persona_name="Maria Santos",
-        persona_description="a financial strategy advisor who helps founders make data-driven investment decisions",
-        expertise_areas="financial modeling, ROI analysis, budget optimization, fundraising strategy",
-        communication_style="analytical, data-driven, asks probing questions about numbers",
+        persona_system_role=example_system_role,
         problem_statement="Should we invest $500K in cloud migration?",
         participant_list="Maria Santos (Financial Strategy), Tariq Osman (Security), Aria Hoffman (Engineering)",
+        current_phase="discussion",
     )
 
     print("=== Example Framework-Aligned Persona Prompt ===\n")

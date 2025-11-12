@@ -187,7 +187,8 @@ class ClaudeClient:
         try:
             response = await client.ainvoke(
                 lc_messages,
-                config={"temperature": temperature, "max_tokens": max_tokens},
+                temperature=temperature,
+                max_tokens=max_tokens,
             )
         except RateLimitError as e:
             logger.error(f"Rate limit exceeded: {e}")

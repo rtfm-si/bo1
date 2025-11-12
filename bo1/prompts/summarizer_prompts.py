@@ -60,7 +60,9 @@ NEVER:
 
 
 def compose_summarization_request(
-    round_number: int, contributions: list[dict], problem_statement: str = None
+    round_number: int,
+    contributions: list[dict[str, str]],
+    problem_statement: str | None = None,
 ) -> str:
     """Compose a summarization request for a completed round.
 

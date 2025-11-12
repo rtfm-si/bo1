@@ -54,6 +54,11 @@ class ContributionMessage(BaseModel):
     token_count: int | None = Field(None, description="Token count for this contribution")
     cost: float | None = Field(None, description="Cost in USD for generating this contribution")
 
+    @property
+    def tokens_used(self) -> int:
+        """Alias for token_count for backward compatibility."""
+        return self.token_count or 0
+
     class Config:
         json_schema_extra = {
             "examples": [
@@ -81,13 +86,13 @@ class DeliberationMetrics(BaseModel):
     cache_creation_tokens: int = Field(default=0, description="Tokens used to create cache")
     cache_read_tokens: int = Field(default=0, description="Tokens read from cache")
     convergence_score: float | None = Field(
-        None, ge=0.0, le=1.0, description="Semantic convergence score (0-1)"
+        default=None, ge=0.0, le=1.0, description="Semantic convergence score (0-1)"
     )
     novelty_score: float | None = Field(
-        None, ge=0.0, le=1.0, description="Average novelty of recent contributions (0-1)"
+        default=None, ge=0.0, le=1.0, description="Average novelty of recent contributions (0-1)"
     )
     conflict_score: float | None = Field(
-        None, ge=0.0, le=1.0, description="Level of disagreement (0-1)"
+        default=None, ge=0.0, le=1.0, description="Level of disagreement (0-1)"
     )
     drift_events: int = Field(default=0, description="Number of problem drift events detected")
 
@@ -114,18 +119,34 @@ class DeliberationState(BaseModel):
     current_round: int = Field(default=0, ge=0, description="Current round number")
     max_rounds: int = Field(default=10, ge=1, le=15, description="Maximum rounds allowed")
     metrics: DeliberationMetrics = Field(
-        default_factory=DeliberationMetrics, description="Deliberation metrics"
+        default_factory=lambda: DeliberationMetrics(), description="Deliberation metrics"
     )
     votes: list[Any] = Field(default_factory=list, description="Votes from personas (Vote objects)")
     synthesis: str | None = Field(None, description="Final synthesis report")
     created_at: datetime = Field(default_factory=datetime.now, description="When session started")
     updated_at: datetime = Field(default_factory=datetime.now, description="Last update time")
+    completed_at: datetime | None = Field(None, description="When session completed")
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata (user_id, tags, etc.)"
     )
 
+    @property
+    def sub_problem(self) -> SubProblem | None:
+        """Alias for current_sub_problem for backward compatibility."""
+        return self.current_sub_problem
+
+    @property
+    def total_cost(self) -> float:
+        """Total cost from metrics."""
+        return self.metrics.total_cost
+
+    @property
+    def total_tokens(self) -> int:
+        """Total tokens from metrics."""
+        return self.metrics.total_tokens
+
     class Config:
-        json_schema_extra = {
+        json_schema_extra: dict[str, Any] = {
             "examples": [
                 {
                     "session_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -149,6 +170,10 @@ class DeliberationState(BaseModel):
                         "cache_hits": 0,
                         "cache_creation_tokens": 0,
                         "cache_read_tokens": 0,
+                        "convergence_score": None,
+                        "novelty_score": None,
+                        "conflict_score": None,
+                        "drift_events": 0,
                     },
                     "votes": [],
                     "synthesis": None,

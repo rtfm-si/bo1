@@ -20,7 +20,8 @@ def load_personas() -> list[dict[str, Any]]:
     """
     personas_path = DATA_DIR / "personas.json"
     with open(personas_path, encoding="utf-8") as f:
-        return json.load(f)
+        result: list[dict[str, Any]] = json.load(f)
+        return result
 
 
 def get_persona_by_code(code: str) -> dict[str, Any] | None:

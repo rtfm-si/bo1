@@ -94,14 +94,21 @@ class PersonaProfile(BaseModel):
         ..., description="Areas of domain expertise (can be list or postgres array string)"
     )
 
+    @property
+    def domain(self) -> str:
+        """Primary domain from archetype or category."""
+        return self.archetype
+
     @field_validator("traits", mode="before")
     @classmethod
     def parse_traits(cls, v: Any) -> dict[str, float] | PersonaTraits:
         """Parse traits from JSON string or dict."""
         if isinstance(v, str):
             # Parse JSON string to dict
-            return json.loads(v)
-        return v
+            parsed: dict[str, float] = json.loads(v)
+            return parsed
+        result: dict[str, float] | PersonaTraits = v
+        return result
 
     @field_validator("domain_expertise", mode="before")
     @classmethod
@@ -109,8 +116,10 @@ class PersonaProfile(BaseModel):
         """Parse domain expertise from PostgreSQL array format if needed."""
         if isinstance(v, str) and v.startswith("{"):
             # PostgreSQL array format: {technical,strategic}
-            return [e.strip() for e in v.strip("{}").split(",")]
-        return v
+            parsed_list: list[str] = [e.strip() for e in v.strip("{}").split(",")]
+            return parsed_list
+        result: list[str] | str = v
+        return result
 
     class Config:
         json_schema_extra = {

@@ -223,8 +223,8 @@ class RedisManager:
         try:
             # Scan for all session keys
             keys = self.redis.keys("session:bo1_*")
-            # Extract session IDs
-            session_ids = [key.replace("session:", "") for key in keys]
+            # Extract session IDs (keys are already strings with decode_responses=True)
+            session_ids = [str(key).replace("session:", "") for key in keys]
             return session_ids
 
         except Exception as e:
@@ -349,7 +349,8 @@ class RedisManager:
             if not metadata_json:
                 return None
 
-            return json.loads(metadata_json)
+            metadata: dict[str, Any] = json.loads(metadata_json)
+            return metadata
 
         except Exception as e:
             logger.error(f"Failed to load metadata: {e}")

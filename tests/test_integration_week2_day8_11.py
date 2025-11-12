@@ -205,10 +205,11 @@ async def test_initial_round_execution():
 
     # Step 4: Run initial round
     engine = DeliberationEngine(state=state)
-    contributions = await engine.run_initial_round()
+    contributions, llm_responses = await engine.run_initial_round()
 
     # Validate results
     assert len(contributions) == 3, "Should have 3 contributions (1 per persona)"
+    assert len(llm_responses) == 3, "Should have 3 LLM responses (1 per persona)"
 
     # Check each contribution has required fields
     for contrib in contributions:
@@ -297,10 +298,11 @@ async def test_full_pipeline_simple():
     )
 
     engine = DeliberationEngine(state=state)
-    contributions = await engine.run_initial_round()
+    contributions, llm_responses = await engine.run_initial_round()
 
     # Validate end-to-end results
     assert len(contributions) == len(persona_profiles)
+    assert len(llm_responses) == len(persona_profiles)
 
     # Calculate total cost including decomposition and selection
     total_cost = decomp_response.cost_total + selector_response.cost_total + engine.get_total_cost()

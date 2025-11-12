@@ -98,7 +98,11 @@ async def main() -> None:
         f"[dim]Running parallel contributions from {len(persona_profiles)} personas...[/dim]\n"
     )
 
-    contributions = await engine.run_initial_round()
+    contributions, contrib_responses = await engine.run_initial_round()
+
+    # Track contribution LLM responses
+    for llm_response in contrib_responses:
+        metrics.add_response(llm_response)
 
     # Display contributions
     for contrib in contributions:
@@ -111,10 +115,7 @@ async def main() -> None:
             cost=contrib.cost or 0.0,
         )
 
-    # TODO: Add deliberation responses to metrics when DeliberationEngine returns LLMResponse
-    # For now, we'll display the metrics we have from decomposition and selection
-
-    # Display comprehensive metrics
+    # Display comprehensive metrics (now includes all LLM calls)
     console.print_deliberation_metrics(metrics, show_phase_breakdown=True)
 
     console.print_success("\n✨ Demo complete! Days 8-11 functionality verified.\n")

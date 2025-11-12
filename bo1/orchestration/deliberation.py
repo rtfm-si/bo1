@@ -47,11 +47,14 @@ class DeliberationEngine:
             state: Current deliberation state
             client: Optional ClaudeClient instance. If None, creates a new one.
         """
+        from bo1.config import resolve_model_alias
+
         self.state = state
         self.client = client or ClaudeClient()
         self.model_name = MODEL_BY_ROLE["persona"]
+        self.model_id = resolve_model_alias(self.model_name)  # Full ID for pricing
 
-    async def run_initial_round(self) -> list[ContributionMessage]:
+    async def run_initial_round(self) -> tuple[list[ContributionMessage], list[Any]]:
         """Run the initial round with parallel persona contributions.
 
         All personas contribute simultaneously based on the problem statement.
@@ -59,12 +62,16 @@ class DeliberationEngine:
         diverse initial perspectives.
 
         Returns:
-            List of contribution messages from all personas
+            Tuple of (contributions, llm_responses) where:
+            - contributions: List of contribution messages from all personas
+            - llm_responses: List of LLMResponse objects for metrics tracking
 
         Example:
             >>> engine = DeliberationEngine(state)
-            >>> contributions = await engine.run_initial_round()
+            >>> contributions, llm_responses = await engine.run_initial_round()
             >>> len(contributions)
+            5
+            >>> len(llm_responses)
             5
         """
         logger.info(f"Starting initial round with {len(self.state.selected_personas)} personas")
@@ -96,7 +103,11 @@ class DeliberationEngine:
 
         # Execute all persona calls in parallel
         logger.info(f"Executing {len(tasks)} persona calls in parallel...")
-        contributions = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks)
+
+        # Separate contributions and LLM responses
+        contributions = [r[0] for r in results]
+        llm_responses = [r[1] for r in results]
 
         # Add contributions to state
         for contribution in contributions:
@@ -107,7 +118,7 @@ class DeliberationEngine:
         # Update phase
         self.state.phase = DeliberationPhase.DISCUSSION
 
-        return contributions
+        return contributions, llm_responses
 
     async def _call_persona_async(
         self,
@@ -118,7 +129,7 @@ class DeliberationEngine:
         round_number: int,
         contribution_type: ContributionType,
         previous_contributions: list[ContributionMessage] | None = None,
-    ) -> ContributionMessage:
+    ) -> tuple[ContributionMessage, Any]:
         """Call a single persona asynchronously.
 
         Args:
@@ -131,7 +142,7 @@ class DeliberationEngine:
             previous_contributions: Previous round contributions (for context)
 
         Returns:
-            ContributionMessage with the persona's contribution
+            Tuple of (contribution_message, llm_response) for metrics tracking
         """
         logger.debug(f"Calling persona: {persona_profile.display_name}")
 
@@ -176,7 +187,12 @@ class DeliberationEngine:
 
         user_message = "".join(user_message_parts)
 
-        # Call LLM (async)
+        # Call LLM (async) with timing
+        from datetime import datetime
+
+        from bo1.llm.response import LLMResponse
+
+        start_time = datetime.now()
         messages = [{"role": "user", "content": user_message}]
         response_text, token_usage = await self.client.call(
             model=self.model_name,
@@ -184,6 +200,7 @@ class DeliberationEngine:
             system=system_prompt,
             cache_system=True,  # Enable prompt caching for cost optimization
         )
+        duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
         # Parse response (extract <thinking> and <contribution>)
         thinking, contribution = self._parse_persona_response(response_text)
@@ -203,12 +220,22 @@ class DeliberationEngine:
             cost=cost,
         )
 
+        # Create LLM response for metrics tracking
+        llm_response = LLMResponse(
+            content=response_text,
+            model=self.model_id,  # Use full model ID for accurate pricing
+            token_usage=token_usage,
+            duration_ms=duration_ms,
+            phase="deliberation",
+            agent_type=f"persona_{persona_profile.code}",
+        )
+
         logger.debug(
             f"Persona {persona_profile.display_name} contributed "
             f"({contrib_msg.token_count} tokens, ${contrib_msg.cost:.4f})"
         )
 
-        return contrib_msg
+        return contrib_msg, llm_response
 
     def _parse_persona_response(self, content: str) -> tuple[str | None, str]:
         """Parse persona response to extract <thinking> and <contribution>.

@@ -1,22 +1,28 @@
-"""
-Pytest configuration and shared fixtures.
-"""
+"""Pytest configuration and fixtures."""
 
 from pathlib import Path
 
 import pytest
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """Register custom markers."""
+    config.addinivalue_line(
+        "markers",
+        "requires_llm: mark test as requiring LLM API keys (deselect with '-m \"not requires_llm\"')",
+    )
+    config.addinivalue_line(
+        "markers",
+        "unit: mark test as a unit test",
+    )
+    config.addinivalue_line(
+        "markers",
+        "integration: mark test as an integration test",
+    )
+
+
 @pytest.fixture
 def personas_path() -> Path:
-    """Path to personas.json file."""
-    return Path(__file__).parent.parent / "zzz_important" / "personas.json"
-
-
-@pytest.fixture
-def sample_problem() -> str:
-    """Sample problem for testing."""
-    return (
-        "I'm a solopreneur building a SaaS product. "
-        "Should I focus on acquiring more customers or improving the product?"
-    )
+    """Get path to personas.json file."""
+    bo1_dir = Path(__file__).parent.parent / "bo1"
+    return bo1_dir / "data" / "personas.json"

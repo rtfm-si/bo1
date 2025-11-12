@@ -32,6 +32,7 @@ def client(settings):
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_llm
 async def test_basic_call(client):
     """Test basic LLM call without caching."""
     response, usage = await client.call(
@@ -50,6 +51,7 @@ async def test_basic_call(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_llm
 async def test_prompt_caching_creation(client):
     """Test that prompt caching creates cache on first call."""
     system_prompt = (
@@ -73,6 +75,7 @@ async def test_prompt_caching_creation(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_llm
 async def test_prompt_caching_hits(client):
     """Test that repeated calls with same system prompt hit cache."""
     system_prompt = (
@@ -110,6 +113,7 @@ async def test_prompt_caching_hits(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_llm
 async def test_role_based_model_selection(client):
     """Test that call_for_role uses correct model."""
     response, usage = await client.call_for_role(
@@ -125,6 +129,7 @@ async def test_role_based_model_selection(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_llm
 async def test_token_usage_calculation(client):
     """Test token usage tracking and cost calculation."""
     response, usage = await client.call(
@@ -147,6 +152,7 @@ async def test_token_usage_calculation(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_llm
 async def test_cache_cost_savings(client):
     """Test that caching provides significant cost savings."""
     system_prompt = """You are a venture capital analyst with deep expertise in:
@@ -196,6 +202,7 @@ async def test_cache_cost_savings(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_llm
 async def test_parallel_calls_with_caching(client):
     """Test that parallel calls can benefit from caching."""
     system_prompt = "You are a helpful math tutor."

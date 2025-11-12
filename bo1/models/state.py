@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .persona import PersonaProfile
 from .problem import Problem, SubProblem
@@ -59,8 +59,8 @@ class ContributionMessage(BaseModel):
         """Alias for token_count for backward compatibility."""
         return self.token_count or 0
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "persona_code": "growth_hacker",
@@ -75,6 +75,7 @@ class ContributionMessage(BaseModel):
                 }
             ]
         }
+    )
 
 
 class DeliberationMetrics(BaseModel):
@@ -145,8 +146,8 @@ class DeliberationState(BaseModel):
         """Total tokens from metrics."""
         return self.metrics.total_tokens
 
-    class Config:
-        json_schema_extra: dict[str, Any] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "session_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -183,6 +184,7 @@ class DeliberationState(BaseModel):
                 }
             ]
         }
+    )
 
     def get_contributions_for_round(self, round_number: int) -> list[ContributionMessage]:
         """Get all contributions for a specific round.

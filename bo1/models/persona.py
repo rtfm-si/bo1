@@ -7,7 +7,7 @@ import json
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PersonaType(str, Enum):
@@ -121,8 +121,8 @@ class PersonaProfile(BaseModel):
         result: list[str] | str = v
         return result
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "id": "9e9979e7-4a97-441c-b5ef-59c93326a2aa",
@@ -152,6 +152,7 @@ class PersonaProfile(BaseModel):
                 }
             ]
         }
+    )
 
     def get_traits(self) -> PersonaTraits:
         """Get traits as PersonaTraits object.

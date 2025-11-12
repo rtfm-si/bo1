@@ -5,7 +5,7 @@ Defines vote structure and aggregation mechanisms.
 
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class VoteDecision(str, Enum):
@@ -31,8 +31,8 @@ class Vote(BaseModel):
     )
     weight: float = Field(default=1.0, ge=0.0, le=2.0, description="Voting weight for this persona")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "persona_code": "growth_hacker",
@@ -57,6 +57,7 @@ class Vote(BaseModel):
                 },
             ]
         }
+    )
 
 
 class ConsensusLevel(str, Enum):
@@ -99,8 +100,8 @@ class VoteAggregation(BaseModel):
         default_factory=list, description="All conditions from conditional votes"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "total_votes": 5,
@@ -121,6 +122,7 @@ class VoteAggregation(BaseModel):
                 }
             ]
         }
+    )
 
 
 def aggregate_votes(votes: list[Vote]) -> VoteAggregation:

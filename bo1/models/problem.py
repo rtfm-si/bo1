@@ -6,7 +6,7 @@ Defines the core problem decomposition models.
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConstraintType(str, Enum):
@@ -30,8 +30,8 @@ class Constraint(BaseModel):
         None, description="Optional quantitative value (e.g., $10000, 30 days)"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "type": "budget",
@@ -45,6 +45,7 @@ class Constraint(BaseModel):
                 },
             ]
         }
+    )
 
 
 class SubProblem(BaseModel):
@@ -64,8 +65,8 @@ class SubProblem(BaseModel):
         default_factory=list, description="Specific constraints for this sub-problem"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "id": "sp_001",
@@ -83,6 +84,7 @@ class SubProblem(BaseModel):
                 }
             ]
         }
+    )
 
 
 class Problem(BaseModel):
@@ -102,8 +104,8 @@ class Problem(BaseModel):
         description="Decomposed sub-problems (1-5 typically)",
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "title": "SaaS Pricing Strategy",
@@ -134,6 +136,7 @@ class Problem(BaseModel):
                 }
             ]
         }
+    )
 
     def get_sub_problem(self, sub_problem_id: str) -> SubProblem | None:
         """Get a sub-problem by ID.

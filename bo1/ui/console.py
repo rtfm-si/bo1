@@ -19,6 +19,7 @@ from rich.table import Table
 from rich.theme import Theme
 
 from bo1.llm.client import TokenUsage
+from bo1.llm.response import DeliberationMetrics, LLMResponse
 from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
 from bo1.models.votes import Vote
@@ -608,3 +609,138 @@ class Console:
         else:  # choice == "r"
             self.console.print("\n[warning]Decomposition rejected[/warning]")
             return False, decomposition
+
+    def print_llm_response(
+        self,
+        response: LLMResponse,
+        show_content: bool = False,
+    ) -> None:
+        """Print LLM response metrics in rich format.
+
+        Args:
+            response: LLMResponse object with comprehensive metrics
+            show_content: Whether to display response content (default: False)
+        """
+        # Build summary parts
+        parts = []
+
+        # Phase/Agent info
+        if response.phase and response.agent_type:
+            parts.append(f"[cyan]{response.phase}[/cyan] ({response.agent_type})")
+        elif response.phase:
+            parts.append(f"[cyan]{response.phase}[/cyan]")
+
+        # Model
+        parts.append(f"Model: {response.model}")
+
+        # Tokens with cache breakdown
+        token_str = f"Tokens: {response.total_tokens:,}"
+        if response.cache_hit_rate > 0:
+            cache_pct = int(response.cache_hit_rate * 100)
+            token_str += f" ({cache_pct}% cached)"
+        parts.append(token_str)
+
+        # Cost with savings
+        cost_str = f"Cost: ${response.cost_total:.6f}"
+        if response.cache_savings > 0:
+            cost_str += f" (saved ${response.cache_savings:.6f})"
+        parts.append(cost_str)
+
+        # Performance
+        duration_s = response.duration_ms / 1000
+        perf_str = f"Duration: {duration_s:.1f}s"
+        if response.retry_count > 0:
+            perf_str += f" ({response.retry_count} retries)"
+        parts.append(perf_str)
+
+        # Print summary
+        summary = " | ".join(parts)
+        self.console.print(f"[dim]  └─ {summary}[/dim]")
+
+        # Optionally show content
+        if show_content:
+            self.console.print(
+                Panel(response.content, title="Response Content", border_style="dim")
+            )
+
+    def print_deliberation_metrics(
+        self,
+        metrics: DeliberationMetrics,
+        show_phase_breakdown: bool = True,
+    ) -> None:
+        """Print comprehensive deliberation metrics.
+
+        Args:
+            metrics: DeliberationMetrics with aggregated session data
+            show_phase_breakdown: Whether to show per-phase breakdown
+        """
+        self.console.print("\n[cyan bold]Deliberation Metrics[/cyan bold]\n")
+
+        # Summary table
+        summary_table = Table(title="Summary", show_header=True, header_style="bold magenta")
+        summary_table.add_column("Metric", style="cyan")
+        summary_table.add_column("Value", justify="right")
+
+        summary_table.add_row("Total Cost", f"${metrics.total_cost:.4f}")
+        summary_table.add_row("Total Tokens", f"{metrics.total_tokens:,}")
+        summary_table.add_row("LLM Calls", f"{metrics.call_count}")
+        summary_table.add_row("Total Retries", f"{metrics.total_retries}")
+        summary_table.add_row("Total Duration", f"{metrics.total_duration_ms / 1000:.1f}s")
+        summary_table.add_row("Cache Savings", f"${metrics.total_cache_savings:.4f}")
+        summary_table.add_row("Avg Cache Hit Rate", f"{int(metrics.avg_cache_hit_rate * 100)}%")
+
+        self.console.print(summary_table)
+        self.console.print()
+
+        # Token breakdown table
+        token_table = Table(title="Token Breakdown", show_header=True, header_style="bold magenta")
+        token_table.add_column("Type", style="cyan")
+        token_table.add_column("Count", justify="right")
+        token_table.add_column("Percentage", justify="right")
+
+        total = metrics.total_tokens
+        token_table.add_row(
+            "Input",
+            f"{metrics.total_input_tokens:,}",
+            f"{int(metrics.total_input_tokens / total * 100) if total > 0 else 0}%",
+        )
+        token_table.add_row(
+            "Output",
+            f"{metrics.total_output_tokens:,}",
+            f"{int(metrics.total_output_tokens / total * 100) if total > 0 else 0}%",
+        )
+        token_table.add_row(
+            "Cache Read",
+            f"{metrics.total_cache_read_tokens:,}",
+            f"{int(metrics.total_cache_read_tokens / total * 100) if total > 0 else 0}%",
+        )
+        token_table.add_row("Total", f"{metrics.total_tokens:,}", "100%", style="bold")
+
+        self.console.print(token_table)
+        self.console.print()
+
+        # Phase breakdown
+        if show_phase_breakdown and metrics.get_all_phases():
+            phase_table = Table(
+                title="Per-Phase Breakdown", show_header=True, header_style="bold magenta"
+            )
+            phase_table.add_column("Phase", style="cyan")
+            phase_table.add_column("Calls", justify="right")
+            phase_table.add_column("Tokens", justify="right")
+            phase_table.add_column("Cost", justify="right")
+            phase_table.add_column("Duration", justify="right")
+            phase_table.add_column("Retries", justify="right")
+
+            for phase in metrics.get_all_phases():
+                phase_metrics = metrics.get_phase_metrics(phase)
+                phase_table.add_row(
+                    phase,
+                    str(phase_metrics["calls"]),
+                    f"{phase_metrics['tokens']:,}",
+                    f"${phase_metrics['cost']:.4f}",
+                    f"{phase_metrics['duration_ms'] / 1000:.1f}s",
+                    str(phase_metrics["retries"]),
+                )
+
+            self.console.print(phase_table)
+            self.console.print()

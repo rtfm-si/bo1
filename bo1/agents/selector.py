@@ -10,7 +10,8 @@ from typing import Any
 
 from bo1.config import MODEL_BY_ROLE
 from bo1.data import get_active_personas, get_persona_by_code
-from bo1.llm.client import ClaudeClient, TokenUsage
+from bo1.llm.broker import PromptBroker, PromptRequest
+from bo1.llm.response import LLMResponse
 from bo1.models.problem import SubProblem
 
 logger = logging.getLogger(__name__)
@@ -121,20 +122,20 @@ class PersonaSelectorAgent:
     Uses Sonnet 4.5 for complex persona selection analysis.
     """
 
-    def __init__(self, client: ClaudeClient | None = None) -> None:
+    def __init__(self, broker: PromptBroker | None = None) -> None:
         """Initialize the persona selector agent.
 
         Args:
-            client: Optional ClaudeClient instance. If None, creates a new one.
+            broker: Optional PromptBroker instance. If None, creates a new one.
         """
-        self.client = client or ClaudeClient()
+        self.broker = broker or PromptBroker()
         self.model_name = MODEL_BY_ROLE["selector"]
 
     async def recommend_personas(
         self,
         sub_problem: SubProblem,
         problem_context: str = "",
-    ) -> tuple[dict[str, Any], TokenUsage, float]:
+    ) -> LLMResponse:
         """Recommend personas for a given sub-problem.
 
         Uses LLM to analyze the problem and recommend 3-5 expert personas
@@ -145,14 +146,15 @@ class PersonaSelectorAgent:
             problem_context: Additional context about the overall problem
 
         Returns:
-            Tuple of (recommendation_dict, token_usage, cost):
-            - recommendation_dict: Dictionary containing analysis, recommended_personas, coverage_summary
-            - token_usage: TokenUsage object with detailed token counts
-            - cost: Total cost in USD
+            LLMResponse with:
+            - content: JSON string with recommendation (parse with json.loads())
+            - token_usage: Detailed token breakdown
+            - cost_total: Total cost in USD
+            - All other comprehensive metrics
 
         Examples:
             >>> agent = PersonaSelectorAgent()
-            >>> result, usage, cost = await agent.recommend_personas(
+            >>> response = await agent.recommend_personas(
             ...     sub_problem=SubProblem(
             ...         id="sp_001",
             ...         goal="Should I invest $50K in SEO or paid ads?",
@@ -160,7 +162,8 @@ class PersonaSelectorAgent:
             ...         complexity_score=6,
             ...     )
             ... )
-            >>> len(result["recommended_personas"])
+            >>> recommendation = json.loads(response.content)
+            >>> len(recommendation["recommended_personas"])
             4
         """
         logger.info(f"Recommending personas for sub-problem: {sub_problem.id}")
@@ -194,23 +197,23 @@ Ensure domain coverage, perspective diversity, and appropriate expertise depth.
 Provide your recommendation as JSON following the format in your system prompt.
 """
 
-        # Call LLM (async)
-        messages = [{"role": "user", "content": user_message}]
-
-        response_text, token_usage = await self.client.call(
-            model=self.model_name,
-            messages=messages,
+        # Create prompt request
+        request = PromptRequest(
             system=SELECTOR_SYSTEM_PROMPT,
-            cache_system=False,  # No caching needed for one-off selection
+            user_message=user_message,
+            model=self.model_name,
             prefill="{",  # Ensure JSON response starts with {
+            cache_system=False,  # No caching needed for one-off selection
+            phase="selection",
+            agent_type="PersonaSelectorAgent",
         )
 
-        # Calculate cost
-        cost = token_usage.calculate_cost(self.model_name)
+        # Call LLM via broker (handles retry/rate-limit)
+        response = await self.broker.call(request)
 
-        # Parse response
+        # Validate JSON structure
         try:
-            recommendation = json.loads(response_text)
+            recommendation = json.loads(response.content)
 
             # Validate structure
             if "recommended_personas" not in recommendation:
@@ -219,19 +222,21 @@ Provide your recommendation as JSON following the format in your system prompt.
             persona_codes = [p["code"] for p in recommendation["recommended_personas"]]
             logger.info(
                 f"Recommended {len(persona_codes)} personas: {', '.join(persona_codes)} "
-                f"(tokens: {token_usage.total_tokens}, cost: ${cost:.6f})"
+                f"({response.summary()})"
             )
 
-            return dict(recommendation), token_usage, cost
+            return response
 
         except json.JSONDecodeError as e:
             logger.warning(
                 f"Failed to parse persona selection JSON (rare with prefill): {e}. "
-                f"Response was: {response_text[:200]}..."
+                f"Response was: {response.content[:200]}..."
             )
             # Fallback: use default personas
             fallback = self._get_default_recommendation()
-            return fallback, token_usage, cost
+            # Update response content with fallback
+            response.content = json.dumps(fallback)
+            return response
         except Exception as e:
             logger.error(f"Error during persona selection: {e}")
             raise

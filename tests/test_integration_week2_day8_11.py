@@ -7,6 +7,7 @@ Tests the complete flow from problem intake through initial deliberation round:
 """
 
 import asyncio
+import json
 import logging
 
 import pytest
@@ -31,10 +32,13 @@ async def test_decomposition_simple_problem():
     problem = "Should I use PostgreSQL or MySQL for my database?"
     context = "Building a B2B SaaS app, solo developer, familiar with both"
 
-    result, usage, cost = await decomposer.decompose_problem(
+    response = await decomposer.decompose_problem(
         problem_description=problem,
         context=context,
     )
+
+    # Parse decomposition from response
+    result = json.loads(response.content)
 
     # Validate result structure
     assert "sub_problems" in result
@@ -47,11 +51,11 @@ async def test_decomposition_simple_problem():
     assert is_valid, f"Decomposition validation failed: {errors}"
 
     # Validate token usage tracking
-    assert usage.total_tokens > 0
-    assert cost > 0
+    assert response.token_usage.total_tokens > 0
+    assert response.cost_total > 0
 
     logger.info(
-        f"✓ Simple problem decomposed correctly: {result['is_atomic']=} (cost: ${cost:.6f})"
+        f"✓ Simple problem decomposed correctly: {result['is_atomic']=} ({response.summary()})"
     )
 
 
@@ -69,11 +73,14 @@ async def test_decomposition_moderate_problem():
     context = "Solo founder, SaaS product, $100K ARR, 12 months runway"
     constraints = ["Budget: $50K", "Timeline: 6 months"]
 
-    result, usage, cost = await decomposer.decompose_problem(
+    response = await decomposer.decompose_problem(
         problem_description=problem,
         context=context,
         constraints=constraints,
     )
+
+    # Parse decomposition from response
+    result = json.loads(response.content)
 
     # Validate result structure
     assert "sub_problems" in result
@@ -95,11 +102,11 @@ async def test_decomposition_moderate_problem():
     assert is_valid, f"Decomposition validation failed: {errors}"
 
     # Validate token usage tracking
-    assert usage.total_tokens > 0
-    assert cost > 0
+    assert response.token_usage.total_tokens > 0
+    assert response.cost_total > 0
 
     logger.info(
-        f"✓ Moderate problem decomposed: {len(result['sub_problems'])} sub-problems (cost: ${cost:.6f})"
+        f"✓ Moderate problem decomposed: {len(result['sub_problems'])} sub-problems ({response.summary()})"
     )
 
 
@@ -118,10 +125,13 @@ async def test_persona_selection():
         complexity_score=6,
     )
 
-    result, usage, cost = await selector.recommend_personas(
+    response = await selector.recommend_personas(
         sub_problem=sub_problem,
         problem_context="Growth investment decision",
     )
+
+    # Parse recommendation from response
+    result = json.loads(response.content)
 
     # Validate result structure
     assert "recommended_personas" in result
@@ -144,10 +154,10 @@ async def test_persona_selection():
     assert is_valid, f"Invalid persona codes: {invalid_codes}"
 
     # Validate token usage tracking
-    assert usage.total_tokens > 0
-    assert cost > 0
+    assert response.token_usage.total_tokens > 0
+    assert response.cost_total > 0
 
-    logger.info(f"✓ Personas selected: {', '.join(persona_codes)} (cost: ${cost:.6f})")
+    logger.info(f"✓ Personas selected: {', '.join(persona_codes)} ({response.summary()})")
 
 
 @pytest.mark.integration
@@ -238,10 +248,13 @@ async def test_full_pipeline_simple():
     problem_desc = "Should I invest $50K in SEO or paid ads?"
     context = "Solo founder, SaaS product, $100K ARR"
 
-    decomposition, decomp_usage, decomp_cost = await decomposer.decompose_problem(
+    decomp_response = await decomposer.decompose_problem(
         problem_description=problem_desc,
         context=context,
     )
+
+    # Parse decomposition from response
+    decomposition = json.loads(decomp_response.content)
 
     # Create Problem model
     problem = decomposer.create_problem_from_decomposition(
@@ -252,15 +265,18 @@ async def test_full_pipeline_simple():
     )
 
     logger.info(
-        f"✓ Problem decomposed: {len(problem.sub_problems)} sub-problems (cost: ${decomp_cost:.6f})"
+        f"✓ Problem decomposed: {len(problem.sub_problems)} sub-problems ({decomp_response.summary()})"
     )
 
     # Step 2: Select personas
     selector = PersonaSelectorAgent()
-    recommendation, selector_usage, selector_cost = await selector.recommend_personas(
+    selector_response = await selector.recommend_personas(
         sub_problem=problem.sub_problems[0],
         problem_context=problem.context,
     )
+
+    # Parse recommendation from response
+    recommendation = json.loads(selector_response.content)
 
     persona_codes = [p["code"] for p in recommendation["recommended_personas"]]
     personas = selector.get_personas_by_codes(persona_codes[:3])  # Use first 3 for speed
@@ -287,16 +303,16 @@ async def test_full_pipeline_simple():
     assert len(contributions) == len(persona_profiles)
 
     # Calculate total cost including decomposition and selection
-    total_cost = decomp_cost + selector_cost + engine.get_total_cost()
+    total_cost = decomp_response.cost_total + selector_response.cost_total + engine.get_total_cost()
     total_tokens = (
-        decomp_usage.total_tokens + selector_usage.total_tokens + engine.get_total_tokens()
+        decomp_response.total_tokens + selector_response.total_tokens + engine.get_total_tokens()
     )
 
     assert total_cost < 0.15  # Should be under $0.15 (including decomp + selection)
 
     logger.info("✓ Full pipeline test passed")
-    logger.info(f"  - Decomposition cost: ${decomp_cost:.4f}")
-    logger.info(f"  - Selection cost: ${selector_cost:.4f}")
+    logger.info(f"  - Decomposition cost: ${decomp_response.cost_total:.4f}")
+    logger.info(f"  - Selection cost: ${selector_response.cost_total:.4f}")
     logger.info(f"  - Deliberation cost: ${engine.get_total_cost():.4f}")
     logger.info(f"  - Total cost: ${total_cost:.4f}")
     logger.info(f"  - Total tokens: {total_tokens}")

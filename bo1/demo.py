@@ -1,9 +1,11 @@
 """Demo script - Full Days 8-11 implementation."""
 
 import asyncio
+import json
 
 from bo1.agents.decomposer import DecomposerAgent
 from bo1.agents.selector import PersonaSelectorAgent
+from bo1.llm.response import DeliberationMetrics
 from bo1.models.persona import PersonaProfile
 from bo1.models.state import DeliberationPhase, DeliberationState
 from bo1.orchestration.deliberation import DeliberationEngine
@@ -18,21 +20,28 @@ async def main() -> None:
     console.print_header("Board of One - Current Demo (Days 8-11)")
     console.print("\n[cyan]Step 1:[/cyan] Problem Decomposition\n")
 
+    # Initialize metrics tracker
+    metrics = DeliberationMetrics(session_id="demo-session")
+
     decomposer = DecomposerAgent()
     problem_input = "Should I invest $50K in SEO or paid ads for my SaaS startup?"
     console.print(f"[bold]Problem:[/bold] {problem_input}\n")
 
     console.print("[dim]Decomposing problem...[/dim]\n")
-    decomposition, decomp_usage, decomp_cost = await decomposer.decompose_problem(
+    decomp_response = await decomposer.decompose_problem(
         problem_description=problem_input,
         context="Solo founder, SaaS product, $100K ARR, need to grow",
         constraints=["Budget: $50K", "Timeline: 6 months"],
     )
 
+    # Track metrics
+    metrics.add_response(decomp_response)
+
+    # Parse decomposition from response
+    decomposition = json.loads(decomp_response.content)
+
     console.print_decomposition(decomposition)
-    console.print_llm_cost(
-        phase="Decomposition", token_usage=decomp_usage, cost=decomp_cost, model_name="sonnet-4.5"
-    )
+    console.print_llm_response(decomp_response)
 
     is_valid, errors = decomposer.validate_decomposition(decomposition)
     if not is_valid:
@@ -54,17 +63,18 @@ async def main() -> None:
     console.print(f"[bold]Selecting personas for:[/bold] {first_sp.goal}\n")
 
     console.print("[dim]Recommending personas...[/dim]\n")
-    recommendation, selector_usage, selector_cost = await selector.recommend_personas(
+    selector_response = await selector.recommend_personas(
         sub_problem=first_sp, problem_context=problem.context
     )
 
+    # Track metrics
+    metrics.add_response(selector_response)
+
+    # Parse recommendation from response
+    recommendation = json.loads(selector_response.content)
+
     console.print(f"\n[bold]Analysis:[/bold] {recommendation['analysis']}\n")
-    console.print_llm_cost(
-        phase="Persona Selection",
-        token_usage=selector_usage,
-        cost=selector_cost,
-        model_name="sonnet-4.5",
-    )
+    console.print_llm_response(selector_response)
 
     persona_codes = [p["code"] for p in recommendation["recommended_personas"]]
     personas_data = selector.get_personas_by_codes(persona_codes)
@@ -101,25 +111,11 @@ async def main() -> None:
             cost=contrib.cost or 0.0,
         )
 
-    # Display summary metrics
-    console.print("\n[cyan]Summary Metrics[/cyan]\n")
+    # TODO: Add deliberation responses to metrics when DeliberationEngine returns LLMResponse
+    # For now, we'll display the metrics we have from decomposition and selection
 
-    # Calculate total costs including decomposition and selection
-    total_cost = decomp_cost + selector_cost + engine.get_total_cost()
-    total_tokens = (
-        decomp_usage.total_tokens + selector_usage.total_tokens + engine.get_total_tokens()
-    )
-
-    metrics = {
-        "total_cost": total_cost,
-        "decomposition_cost": decomp_cost,
-        "selection_cost": selector_cost,
-        "deliberation_cost": engine.get_total_cost(),
-        "total_tokens": total_tokens,
-        "contributions": len(contributions),
-        "personas": len(persona_profiles),
-    }
-    console.print_metrics(metrics)
+    # Display comprehensive metrics
+    console.print_deliberation_metrics(metrics, show_phase_breakdown=True)
 
     console.print_success("\n✨ Demo complete! Days 8-11 functionality verified.\n")
     console.print(

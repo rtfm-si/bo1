@@ -9,7 +9,8 @@ import logging
 from typing import Any
 
 from bo1.config import MODEL_BY_ROLE
-from bo1.llm.client import ClaudeClient, TokenUsage
+from bo1.llm.broker import PromptBroker, PromptRequest
+from bo1.llm.response import LLMResponse
 from bo1.models.problem import Problem, SubProblem
 from bo1.prompts.decomposer_prompts import (
     DECOMPOSER_SYSTEM_PROMPT,
@@ -28,13 +29,13 @@ class DecomposerAgent:
     Uses Sonnet 4.5 for complex problem analysis.
     """
 
-    def __init__(self, client: ClaudeClient | None = None) -> None:
+    def __init__(self, broker: PromptBroker | None = None) -> None:
         """Initialize the decomposer agent.
 
         Args:
-            client: Optional ClaudeClient instance. If None, creates a new one.
+            broker: Optional PromptBroker instance. If None, creates a new one.
         """
-        self.client = client or ClaudeClient()
+        self.broker = broker or PromptBroker()
         self.model_name = MODEL_BY_ROLE["decomposer"]
 
     def extract_problem_statement(
@@ -89,7 +90,7 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
         import asyncio
 
         response_text, _ = asyncio.run(
-            self.client.call(
+            self.broker.client.call(
                 model=self.model_name,
                 messages=messages,
                 system="You are a problem clarification expert. Generate targeted questions to understand the user's problem.",
@@ -120,7 +121,7 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
         problem_description: str,
         context: str = "",
         constraints: list[str] | None = None,
-    ) -> tuple[dict[str, Any], TokenUsage, float]:
+    ) -> LLMResponse:
         """Decompose a problem into sub-problems using LLM.
 
         Breaks the problem into 1-5 sub-problems with:
@@ -135,19 +136,21 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             constraints: List of constraints (budget, time, etc.)
 
         Returns:
-            Tuple of (decomposition_dict, token_usage, cost):
-            - decomposition_dict: Dictionary containing analysis, is_atomic, sub_problems
-            - token_usage: TokenUsage object with detailed token counts
-            - cost: Total cost in USD
+            LLMResponse with:
+            - content: JSON string with decomposition (parse with json.loads())
+            - token_usage: Detailed token breakdown
+            - cost_total: Total cost in USD
+            - All other comprehensive metrics
 
         Examples:
             >>> agent = DecomposerAgent()
-            >>> result, usage, cost = await agent.decompose_problem(
+            >>> response = await agent.decompose_problem(
             ...     "Should I invest $50K in SEO or paid ads?",
             ...     context="Solo founder, SaaS product, $100K ARR",
             ...     constraints=["Budget: $50K", "Timeline: 6 months"]
             ... )
-            >>> len(result["sub_problems"])
+            >>> decomposition = json.loads(response.content)
+            >>> len(decomposition["sub_problems"])
             3
         """
         logger.info(f"Decomposing problem: {problem_description[:100]}...")
@@ -159,23 +162,23 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             constraints=constraints,
         )
 
-        # Call LLM with decomposer system prompt (async)
-        messages = [{"role": "user", "content": user_message}]
-
-        response_text, token_usage = await self.client.call(
-            model=self.model_name,
-            messages=messages,
+        # Create prompt request
+        request = PromptRequest(
             system=DECOMPOSER_SYSTEM_PROMPT,
-            cache_system=False,  # No caching needed for one-off decomposition
+            user_message=user_message,
+            model=self.model_name,
             prefill="{",  # Ensure JSON response starts with {
+            cache_system=False,  # No caching needed for one-off decomposition
+            phase="decomposition",
+            agent_type="DecomposerAgent",
         )
 
-        # Calculate cost
-        cost = token_usage.calculate_cost(self.model_name)
+        # Call LLM via broker (handles retry/rate-limit)
+        response = await self.broker.call(request)
 
-        # Parse JSON response
+        # Validate JSON structure
         try:
-            decomposition = json.loads(response_text)
+            decomposition = json.loads(response.content)
 
             # Validate structure
             if "sub_problems" not in decomposition:
@@ -188,15 +191,15 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             logger.info(
                 f"Decomposition complete: {len(decomposition['sub_problems'])} sub-problems, "
                 f"atomic={decomposition['is_atomic']} "
-                f"(tokens: {token_usage.total_tokens}, cost: ${cost:.6f})"
+                f"({response.summary()})"
             )
 
-            return dict(decomposition), token_usage, cost
+            return response
 
         except json.JSONDecodeError as e:
             logger.warning(
                 f"Failed to parse decomposition JSON (this is rare with prefill): {e}. "
-                f"Response was: {response_text[:200]}..."
+                f"Response was: {response.content[:200]}..."
             )
             # Fallback: treat as atomic problem
             # Note: With JSON prefill, this should rarely happen
@@ -214,7 +217,9 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
                     }
                 ],
             }
-            return fallback, token_usage, cost
+            # Update response content with fallback
+            response.content = json.dumps(fallback)
+            return response
         except Exception as e:
             logger.error(f"Error during decomposition: {e}")
             raise

@@ -13,7 +13,6 @@ import pytest
 
 from bo1.agents.decomposer import DecomposerAgent
 from bo1.agents.selector import PersonaSelectorAgent
-from bo1.llm.client import ClaudeClient
 from bo1.models.problem import Problem, SubProblem
 from bo1.models.state import DeliberationState
 from bo1.orchestration.deliberation import DeliberationEngine
@@ -56,7 +55,9 @@ def test_decomposition_moderate_problem():
     decomposer = DecomposerAgent()
 
     # Growth investment decision
-    problem = "I have $50K to invest in growth. Should I focus on SEO, paid ads, or content marketing?"
+    problem = (
+        "I have $50K to invest in growth. Should I focus on SEO, paid ads, or content marketing?"
+    )
     context = "Solo founder, SaaS product, $100K ARR, 12 months runway"
     constraints = ["Budget: $50K", "Timeline: 6 months"]
 
@@ -85,9 +86,7 @@ def test_decomposition_moderate_problem():
     is_valid, errors = decomposer.validate_decomposition(result)
     assert is_valid, f"Decomposition validation failed: {errors}"
 
-    logger.info(
-        f"✓ Moderate problem decomposed: {len(result['sub_problems'])} sub-problems"
-    )
+    logger.info(f"✓ Moderate problem decomposed: {len(result['sub_problems'])} sub-problems")
 
 
 @pytest.mark.integration
@@ -204,7 +203,7 @@ async def test_initial_round_execution():
     # Log metrics
     total_cost = engine.get_total_cost()
     total_tokens = engine.get_total_tokens()
-    logger.info(f"✓ Initial round complete:")
+    logger.info("✓ Initial round complete:")
     logger.info(f"  - Contributions: {len(contributions)}")
     logger.info(f"  - Total tokens: {total_tokens}")
     logger.info(f"  - Total cost: ${total_cost:.4f}")

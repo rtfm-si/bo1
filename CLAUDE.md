@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Console-based AI system using multi-agent deliberation (Claude personas) to solve complex problems through structured debate and synthesis.
 
-**Status**: v1 development - Docker-first architecture, core implementation in progress
+**Status**: v1 development - Week 1 foundation complete (Days 1-7), Week 2 starting
 
 ---
 
@@ -163,8 +163,13 @@ context = {
 ## Testing Strategy
 
 1. **Unit**: Pydantic models, prompt composition, vote aggregation
-2. **Integration**: Redis persistence, LLM mocks, convergence detection
-3. **Scenario**: 10+ solopreneur problems from PRD (5-15 min, <$1, >70% consensus)
+   - `pytest -m unit` - Fast tests, no API calls
+2. **Integration**: Redis persistence, LLM calls, convergence detection
+   - `pytest -m integration` - Requires Redis + API keys
+   - `pytest -m "not requires_llm"` - Skip LLM tests
+3. **Week 1 Integration**: `pytest tests/test_integration_day7.py -v`
+   - Full pipeline validation (persona → prompt → LLM → cache → Redis → export)
+4. **Scenario**: 10+ solopreneur problems from PRD (5-15 min, <$1, >70% consensus)
 
 ---
 

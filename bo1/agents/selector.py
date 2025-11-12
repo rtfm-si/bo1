@@ -121,7 +121,7 @@ class PersonaSelectorAgent:
     Uses Sonnet 4.5 for complex persona selection analysis.
     """
 
-    def __init__(self, client: ClaudeClient | None = None):
+    def __init__(self, client: ClaudeClient | None = None) -> None:
         """Initialize the persona selector agent.
 
         Args:
@@ -210,9 +210,7 @@ Provide your recommendation as JSON following the format in your system prompt.
                 raise ValueError("Response missing 'recommended_personas' field")
 
             persona_codes = [p["code"] for p in recommendation["recommended_personas"]]
-            logger.info(
-                f"Recommended {len(persona_codes)} personas: {', '.join(persona_codes)}"
-            )
+            logger.info(f"Recommended {len(persona_codes)} personas: {', '.join(persona_codes)}")
 
             return recommendation
 

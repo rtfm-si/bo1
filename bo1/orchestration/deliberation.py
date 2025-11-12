@@ -40,7 +40,7 @@ class DeliberationEngine:
         self,
         state: DeliberationState,
         client: ClaudeClient | None = None,
-    ):
+    ) -> None:
         """Initialize the deliberation engine.
 
         Args:
@@ -67,9 +67,7 @@ class DeliberationEngine:
             >>> len(contributions)
             5
         """
-        logger.info(
-            f"Starting initial round with {len(self.state.selected_personas)} personas"
-        )
+        logger.info(f"Starting initial round with {len(self.state.selected_personas)} personas")
 
         # Update state phase
         self.state.phase = DeliberationPhase.INITIAL_ROUND
@@ -77,14 +75,10 @@ class DeliberationEngine:
         # Get current sub-problem
         current_sp = self.state.problem.get_sub_problem(self.state.current_sub_problem_id)
         if not current_sp:
-            raise ValueError(
-                f"Sub-problem not found: {self.state.current_sub_problem_id}"
-            )
+            raise ValueError(f"Sub-problem not found: {self.state.current_sub_problem_id}")
 
         # Build participant list
-        participant_names = [
-            persona.display_name for persona in self.state.selected_personas
-        ]
+        participant_names = [persona.display_name for persona in self.state.selected_personas]
         participant_list = ", ".join(participant_names)
 
         # Create tasks for parallel execution
@@ -108,9 +102,7 @@ class DeliberationEngine:
         for contribution in contributions:
             self.state.add_contribution(contribution)
 
-        logger.info(
-            f"Initial round complete: {len(contributions)} contributions collected"
-        )
+        logger.info(f"Initial round complete: {len(contributions)} contributions collected")
 
         # Update phase
         self.state.phase = DeliberationPhase.DISCUSSION
@@ -167,9 +159,7 @@ class DeliberationEngine:
         if previous_contributions:
             user_message_parts.append("\n## Previous Contributions\n")
             for contrib in previous_contributions:
-                user_message_parts.append(
-                    f"**{contrib.persona_name}**: {contrib.content}\n\n"
-                )
+                user_message_parts.append(f"**{contrib.persona_name}**: {contrib.content}\n\n")
 
         if round_number == 0:
             user_message_parts.append(
@@ -265,11 +255,7 @@ class DeliberationEngine:
         Returns:
             List of contributions from that round
         """
-        return [
-            msg
-            for msg in self.state.messages
-            if msg.round_number == round_number
-        ]
+        return [msg for msg in self.state.messages if msg.round_number == round_number]
 
     def get_total_cost(self) -> float:
         """Calculate total cost of deliberation so far.

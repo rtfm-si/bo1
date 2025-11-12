@@ -101,6 +101,28 @@ typecheck: ## Run type checker (mypy)
 check: lint format-check typecheck ## Run all code quality checks
 	@echo "All checks passed!"
 
+.PHONY: pre-commit
+pre-commit: ## Run pre-commit checks (lint + format + typecheck) - USE BEFORE GIT COMMIT
+	@echo "🔍 Running pre-commit checks..."
+	@echo ""
+	docker-compose run --rm bo1 ruff check .
+	@echo "✓ Linting passed"
+	@echo ""
+	docker-compose run --rm bo1 ruff format --check .
+	@echo "✓ Formatting passed"
+	@echo ""
+	docker-compose run --rm bo1 mypy bo1/
+	@echo "✓ Type checking passed"
+	@echo ""
+	@echo "✅ All pre-commit checks passed! Safe to commit."
+
+.PHONY: fix
+fix: ## Auto-fix linting and formatting issues
+	@echo "🔧 Auto-fixing code issues..."
+	docker-compose run --rm bo1 ruff check --fix .
+	docker-compose run --rm bo1 ruff format .
+	@echo "✅ Code fixed!"
+
 # =============================================================================
 # Production Commands
 # =============================================================================

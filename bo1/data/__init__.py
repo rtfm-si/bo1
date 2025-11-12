@@ -5,8 +5,11 @@ including the persona catalog and configuration data.
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Directory containing data files
 DATA_DIR = Path(__file__).parent
@@ -19,8 +22,10 @@ def load_personas() -> list[dict[str, Any]]:
         List of persona dictionaries with all persona attributes
     """
     personas_path = DATA_DIR / "personas.json"
+    logger.debug(f"Loading personas from {personas_path}")
     with open(personas_path, encoding="utf-8") as f:
         result: list[dict[str, Any]] = json.load(f)
+        logger.info(f"Loaded {len(result)} personas from catalog")
         return result
 
 
@@ -34,7 +39,12 @@ def get_persona_by_code(code: str) -> dict[str, Any] | None:
         Persona dictionary or None if not found
     """
     personas = load_personas()
-    return next((p for p in personas if p["code"] == code), None)
+    persona = next((p for p in personas if p["code"] == code), None)
+    if persona:
+        logger.debug(f"Found persona: {persona['name']} ({code})")
+    else:
+        logger.warning(f"Persona not found: {code}")
+    return persona
 
 
 def get_personas_by_category(category: str) -> list[dict[str, Any]]:

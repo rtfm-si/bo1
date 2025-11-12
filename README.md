@@ -4,7 +4,16 @@ AI-powered decision-making system that helps solve complex problems through stru
 
 ## Project Status
 
-**v1 Development Phase** - Initial setup complete, implementation in progress.
+**v1 Development Phase** - Week 1 foundation complete (Days 1-6), Day 7 integration testing in progress.
+
+### Week 1 Progress (Days 1-7)
+- ✅ Core Pydantic models (Problem, Persona, State, Votes)
+- ✅ LLM client with prompt caching (90% cost reduction)
+- ✅ Redis state management with serialization
+- ✅ Console UI with Rich formatting
+- ✅ 45 expert personas catalog
+- ✅ Modular prompt composition system
+- 🚧 Week 1 integration tests
 
 ## Quick Start
 
@@ -24,15 +33,18 @@ AI-powered decision-making system that helps solve complex problems through stru
 # 1. Clone and navigate to repository
 cd bo1
 
-# 2. Set up environment variables
-cp .env.example .env
-# Edit .env and add your API keys
+# 2. Initial setup (creates .env, directories)
+make setup
 
-# 3. Start services
-docker-compose up
+# 3. Edit .env and add your API keys
+# Required: ANTHROPIC_API_KEY, VOYAGE_API_KEY
 
-# Or run in background
-docker-compose up -d
+# 4. Build and start services
+make build
+make up
+
+# 5. Run application
+make run
 ```
 
 #### Option 2: Local Development
@@ -60,13 +72,18 @@ uv run python -m bo1.main
 ### Running Tests
 
 ```bash
-# Run all tests
-pytest
+# Docker (recommended)
+make test              # All tests
+make test-unit         # Unit tests only
 
-# Run specific test categories
-pytest -m unit          # Unit tests only
-pytest -m integration   # Integration tests only
-pytest -m scenario      # Scenario tests only
+# Local environment
+pytest                              # All tests
+pytest -m unit                      # Unit tests only
+pytest -m integration               # Integration tests only
+pytest -m "not requires_llm"        # Skip tests requiring API keys
+
+# Run Week 1 integration test
+pytest tests/test_integration_day7.py -v
 
 # Run with coverage
 pytest --cov=bo1 --cov-report=html
@@ -75,17 +92,18 @@ pytest --cov=bo1 --cov-report=html
 ### Code Quality
 
 ```bash
-# Linting
-ruff check .
+# Docker (recommended)
+make lint              # Run linter (ruff check)
+make format            # Run formatter (ruff format)
+make check             # Run lint + typecheck
 
-# Formatting
-ruff format .
-
-# Type checking
-mypy bo1/
+# Local environment
+ruff check bo1/ tests/                           # Linting
+ruff format bo1/ tests/                          # Formatting
+mypy bo1/ --ignore-missing-imports               # Type checking
 
 # Run all checks
-ruff check . && ruff format --check . && mypy bo1/
+ruff check bo1/ tests/ && ruff format --check bo1/ tests/ && mypy bo1/ --ignore-missing-imports
 ```
 
 ### Project Structure
@@ -130,6 +148,39 @@ Problem Intake → Decomposition (1-5 sub-problems) → Expert Selection (3-5 pe
 → Multi-Round Debate (adaptive rounds) → Voting → Synthesis → Final Recommendation
 ```
 
+### Prompt Engineering Framework
+
+Board of One uses a **modular composition** approach for AI prompts:
+
+#### 3-Layer Composition
+```
+Final Prompt = BESPOKE IDENTITY + GENERIC PROTOCOLS + DYNAMIC CONTEXT
+```
+
+1. **Bespoke Identity** (from `personas.json`)
+   - Unique system role for each of 45 experts
+   - ~879 characters average per persona
+   - Examples: "You are Maria Chen, a growth hacker..."
+
+2. **Generic Protocols** (from `reusable_prompts.py`)
+   - `BEHAVIORAL_GUIDELINES`: Communication norms
+   - `EVIDENCE_PROTOCOL`: Reasoning standards
+   - `COMMUNICATION_PROTOCOL`: XML output format
+   - `SECURITY_PROTOCOL`: Safety guardrails
+   - **Cached for 90% cost reduction**
+
+3. **Dynamic Context** (per request)
+   - Problem statement
+   - Participant list
+   - Current phase (initial_round, discussion, voting)
+   - Previous contributions (hierarchical summaries)
+
+#### Why This Matters
+- **DRY**: Generic protocols reused across all personas
+- **Caching**: Protocols + problem statement cached = massive savings
+- **Maintainability**: Update protocols once, affects all personas
+- **Consistency**: All personas follow same behavioral norms
+
 ### Technology Stack
 
 | Component | Technology | Purpose |
@@ -144,10 +195,34 @@ Problem Intake → Decomposition (1-5 sub-problems) → Expert Selection (3-5 pe
 
 ## Cost Optimization
 
-- **Target**: <$1 per session
-- **Haiku** for parallel expert calls (~$0.001-0.002 each)
-- **Sonnet** for synthesis (~$0.006-0.01 each)
-- **Prompt caching** for 90% cost reduction on repeated tokens
+Board of One achieves ~$0.10 per deliberation through:
+
+### Prompt Caching (90% savings)
+- Generic protocols (BEHAVIORAL_GUIDELINES, EVIDENCE_PROTOCOL) are cached
+- Problem statements cached across all persona calls
+- Round summaries cached across subsequent rounds
+- **Sonnet with caching** is cheaper than Haiku without!
+
+### Model Allocation
+| Role | Model | Rationale |
+|------|-------|-----------|
+| Personas | Sonnet 4.5 + cache | Complex reasoning, high reuse |
+| Facilitator | Sonnet 4.5 | Orchestration requires reasoning |
+| Summarizer | Haiku 4.5 | Simple compression task |
+| Decomposer | Sonnet 4.5 | Complex problem analysis |
+| Moderators | Haiku 4.5 | Simple interventions |
+
+### Hierarchical Context
+- **Old rounds**: 100-token summaries (cached)
+- **Current round**: Full messages (uncached)
+- **Total context**: ~1,400 tokens (linear growth, not quadratic)
+- **Async summarization**: Zero latency impact (runs in background)
+
+### Target Costs (Per Deliberation)
+- 35 persona contributions (Sonnet + cache): ~$0.095
+- 6 round summaries (Haiku): ~$0.007
+- Facilitator decisions (Sonnet): ~$0.003
+- **Total**: ~$0.10 per deliberation (70% cheaper than naive implementation)
 
 ## Contributing
 

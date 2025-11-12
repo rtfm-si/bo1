@@ -77,7 +77,7 @@ class RedisManager:
         except (redis.ConnectionError, redis.TimeoutError) as e:
             logger.warning(f"⚠️  Redis unavailable: {e}. Continuing without persistence.")
             self._available = False
-            self.redis = None  # type: ignore[assignment]
+            self.redis = None
 
     @property
     def is_available(self) -> bool:

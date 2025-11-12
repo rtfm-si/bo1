@@ -28,7 +28,7 @@ class DecomposerAgent:
     Uses Sonnet 4.5 for complex problem analysis.
     """
 
-    def __init__(self, client: ClaudeClient | None = None):
+    def __init__(self, client: ClaudeClient | None = None) -> None:
         """Initialize the decomposer agent.
 
         Args:

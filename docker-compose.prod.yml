@@ -1,6 +1,6 @@
 # =============================================================================
 # Docker Compose Configuration for Board of One (bo1)
-# Development Environment
+# Production Environment
 # =============================================================================
 
 services:
@@ -9,35 +9,44 @@ services:
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
-    container_name: bo1-redis
+    container_name: bo1-redis-prod
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"  # Only localhost access
     volumes:
       - redis-data:/data
     command: >
       redis-server
       --appendonly yes
-      --maxmemory 256mb
+      --maxmemory 512mb
       --maxmemory-policy allkeys-lru
-      --save 60 1000
+      --save 300 10
+      --requirepass ${REDIS_PASSWORD}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
+      test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
       retries: 5
     networks:
       - bo1-network
-    restart: unless-stopped
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
 
   # ---------------------------------------------------------------------------
-  # Bo1 App: Main application container (development mode)
+  # Bo1 App: Main application container (production mode)
   # ---------------------------------------------------------------------------
   bo1:
     build:
       context: .
       dockerfile: Dockerfile
-      target: development  # Use development stage
-    container_name: bo1-app
+      target: production  # Use production stage (minimal, non-root)
+    container_name: bo1-app-prod
     depends_on:
       redis:
         condition: service_healthy
@@ -46,14 +55,15 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
 
       # API Keys (loaded from .env)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - VOYAGE_API_KEY=${VOYAGE_API_KEY}
 
-      # Application Configuration
-      - DEBUG=${DEBUG:-true}
-      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      # Application Configuration (production defaults)
+      - DEBUG=false
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - MAX_COST_PER_SESSION=${MAX_COST_PER_SESSION:-1.00}
       - MAX_COST_PER_SUBPROBLEM=${MAX_COST_PER_SUBPROBLEM:-0.15}
 
@@ -65,44 +75,29 @@ services:
       - DEFAULT_MODEL_MODERATOR=claude-haiku-4-5-20250929
 
       # Feature Flags
-      - ENABLE_PROMPT_CACHING=${ENABLE_PROMPT_CACHING:-true}
-      - ENABLE_CONVERGENCE_DETECTION=${ENABLE_CONVERGENCE_DETECTION:-true}
-      - ENABLE_DRIFT_DETECTION=${ENABLE_DRIFT_DETECTION:-true}
-      - ENABLE_EARLY_STOPPING=${ENABLE_EARLY_STOPPING:-true}
+      - ENABLE_PROMPT_CACHING=true
+      - ENABLE_CONVERGENCE_DETECTION=true
+      - ENABLE_DRIFT_DETECTION=true
+      - ENABLE_EARLY_STOPPING=true
+
+      # Security
+      - PYTHONHASHSEED=random
     volumes:
-      # Mount source code for hot reload (development)
-      - ./bo1:/app/bo1
-      - ./zzz_important:/app/zzz_important
-      - ./zzz_project:/app/zzz_project
-
-      # Persist session exports
+      # Only mount exports (no source code)
       - ./exports:/app/exports
-
-      # Mount tests for development
-      - ./tests:/app/tests
     networks:
       - bo1-network
-    stdin_open: true  # Keep STDIN open for interactive console
-    tty: true         # Allocate pseudo-TTY for Rich console
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
-  # Redis Commander: Web UI for Redis inspection (development only)
-  # ---------------------------------------------------------------------------
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: bo1-redis-commander
-    depends_on:
-      - redis
-    environment:
-      - REDIS_HOSTS=local:redis:6379
-    ports:
-      - "8081:8081"
-    networks:
-      - bo1-network
-    restart: unless-stopped
-    profiles:
-      - debug  # Only start with: docker-compose --profile debug up
+    stdin_open: true
+    tty: true
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
 
 volumes:
   redis-data:

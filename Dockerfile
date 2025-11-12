@@ -1,19 +1,36 @@
-# Use Python 3.12 slim image for smaller size
-FROM python:3.12-slim
+# =============================================================================
+# Multi-stage Dockerfile for Board of One (bo1)
+# Optimized for both development and production deployments
+# =============================================================================
 
-# Set working directory
+# -----------------------------------------------------------------------------
+# Stage 1: Base image with uv installed
+# -----------------------------------------------------------------------------
+FROM python:3.12-slim AS base
+
 WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.cargo/bin:$PATH"
 
-# Copy dependency files
+# Set Python to unbuffered mode for better logging in containers
+ENV PYTHONUNBUFFERED=1
+
+# -----------------------------------------------------------------------------
+# Stage 2: Dependencies (cached layer)
+# -----------------------------------------------------------------------------
+FROM base AS dependencies
+
+WORKDIR /app
+
+# Copy only dependency files (for layer caching)
 COPY pyproject.toml .
 COPY README.md .
 
@@ -21,18 +38,67 @@ COPY README.md .
 RUN uv venv && \
     uv pip install -e .
 
-# Copy application code
+# Activate virtual environment for subsequent stages
+ENV PATH="/app/.venv/bin:$PATH"
+
+# -----------------------------------------------------------------------------
+# Stage 3: Development image (with dev dependencies)
+# -----------------------------------------------------------------------------
+FROM dependencies AS development
+
+WORKDIR /app
+
+# Install dev dependencies
+RUN uv pip install pytest pytest-asyncio ruff mypy
+
+# Copy source code (will be overridden by volume mount in docker-compose)
 COPY bo1/ ./bo1/
 COPY zzz_important/ ./zzz_important/
 
-# Create directories for exports
+# Create exports directory
 RUN mkdir -p /app/exports
 
-# Activate virtual environment
-ENV PATH="/app/.venv/bin:$PATH"
+# Expose port for future web interface (v2)
+EXPOSE 8000
 
-# Set Python to run in unbuffered mode for better logging
-ENV PYTHONUNBUFFERED=1
+# Default command: interactive shell for development
+CMD ["/bin/bash"]
 
-# Default command (can be overridden in docker-compose)
+# -----------------------------------------------------------------------------
+# Stage 4: Production image (minimal, no dev dependencies)
+# -----------------------------------------------------------------------------
+FROM dependencies AS production
+
+WORKDIR /app
+
+# Copy only application code (not dev files)
+COPY bo1/ ./bo1/
+COPY zzz_important/ ./zzz_important/
+
+# Create exports directory
+RUN mkdir -p /app/exports
+
+# Run as non-root user for security
+RUN useradd -m -u 1000 bo1user && \
+    chown -R bo1user:bo1user /app
+USER bo1user
+
+# Health check (will be more sophisticated in v2 with web API)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)"
+
+# Default command: run the application
 CMD ["python", "-m", "bo1.main"]
+
+# -----------------------------------------------------------------------------
+# Stage 5: Testing image (for CI/CD)
+# -----------------------------------------------------------------------------
+FROM development AS testing
+
+WORKDIR /app
+
+# Copy test files
+COPY tests/ ./tests/
+
+# Run tests
+CMD ["pytest", "-v", "--tb=short"]

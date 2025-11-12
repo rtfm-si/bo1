@@ -10,7 +10,7 @@ from typing import Any
 
 from bo1.config import MODEL_BY_ROLE
 from bo1.data import get_active_personas, get_persona_by_code
-from bo1.llm.client import ClaudeClient
+from bo1.llm.client import ClaudeClient, TokenUsage
 from bo1.models.problem import SubProblem
 
 logger = logging.getLogger(__name__)
@@ -130,11 +130,11 @@ class PersonaSelectorAgent:
         self.client = client or ClaudeClient()
         self.model_name = MODEL_BY_ROLE["selector"]
 
-    def recommend_personas(
+    async def recommend_personas(
         self,
         sub_problem: SubProblem,
         problem_context: str = "",
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], TokenUsage, float]:
         """Recommend personas for a given sub-problem.
 
         Uses LLM to analyze the problem and recommend 3-5 expert personas
@@ -145,14 +145,14 @@ class PersonaSelectorAgent:
             problem_context: Additional context about the overall problem
 
         Returns:
-            Dictionary containing:
-            - analysis: Brief analysis of problem domain
-            - recommended_personas: List of persona recommendations with rationale
-            - coverage_summary: How the team provides comprehensive coverage
+            Tuple of (recommendation_dict, token_usage, cost):
+            - recommendation_dict: Dictionary containing analysis, recommended_personas, coverage_summary
+            - token_usage: TokenUsage object with detailed token counts
+            - cost: Total cost in USD
 
         Examples:
             >>> agent = PersonaSelectorAgent()
-            >>> result = agent.recommend_personas(
+            >>> result, usage, cost = await agent.recommend_personas(
             ...     sub_problem=SubProblem(
             ...         id="sp_001",
             ...         goal="Should I invest $50K in SEO or paid ads?",
@@ -196,16 +196,17 @@ Provide your recommendation as JSON following the format in your system prompt.
 
         # Call LLM (async)
         messages = [{"role": "user", "content": user_message}]
-        import asyncio
 
-        response_text, _ = asyncio.run(
-            self.client.call(
-                model=self.model_name,
-                messages=messages,
-                system=SELECTOR_SYSTEM_PROMPT,
-                cache_system=False,  # No caching needed for one-off selection
-            )
+        response_text, token_usage = await self.client.call(
+            model=self.model_name,
+            messages=messages,
+            system=SELECTOR_SYSTEM_PROMPT,
+            cache_system=False,  # No caching needed for one-off selection
+            prefill="{",  # Ensure JSON response starts with {
         )
+
+        # Calculate cost
+        cost = token_usage.calculate_cost(self.model_name)
 
         # Parse response
         try:
@@ -216,14 +217,21 @@ Provide your recommendation as JSON following the format in your system prompt.
                 raise ValueError("Response missing 'recommended_personas' field")
 
             persona_codes = [p["code"] for p in recommendation["recommended_personas"]]
-            logger.info(f"Recommended {len(persona_codes)} personas: {', '.join(persona_codes)}")
+            logger.info(
+                f"Recommended {len(persona_codes)} personas: {', '.join(persona_codes)} "
+                f"(tokens: {token_usage.total_tokens}, cost: ${cost:.6f})"
+            )
 
-            return dict(recommendation)
+            return dict(recommendation), token_usage, cost
 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse persona selection JSON: {e}")
+            logger.warning(
+                f"Failed to parse persona selection JSON (rare with prefill): {e}. "
+                f"Response was: {response_text[:200]}..."
+            )
             # Fallback: use default personas
-            return self._get_default_recommendation()
+            fallback = self._get_default_recommendation()
+            return fallback, token_usage, cost
         except Exception as e:
             logger.error(f"Error during persona selection: {e}")
             raise

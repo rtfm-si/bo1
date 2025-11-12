@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 from bo1.config import MODEL_BY_ROLE
-from bo1.llm.client import ClaudeClient
+from bo1.llm.client import ClaudeClient, TokenUsage
 from bo1.models.problem import Problem, SubProblem
 from bo1.prompts.decomposer_prompts import (
     DECOMPOSER_SYSTEM_PROMPT,
@@ -115,12 +115,12 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
         # In full implementation, we'd collect answers and use them to build context
         return user_input, "", []
 
-    def decompose_problem(
+    async def decompose_problem(
         self,
         problem_description: str,
         context: str = "",
         constraints: list[str] | None = None,
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], TokenUsage, float]:
         """Decompose a problem into sub-problems using LLM.
 
         Breaks the problem into 1-5 sub-problems with:
@@ -135,14 +135,14 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             constraints: List of constraints (budget, time, etc.)
 
         Returns:
-            Dictionary containing:
-            - analysis: Brief analysis of the problem
-            - is_atomic: Whether problem is atomic (no decomposition needed)
-            - sub_problems: List of sub-problem dictionaries
+            Tuple of (decomposition_dict, token_usage, cost):
+            - decomposition_dict: Dictionary containing analysis, is_atomic, sub_problems
+            - token_usage: TokenUsage object with detailed token counts
+            - cost: Total cost in USD
 
         Examples:
             >>> agent = DecomposerAgent()
-            >>> result = agent.decompose_problem(
+            >>> result, usage, cost = await agent.decompose_problem(
             ...     "Should I invest $50K in SEO or paid ads?",
             ...     context="Solo founder, SaaS product, $100K ARR",
             ...     constraints=["Budget: $50K", "Timeline: 6 months"]
@@ -161,16 +161,17 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
 
         # Call LLM with decomposer system prompt (async)
         messages = [{"role": "user", "content": user_message}]
-        import asyncio
 
-        response_text, _ = asyncio.run(
-            self.client.call(
-                model=self.model_name,
-                messages=messages,
-                system=DECOMPOSER_SYSTEM_PROMPT,
-                cache_system=False,  # No caching needed for one-off decomposition
-            )
+        response_text, token_usage = await self.client.call(
+            model=self.model_name,
+            messages=messages,
+            system=DECOMPOSER_SYSTEM_PROMPT,
+            cache_system=False,  # No caching needed for one-off decomposition
+            prefill="{",  # Ensure JSON response starts with {
         )
+
+        # Calculate cost
+        cost = token_usage.calculate_cost(self.model_name)
 
         # Parse JSON response
         try:
@@ -186,16 +187,21 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
 
             logger.info(
                 f"Decomposition complete: {len(decomposition['sub_problems'])} sub-problems, "
-                f"atomic={decomposition['is_atomic']}"
+                f"atomic={decomposition['is_atomic']} "
+                f"(tokens: {token_usage.total_tokens}, cost: ${cost:.6f})"
             )
 
-            return dict(decomposition)
+            return dict(decomposition), token_usage, cost
 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse decomposition JSON: {e}")
+            logger.warning(
+                f"Failed to parse decomposition JSON (this is rare with prefill): {e}. "
+                f"Response was: {response_text[:200]}..."
+            )
             # Fallback: treat as atomic problem
-            return {
-                "analysis": "Unable to parse decomposition, treating as atomic problem.",
+            # Note: With JSON prefill, this should rarely happen
+            fallback = {
+                "analysis": "The LLM response could not be parsed as JSON. Treating as an atomic problem that cannot be decomposed further.",
                 "is_atomic": True,
                 "sub_problems": [
                     {
@@ -204,10 +210,11 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
                         "context": context,
                         "complexity_score": 5,
                         "dependencies": [],
-                        "rationale": "Fallback atomic problem due to parsing error.",
+                        "rationale": "Atomic problem - JSON parsing fallback triggered.",
                     }
                 ],
             }
+            return fallback, token_usage, cost
         except Exception as e:
             logger.error(f"Error during decomposition: {e}")
             raise

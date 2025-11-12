@@ -18,6 +18,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.theme import Theme
 
+from bo1.llm.client import TokenUsage
 from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
 from bo1.models.votes import Vote
@@ -364,6 +365,44 @@ class Console:
         self.console.print(table)
         self.console.print()
 
+    def print_llm_cost(
+        self,
+        phase: str,
+        token_usage: TokenUsage,
+        cost: float,
+        model_name: str = "",
+    ) -> None:
+        """Print LLM usage statistics for a phase.
+
+        Args:
+            phase: Phase name (e.g., "Decomposition", "Persona Selection")
+            token_usage: TokenUsage object with detailed token counts
+            cost: Total cost in USD
+            model_name: Optional model name to display
+        """
+        # Build cost summary
+        parts = []
+
+        # Tokens
+        total_tokens = token_usage.total_tokens
+        parts.append(f"Total: {total_tokens:,} tokens")
+
+        # Cache breakdown if applicable
+        if token_usage.cache_read_tokens > 0:
+            cache_pct = int(token_usage.cache_hit_rate * 100)
+            parts.append(f"(cached: {token_usage.cache_read_tokens:,}, {cache_pct}%)")
+
+        # Cost
+        parts.append(f"Cost: ${cost:.6f}")
+
+        # Model
+        if model_name:
+            parts.append(f"Model: {model_name}")
+
+        summary = " | ".join(parts)
+
+        self.console.print(f"[dim]  └─ {phase}: {summary}[/dim]")
+
     def spinner(self, text: str) -> Progress:
         """Create a spinner progress indicator.
 
@@ -371,20 +410,23 @@ class Console:
             text: Text to display with spinner
 
         Returns:
-            Progress context manager
+            Progress context manager with task already added
 
         Examples:
             >>> console = Console()
-            >>> with console.spinner("Processing..."):
+            >>> with console.spinner("Processing...") as progress:
             ...     # Do work
             ...     pass
         """
-        return Progress(
+        progress = Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             console=self.console,
             transient=True,
         )
+        # Add task with the provided text when entering context
+        progress.add_task(text, total=None)
+        return progress
 
     def clear(self) -> None:
         """Clear the console."""
@@ -397,3 +439,172 @@ class Console:
             title: Optional title for the rule
         """
         self.console.rule(title, style="dim")
+
+    def print_decomposition(self, decomposition: dict[str, Any]) -> None:
+        """Print decomposition result.
+
+        Args:
+            decomposition: Decomposition dictionary with analysis and sub-problems
+        """
+        # Print analysis
+        analysis = decomposition.get("analysis", "No analysis provided")
+        self.console.print(
+            Panel.fit(
+                analysis,
+                title="Problem Analysis",
+                border_style="cyan",
+            )
+        )
+        self.console.print()
+
+        # Print atomic status
+        is_atomic = decomposition.get("is_atomic", False)
+        if is_atomic:
+            self.console.print(
+                "[info]ℹ This problem is atomic and will be deliberated as a single question[/info]\n"
+            )
+        else:
+            sub_count = len(decomposition.get("sub_problems", []))
+            self.console.print(
+                f"[success]✓ Successfully decomposed into {sub_count} sub-problems[/success]\n"
+            )
+
+        # Print sub-problems table
+        sub_problems = decomposition.get("sub_problems", [])
+        if sub_problems:
+            table = Table(title="Sub-Problems", show_header=True, header_style="bold yellow")
+            table.add_column("#", style="cyan", width=4)
+            table.add_column("ID", style="dim")
+            table.add_column("Goal", style="bold")
+            table.add_column("Complexity", justify="center", width=12)
+            table.add_column("Dependencies", style="dim")
+
+            for i, sp in enumerate(sub_problems, 1):
+                complexity = sp.get("complexity_score", 0)
+                complexity_bar = "█" * complexity + "░" * (10 - complexity)
+                deps = ", ".join(sp.get("dependencies", [])) or "-"
+
+                table.add_row(
+                    str(i),
+                    sp.get("id", ""),
+                    sp.get("goal", ""),
+                    f"{complexity}/10\n{complexity_bar}",
+                    deps,
+                )
+
+            self.console.print(table)
+            self.console.print()
+
+    def review_decomposition(self, decomposition: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
+        """Interactive review of decomposition with user.
+
+        Allows user to:
+        - Approve decomposition
+        - Modify sub-problems
+        - Add new sub-problems
+        - Merge sub-problems
+
+        Args:
+            decomposition: Decomposition to review
+
+        Returns:
+            Tuple of (approved, modified_decomposition)
+        """
+        self.console.print("[title]═══ Decomposition Review ═══[/title]\n")
+        self.print_decomposition(decomposition)
+
+        # Ask for approval
+        self.console.print(
+            "[bold]Do you approve this decomposition?[/bold]\n"
+            "  [cyan]a[/cyan] - Approve and continue\n"
+            "  [cyan]m[/cyan] - Modify sub-problems\n"
+            "  [cyan]r[/cyan] - Reject and provide new problem description\n"
+        )
+
+        choice = self.console.input("Your choice [a/m/r]: ").strip().lower()
+
+        if choice == "a":
+            self.print_success("Decomposition approved!")
+            return True, decomposition
+
+        elif choice == "m":
+            # Modification flow
+            self.console.print("\n[info]Modification options:[/info]")
+            self.console.print(
+                "  [cyan]1[/cyan] - Edit a sub-problem goal\n"
+                "  [cyan]2[/cyan] - Change complexity score\n"
+                "  [cyan]3[/cyan] - Add dependencies\n"
+                "  [cyan]4[/cyan] - Add new sub-problem\n"
+                "  [cyan]5[/cyan] - Remove sub-problem\n"
+                "  [cyan]d[/cyan] - Done with modifications\n"
+            )
+
+            modified = dict(decomposition)  # Create a copy
+
+            while True:
+                mod_choice = self.console.input("\nModification choice [1-5/d]: ").strip()
+
+                if mod_choice == "d":
+                    self.print_success("Modifications complete!")
+                    return True, modified
+
+                elif mod_choice == "1":
+                    # Edit goal
+                    sp_num = int(self.console.input("Sub-problem number to edit: ").strip())
+                    if 1 <= sp_num <= len(modified["sub_problems"]):
+                        new_goal = self.console.input("New goal: ").strip()
+                        modified["sub_problems"][sp_num - 1]["goal"] = new_goal
+                        self.print_success(f"Updated sub-problem {sp_num} goal")
+                    else:
+                        self.print_error("Invalid sub-problem number")
+
+                elif mod_choice == "2":
+                    # Change complexity
+                    sp_num = int(self.console.input("Sub-problem number to edit: ").strip())
+                    if 1 <= sp_num <= len(modified["sub_problems"]):
+                        new_complexity = int(self.console.input("New complexity (1-10): ").strip())
+                        if 1 <= new_complexity <= 10:
+                            modified["sub_problems"][sp_num - 1]["complexity_score"] = (
+                                new_complexity
+                            )
+                            self.print_success(f"Updated sub-problem {sp_num} complexity")
+                        else:
+                            self.print_error("Complexity must be 1-10")
+                    else:
+                        self.print_error("Invalid sub-problem number")
+
+                elif mod_choice == "4":
+                    # Add new sub-problem
+                    new_id = f"sp_{len(modified['sub_problems']) + 1:03d}"
+                    new_goal = self.console.input("Goal: ").strip()
+                    new_context = self.console.input("Context: ").strip()
+                    new_complexity = int(self.console.input("Complexity (1-10): ").strip())
+
+                    modified["sub_problems"].append(
+                        {
+                            "id": new_id,
+                            "goal": new_goal,
+                            "context": new_context,
+                            "complexity_score": new_complexity,
+                            "dependencies": [],
+                            "rationale": "User-added sub-problem",
+                        }
+                    )
+                    modified["is_atomic"] = False
+                    self.print_success(f"Added sub-problem {new_id}")
+
+                elif mod_choice == "5":
+                    # Remove sub-problem
+                    sp_num = int(self.console.input("Sub-problem number to remove: ").strip())
+                    if 1 <= sp_num <= len(modified["sub_problems"]):
+                        removed = modified["sub_problems"].pop(sp_num - 1)
+                        self.print_success(f"Removed sub-problem {removed['id']}")
+                    else:
+                        self.print_error("Invalid sub-problem number")
+
+                else:
+                    self.print_warning("Invalid choice, try again")
+
+        else:  # choice == "r"
+            self.console.print("\n[warning]Decomposition rejected[/warning]")
+            return False, decomposition

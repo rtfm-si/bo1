@@ -44,6 +44,10 @@ shell: ## Open interactive shell in bo1 container
 run: ## Run deliberation in container (interactive)
 	docker-compose run --rm bo1 python -m bo1.main
 
+.PHONY: demo
+demo: ## Run demo script (Days 8-11)
+	docker-compose exec bo1 python bo1/demo.py
+
 .PHONY: redis-cli
 redis-cli: ## Open Redis CLI
 	docker-compose exec redis redis-cli

@@ -17,8 +17,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:$PATH"
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/ && \
+    mv /root/.local/bin/uvx /usr/local/bin/
 
 # Set Python to unbuffered mode for better logging in containers
 ENV PYTHONUNBUFFERED=1
@@ -33,6 +34,9 @@ WORKDIR /app
 # Copy only dependency files (for layer caching)
 COPY pyproject.toml .
 COPY README.md .
+
+# Copy source code (needed for editable install)
+COPY bo1/ ./bo1/
 
 # Create virtual environment and install dependencies
 RUN uv venv && \

@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 
 @pytest.mark.integration
 @pytest.mark.requires_llm
-def test_decomposition_simple_problem():
+@pytest.mark.asyncio
+async def test_decomposition_simple_problem():
     """Test decomposition of a simple (atomic) problem."""
     decomposer = DecomposerAgent()
 
@@ -30,7 +31,7 @@ def test_decomposition_simple_problem():
     problem = "Should I use PostgreSQL or MySQL for my database?"
     context = "Building a B2B SaaS app, solo developer, familiar with both"
 
-    result = decomposer.decompose_problem(
+    result, usage, cost = await decomposer.decompose_problem(
         problem_description=problem,
         context=context,
     )
@@ -45,12 +46,19 @@ def test_decomposition_simple_problem():
     is_valid, errors = decomposer.validate_decomposition(result)
     assert is_valid, f"Decomposition validation failed: {errors}"
 
-    logger.info(f"✓ Simple problem decomposed correctly: {result['is_atomic']=}")
+    # Validate token usage tracking
+    assert usage.total_tokens > 0
+    assert cost > 0
+
+    logger.info(
+        f"✓ Simple problem decomposed correctly: {result['is_atomic']=} (cost: ${cost:.6f})"
+    )
 
 
 @pytest.mark.integration
 @pytest.mark.requires_llm
-def test_decomposition_moderate_problem():
+@pytest.mark.asyncio
+async def test_decomposition_moderate_problem():
     """Test decomposition of a moderate complexity problem."""
     decomposer = DecomposerAgent()
 
@@ -61,7 +69,7 @@ def test_decomposition_moderate_problem():
     context = "Solo founder, SaaS product, $100K ARR, 12 months runway"
     constraints = ["Budget: $50K", "Timeline: 6 months"]
 
-    result = decomposer.decompose_problem(
+    result, usage, cost = await decomposer.decompose_problem(
         problem_description=problem,
         context=context,
         constraints=constraints,
@@ -86,12 +94,19 @@ def test_decomposition_moderate_problem():
     is_valid, errors = decomposer.validate_decomposition(result)
     assert is_valid, f"Decomposition validation failed: {errors}"
 
-    logger.info(f"✓ Moderate problem decomposed: {len(result['sub_problems'])} sub-problems")
+    # Validate token usage tracking
+    assert usage.total_tokens > 0
+    assert cost > 0
+
+    logger.info(
+        f"✓ Moderate problem decomposed: {len(result['sub_problems'])} sub-problems (cost: ${cost:.6f})"
+    )
 
 
 @pytest.mark.integration
 @pytest.mark.requires_llm
-def test_persona_selection():
+@pytest.mark.asyncio
+async def test_persona_selection():
     """Test persona selection for a sub-problem."""
     selector = PersonaSelectorAgent()
 
@@ -103,7 +118,7 @@ def test_persona_selection():
         complexity_score=6,
     )
 
-    result = selector.recommend_personas(
+    result, usage, cost = await selector.recommend_personas(
         sub_problem=sub_problem,
         problem_context="Growth investment decision",
     )
@@ -128,7 +143,11 @@ def test_persona_selection():
     is_valid, invalid_codes = selector.validate_persona_codes(persona_codes)
     assert is_valid, f"Invalid persona codes: {invalid_codes}"
 
-    logger.info(f"✓ Personas selected: {', '.join(persona_codes)}")
+    # Validate token usage tracking
+    assert usage.total_tokens > 0
+    assert cost > 0
+
+    logger.info(f"✓ Personas selected: {', '.join(persona_codes)} (cost: ${cost:.6f})")
 
 
 @pytest.mark.integration
@@ -219,7 +238,7 @@ async def test_full_pipeline_simple():
     problem_desc = "Should I invest $50K in SEO or paid ads?"
     context = "Solo founder, SaaS product, $100K ARR"
 
-    decomposition = decomposer.decompose_problem(
+    decomposition, decomp_usage, decomp_cost = await decomposer.decompose_problem(
         problem_description=problem_desc,
         context=context,
     )
@@ -232,11 +251,13 @@ async def test_full_pipeline_simple():
         decomposition=decomposition,
     )
 
-    logger.info(f"✓ Problem decomposed: {len(problem.sub_problems)} sub-problems")
+    logger.info(
+        f"✓ Problem decomposed: {len(problem.sub_problems)} sub-problems (cost: ${decomp_cost:.6f})"
+    )
 
     # Step 2: Select personas
     selector = PersonaSelectorAgent()
-    recommendation = selector.recommend_personas(
+    recommendation, selector_usage, selector_cost = await selector.recommend_personas(
         sub_problem=problem.sub_problems[0],
         problem_context=problem.context,
     )
@@ -264,11 +285,21 @@ async def test_full_pipeline_simple():
 
     # Validate end-to-end results
     assert len(contributions) == len(persona_profiles)
-    assert engine.get_total_cost() < 0.10  # Should be under $0.10
+
+    # Calculate total cost including decomposition and selection
+    total_cost = decomp_cost + selector_cost + engine.get_total_cost()
+    total_tokens = (
+        decomp_usage.total_tokens + selector_usage.total_tokens + engine.get_total_tokens()
+    )
+
+    assert total_cost < 0.15  # Should be under $0.15 (including decomp + selection)
 
     logger.info("✓ Full pipeline test passed")
-    logger.info(f"  - Total cost: ${engine.get_total_cost():.4f}")
-    logger.info(f"  - Total tokens: {engine.get_total_tokens()}")
+    logger.info(f"  - Decomposition cost: ${decomp_cost:.4f}")
+    logger.info(f"  - Selection cost: ${selector_cost:.4f}")
+    logger.info(f"  - Deliberation cost: ${engine.get_total_cost():.4f}")
+    logger.info(f"  - Total cost: ${total_cost:.4f}")
+    logger.info(f"  - Total tokens: {total_tokens}")
 
 
 if __name__ == "__main__":
@@ -280,15 +311,15 @@ if __name__ == "__main__":
     print("=" * 60 + "\n")
 
     print("Test 1: Simple Problem Decomposition")
-    test_decomposition_simple_problem()
+    asyncio.run(test_decomposition_simple_problem())
     print()
 
     print("Test 2: Moderate Problem Decomposition")
-    test_decomposition_moderate_problem()
+    asyncio.run(test_decomposition_moderate_problem())
     print()
 
     print("Test 3: Persona Selection")
-    test_persona_selection()
+    asyncio.run(test_persona_selection())
     print()
 
     print("Test 4: Initial Round Execution")

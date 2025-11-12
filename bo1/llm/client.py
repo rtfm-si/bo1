@@ -128,6 +128,7 @@ class ClaudeClient:
         cache_system: bool = False,
         temperature: float = 1.0,
         max_tokens: int = 4096,
+        prefill: str | None = None,
     ) -> tuple[str, TokenUsage]:
         """Make a Claude API call with optional prompt caching.
 
@@ -138,6 +139,7 @@ class ClaudeClient:
             cache_system: If True, mark system prompt for caching
             temperature: Sampling temperature (0-1)
             max_tokens: Maximum tokens to generate
+            prefill: Optional assistant message prefill (e.g., "{" for JSON)
 
         Returns:
             Tuple of (response_text, token_usage)
@@ -153,6 +155,12 @@ class ClaudeClient:
             ...     system="You are a helpful assistant.",
             ...     messages=[{"role": "user", "content": "Hello!"}],
             ...     cache_system=True
+            ... )
+            >>> # For JSON responses:
+            >>> response, usage = await client.call(
+            ...     model="sonnet",
+            ...     messages=[{"role": "user", "content": "Return JSON"}],
+            ...     prefill="{"
             ... )
         """
         client = self._get_client(model)
@@ -183,6 +191,10 @@ class ClaudeClient:
             elif msg["role"] == "assistant":
                 lc_messages.append(AIMessage(content=msg["content"]))
 
+        # Add prefill if provided (for JSON responses, use "{")
+        if prefill:
+            lc_messages.append(AIMessage(content=prefill))
+
         # Make API call
         try:
             response = await client.ainvoke(
@@ -199,6 +211,10 @@ class ClaudeClient:
             raise ValueError(f"Unexpected response format: {response}")
 
         response_text = str(response.content)
+
+        # Prepend prefill to response if it was used
+        if prefill:
+            response_text = prefill + response_text
 
         # Extract token usage
         usage_metadata = getattr(response, "usage_metadata", {})

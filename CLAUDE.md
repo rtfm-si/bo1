@@ -32,13 +32,18 @@ make up              # Start Redis + app containers
 # Development
 make run             # Run deliberation (interactive)
 make shell           # Bash in container
-make logs-app        # View app logs
+make logs            # View all container logs
+make logs-app        # View app logs only
 
 # Testing
 make test            # All tests in container
 make test-unit       # Unit tests only
+make test-integration # Integration tests only
+make test-coverage   # Generate HTML coverage report
 
-# Code Quality
+# Code Quality (Before Pushing)
+make pre-commit      # Full suite: lint + format + typecheck (RUN BEFORE GIT PUSH)
+make fix             # Auto-fix linting and formatting issues
 make lint            # ruff check
 make format          # ruff format
 make check           # lint + typecheck
@@ -46,9 +51,26 @@ make check           # lint + typecheck
 # Redis
 make redis-cli       # Open Redis CLI
 make redis-ui        # Web UI (http://localhost:8081)
+make backup-redis    # Backup Redis data to ./backups/
+make clean-redis     # Clear all Redis data (WARNING: deletes everything)
+
+# Debugging
+make status          # Show container status
+make stats           # Show resource usage
+make inspect         # View container configuration
 ```
 
 **Hot Reload**: Edit code locally, changes immediately available in container (no rebuild).
+
+**Local Development**: For running tests locally (outside Docker) before pushing:
+```bash
+# Requires: Redis running locally, .env configured, uv sync completed
+pytest                              # All tests
+pytest -m unit                      # Unit tests only
+pytest -m "not requires_llm"        # Skip LLM tests (faster)
+pytest tests/test_integration_day7.py::test_name -v  # Single test
+ruff check . && ruff format --check . && mypy bo1/   # Pre-commit checks
+```
 
 ---
 
@@ -91,13 +113,15 @@ current_round_contributions: list[dict]  # ~200 tokens each
 
 ---
 
-## Key Files
+## Key Files & Directories
 
 - `bo1/data/personas.json` - 45 experts (ONLY bespoke `<system_role>`, 879 chars avg)
 - `bo1/prompts/reusable_prompts.py` - Generic protocols (behavioral, evidence, communication)
 - `bo1/prompts/summarizer_prompts.py` - Background summarization (Haiku)
 - `zzz_project/TASKS.md` - 28-day implementation roadmap (83 tasks)
 - `zzz_important/CONSENSUS_BUILDING_RESEARCH.md` - Research-backed stopping criteria
+- `exports/` - Generated deliberation outputs (JSON, markdown reports)
+- `backups/` - Redis backup files (created by `make backup-redis`)
 
 ---
 
@@ -163,13 +187,31 @@ context = {
 ## Testing Strategy
 
 1. **Unit**: Pydantic models, prompt composition, vote aggregation
-   - `pytest -m unit` - Fast tests, no API calls
+   - `make test-unit` or `pytest -m unit` - Fast tests, no API calls
 2. **Integration**: Redis persistence, LLM calls, convergence detection
-   - `pytest -m integration` - Requires Redis + API keys
-   - `pytest -m "not requires_llm"` - Skip LLM tests
-3. **Week 1 Integration**: `pytest tests/test_integration_day7.py -v`
-   - Full pipeline validation (persona → prompt → LLM → cache → Redis → export)
+   - `make test-integration` or `pytest -m integration` - Requires Redis + API keys
+   - `pytest -m "not requires_llm"` - Skip LLM tests (faster CI/local checks)
+3. **Week 1 Integration**: Full pipeline validation
+   - `pytest tests/test_integration_day7.py -v`
+   - Validates: persona → prompt → LLM → cache → Redis → export
 4. **Scenario**: 10+ solopreneur problems from PRD (5-15 min, <$1, >70% consensus)
+
+**Running Specific Tests**:
+```bash
+# Run single test file
+pytest tests/test_integration_day7.py -v
+
+# Run single test function
+pytest tests/test_integration_day7.py::test_function_name -v
+
+# Run tests with coverage report
+make test-coverage  # Generates htmlcov/index.html
+```
+
+**Pre-Push Checklist**:
+1. `make pre-commit` - Ensures code quality (lint + format + typecheck)
+2. `pytest -m "not requires_llm"` - Fast test suite (no API costs)
+3. Optionally: `make test` - Full test suite including LLM calls
 
 ---
 

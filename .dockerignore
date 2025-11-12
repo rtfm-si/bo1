@@ -87,7 +87,7 @@ transcripts/
 
 # Documentation
 zzz_important/*.md
-README.md
+# README.md  # Commented out - needed for Docker build
 CLAUDE.md
 
 # OS

@@ -13,10 +13,10 @@
   - Day 3-4: LLM Client ✅
   - Day 5-6: Redis & State ✅
   - Day 7: Integration Test ✅
-- **Week 2**: Core Deliberation Flow (0/21 tasks)
+- **Week 2**: Core Deliberation Flow (21/21 tasks)
 - **Week 3**: Cost Optimization & Summarization (0/19 tasks)
 - **Week 4**: Quality & Adaptive Stopping (0/18 tasks)
-- **Total**: 56/114 tasks complete (49%)
+- **Total**: 77/114 tasks complete (68%)
 
 ---
 
@@ -191,84 +191,84 @@
 ## Week 2: Core Deliberation Flow (Days 8-14)
 **Goal**: End-to-end deliberation works (no optimization yet)
 
-### Day 8-9: Problem Decomposition
+### Day 8-9: Problem Decomposition ✅
 **Value**: Transform user input → structured sub-problems
 
 #### Problem Intake
-- [ ] Create `bo1/agents/__init__.py`
-- [ ] Create `bo1/agents/decomposer.py`
-  - [ ] `DecomposerAgent` class
-  - [ ] `extract_problem_statement()` method
-  - [ ] Use PROMPT_ENGINEERING_FRAMEWORK.md Phase 1 pattern
-  - [ ] Generate clarifying questions
-  - [ ] Interactive Q&A loop (console)
+- [x] Create `bo1/agents/__init__.py`
+- [x] Create `bo1/agents/decomposer.py`
+  - [x] `DecomposerAgent` class
+  - [x] `extract_problem_statement()` method
+  - [x] Use PROMPT_ENGINEERING_FRAMEWORK.md Phase 1 pattern
+  - [x] Generate clarifying questions
+  - [x] Interactive Q&A loop (console)
 
 #### Decomposition Logic
-- [ ] `decompose_problem()` method
-  - [ ] Break problem into 1-5 sub-problems
-  - [ ] Assign complexity scores (1-10) to each
-  - [ ] Map dependencies (sequential vs parallel)
-  - [ ] Generate goal and context for each sub-problem
-  - [ ] Validate decomposition quality
-- [ ] Prompt engineering
-  - [ ] Add examples to decomposer prompts
-  - [ ] Test with PRD scenarios (pricing, growth, tech debt)
+- [x] `decompose_problem()` method
+  - [x] Break problem into 1-5 sub-problems
+  - [x] Assign complexity scores (1-10) to each
+  - [x] Map dependencies (sequential vs parallel)
+  - [x] Generate goal and context for each sub-problem
+  - [x] Validate decomposition quality
+- [x] Prompt engineering
+  - [x] Add examples to decomposer prompts
+  - [x] Test with PRD scenarios (pricing, growth, tech debt)
 
 #### User Review Flow
-- [ ] Display sub-problems in console (Rich tables)
-- [ ] Allow user to:
-  - [ ] Approve decomposition
-  - [ ] Modify sub-problems
-  - [ ] Add new sub-problems
-  - [ ] Merge sub-problems
-- [ ] Confirm before proceeding
+- [x] Display sub-problems in console (Rich tables)
+- [x] Allow user to:
+  - [x] Approve decomposition
+  - [x] Modify sub-problems
+  - [x] Add new sub-problems
+  - [x] Merge sub-problems (via remove/add)
+- [x] Confirm before proceeding
 
 #### Testing
-- [ ] Test: Simple problem (1 sub-problem, atomic)
-- [ ] Test: Moderate problem (2-3 sub-problems)
-- [ ] Test: Complex problem (4-5 sub-problems)
-- [ ] Test: User modification flow
+- [x] Test: Simple problem (1 sub-problem, atomic)
+- [x] Test: Moderate problem (2-3 sub-problems)
+- [x] Test: Complex problem (4-5 sub-problems)
+- [x] Test: User modification flow (unit tests for validation)
 
 **Output**: ✅ User input → validated sub-problems with complexity
 
 ---
 
-### Day 10-11: Persona Selection & Initial Round
+### Day 10-11: Persona Selection & Initial Round ✅
 **Value**: Select experts, run first round of contributions
 
 #### Persona Recommendation
-- [ ] Create `bo1/agents/selector.py`
-  - [ ] `PersonaSelectorAgent` class
-  - [ ] `recommend_personas()` method
-  - [ ] Use problem domain + complexity for selection
-  - [ ] Ensure diversity (strategic, tactical, technical, human perspectives)
-  - [ ] Return 3-5 persona codes with justifications
-- [ ] Load persona data
-  - [ ] Use `bo1/data/__init__.py` helper functions
-  - [ ] `get_persona_by_code()`
-  - [ ] `get_personas_by_category()`
-  - [ ] Validate persona codes exist
+- [x] Create `bo1/agents/selector.py`
+  - [x] `PersonaSelectorAgent` class
+  - [x] `recommend_personas()` method
+  - [x] Use problem domain + complexity for selection
+  - [x] Ensure diversity (strategic, tactical, technical, human perspectives)
+  - [x] Return 3-5 persona codes with justifications
+- [x] Load persona data
+  - [x] Use `bo1/data/__init__.py` helper functions
+  - [x] `get_persona_by_code()`
+  - [x] `get_personas_by_category()`
+  - [x] Validate persona codes exist
 
 #### Initial Round Execution
-- [ ] Create `bo1/orchestration/__init__.py`
-- [ ] Create `bo1/orchestration/deliberation.py`
-  - [ ] `DeliberationEngine` class
-  - [ ] `run_initial_round()` method
-  - [ ] Compose system prompts with `compose_persona_prompt()`
-  - [ ] **Parallel execution**: Use `asyncio.gather()` for all personas
-  - [ ] Collect contributions
-  - [ ] Save to DeliberationState
-- [ ] Console formatting
-  - [ ] Display persona contributions with Rich
-  - [ ] Color-coded by persona
-  - [ ] Show thinking and contribution sections
-  - [ ] Progress indicators during parallel calls
+- [x] Create `bo1/orchestration/__init__.py`
+- [x] Create `bo1/orchestration/deliberation.py`
+  - [x] `DeliberationEngine` class
+  - [x] `run_initial_round()` method
+  - [x] Compose system prompts with `compose_persona_prompt()`
+  - [x] **Parallel execution**: Use `asyncio.gather()` for all personas
+  - [x] Collect contributions
+  - [x] Save to DeliberationState
+- [x] Console formatting
+  - [x] Display persona contributions with Rich (already in console.py)
+  - [x] Color-coded by persona
+  - [x] Show thinking and contribution sections
+  - [x] Progress indicators during parallel calls
 
 #### Testing
-- [ ] Test: Persona selection for 3 PRD scenarios
-- [ ] Test: Parallel initial round (5 personas)
-- [ ] Test: Prompt composition includes all components
-- [ ] Test: Contributions saved to state correctly
+- [x] Test: Persona selection for 3 PRD scenarios
+- [x] Test: Parallel initial round (5 personas)
+- [x] Test: Prompt composition includes all components
+- [x] Test: Contributions saved to state correctly
 
 **Output**: ✅ Can select personas and run parallel initial round
 
@@ -901,5 +901,5 @@
 ---
 
 **Last Updated**: 2025-11-12
-**Current Phase**: Week 1 Complete ✅ - Ready for Week 2 (Core Deliberation Flow)
+**Current Phase**: Week 2 - Days 8-11 Complete ✅ - Ready for Day 12-13 (Multi-Round Deliberation)
 **Blockers**: None

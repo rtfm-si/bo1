@@ -161,15 +161,8 @@ async def test_initial_round_execution():
     for code in persona_codes:
         p_data = get_persona_by_code(code)
         if p_data:
-            personas.append(
-                PersonaProfile(
-                    code=p_data["code"],
-                    name=p_data["name"],
-                    archetype=p_data["archetype"],
-                    display_name=p_data["display_name"],
-                    category=p_data["category"],
-                )
-            )
+            # Create PersonaProfile from full persona data
+            personas.append(PersonaProfile(**p_data))
 
     assert len(personas) == 3, "Failed to load test personas"
 
@@ -178,7 +171,7 @@ async def test_initial_round_execution():
         session_id="test_initial_round",
         problem=problem,
         selected_personas=personas,
-        current_sub_problem_id="sp_001",
+        current_sub_problem=problem.sub_problems[0],
     )
 
     # Step 4: Run initial round
@@ -193,11 +186,11 @@ async def test_initial_round_execution():
         assert contrib.persona_code in persona_codes
         assert contrib.content  # Should have content
         assert contrib.round_number == 0  # Initial round
-        assert contrib.token_count > 0  # Should have token count
-        assert contrib.cost > 0  # Should have cost
+        assert contrib.token_count and contrib.token_count > 0  # Should have token count
+        assert contrib.cost and contrib.cost > 0  # Should have cost
 
     # Check state was updated
-    assert len(state.messages) == 3
+    assert len(state.contributions) == 3
     assert state.phase.value == "discussion"  # Should advance to discussion phase
 
     # Log metrics
@@ -254,16 +247,7 @@ async def test_full_pipeline_simple():
     # Convert to PersonaProfile models
     from bo1.models.persona import PersonaProfile
 
-    persona_profiles = [
-        PersonaProfile(
-            code=p["code"],
-            name=p["name"],
-            archetype=p["archetype"],
-            display_name=p["display_name"],
-            category=p["category"],
-        )
-        for p in personas
-    ]
+    persona_profiles = [PersonaProfile(**p) for p in personas]
 
     logger.info(f"✓ Personas selected: {', '.join(persona_codes[:3])}")
 
@@ -272,7 +256,7 @@ async def test_full_pipeline_simple():
         session_id="test_full_pipeline",
         problem=problem,
         selected_personas=persona_profiles,
-        current_sub_problem_id=problem.sub_problems[0].id,
+        current_sub_problem=problem.sub_problems[0],
     )
 
     engine = DeliberationEngine(state=state)

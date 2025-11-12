@@ -73,9 +73,9 @@ class DeliberationEngine:
         self.state.phase = DeliberationPhase.INITIAL_ROUND
 
         # Get current sub-problem
-        current_sp = self.state.problem.get_sub_problem(self.state.current_sub_problem_id)
+        current_sp = self.state.current_sub_problem
         if not current_sp:
-            raise ValueError(f"Sub-problem not found: {self.state.current_sub_problem_id}")
+            raise ValueError("No current sub-problem set in deliberation state")
 
         # Build participant list
         participant_names = [persona.display_name for persona in self.state.selected_personas]
@@ -176,15 +176,20 @@ class DeliberationEngine:
 
         user_message = "".join(user_message_parts)
 
-        # Call LLM
-        response = self.client.call(
-            model_name=self.model_name,
-            system_prompt=system_prompt,
-            user_message=user_message,
+        # Call LLM (async)
+        messages = [{"role": "user", "content": user_message}]
+        response_text, token_usage = await self.client.call(
+            model=self.model_name,
+            messages=messages,
+            system=system_prompt,
+            cache_system=True,  # Enable prompt caching for cost optimization
         )
 
         # Parse response (extract <thinking> and <contribution>)
-        thinking, contribution = self._parse_persona_response(response["content"])
+        thinking, contribution = self._parse_persona_response(response_text)
+
+        # Calculate cost
+        cost = token_usage.calculate_cost(self.model_name)
 
         # Create contribution message
         contrib_msg = ContributionMessage(
@@ -194,8 +199,8 @@ class DeliberationEngine:
             thinking=thinking,
             contribution_type=contribution_type,
             round_number=round_number,
-            token_count=response.get("usage", {}).get("total_tokens", 0),
-            cost=response.get("cost", 0.0),
+            token_count=token_usage.total_tokens,
+            cost=cost,
         )
 
         logger.debug(
@@ -255,7 +260,7 @@ class DeliberationEngine:
         Returns:
             List of contributions from that round
         """
-        return [msg for msg in self.state.messages if msg.round_number == round_number]
+        return [msg for msg in self.state.contributions if msg.round_number == round_number]
 
     def get_total_cost(self) -> float:
         """Calculate total cost of deliberation so far.
@@ -263,7 +268,7 @@ class DeliberationEngine:
         Returns:
             Total cost in USD
         """
-        return sum(msg.cost or 0.0 for msg in self.state.messages)
+        return sum(msg.cost or 0.0 for msg in self.state.contributions)
 
     def get_total_tokens(self) -> int:
         """Calculate total tokens used so far.
@@ -271,4 +276,4 @@ class DeliberationEngine:
         Returns:
             Total token count
         """
-        return sum(msg.token_count or 0 for msg in self.state.messages)
+        return sum(msg.token_count or 0 for msg in self.state.contributions)

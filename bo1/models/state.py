@@ -122,10 +122,10 @@ class DeliberationState(BaseModel):
         default_factory=lambda: DeliberationMetrics(), description="Deliberation metrics"
     )
     votes: list[Any] = Field(default_factory=list, description="Votes from personas (Vote objects)")
-    synthesis: str | None = Field(None, description="Final synthesis report")
+    synthesis: str | None = Field(default=None, description="Final synthesis report")
     created_at: datetime = Field(default_factory=datetime.now, description="When session started")
     updated_at: datetime = Field(default_factory=datetime.now, description="Last update time")
-    completed_at: datetime | None = Field(None, description="When session completed")
+    completed_at: datetime | None = Field(default=None, description="When session completed")
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata (user_id, tags, etc.)"
     )

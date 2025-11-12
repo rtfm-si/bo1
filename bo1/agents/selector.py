@@ -194,16 +194,22 @@ Ensure domain coverage, perspective diversity, and appropriate expertise depth.
 Provide your recommendation as JSON following the format in your system prompt.
 """
 
-        # Call LLM
-        response = self.client.call(
-            model_name=self.model_name,
-            system_prompt=SELECTOR_SYSTEM_PROMPT,
-            user_message=user_message,
+        # Call LLM (async)
+        messages = [{"role": "user", "content": user_message}]
+        import asyncio
+
+        response_text, _ = asyncio.run(
+            self.client.call(
+                model=self.model_name,
+                messages=messages,
+                system=SELECTOR_SYSTEM_PROMPT,
+                cache_system=False,  # No caching needed for one-off selection
+            )
         )
 
         # Parse response
         try:
-            recommendation = json.loads(response["content"])
+            recommendation = json.loads(response_text)
 
             # Validate structure
             if "recommended_personas" not in recommendation:
@@ -212,7 +218,7 @@ Provide your recommendation as JSON following the format in your system prompt.
             persona_codes = [p["code"] for p in recommendation["recommended_personas"]]
             logger.info(f"Recommended {len(persona_codes)} personas: {', '.join(persona_codes)}")
 
-            return recommendation
+            return dict(recommendation)
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse persona selection JSON: {e}")

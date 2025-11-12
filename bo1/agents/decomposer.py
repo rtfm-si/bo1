@@ -85,15 +85,21 @@ Respond with a JSON array of questions:
 Keep questions focused and actionable. Avoid generic questions like "Tell me more."
 """
 
-        response = self.client.call(
-            model_name=self.model_name,
-            system_prompt="You are a problem clarification expert. Generate targeted questions to understand the user's problem.",
-            user_message=clarification_prompt,
+        messages = [{"role": "user", "content": clarification_prompt}]
+        import asyncio
+
+        response_text, _ = asyncio.run(
+            self.client.call(
+                model=self.model_name,
+                messages=messages,
+                system="You are a problem clarification expert. Generate targeted questions to understand the user's problem.",
+                cache_system=False,
+            )
         )
 
         # Parse questions
         try:
-            questions_data = json.loads(response["content"])
+            questions_data = json.loads(response_text)
             questions = questions_data.get("questions", [])
         except json.JSONDecodeError:
             logger.warning("Failed to parse clarifying questions, skipping Q&A")
@@ -153,16 +159,22 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             constraints=constraints,
         )
 
-        # Call LLM with decomposer system prompt
-        response = self.client.call(
-            model_name=self.model_name,
-            system_prompt=DECOMPOSER_SYSTEM_PROMPT,
-            user_message=user_message,
+        # Call LLM with decomposer system prompt (async)
+        messages = [{"role": "user", "content": user_message}]
+        import asyncio
+
+        response_text, _ = asyncio.run(
+            self.client.call(
+                model=self.model_name,
+                messages=messages,
+                system=DECOMPOSER_SYSTEM_PROMPT,
+                cache_system=False,  # No caching needed for one-off decomposition
+            )
         )
 
         # Parse JSON response
         try:
-            decomposition = json.loads(response["content"])
+            decomposition = json.loads(response_text)
 
             # Validate structure
             if "sub_problems" not in decomposition:
@@ -177,7 +189,7 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
                 f"atomic={decomposition['is_atomic']}"
             )
 
-            return decomposition
+            return dict(decomposition)
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse decomposition JSON: {e}")

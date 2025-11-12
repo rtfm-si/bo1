@@ -19,9 +19,11 @@ make pre-commit
 ```
 
 This will run:
-- ✅ Linting (ruff check)
-- ✅ Formatting check (ruff format --check)
-- ✅ Type checking (mypy)
+- ✅ Linting (ruff check) - **BLOCKING**
+- ✅ Formatting check (ruff format --check) - **BLOCKING**
+- ✅ Type checking (mypy) - **BLOCKING**
+
+All checks must pass before you can commit.
 
 ### Option 3: Auto-Fix Issues
 

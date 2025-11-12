@@ -105,13 +105,16 @@ check: lint format-check typecheck ## Run all code quality checks
 pre-commit: ## Run pre-commit checks (lint + format + typecheck) - USE BEFORE GIT COMMIT
 	@echo "🔍 Running pre-commit checks..."
 	@echo ""
-	docker-compose run --rm bo1 ruff check .
+	@echo "1/3 Linting..."
+	@docker-compose run --rm bo1 ruff check .
 	@echo "✓ Linting passed"
 	@echo ""
-	docker-compose run --rm bo1 ruff format --check .
+	@echo "2/3 Formatting..."
+	@docker-compose run --rm bo1 ruff format --check .
 	@echo "✓ Formatting passed"
 	@echo ""
-	docker-compose run --rm bo1 mypy bo1/
+	@echo "3/3 Type checking..."
+	@docker-compose run --rm bo1 mypy bo1/
 	@echo "✓ Type checking passed"
 	@echo ""
 	@echo "✅ All pre-commit checks passed! Safe to commit."

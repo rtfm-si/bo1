@@ -67,9 +67,10 @@ class RedisManager:
                 decode_responses=True,  # Auto-decode bytes to str
                 max_connections=10,
             )
-            self.redis = redis.Redis(connection_pool=self.pool)
+            self.redis: redis.Redis[bytes] | None = redis.Redis(connection_pool=self.pool)
 
             # Test connection
+            assert self.redis is not None  # Type guard: checked by is_available
             self.redis.ping()
             logger.info(f"✅ Connected to Redis at {self.host}:{self.port}/{self.db}")
             self._available = True
@@ -135,6 +136,7 @@ class RedisManager:
 
             # Save to Redis with TTL
             key = self._get_key(session_id)
+            assert self.redis is not None  # Type guard: checked by is_available
             self.redis.setex(key, self.ttl_seconds, state_json)
 
             logger.debug(f"💾 Saved state to Redis: {session_id}")
@@ -165,6 +167,7 @@ class RedisManager:
 
         try:
             key = self._get_key(session_id)
+            assert self.redis is not None  # Type guard: checked by is_available
             state_json = self.redis.get(key)
 
             if not state_json:
@@ -198,6 +201,7 @@ class RedisManager:
 
         try:
             key = self._get_key(session_id)
+            assert self.redis is not None  # Type guard: checked by is_available
             deleted = self.redis.delete(key)
             logger.debug(f"🗑️  Deleted session: {session_id}")
             return bool(deleted)
@@ -222,6 +226,7 @@ class RedisManager:
 
         try:
             # Scan for all session keys
+            assert self.redis is not None  # Type guard: checked by is_available
             keys = self.redis.keys("session:bo1_*")
             # Extract session IDs (keys are already strings with decode_responses=True)
             session_ids = [str(key).replace("session:", "") for key in keys]
@@ -250,6 +255,7 @@ class RedisManager:
 
         try:
             key = self._get_key(session_id)
+            assert self.redis is not None  # Type guard: checked by is_available
             ttl = self.redis.ttl(key)
             return ttl
 
@@ -276,6 +282,7 @@ class RedisManager:
 
         try:
             key = self._get_key(session_id)
+            assert self.redis is not None  # Type guard: checked by is_available
             current_ttl = self.redis.ttl(key)
 
             if current_ttl < 0:
@@ -283,6 +290,7 @@ class RedisManager:
                 return False
 
             new_ttl = current_ttl + additional_seconds
+            assert self.redis is not None  # Type guard: checked by is_available
             self.redis.expire(key, new_ttl)
             logger.debug(f"⏰ Extended session TTL: {session_id} (+{additional_seconds}s)")
             return True
@@ -317,6 +325,7 @@ class RedisManager:
         try:
             key = f"metadata:{session_id}"
             metadata_json = json.dumps(metadata)
+            assert self.redis is not None  # Type guard: checked by is_available
             self.redis.setex(key, self.ttl_seconds, metadata_json)
             return True
 
@@ -344,6 +353,7 @@ class RedisManager:
 
         try:
             key = f"metadata:{session_id}"
+            assert self.redis is not None  # Type guard: checked by is_available
             metadata_json = self.redis.get(key)
 
             if not metadata_json:

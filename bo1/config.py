@@ -84,12 +84,13 @@ MODEL_ALIASES = {
 # Use simple aliases so code doesn't need updates when models change.
 
 MODEL_BY_ROLE = {
-    "PERSONA": "sonnet",  # Needs reasoning, benefits from caching
-    "FACILITATOR": "sonnet",  # Complex orchestration decisions
-    "SUMMARIZER": "haiku",  # Simple compression task
-    "DECOMPOSER": "sonnet",  # Complex problem analysis
-    "MODERATOR": "haiku",  # Simple interventions
-    "RESEARCHER": "haiku",  # Future feature - simple web searches
+    "persona": "sonnet",  # Needs reasoning, benefits from caching
+    "facilitator": "sonnet",  # Complex orchestration decisions
+    "summarizer": "haiku",  # Simple compression task
+    "decomposer": "sonnet",  # Complex problem analysis
+    "selector": "sonnet",  # Complex persona matching analysis
+    "moderator": "haiku",  # Simple interventions
+    "researcher": "haiku",  # Future feature - simple web searches
 }
 
 # =============================================================================

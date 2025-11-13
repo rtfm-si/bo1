@@ -178,16 +178,18 @@ async def run_complete_demo() -> None:
     all_metrics.add_response(selection_response)
 
     selection = json.loads(selection_response.content)
-    persona_codes = selection.get("recommended_personas", [])[:5]  # Max 5
+    persona_recommendations = selection.get("recommended_personas", [])[:5]  # Max 5
 
-    console.print(f"[green]✓ Selected {len(persona_codes)} expert personas[/green]\n")
-    for code in persona_codes:
-        console.print(f"  • {code}")
+    console.print(f"[green]✓ Selected {len(persona_recommendations)} expert personas[/green]\n")
+    for rec in persona_recommendations:
+        console.print(f"  • {rec['code']} ({rec['name']}): {rec['rationale']}")
 
     # Load PersonaProfile objects
     from bo1.data import get_persona_by_code
     from bo1.models.persona import PersonaProfile
 
+    # Extract just the codes from the recommendations
+    persona_codes = [rec["code"] for rec in persona_recommendations]
     personas = [
         PersonaProfile(**p)
         for code in persona_codes

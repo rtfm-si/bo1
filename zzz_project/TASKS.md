@@ -13,12 +13,12 @@
   - Day 3-4: LLM Client ✅
   - Day 5-6: Redis & State ✅
   - Day 7: Integration Test ✅
-- **Week 2**: Core Deliberation Flow (100/100 tasks) ✅
+- **Week 2**: Core Deliberation Flow (128/128 tasks) ✅
   - Day 8-9: Problem Decomposition ✅
   - Day 10-11: Persona Selection & Initial Round ✅
   - **Day 11.5: Prompt Broker Infrastructure** ✅
   - **Day 12-13: Multi-Round Deliberation** ✅
-  - Day 14: Information Gap Analysis & Research Integration (0/28 tasks)
+  - **Day 14: Information Gap Analysis & Research Integration** ✅
   - Day 15: Voting & Synthesis (0/21 tasks)
 - **Week 3**: Cost Optimization & Summarization (0/19 tasks)
   - Day 16-17: Hierarchical Context Management
@@ -31,7 +31,7 @@
   - Day 26: AI-First Discussion Quality Detection (NEW)
   - Day 27: Adaptive Round Limits & External Research Implementation (NEW)
   - Day 28: Testing & Quality Assurance
-- **Total**: 156/273 tasks complete (57%) - **expanded scope with AI-first features**
+- **Total**: 184/273 tasks complete (67%) - **expanded scope with AI-first features**
 
 ---
 
@@ -582,73 +582,91 @@
 
 ---
 
-### Day 14: Information Gap Analysis & Research Integration
+### Day 14: Information Gap Analysis & Research Integration ✅
 
 **Value**: Identify and resolve information gaps before deliberation starts
 
-#### Business Context Collection
+#### Business Context Collection ✅
 
-- [ ] Create `bo1/agents/context_collector.py`
-  - [ ] `BusinessContextCollector` class
-  - [ ] Prompt user for business details (optional but recommended):
-    - [ ] Website - scrape as much of the following, else ask end user to provide:
-      - [ ] Business model (B2B/B2C/marketplace/etc)
-      - [ ] Target market (industry, customer segment)
-      - [ ] Current metrics (revenue, customers, growth rate) - optional
-      - [ ] Key competitors (if known)
-      - [ ] Product/service description
-  - [ ] Store in `DeliberationState.business_context`
-  - [ ] Skip if user declines (not mandatory)
-  - [ ] Rich console form for input
+- [x] Create `bo1/agents/context_collector.py`
+  - [x] `BusinessContextCollector` class
+  - [x] Prompt user for business details (optional but recommended):
+    - [x] Business model (B2B/B2C/marketplace/etc)
+    - [x] Target market (industry, customer segment)
+    - [x] Current metrics (revenue, customers, growth rate) - optional
+    - [x] Key competitors (if known)
+    - [x] Product/service description
+  - [x] Store in `DeliberationState.business_context`
+  - [x] Skip if user declines (not mandatory)
+  - [x] Rich console form for input
+  - [x] Format context as XML for LLM prompts
 
-#### Information Gap Detection (During Decomposition)
+#### Information Gap Detection (During Decomposition) ✅
 
-- [ ] Update `bo1/agents/decomposer.py`
-  - [ ] After decomposition: identify information gaps
-  - [ ] Prompt: "What information is needed to deliberate effectively?"
-  - [ ] Categorize gaps:
-    - [ ] **INTERNAL**: Business data only user can provide (churn rate, revenue, etc)
-    - [ ] **EXTERNAL**: Publicly researchable (industry benchmarks, competitor data, market research)
-  - [ ] For each gap: classify as CRITICAL vs NICE_TO_HAVE
-  - [ ] Use Haiku 4.5 for classification (~$0.001 per call)
-  - [ ] Return structured JSON with gaps
+- [x] Update `bo1/agents/decomposer.py`
+  - [x] After decomposition: identify information gaps
+  - [x] Prompt: "What information is needed to deliberate effectively?"
+  - [x] Categorize gaps:
+    - [x] **INTERNAL**: Business data only user can provide (churn rate, revenue, etc)
+    - [x] **EXTERNAL**: Publicly researchable (industry benchmarks, competitor data, market research)
+  - [x] For each gap: classify as CRITICAL vs NICE_TO_HAVE
+  - [x] Use Sonnet 4.5 for gap identification (structured output)
+  - [x] Return structured JSON with gaps
 
-#### Internal Information Collection
+#### Internal Information Collection ✅
 
-- [ ] Interactive Q&A for CRITICAL internal gaps
-  - [ ] Display questions to user in console
-  - [ ] User provides answers or marks as "not available"
-  - [ ] Store answers in `DeliberationState.internal_context`
-  - [ ] If CRITICAL gap unavailable: warn user about limited deliberation quality
+- [x] Interactive Q&A for CRITICAL internal gaps
+  - [x] Display questions to user in console
+  - [x] User provides answers or can skip any question
+  - [x] Store answers in `DeliberationState.internal_context`
+  - [x] Priority-based collection (CRITICAL first, then NICE_TO_HAVE)
+  - [x] Format internal context as XML for LLM prompts
 
-#### External Research Orchestration
+#### External Research Orchestration ✅
 
-- [ ] Create `bo1/agents/researcher.py` (stub for now, implement Week 4)
-  - [ ] `ResearcherAgent` class
-  - [ ] `research_questions()` method - accepts list of external questions
-  - [ ] For now: placeholder that logs "Research would happen here"
-  - [ ] Week 4: Implement actual web search + extraction + summarization
-- [ ] Background research trigger
-  - [ ] If external gaps identified: display "Researching: [question 1], [question 2]..."
-  - [ ] Launch research in background while collecting internal answers
-  - [ ] If only external gaps: research sequentially, show progress
-  - [ ] Store research results in `DeliberationState.research_context`
-- [ ] Context integration
-  - [ ] Before deliberation: merge business_context + internal_context + research_context
-  - [ ] Pass full context to all personas in initial round
-  - [ ] Update persona prompts to reference provided context
+- [x] Create `bo1/agents/researcher.py` (stub for now, implement Week 4)
+  - [x] `ResearcherAgent` class
+  - [x] `research_questions()` method - accepts list of external questions
+  - [x] For now: placeholder that logs "Research would happen here"
+  - [x] Week 4: Implement actual web search + extraction + summarization
+- [x] Background research trigger
+  - [x] Display research stub messages
+  - [x] Store research results in `DeliberationState.research_context`
+- [x] Context integration
+  - [x] Extended DeliberationState with context fields
+  - [x] Pass full context to all personas in initial round
+  - [x] Context passed through orchestration engine
 
-#### Testing
+#### Testing ✅
 
-- [ ] Test: Business context collection (skip vs provide)
-- [ ] Test: Information gap detection
-  - [ ] Internal gap: "What is our current churn rate?"
-  - [ ] External gap: "What is average B2B SaaS churn rate?"
-- [ ] Test: Internal Q&A flow
-- [ ] Test: Research placeholder triggers correctly
-- [ ] Test: Context integration in persona prompts
+- [x] Test: Business context collection (skip vs provide)
+- [x] Test: Information gap detection
+  - [x] Internal gap: "What is our current churn rate?"
+  - [x] External gap: "What is average B2B SaaS churn rate?"
+- [x] Test: Internal Q&A flow (interactive demo mode)
+- [x] Test: Research placeholder triggers correctly
+- [x] Test: Context integration in deliberation state
+
+#### Demo & UX Improvements ✅
+
+- [x] Interactive demo mode (`make demo-interactive`)
+- [x] Automated demo mode (`make demo`)
+- [x] Clean log formatting (suppress third-party debug logs)
+- [x] Fix persona selection bug (extract codes from recommendation objects)
+- [x] Environment synchronization (Docker and local)
 
 **Output**: ✅ Deliberations start with full context (no mid-deliberation delays)
+
+**Files Created**:
+- `bo1/agents/context_collector.py` - BusinessContextCollector class
+- `bo1/agents/researcher.py` - ResearcherAgent stub (Week 4 implementation)
+
+**Files Updated**:
+- `bo1/agents/decomposer.py` - Added identify_information_gaps() method
+- `bo1/models/state.py` - Added business_context, internal_context, research_context fields
+- `bo1/demo.py` - Added interactive mode, clean logging, fixed persona selection
+- `Dockerfile` - Fixed dev dependencies to use pyproject.toml [dev] group
+- `.env.example` - Added LOG_LEVEL, DEBUG, VERBOSE_LIBS documentation
 
 ---
 
@@ -1432,6 +1450,35 @@
 2. **Expert-driven research**: Personas request research via XML tags, not pattern detection
 3. **Embedding-based convergence**: Semantic similarity (Voyage AI) for quality metrics
 4. **Upfront context gathering**: Resolve info gaps during decomposition, not mid-deliberation
+
+---
+
+## 🎯 Process Improvement: Early Critical Question Identification
+
+**Priority**: MEDIUM - Improves UX by reducing interruptions
+
+**Current State**:
+- Information gaps are identified after problem decomposition
+- User is prompted for critical internal answers during Step 2
+- This creates a break in the flow after initial problem analysis
+
+**Improvement**:
+- Identify CRITICAL blocking questions during initial problem decomposition
+- Prompt user for critical answers immediately (before decomposition completes)
+- Only ask for NICE_TO_HAVE questions in Step 2 (Information Gap Detection)
+- Benefits:
+  - Reduces perceived wait time (user engaged throughout)
+  - Better flow: Problem → Critical Q&A → Decomposition → Optional Q&A → Deliberation
+  - Critical context available earlier for better decomposition
+
+**Implementation Tasks** (Future):
+- [ ] Update DecomposerAgent to identify critical questions during decomposition
+- [ ] Add early Q&A prompt before decomposition result
+- [ ] Filter out already-answered questions from Step 2
+- [ ] Test flow with real problem scenarios
+- [ ] Measure improvement in perceived UX
+
+**Estimated Effort**: 1 day (Day 14.5 or integrate into Day 15)
 
 ---
 

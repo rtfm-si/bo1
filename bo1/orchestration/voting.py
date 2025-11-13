@@ -20,7 +20,7 @@ async def collect_votes(
     state: DeliberationState,
     broker: PromptBroker,
 ) -> tuple[list[Vote], list[LLMResponse]]:
-    """Collect votes from all personas.
+    """Collect votes from all personas in parallel.
 
     Args:
         state: Current deliberation state
@@ -29,16 +29,16 @@ async def collect_votes(
     Returns:
         Tuple of (votes, llm_responses)
     """
-    logger.info(f"Collecting votes from {len(state.selected_personas)} personas")
+    import asyncio
 
-    votes: list[Vote] = []
-    llm_responses: list[LLMResponse] = []
+    logger.info(f"Collecting votes from {len(state.selected_personas)} personas (parallel)")
 
-    # Build discussion history
+    # Build discussion history once
     discussion_history = _format_discussion_history(state)
 
-    # Collect votes from each persona
-    for persona in state.selected_personas:
+    # Create voting tasks for all personas
+    async def _collect_single_vote(persona: Any) -> tuple[Vote | None, LLMResponse | None]:
+        """Collect vote from a single persona."""
         logger.info(f"Requesting vote from {persona.name} ({persona.code})")
 
         # Compose voting prompt
@@ -48,10 +48,13 @@ async def collect_votes(
         )
 
         # Request vote from persona
+        # Use Haiku for voting - it's a structured task (vote parsing)
+        # Voting doesn't need deep reasoning, just structured response
         request = PromptRequest(
             system=voting_prompt,
             user_message="Please provide your final vote and recommendation.",
             prefill="<thinking>",  # Force XML structure
+            model="haiku",  # Cost optimization: $0.25/1M vs $3/1M input
             temperature=0.7,  # Slightly lower for voting
             max_tokens=2000,
             phase="voting",
@@ -60,20 +63,29 @@ async def collect_votes(
 
         try:
             response = await broker.call(request)
-            llm_responses.append(response)
 
             # Parse vote from response (prepend prefill for complete content)
             full_content = "<thinking>" + response.content
             vote = _parse_vote_from_response(full_content, persona)
-            votes.append(vote)
 
             logger.info(
                 f"{persona.name} voted {vote.decision.value} (confidence: {vote.confidence:.2f})"
             )
 
+            return vote, response
+
         except Exception as e:
             logger.error(f"Failed to collect vote from {persona.name}: {e}")
-            # Continue with other votes
+            return None, None
+
+    # Collect all votes in parallel
+    results = await asyncio.gather(
+        *[_collect_single_vote(persona) for persona in state.selected_personas]
+    )
+
+    # Separate votes and responses
+    votes = [vote for vote, _ in results if vote is not None]
+    llm_responses = [resp for _, resp in results if resp is not None]
 
     logger.info(f"Collected {len(votes)}/{len(state.selected_personas)} votes")
 
@@ -280,6 +292,7 @@ Output JSON only."""
         system=system_prompt,
         user_message=user_message,
         prefill="{",  # JSON prefill
+        model="haiku",  # Use Haiku for vote synthesis
         temperature=0.3,  # Lower for analysis
         max_tokens=1500,
         phase="vote_aggregation",
@@ -289,8 +302,15 @@ Output JSON only."""
     try:
         response = await broker.call(request)
 
-        # Parse JSON response
+        # Parse JSON response (prepend prefill)
         json_content = "{" + response.content
+
+        # Clean up any potential issues (sometimes LLMs add text after JSON)
+        # Find the last closing brace
+        last_brace = json_content.rfind("}")
+        if last_brace != -1:
+            json_content = json_content[: last_brace + 1]
+
         synthesis_data = json.loads(json_content)
 
         # Build VoteAggregation from AI synthesis + traditional metrics

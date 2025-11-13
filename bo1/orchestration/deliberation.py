@@ -22,7 +22,7 @@ from bo1.models.state import (
     DeliberationPhase,
     DeliberationState,
 )
-from bo1.prompts.reusable_prompts import compose_persona_prompt
+from bo1.prompts.reusable_prompts import compose_persona_prompt, get_round_phase_config
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +156,18 @@ class DeliberationEngine:
         """
         logger.debug(f"Calling persona: {persona_profile.display_name}")
 
+        # Get adaptive round configuration
+        # Use estimated max_rounds based on complexity (default to 10 for moderate complexity)
+        max_rounds = getattr(self.state, "max_rounds", 10) if hasattr(self, "state") else 10
+        round_config = get_round_phase_config(
+            round_number + 1, max_rounds
+        )  # +1 because round_number is 0-indexed
+
+        logger.debug(
+            f"Round {round_number + 1} phase: {round_config['phase']} "
+            f"(temp={round_config['temperature']}, max_tokens={round_config['max_tokens']})"
+        )
+
         # Get full persona data
         persona_data = get_persona_by_code(persona_profile.code)
         if not persona_data:
@@ -169,8 +181,9 @@ class DeliberationEngine:
             current_phase="initial_round" if round_number == 0 else "discussion",
         )
 
-        # Build user message with context
+        # Build user message with adaptive directive and context
         user_message_parts = [
+            f"## Directive\n{round_config['directive']}\n\n",  # Adaptive round-specific instruction
             f"## Problem\n{problem_statement}\n",
         ]
 
@@ -209,6 +222,8 @@ class DeliberationEngine:
             messages=messages,
             system=system_prompt,
             cache_system=True,  # Enable prompt caching for cost optimization
+            temperature=round_config["temperature"],  # Adaptive temperature
+            max_tokens=round_config["max_tokens"],  # Adaptive token limit
         )
         duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
@@ -366,7 +381,8 @@ class DeliberationEngine:
             if decision.action == "vote":
                 logger.info("Facilitator decided to transition to voting phase")
                 self.state.phase = DeliberationPhase.VOTING
-                return [], [facilitator_response]
+                # Only include facilitator_response if it's not None
+                return [], [facilitator_response] if facilitator_response else []
 
             if decision.action == "moderator":
                 # Facilitator requested moderator intervention
@@ -468,6 +484,18 @@ class DeliberationEngine:
         # Add contribution to state
         self.state.add_contribution(contribution)
 
+        # Calculate and log consensus metrics (if round > 1)
+        if round_number > 1:
+            metrics = self._calculate_round_metrics(round_number)
+
+            logger.info(f"[METRICS] Round {round_number}/{max_rounds}")
+            logger.info(f"  Convergence: {metrics['convergence']:.2f} (target: >0.85)")
+            logger.info(f"  Novelty: {metrics['novelty']:.2f} (target: <0.30 in late rounds)")
+            logger.info(f"  Conflict: {metrics['conflict']:.2f} (0=consensus, 1=deadlock)")
+
+            if metrics["should_stop"]:
+                logger.info(f"  🎯 Early stop recommended: {metrics['stop_reason']}")
+
         logger.info(
             f"Round {round_number} complete: {speaker_profile.display_name} contributed "
             f"({contribution.token_count} tokens, ${contribution.cost:.4f})"
@@ -533,3 +561,157 @@ class DeliberationEngine:
             lines.append("---\n\n")
 
         return "".join(lines)
+
+    def _calculate_round_metrics(self, round_number: int) -> dict[str, Any]:
+        """Calculate convergence and consensus metrics for current round.
+
+        Uses heuristic-based analysis for v1 (can be upgraded to embeddings in v2).
+
+        Args:
+            round_number: Current round number
+
+        Returns:
+            Dictionary with metrics:
+            - convergence: 0-1 (higher = more agreement)
+            - novelty: 0-1 (higher = more new ideas)
+            - conflict: 0-1 (higher = more disagreement)
+            - should_stop: bool (recommendation to stop deliberation)
+            - stop_reason: str or None (explanation if should_stop is True)
+        """
+        if len(self.state.contributions) < 2:
+            return {
+                "convergence": 0.0,
+                "novelty": 1.0,
+                "conflict": 0.0,
+                "should_stop": False,
+                "stop_reason": None,
+            }
+
+        # Analyze recent contributions (last 2 rounds = ~6 contributions)
+        recent_contributions = self.state.contributions[-6:]
+
+        convergence = self._calculate_convergence(recent_contributions)
+        novelty = self._calculate_novelty(recent_contributions)
+        conflict = self._calculate_conflict(recent_contributions)
+
+        # Decide if deliberation should stop early
+        should_stop = False
+        stop_reason = None
+
+        if convergence > 0.85 and novelty < 0.30 and round_number > 5:
+            should_stop = True
+            stop_reason = "High convergence + low novelty"
+
+        if conflict > 0.80 and round_number > 10:
+            should_stop = True
+            stop_reason = "Deadlock detected"
+
+        return {
+            "convergence": convergence,
+            "novelty": novelty,
+            "conflict": conflict,
+            "should_stop": should_stop,
+            "stop_reason": stop_reason,
+        }
+
+    def _calculate_convergence(self, contributions: list[ContributionMessage]) -> float:
+        """Calculate convergence score (0-1, higher = more agreement).
+
+        Uses keyword-based heuristic: count agreement vs. total words.
+        """
+        if not contributions:
+            return 0.0
+
+        agreement_keywords = [
+            "agree",
+            "yes",
+            "correct",
+            "exactly",
+            "indeed",
+            "aligned",
+            "consensus",
+            "support",
+            "concur",
+            "same",
+            "similar",
+        ]
+
+        total_words = 0
+        agreement_count = 0
+
+        for contrib in contributions:
+            words = contrib.content.lower().split()
+            total_words += len(words)
+            agreement_count += sum(
+                1 for word in words if any(kw in word for kw in agreement_keywords)
+            )
+
+        if total_words == 0:
+            return 0.0
+
+        # Normalize to 0-1 range (assume 10% agreement words = full convergence)
+        raw_score = agreement_count / total_words
+        return min(raw_score * 10, 1.0)
+
+    def _calculate_novelty(self, contributions: list[ContributionMessage]) -> float:
+        """Calculate novelty score (0-1, higher = more new ideas).
+
+        Uses simple heuristic: check for unique vs. repeated key phrases.
+        """
+        if not contributions:
+            return 1.0
+
+        # Extract key phrases (3+ char words, lowercase, deduplicated per contribution)
+        all_phrases: list[str] = []
+        for contrib in contributions:
+            words = [w.lower() for w in contrib.content.split() if len(w) > 3]
+            unique_words_in_contrib = list(set(words))
+            all_phrases.extend(unique_words_in_contrib)
+
+        if not all_phrases:
+            return 0.5
+
+        unique_phrases = len(set(all_phrases))
+        total_phrases = len(all_phrases)
+
+        # Novelty = ratio of unique to total phrases
+        return unique_phrases / total_phrases
+
+    def _calculate_conflict(self, contributions: list[ContributionMessage]) -> float:
+        """Calculate conflict score (0-1, higher = more disagreement).
+
+        Uses keyword-based heuristic: count disagreement vs. total words.
+        """
+        if not contributions:
+            return 0.0
+
+        disagreement_keywords = [
+            "disagree",
+            "no",
+            "wrong",
+            "incorrect",
+            "however",
+            "but",
+            "concern",
+            "risk",
+            "problem",
+            "issue",
+            "challenge",
+        ]
+
+        total_words = 0
+        disagreement_count = 0
+
+        for contrib in contributions:
+            words = contrib.content.lower().split()
+            total_words += len(words)
+            disagreement_count += sum(
+                1 for word in words if any(kw in word for kw in disagreement_keywords)
+            )
+
+        if total_words == 0:
+            return 0.0
+
+        # Normalize to 0-1 range (assume 10% disagreement words = full conflict)
+        raw_score = disagreement_count / total_words
+        return min(raw_score * 10, 1.0)

@@ -67,7 +67,7 @@ class RedisManager:
                 decode_responses=True,  # Auto-decode bytes to str
                 max_connections=10,
             )
-            self.redis: redis.Redis[bytes] | None = redis.Redis(connection_pool=self.pool)
+            self.redis: redis.Redis | None = redis.Redis(connection_pool=self.pool)  # type: ignore[type-arg]
 
             # Test connection
             assert self.redis is not None  # Type guard: checked by is_available
@@ -175,7 +175,7 @@ class RedisManager:
                 return None
 
             # Deserialize from JSON
-            state = DeliberationState.model_validate_json(state_json)
+            state = DeliberationState.model_validate_json(str(state_json))
             logger.debug(f"📂 Loaded state from Redis: {session_id}")
             return state
 
@@ -227,8 +227,9 @@ class RedisManager:
         try:
             # Scan for all session keys
             assert self.redis is not None  # Type guard: checked by is_available
-            keys = self.redis.keys("session:bo1_*")
+            keys_result = self.redis.keys("session:bo1_*")
             # Extract session IDs (keys are already strings with decode_responses=True)
+            keys = list(keys_result) if keys_result else []
             session_ids = [str(key).replace("session:", "") for key in keys]
             return session_ids
 
@@ -257,7 +258,7 @@ class RedisManager:
             key = self._get_key(session_id)
             assert self.redis is not None  # Type guard: checked by is_available
             ttl = self.redis.ttl(key)
-            return ttl
+            return int(ttl)
 
         except Exception as e:
             logger.error(f"Failed to get TTL: {e}")
@@ -283,7 +284,7 @@ class RedisManager:
         try:
             key = self._get_key(session_id)
             assert self.redis is not None  # Type guard: checked by is_available
-            current_ttl = self.redis.ttl(key)
+            current_ttl = int(self.redis.ttl(key))
 
             if current_ttl < 0:
                 # Session doesn't exist or has no expiry
@@ -359,7 +360,7 @@ class RedisManager:
             if not metadata_json:
                 return None
 
-            metadata: dict[str, Any] = json.loads(metadata_json)
+            metadata: dict[str, Any] = json.loads(str(metadata_json))
             return metadata
 
         except Exception as e:

@@ -52,8 +52,8 @@ FROM dependencies AS development
 
 WORKDIR /app
 
-# Install dev dependencies
-RUN uv pip install pytest pytest-asyncio ruff mypy
+# Install dev dependencies (including type stubs)
+RUN uv pip install -e .[dev]
 
 # Copy source code (will be overridden by volume mount in docker-compose)
 COPY bo1/ ./bo1/

@@ -12,7 +12,7 @@ from typing import Literal
 
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
-from bo1.models.state import DeliberationState
+from bo1.models.state import ContributionMessage, DeliberationState
 from bo1.prompts.reusable_prompts import compose_facilitator_prompt
 
 logger = logging.getLogger(__name__)
@@ -52,17 +52,211 @@ class FacilitatorDecision:
 class FacilitatorAgent:
     """Orchestrates multi-round deliberation by deciding next actions."""
 
-    def __init__(self, broker: PromptBroker | None = None) -> None:
+    def __init__(self, broker: PromptBroker | None = None, use_haiku: bool = True) -> None:
         """Initialize facilitator agent.
 
         Args:
             broker: LLM broker for making calls (creates default if not provided)
+            use_haiku: Use Haiku for fast, cheap decisions (default: True)
         """
         self.broker = broker or PromptBroker()
+        self.model = "haiku-4.5" if use_haiku else "sonnet-4.5"
+
+    def _should_trigger_moderator(
+        self, state: DeliberationState, round_number: int
+    ) -> dict[str, str] | None:
+        """Check if moderator intervention is needed.
+
+        Returns:
+            dict with "type" and "reason" if moderator needed, None otherwise
+        """
+        if len(state.contributions) < 4:
+            return None  # Need at least 4 contributions to analyze
+
+        recent = state.contributions[-6:]  # Last 2 rounds (~6 contributions)
+
+        # Early rounds (1-4): Watch for premature consensus
+        if round_number <= 4:
+            if self._detect_premature_consensus(recent):
+                return {
+                    "type": "contrarian",
+                    "reason": "Group converging too early without exploring alternatives",
+                }
+
+        # Middle rounds (5-7): Watch for unverified claims
+        if 5 <= round_number <= 7:
+            if self._detect_unverified_claims(recent):
+                return {
+                    "type": "skeptic",
+                    "reason": "Claims made without evidence or verification",
+                }
+
+        # Late rounds (8+): Watch for negativity spiral
+        if round_number >= 8:
+            if self._detect_negativity_spiral(recent):
+                return {
+                    "type": "optimist",
+                    "reason": "Discussion stuck in problems without exploring solutions",
+                }
+
+        # Any round: Watch for circular arguments
+        if self._detect_circular_arguments(recent):
+            return {
+                "type": "contrarian",
+                "reason": "Circular arguments detected, need fresh perspective",
+            }
+
+        return None
+
+    def _detect_premature_consensus(self, contributions: list[ContributionMessage]) -> bool:
+        """Detect if group is agreeing too quickly."""
+        if len(contributions) < 4:
+            return False
+
+        # Count agreement keywords
+        agreement_keywords = ["agree", "yes", "correct", "exactly", "indeed", "aligned", "same"]
+        total_words = 0
+        agreement_count = 0
+
+        for contrib in contributions:
+            words = contrib.content.lower().split()
+            total_words += len(words)
+            agreement_count += sum(
+                1 for word in words if any(kw in word for kw in agreement_keywords)
+            )
+
+        if total_words == 0:
+            return False
+
+        # If >15% agreement words in early rounds = premature consensus
+        agreement_ratio = agreement_count / total_words
+        return agreement_ratio > 0.15
+
+    def _detect_unverified_claims(self, contributions: list[ContributionMessage]) -> bool:
+        """Detect claims without evidence."""
+        claim_keywords = ["should", "must", "will definitely", "certainly", "always", "never"]
+        evidence_keywords = [
+            "because",
+            "data shows",
+            "research indicates",
+            "according to",
+            "evidence",
+            "study",
+        ]
+
+        for contrib in contributions:
+            text = contrib.content.lower()
+            has_claims = sum(1 for kw in claim_keywords if kw in text)
+            has_evidence = sum(1 for kw in evidence_keywords if kw in text)
+
+            # If 3+ claims but no evidence markers = red flag
+            if has_claims >= 3 and has_evidence == 0:
+                return True
+
+        return False
+
+    def _detect_negativity_spiral(self, contributions: list[ContributionMessage]) -> bool:
+        """Detect if discussion stuck in problems."""
+        negative_keywords = [
+            "won't work",
+            "impossible",
+            "can't",
+            "too risky",
+            "fail",
+            "problem",
+            "issue",
+        ]
+        positive_keywords = [
+            "could",
+            "might",
+            "opportunity",
+            "solution",
+            "approach",
+            "possible",
+            "potential",
+        ]
+
+        negative_count = 0
+        positive_count = 0
+
+        for contrib in contributions:
+            text = contrib.content.lower()
+            negative_count += sum(1 for kw in negative_keywords if kw in text)
+            positive_count += sum(1 for kw in positive_keywords if kw in text)
+
+        # If 3x more negative than positive = spiral
+        if positive_count == 0:
+            return negative_count > 5
+
+        return negative_count > 3 * positive_count
+
+    def _detect_circular_arguments(self, contributions: list[ContributionMessage]) -> bool:
+        """Detect if same arguments repeating."""
+        if len(contributions) < 4:
+            return False
+
+        # Extract key phrases (4+ char words, deduplicated per contribution)
+        all_phrases: list[str] = []
+        for contrib in contributions:
+            words = [w.lower() for w in contrib.content.split() if len(w) >= 4]
+            unique_in_contrib = list(set(words))
+            all_phrases.extend(unique_in_contrib)
+
+        if not all_phrases:
+            return False
+
+        unique_phrases = len(set(all_phrases))
+        total_phrases = len(all_phrases)
+
+        # If <40% are unique = lots of repetition = circular
+        return (unique_phrases / total_phrases) < 0.40
+
+    def _check_research_needed(self, state: DeliberationState) -> dict[str, str] | None:
+        """Check if research/information is needed.
+
+        Returns:
+            dict with "query" and "reason" if research needed, None otherwise
+        """
+        if len(state.contributions) < 2:
+            return None
+
+        recent = state.contributions[-3:]  # Last round
+
+        # Look for questions or information gaps
+        question_patterns = [
+            "what is",
+            "what are",
+            "how much",
+            "how many",
+            "do we know",
+            "unclear",
+            "uncertain",
+            "need data",
+            "need information",
+            "need research",
+            "don't have data",
+            "missing information",
+        ]
+
+        for contrib in recent:
+            text = contrib.content.lower()
+            for pattern in question_patterns:
+                if pattern in text:
+                    # Extract the sentence containing the pattern
+                    sentences = text.split(".")
+                    for sentence in sentences:
+                        if pattern in sentence:
+                            query = sentence.strip()[:200]  # Limit to 200 chars
+                            return {
+                                "query": query,
+                                "reason": f"{contrib.persona_name} raised: {query}",
+                            }
+
+        return None
 
     async def decide_next_action(
         self, state: DeliberationState, round_number: int, max_rounds: int
-    ) -> tuple[FacilitatorDecision, LLMResponse]:
+    ) -> tuple[FacilitatorDecision, LLMResponse | None]:
         """Decide what should happen next in the deliberation.
 
         Args:
@@ -74,6 +268,43 @@ class FacilitatorAgent:
             Tuple of (decision, llm_response)
         """
         logger.info(f"Facilitator deciding next action for round {round_number}/{max_rounds}")
+
+        # Check for research needs FIRST (fastest check)
+        research_needed = self._check_research_needed(state)
+
+        if research_needed:
+            logger.info(f"🔍 Research needed: {research_needed['query'][:100]}...")
+
+            return (
+                FacilitatorDecision(
+                    action="research",
+                    reasoning=research_needed["reason"],
+                    research_query=research_needed["query"],
+                ),
+                None,  # Skip LLM call
+            )
+
+        # Check if moderator should intervene BEFORE calling LLM (saves time and cost)
+        moderator_trigger = self._should_trigger_moderator(state, round_number)
+
+        if moderator_trigger:
+            logger.info(f"🎭 Auto-triggering {moderator_trigger['type']} moderator")
+            logger.info(f"   Reason: {moderator_trigger['reason']}")
+
+            # Cast moderator_type to correct Literal type
+            mod_type = moderator_trigger["type"]
+            if mod_type not in ("contrarian", "skeptic", "optimist"):
+                mod_type = "contrarian"  # Default fallback
+
+            return (
+                FacilitatorDecision(
+                    action="moderator",
+                    reasoning=moderator_trigger["reason"],
+                    moderator_type=mod_type,  # type: ignore[arg-type]
+                    moderator_focus=moderator_trigger["reason"],
+                ),
+                None,  # Skip LLM call, return None for response
+            )
 
         # Build discussion history
         discussion_history = self._format_discussion_history(state)
@@ -100,9 +331,10 @@ Analyze the discussion and decide the next action."""
             system=system_prompt,
             user_message=user_message,
             temperature=1.0,
-            max_tokens=2048,
+            max_tokens=800,  # Reduced from 2048 - facilitator doesn't need long responses
             phase="facilitator_decision",
             agent_type="facilitator",
+            model=self.model,  # Use configured model (Haiku by default)
         )
 
         response = await self.broker.call(request)
@@ -118,8 +350,12 @@ Analyze the discussion and decide the next action."""
 
         if decision.action == "continue" and decision.next_speaker:
             speaker_name = next(
-                (p.display_name for p in state.selected_personas if p.code == decision.next_speaker),
-                decision.next_speaker
+                (
+                    p.display_name
+                    for p in state.selected_personas
+                    if p.code == decision.next_speaker
+                ),
+                decision.next_speaker,
             )
             logger.info(f"  Next speaker: {speaker_name} ({decision.next_speaker})")
             if decision.speaker_prompt:

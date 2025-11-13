@@ -80,6 +80,17 @@ class Console:
         """Print to console (wrapper for rich.console.print)."""
         self.console.print(*args, **kwargs)
 
+    def input(self, prompt: str = "") -> str:
+        """Get user input (wrapper for rich.console.input).
+
+        Args:
+            prompt: Prompt to display to the user
+
+        Returns:
+            User input as string
+        """
+        return self.console.input(prompt)
+
     def print_header(self, title: str) -> None:
         """Print main header.
 

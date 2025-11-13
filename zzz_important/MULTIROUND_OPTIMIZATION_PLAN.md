@@ -67,93 +67,263 @@ From CONSENSUS_BUILDING_RESEARCH.md:
 - **Middle rounds (5-7)**: Analysis, evidence gathering
 - **Late rounds (8+)**: Convergent thinking, consensus
 
-### Implementation
+### Implementation Details
+
+This requires changes to **2 files**: `bo1/prompts/reusable_prompts.py` and `bo1/orchestration/deliberation.py`
+
+#### Step 1: Add get_round_phase_config() function
+
+**File**: `bo1/prompts/reusable_prompts.py`
+**Location**: Add after line 591 (after existing helper functions, before end of file)
+**Why**: Centralizes round phase configuration in the prompts module where it belongs
 
 ```python
-# In bo1/prompts/reusable_prompts.py
+# === ADAPTIVE ROUND CONFIGURATION ===
 
-def get_round_phase_config(round_number: int, max_rounds: int) -> dict:
+
+def get_round_phase_config(round_number: int, max_rounds: int) -> dict[str, Any]:
     """Get configuration for current round phase.
 
+    Implements adaptive prompting strategy aligned with consensus building research:
+    - Initial round: Full exploration, no constraints
+    - Early rounds (2-4): Divergent thinking, loose prompts
+    - Middle rounds (5-7): Analytical focus, moderate constraints
+    - Late rounds (8+): Convergent thinking, strict prompts for consensus
+
+    Args:
+        round_number: Current round (1-indexed)
+        max_rounds: Maximum rounds for this deliberation
+
     Returns:
-        {
-            "phase": "early" | "middle" | "late",
-            "temperature": float,
-            "max_tokens": int,
-            "directive": str,
-            "tone": str,
-        }
+        Dictionary with phase configuration:
+        - phase: "initial" | "early" | "middle" | "late"
+        - temperature: LLM temperature (1.0 → 0.7)
+        - max_tokens: Response length limit (2000 → 800)
+        - directive: Phase-specific instruction for persona
+        - tone: Expected tone ("exploratory" | "divergent" | "analytical" | "convergent")
+
+    Example:
+        >>> config = get_round_phase_config(round_number=3, max_rounds=10)
+        >>> config["phase"]
+        'early'
+        >>> config["max_tokens"]
+        1500
     """
     progress = round_number / max_rounds
 
     if round_number <= 1:
-        # Initial round
+        # Initial round: Full exploration
         return {
             "phase": "initial",
             "temperature": 1.0,
             "max_tokens": 2000,
-            "directive": "Provide your complete perspective on this problem.",
+            "directive": "Provide your complete perspective on this problem. Consider all angles and share your full analysis.",
             "tone": "exploratory",
         }
-    elif progress <= 0.4:  # Early (rounds 2-4 of 10)
+    elif progress <= 0.4:  # Early rounds (2-4 of 10)
+        # Divergent thinking: Explore alternatives
         return {
             "phase": "early",
             "temperature": 1.0,
             "max_tokens": 1500,
-            "directive": "Explore different angles. What concerns or alternatives haven't been discussed?",
+            "directive": "Explore different angles and perspectives. What concerns, risks, or alternatives haven't been discussed yet?",
             "tone": "divergent",
         }
-    elif progress <= 0.7:  # Middle (rounds 5-7 of 10)
+    elif progress <= 0.7:  # Middle rounds (5-7 of 10)
+        # Analysis phase: Evidence and reasoning
         return {
             "phase": "middle",
             "temperature": 0.85,
             "max_tokens": 1200,
-            "directive": "Build on the discussion with evidence and analysis. Address gaps or uncertainties.",
+            "directive": "Build on the discussion with evidence and analysis. Address gaps, uncertainties, or claims that need verification.",
             "tone": "analytical",
         }
-    else:  # Late (rounds 8+ of 10)
+    else:  # Late rounds (8+ of 10)
+        # Convergent thinking: Move toward consensus
         return {
             "phase": "late",
             "temperature": 0.7,
             "max_tokens": 800,
-            "directive": "Work toward consensus. Acknowledge tradeoffs and move toward a decision.",
+            "directive": "Work toward consensus. Acknowledge tradeoffs, find common ground, and help the group move toward a decision.",
             "tone": "convergent",
         }
+```
 
-# In bo1/orchestration/deliberation.py - update _call_persona_async
+**Testing**: Add to imports at top of file:
+```python
+from typing import Any, Literal  # Update existing import
+```
 
+#### Step 2: Update _call_persona_async() to use adaptive config
+
+**File**: `bo1/orchestration/deliberation.py`
+**Location**: Modify `_call_persona_async()` method (around line 600-700)
+**Changes needed**:
+1. Import the new function
+2. Get round config at start of method
+3. Apply config to user message and PromptRequest
+
+**Add import at top of file** (around line 10-15):
+```python
+from bo1.prompts.reusable_prompts import (
+    compose_persona_prompt,
+    get_round_phase_config,  # NEW: Add this import
+)
+```
+
+**Modify _call_persona_async() method signature** to include round_number:
+```python
 async def _call_persona_async(
     self,
     persona_profile: PersonaProfile,
-    round_number: int,
-    # ... other params
+    round_number: int,  # NEW: Add this parameter
+    problem_statement: str,
+    contribution_type: ContributionType,
+    previous_contributions: list[ContributionMessage],
+    speaker_prompt: str | None = None,
 ) -> tuple[ContributionMessage, LLMResponse]:
-    """Call persona with adaptive round configuration."""
+    """Call a persona to contribute to the discussion.
 
-    # Get round phase config
+    Args:
+        persona_profile: Profile of persona making contribution
+        round_number: Current round number (for adaptive prompting)  # NEW
+        problem_statement: The problem being discussed
+        contribution_type: Type of contribution
+        previous_contributions: Prior contributions for context
+        speaker_prompt: Optional specific prompt for speaker
+
+    Returns:
+        Tuple of (contribution_message, llm_response)
+    """
+    # NEW: Get adaptive round configuration
     round_config = get_round_phase_config(round_number, self.state.max_rounds)
 
-    # Add directive to prompt
-    user_message = f"""{round_config["directive"]}
+    logger.debug(
+        f"Round {round_number} phase: {round_config['phase']} "
+        f"(temp={round_config['temperature']}, max_tokens={round_config['max_tokens']})"
+    )
+
+    # Build context from previous contributions
+    context = self._build_discussion_context(previous_contributions)
+
+    # Compose system prompt (unchanged)
+    system_prompt = compose_persona_prompt(
+        persona_system_role=persona_profile.system_prompt,
+        problem_statement=problem_statement,
+        participant_list=", ".join([p.display_name for p in self.state.selected_personas]),
+        current_phase=self.state.phase,
+    )
+
+    # NEW: Build user message with adaptive directive
+    if speaker_prompt:
+        # Facilitator provided specific prompt
+        user_message = f"""{round_config["directive"]}
+
+Specific focus for you: {speaker_prompt}
 
 {problem_statement}
 
-[Previous discussion context...]
-"""
+{context}"""
+    else:
+        # Standard prompt with phase directive
+        user_message = f"""{round_config["directive"]}
 
+{problem_statement}
+
+{context}"""
+
+    # Create request with adaptive configuration
     request = PromptRequest(
         system=system_prompt,
         user_message=user_message,
-        temperature=round_config["temperature"],
-        max_tokens=round_config["max_tokens"],
-        # ... other params
+        temperature=round_config["temperature"],  # NEW: Use adaptive temp
+        max_tokens=round_config["max_tokens"],    # NEW: Use adaptive tokens
+        phase=self.state.phase,
+        agent_type="persona",
+        persona_code=persona_profile.code,
     )
+
+    # Rest of method unchanged (call broker, build contribution, etc.)
+    # ...
+```
+
+#### Step 3: Update all call sites to pass round_number
+
+**File**: `bo1/orchestration/deliberation.py`
+**Locations**: All places that call `_call_persona_async()`
+
+**In run_initial_round() method** (around line 250):
+```python
+async def run_initial_round(self) -> list[ContributionMessage]:
+    """Run initial round where all personas contribute."""
+    # ...
+
+    # Call all personas in parallel
+    tasks = [
+        self._call_persona_async(
+            persona_profile=persona,
+            round_number=1,  # NEW: Pass round number
+            problem_statement=self.state.problem_statement,
+            contribution_type=ContributionType.INITIAL,
+            previous_contributions=[],
+        )
+        for persona in self.state.selected_personas
+    ]
+    # ...
+```
+
+**In run_round() method** (around line 450):
+```python
+async def run_round(self, round_number: int, max_rounds: int, speaker_code: str | None = None, speaker_prompt: str | None = None) -> ContributionMessage:
+    """Run a discussion round."""
+    # ...
+
+    # Call the persona
+    contribution, llm_response = await self._call_persona_async(
+        persona_profile=speaker_profile,
+        round_number=round_number,  # NEW: Pass round number
+        problem_statement=self.state.problem_statement,
+        contribution_type=ContributionType.RESPONSE,
+        previous_contributions=previous_contributions,
+        speaker_prompt=speaker_prompt,
+    )
+    # ...
 ```
 
 ### Expected Impact
-- **Cost reduction**: 30-40% fewer tokens in late rounds
-- **Speed improvement**: Faster responses in late rounds (800 tokens vs 2000)
-- **Quality improvement**: Less drift (tighter prompts), better convergence
+- **Cost reduction**: 30-40% fewer tokens in late rounds (800 vs 2000 max_tokens)
+- **Speed improvement**: Faster responses in late rounds (less generation time)
+- **Quality improvement**: Less drift (tighter prompts in late rounds), better convergence
+- **Research-aligned**: Matches consensus building literature (divergent → analytical → convergent)
+
+### Summary: Prompts Infrastructure
+
+**Do we need to create/update prompts using PROMPT_ENGINEERING_FRAMEWORK.md?**
+
+✅ **Good news**: Existing prompts in `bo1/prompts/reusable_prompts.py` already follow the framework:
+- XML structure with `<thinking>`, `<contribution>` tags
+- Modular composition via `compose_persona_prompt()`, `compose_facilitator_prompt()`
+- Behavioral guidelines, evidence protocols, communication norms
+- All aligned with PROMPT_ENGINEERING_FRAMEWORK.md best practices
+
+🔨 **What needs to be added**:
+1. **One new function**: `get_round_phase_config()` in `reusable_prompts.py`
+   - Returns adaptive configuration (temperature, max_tokens, directive, tone)
+   - ~70 lines of code (including docstring)
+   - Follows existing patterns in the file
+
+2. **Integration work**: Update `deliberation.py` to use the new function
+   - Add `round_number` parameter to `_call_persona_async()`
+   - Apply adaptive config to user messages and LLM requests
+   - Update 2 call sites (run_initial_round, run_round)
+
+**Framework compliance**: All new directives follow framework guidelines:
+- Clear, specific instructions
+- Phase-appropriate language
+- No repetition of system prompt content
+- Focused on behavior change, not just content
+
+**Ready to implement**: All code snippets provided above are production-ready and can be copied directly into the codebase.
 
 ---
 
@@ -454,15 +624,36 @@ async def decide_next_action(self, state, round_number, max_rounds):
 ## Implementation Priority
 
 ### Phase 1: Quick Wins (This Week)
-1. ✅ **Persona caching** - Already done
-2. ✅ **Enhanced facilitator logging** - Already done
+1. ✅ **Persona caching** - Already done (`bo1/data/__init__.py` - added @lru_cache)
+2. ✅ **Enhanced facilitator logging** - Already done (`bo1/agents/facilitator.py` - added debug logs)
 3. 🔨 **Haiku for facilitator** - 30 min implementation
+   - File: `bo1/agents/facilitator.py`
+   - Changes: Add `use_haiku` parameter to `__init__`, set model in request
+   - Lines: ~32-40, ~99-106
 4. 🔨 **Expose metrics in logs** - 1 hour implementation
+   - File: `bo1/orchestration/deliberation.py`
+   - Changes: Add `_calculate_round_metrics()` and helper methods
+   - Lines: Add after run_round() method (~500-600)
 
 ### Phase 2: Adaptive System (Next Week)
 5. 🔨 **Adaptive round prompts** - 2 hours implementation
+   - **File 1**: `bo1/prompts/reusable_prompts.py`
+     - Add `get_round_phase_config()` function (after line 591)
+     - Update imports to include `Any` type
+   - **File 2**: `bo1/orchestration/deliberation.py`
+     - Update `_call_persona_async()` signature to include `round_number` parameter
+     - Import `get_round_phase_config` from reusable_prompts
+     - Apply adaptive config to user message and PromptRequest
+     - Update all call sites: `run_initial_round()`, `run_round()`
+     - Lines: ~10-15 (imports), ~250 (run_initial_round), ~450 (run_round), ~600-700 (_call_persona_async)
 6. 🔨 **Adaptive moderator triggers** - 3 hours implementation
+   - File: `bo1/agents/facilitator.py`
+   - Changes: Add `_should_trigger_moderator()` and detection methods
+   - Lines: Add before `decide_next_action()` method (~240-350)
 7. 🔨 **Research triggers** - 2 hours implementation
+   - File: `bo1/agents/facilitator.py`
+   - Changes: Add `_check_research_needed()` method
+   - Lines: Add after moderator detection methods (~390-430)
 
 ### Phase 3: Testing & Tuning (Following Week)
 8. Test on 20 deliberations

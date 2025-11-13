@@ -13,25 +13,38 @@
   - Day 3-4: LLM Client ✅
   - Day 5-6: Redis & State ✅
   - Day 7: Integration Test ✅
-- **Week 2**: Core Deliberation Flow (21/21 + **58 new** + **21 new** = 100 tasks)
+- **Week 2**: Core Deliberation Flow (100/100 tasks) ✅
   - Day 8-9: Problem Decomposition ✅
   - Day 10-11: Persona Selection & Initial Round ✅
-  - **Day 11.5: Prompt Broker Infrastructure** ✅ **COMPLETE - 58/58 tasks**
-  - **Day 12-13: Multi-Round Deliberation** ✅ **COMPLETE - 21/21 tasks**
-  - Day 14: Voting & Synthesis (0/21 tasks)
+  - **Day 11.5: Prompt Broker Infrastructure** ✅
+  - **Day 12-13: Multi-Round Deliberation** ✅
+  - Day 14: Information Gap Analysis & Research Integration (0/28 tasks)
+  - Day 15: Voting & Synthesis (0/21 tasks)
 - **Week 3**: Cost Optimization & Summarization (0/19 tasks)
-- **Week 4**: Quality & Adaptive Stopping (0/18 tasks)
-- **Total**: 156/251 tasks complete (62%)
+  - Day 16-17: Hierarchical Context Management
+  - Day 18-19: Prompt Caching Optimization
+  - Day 19-20: Model Optimization
+  - Day 21: Week 3 Integration & Measurement
+- **Week 4**: Quality & Adaptive Stopping (0/49 tasks - **expanded**)
+  - Day 22-23: Convergence Detection (embedding-based)
+  - Day 24-25: Problem Drift Detection
+  - Day 26: AI-First Discussion Quality Detection (NEW)
+  - Day 27: Adaptive Round Limits & External Research Implementation (NEW)
+  - Day 28: Testing & Quality Assurance
+- **Total**: 156/273 tasks complete (57%) - **expanded scope with AI-first features**
 
 ---
 
 ## Week 1: Foundation & Basic Orchestration (Days 1-7)
+
 **Goal**: Infrastructure ready, basic LLM calls working, state management functioning
 
 ### Day 1-2: Project Setup & Core Models
+
 **Value**: Enable all future work
 
 #### Docker Setup (Primary)
+
 - [x] Run `make setup` (creates .env, directories)
 - [x] Edit `.env` with API keys (ANTHROPIC_API_KEY, VOYAGE_API_KEY)
 - [x] Run `make build` (build Docker images)
@@ -40,6 +53,7 @@
 - [x] Test: `make redis-cli` (verify Redis connection)
 
 #### Project Configuration
+
 - [x] Configure `pyproject.toml` with dependencies
   - [x] anthropic, langchain, redis, rich, pydantic
   - [x] python-dotenv, voyageai
@@ -47,6 +61,7 @@
   - [x] Dev: pytest, ruff, mypy
 
 #### Core Pydantic Models
+
 - [x] Create `bo1/models/problem.py`
   - [x] `Problem` model (title, description, context, constraints)
   - [x] `SubProblem` model (goal, context, complexity_score, dependencies)
@@ -62,6 +77,7 @@
   - [x] `VoteAggregation` model (simple_majority, confidence_weighted, etc.)
 
 #### Configuration Management
+
 - [x] Copy `.env.example` to `.env` (add to .gitignore)
 - [x] Create `bo1/config.py`
   - [x] Load environment variables (ANTHROPIC_API_KEY, VOYAGE_API_KEY, REDIS_URL)
@@ -70,6 +86,7 @@
   - [x] Define MODEL_BY_ROLE mapping
 
 #### Validation
+
 - [x] Test: Load personas from personas.json
 - [x] Test: Create DeliberationState object
 - [x] Test: Validate all Pydantic models with sample data
@@ -79,9 +96,11 @@
 ---
 
 ### Day 3-4: LLM Client & Prompt System
+
 **Value**: Can make LLM calls with prompts from our framework
 
 #### LLM Client Abstraction
+
 - [x] Create `bo1/llm/__init__.py`
 - [x] Create `bo1/llm/client.py`
   - [x] `ClaudeClient` wrapper class
@@ -92,6 +111,7 @@
   - [x] Rate limiting support
 
 #### Prompt Composition Layer
+
 - [x] Create `bo1/prompts/__init__.py` (export all functions)
 - [x] Verify `bo1/prompts/reusable_prompts.py` exists (already created)
 - [x] Verify `bo1/prompts/summarizer_prompts.py` exists (already created)
@@ -101,6 +121,7 @@
   - [x] Example decompositions for testing
 
 #### Test LLM Calls
+
 - [x] Test: Simple Haiku call with system prompt
 - [x] Test: Sonnet call with longer context
 - [x] Test: Prompt caching (verify cache_creation_input_tokens)
@@ -113,9 +134,11 @@
 ---
 
 ### Day 5-6: Redis State Management
+
 **Value**: Persist deliberation state, enable pause/resume (future)
 
 #### Redis Integration
+
 - [x] Create `bo1/state/__init__.py`
 - [x] Create `bo1/state/redis_manager.py`
   - [x] `RedisManager` class
@@ -127,6 +150,7 @@
   - [x] Error handling (Redis unavailable)
 
 #### State Serialization
+
 - [x] Create `bo1/state/serialization.py`
   - [x] `to_json()` - Export state as JSON
   - [x] `from_json()` - Import state from JSON
@@ -135,6 +159,7 @@
   - [x] Include metadata (timestamps, costs, rounds)
 
 #### Basic CLI Entry Point
+
 - [x] Create `bo1/main.py`
   - [x] Parse command-line arguments
   - [x] Initialize Redis connection
@@ -150,6 +175,7 @@
   - [x] Error display
 
 #### Testing
+
 - [x] Test: Save DeliberationState to Redis
 - [x] Test: Load DeliberationState from Redis
 - [x] Test: Export state to JSON
@@ -162,9 +188,11 @@
 ---
 
 ### Day 7: Week 1 Integration Test ✅
+
 **Value**: Validate foundation works end-to-end
 
 #### Integration Test: Full Pipeline Stub
+
 - [x] Load persona from `bo1/data/personas.json`
 - [x] Compose persona prompt using `compose_persona_prompt()`
 - [x] Make LLM call with prompt caching
@@ -175,6 +203,7 @@
 - [x] Verify all components integrate correctly
 
 #### Bug Fixes & Polish
+
 - [x] Fix any blocking issues found during integration
 - [x] Add logging throughout (use Python logging module)
 - [x] Add type hints to all functions (mypy compliance)
@@ -182,6 +211,7 @@
 - [x] Run formatter (ruff format .)
 
 #### Documentation
+
 - [x] Update README.md
   - [x] Installation instructions
   - [x] Setup instructions (Redis, .env)
@@ -194,12 +224,15 @@
 ---
 
 ## Week 2: Core Deliberation Flow (Days 8-14)
+
 **Goal**: End-to-end deliberation works (no optimization yet)
 
 ### Day 8-9: Problem Decomposition ✅
+
 **Value**: Transform user input → structured sub-problems
 
 #### Problem Intake
+
 - [x] Create `bo1/agents/__init__.py`
 - [x] Create `bo1/agents/decomposer.py`
   - [x] `DecomposerAgent` class
@@ -209,6 +242,7 @@
   - [x] Interactive Q&A loop (console)
 
 #### Decomposition Logic
+
 - [x] `decompose_problem()` method
   - [x] Break problem into 1-5 sub-problems
   - [x] Assign complexity scores (1-10) to each
@@ -220,6 +254,7 @@
   - [x] Test with PRD scenarios (pricing, growth, tech debt)
 
 #### User Review Flow
+
 - [x] Display sub-problems in console (Rich tables)
 - [x] Allow user to:
   - [x] Approve decomposition
@@ -229,6 +264,7 @@
 - [x] Confirm before proceeding
 
 #### Testing
+
 - [x] Test: Simple problem (1 sub-problem, atomic)
 - [x] Test: Moderate problem (2-3 sub-problems)
 - [x] Test: Complex problem (4-5 sub-problems)
@@ -239,9 +275,11 @@
 ---
 
 ### Day 10-11: Persona Selection & Initial Round ✅
+
 **Value**: Select experts, run first round of contributions
 
 #### Persona Recommendation
+
 - [x] Create `bo1/agents/selector.py`
   - [x] `PersonaSelectorAgent` class
   - [x] `recommend_personas()` method
@@ -255,6 +293,7 @@
   - [x] Validate persona codes exist
 
 #### Initial Round Execution
+
 - [x] Create `bo1/orchestration/__init__.py`
 - [x] Create `bo1/orchestration/deliberation.py`
   - [x] `DeliberationEngine` class
@@ -270,6 +309,7 @@
   - [x] Progress indicators during parallel calls
 
 #### Testing
+
 - [x] Test: Persona selection for 3 PRD scenarios
 - [x] Test: Parallel initial round (5 personas)
 - [x] Test: Prompt composition includes all components
@@ -280,11 +320,13 @@
 ---
 
 ### Day 11.5: Prompt Broker Infrastructure ✅ **COMPLETE**
+
 **Value**: Centralized, robust LLM interaction layer (prevents future issues like JSON prefill bugs)
 
 **Note**: Implementation differs from original plan - retry logic integrated into broker.py, metrics in llm/response.py (cleaner architecture).
 
 #### Standardized Response Model
+
 - [x] Create `bo1/llm/response.py` (Note: Created in llm/ not models/)
   - [x] `LLMResponse` Pydantic model
     - [x] content: str (the actual response text)
@@ -316,6 +358,7 @@
     - [x] format_summary() - Human-readable summary (named summary())
 
 #### Prompt Broker Core
+
 - [x] Create `bo1/llm/broker.py` (Note: Created in llm/ not prompts/)
   - [x] `PromptRequest` Pydantic model
     - [x] system: str (system prompt)
@@ -337,6 +380,7 @@
     - [x] Automatic cost calculation for all token types
 
 #### Retry & Rate Limit Handling
+
 - [x] Integrated into `bo1/llm/broker.py` (Note: Not separate module, cleaner design)
   - [x] `RetryPolicy` Pydantic model
     - [x] max_retries: int = 3
@@ -344,16 +388,17 @@
     - [x] max_delay: float = 60.0
     - [x] jitter: bool = True (0-delay random)
   - [x] Retry logic in PromptBroker.call()
-    - [x] Exponential backoff: delay = base_delay * (2 ** attempt)
+    - [x] Exponential backoff: delay = base_delay \* (2 \*\* attempt)
     - [x] Jitter: Add random 0-delay to prevent thundering herd
     - [x] Respect Retry-After header from 429 responses
     - [x] Log retry attempts
   - [x] Rate limit detection
     - [x] Handle RateLimitError from Anthropic API
     - [x] Handle 429 status codes
-    - [x] Extract Retry-After if present via _extract_retry_after()
+    - [x] Extract Retry-After if present via \_extract_retry_after()
 
 #### Observability & Aggregation
+
 - [x] Integrated into `bo1/llm/broker.py` and `bo1/llm/response.py` (cleaner architecture)
   - [x] `RequestTracker` class (in broker.py)
     - [x] Track all `LLMResponse` objects
@@ -380,12 +425,14 @@
     - [x] `export_json()` method for archival
 
 #### Modular Prompt Templates
+
 - [x] Not needed - compose_persona_prompt() from reusable_prompts.py handles this
   - [x] Existing prompt composition is sufficient
   - [x] JSON prefill handled directly in PromptRequest.prefill parameter
   - [x] Templates directory created but empty (reserved for future use)
 
 #### Console Display Updates
+
 - [x] Update `bo1/ui/console.py`
   - [x] `print_llm_response()` method
     - [x] Display LLMResponse metrics in Rich table
@@ -403,6 +450,7 @@
   - [x] Existing `print_llm_cost()` still works (backward compatible)
 
 #### Migration Plan
+
 - [x] Migrate `DecomposerAgent` to use PromptBroker (proof of concept)
   - [x] Replace `decompose_problem()` return: → `LLMResponse`
   - [x] Use `PromptBroker` for all LLM calls
@@ -431,6 +479,7 @@
   - [x] All metrics calculated in PromptBroker layer
 
 #### Testing
+
 - [x] Test: LLMResponse model (verified via demo.py)
   - [x] All fields populate correctly from actual calls
   - [x] Computed properties work (total_tokens, cache_savings)
@@ -474,11 +523,13 @@
 ---
 
 ### Day 12-13: Multi-Round Deliberation ✅
+
 **Value**: Iterative debate with context management
 
 **⚠️ Prerequisite**: Day 11.5 (Prompt Broker) must be complete ✅
 
 #### Facilitator Agent
+
 - [x] Create `bo1/agents/facilitator.py`
   - [x] `FacilitatorAgent` class
   - [x] `decide_next_action()` method
@@ -488,6 +539,7 @@
   - [x] Parse facilitator decision (XML or structured output)
 
 #### Round Management
+
 - [x] `DeliberationEngine.run_round()` method
   - [x] Call facilitator to decide next speaker
   - [x] Call persona with specific prompt from facilitator
@@ -500,6 +552,7 @@
   - [x] Format context with `build_discussion_context()` method
 
 #### Moderator Triggers (Basic)
+
 - [x] Create `bo1/agents/moderator.py`
   - [x] `ModeratorAgent` class
   - [x] Three types: contrarian, skeptic, optimist
@@ -510,6 +563,7 @@
   - [x] Track moderators used (don't repeat)
 
 #### Testing
+
 - [x] Test: Multi-round deliberation implementation complete
 - [x] Test: Facilitator decides "continue" vs "vote" (logic implemented)
 - [x] Test: Moderator intervention (logic implemented)
@@ -520,6 +574,7 @@
 **Output**: ✅ Can run multi-round debate with facilitator orchestration
 
 **Files Created**:
+
 - `bo1/agents/facilitator.py` - FacilitatorAgent with decision logic (300+ lines)
 - `bo1/agents/moderator.py` - ModeratorAgent with 3 types (150+ lines)
 - `bo1/orchestration/deliberation.py` - Added run_round(), calculate_max_rounds(), build_discussion_context()
@@ -527,10 +582,82 @@
 
 ---
 
-### Day 14: Voting & Synthesis
+### Day 14: Information Gap Analysis & Research Integration
+
+**Value**: Identify and resolve information gaps before deliberation starts
+
+#### Business Context Collection
+
+- [ ] Create `bo1/agents/context_collector.py`
+  - [ ] `BusinessContextCollector` class
+  - [ ] Prompt user for business details (optional but recommended):
+    - [ ] Website - scrape as much of the following, else ask end user to provide:
+      - [ ] Business model (B2B/B2C/marketplace/etc)
+      - [ ] Target market (industry, customer segment)
+      - [ ] Current metrics (revenue, customers, growth rate) - optional
+      - [ ] Key competitors (if known)
+      - [ ] Product/service description
+  - [ ] Store in `DeliberationState.business_context`
+  - [ ] Skip if user declines (not mandatory)
+  - [ ] Rich console form for input
+
+#### Information Gap Detection (During Decomposition)
+
+- [ ] Update `bo1/agents/decomposer.py`
+  - [ ] After decomposition: identify information gaps
+  - [ ] Prompt: "What information is needed to deliberate effectively?"
+  - [ ] Categorize gaps:
+    - [ ] **INTERNAL**: Business data only user can provide (churn rate, revenue, etc)
+    - [ ] **EXTERNAL**: Publicly researchable (industry benchmarks, competitor data, market research)
+  - [ ] For each gap: classify as CRITICAL vs NICE_TO_HAVE
+  - [ ] Use Haiku 4.5 for classification (~$0.001 per call)
+  - [ ] Return structured JSON with gaps
+
+#### Internal Information Collection
+
+- [ ] Interactive Q&A for CRITICAL internal gaps
+  - [ ] Display questions to user in console
+  - [ ] User provides answers or marks as "not available"
+  - [ ] Store answers in `DeliberationState.internal_context`
+  - [ ] If CRITICAL gap unavailable: warn user about limited deliberation quality
+
+#### External Research Orchestration
+
+- [ ] Create `bo1/agents/researcher.py` (stub for now, implement Week 4)
+  - [ ] `ResearcherAgent` class
+  - [ ] `research_questions()` method - accepts list of external questions
+  - [ ] For now: placeholder that logs "Research would happen here"
+  - [ ] Week 4: Implement actual web search + extraction + summarization
+- [ ] Background research trigger
+  - [ ] If external gaps identified: display "Researching: [question 1], [question 2]..."
+  - [ ] Launch research in background while collecting internal answers
+  - [ ] If only external gaps: research sequentially, show progress
+  - [ ] Store research results in `DeliberationState.research_context`
+- [ ] Context integration
+  - [ ] Before deliberation: merge business_context + internal_context + research_context
+  - [ ] Pass full context to all personas in initial round
+  - [ ] Update persona prompts to reference provided context
+
+#### Testing
+
+- [ ] Test: Business context collection (skip vs provide)
+- [ ] Test: Information gap detection
+  - [ ] Internal gap: "What is our current churn rate?"
+  - [ ] External gap: "What is average B2B SaaS churn rate?"
+- [ ] Test: Internal Q&A flow
+- [ ] Test: Research placeholder triggers correctly
+- [ ] Test: Context integration in persona prompts
+
+**Output**: ✅ Deliberations start with full context (no mid-deliberation delays)
+
+---
+
+### Day 15: Voting & Synthesis
+
 **Value**: Complete deliberation with final recommendation
 
 #### Voting Phase
+
 - [ ] Create `bo1/orchestration/voting.py`
   - [ ] `collect_votes()` function
   - [ ] Each persona votes using VOTING_PROMPT_TEMPLATE
@@ -545,6 +672,7 @@
   - [ ] Confidence-weighted calculation (optional)
 
 #### Synthesis
+
 - [ ] Update `FacilitatorAgent` with `synthesize_deliberation()` method
   - [ ] Use SYNTHESIS_PROMPT_TEMPLATE from reusable_prompts.py
   - [ ] **Use PromptBroker for synthesis LLM call**
@@ -556,6 +684,7 @@
   - [ ] Export to Markdown file
 
 #### End-to-End Test
+
 - [ ] Test: Complete deliberation pipeline
   1. [ ] Problem input ("Should I invest $50K in SEO or paid ads?")
   2. [ ] Decomposition (2-3 sub-problems)
@@ -574,13 +703,16 @@
 
 ---
 
-## Week 3: Cost Optimization & Summarization (Days 15-21)
+## Week 3: Cost Optimization & Summarization (Days 16-21)
+
 **Goal**: Reduce cost by 60-70% through caching and summarization
 
-### Day 15-16: Hierarchical Context Management
+### Day 16-17: Hierarchical Context Management
+
 **Value**: Prevent quadratic context growth
 
 #### Implement Summarizer Agent
+
 - [ ] Verify `bo1/prompts/summarizer_prompts.py` exists
 - [ ] Create `bo1/agents/summarizer.py`
   - [ ] `SummarizerAgent` class
@@ -591,6 +723,7 @@
   - [ ] Use compose_summarization_request()
 
 #### Async Summarization
+
 - [ ] Update `DeliberationState` model
   - [ ] Add `round_summaries: list[str]`
   - [ ] Add `pending_summary_task: asyncio.Task | None`
@@ -604,6 +737,7 @@
   - [ ] Zero latency impact on deliberation
 
 #### Context Composition Update
+
 - [ ] Update `compose_persona_prompt()` or create new version
   - [ ] `compose_persona_prompt_hierarchical()`
   - [ ] Accept: persona_system_role, problem, round_summaries, current_round_contributions
@@ -613,6 +747,7 @@
   - [ ] Test context size stays ~1,400 tokens max
 
 #### Testing
+
 - [ ] Test: Summarization quality (manual review)
   - [ ] Does summary capture key points?
   - [ ] Are disagreements preserved?
@@ -629,9 +764,11 @@
 ---
 
 ### Day 17-18: Prompt Caching Optimization
+
 **Value**: 90% cost reduction on cached tokens
 
 #### Cache Breakpoints
+
 - [ ] Update `PromptBroker` to support advanced cache_control
   - [ ] Accept cache_strategy parameter
   - [ ] Mark generic protocols for caching (via strategy)
@@ -646,13 +783,14 @@
 - [ ] Leave current round contributions uncached (changes each turn)
 
 #### Verify Caching Works
+
 - [ ] Add detailed logging for cache usage
   - [ ] Log cache_creation_input_tokens
   - [ ] Log cache_read_input_tokens
   - [ ] Log regular input_tokens
   - [ ] Log output_tokens
 - [ ] Calculate savings
-  - [ ] Formula: (cache_read * $0.00015) / (normal_input * $0.003)
+  - [ ] Formula: (cache*read * $0.00015) / (normal*input * $0.003)
   - [ ] Log savings per call
   - [ ] Aggregate savings per deliberation
 - [ ] Test cache hits
@@ -661,6 +799,7 @@
   - [ ] Verify 90% reduction on cached content
 
 #### Cost Monitoring
+
 - [ ] Create `bo1/monitoring/__init__.py`
 - [ ] Create `bo1/monitoring/cost_tracker.py`
   - [ ] `CostTracker` class
@@ -674,6 +813,7 @@
   - [ ] Log warnings to console
 
 #### Testing
+
 - [ ] Test: Cache creation on first call
 - [ ] Test: Cache reads on subsequent calls
 - [ ] Test: Cost tracking accuracy
@@ -688,9 +828,11 @@
 ---
 
 ### Day 19-20: Model Optimization (Haiku vs Sonnet)
+
 **Value**: Use cheaper model where appropriate
 
 #### Audit Model Usage
+
 - [ ] Document current model allocation
   - [ ] List all agent types and current models
   - [ ] Estimate token usage per agent type
@@ -704,6 +846,7 @@
   - [ ] Researcher: Haiku (future feature)
 
 #### Update Model Configs
+
 - [ ] Update `bo1/config.py`
   - [ ] Define `MODEL_BY_ROLE` mapping
   - [ ] PERSONA: sonnet
@@ -720,6 +863,7 @@
 - [ ] Verify each agent uses correct model
 
 #### Cost Regression Test
+
 - [ ] Run 5 sample deliberations with new model allocation
 - [ ] Measure per deliberation:
   - [ ] Total cost
@@ -739,9 +883,11 @@
 ---
 
 ### Day 21: Week 3 Integration & Measurement
+
 **Value**: Validate optimizations work
 
 #### Integration Test: Full Deliberation with Optimizations
+
 - [ ] Run complete deliberation end-to-end
 - [ ] Verify hierarchical context (summaries + current round)
   - [ ] Check context size ~1,400 tokens
@@ -758,6 +904,7 @@
   - [ ] Export cost report
 
 #### Quality Check
+
 - [ ] Manual review of 3 deliberations
   - [ ] Are recommendations still high quality?
   - [ ] Do personas reference earlier rounds correctly?
@@ -768,6 +915,7 @@
   - [ ] Re-test
 
 #### Documentation
+
 - [ ] Update README with cost analysis
   - [ ] Breakdown: Model allocation, caching strategy, hierarchical context
   - [ ] Cost per deliberation: ~$0.10
@@ -779,6 +927,7 @@
 - [ ] Update architecture diagrams
 
 #### Celebrate! 🎉
+
 - [ ] **Achievement unlocked**: ~$0.10 per deliberation
 - [ ] 70% cheaper than naive implementation
 - [ ] High quality maintained
@@ -788,12 +937,15 @@
 ---
 
 ## Week 4: Quality & Adaptive Stopping (Days 22-28)
+
 **Goal**: Improve deliberation quality and efficiency
 
 ### Day 22-23: Convergence Detection
+
 **Value**: Early stopping when consensus reached
 
 #### Voyage AI Integration
+
 - [ ] Create `bo1/embeddings/__init__.py`
 - [ ] Create `bo1/embeddings/voyage_client.py`
   - [ ] `VoyageClient` wrapper class
@@ -802,25 +954,24 @@
   - [ ] Error handling (API failures)
   - [ ] Caching embeddings (Redis)
 
-#### Convergence Metrics
+#### Convergence Metrics (Embedding-Based)
+
 - [ ] Create `bo1/monitoring/convergence.py`
   - [ ] `calculate_semantic_convergence()` function
-  - [ ] Generate embeddings for last 6 contributions
+  - [ ] Generate embeddings for last 6 contributions using Voyage AI
   - [ ] Calculate pairwise cosine similarity
   - [ ] Return average similarity (0-1)
   - [ ] High similarity (>0.85) = convergence
+  - [ ] Cost: ~$0.0001 per embedding, negligible overhead
 - [ ] `calculate_novelty_score()` function
-  - [ ] Compare new contribution to all past contributions
+  - [ ] Compare new contribution to all past contributions (embeddings)
   - [ ] Find max similarity to past
   - [ ] Novelty = 1 - max_similarity
   - [ ] Low novelty (<0.3) = repetition
-- [ ] `calculate_conflict_score()` function
-  - [ ] Analyze opinion distribution
-  - [ ] Calculate variance in positions
-  - [ ] Return conflict level (0-1)
-  - [ ] Low conflict (<0.2) = consensus
+  - [ ] Cache embeddings in Redis to avoid regeneration
 
 #### Early Stopping Logic
+
 - [ ] Create `bo1/orchestration/stopping_criteria.py`
   - [ ] `should_stop_early()` function
   - [ ] Inputs: convergence, novelty, conflict, round_number
@@ -836,6 +987,7 @@
   - [ ] Cost savings from early stopping
 
 #### Testing
+
 - [ ] Test: Embeddings generation works
 - [ ] Test: Convergence calculation
   - [ ] High similarity contributions → high convergence
@@ -853,9 +1005,11 @@
 ---
 
 ### Day 24-25: Problem Drift Detection
+
 **Value**: Prevent #1 cause of debate failure
 
 #### Drift Detection
+
 - [ ] Create `bo1/monitoring/drift_detection.py`
   - [ ] `check_problem_drift()` function
   - [ ] Input: contribution text, sub_problem goal
@@ -869,6 +1023,7 @@
   - [ ] Track drift events per deliberation
 
 #### Facilitator Intervention
+
 - [ ] Add redirect capability to FacilitatorAgent
   - [ ] When drift detected: generate redirect message
   - [ ] "Let's refocus on the core question: {sub_problem.goal}"
@@ -882,6 +1037,7 @@
   - [ ] Calculate: drift_before_redirect vs drift_after_redirect
 
 #### Testing
+
 - [ ] Synthetic test: Inject off-topic contribution
   - [ ] Create contribution about unrelated topic
   - [ ] Verify drift detection flags it (relevance < 0.6)
@@ -899,10 +1055,90 @@
 
 ---
 
-### Day 26: Adaptive Round Limits
-**Value**: Right-size effort to problem complexity
+### Day 26: AI-First Discussion Quality Detection
+
+**Value**: Replace pattern matching with intelligent Haiku-based validation
+
+#### Haiku-Based Quality Validator
+
+- [ ] Update `bo1/agents/facilitator.py`
+  - [ ] Create `_detect_discussion_issues()` method
+  - [ ] Use Haiku 4.5 for quality analysis (~$0.001-0.002 per check)
+  - [ ] Run every 2-3 rounds (not every round) to minimize cost
+  - [ ] Analyze last 6 contributions (2 rounds of context)
+  - [ ] Detect issues with confidence scores (0.0-1.0):
+    - [ ] **premature_consensus**: Group agreeing too quickly without exploring alternatives
+    - [ ] **unverified_claims**: Assertions made without evidence/reasoning
+    - [ ] **negativity_spiral**: Stuck discussing problems without exploring solutions
+    - [ ] **circular_arguments**: Same points repeating without progress
+  - [ ] Return structured JSON: `{"issue_type": {"detected": bool, "confidence": float, "reason": str}}`
+  - [ ] Only trigger moderator if confidence > 0.7
+- [ ] Remove old pattern-matching methods
+  - [ ] Delete `_detect_premature_consensus()` keyword-based logic
+  - [ ] Delete `_detect_unverified_claims()` keyword-based logic
+  - [ ] Delete `_detect_negativity_spiral()` keyword-based logic
+  - [ ] Delete `_detect_circular_arguments()` keyword-based logic
+- [ ] Update `_should_trigger_moderator()` to use AI validator
+  - [ ] Call `_detect_discussion_issues()` every 2-3 rounds
+  - [ ] Map detected issues to moderator types:
+    - [ ] premature_consensus → contrarian
+    - [ ] unverified_claims → skeptic
+    - [ ] negativity_spiral → optimist
+    - [ ] circular_arguments → contrarian
+  - [ ] Log detection reasoning for transparency
+
+#### Expert-Driven Research Requests
+
+- [ ] Update `bo1/prompts/reusable_prompts.py`
+  - [ ] Add `RESEARCH_REQUEST_PROTOCOL` to persona prompts
+  - [ ] Include `<research_request>` XML tag structure
+  - [ ] Clear guidance: EXTERNAL (researchable) vs INTERNAL (user provides)
+  - [ ] Examples of valid/invalid research requests
+  - [ ] Integrate into `compose_persona_prompt()`
+- [ ] Update `bo1/agents/facilitator.py`
+  - [ ] Replace `_check_research_needed()` pattern matching
+  - [ ] Create `_extract_research_requests()` method
+  - [ ] Parse `<research_request><query>...</query><reason>...</reason></research_request>` tags
+  - [ ] Extract query and reason from persona contributions
+  - [ ] Return list of research requests or None
+- [ ] Update facilitator decision logic
+  - [ ] Check for research requests before LLM call
+  - [ ] If found: trigger research action with extracted query and reason
+  - [ ] Log which persona requested research and why
+- [ ] Update `bo1/agents/researcher.py` (implement in Week 4 Day 27)
+  - [ ] Accept research requests from facilitator
+  - [ ] Perform web search + extraction + summarization
+  - [ ] Return research context to deliberation
+
+#### Testing
+
+- [ ] Test: AI quality validator
+  - [ ] Mock scenario: All personas rapidly agree (premature consensus)
+  - [ ] Mock scenario: Claims without evidence (unverified claims)
+  - [ ] Mock scenario: Only problems, no solutions (negativity spiral)
+  - [ ] Mock scenario: Same arguments repeated (circular arguments)
+  - [ ] Verify confidence scores are reasonable
+  - [ ] Verify moderators triggered appropriately
+- [ ] Test: Expert research requests
+  - [ ] Persona includes valid `<research_request>` tag
+  - [ ] Facilitator extracts query and reason correctly
+  - [ ] Research action triggered
+  - [ ] Invalid request (internal data) handled gracefully
+- [ ] Cost analysis
+  - [ ] Track Haiku validation costs per deliberation
+  - [ ] Verify <$0.01 per deliberation (negligible overhead)
+  - [ ] Compare accuracy vs old pattern matching (manual review)
+
+**Output**: ✅ Intelligent, context-aware discussion quality monitoring with minimal cost
+
+---
+
+### Day 27: Adaptive Round Limits & External Research Implementation
+
+**Value**: Right-size effort to problem complexity + implement web research
 
 #### Dynamic Round Limits
+
 - [ ] Add `calculate_max_rounds()` to stopping_criteria.py
   - [ ] Input: complexity_score (1-10)
   - [ ] Logic:
@@ -921,7 +1157,30 @@
   - [ ] Early stop triggered? (yes/no)
   - [ ] Reason for stopping (convergence, limit, drift)
 
+#### External Research Implementation
+
+- [ ] Complete `bo1/agents/researcher.py` implementation
+  - [ ] Integrate web search API (Brave Search API & Tavily - need to compare results)
+  - [ ] `research_question()` method - accepts query and reason
+  - [ ] Web search: Find top 5-10 relevant results
+  - [ ] Content extraction: Extract key information from results
+  - [ ] Summarization: Use Haiku to create 200-300 token summary
+  - [ ] Include sources/citations in summary
+  - [ ] Error handling: Search fails, no results, rate limits
+  - [ ] Cost tracking: Log search API + summarization costs
+- [ ] Integration with decomposition flow (Day 14 tasks)
+  - [ ] When external gaps identified: trigger background research
+  - [ ] Display progress: "Researching: [question 1], [question 2]..."
+  - [ ] Store results in `DeliberationState.research_context`
+  - [ ] Pass research context to personas in initial round
+- [ ] Integration with facilitator (expert-driven requests)
+  - [ ] When expert includes `<research_request>` tag: extract and research
+  - [ ] Add research summary to discussion context
+  - [ ] Next persona sees research results
+  - [ ] Log which expert requested research and what was found
+
 #### Testing
+
 - [ ] Test simple problem (complexity=2)
   - [ ] Verify max_rounds = 5
   - [ ] Deliberation stops at 5 if no convergence
@@ -932,15 +1191,27 @@
 - [ ] Test early stopping still works
   - [ ] Complex problem converges at round 6
   - [ ] Stops early (doesn't hit max_rounds=10)
+- [ ] Test external research
+  - [ ] Decomposition identifies external gap: "What is average SaaS churn rate?"
+  - [ ] Research conducted, summary generated
+  - [ ] Research context passed to personas
+  - [ ] Expert requests research mid-deliberation
+  - [ ] Research completed and injected into discussion
+- [ ] Cost analysis for research
+  - [ ] Track search API costs
+  - [ ] Track summarization costs (Haiku)
+  - [ ] Total research cost per deliberation (target: <$0.05)
 
-**Output**: ✅ Deliberations sized appropriately for complexity
+**Output**: ✅ Deliberations sized appropriately + external research fully functional
 
 ---
 
-### Day 27: Testing & Quality Assurance
+### Day 28: Testing & Quality Assurance
+
 **Value**: Validate system works reliably
 
 #### End-to-End Tests
+
 - [ ] Test 10 scenarios from PRD
   1. [ ] Product direction choice (B2B SaaS vs consumer app)
   2. [ ] Pricing strategy ($29 vs $99 vs usage-based)
@@ -959,6 +1230,7 @@
   - [ ] Recommendation quality (manual review: actionable? comprehensive?)
 
 #### Edge Case Handling
+
 - [ ] Atomic problem (no decomposition needed)
   - [ ] Single sub-problem = original problem
   - [ ] Deliberation proceeds normally
@@ -977,6 +1249,7 @@
   - [ ] Deliberation resumes after rate limit clears
 
 #### Error Handling
+
 - [ ] Invalid persona code selected
   - [ ] Validation catches it
   - [ ] Clear error message
@@ -998,9 +1271,11 @@
 ---
 
 ### Day 28: Documentation & Handoff
+
 **Value**: Enable future development
 
 #### User Documentation
+
 - [ ] Update README.md
   - [ ] Project overview
   - [ ] Installation (step-by-step)
@@ -1016,6 +1291,7 @@
   - [ ] PR process
 
 #### Architecture Documentation
+
 - [ ] Update IMPLEMENTATION_PROPOSAL.md
   - [ ] Document actual implementation vs original plan
   - [ ] Note any deviations and why
@@ -1031,6 +1307,7 @@
   - [ ] Extension points (how to add new agents)
 
 #### Metrics Dashboard (Console)
+
 - [ ] Create `bo1/ui/metrics_display.py`
   - [ ] Display after deliberation:
     - [ ] Total cost ($0.XXX)
@@ -1047,6 +1324,7 @@
   - [ ] Save to deliberation_reports/
 
 #### v2 Roadmap
+
 - [ ] Document features deferred to v2
   - [ ] Web interface (Svelte 5 + SvelteKit)
   - [ ] FastAPI backend
@@ -1056,6 +1334,7 @@
   - [ ] Custom user personas
   - [ ] Authentication
   - [ ] Multi-user collaboration
+  - [ ] **Intelligent Knowledge Caching System** (NEW - high value)
 - [ ] Identify technical debt
   - [ ] Areas needing refactoring
   - [ ] Performance bottlenecks
@@ -1073,12 +1352,14 @@
 ## Success Criteria Checklist
 
 ### Functional Requirements (End of Day 28)
+
 - [ ] ✅ Can run end-to-end deliberation (problem → recommendation)
 - [ ] ✅ Cost: $0.10-0.15 per sub-problem (within target)
 - [ ] ✅ Time: 5-15 min per deliberation
 - [ ] ✅ Quality: Actionable recommendations (manual review of 10 samples passing)
 
 ### Technical Requirements
+
 - [ ] ✅ Prompt caching working (60-70% cost reduction)
 - [ ] ✅ Hierarchical context (linear growth, not quadratic)
 - [ ] ✅ Convergence detection (early stopping functional)
@@ -1086,6 +1367,7 @@
 - [ ] ✅ Adaptive round limits (complexity-based)
 
 ### Deliverables
+
 - [ ] ✅ Working console application
 - [ ] ✅ 10+ test scenarios passing
 - [ ] ✅ Cost/quality metrics for each deliberation
@@ -1096,13 +1378,14 @@
 
 ## Value Delivery Milestones
 
-| Day | Milestone | Demo-able? | Tasks Complete | Value |
-|-----|-----------|------------|----------------|-------|
-| **7** | Foundation ready | ✅ | 56/56 | Enable all future work |
-| **11.5** | Prompt Broker ready | ✅ | 58/58 | Robust LLM orchestration + metrics |
-| **14** | End-to-end MVP | ⏳ | 135/193 | **Can demo to users** |
-| **21** | Cost-optimized | ⏳ | 135/212 | 70% cost reduction |
-| **28** | Production-ready | ⏳ | 135/230 | **Ready to ship** |
+| Day      | Milestone                | Demo-able? | Tasks Complete | Value                                    |
+| -------- | ------------------------ | ---------- | -------------- | ---------------------------------------- |
+| **7**    | Foundation ready         | ✅         | 56/56          | Enable all future work                   |
+| **11.5** | Prompt Broker ready      | ✅         | 58/58          | Robust LLM orchestration + metrics       |
+| **13**   | Multi-round deliberation | ✅         | 100/100        | Facilitator + moderators working         |
+| **15**   | End-to-end MVP           | ⏳         | 156/249        | **Can demo to users**                    |
+| **21**   | Cost-optimized           | ⏳         | 156/268        | 70% cost reduction                       |
+| **28**   | Production-ready         | ⏳         | 156/317        | **Ready to ship** with AI-first features |
 
 ---
 
@@ -1117,13 +1400,295 @@
 
 ---
 
-**Last Updated**: 2025-11-12
-**Current Phase**: Week 2 - Days 8-13 Complete ✅ - **NEXT: Day 14 (Voting & Synthesis)** 🚀
+**Last Updated**: 2025-11-13
+**Current Phase**: Week 2 - **Day 14 Complete ✅** - **NEXT: Day 15 (Voting & Synthesis)** 🚀
 **Blockers**: None
-**Note**:
-- **Day 12-13 (Multi-Round Deliberation)** ✅ COMPLETE - Facilitator orchestration, multi-round management, and moderator interventions now implemented
-- FacilitatorAgent makes decisions (continue/vote/research/moderator) using PromptBroker
-- ModeratorAgent provides strategic interventions (contrarian/skeptic/optimist)
-- DeliberationEngine.run_round() manages iterative discussion with context building
-- Adaptive round limits based on complexity (simple=5, moderate=7, complex=10)
-- Ready to proceed with voting and synthesis (Day 14)
+
+**Recent Updates**:
+
+- **Day 14 COMPLETE ✅**: Information Gap Analysis & Research Integration
+  - BusinessContextCollector for business data collection
+  - Information gap detection (INTERNAL vs EXTERNAL)
+  - Interactive Q&A for critical internal gaps
+  - ResearcherAgent stub (full implementation Week 4)
+  - Context integration into DeliberationState
+- **Expanded scope** with AI-first features (Haiku validators, expert-driven research, embedding-based convergence)
+- **Day 15**: Voting & Synthesis (21 tasks) - **NEXT**
+- **Day 26 NEW**: AI-First Discussion Quality Detection (Haiku-based, not pattern matching)
+- **Day 27 EXPANDED**: External research implementation + adaptive round limits
+- **Total task count**: 184/273 (67%) - scope expanded by 46 tasks
+
+**Completed**:
+
+- ✅ **Day 14**: Information Gap Analysis & Research Integration
+- ✅ Multi-Round Deliberation (Day 12-13): Facilitator orchestration, moderators, context building
+- ✅ Prompt Broker Infrastructure (Day 11.5): Unified LLM calls with metrics
+- ✅ Persona Selection & Initial Round (Day 10-11): Parallel expert contributions
+- ✅ Problem Decomposition (Day 8-9): Sub-problem generation
+
+**Philosophy Changes**:
+
+1. **AI-first validation**: Use Haiku ($0.001/check) instead of brittle pattern matching
+2. **Expert-driven research**: Personas request research via XML tags, not pattern detection
+3. **Embedding-based convergence**: Semantic similarity (Voyage AI) for quality metrics
+4. **Upfront context gathering**: Resolve info gaps during decomposition, not mid-deliberation
+
+---
+
+## 🚀 v2 Enhancement: Intelligent Knowledge Caching System
+
+**Priority**: HIGH VALUE - Dramatically reduces costs and improves quality over time
+
+**Goal**: Build a shared knowledge pool that caches internal answers and external research, making the system smarter and cheaper with each use.
+
+### Core Concept
+
+Instead of re-asking the same questions or re-researching the same topics, create a persistent knowledge base that:
+1. **Remembers user answers** to internal questions (with time-awareness)
+2. **Caches external research** results (with expiration)
+3. **Shares anonymized insights** across users (privacy-preserving)
+4. **Uses embeddings** for semantic retrieval (not just exact matches)
+
+### Architecture
+
+#### 1. Internal Knowledge Cache (User-Specific)
+
+**Data Model**:
+```json
+{
+  "user_id": "user_123",
+  "question": "What is your current churn rate?",
+  "question_embedding": [0.123, 0.456, ...],  // Voyage AI embedding
+  "answer": "5% monthly",
+  "context": {
+    "business_model": "B2B SaaS",
+    "arr": "$100K",
+    "customer_count": 50
+  },
+  "timeframe": "2025-11",  // When this answer applies
+  "created_at": "2025-11-13T15:30:00Z",
+  "expires_at": "2025-12-13T15:30:00Z",  // Auto-expire after 1 month
+  "confidence": "high",  // User can mark if estimate vs exact
+  "tags": ["metrics", "retention", "churn"]
+}
+```
+
+**Features**:
+- **Semantic matching**: Use embeddings to find similar questions (e.g., "monthly churn" vs "customer attrition rate")
+- **Expiration logic**:
+  - Metrics (churn, revenue, CAC): Expire monthly
+  - Strategy (goals, priorities): Expire quarterly
+  - Static facts (industry, business model): Never expire
+- **Proactive prompts** (v2 web UI): "Your churn rate was 5% in November. Has this changed?"
+- **Version history**: Track how answers change over time
+
+**Storage**: PostgreSQL with pgvector extension for embedding search
+
+#### 2. External Research Cache (Shared Pool)
+
+**Data Model**:
+```json
+{
+  "question": "What is average B2B SaaS churn rate?",
+  "question_embedding": [0.789, 0.012, ...],
+  "research_summary": "Industry benchmarks show average B2B SaaS monthly churn ranges from 3-7%, with SMB-focused products at 5-8% and enterprise at 1-2%. Annual churn typically 30-50% for SMB, 8-15% for enterprise.",
+  "sources": [
+    {"url": "https://example.com/saas-metrics", "title": "SaaS Metrics Guide", "date": "2024-10"},
+    {"url": "https://example.com/churn-benchmarks", "title": "Churn Benchmarks", "date": "2025-01"}
+  ],
+  "research_date": "2025-11-13",
+  "expires_at": "2026-02-13",  // Expire after 3 months (research goes stale)
+  "search_queries_used": ["B2B SaaS churn rate", "SaaS retention benchmarks"],
+  "confidence": "high",
+  "usage_count": 42,  // How many users benefited from this research
+  "cost_to_generate": 0.023,  // Track ROI (one research, many uses)
+  "tags": ["saas", "metrics", "churn", "benchmarks"]
+}
+```
+
+**Features**:
+- **Semantic retrieval**: Find cached research for similar questions
+- **Freshness tracking**:
+  - Market research: 3 months
+  - Technical benchmarks: 6 months
+  - Regulatory info: 1 month
+- **Cost savings metric**: Track $ saved by cache hits
+- **Confidence scoring**: Degrade confidence as research ages
+- **Source diversity**: Require 3+ sources for "high confidence"
+
+**Storage**: PostgreSQL with pgvector + Redis for hot cache
+
+#### 3. Anonymized Insights Pool (Multi-User Intelligence)
+
+**Data Model**:
+```json
+{
+  "question_category": "churn_rate",
+  "filters": {
+    "business_model": "B2B SaaS",
+    "arr_range": "$50K-$250K",
+    "customer_count_range": "10-100",
+    "industry": "productivity_tools"
+  },
+  "aggregated_insights": {
+    "median": "4.5%",
+    "p25": "3.2%",
+    "p75": "6.8%",
+    "sample_size": 47,
+    "last_updated": "2025-11-13"
+  },
+  "privacy_preserved": true,  // No individual data exposed
+  "min_sample_size": 10  // Don't show if <10 users
+}
+```
+
+**Features**:
+- **Privacy-first**: Only show aggregates, require minimum sample sizes
+- **Contextual filtering**: Match on business model, size, industry
+- **Opt-in**: Users choose to contribute anonymized data
+- **Value prop**: "Similar businesses to yours report 3-7% churn"
+- **Confidence bands**: Show ranges, not just averages
+
+**Use Cases**:
+- "Businesses similar to yours (B2B SaaS, $50K-$250K ARR) report CAC of $500-$2000"
+- "Solo founders in your situation typically allocate 15-25 hours/week to marketing"
+- "Companies your size see 2-4% conversion rates on paid ads"
+
+#### 4. Retrieval Strategy (Embedding-Based)
+
+**Query Flow**:
+1. **User asks a question** → Generate embedding (Voyage AI)
+2. **Semantic search** → Query vector DB for similar questions (cosine similarity > 0.85)
+3. **Check freshness** → Filter out expired entries
+4. **Return cached answer** → If found, skip LLM call / web search
+5. **Fallback** → If not found, generate new answer, cache it
+
+**Cost Savings**:
+- **Internal Q&A**: $0.00 (cache hit) vs $0.02 (LLM call)
+- **External research**: $0.00 (cache hit) vs $0.05 (search + summarization)
+- **ROI**: First research costs $0.05, next 100 uses are free → 100x ROI
+
+#### 5. Implementation Phases
+
+**Phase 1: Basic Caching (v2.0)**
+- [ ] PostgreSQL schema for internal answers + external research
+- [ ] pgvector extension for embedding search
+- [ ] API endpoints: `/cache/internal/search`, `/cache/research/search`
+- [ ] Expiration cron jobs (mark stale entries)
+- [ ] Cache hit metrics (track savings)
+
+**Phase 2: Proactive Updates (v2.1)**
+- [ ] Web UI prompts: "Update your churn rate?"
+- [ ] Email notifications: "Your CAC data is 2 months old"
+- [ ] Trend analysis: "Your churn has increased 2% since last month"
+
+**Phase 3: Shared Intelligence (v2.2)**
+- [ ] Anonymized insights aggregation
+- [ ] User opt-in system
+- [ ] Privacy controls (what to share)
+- [ ] Contextual matching (business model, size, industry)
+- [ ] Insight display in deliberations: "Similar businesses report..."
+
+**Phase 4: Advanced Features (v2.3+)**
+- [ ] Auto-expiration with confidence decay
+- [ ] Multi-language support (embeddings work cross-language)
+- [ ] Research quality scoring (source credibility)
+- [ ] User feedback loop ("Was this cached answer helpful?")
+- [ ] Cost attribution (track $ saved per user)
+
+### Technical Stack
+
+**Database**:
+- PostgreSQL 15+ with pgvector extension
+- Tables: `user_internal_cache`, `external_research_cache`, `anonymized_insights`
+- Indexes: GIN on embeddings, B-tree on timestamps/tags
+
+**Embeddings**:
+- Voyage AI `voyage-2` model (1536 dimensions)
+- Cosine similarity threshold: 0.85 for matches
+- Batch embedding for efficiency
+
+**Cache Layer**:
+- Redis for hot cache (frequently accessed research)
+- TTL: 1 hour for hot entries
+- Fallback to PostgreSQL for cold cache
+
+**API Design**:
+```python
+# Search for cached internal answer
+GET /api/v2/cache/internal/search
+{
+  "question": "What is your churn rate?",
+  "user_id": "user_123",
+  "context": {"business_model": "B2B SaaS"}
+}
+→ Returns: {found: true, answer: "5%", confidence: "high", age_days: 15}
+
+# Search for cached research
+GET /api/v2/cache/research/search
+{
+  "question": "What is average SaaS churn rate?",
+  "max_age_days": 90
+}
+→ Returns: {found: true, summary: "...", sources: [...], age_days: 42}
+
+# Get anonymized insights
+GET /api/v2/insights/aggregate
+{
+  "category": "churn_rate",
+  "filters": {"business_model": "B2B SaaS", "arr_range": "$50K-$250K"}
+}
+→ Returns: {median: "4.5%", p25: "3.2%", p75: "6.8%", sample_size: 47}
+```
+
+### Success Metrics
+
+**Cost Reduction**:
+- Target: 80% cache hit rate after 3 months
+- Savings: ~$0.04 per cached internal answer
+- Savings: ~$0.05 per cached research result
+- ROI: 100x for shared research (one research, 100 users benefit)
+
+**Quality Improvement**:
+- Faster deliberations (skip Q&A for known answers)
+- Richer context (anonymized benchmarks)
+- Trend tracking (see how metrics change over time)
+
+**User Experience**:
+- Proactive updates ("Your data is stale")
+- Peer benchmarking ("You're above/below average")
+- Historical insights ("Your churn has improved 2% this quarter")
+
+### Privacy & Ethics
+
+**Principles**:
+1. **User control**: Opt-in for sharing anonymized data
+2. **Transparency**: Show what data is cached, when it expires
+3. **Aggregation only**: Never expose individual user data
+4. **Minimum sample sizes**: Require 10+ users before showing insights
+5. **Right to deletion**: Users can purge their cached data
+
+**Compliance**:
+- GDPR-compliant (right to access, delete, export)
+- No PII in anonymized pool
+- Clear data retention policies
+
+### Value Proposition
+
+**For Users**:
+- "Never answer the same question twice"
+- "Get instant benchmarks from similar businesses"
+- "Track how your metrics improve over time"
+
+**For Platform**:
+- Massive cost savings (80% reduction in redundant calls)
+- Network effects (more users = richer insights)
+- Competitive moat (knowledge base grows over time)
+
+---
+
+**Estimated Implementation**: 3-4 weeks for Phase 1, 2 weeks per subsequent phase
+
+**Dependencies**: PostgreSQL, pgvector, Voyage AI, Redis (optional for hot cache)
+
+**Priority**: Implement after v2.0 Web UI is stable (Week 5+)

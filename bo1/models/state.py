@@ -131,6 +131,17 @@ class DeliberationState(BaseModel):
         default_factory=dict, description="Additional metadata (user_id, tags, etc.)"
     )
 
+    # Context fields (Day 14)
+    business_context: dict[str, Any] | None = Field(
+        default=None, description="Business context collected from user"
+    )
+    internal_context: dict[str, str] | None = Field(
+        default=None, description="Answers to internal information gap questions"
+    )
+    research_context: list[dict[str, Any]] | None = Field(
+        default=None, description="External research results"
+    )
+
     @property
     def sub_problem(self) -> SubProblem | None:
         """Alias for current_sub_problem for backward compatibility."""

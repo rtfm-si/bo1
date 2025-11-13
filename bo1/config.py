@@ -176,10 +176,12 @@ def get_model_for_role(role: str) -> str:
         >>> get_model_for_role("PERSONA")
         "claude-sonnet-4-5-20250929"
     """
-    if role not in MODEL_BY_ROLE:
+    # Normalize role to lowercase for case-insensitive lookup
+    role_lower = role.lower()
+    if role_lower not in MODEL_BY_ROLE:
         raise ValueError(f"Unknown role: {role}. Valid roles: {list(MODEL_BY_ROLE.keys())}")
 
-    model_alias = MODEL_BY_ROLE[role]
+    model_alias = MODEL_BY_ROLE[role_lower]
     return resolve_model_alias(model_alias)
 
 

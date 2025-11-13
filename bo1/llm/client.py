@@ -171,7 +171,10 @@ class ClaudeClient:
         # LangChain doesn't properly pass cache_control to the API
         from anthropic import AsyncAnthropic
 
-        anthropic_client = AsyncAnthropic()
+        # Initialize with beta header for prompt caching
+        anthropic_client = AsyncAnthropic(
+            default_headers={"anthropic-beta": "prompt-caching-2024-07-31"}
+        )
 
         # Build messages in Anthropic format
         anthropic_messages: list[dict[str, Any]] = []

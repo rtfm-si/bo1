@@ -236,7 +236,7 @@ if __name__ == "__main__":
     """Run tests manually for quick verification."""
     import sys
 
-    async def main():
+    async def main() -> int:
         """Run basic smoke tests."""
         print("🧪 Running LLM client tests...\n")
 

@@ -39,16 +39,28 @@ load_dotenv(env_path)
 # Configure logging from environment
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 debug_mode = os.getenv("DEBUG", "false").lower() == "true"
+# VERBOSE_LIBS=true will show third-party library debug logs (anthropic, httpx, etc.)
+verbose_libs = os.getenv("VERBOSE_LIBS", "false").lower() == "true"
+
+# Custom formatter for cleaner output
+log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+if log_level == "INFO":
+    # Simpler format for INFO level (less noise)
+    log_format = "%(levelname)s - %(message)s"
 
 logging.basicConfig(
     level=getattr(logging, log_level),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format=log_format,
 )
 
-# Suppress noisy third-party loggers unless in debug mode
-if not debug_mode:
+# Always suppress noisy third-party loggers unless VERBOSE_LIBS=true
+# This applies even when DEBUG=true to keep output readable
+if not verbose_libs:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("anthropic").setLevel(logging.WARNING)
+    logging.getLogger("anthropic._base_client").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 

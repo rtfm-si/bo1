@@ -45,8 +45,12 @@ run: ## Run deliberation in container (interactive)
 	docker-compose run --rm bo1 python -m bo1.main
 
 .PHONY: demo
-demo: ## Run complete Board of One demo (Days 1-14 pipeline)
+demo: ## Run complete Board of One demo (Days 1-14 pipeline, automated)
 	docker-compose run --rm bo1 python bo1/demo.py
+
+.PHONY: demo-interactive
+demo-interactive: ## Run demo in interactive mode (prompts for Q&A)
+	docker-compose run --rm bo1 python bo1/demo.py --interactive
 
 .PHONY: redis-cli
 redis-cli: ## Open Redis CLI

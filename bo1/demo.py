@@ -12,9 +12,16 @@ Demonstrates the full end-to-end pipeline:
 8. Convergence detection
 9. Final synthesis (placeholder - Day 15)
 
-Run: make demo
+Usage:
+  make demo              # Automated mode (skip Q&A)
+  make demo-interactive  # Interactive mode (answer Q&A prompts)
+
+Or directly:
+  python bo1/demo.py              # Automated
+  python bo1/demo.py --interactive # Interactive
 """
 
+import argparse
 import asyncio
 import json
 import logging
@@ -65,13 +72,20 @@ if not verbose_libs:
 logger = logging.getLogger(__name__)
 
 
-async def run_complete_demo() -> None:
-    """Run the complete Board of One deliberation pipeline (Days 1-14)."""
+async def run_complete_demo(interactive: bool = False) -> None:
+    """Run the complete Board of One deliberation pipeline (Days 1-14).
+
+    Args:
+        interactive: If True, prompts user for business context and internal answers.
+                    If False, skips interactive sections for automated testing.
+    """
     console = Console()
 
     # Header
     console.print("\n" + "=" * 70)
     console.print_header("Board of One - Complete Pipeline Demo")
+    mode = "Interactive Mode" if interactive else "Automated Mode"
+    console.print(f"[dim]{mode}[/dim]")
     console.print("=" * 70 + "\n")
 
     # Initialize all agents
@@ -113,8 +127,16 @@ async def run_complete_demo() -> None:
     # ==================== STEP 2: Information Gap Detection ====================
     console.print("\n[bold cyan]═══ Step 2: Information Gap Detection ═══[/bold cyan]\n")
 
-    # Skip business context collection for demo (non-interactive)
+    # Business context collection (optional interactive)
     business_context = None
+    if interactive:
+        from bo1.agents.context_collector import BusinessContextCollector
+
+        context_collector = BusinessContextCollector()
+        console.print(
+            "[yellow]Collecting business context (optional - press Enter to skip)...[/yellow]\n"
+        )
+        business_context = context_collector.collect_context(skip_prompt=False)
 
     gaps_response = await decomposer.identify_information_gaps(
         problem_description=problem_description,
@@ -142,9 +164,19 @@ async def run_complete_demo() -> None:
         console.print(f"  Q: {external_gaps[0]['question']}")
         console.print(f"  [dim]Priority: {external_gaps[0]['priority']}[/dim]\n")
 
-    # Skip actual collection for automated demo
-    console.print("[dim]Skipping context collection for demo (would be interactive)[/dim]\n")
+    # Internal answers collection (interactive mode)
     internal_answers: dict[str, str] = {}
+    if interactive and internal_gaps:
+        from bo1.agents.context_collector import BusinessContextCollector
+
+        context_collector = BusinessContextCollector()
+        console.print(
+            "[yellow]Collecting internal answers (you can skip any question)...[/yellow]\n"
+        )
+        internal_answers = context_collector.collect_internal_answers(internal_gaps)
+        console.print(f"\n[green]✓ Collected {len(internal_answers)} answers[/green]\n")
+    elif not interactive and internal_gaps:
+        console.print("[dim]Skipping internal Q&A for automated demo[/dim]\n")
 
     # Research stub
     if external_gaps:
@@ -298,4 +330,15 @@ async def run_complete_demo() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(run_complete_demo())
+    parser = argparse.ArgumentParser(
+        description="Board of One - Complete Pipeline Demo (Days 1-14)"
+    )
+    parser.add_argument(
+        "--interactive",
+        "-i",
+        action="store_true",
+        help="Enable interactive mode for Q&A (business context and internal gaps)",
+    )
+    args = parser.parse_args()
+
+    asyncio.run(run_complete_demo(interactive=args.interactive))

@@ -364,6 +364,10 @@ The deliberation is concluding. Review the full discussion and provide your fina
 {discussion_history}
 </full_discussion>
 
+IMPORTANT: You MUST respond using the following XML structure. Do NOT use markdown headings or other formats.
+
+Your response will start with <thinking> (which is prefilled for you), and you must continue with the rest of the XML structure:
+
 <thinking>
 Reflect on the deliberation:
 1. What are the strongest arguments made?
@@ -375,7 +379,7 @@ Reflect on the deliberation:
 </thinking>
 
 <vote>
-<decision>[Your recommended option]</decision>
+<decision>Your recommended option - be specific (e.g., "SEO", "Paid Ads", "Neither - do X first", "Conditional on Y")</decision>
 
 <reasoning>
 2-3 paragraphs explaining your vote from your expert perspective:
@@ -393,8 +397,11 @@ Why this confidence level? What would increase or decrease it?
 
 <conditions>
 Under what conditions would your recommendation change? What caveats apply?
+If none, write "No additional conditions."
 </conditions>
 </vote>
+
+Remember: Use ONLY the XML tags shown above. Do NOT use markdown headings like ## Decision or # Vote.
 </instructions>"""
 
 # =============================================================================

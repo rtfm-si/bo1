@@ -51,6 +51,7 @@ async def collect_votes(
         request = PromptRequest(
             system=voting_prompt,
             user_message="Please provide your final vote and recommendation.",
+            prefill="<thinking>",  # Force XML structure
             temperature=0.7,  # Slightly lower for voting
             max_tokens=2000,
             phase="voting",
@@ -61,8 +62,9 @@ async def collect_votes(
             response = await broker.call(request)
             llm_responses.append(response)
 
-            # Parse vote from response
-            vote = _parse_vote_from_response(response.content, persona)
+            # Parse vote from response (prepend prefill for complete content)
+            full_content = "<thinking>" + response.content
+            vote = _parse_vote_from_response(full_content, persona)
             votes.append(vote)
 
             logger.info(

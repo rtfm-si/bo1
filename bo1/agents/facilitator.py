@@ -8,7 +8,7 @@ The facilitator:
 """
 
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
@@ -565,3 +565,263 @@ Consider:
                 return snippet
 
         return None
+
+    async def synthesize_deliberation(
+        self,
+        state: DeliberationState,
+        votes: list[Any],
+        vote_aggregation: Any,
+    ) -> tuple[str, LLMResponse]:
+        """Synthesize the full deliberation into a comprehensive report.
+
+        Args:
+            state: Current deliberation state
+            votes: List of Vote objects
+            vote_aggregation: VoteAggregation object
+
+        Returns:
+            Tuple of (synthesis_report, LLMResponse)
+        """
+        from bo1.prompts.reusable_prompts import SYNTHESIS_PROMPT_TEMPLATE
+
+        logger.info("Generating synthesis report")
+
+        # Build full deliberation history
+        all_contributions_and_votes = self._format_full_deliberation(state, votes)
+
+        # Compose synthesis prompt
+        synthesis_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(
+            problem_statement=state.problem.description,
+            all_contributions_and_votes=all_contributions_and_votes,
+        )
+
+        # Request synthesis from Sonnet (needs reasoning capability)
+        request = PromptRequest(
+            system=synthesis_prompt,
+            user_message="Generate the comprehensive synthesis report.",
+            temperature=0.7,
+            max_tokens=4096,
+            phase="synthesis",
+            agent_type="facilitator_synthesis",
+        )
+
+        response = await self.broker.call(request)
+        synthesis_report = self._extract_tag_content(response.content, "synthesis_report")
+
+        if not synthesis_report:
+            # Fallback: use full response if no tags
+            synthesis_report = response.content
+
+        logger.info(f"Generated synthesis report ({len(synthesis_report)} chars)")
+
+        return synthesis_report, response
+
+    def _format_full_deliberation(self, state: DeliberationState, votes: list[Any]) -> str:
+        """Format full deliberation history including contributions and votes.
+
+        Args:
+            state: Current deliberation state
+            votes: List of Vote objects
+
+        Returns:
+            Formatted string
+        """
+        lines = []
+
+        # Add all contributions
+        lines.append("DELIBERATION HISTORY:")
+        lines.append("")
+
+        for msg in state.contributions:
+            lines.append(f"--- {msg.persona_name} (Round {msg.round_number}) ---")
+            lines.append(msg.content)
+            lines.append("")
+
+        # Add votes
+        lines.append("FINAL VOTES:")
+        lines.append("")
+
+        for vote in votes:
+            lines.append(f"--- {vote.persona_name} ---")
+            lines.append(f"Decision: {vote.decision.value}")
+            lines.append(f"Reasoning: {vote.reasoning}")
+            if vote.conditions:
+                lines.append(f"Conditions: {', '.join(vote.conditions)}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    async def validate_synthesis_quality(
+        self,
+        synthesis_report: str,
+        state: DeliberationState,
+        votes: list[Any],
+    ) -> tuple[bool, str | None, LLMResponse]:
+        """Validate synthesis quality using AI (Haiku).
+
+        Checks:
+        - Are all dissenting views included?
+        - Are conditions clear?
+        - Is recommendation actionable?
+        - Are risks acknowledged?
+
+        Args:
+            synthesis_report: The generated synthesis
+            state: Deliberation state
+            votes: List of votes
+
+        Returns:
+            Tuple of (is_valid, feedback_for_revision, LLMResponse)
+        """
+        logger.info("Validating synthesis quality with AI (Haiku)")
+
+        # Collect dissenting votes
+        dissenting_votes = [v for v in votes if v.decision.value in ["no", "abstain"]]
+        conditional_votes = [v for v in votes if v.decision.value == "conditional"]
+
+        # Format for validation
+        dissenting_summary = "\n".join(
+            [f"- {v.persona_name}: {v.reasoning[:200]}..." for v in dissenting_votes]
+        )
+        conditional_summary = "\n".join(
+            [f"- {v.persona_name}: {', '.join(v.conditions[:3])}" for v in conditional_votes]
+        )
+
+        system_prompt = """You are a synthesis quality validator.
+
+Your task: Check if a synthesis report is comprehensive and actionable.
+
+Output ONLY valid JSON in this exact format:
+{
+  "is_valid": true | false,
+  "missing_elements": ["element 1", "element 2", ...],
+  "quality_score": 0.0-1.0,
+  "revision_guidance": "specific feedback for improvement" | null
+}"""
+
+        user_message = f"""Validate this synthesis report:
+
+<synthesis_report>
+{synthesis_report[:2000]}...
+</synthesis_report>
+
+<dissenting_views_expected>
+{dissenting_summary if dissenting_summary else "None"}
+</dissenting_views_expected>
+
+<conditional_votes_expected>
+{conditional_summary if conditional_summary else "None"}
+</conditional_votes_expected>
+
+Check:
+1. Are all dissenting views ({len(dissenting_votes)}) included and explained?
+2. Are critical conditions ({len([c for v in conditional_votes for c in v.conditions])}) clearly stated?
+3. Is the recommendation specific and actionable (not vague)?
+4. Are risks and implementation challenges addressed?
+
+Output JSON only."""
+
+        request = PromptRequest(
+            system=system_prompt,
+            user_message=user_message,
+            prefill="{",
+            temperature=0.3,
+            max_tokens=1000,
+            phase="synthesis_validation",
+            agent_type="synthesis_validator",
+        )
+
+        response = await self.broker.call(request)
+
+        try:
+            # Parse validation result
+            json_content = "{" + response.content
+            import json
+
+            validation_data = json.loads(json_content)
+
+            is_valid = validation_data.get("is_valid", True)
+            quality_score = validation_data.get("quality_score", 1.0)
+            revision_guidance = validation_data.get("revision_guidance")
+
+            if is_valid and quality_score >= 0.7:
+                logger.info(f"Synthesis validation PASSED (quality: {quality_score:.2f})")
+                return True, None, response
+            else:
+                logger.warning(
+                    f"Synthesis validation FAILED (quality: {quality_score:.2f}), "
+                    f"missing: {validation_data.get('missing_elements', [])}"
+                )
+                return False, revision_guidance, response
+
+        except Exception as e:
+            logger.error(f"Synthesis validation parsing failed: {e}")
+            # Assume valid on parse failure (graceful degradation)
+            return True, None, response
+
+    async def revise_synthesis(
+        self,
+        original_synthesis: str,
+        feedback: str,
+        state: DeliberationState,
+        votes: list[Any],
+    ) -> tuple[str, LLMResponse]:
+        """Revise synthesis based on quality feedback.
+
+        Args:
+            original_synthesis: Original synthesis report
+            feedback: Feedback from validation
+            state: Deliberation state
+            votes: List of votes
+
+        Returns:
+            Tuple of (revised_synthesis, LLMResponse)
+        """
+        logger.info("Revising synthesis based on feedback")
+
+        system_prompt = """You are the Facilitator revising a synthesis report.
+
+Your task: Improve the synthesis by addressing specific quality issues.
+
+Output the revised <synthesis_report> with all required sections."""
+
+        user_message = f"""Revise this synthesis report to address the feedback:
+
+<original_synthesis>
+{original_synthesis}
+</original_synthesis>
+
+<quality_feedback>
+{feedback}
+</quality_feedback>
+
+<problem_statement>
+{state.problem.description}
+</problem_statement>
+
+Ensure the revised report:
+1. Includes ALL dissenting views with substantive explanation
+2. Clearly states ALL critical conditions
+3. Provides specific, actionable recommendations
+4. Addresses risks and implementation challenges
+
+Output the complete revised <synthesis_report>...</synthesis_report>."""
+
+        request = PromptRequest(
+            system=system_prompt,
+            user_message=user_message,
+            temperature=0.7,
+            max_tokens=4096,
+            phase="synthesis_revision",
+            agent_type="facilitator_synthesis",
+        )
+
+        response = await self.broker.call(request)
+        revised_synthesis = self._extract_tag_content(response.content, "synthesis_report")
+
+        if not revised_synthesis:
+            revised_synthesis = response.content
+
+        logger.info(f"Generated revised synthesis ({len(revised_synthesis)} chars)")
+
+        return revised_synthesis, response

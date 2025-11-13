@@ -9,7 +9,6 @@ from typing import Any
 
 from anthropic import RateLimitError
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import BaseMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from bo1.config import calculate_cost, get_model_for_role, resolve_model_alias
@@ -112,6 +111,8 @@ class ClaudeClient:
             kwargs: dict[str, Any] = {
                 "model": full_model_id,
                 "max_retries": self.max_retries,
+                # Enable prompt caching via default_headers
+                "default_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
             }
             if self.api_key:
                 kwargs["api_key"] = self.api_key
@@ -163,42 +164,47 @@ class ClaudeClient:
             ...     prefill="{"
             ... )
         """
-        client = self._get_client(model)
+        self._get_client(model)  # Ensure client is initialized
         full_model_id = resolve_model_alias(model)
 
-        # Build LangChain messages
-        lc_messages: list[BaseMessage] = []
+        # Use Anthropic SDK directly for caching support
+        # LangChain doesn't properly pass cache_control to the API
+        from anthropic import AsyncAnthropic
 
-        # Add system message if provided
-        if system:
-            if cache_system:
-                # Mark system prompt for caching
-                lc_messages.append(
-                    SystemMessage(
-                        content=system,
-                        additional_kwargs={"cache_control": {"type": "ephemeral"}},
-                    )
-                )
-            else:
-                lc_messages.append(SystemMessage(content=system))
+        anthropic_client = AsyncAnthropic()
+
+        # Build messages in Anthropic format
+        anthropic_messages: list[dict[str, Any]] = []
 
         # Add conversation messages
-        from langchain_core.messages import AIMessage, HumanMessage
-
         for msg in messages:
-            if msg["role"] == "user":
-                lc_messages.append(HumanMessage(content=msg["content"]))
-            elif msg["role"] == "assistant":
-                lc_messages.append(AIMessage(content=msg["content"]))
+            anthropic_messages.append({"role": msg["role"], "content": msg["content"]})
 
-        # Add prefill if provided (for JSON responses, use "{")
+        # Add prefill if provided
         if prefill:
-            lc_messages.append(AIMessage(content=prefill))
+            anthropic_messages.append({"role": "assistant", "content": prefill})
 
-        # Make API call
+        # Prepare system parameter with caching
+        system_blocks: list[dict[str, Any]] | str | None = None
+        if system:
+            if cache_system:
+                # Use Anthropic's cache_control format
+                system_blocks = [
+                    {
+                        "type": "text",
+                        "text": system,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ]
+            else:
+                system_blocks = system
+
+        # Make direct Anthropic API call
         try:
-            response = await client.ainvoke(
-                lc_messages,
+            response = await anthropic_client.messages.create(
+                model=full_model_id,
+                messages=anthropic_messages,  # type: ignore[arg-type]
+                system=system_blocks if system_blocks else None,  # type: ignore[arg-type]
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
@@ -206,24 +212,26 @@ class ClaudeClient:
             logger.error(f"Rate limit exceeded: {e}")
             raise
 
-        # Extract response text
-        if not hasattr(response, "content"):
+        # Extract response text from Anthropic SDK response
+        if not hasattr(response, "content") or not response.content:
             raise ValueError(f"Unexpected response format: {response}")
 
-        response_text = str(response.content)
+        # Anthropic SDK returns content as list of content blocks
+        response_text = ""
+        for block in response.content:
+            if hasattr(block, "text"):
+                response_text += block.text
 
         # Prepend prefill to response if it was used
         if prefill:
             response_text = prefill + response_text
 
-        # Extract token usage
-        usage_metadata = getattr(response, "usage_metadata", {})
-
+        # Extract token usage from Anthropic SDK response
         token_usage = TokenUsage(
-            input_tokens=usage_metadata.get("input_tokens", 0),
-            output_tokens=usage_metadata.get("output_tokens", 0),
-            cache_creation_tokens=usage_metadata.get("cache_creation_input_tokens", 0),
-            cache_read_tokens=usage_metadata.get("cache_read_input_tokens", 0),
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+            cache_creation_tokens=getattr(response.usage, "cache_creation_input_tokens", 0),
+            cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", 0),
         )
 
         # Log usage stats

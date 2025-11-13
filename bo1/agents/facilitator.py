@@ -10,10 +10,16 @@ The facilitator:
 import logging
 from typing import Any, Literal
 
+from bo1.agents.base import BaseAgent
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
-from bo1.models.state import ContributionMessage, DeliberationState
+from bo1.llm.response_parser import ResponseParser
+from bo1.models.state import DeliberationState
 from bo1.prompts.reusable_prompts import compose_facilitator_prompt
+from bo1.utils.deliberation_analysis import DeliberationAnalyzer
+from bo1.utils.json_parsing import parse_json_with_fallback
+from bo1.utils.logging_helpers import LogHelper
+from bo1.utils.xml_parsing import extract_xml_tag
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +55,7 @@ class FacilitatorDecision:
         self.phase_summary = phase_summary
 
 
-class FacilitatorAgent:
+class FacilitatorAgent(BaseAgent):
     """Orchestrates multi-round deliberation by deciding next actions."""
 
     def __init__(self, broker: PromptBroker | None = None, use_haiku: bool = True) -> None:
@@ -59,8 +65,13 @@ class FacilitatorAgent:
             broker: LLM broker for making calls (creates default if not provided)
             use_haiku: Use Haiku for fast, cheap decisions (default: True)
         """
-        self.broker = broker or PromptBroker()
-        self.model = "haiku-4.5" if use_haiku else "sonnet-4.5"
+        # Facilitator allows model override via use_haiku parameter
+        model = "haiku-4.5" if use_haiku else "sonnet-4.5"
+        super().__init__(broker=broker, model=model)
+
+    def get_default_model(self) -> str:
+        """Return default model for facilitator (Haiku for speed/cost)."""
+        return "haiku-4.5"
 
     def _should_trigger_moderator(
         self, state: DeliberationState, round_number: int
@@ -77,7 +88,7 @@ class FacilitatorAgent:
 
         # Early rounds (1-4): Watch for premature consensus
         if round_number <= 4:
-            if self._detect_premature_consensus(recent):
+            if DeliberationAnalyzer.detect_premature_consensus(recent):
                 return {
                     "type": "contrarian",
                     "reason": "Group converging too early without exploring alternatives",
@@ -85,7 +96,7 @@ class FacilitatorAgent:
 
         # Middle rounds (5-7): Watch for unverified claims
         if 5 <= round_number <= 7:
-            if self._detect_unverified_claims(recent):
+            if DeliberationAnalyzer.detect_unverified_claims(recent):
                 return {
                     "type": "skeptic",
                     "reason": "Claims made without evidence or verification",
@@ -93,14 +104,14 @@ class FacilitatorAgent:
 
         # Late rounds (8+): Watch for negativity spiral
         if round_number >= 8:
-            if self._detect_negativity_spiral(recent):
+            if DeliberationAnalyzer.detect_negativity_spiral(recent):
                 return {
                     "type": "optimist",
                     "reason": "Discussion stuck in problems without exploring solutions",
                 }
 
         # Any round: Watch for circular arguments
-        if self._detect_circular_arguments(recent):
+        if DeliberationAnalyzer.detect_circular_arguments(recent):
             return {
                 "type": "contrarian",
                 "reason": "Circular arguments detected, need fresh perspective",
@@ -108,151 +119,15 @@ class FacilitatorAgent:
 
         return None
 
-    def _detect_premature_consensus(self, contributions: list[ContributionMessage]) -> bool:
-        """Detect if group is agreeing too quickly."""
-        if len(contributions) < 4:
-            return False
-
-        # Count agreement keywords
-        agreement_keywords = ["agree", "yes", "correct", "exactly", "indeed", "aligned", "same"]
-        total_words = 0
-        agreement_count = 0
-
-        for contrib in contributions:
-            words = contrib.content.lower().split()
-            total_words += len(words)
-            agreement_count += sum(
-                1 for word in words if any(kw in word for kw in agreement_keywords)
-            )
-
-        if total_words == 0:
-            return False
-
-        # If >15% agreement words in early rounds = premature consensus
-        agreement_ratio = agreement_count / total_words
-        return agreement_ratio > 0.15
-
-    def _detect_unverified_claims(self, contributions: list[ContributionMessage]) -> bool:
-        """Detect claims without evidence."""
-        claim_keywords = ["should", "must", "will definitely", "certainly", "always", "never"]
-        evidence_keywords = [
-            "because",
-            "data shows",
-            "research indicates",
-            "according to",
-            "evidence",
-            "study",
-        ]
-
-        for contrib in contributions:
-            text = contrib.content.lower()
-            has_claims = sum(1 for kw in claim_keywords if kw in text)
-            has_evidence = sum(1 for kw in evidence_keywords if kw in text)
-
-            # If 3+ claims but no evidence markers = red flag
-            if has_claims >= 3 and has_evidence == 0:
-                return True
-
-        return False
-
-    def _detect_negativity_spiral(self, contributions: list[ContributionMessage]) -> bool:
-        """Detect if discussion stuck in problems."""
-        negative_keywords = [
-            "won't work",
-            "impossible",
-            "can't",
-            "too risky",
-            "fail",
-            "problem",
-            "issue",
-        ]
-        positive_keywords = [
-            "could",
-            "might",
-            "opportunity",
-            "solution",
-            "approach",
-            "possible",
-            "potential",
-        ]
-
-        negative_count = 0
-        positive_count = 0
-
-        for contrib in contributions:
-            text = contrib.content.lower()
-            negative_count += sum(1 for kw in negative_keywords if kw in text)
-            positive_count += sum(1 for kw in positive_keywords if kw in text)
-
-        # If 3x more negative than positive = spiral
-        if positive_count == 0:
-            return negative_count > 5
-
-        return negative_count > 3 * positive_count
-
-    def _detect_circular_arguments(self, contributions: list[ContributionMessage]) -> bool:
-        """Detect if same arguments repeating."""
-        if len(contributions) < 4:
-            return False
-
-        # Extract key phrases (4+ char words, deduplicated per contribution)
-        all_phrases: list[str] = []
-        for contrib in contributions:
-            words = [w.lower() for w in contrib.content.split() if len(w) >= 4]
-            unique_in_contrib = list(set(words))
-            all_phrases.extend(unique_in_contrib)
-
-        if not all_phrases:
-            return False
-
-        unique_phrases = len(set(all_phrases))
-        total_phrases = len(all_phrases)
-
-        # If <40% are unique = lots of repetition = circular
-        return (unique_phrases / total_phrases) < 0.40
-
     def _check_research_needed(self, state: DeliberationState) -> dict[str, str] | None:
         """Check if research/information is needed.
+
+        Delegates to DeliberationAnalyzer for pattern detection.
 
         Returns:
             dict with "query" and "reason" if research needed, None otherwise
         """
-        if len(state.contributions) < 2:
-            return None
-
-        recent = state.contributions[-3:]  # Last round
-
-        # Look for questions or information gaps
-        question_patterns = [
-            "what is",
-            "what are",
-            "how much",
-            "how many",
-            "do we know",
-            "unclear",
-            "uncertain",
-            "need data",
-            "need information",
-            "need research",
-            "don't have data",
-            "missing information",
-        ]
-
-        for contrib in recent:
-            text = contrib.content.lower()
-            for pattern in question_patterns:
-                if pattern in text:
-                    # Extract the sentence containing the pattern
-                    sentences = text.split(".")
-                    for sentence in sentences:
-                        if pattern in sentence:
-                            query = sentence.strip()[:200]  # Limit to 200 chars
-                            return {
-                                "query": query,
-                                "reason": f"{contrib.persona_name} raised: {query}",
-                            }
-
-        return None
+        return DeliberationAnalyzer.check_research_needed(state)
 
     async def decide_next_action(
         self, state: DeliberationState, round_number: int, max_rounds: int
@@ -340,34 +215,27 @@ Analyze the discussion and decide the next action."""
         response = await self.broker.call(request)
 
         # Parse decision from response
-        decision = self._parse_decision(response.content, state)
+        parsed = ResponseParser.parse_facilitator_decision(response.content, state)
+        decision = FacilitatorDecision(**parsed)
 
-        logger.info(f"Facilitator decision: {decision.action}")
+        # Log decision details using LogHelper
+        details = {}
+        if decision.next_speaker:
+            details["next_speaker"] = decision.next_speaker
+        if decision.speaker_prompt:
+            details["focus"] = decision.speaker_prompt
+        if decision.moderator_type:
+            details["moderator_type"] = decision.moderator_type
+        if decision.moderator_focus:
+            details["moderator_focus"] = decision.moderator_focus
 
-        # Log detailed reasoning in debug mode
-        if decision.reasoning:
-            logger.debug(f"  Reasoning: {decision.reasoning[:200]}...")
-
-        if decision.action == "continue" and decision.next_speaker:
-            speaker_name = next(
-                (
-                    p.display_name
-                    for p in state.selected_personas
-                    if p.code == decision.next_speaker
-                ),
-                decision.next_speaker,
-            )
-            logger.info(f"  Next speaker: {speaker_name} ({decision.next_speaker})")
-            if decision.speaker_prompt:
-                logger.debug(f"  Focus: {decision.speaker_prompt}")
-        elif decision.action == "moderator" and decision.moderator_type:
-            logger.info(f"  Moderator type: {decision.moderator_type}")
-            if decision.moderator_focus:
-                logger.debug(f"  Focus: {decision.moderator_focus}")
-        elif decision.action == "vote":
-            logger.info("  Transition to voting phase")
-            if decision.phase_summary:
-                logger.debug(f"  Summary: {decision.phase_summary[:150]}...")
+        LogHelper.log_decision(
+            logger,
+            agent_type="facilitator",
+            decision=decision.action,
+            reasoning=decision.reasoning,
+            details=details if details else None,
+        )
 
         return decision, response
 
@@ -376,6 +244,7 @@ Analyze the discussion and decide the next action."""
         if not state.contributions:
             return "No contributions yet (initial round)."
 
+        # Add persona code prefix for facilitator context
         lines = []
         for msg in state.contributions:
             lines.append(f"[Round {msg.round_number}] {msg.persona_code}:")
@@ -413,158 +282,6 @@ Consider:
 - Should we continue, bring in a moderator, or move to voting?"""
 
         return f"Phase: {phase} (objectives not defined)"
-
-    def _parse_decision(self, content: str, state: DeliberationState) -> FacilitatorDecision:
-        """Parse facilitator's decision from response content.
-
-        This is a simple parser - looks for key patterns in the response.
-        In v2, we could use structured output (JSON schema).
-        """
-        content_lower = content.lower()
-
-        # Detect action type
-        action: FacilitatorAction
-
-        if "option a" in content_lower or "continue discussion" in content_lower:
-            action = "continue"
-        elif (
-            "option b" in content_lower or "transition" in content_lower or "vote" in content_lower
-        ):
-            action = "vote"
-        elif "option c" in content_lower or "research" in content_lower:
-            action = "research"
-        elif "option d" in content_lower or "moderator" in content_lower:
-            action = "moderator"
-        else:
-            # Default to continue if unclear
-            logger.warning("Could not parse facilitator action clearly, defaulting to 'continue'")
-            action = "continue"
-
-        # Extract reasoning (look for content in <thinking> or <decision> tags)
-        reasoning = self._extract_tag_content(content, "thinking") or content[:500]
-
-        # Parse based on action type
-        if action == "continue":
-            next_speaker = self._extract_next_speaker(content, state)
-            speaker_prompt = self._extract_speaker_prompt(content)
-            return FacilitatorDecision(
-                action=action,
-                reasoning=reasoning,
-                next_speaker=next_speaker,
-                speaker_prompt=speaker_prompt,
-            )
-
-        if action == "moderator":
-            moderator_type = self._extract_moderator_type(content)
-            moderator_focus = self._extract_moderator_focus(content)
-            return FacilitatorDecision(
-                action=action,
-                reasoning=reasoning,
-                moderator_type=moderator_type,
-                moderator_focus=moderator_focus,
-            )
-
-        if action == "research":
-            research_query = self._extract_research_query(content)
-            return FacilitatorDecision(
-                action=action, reasoning=reasoning, research_query=research_query
-            )
-
-        # action == "vote"
-        phase_summary = self._extract_phase_summary(content)
-        return FacilitatorDecision(action=action, reasoning=reasoning, phase_summary=phase_summary)
-
-    def _extract_tag_content(self, content: str, tag: str) -> str | None:
-        """Extract content between XML tags."""
-        start_tag = f"<{tag}>"
-        end_tag = f"</{tag}>"
-
-        start_idx = content.find(start_tag)
-        if start_idx == -1:
-            return None
-
-        end_idx = content.find(end_tag, start_idx)
-        if end_idx == -1:
-            return None
-
-        return content[start_idx + len(start_tag) : end_idx].strip()
-
-    def _extract_next_speaker(self, content: str, state: DeliberationState) -> str | None:
-        """Extract next speaker persona code from facilitator response."""
-        # Look for persona codes in the content
-        for persona in state.selected_personas:
-            if persona.code in content or persona.code.replace("_", " ") in content.lower():
-                return persona.code
-
-        # Default to first persona if unclear
-        if state.selected_personas:
-            logger.warning(
-                f"Could not identify next speaker, defaulting to {state.selected_personas[0].code}"
-            )
-            return state.selected_personas[0].code
-
-        return None
-
-    def _extract_speaker_prompt(self, content: str) -> str | None:
-        """Extract specific prompt for next speaker."""
-        # Look for "Prompt:" or "Focus:" sections
-        for marker in ["prompt:", "focus:", "question:"]:
-            idx = content.lower().find(marker)
-            if idx != -1:
-                # Extract until next line break or end
-                snippet = content[idx + len(marker) : idx + 300].split("\n")[0].strip()
-                if snippet:
-                    return snippet
-
-        return None
-
-    def _extract_moderator_type(
-        self, content: str
-    ) -> Literal["contrarian", "skeptic", "optimist"] | None:
-        """Extract moderator type from content."""
-        content_lower = content.lower()
-        if "contrarian" in content_lower:
-            return "contrarian"
-        if "skeptic" in content_lower:
-            return "skeptic"
-        if "optimist" in content_lower:
-            return "optimist"
-        return "contrarian"  # Default
-
-    def _extract_moderator_focus(self, content: str) -> str | None:
-        """Extract what moderator should focus on."""
-        for marker in ["focus:", "address:", "challenge:"]:
-            idx = content.lower().find(marker)
-            if idx != -1:
-                snippet = content[idx + len(marker) : idx + 300].split("\n")[0].strip()
-                if snippet:
-                    return snippet
-        return None
-
-    def _extract_research_query(self, content: str) -> str | None:
-        """Extract research query from content."""
-        for marker in ["query:", "question:", "information needed:"]:
-            idx = content.lower().find(marker)
-            if idx != -1:
-                snippet = content[idx + len(marker) : idx + 300].split("\n")[0].strip()
-                if snippet:
-                    return snippet
-        return None
-
-    def _extract_phase_summary(self, content: str) -> str | None:
-        """Extract phase summary when transitioning."""
-        summary = self._extract_tag_content(content, "summary")
-        if summary:
-            return summary
-
-        # Look for "Summary:" marker
-        idx = content.lower().find("summary:")
-        if idx != -1:
-            snippet = content[idx + 8 : idx + 500].split("\n\n")[0].strip()
-            if snippet:
-                return snippet
-
-        return None
 
     async def synthesize_deliberation(
         self,
@@ -606,7 +323,7 @@ Consider:
         )
 
         response = await self.broker.call(request)
-        synthesis_report = self._extract_tag_content(response.content, "synthesis_report")
+        synthesis_report = extract_xml_tag(response.content, "synthesis_report")
 
         if not synthesis_report:
             # Fallback: use full response if no tags
@@ -635,14 +352,10 @@ Consider:
         """
         lines = []
 
-        # Add all contributions
+        # Add all contributions using state method
         lines.append("DELIBERATION HISTORY:")
         lines.append("")
-
-        for msg in state.contributions:
-            lines.append(f"--- {msg.persona_name} (Round {msg.round_number}) ---")
-            lines.append(msg.content)
-            lines.append("")
+        lines.append(state.format_discussion_history())
 
         # Add votes
         lines.append("FINAL VOTES:")
@@ -741,11 +454,18 @@ Output JSON only."""
         response = await self.broker.call(request)
 
         try:
-            # Parse validation result
-            json_content = "{" + response.content
-            import json
+            # Parse validation result using utility
 
-            validation_data = json.loads(json_content)
+            json_content = "{" + response.content
+            validation_data, parsing_errors = parse_json_with_fallback(
+                content=json_content,
+                prefill="",  # Already prepended above
+                context="synthesis validation",
+                logger=logger,
+            )
+
+            if validation_data is None:
+                raise ValueError(f"Could not parse JSON from response. Errors: {parsing_errors}")
 
             is_valid = validation_data.get("is_valid", True)
             quality_score = validation_data.get("quality_score", 1.0)
@@ -762,9 +482,12 @@ Output JSON only."""
                 return False, revision_guidance, response
 
         except Exception as e:
-            logger.error(
-                f"⚠️ FALLBACK: Synthesis validation parsing FAILED. Assuming synthesis is valid "
-                f"(graceful degradation). Error: {e}. Response: {response.content[:200]}..."
+            LogHelper.log_fallback_used(
+                logger,
+                operation="Synthesis validation parsing",
+                reason="Failed to parse JSON response",
+                fallback_action="assuming synthesis is valid (graceful degradation)",
+                error=e,
             )
             # Assume valid on parse failure (graceful degradation)
             return True, None, response
@@ -827,7 +550,7 @@ Output the complete revised <synthesis_report>...</synthesis_report>."""
         )
 
         response = await self.broker.call(request)
-        revised_synthesis = self._extract_tag_content(response.content, "synthesis_report")
+        revised_synthesis = extract_xml_tag(response.content, "synthesis_report")
 
         if not revised_synthesis:
             logger.warning(

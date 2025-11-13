@@ -95,8 +95,19 @@ class LLMResponse(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def cost_total(self) -> float:
-        """Total cost for this request."""
-        return self.cost_input + self.cost_output + self.cost_cache_write + self.cost_cache_read
+        """Total cost for this request.
+
+        Uses centralized calculate_cost() from config module for consistency.
+        """
+        from bo1.config import calculate_cost
+
+        return calculate_cost(
+            model_id=self.model,
+            input_tokens=self.token_usage.input_tokens,
+            output_tokens=self.token_usage.output_tokens,
+            cache_creation_tokens=self.token_usage.cache_creation_tokens,
+            cache_read_tokens=self.token_usage.cache_read_tokens,
+        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -8,9 +8,10 @@ import json
 import logging
 from typing import Any
 
+from bo1.agents.base import BaseAgent
 from bo1.config import MODEL_BY_ROLE
 from bo1.data import get_active_personas, get_persona_by_code
-from bo1.llm.broker import PromptBroker, PromptRequest
+from bo1.llm.broker import PromptRequest
 from bo1.llm.response import LLMResponse
 from bo1.models.problem import SubProblem
 
@@ -113,7 +114,7 @@ Ensure diversity, domain coverage, and appropriate expertise depth.
 """
 
 
-class PersonaSelectorAgent:
+class PersonaSelectorAgent(BaseAgent):
     """Agent that recommends personas for deliberation.
 
     Analyzes the problem domain and complexity to recommend 3-5 expert personas
@@ -122,14 +123,9 @@ class PersonaSelectorAgent:
     Uses Sonnet 4.5 for complex persona selection analysis.
     """
 
-    def __init__(self, broker: PromptBroker | None = None) -> None:
-        """Initialize the persona selector agent.
-
-        Args:
-            broker: Optional PromptBroker instance. If None, creates a new one.
-        """
-        self.broker = broker or PromptBroker()
-        self.model_name = MODEL_BY_ROLE["selector"]
+    def get_default_model(self) -> str:
+        """Return default model for persona selector."""
+        return MODEL_BY_ROLE["selector"]
 
     async def recommend_personas(
         self,
@@ -201,7 +197,7 @@ Provide your recommendation as JSON following the format in your system prompt.
         request = PromptRequest(
             system=SELECTOR_SYSTEM_PROMPT,
             user_message=user_message,
-            model=self.model_name,
+            model=self.model,
             prefill="{",  # Ensure JSON response starts with {
             cache_system=False,  # No caching needed for one-off selection
             phase="selection",

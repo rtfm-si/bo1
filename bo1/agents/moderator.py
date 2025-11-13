@@ -12,9 +12,11 @@ Three types:
 import logging
 from typing import Literal
 
-from bo1.llm.broker import PromptBroker, PromptRequest
+from bo1.agents.base import BaseAgent
+from bo1.llm.broker import PromptRequest
 from bo1.llm.response import LLMResponse
 from bo1.prompts.reusable_prompts import compose_moderator_prompt
+from bo1.utils.xml_parsing import extract_xml_tag
 
 logger = logging.getLogger(__name__)
 
@@ -44,16 +46,12 @@ MODERATOR_CONFIGS = {
 }
 
 
-class ModeratorAgent:
+class ModeratorAgent(BaseAgent):
     """Strategic moderator that intervenes to improve deliberation quality."""
 
-    def __init__(self, broker: PromptBroker | None = None) -> None:
-        """Initialize moderator agent.
-
-        Args:
-            broker: LLM broker for making calls (creates default if not provided)
-        """
-        self.broker = broker or PromptBroker()
+    def get_default_model(self) -> str:
+        """Return default model for moderator (Sonnet 4.5)."""
+        return "sonnet-4.5"
 
     async def intervene(
         self,
@@ -134,11 +132,10 @@ question or challenge, then return focus to the standard expert personas."""
         Returns:
             Intervention text (with or without tags)
         """
-        # Try to extract from <intervention> tags
-        if "<intervention>" in content and "</intervention>" in content:
-            start_idx = content.index("<intervention>") + len("<intervention>")
-            end_idx = content.index("</intervention>")
-            return content[start_idx:end_idx].strip()
+        # Try to extract from <intervention> tags using utility
+        intervention = extract_xml_tag(content, "intervention")
+        if intervention:
+            return intervention
 
         # If no tags, return everything after </thinking> if present
         if "</thinking>" in content:

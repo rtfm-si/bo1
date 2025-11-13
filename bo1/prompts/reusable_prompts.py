@@ -353,6 +353,61 @@ Gather relevant evidence and information to support the deliberation, providing 
 # Voting Prompt Template
 # =============================================================================
 
+# CACHE-OPTIMIZED: Generic voting system prompt (shared across all personas)
+# Persona identity moved to user message for cross-persona cache sharing
+VOTING_SYSTEM_PROMPT = """<instructions>
+The deliberation is concluding. Review the full discussion and provide your final assessment.
+
+<full_discussion>
+{discussion_history}
+</full_discussion>
+
+IMPORTANT: You MUST respond using the following XML structure. Do NOT use markdown headings or other formats.
+
+Your response will start with <thinking> (which is prefilled for you), and you must continue with the rest of the XML structure:
+
+<thinking>
+Reflect on the deliberation:
+1. What are the strongest arguments made?
+2. What risks or concerns remain from your perspective?
+3. What evidence supports each option?
+4. What is your domain-specific recommendation?
+5. How confident are you (and why)?
+6. What conditions would change your recommendation?
+</thinking>
+
+<vote>
+<decision>Your recommended option - be specific (e.g., "SEO", "Paid Ads", "Neither - do X first", "Conditional on Y")</decision>
+
+<reasoning>
+2-3 paragraphs explaining your vote from your expert perspective:
+- Key factors influencing your decision
+- How the discussion shaped your thinking
+- Specific risks or opportunities you weight heavily
+- Evidence or frameworks supporting your choice
+</reasoning>
+
+<confidence>high | medium | low</confidence>
+
+<confidence_rationale>
+Why this confidence level? What would increase or decrease it?
+</confidence_rationale>
+
+<conditions>
+Under what conditions would your recommendation change? What caveats apply?
+If none, write "No additional conditions."
+</conditions>
+</vote>
+
+Remember: Use ONLY the XML tags shown above. Do NOT use markdown headings like ## Decision or # Vote.
+</instructions>"""
+
+# User message template for voting (includes persona identity - NOT cached)
+VOTING_USER_MESSAGE = """You are {persona_name} preparing your final vote and recommendation.
+
+Please provide your final vote using the XML structure specified in the instructions above."""
+
+# DEPRECATED: Old template kept for backward compatibility during migration
 VOTING_PROMPT_TEMPLATE = """<system_role>
 You are {persona_name} preparing your final vote and recommendation.
 </system_role>
@@ -490,6 +545,8 @@ def compose_persona_prompt(
 ) -> str:
     """Compose a complete framework-aligned persona system prompt.
 
+    DEPRECATED: Use compose_persona_prompt_cached() for better cache optimization.
+
     This function takes the BESPOKE persona content (system_role) and combines it
     with GENERIC protocols and DYNAMIC context to create the full prompt.
 
@@ -534,6 +591,73 @@ def compose_persona_prompt(
 {COMMUNICATION_PROTOCOL}
 
 {security_task}"""
+
+
+def compose_persona_prompt_cached(
+    problem_statement: str,
+    participant_list: str,
+    current_phase: str = "discussion",
+) -> tuple[str, str]:
+    """Compose cache-optimized persona prompts for cross-persona cache sharing.
+
+    CACHE OPTIMIZATION: Separates cacheable (problem context, protocols) from
+    variable (persona identity) content. This enables all personas to share the
+    same cached system prompt, dramatically reducing costs.
+
+    Pattern:
+        - System prompt (CACHED): Problem context + protocols (shared by all personas)
+        - User message template (NOT CACHED): Persona identity (unique per persona)
+
+    Args:
+        problem_statement: The problem being deliberated
+        participant_list: Names of other personas in deliberation
+        current_phase: Current deliberation phase (e.g., "initial", "discussion", "voting")
+
+    Returns:
+        Tuple of (system_prompt, user_message_template) where:
+        - system_prompt: Generic cached content (discussion context + protocols)
+        - user_message_template: Template string with {persona_system_role} and {persona_name} placeholders
+
+    Example:
+        >>> system_prompt, user_template = compose_persona_prompt_cached(
+        ...     problem_statement="Should we invest in SEO or paid ads?",
+        ...     participant_list="Zara, Maria, Sarah",
+        ...     current_phase="discussion"
+        ... )
+        >>> # System prompt is SAME for all personas (cached!)
+        >>> # User message varies per persona:
+        >>> user_msg = user_template.format(
+        ...     persona_system_role=persona["system_prompt"],
+        ...     persona_name=persona["name"]
+        ... )
+    """
+    # Build deliberation context (CACHED - same for all personas)
+    context = DELIBERATION_CONTEXT_TEMPLATE.format(
+        problem_statement=problem_statement,
+        participant_list=participant_list,
+        current_phase=current_phase,
+    )
+
+    # Build security addendum
+    security_task = SECURITY_ADDENDUM.format(security_protocol=SECURITY_PROTOCOL)
+
+    # System prompt: Generic content shared by all personas (CACHED)
+    system_prompt = f"""{context}
+
+{BEHAVIORAL_GUIDELINES}
+
+{EVIDENCE_PROTOCOL}
+
+{COMMUNICATION_PROTOCOL}
+
+{security_task}"""
+
+    # User message template: Persona-specific content (NOT CACHED)
+    user_message_template = """{{persona_system_role}}
+
+You are {{persona_name}}, participating in this deliberation. Please provide your contribution based on your expertise."""
+
+    return system_prompt, user_message_template
 
 
 def compose_facilitator_prompt(
@@ -690,6 +814,129 @@ def get_round_phase_config(round_number: int, max_rounds: int) -> dict[str, Any]
             "directive": "Work toward consensus. Acknowledge tradeoffs, find common ground, and help the group move toward a decision.",
             "tone": "convergent",
         }
+
+
+# =============================================================================
+# Hierarchical Context Composition (Week 3 - Day 16-17)
+# =============================================================================
+
+
+def compose_persona_prompt_hierarchical(
+    persona_system_role: str,
+    problem_statement: str,
+    participant_list: str,
+    round_summaries: list[str],
+    current_round_contributions: list[dict[str, str]],
+    round_number: int,
+    current_phase: str = "discussion",
+) -> str:
+    """Compose persona prompt with hierarchical context management.
+
+    This function prevents quadratic token growth by:
+    - Including old rounds as summaries (~100 tokens each, cached)
+    - Including current round as full detail (~200 tokens per contribution, not cached)
+
+    Design:
+    - Rounds 1 to N-2: Summaries only
+    - Round N-1: Full contributions (provides immediate context)
+    - Total context stays ~1,400 tokens (linear growth, not quadratic)
+
+    Args:
+        persona_system_role: Bespoke persona identity from personas.json
+        problem_statement: The problem being deliberated
+        participant_list: Comma-separated list of participant names
+        round_summaries: List of summaries for past rounds (Rounds 1 to N-2)
+        current_round_contributions: Full contributions from Round N-1
+        round_number: Current round number (N)
+        current_phase: Current deliberation phase
+
+    Returns:
+        Composed system prompt with hierarchical context
+
+    Example:
+        >>> round_summaries = [
+        ...     "Round 1: Three key tensions emerged: cost vs quality...",
+        ...     "Round 2: Maria provided financial analysis showing..."
+        ... ]
+        >>> current_round = [
+        ...     {"persona": "Maria", "content": "Building on Round 2 analysis..."},
+        ...     {"persona": "Zara", "content": "I agree with Maria but..."}
+        ... ]
+        >>> prompt = compose_persona_prompt_hierarchical(
+        ...     persona_system_role=maria_role,
+        ...     problem_statement="Should we invest in SEO?",
+        ...     participant_list="Maria, Zara, Tariq",
+        ...     round_summaries=round_summaries,
+        ...     current_round_contributions=current_round,
+        ...     round_number=3,
+        ...     current_phase="discussion"
+        ... )
+    """
+    # Build hierarchical context
+    context_parts = []
+
+    # Previous rounds (summarized)
+    if round_summaries:
+        context_parts.append("<previous_rounds_summary>")
+        for i, summary in enumerate(round_summaries, start=1):
+            context_parts.append(f"Round {i}: {summary}")
+        context_parts.append("</previous_rounds_summary>\n")
+
+    # Current round (full detail)
+    if current_round_contributions:
+        context_parts.append("<current_round_detail>")
+        for contrib in current_round_contributions:
+            persona_name = contrib.get("persona", "Unknown")
+            content = contrib.get("content", "")
+            context_parts.append(f"[{persona_name}]\n{content}\n")
+        context_parts.append("</current_round_detail>\n")
+
+    discussion_context = "\n".join(context_parts)
+
+    # Get phase config
+    # Note: We need to know max_rounds to use adaptive config properly
+    # For now, use a heuristic: max_rounds = 10 (typical for complex problems)
+    max_rounds = 10
+    phase_config = get_round_phase_config(round_number, max_rounds)
+    phase_directive = phase_config["directive"]
+
+    # Build security addendum
+    security_task = SECURITY_ADDENDUM.format(security_protocol=SECURITY_PROTOCOL)
+
+    # Compose full prompt
+    return f"""{persona_system_role}
+
+<problem_statement>
+{problem_statement}
+</problem_statement>
+
+<participants>
+{participant_list}
+</participants>
+
+<discussion_history>
+{discussion_context}
+</discussion_history>
+
+<task>
+You are in Round {round_number} of the deliberation.
+
+{phase_directive}
+
+Your contribution should:
+- Build on what has been discussed (reference specific points from summaries or recent contributions)
+- Add new insights or perspectives
+- Address gaps or questions raised by other participants
+- Stay focused on the problem statement
+</task>
+
+{BEHAVIORAL_GUIDELINES}
+
+{EVIDENCE_PROTOCOL}
+
+{COMMUNICATION_PROTOCOL}
+
+{security_task}"""
 
 
 # =============================================================================

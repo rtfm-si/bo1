@@ -12,10 +12,12 @@ from typing import Any
 
 from bo1.agents.facilitator import FacilitatorAgent
 from bo1.agents.moderator import ModeratorAgent, ModeratorType
+from bo1.agents.summarizer import SummarizerAgent
 from bo1.config import MODEL_BY_ROLE
 from bo1.data import get_persona_by_code
 from bo1.llm.client import ClaudeClient
 from bo1.llm.response import LLMResponse
+from bo1.llm.response_parser import ResponseParser
 from bo1.models.state import (
     ContributionMessage,
     ContributionType,
@@ -23,6 +25,7 @@ from bo1.models.state import (
     DeliberationState,
 )
 from bo1.prompts.reusable_prompts import compose_persona_prompt, get_round_phase_config
+from bo1.utils.logging_helpers import LogHelper
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,7 @@ class DeliberationEngine:
         client: ClaudeClient | None = None,
         facilitator: FacilitatorAgent | None = None,
         moderator: ModeratorAgent | None = None,
+        summarizer: SummarizerAgent | None = None,
     ) -> None:
         """Initialize the deliberation engine.
 
@@ -53,6 +57,7 @@ class DeliberationEngine:
             client: Optional ClaudeClient instance. If None, creates a new one.
             facilitator: Optional facilitator agent. If None, creates a new one.
             moderator: Optional moderator agent. If None, creates a new one.
+            summarizer: Optional summarizer agent. If None, creates a new one.
         """
         from bo1.config import resolve_model_alias
 
@@ -60,9 +65,13 @@ class DeliberationEngine:
         self.client = client or ClaudeClient()
         self.facilitator = facilitator or FacilitatorAgent()
         self.moderator = moderator or ModeratorAgent()
+        self.summarizer = summarizer or SummarizerAgent()
         self.model_name = MODEL_BY_ROLE["persona"]
         self.model_id = resolve_model_alias(self.model_name)  # Full ID for pricing
         self.used_moderators: list[ModeratorType] = []  # Track moderators used
+        self.pending_summary_task: asyncio.Task[LLMResponse] | None = (
+            None  # Track background summarization
+        )
 
     async def run_initial_round(self) -> tuple[list[ContributionMessage], list[Any]]:
         """Run the initial round with parallel persona contributions.
@@ -228,7 +237,7 @@ class DeliberationEngine:
         duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
         # Parse response (extract <thinking> and <contribution>)
-        thinking, contribution = self._parse_persona_response(response_text)
+        thinking, contribution = ResponseParser.parse_persona_response(response_text)
 
         # Calculate cost
         cost = token_usage.calculate_cost(self.model_name)
@@ -261,36 +270,6 @@ class DeliberationEngine:
         )
 
         return contrib_msg, llm_response
-
-    def _parse_persona_response(self, content: str) -> tuple[str | None, str]:
-        """Parse persona response to extract <thinking> and <contribution>.
-
-        Args:
-            content: Raw response content
-
-        Returns:
-            Tuple of (thinking, contribution)
-        """
-        thinking = None
-        contribution = content
-
-        # Extract <thinking> if present
-        if "<thinking>" in content and "</thinking>" in content:
-            thinking_start = content.index("<thinking>") + len("<thinking>")
-            thinking_end = content.index("</thinking>")
-            thinking = content[thinking_start:thinking_end].strip()
-
-        # Extract <contribution> if present
-        if "<contribution>" in content and "</contribution>" in content:
-            contrib_start = content.index("<contribution>") + len("<contribution>")
-            contrib_end = content.index("</contribution>")
-            contribution = content[contrib_start:contrib_end].strip()
-        else:
-            # If no explicit <contribution> tag, use the part after </thinking>
-            if "</thinking>" in content:
-                contribution = content.split("</thinking>", 1)[1].strip()
-
-        return thinking, contribution
 
     def get_participant_summary(self) -> str:
         """Get a summary of current participants.
@@ -488,13 +467,16 @@ class DeliberationEngine:
         if round_number > 1:
             metrics = self._calculate_round_metrics(round_number)
 
-            logger.info(f"[METRICS] Round {round_number}/{max_rounds}")
-            logger.info(f"  Convergence: {metrics['convergence']:.2f} (target: >0.85)")
-            logger.info(f"  Novelty: {metrics['novelty']:.2f} (target: <0.30 in late rounds)")
-            logger.info(f"  Conflict: {metrics['conflict']:.2f} (0=consensus, 1=deadlock)")
-
-            if metrics["should_stop"]:
-                logger.info(f"  🎯 Early stop recommended: {metrics['stop_reason']}")
+            LogHelper.log_consensus_metrics(
+                logger,
+                round_number=round_number,
+                max_rounds=max_rounds,
+                convergence=metrics["convergence"],
+                novelty=metrics["novelty"],
+                conflict=metrics["conflict"],
+                should_stop=metrics["should_stop"],
+                stop_reason=metrics["stop_reason"],
+            )
 
         logger.info(
             f"Round {round_number} complete: {speaker_profile.display_name} contributed "
@@ -526,6 +508,94 @@ class DeliberationEngine:
             return 7  # Moderate problems: 7 rounds max
         else:
             return 10  # Complex problems: 10 rounds max
+
+    async def trigger_background_summarization(self, round_number: int) -> None:
+        """Trigger background summarization for a completed round.
+
+        This method creates an asyncio task to summarize the round in the background
+        while the next round proceeds. The summary will be ready when Round N+2 needs it.
+
+        Design pattern:
+        - Round 1 completes → trigger_background_summarization(1) → summary task created
+        - Round 2 starts immediately (doesn't wait for summary)
+        - Round 2 completes → await_pending_summary() → Round 1 summary ready
+        - Round 2 summary created in background
+        - Round 3 uses Round 1 summary (hierarchical context)
+
+        Args:
+            round_number: The round number that was just completed
+
+        Example:
+            >>> # After round 1 completes
+            >>> await engine.trigger_background_summarization(1)
+            >>> # Round 2 starts immediately, summary happens in background
+        """
+        # Wait for any pending summary from previous round
+        await self.await_pending_summary()
+
+        # Get contributions for this round
+        round_contributions = self.state.get_contributions_for_round(round_number)
+        if not round_contributions:
+            logger.warning(
+                f"No contributions found for round {round_number}, skipping summarization"
+            )
+            return
+
+        # Format contributions for summarizer
+        contributions_data = [
+            {"persona": msg.persona_name, "content": msg.content} for msg in round_contributions
+        ]
+
+        # Get problem statement for context (especially helpful for Round 1)
+        problem_statement = None
+        if round_number == 1 and self.state.current_sub_problem:
+            problem_statement = self.state.current_sub_problem.goal
+
+        # Create background task
+        logger.info(f"Triggering background summarization for Round {round_number}")
+        self.pending_summary_task = asyncio.create_task(
+            self.summarizer.summarize_round(
+                round_number=round_number,
+                contributions=contributions_data,
+                problem_statement=problem_statement,
+            )
+        )
+
+    async def await_pending_summary(self) -> LLMResponse | None:
+        """Wait for pending summary task to complete and store result.
+
+        Returns:
+            LLMResponse from the completed summary task, or None if no pending task
+
+        Example:
+            >>> response = await engine.await_pending_summary()
+            >>> if response:
+            ...     print(f"Summary ready: {response.content}")
+        """
+        if not self.pending_summary_task:
+            return None
+
+        try:
+            logger.info("Awaiting pending summary task...")
+            response = await self.pending_summary_task
+
+            # Add summary to state
+            self.state.round_summaries.append(response.content)
+
+            logger.info(
+                f"Summary added to state (tokens: {response.token_usage.output_tokens}, "
+                f"cost: ${response.cost_total:.6f})"
+            )
+
+            # Clear the task
+            self.pending_summary_task = None
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Failed to await pending summary task: {e}")
+            self.pending_summary_task = None
+            return None
 
     def build_discussion_context(self, include_thinking: bool = False) -> str:
         """Build formatted discussion context for facilitator or other agents.

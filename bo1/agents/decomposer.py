@@ -8,8 +8,9 @@ import json
 import logging
 from typing import Any
 
+from bo1.agents.base import BaseAgent
 from bo1.config import MODEL_BY_ROLE
-from bo1.llm.broker import PromptBroker, PromptRequest
+from bo1.llm.broker import PromptRequest
 from bo1.llm.response import LLMResponse
 from bo1.models.problem import Problem, SubProblem
 from bo1.prompts.decomposer_prompts import (
@@ -20,7 +21,7 @@ from bo1.prompts.decomposer_prompts import (
 logger = logging.getLogger(__name__)
 
 
-class DecomposerAgent:
+class DecomposerAgent(BaseAgent):
     """Agent that decomposes complex problems into sub-problems.
 
     The decomposer analyzes user input and breaks it into 1-5 manageable
@@ -29,14 +30,9 @@ class DecomposerAgent:
     Uses Sonnet 4.5 for complex problem analysis.
     """
 
-    def __init__(self, broker: PromptBroker | None = None) -> None:
-        """Initialize the decomposer agent.
-
-        Args:
-            broker: Optional PromptBroker instance. If None, creates a new one.
-        """
-        self.broker = broker or PromptBroker()
-        self.model_name = MODEL_BY_ROLE["decomposer"]
+    def get_default_model(self) -> str:
+        """Return default model for decomposer."""
+        return MODEL_BY_ROLE["decomposer"]
 
     def extract_problem_statement(
         self,
@@ -91,7 +87,7 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
 
         response_text, _ = asyncio.run(
             self.broker.client.call(
-                model=self.model_name,
+                model=self.model,
                 messages=messages,
                 system="You are a problem clarification expert. Generate targeted questions to understand the user's problem.",
                 cache_system=False,
@@ -169,7 +165,7 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
         request = PromptRequest(
             system=DECOMPOSER_SYSTEM_PROMPT,
             user_message=user_message,
-            model=self.model_name,
+            model=self.model,
             prefill="{",  # Ensure JSON response starts with {
             cache_system=False,  # No caching needed for one-off decomposition
             phase="decomposition",

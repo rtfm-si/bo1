@@ -261,3 +261,70 @@ class DeliberationState(BaseModel):
         if cache_read is not None:
             self.metrics.cache_read_tokens += cache_read
         self.updated_at = datetime.now()
+
+    def format_discussion_history(
+        self,
+        include_round_numbers: bool = True,
+        include_thinking: bool = False,
+        max_contributions: int | None = None,
+        separator: str = "---",
+    ) -> str:
+        r"""Format discussion history for prompt inclusion.
+
+        Args:
+            include_round_numbers: Include round number in header
+            include_thinking: Include <thinking> tags in output
+            max_contributions: Limit to last N contributions (None = all)
+            separator: Separator line between contributions
+
+        Returns:
+            Formatted discussion history string
+
+        Examples:
+            >>> state.format_discussion_history()
+            "--- Maria (Round 1) ---\nI think we should...\n\n--- ..."
+
+            >>> state.format_discussion_history(max_contributions=5)
+            # Only last 5 contributions
+        """
+        import re
+
+        contributions = self.contributions
+        if max_contributions:
+            contributions = contributions[-max_contributions:]
+
+        lines = []
+        for msg in contributions:
+            # Header
+            if include_round_numbers:
+                header = f"{separator} {msg.persona_name} (Round {msg.round_number}) {separator}"
+            else:
+                header = f"{separator} {msg.persona_name} {separator}"
+            lines.append(header)
+
+            # Content
+            content = msg.content
+            if not include_thinking and msg.thinking:
+                # Strip <thinking> tags if requested
+                content = re.sub(
+                    r"<thinking>.*?</thinking>", "", content, flags=re.DOTALL | re.IGNORECASE
+                )
+                content = content.strip()
+
+            lines.append(content)
+            lines.append("")  # Blank line between contributions
+
+        return "\n".join(lines)
+
+    @property
+    def participant_list(self) -> str:
+        """Comma-separated list of participant names.
+
+        Returns:
+            String like "Maria, Zara, Tariq"
+
+        Examples:
+            >>> state.participant_list
+            'Maria, Zara, Tariq'
+        """
+        return ", ".join([p.display_name for p in self.selected_personas])

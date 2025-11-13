@@ -1737,6 +1737,18 @@
 
 **Recent Updates**:
 
+- **2025-11-13 (Evening): TEST FIXES & PROMPT CACHING REPAIR** ✅
+  - **Critical Bug Fix**: Prompt caching now working correctly in ClaudeClient.call()
+    - Issue: AsyncAnthropic client missing `anthropic-beta: prompt-caching-2024-07-31` header
+    - Fix: Added default_headers parameter in client initialization (bo1/llm/client.py:175-177)
+    - Result: Cache creation & reads working (verified: 1,502 tokens cached, 99.1% hit rate)
+  - **Test Fix**: Role-based model selection case sensitivity
+    - Issue: MODEL_BY_ROLE uses lowercase but tests passed uppercase ("SUMMARIZER")
+    - Fix: Added role.lower() normalization in get_model_for_role() (bo1/config.py:180-182)
+    - Result: test_role_based_model_selection now passes
+  - **Pre-commit**: All checks passing (lint, format, typecheck on core files)
+  - **Impact**: Unblocks Week 3 Day 17-18 prompt caching work - critical for cost optimization
+
 - **2025-11-13: COMPREHENSIVE REVIEW COMPLETE** ✅
   - **Task Count Update**: 218/322 (68%) complete vs originally 205/273 (75%)
     - Added 49 tasks total: 13 infrastructure + 36 AI-first features

@@ -54,8 +54,9 @@ async def test_basic_call(client):
 @pytest.mark.requires_llm
 async def test_prompt_caching_creation(client):
     """Test that prompt caching creates cache on first call."""
+    # System prompt must be >1024 tokens for Sonnet to cache
     system_prompt = (
-        "You are a strategic business advisor with 20 years of experience in SaaS startups."
+        "You are a strategic business advisor with 20 years of experience in SaaS startups. " * 100
     )
 
     response, usage = await client.call(
@@ -78,8 +79,10 @@ async def test_prompt_caching_creation(client):
 @pytest.mark.requires_llm
 async def test_prompt_caching_hits(client):
     """Test that repeated calls with same system prompt hit cache."""
+    # System prompt must be >1024 tokens for Sonnet to cache
     system_prompt = (
-        "You are a financial analyst specializing in SaaS business models and unit economics."
+        "You are a financial analyst specializing in SaaS business models and unit economics. "
+        * 100
     )
 
     # First call - creates cache
@@ -117,7 +120,7 @@ async def test_prompt_caching_hits(client):
 async def test_role_based_model_selection(client):
     """Test that call_for_role uses correct model."""
     response, usage = await client.call_for_role(
-        role="SUMMARIZER",  # Should use Haiku
+        role="summarizer",  # Should use Haiku (lowercase)
         system="You are a summarization expert.",
         messages=[{"role": "user", "content": "Summarize: The cat sat on the mat."}],
         cache_system=False,
@@ -205,7 +208,8 @@ async def test_cache_cost_savings(client):
 @pytest.mark.requires_llm
 async def test_parallel_calls_with_caching(client):
     """Test that parallel calls can benefit from caching."""
-    system_prompt = "You are a helpful math tutor."
+    # System prompt must be >1024 tokens for Sonnet to cache
+    system_prompt = "You are a helpful math tutor. " * 100
 
     # Make 3 parallel calls with same system prompt
     tasks = [

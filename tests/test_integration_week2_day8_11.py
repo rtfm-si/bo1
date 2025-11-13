@@ -185,7 +185,7 @@ async def test_initial_round_execution():
     from bo1.data import get_persona_by_code
     from bo1.models.persona import PersonaProfile
 
-    persona_codes = ["finance_strategist", "growth_hacker", "product_strategist"]
+    persona_codes = ["finance_strategist", "growth_hacker", "product_manager"]
     personas = []
     for code in persona_codes:
         p_data = get_persona_by_code(code)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Board of One - Complete Demo (Days 1-14).
+"""Board of One - Complete Demo (Days 1-15).
 
 Demonstrates the full end-to-end pipeline:
 1. Problem decomposition with sub-problems
@@ -9,8 +9,8 @@ Demonstrates the full end-to-end pipeline:
 5. Initial round of expert contributions (parallel)
 6. Multi-round deliberation with facilitator
 7. Moderator interventions
-8. Convergence detection
-9. Final synthesis (placeholder - Day 15)
+8. Voting with AI-driven aggregation
+9. Final synthesis with quality validation
 
 Usage:
   make demo              # Automated mode (skip Q&A)
@@ -73,7 +73,7 @@ logger = logging.getLogger(__name__)
 
 
 async def run_complete_demo(interactive: bool = False) -> None:
-    """Run the complete Board of One deliberation pipeline (Days 1-14).
+    """Run the complete Board of One deliberation pipeline (Days 1-15).
 
     Args:
         interactive: If True, prompts user for business context and internal answers.
@@ -305,11 +305,77 @@ async def run_complete_demo(interactive: bool = False) -> None:
     # ==================== STEP 6: Voting & Synthesis (Day 15) ====================
     console.print("\n[bold cyan]═══ Step 6: Voting & Synthesis ═══[/bold cyan]\n")
 
-    console.print("[yellow]Coming in Day 15:[/yellow]")
-    console.print("[dim]  • Persona voting with reasoning[/dim]")
-    console.print("[dim]  • Vote aggregation (majority + confidence-weighted)[/dim]")
-    console.print("[dim]  • Final synthesis report[/dim]")
-    console.print("[dim]  • Dissenting views captured[/dim]\n")
+    console.print("[dim]Collecting votes from all personas...[/dim]\n")
+
+    # Import voting functions
+    from bo1.orchestration.voting import aggregate_votes_ai, collect_votes
+
+    # Collect votes
+    votes, vote_responses = await collect_votes(state=state, broker=broker)
+    for response in vote_responses:
+        all_metrics.add_response(response)
+
+    console.print(f"[green]✓ Collected {len(votes)} votes[/green]\n")
+
+    # Show vote summary
+    for vote in votes:
+        console.print(
+            f"  • {vote.persona_name}: {vote.decision.value} (confidence: {vote.confidence:.1%})"
+        )
+
+    # Aggregate votes using AI
+    console.print("\n[dim]Synthesizing votes using AI (Haiku)...[/dim]\n")
+    discussion_context = "\n".join([c.content for c in state.contributions[:3]])  # Sample
+    vote_agg, agg_response = await aggregate_votes_ai(
+        votes=votes, discussion_context=discussion_context, broker=broker
+    )
+    all_metrics.add_response(agg_response)
+
+    console.print("[green]✓ Vote aggregation complete[/green]")
+    console.print(f"[dim]  Simple majority: {vote_agg.simple_majority}[/dim]")
+    console.print(f"[dim]  Average confidence: {vote_agg.average_confidence:.1%}[/dim]\n")
+
+    # Synthesize deliberation
+    console.print("[dim]Generating final synthesis report...[/dim]\n")
+
+    from bo1.agents.facilitator import FacilitatorAgent
+
+    facilitator = FacilitatorAgent(broker=broker)
+
+    synthesis_report, synthesis_response = await facilitator.synthesize_deliberation(
+        state=state, votes=votes, vote_aggregation=vote_agg
+    )
+    all_metrics.add_response(synthesis_response)
+
+    console.print("[green]✓ Synthesis complete[/green]\n")
+
+    # Validate synthesis quality
+    console.print("[dim]Validating synthesis quality (Haiku)...[/dim]\n")
+    is_valid, revision_feedback, validation_response = await facilitator.validate_synthesis_quality(
+        synthesis_report=synthesis_report,
+        state=state,
+        votes=votes,
+    )
+    all_metrics.add_response(validation_response)
+
+    if not is_valid and revision_feedback:
+        console.print("[yellow]⚠ Synthesis quality check failed - revising...[/yellow]\n")
+        revised_report, revision_response = await facilitator.revise_synthesis(
+            original_synthesis=synthesis_report,
+            feedback=revision_feedback,
+            state=state,
+            votes=votes,
+        )
+        all_metrics.add_response(revision_response)
+        synthesis_report = revised_report
+        console.print("[green]✓ Synthesis revised and improved[/green]\n")
+    else:
+        console.print("[green]✓ Synthesis quality validated[/green]\n")
+
+    # Show synthesis preview
+    console.print("[bold yellow]Final Synthesis Preview:[/bold yellow]")
+    preview = synthesis_report[:500] + "..." if len(synthesis_report) > 500 else synthesis_report
+    console.print(f"[dim]{preview}[/dim]\n")
 
     # ==================== Final Metrics ====================
     console.print("\n" + "=" * 70)
@@ -318,20 +384,23 @@ async def run_complete_demo(interactive: bool = False) -> None:
 
     console.print_deliberation_metrics(all_metrics)
 
-    console.print("\n[bold green]✓ Pipeline complete through Day 14![/bold green]")
+    console.print("\n[bold green]✓ Pipeline complete through Day 15![/bold green]")
     console.print("\n[dim]Key accomplishments:[/dim]")
     console.print("[dim]  • Intelligent problem decomposition ✓[/dim]")
     console.print("[dim]  • Information gap detection (internal/external) ✓[/dim]")
     console.print("[dim]  • Context-aware persona selection ✓[/dim]")
     console.print("[dim]  • Parallel expert contributions ✓[/dim]")
     console.print("[dim]  • Multi-round deliberation framework ✓[/dim]")
+    console.print("[dim]  • AI-driven voting and synthesis ✓[/dim]")
+    console.print("[dim]  • Synthesis quality validation ✓[/dim]")
     console.print("[dim]  • Cost tracking and optimization ✓[/dim]")
-    console.print("\n[dim]Next: Day 15 - Voting & Synthesis[/dim]\n")
+    console.print("\n[bold cyan]🎉 Demo-able MVP Complete![/bold cyan]\n")
+    console.print("[dim]Next: Week 3 - Cost Optimization & Summarization[/dim]\n")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Board of One - Complete Pipeline Demo (Days 1-14)"
+        description="Board of One - Complete Pipeline Demo (Days 1-15)"
     )
     parser.add_argument(
         "--interactive",

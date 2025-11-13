@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
         default="INFO", description="Logging level"
     )
+    verbose_libs: bool = Field(
+        default=False, description="Show debug logs from third-party libraries"
+    )
 
     # Cost Limits
     max_cost_per_session: float = Field(default=1.00, description="Maximum cost per session in USD")

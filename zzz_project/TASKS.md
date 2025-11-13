@@ -291,6 +291,11 @@
   - [x] `get_persona_by_code()`
   - [x] `get_personas_by_category()`
   - [x] Validate persona codes exist
+- [ ] **AI-Driven Persona Selection Self-Critique** (Haiku ~$0.001) - **v2 Enhancement**
+  - [ ] After Sonnet recommends personas: Haiku critiques selection
+  - [ ] Check: Diversity (strategic/tactical/technical/user)? All domains covered? Redundancy? Critical gaps?
+  - [ ] If gaps found: Sonnet auto-revises selection
+  - [ ] **No user confirmation needed** - fully AI-driven (Pro tier feature for v2: user override)
 
 #### Initial Round Execution
 
@@ -682,12 +687,13 @@
   - [ ] **Use PromptBroker for all voting LLM calls**
   - [ ] Collect: decision, reasoning, confidence, conditions
   - [ ] Save votes to DeliberationState
-- [ ] Vote aggregation
-  - [ ] `aggregate_votes()` function
-  - [ ] Simple majority (count votes)
-  - [ ] Calculate consensus level (% agreement)
-  - [ ] Identify dissenting opinions
-  - [ ] Confidence-weighted calculation (optional)
+- [ ] **AI-Driven Vote Aggregation** (Haiku ~$0.002) - **PRIORITY**
+  - [ ] `aggregate_votes_ai()` function
+  - [ ] Use Haiku to intelligently synthesize votes (not pattern matching)
+  - [ ] Understand conditional votes ("YES if X, NO if Y")
+  - [ ] Preserve critical minority perspectives
+  - [ ] Return structured decision: consensus (approve/reject/conditional), confidence (high/medium/low), critical conditions, dissenting views
+  - [ ] Fallback to simple majority if Haiku call fails
 
 #### Synthesis
 
@@ -697,6 +703,11 @@
   - [ ] Input: Full discussion + all votes
   - [ ] Output: Comprehensive synthesis report
   - [ ] Include: executive summary, recommendation, rationale, dissenting views, implementation considerations, confidence assessment
+- [ ] **AI-Driven Synthesis Quality Validation** (Haiku ~$0.003)
+  - [ ] `validate_synthesis_quality()` function
+  - [ ] Haiku checks: Are all dissenting views included? Are conditions clear? Is recommendation actionable? Are risks acknowledged?
+  - [ ] If quality issues found: Auto-revise synthesis with feedback
+  - [ ] Return final synthesis with quality score
 - [ ] Format synthesis for display
   - [ ] Rich markdown rendering in console
   - [ ] Export to Markdown file
@@ -736,8 +747,12 @@
   - [ ] `SummarizerAgent` class
   - [ ] Use Haiku 4.5 model
   - [ ] **Use PromptBroker for summarization calls**
-  - [ ] `summarize_round()` method
-  - [ ] Target: 100-150 token summaries
+  - [ ] `summarize_round()` method - **AI-Driven Adaptive Length**
+  - [ ] **Adaptive summarization** (Haiku ~$0.001/round):
+    - [ ] Analyze information density: high (new insights, data, conflicts) vs low (repetition, agreement)
+    - [ ] High density: 150 tokens, Low density: 75 tokens
+    - [ ] Quality validation: Haiku checks if summary preserves critical info
+    - [ ] Auto-revise if quality check fails
   - [ ] Use compose_summarization_request()
 
 #### Async Summarization
@@ -1177,15 +1192,23 @@
 
 #### External Research Implementation
 
+- [ ] **AI-Driven Research Query Validation** (Haiku ~$0.0005) - **PRIORITY**
+  - [ ] `validate_research_request()` function - validate before executing research
+  - [ ] Check: Is this EXTERNAL (researchable) or INTERNAL (user provides)?
+  - [ ] Check: Is query specific enough? Is it already answered in context?
+  - [ ] Check: Is this truly necessary or nice-to-have?
+  - [ ] If internal/already-answered: Skip research (save $0.05)
+  - [ ] If too vague: Haiku refines query for better results
+  - [ ] ROI: Saves $0.05 per avoided bad research, costs $0.0005
 - [ ] Complete `bo1/agents/researcher.py` implementation
   - [ ] Integrate web search API (Brave Search API & Tavily - need to compare results)
-  - [ ] `research_question()` method - accepts query and reason
+  - [ ] `research_question()` method - accepts validated query and reason
   - [ ] Web search: Find top 5-10 relevant results
   - [ ] Content extraction: Extract key information from results
   - [ ] Summarization: Use Haiku to create 200-300 token summary
   - [ ] Include sources/citations in summary
   - [ ] Error handling: Search fails, no results, rate limits
-  - [ ] Cost tracking: Log search API + summarization costs
+  - [ ] Cost tracking: Log search API + summarization costs + validation savings
 - [ ] Integration with decomposition flow (Day 14 tasks)
   - [ ] When external gaps identified: trigger background research
   - [ ] Display progress: "Researching: [question 1], [question 2]..."
@@ -1450,6 +1473,54 @@
 2. **Expert-driven research**: Personas request research via XML tags, not pattern detection
 3. **Embedding-based convergence**: Semantic similarity (Voyage AI) for quality metrics
 4. **Upfront context gathering**: Resolve info gaps during decomposition, not mid-deliberation
+5. **AI-driven vote synthesis**: Haiku intelligently aggregates votes, understands conditions/nuance ($0.002)
+6. **Quality self-critique**: AI validates AI outputs (synthesis, persona selection, summaries) before presenting
+7. **Research query validation**: Haiku validates/refines queries before expensive web search ($0.0005 saves $0.05)
+8. **Adaptive summarization**: Information density determines summary length (75-150 tokens)
+9. **Fully autonomous**: No user confirmation for persona selection - AI self-critiques and decides
+
+---
+
+## 💎 AI-First Quality & Cost Enhancements
+
+**Goal**: Maximize quality while minimizing cost through intelligent AI validation layers
+
+### Cost Impact Analysis
+
+**Current Target**: $0.10/deliberation (35 persona calls + 6 summaries)
+
+**AI-First Enhancements Added**:
+- Vote aggregation (Haiku): +$0.002
+- Synthesis quality validation (Haiku): +$0.003
+- Research query validation (Haiku): -$0.025 (saves 0.5 bad queries × $0.05)
+- Adaptive summarization (6 rounds): +$0.006
+- Persona selection critique (Haiku): +$0.001
+- Sub-problem validation (Haiku): +$0.001
+
+**Net Impact**: **-$0.012** (SAVES money!)
+
+**New Target**: **$0.088/deliberation** with significantly higher quality
+
+### Quality Improvements
+
+1. **Vote Synthesis**: Understands conditional votes, preserves minority views, captures nuance
+2. **Research Efficiency**: Validates queries before $0.05 web search, refines vague queries
+3. **Synthesis Quality**: Auto-validates completeness, revises if gaps found
+4. **Adaptive Summaries**: High-info rounds get 150 tokens, low-info get 75 tokens
+5. **Persona Selection**: Self-critique ensures diversity and domain coverage
+6. **Sub-Problem Quality**: Pre-validates decomposition before user review
+
+### ROI Examples
+
+- Research validation: $0.0005 investment prevents $0.05 waste = **100x ROI**
+- Vote synthesis: $0.002 replaces brittle logic, prevents synthesis errors
+- Synthesis validation: $0.003 ensures final output quality (no user re-runs)
+
+### Implementation Priority
+
+**Day 15 (NEXT)**: Vote aggregation + synthesis validation
+**Day 16-17**: Adaptive summarization
+**Day 27**: Research query validation (highest ROI)
 
 ---
 

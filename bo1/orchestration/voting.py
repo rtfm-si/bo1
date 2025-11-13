@@ -257,17 +257,35 @@ async def aggregate_votes_ai(
     votes_formatted = _format_votes_for_ai(votes)
 
     # Compose Haiku prompt for vote synthesis
+    # Following PROMPT_ENGINEERING_FRAMEWORK.md best practices:
+    # - Use assistant prefill ("{") to force JSON output
+    # - Explicit format specification
+    # - Example provided
     system_prompt = """You are an expert vote synthesizer analyzing deliberation outcomes.
 
 Your task: Intelligently aggregate votes, understanding conditional logic and preserving critical minority perspectives.
 
-Output ONLY valid JSON in this exact format:
-{
-  "consensus_decision": "approve" | "reject" | "conditional" | "no_consensus",
-  "confidence_level": "high" | "medium" | "low",
-  "critical_conditions": ["condition 1", "condition 2", ...],
-  "dissenting_views": ["persona: reasoning", ...],
+CRITICAL OUTPUT REQUIREMENTS:
+- Output ONLY valid JSON
+- No markdown, no code blocks, no explanatory text
+- The opening brace { is prefilled for you - continue with the fields
+- Use EXACTLY the field names specified below
+- Use double quotes for all strings
+- Follow the example format precisely
+
+Required JSON fields:
+  "consensus_decision": "approve" | "reject" | "conditional" | "no_consensus"
+  "confidence_level": "high" | "medium" | "low"
+  "critical_conditions": ["condition 1", "condition 2", ...]
+  "dissenting_views": ["PersonaName: reasoning", ...]
   "rationale": "2-3 sentences explaining the synthesis"
+
+Example output (continue after the opening brace):
+  "consensus_decision": "approve",
+  "confidence_level": "medium",
+  "critical_conditions": ["Validate market demand first", "Keep initial budget under $25K"],
+  "dissenting_views": ["Maria Santos: Concerned about cash flow impact"],
+  "rationale": "Majority supports the approach with careful budget management. Financial risks require monitoring."
 }"""
 
     user_message = f"""Analyze these votes and synthesize a decision:
@@ -286,7 +304,7 @@ Consider:
 3. Which dissenting views MUST be preserved (substantive concerns from domain experts)?
 4. What is the overall confidence level?
 
-Output JSON only."""
+Output ONLY the JSON object (starting with the fields after the opening brace)."""
 
     request = PromptRequest(
         system=system_prompt,
@@ -302,16 +320,55 @@ Output JSON only."""
     try:
         response = await broker.call(request)
 
-        # Parse JSON response (prepend prefill)
-        json_content = "{" + response.content
+        # Parse JSON response (prefill adds "{", response.content has the rest)
+        json_content = "{" + response.content.strip()
 
-        # Clean up any potential issues (sometimes LLMs add text after JSON)
-        # Find the last closing brace
+        # Clean up: find the last valid closing brace
         last_brace = json_content.rfind("}")
         if last_brace != -1:
             json_content = json_content[: last_brace + 1]
 
-        synthesis_data = json.loads(json_content)
+        # Try multiple parsing strategies
+        synthesis_data = None
+        parsing_errors = []
+
+        # Strategy 1: Direct parse
+        try:
+            synthesis_data = json.loads(json_content)
+        except json.JSONDecodeError as e:
+            parsing_errors.append(f"Direct parse: {e}")
+
+            # Strategy 2: Extract JSON from markdown code block if present
+            if "```json" in json_content or "```" in json_content:
+                import re
+
+                json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", json_content, re.DOTALL)
+                if json_match:
+                    try:
+                        synthesis_data = json.loads(json_match.group(1))
+                    except json.JSONDecodeError as e2:
+                        parsing_errors.append(f"Code block parse: {e2}")
+
+            # Strategy 3: Try to find and extract the first complete JSON object
+            if synthesis_data is None:
+                import re
+
+                # Find {  ... } pattern
+                json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", json_content, re.DOTALL)
+                if json_match:
+                    try:
+                        synthesis_data = json.loads(json_match.group(0))
+                    except json.JSONDecodeError as e3:
+                        parsing_errors.append(f"Regex extract: {e3}")
+
+        if synthesis_data is None:
+            # Log full context for debugging
+            logger.error(
+                f"All JSON parsing strategies failed. "
+                f"Errors: {parsing_errors}. "
+                f"Content to parse (first 500 chars): {json_content[:500]}"
+            )
+            raise ValueError(f"Could not parse JSON from response. Errors: {parsing_errors}")
 
         # Build VoteAggregation from AI synthesis + traditional metrics
         traditional_agg = aggregate_votes(votes)
@@ -347,7 +404,8 @@ Output JSON only."""
     except Exception as e:
         logger.error(
             f"⚠️ FALLBACK: AI vote aggregation FAILED. Falling back to traditional aggregate_votes(). "
-            f"Error: {e}. This means vote synthesis will be mechanical (no conditional logic understanding)."
+            f"Error: {e}. Response content preview: {response.content[:300] if 'response' in locals() else 'N/A'}... "
+            f"This means vote synthesis will be mechanical (no conditional logic understanding)."
         )
         # Fallback to traditional aggregation
         traditional_agg = aggregate_votes(votes)

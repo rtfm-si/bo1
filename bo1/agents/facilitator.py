@@ -111,10 +111,27 @@ Analyze the discussion and decide the next action."""
         decision = self._parse_decision(response.content, state)
 
         logger.info(f"Facilitator decision: {decision.action}")
+
+        # Log detailed reasoning in debug mode
+        if decision.reasoning:
+            logger.debug(f"  Reasoning: {decision.reasoning[:200]}...")
+
         if decision.action == "continue" and decision.next_speaker:
-            logger.info(f"  Next speaker: {decision.next_speaker}")
+            speaker_name = next(
+                (p.display_name for p in state.selected_personas if p.code == decision.next_speaker),
+                decision.next_speaker
+            )
+            logger.info(f"  Next speaker: {speaker_name} ({decision.next_speaker})")
+            if decision.speaker_prompt:
+                logger.debug(f"  Focus: {decision.speaker_prompt}")
         elif decision.action == "moderator" and decision.moderator_type:
             logger.info(f"  Moderator type: {decision.moderator_type}")
+            if decision.moderator_focus:
+                logger.debug(f"  Focus: {decision.moderator_focus}")
+        elif decision.action == "vote":
+            logger.info("  Transition to voting phase")
+            if decision.phase_summary:
+                logger.debug(f"  Summary: {decision.phase_summary[:150]}...")
 
         return decision, response
 

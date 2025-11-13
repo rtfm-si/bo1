@@ -6,6 +6,7 @@ including the persona catalog and configuration data.
 
 import json
 import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -15,18 +16,24 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).parent
 
 
-def load_personas() -> list[dict[str, Any]]:
+@lru_cache(maxsize=1)
+def load_personas() -> tuple[dict[str, Any], ...]:
     """Load the persona catalog from personas.json.
 
     Returns:
-        List of persona dictionaries with all persona attributes
+        Tuple of persona dictionaries (cached for performance)
+
+    Note:
+        Uses lru_cache to avoid reloading the catalog on every call.
+        Returns tuple (immutable) for caching to work correctly.
     """
     personas_path = DATA_DIR / "personas.json"
     logger.debug(f"Loading personas from {personas_path}")
     with open(personas_path, encoding="utf-8") as f:
-        result: list[dict[str, Any]] = json.load(f)
-        logger.info(f"Loaded {len(result)} personas from catalog")
-        return result
+        personas_list: list[dict[str, Any]] = json.load(f)
+        logger.info(f"Loaded {len(personas_list)} personas from catalog")
+        # Return as tuple for immutability and caching
+        return tuple(personas_list)
 
 
 def get_persona_by_code(code: str) -> dict[str, Any] | None:
@@ -56,7 +63,7 @@ def get_personas_by_category(category: str) -> list[dict[str, Any]]:
     Returns:
         List of persona dictionaries in that category
     """
-    personas = load_personas()
+    personas = load_personas()  # Returns tuple from cache
     return [p for p in personas if p.get("category") == category]
 
 
@@ -66,5 +73,5 @@ def get_active_personas() -> list[dict[str, Any]]:
     Returns:
         List of active persona dictionaries
     """
-    personas = load_personas()
+    personas = load_personas()  # Returns tuple from cache
     return [p for p in personas if p.get("is_active", True)]

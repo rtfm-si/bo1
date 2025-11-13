@@ -119,7 +119,10 @@ def _parse_vote_from_response(response_content: str, persona: Any) -> Vote:
     # Extract decision
     decision_str = _extract_xml_tag(response_content, "decision")
     if not decision_str:
-        logger.warning(f"Could not extract decision from {persona.name}, defaulting to ABSTAIN")
+        logger.error(
+            f"⚠️ FALLBACK: Could not extract <decision> tag from {persona.name} vote response. "
+            f"Defaulting to ABSTAIN. Response preview: {response_content[:200]}..."
+        )
         decision = VoteDecision.ABSTAIN
     else:
         decision_str_lower = decision_str.lower().strip()
@@ -143,7 +146,11 @@ def _parse_vote_from_response(response_content: str, persona: Any) -> Vote:
     # Extract reasoning
     reasoning = _extract_xml_tag(response_content, "reasoning")
     if not reasoning:
-        reasoning = "No reasoning provided."
+        logger.warning(
+            f"⚠️ FALLBACK: Could not extract <reasoning> tag from {persona.name} vote. "
+            f"Using fallback text."
+        )
+        reasoning = "[Reasoning not provided in structured format]"
 
     # Extract confidence
     confidence_str = _extract_xml_tag(response_content, "confidence")
@@ -156,8 +163,16 @@ def _parse_vote_from_response(response_content: str, persona: Any) -> Vote:
         elif "low" in confidence_str_lower:
             confidence = 0.3
         else:
+            logger.warning(
+                f"⚠️ FALLBACK: Could not parse confidence level '{confidence_str}' from {persona.name}. "
+                f"Defaulting to 0.6 (medium)."
+            )
             confidence = 0.6
     else:
+        logger.warning(
+            f"⚠️ FALLBACK: Could not extract <confidence> tag from {persona.name} vote. "
+            f"Defaulting to 0.6 (medium)."
+        )
         confidence = 0.6
 
     # Extract conditions
@@ -308,10 +323,36 @@ Output JSON only."""
         return ai_aggregation, response
 
     except Exception as e:
-        logger.warning(f"AI vote aggregation failed, falling back to traditional: {e}")
+        logger.error(
+            f"⚠️ FALLBACK: AI vote aggregation FAILED. Falling back to traditional aggregate_votes(). "
+            f"Error: {e}. This means vote synthesis will be mechanical (no conditional logic understanding)."
+        )
         # Fallback to traditional aggregation
         traditional_agg = aggregate_votes(votes)
-        return traditional_agg, response
+
+        # Create a dummy response to indicate fallback was used
+        import uuid
+        from datetime import datetime
+
+        from bo1.llm.client import TokenUsage
+        from bo1.llm.response import LLMResponse
+
+        fallback_response = LLMResponse(
+            content="[FALLBACK: Traditional vote aggregation used due to AI synthesis failure]",
+            model="fallback",
+            token_usage=TokenUsage(
+                input_tokens=0,
+                output_tokens=0,
+                cache_creation_tokens=0,
+                cache_read_tokens=0,
+            ),
+            duration_ms=0,
+            retry_count=0,
+            timestamp=datetime.now(),
+            request_id=str(uuid.uuid4()),
+        )
+
+        return traditional_agg, fallback_response
 
 
 def _format_votes_for_ai(votes: list[Vote]) -> str:

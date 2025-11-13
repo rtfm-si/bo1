@@ -610,7 +610,14 @@ Consider:
 
         if not synthesis_report:
             # Fallback: use full response if no tags
+            logger.warning(
+                f"⚠️ FALLBACK: Could not extract <synthesis_report> tag from synthesis response. "
+                f"Using full response content instead. This may include thinking tags and other metadata. "
+                f"Response preview: {response.content[:200]}..."
+            )
             synthesis_report = response.content
+        else:
+            logger.info("✓ Successfully extracted structured synthesis report")
 
         logger.info(f"Generated synthesis report ({len(synthesis_report)} chars)")
 
@@ -755,7 +762,10 @@ Output JSON only."""
                 return False, revision_guidance, response
 
         except Exception as e:
-            logger.error(f"Synthesis validation parsing failed: {e}")
+            logger.error(
+                f"⚠️ FALLBACK: Synthesis validation parsing FAILED. Assuming synthesis is valid "
+                f"(graceful degradation). Error: {e}. Response: {response.content[:200]}..."
+            )
             # Assume valid on parse failure (graceful degradation)
             return True, None, response
 
@@ -820,7 +830,13 @@ Output the complete revised <synthesis_report>...</synthesis_report>."""
         revised_synthesis = self._extract_tag_content(response.content, "synthesis_report")
 
         if not revised_synthesis:
+            logger.warning(
+                f"⚠️ FALLBACK: Could not extract <synthesis_report> tag from REVISED synthesis response. "
+                f"Using full response content instead. Response preview: {response.content[:200]}..."
+            )
             revised_synthesis = response.content
+        else:
+            logger.info("✓ Successfully extracted structured revised synthesis report")
 
         logger.info(f"Generated revised synthesis ({len(revised_synthesis)} chars)")
 

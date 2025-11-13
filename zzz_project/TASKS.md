@@ -1522,6 +1522,38 @@
 **Day 16-17**: Adaptive summarization
 **Day 27**: Research query validation (highest ROI)
 
+### Fallback Logging Standard (ALL Features)
+
+**Requirement**: All fallback logic MUST include explicit logging with:
+- ⚠️ emoji prefix for instant visibility
+- Severity: ERROR (critical fallback) or WARNING (minor fallback)
+- Clear explanation of what fallback is being used
+- Impact statement (what functionality is degraded)
+- Response/data preview for debugging (first 200 chars)
+
+**Examples**:
+```python
+# Critical fallback (ERROR)
+logger.error(
+    f"⚠️ FALLBACK: AI vote synthesis FAILED. Using traditional aggregate_votes(). "
+    f"Error: {e}. Impact: No conditional vote logic understanding."
+)
+
+# Minor fallback (WARNING)
+logger.warning(
+    f"⚠️ FALLBACK: Could not extract <tag>. Using full response. "
+    f"Response: {content[:200]}..."
+)
+```
+
+**Benefits**:
+- Instantly visible in logs (⚠️ searchable)
+- Clear impact assessment (user knows what's degraded)
+- Debugging context (response preview, error message)
+- Metrics tracking (model="fallback" for non-LLM paths)
+
+**Apply to**: All JSON parsing, XML tag extraction, API calls, file operations, model selection, cache operations
+
 ---
 
 ## 🎯 Process Improvement: Early Critical Question Identification

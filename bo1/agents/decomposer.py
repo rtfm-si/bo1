@@ -102,8 +102,11 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
         try:
             questions_data = json.loads(response_text)
             questions = questions_data.get("questions", [])
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse clarifying questions, skipping Q&A")
+        except json.JSONDecodeError as e:
+            logger.error(
+                f"⚠️ FALLBACK: Failed to parse clarifying questions JSON. Skipping Q&A phase. "
+                f"Error: {e}. Response: {response_text[:200]}..."
+            )
             return user_input, "", []
 
         # Phase 2: Interactive Q&A (simulated for now - will integrate with console UI)
@@ -197,9 +200,10 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             return response
 
         except json.JSONDecodeError as e:
-            logger.warning(
-                f"Failed to parse decomposition JSON (this is rare with prefill): {e}. "
-                f"Response was: {response.content[:200]}..."
+            logger.error(
+                f"⚠️ FALLBACK: Failed to parse decomposition JSON (rare with prefill). "
+                f"Treating as ATOMIC problem (single sub-problem = original problem). "
+                f"Error: {e}. Response: {response.content[:200]}..."
             )
             # Fallback: treat as atomic problem
             # Note: With JSON prefill, this should rarely happen
@@ -221,7 +225,10 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             response.content = json.dumps(fallback)
             return response
         except Exception as e:
-            logger.error(f"Error during decomposition: {e}")
+            logger.error(
+                f"⚠️ FALLBACK: Unexpected error during decomposition. Re-raising exception. "
+                f"Error: {e}"
+            )
             raise
 
     def create_problem_from_decomposition(
@@ -466,7 +473,11 @@ Be specific and targeted. Only include gaps that would materially improve delibe
             return response
 
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse information gaps JSON: {e}")
+            logger.error(
+                f"⚠️ FALLBACK: Failed to parse information gaps JSON. "
+                f"Returning empty gaps (no Q&A or research). Error: {e}. "
+                f"Response: {response.content[:200]}..."
+            )
             # Fallback: return empty gaps
             fallback: dict[str, list[dict[str, Any]]] = {"internal_gaps": [], "external_gaps": []}
             response.content = json.dumps(fallback)

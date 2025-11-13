@@ -228,17 +228,25 @@ Provide your recommendation as JSON following the format in your system prompt.
             return response
 
         except json.JSONDecodeError as e:
-            logger.warning(
-                f"Failed to parse persona selection JSON (rare with prefill): {e}. "
-                f"Response was: {response.content[:200]}..."
+            logger.error(
+                f"⚠️ FALLBACK: Failed to parse persona selection JSON (rare with prefill). "
+                f"Using default persona recommendation. "
+                f"Error: {e}. Response: {response.content[:200]}..."
             )
             # Fallback: use default personas
             fallback = self._get_default_recommendation()
+            logger.warning(
+                f"⚠️ FALLBACK: Default personas selected: "
+                f"{[r['code'] for r in fallback['recommendations']]}"
+            )
             # Update response content with fallback
             response.content = json.dumps(fallback)
             return response
         except Exception as e:
-            logger.error(f"Error during persona selection: {e}")
+            logger.error(
+                f"⚠️ FALLBACK: Unexpected error during persona selection. Re-raising exception. "
+                f"Error: {e}"
+            )
             raise
 
     def _format_persona_catalog(self, personas: list[dict[str, Any]]) -> str:

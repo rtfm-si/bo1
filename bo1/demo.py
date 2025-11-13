@@ -2,6 +2,11 @@
 
 import asyncio
 import json
+import logging
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 from bo1.agents.decomposer import DecomposerAgent
 from bo1.agents.selector import PersonaSelectorAgent
@@ -10,6 +15,29 @@ from bo1.models.persona import PersonaProfile
 from bo1.models.state import DeliberationPhase, DeliberationState
 from bo1.orchestration.deliberation import DeliberationEngine
 from bo1.ui.console import Console
+
+# Load environment variables from .env
+env_path = Path(__file__).parent / ".env"
+load_dotenv(env_path)
+
+# Configure logging from environment
+log_level = os.getenv("LOG_LEVEL", "WARNING").upper()
+debug_mode = os.getenv("DEBUG", "false").lower() == "true"
+
+logging.basicConfig(
+    level=getattr(logging, log_level),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
+# Suppress noisy third-party loggers
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("anthropic").setLevel(logging.WARNING)
+
+# If not in debug mode, suppress bo1 internal logs
+if not debug_mode:
+    logging.getLogger("bo1").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
 
 
 async def main() -> None:

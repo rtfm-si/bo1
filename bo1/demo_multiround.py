@@ -26,18 +26,22 @@ from bo1.ui.console import Console
 env_path = Path(__file__).parent / ".env"
 load_dotenv(env_path)
 
-# Configure logging (set to WARNING to reduce noise, use INFO for debugging)
+# Configure logging from environment
+log_level = os.getenv("LOG_LEVEL", "WARNING").upper()
+debug_mode = os.getenv("DEBUG", "false").lower() == "true"
 
-log_level = os.getenv("LOG_LEVEL", "WARNING")
 logging.basicConfig(
-    level=getattr(logging, log_level.upper()),
+    level=getattr(logging, log_level),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-# Suppress noisy loggers
+# Suppress noisy third-party loggers
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("anthropic").setLevel(logging.WARNING)
-logging.getLogger("bo1").setLevel(logging.WARNING)  # Suppress all bo1 module logs
+
+# If not in debug mode, suppress bo1 internal logs
+if not debug_mode:
+    logging.getLogger("bo1").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 

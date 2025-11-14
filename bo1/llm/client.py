@@ -172,9 +172,13 @@ class ClaudeClient:
         from anthropic import AsyncAnthropic
 
         # Initialize with beta header for prompt caching
-        anthropic_client = AsyncAnthropic(
-            default_headers={"anthropic-beta": "prompt-caching-2024-07-31"}
-        )
+        client_kwargs: dict[str, Any] = {
+            "default_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}
+        }
+        if self.api_key:
+            client_kwargs["api_key"] = self.api_key
+
+        anthropic_client = AsyncAnthropic(**client_kwargs)
 
         # Build messages in Anthropic format
         anthropic_messages: list[dict[str, Any]] = []

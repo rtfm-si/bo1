@@ -110,9 +110,9 @@ async def test_prompt_caching_hits(client):
     assert usage2.cache_read_tokens > 0, "Second call should hit cache"
 
     # Cache hit rate should be significant
-    assert (
-        usage2.cache_hit_rate > 0.5
-    ), f"Cache hit rate should be >50%, got {usage2.cache_hit_rate}"
+    assert usage2.cache_hit_rate > 0.5, (
+        f"Cache hit rate should be >50%, got {usage2.cache_hit_rate}"
+    )
 
 
 @pytest.mark.asyncio
@@ -199,9 +199,9 @@ async def test_cache_cost_savings(client):
         actual_cache_cost = (usage2.cache_read_tokens / 1_000_000) * 0.30  # Cache read rate
 
         savings_pct = (1 - actual_cache_cost / hypothetical_cost) * 100
-        assert (
-            savings_pct > 80
-        ), f"Cache should save >80% on cached tokens, saved {savings_pct:.1f}%"
+        assert savings_pct > 80, (
+            f"Cache should save >80% on cached tokens, saved {savings_pct:.1f}%"
+        )
 
 
 @pytest.mark.asyncio

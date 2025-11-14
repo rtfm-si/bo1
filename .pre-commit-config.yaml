@@ -5,7 +5,7 @@
 repos:
   # Ruff - Fast Python linter and formatter
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4
+    rev: v0.14.5
     hooks:
       # Linter (check mode - will fail on unfixable issues like N806)
       - id: ruff
@@ -20,7 +20,7 @@ repos:
 
   # mypy - Static type checking
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.1
+    rev: v1.18.2
     hooks:
       - id: mypy
         name: mypy-bo1
@@ -55,7 +55,7 @@ repos:
 
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer

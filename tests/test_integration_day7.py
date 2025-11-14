@@ -279,15 +279,15 @@ def test_persona_data_quality():
 
         # Validate system_prompt is substantial (bespoke content)
         system_prompt = persona_data["system_prompt"]
-        assert (
-            len(system_prompt) > 200
-        ), f"Persona {persona_data['code']} has too short system_prompt: {len(system_prompt)} chars"
+        assert len(system_prompt) > 200, (
+            f"Persona {persona_data['code']} has too short system_prompt: {len(system_prompt)} chars"
+        )
 
         # Ensure system_prompt doesn't contain generic protocols
         # (those should be added via compose_persona_prompt)
-        assert (
-            "<behavioral_guidelines>" not in system_prompt
-        ), f"Persona {persona_data['code']} should not include generic protocols in system_prompt"
+        assert "<behavioral_guidelines>" not in system_prompt, (
+            f"Persona {persona_data['code']} should not include generic protocols in system_prompt"
+        )
 
     print(f"   ✅ Validated {len(personas)} personas")
     print("   ✅ All personas have required fields")

@@ -70,14 +70,14 @@ async def test_summarization_quality():
     # Validation 1: Summary should be concise (within token budget)
     output_tokens = response.token_usage.output_tokens
     target = TokenLimits.SUMMARY_TARGET
-    assert (
-        output_tokens <= target * 1.5
-    ), f"Summary too long: {output_tokens} tokens (target: {target})"
+    assert output_tokens <= target * 1.5, (
+        f"Summary too long: {output_tokens} tokens (target: {target})"
+    )
 
     # Validation 2: Key numbers should be preserved
-    assert any(
-        num in summary for num in ["50K", "$50", "50,000", "80", "$80", "15-20", "$15"]
-    ), "Summary missing specific numbers/data points"
+    assert any(num in summary for num in ["50K", "$50", "50,000", "80", "$80", "15-20", "$15"]), (
+        "Summary missing specific numbers/data points"
+    )
 
     # Validation 3: Disagreements should be captured
     disagreement_keywords = [
@@ -100,9 +100,9 @@ async def test_summarization_quality():
         for persona in ["Zara", "Maria", "Sarah", "Growth", "Finance", "Marketing"]
         if persona in summary
     )
-    assert (
-        personas_mentioned >= 2 or "split" in summary.lower()
-    ), "Summary doesn't represent multiple perspectives"
+    assert personas_mentioned >= 2 or "split" in summary.lower(), (
+        "Summary doesn't represent multiple perspectives"
+    )
 
     # Validation 5: Cost should be minimal (Haiku)
     assert response.cost_total < 0.01, f"Summarization too expensive: ${response.cost_total:.4f}"
@@ -194,9 +194,9 @@ async def test_context_growth_linear():
     total_context_estimate = summary_tokens + current_round_tokens
 
     # Validate linear growth (should be ~1,500 tokens, not 5,000+)
-    assert (
-        total_context_estimate < 3000
-    ), f"Context growing too fast: ~{total_context_estimate} tokens (should be <3000)"
+    assert total_context_estimate < 3000, (
+        f"Context growing too fast: ~{total_context_estimate} tokens (should be <3000)"
+    )
 
     logger.info(
         f"✓ Context growth is linear: ~{total_context_estimate:.0f} tokens for 5 rounds "
@@ -281,9 +281,9 @@ async def test_full_deliberation_with_optimizations():
     await engine.run_round(round_number=2, max_rounds=3)
 
     # Validate summarization happened (should have summary of round 0 or 1)
-    assert (
-        len(engine.state.round_summaries) >= 1
-    ), "No round summaries created after multiple rounds"
+    assert len(engine.state.round_summaries) >= 1, (
+        "No round summaries created after multiple rounds"
+    )
 
     # Validate context structure
     # - Round summaries should be concise (100-150 tokens each)
@@ -365,9 +365,9 @@ async def test_summarization_with_background_processing():
 
     # Check that a summary task was created (or completed)
     # Note: By the time we check, the task might already be done due to fast Haiku processing
-    assert (
-        engine.pending_summary_task is not None or len(engine.state.round_summaries) > 0
-    ), "No background summarization task created"
+    assert engine.pending_summary_task is not None or len(engine.state.round_summaries) > 0, (
+        "No background summarization task created"
+    )
 
     # If task is still pending, wait for it
     if engine.pending_summary_task and not engine.pending_summary_task.done():

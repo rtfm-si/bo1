@@ -13,3 +13,24 @@ SPEED
 COST
 QUALITY
 ACCURACY
+
+create new demo
+
+what does the interactive, persistent terminal 'app' look like?
+
+add business details
+
+start meeting (draft)
+internal questions > user
+external questions > research & global internal
+external research < research
+
+decomposition
+personas
+deliberation
+vote
+synthesis
+final synthesis (& vote?)
+actiobs
+
+track actions, updates, progress, new problems...

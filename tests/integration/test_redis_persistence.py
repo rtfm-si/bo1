@@ -59,25 +59,62 @@ def test_state_persistence_round_trip(redis_manager_or_skip):
     manager = redis_manager_or_skip
 
     # Create complex state with all fields populated
+    from bo1.models.persona import PersonaCategory, PersonaType, ResponseStyle
+
     problem = Problem(
-        statement="Should we invest $500K in AI infrastructure?",
+        title="AI Infrastructure Investment",
+        description="Should we invest $500K in AI infrastructure?",
         context="Series A funded startup",
-        constraints="30-day decision window",
-        success_criteria="Clear ROI projection",
     )
 
     personas = [
         PersonaProfile(
+            id="strategic-advisor-123",
             code="strategic_advisor",
             name="Maria Chen",
-            expertise=["strategy", "scaling"],
+            archetype="Strategic Advisor",
+            category=PersonaCategory.STRATEGY,
+            description="Strategy and scaling expert",
+            emoji="🎯",
+            color_hex="#FF0000",
+            traits={
+                "creative": 0.7,
+                "analytical": 0.9,
+                "optimistic": 0.8,
+                "risk_averse": 0.4,
+                "detail_oriented": 0.8,
+            },
+            default_weight=1.0,
+            temperature=0.7,
             system_prompt="You are Maria Chen...",
+            response_style=ResponseStyle.ANALYTICAL,
+            display_name="Maria",
+            domain_expertise=["strategy", "scaling"],
+            persona_type=PersonaType.STANDARD,
         ),
         PersonaProfile(
+            id="financial-analyst-456",
             code="financial_analyst",
             name="David Park",
-            expertise=["finance", "modeling"],
+            archetype="Financial Analyst",
+            category=PersonaCategory.FINANCE,
+            description="Finance and modeling expert",
+            emoji="💰",
+            color_hex="#00FF00",
+            traits={
+                "creative": 0.5,
+                "analytical": 0.95,
+                "optimistic": 0.6,
+                "risk_averse": 0.7,
+                "detail_oriented": 0.9,
+            },
+            default_weight=1.0,
+            temperature=0.6,
             system_prompt="You are David Park...",
+            response_style=ResponseStyle.ANALYTICAL,
+            display_name="David",
+            domain_expertise=["finance", "modeling"],
+            persona_type=PersonaType.STANDARD,
         ),
     ]
 
@@ -131,6 +168,8 @@ def test_state_persistence_round_trip(redis_manager_or_skip):
 @pytest.mark.skip(reason="Needs PersonaProfile fixture - complex model")
 def test_state_with_nested_objects_persists_correctly(redis_manager_or_skip):
     """Test: Complex nested objects (personas, contributions) persist correctly."""
+    from bo1.models.persona import PersonaCategory, PersonaType, ResponseStyle
+
     manager = redis_manager_or_skip
 
     problem = Problem(title="Test", description="Test", context="Test")
@@ -138,10 +177,28 @@ def test_state_with_nested_objects_persists_correctly(redis_manager_or_skip):
     # Multiple personas
     personas = [
         PersonaProfile(
+            id=f"expert-{i}",
             code=f"expert_{i}",
             name=f"Expert {i}",
-            expertise=[f"skill_{i}", f"skill_{i+1}"],
+            archetype=f"Expert {i}",
+            category=PersonaCategory.STRATEGY,
+            description=f"Expert {i} description",
+            emoji="🎯",
+            color_hex="#FF0000",
+            traits={
+                "creative": 0.5,
+                "analytical": 0.8,
+                "optimistic": 0.6,
+                "risk_averse": 0.5,
+                "detail_oriented": 0.7,
+            },
+            default_weight=1.0,
+            temperature=0.7,
             system_prompt=f"You are Expert {i}",
+            response_style=ResponseStyle.ANALYTICAL,
+            display_name=f"Expert {i}",
+            domain_expertise=[f"skill_{i}", f"skill_{i + 1}"],
+            persona_type=PersonaType.STANDARD,
         )
         for i in range(5)
     ]
@@ -153,9 +210,9 @@ def test_state_with_nested_objects_persists_correctly(redis_manager_or_skip):
             persona_name=f"Expert {i}",
             content=f"Contribution {i}",
             thinking=None,
-        token_count=None,
-        cost=None,
-        round_number=0,
+            token_count=None,
+            cost=None,
+            round_number=0,
         )
         for i in range(5)
     ]

@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_deliberation_graph(
-    checkpointer: RedisSaver | None = None,
+    checkpointer: RedisSaver | None | bool = None,
 ) -> Any:  # Returns CompiledStateGraph but type not exported
     """Create and compile the deliberation graph.
 
@@ -39,7 +39,9 @@ def create_deliberation_graph(
 
     Args:
         checkpointer: Optional Redis checkpointer for pause/resume.
-                     If None, creates one from REDIS_URL env var.
+                     - None: Auto-create from REDIS_URL env var
+                     - False: Disable checkpointing (for tests)
+                     - RedisSaver: Use provided checkpointer
 
     Returns:
         Compiled LangGraph ready for execution
@@ -50,11 +52,21 @@ def create_deliberation_graph(
     """
     logger.info("Creating deliberation graph (Day 27: Linear flow)")
 
-    # Create checkpointer if not provided
+    # Handle checkpointer configuration
+    actual_checkpointer: RedisSaver | None = None
     if checkpointer is None:
+        # Auto-create from environment
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        checkpointer = RedisSaver(redis_url=redis_url)
+        actual_checkpointer = RedisSaver(redis_url=redis_url)
         logger.info(f"Created Redis checkpointer: {redis_url}")
+    elif checkpointer is False:
+        # Explicitly disabled (for tests)
+        actual_checkpointer = None
+        logger.info("Checkpointing disabled")
+    else:
+        # Use provided checkpointer
+        actual_checkpointer = checkpointer
+        logger.info("Using provided checkpointer")
 
     # Initialize state graph
     workflow = StateGraph(DeliberationGraphState)
@@ -79,7 +91,7 @@ def create_deliberation_graph(
     workflow.set_entry_point("decompose")
 
     # Compile graph
-    graph = workflow.compile(checkpointer=checkpointer)
+    graph = workflow.compile(checkpointer=actual_checkpointer)
 
     logger.info(
         f"Graph compiled successfully (recursion_limit will be {DELIBERATION_RECURSION_LIMIT} when invoked)"

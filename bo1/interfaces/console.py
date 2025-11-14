@@ -48,8 +48,9 @@ async def run_console_deliberation(
     """
     console = Console(debug=debug)
 
-    # Create graph (checkpointer=None for now, Week 5 will add Redis checkpointing)
-    graph = create_deliberation_graph(checkpointer=None)
+    # Create graph (checkpointer=False disables checkpointing for now)
+    # Week 5 will enable Redis checkpointing for pause/resume
+    graph = create_deliberation_graph(checkpointer=False)
 
     # Resume from checkpoint or create new session
     if session_id:
@@ -176,8 +177,8 @@ async def stream_deliberation_events(
     Returns:
         Final deliberation state
     """
-    # Create graph
-    graph = create_deliberation_graph(checkpointer=None)
+    # Create graph (disable checkpointing for streaming)
+    graph = create_deliberation_graph(checkpointer=False)
 
     # Create initial state or resume
     if session_id:

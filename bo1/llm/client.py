@@ -210,8 +210,8 @@ class ClaudeClient:
         try:
             response = await anthropic_client.messages.create(
                 model=full_model_id,
-                messages=anthropic_messages,  # type: ignore[arg-type]
-                system=system_blocks if system_blocks else None,  # type: ignore[arg-type]
+                messages=anthropic_messages,
+                system=system_blocks if system_blocks else None,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )

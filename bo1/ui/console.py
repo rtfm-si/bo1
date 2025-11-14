@@ -89,7 +89,7 @@ class Console:
         Returns:
             User input as string
         """
-        return self.console.input(prompt)
+        return str(self.console.input(prompt))
 
     def print_header(self, title: str) -> None:
         """Print main header.

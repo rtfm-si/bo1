@@ -1,12 +1,20 @@
-"""Tests for infinite loop prevention layers 1-3."""
+"""Tests for all 5 infinite loop prevention layers."""
+
+import asyncio
 
 import networkx as nx
 import pytest
 
 from bo1.graph.safety.loop_prevention import (
+    DEFAULT_MAX_COST_PER_SESSION,
+    DEFAULT_TIMEOUT_SECONDS,
     DELIBERATION_RECURSION_LIMIT,
+    TIER_COST_LIMITS,
     check_convergence_node,
+    cost_guard_node,
+    execute_deliberation_with_timeout,
     route_convergence_check,
+    route_cost_guard,
     validate_graph_acyclic,
     validate_round_counter_invariants,
 )
@@ -325,3 +333,316 @@ def test_multiple_rounds_with_counter(sample_problem: Problem):
             # Round 5 should trigger max_rounds stop
             assert result["should_stop"] is True
             assert result["stop_reason"] == "max_rounds"
+
+
+# ============================================================================
+# Layer 4: Timeout Watchdog Tests
+# ============================================================================
+
+
+def test_timeout_constant():
+    """Test that timeout constant is set correctly."""
+    # Default: 1 hour = 3600 seconds
+    assert DEFAULT_TIMEOUT_SECONDS == 3600
+
+
+@pytest.mark.asyncio
+async def test_timeout_watchdog_success(sample_problem: Problem):
+    """Test timeout watchdog with successful completion."""
+
+    # Mock graph that completes quickly
+    class MockGraph:
+        async def ainvoke(self, state, config):
+            await asyncio.sleep(0.1)  # 100ms
+            return state
+
+    graph = MockGraph()
+    initial_state = create_initial_state(
+        session_id="test-timeout-success",
+        problem=sample_problem,
+    )
+    config = {"configurable": {"thread_id": "test-123"}}
+
+    # Should complete successfully
+    result = await execute_deliberation_with_timeout(
+        graph, initial_state, config, timeout_seconds=1
+    )
+
+    assert result["session_id"] == "test-timeout-success"
+
+
+@pytest.mark.asyncio
+async def test_timeout_watchdog_timeout(sample_problem: Problem):
+    """Test timeout watchdog raises TimeoutError for long-running deliberation."""
+
+    # Mock graph that takes too long
+    class MockSlowGraph:
+        async def ainvoke(self, state, config):
+            await asyncio.sleep(10)  # 10 seconds (exceeds 1s timeout)
+            return state
+
+    graph = MockSlowGraph()
+    initial_state = create_initial_state(
+        session_id="test-timeout-fail",
+        problem=sample_problem,
+    )
+    config = {"configurable": {"thread_id": "test-123"}}
+
+    # Should raise TimeoutError
+    with pytest.raises(TimeoutError):
+        await execute_deliberation_with_timeout(graph, initial_state, config, timeout_seconds=1)
+
+
+@pytest.mark.asyncio
+async def test_timeout_watchdog_custom_timeout(sample_problem: Problem):
+    """Test timeout watchdog with custom timeout value."""
+
+    class MockGraph:
+        async def ainvoke(self, state, config):
+            await asyncio.sleep(0.5)  # 500ms
+            return state
+
+    graph = MockGraph()
+    initial_state = create_initial_state(
+        session_id="test-custom-timeout",
+        problem=sample_problem,
+    )
+    config = {"configurable": {"thread_id": "test-123"}}
+
+    # Should complete with 2s timeout
+    result = await execute_deliberation_with_timeout(
+        graph, initial_state, config, timeout_seconds=2
+    )
+
+    assert result["session_id"] == "test-custom-timeout"
+
+    # Should timeout with 0.1s timeout
+    with pytest.raises(TimeoutError):
+        await execute_deliberation_with_timeout(graph, initial_state, config, timeout_seconds=0.1)
+
+
+# ============================================================================
+# Layer 5: Cost-Based Kill Switch Tests
+# ============================================================================
+
+
+def test_cost_limit_constants():
+    """Test that cost limit constants are set correctly."""
+    assert DEFAULT_MAX_COST_PER_SESSION == 1.00
+    assert TIER_COST_LIMITS["free"] == 0.50
+    assert TIER_COST_LIMITS["pro"] == 2.00
+    assert TIER_COST_LIMITS["enterprise"] == 10.00
+
+
+def test_cost_guard_within_budget(sample_problem: Problem):
+    """Test cost guard when within budget."""
+    state = create_initial_state(
+        session_id="test-cost-ok",
+        problem=sample_problem,
+    )
+    state["metrics"] = DeliberationMetrics(total_cost=0.50)  # $0.50 < $1.00 limit
+
+    result = cost_guard_node(state)
+
+    assert result["should_stop"] is False
+    assert result.get("stop_reason") is None
+
+
+def test_cost_guard_exceeds_budget(sample_problem: Problem):
+    """Test cost guard when budget exceeded."""
+    state = create_initial_state(
+        session_id="test-cost-exceeded",
+        problem=sample_problem,
+    )
+    state["metrics"] = DeliberationMetrics(total_cost=1.50)  # $1.50 > $1.00 limit
+
+    result = cost_guard_node(state)
+
+    assert result["should_stop"] is True
+    assert result["stop_reason"] == "cost_budget_exceeded"
+
+
+def test_cost_guard_at_exact_limit(sample_problem: Problem):
+    """Test cost guard at exact budget limit."""
+    state = create_initial_state(
+        session_id="test-cost-exact",
+        problem=sample_problem,
+    )
+    state["metrics"] = DeliberationMetrics(total_cost=1.00)  # Exactly $1.00
+
+    result = cost_guard_node(state)
+
+    # At limit is still OK (uses > not >=)
+    assert result["should_stop"] is False
+
+
+def test_cost_guard_free_tier(sample_problem: Problem):
+    """Test cost guard with free tier limit ($0.50)."""
+    state = create_initial_state(
+        session_id="test-cost-free",
+        problem=sample_problem,
+    )
+    state["subscription_tier"] = "free"
+    state["metrics"] = DeliberationMetrics(total_cost=0.60)  # $0.60 > $0.50 free tier
+
+    result = cost_guard_node(state)
+
+    assert result["should_stop"] is True
+    assert result["stop_reason"] == "cost_budget_exceeded"
+
+
+def test_cost_guard_pro_tier(sample_problem: Problem):
+    """Test cost guard with pro tier limit ($2.00)."""
+    state = create_initial_state(
+        session_id="test-cost-pro",
+        problem=sample_problem,
+    )
+    state["subscription_tier"] = "pro"
+    state["metrics"] = DeliberationMetrics(total_cost=1.50)  # $1.50 < $2.00 pro tier
+
+    result = cost_guard_node(state)
+
+    assert result["should_stop"] is False
+
+
+def test_cost_guard_enterprise_tier(sample_problem: Problem):
+    """Test cost guard with enterprise tier limit ($10.00)."""
+    state = create_initial_state(
+        session_id="test-cost-enterprise",
+        problem=sample_problem,
+    )
+    state["subscription_tier"] = "enterprise"
+    state["metrics"] = DeliberationMetrics(total_cost=5.00)  # $5.00 < $10.00 enterprise tier
+
+    result = cost_guard_node(state)
+
+    assert result["should_stop"] is False
+
+
+def test_route_cost_guard_within_budget(sample_problem: Problem):
+    """Test cost guard routing when within budget."""
+    state = create_initial_state(
+        session_id="test-route-ok",
+        problem=sample_problem,
+    )
+    state["metrics"] = DeliberationMetrics(total_cost=0.50)
+
+    # Run cost guard first
+    state = cost_guard_node(state)
+
+    # Route should be "continue"
+    route = route_cost_guard(state)
+    assert route == "continue"
+
+
+def test_route_cost_guard_exceeds_budget(sample_problem: Problem):
+    """Test cost guard routing when budget exceeded."""
+    state = create_initial_state(
+        session_id="test-route-exceeded",
+        problem=sample_problem,
+    )
+    state["metrics"] = DeliberationMetrics(total_cost=1.50)
+
+    # Run cost guard first
+    state = cost_guard_node(state)
+
+    # Route should be "force_synthesis"
+    route = route_cost_guard(state)
+    assert route == "force_synthesis"
+
+
+# ============================================================================
+# Multi-Layer Integration Tests
+# ============================================================================
+
+
+def test_all_five_layers_independently(sample_problem: Problem):
+    """Test that all 5 layers can be activated independently."""
+    # Layer 1: Recursion limit (constant check)
+    assert DELIBERATION_RECURSION_LIMIT == 55
+
+    # Layer 2: Cycle detection (graph validation)
+    graph = nx.DiGraph()
+    graph.add_edges_from([("A", "B"), ("B", "A"), ("A", "C")])  # Cycle with exit
+    validate_graph_acyclic(graph)  # Should not raise
+
+    # Layer 3: Round counter
+    state = create_initial_state(
+        session_id="test-layer3",
+        problem=sample_problem,
+        max_rounds=5,
+    )
+    state["round_number"] = 5
+    result = check_convergence_node(state)
+    assert result["should_stop"] is True
+    assert result["stop_reason"] == "max_rounds"
+
+    # Layer 4: Timeout (tested separately with asyncio)
+    assert DEFAULT_TIMEOUT_SECONDS == 3600
+
+    # Layer 5: Cost guard
+    state = create_initial_state(
+        session_id="test-layer5",
+        problem=sample_problem,
+    )
+    state["metrics"] = DeliberationMetrics(total_cost=1.50)
+    result = cost_guard_node(state)
+    assert result["should_stop"] is True
+    assert result["stop_reason"] == "cost_budget_exceeded"
+
+
+@pytest.mark.asyncio
+async def test_multiple_layers_triggered(sample_problem: Problem):
+    """Test scenario where multiple layers could trigger."""
+    state = create_initial_state(
+        session_id="test-multi-layer",
+        problem=sample_problem,
+        max_rounds=5,
+    )
+    state["round_number"] = 5  # At max_rounds
+    state["metrics"] = DeliberationMetrics(total_cost=2.00)  # Also exceeds cost
+
+    # Layer 3 should trigger first (round counter)
+    result = check_convergence_node(state)
+    assert result["should_stop"] is True
+    # max_rounds triggers first (before hard cap at 15)
+    assert result["stop_reason"] == "max_rounds"
+
+    # Layer 5 also triggers independently
+    result = cost_guard_node(result)
+    assert result["should_stop"] is True
+    # Cost guard overwrites stop_reason
+    assert result["stop_reason"] == "cost_budget_exceeded"
+
+
+def test_cost_guard_zero_cost(sample_problem: Problem):
+    """Test cost guard with zero cost (edge case)."""
+    state = create_initial_state(
+        session_id="test-zero-cost",
+        problem=sample_problem,
+    )
+    state["metrics"] = DeliberationMetrics(total_cost=0.0)
+
+    result = cost_guard_node(state)
+
+    assert result["should_stop"] is False
+
+
+def test_convergence_and_cost_guard_interaction(sample_problem: Problem):
+    """Test interaction between convergence check and cost guard."""
+    state = create_initial_state(
+        session_id="test-interaction",
+        problem=sample_problem,
+        max_rounds=10,
+    )
+    state["round_number"] = 3
+    state["metrics"] = DeliberationMetrics(total_cost=0.80, convergence_score=0.90)
+
+    # Both convergence (Layer 3) and cost check pass
+    result = check_convergence_node(state)
+    assert result["should_stop"] is True  # Convergence triggered
+    assert result["stop_reason"] == "consensus"
+
+    result = cost_guard_node(result)
+    assert result["should_stop"] is True  # Still stopped
+    # Cost guard didn't override because within budget

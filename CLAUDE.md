@@ -111,6 +111,20 @@ current_round_contributions: list[dict]  # ~200 tokens each
 - **Problem drift detection**: #1 failure cause - check relevance every contribution
 - **Facilitator orchestration**: Sequential decisions (continue/vote/research/moderator)
 
+### Loop Prevention (100% Confidence Guarantee)
+
+Board of One implements a **5-layer defense system** to guarantee deliberations cannot loop indefinitely:
+
+1. **Recursion Limit** (LangGraph built-in): 55 steps max → `GraphRecursionError`
+2. **Cycle Detection** (compile-time): Rejects graphs with uncontrolled cycles
+3. **Round Counter** (domain logic): Hard cap at 15 rounds + user-configured max
+4. **Timeout Watchdog** (runtime): 1-hour timeout kills long-running sessions
+5. **Cost Kill Switch** (budget enforcement): Tier-based cost limits force early synthesis
+
+**Combined guarantee**: Even if 4 layers fail, the 5th will stop the loop.
+
+See `docs/LOOP_PREVENTION.md` for complete details on all 5 layers, testing strategy, and failure analysis.
+
 ---
 
 ## Key Files & Directories

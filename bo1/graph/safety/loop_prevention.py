@@ -11,7 +11,9 @@ This module implements a 5-layer defense system against infinite loops:
 Together, these layers provide 100% confidence that deliberations cannot loop indefinitely.
 """
 
+import asyncio
 import logging
+import os
 from typing import Any, Literal
 
 import networkx as nx
@@ -19,6 +21,14 @@ import networkx as nx
 from bo1.graph.state import DeliberationGraphState
 
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# Layer 4: Timeout Watchdog
+# ============================================================================
+
+# Default timeout: 1 hour (3600 seconds)
+# Configurable via environment variable
+DEFAULT_TIMEOUT_SECONDS = int(os.getenv("DELIBERATION_TIMEOUT_SECONDS", "3600"))
 
 # ============================================================================
 # Layer 1: Recursion Limit (LangGraph Built-in)
@@ -227,6 +237,137 @@ def validate_round_counter_invariants(state: DeliberationGraphState) -> None:
 
     if round_number > max_rounds:
         raise ValueError(f"Round number ({round_number}) exceeds max_rounds ({max_rounds})")
+
+
+# ============================================================================
+# Layer 4: Timeout Watchdog Implementation
+# ============================================================================
+
+
+async def execute_deliberation_with_timeout(
+    graph: Any,
+    initial_state: DeliberationGraphState,
+    config: dict[str, Any],
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+) -> DeliberationGraphState:
+    """Execute deliberation with timeout protection.
+
+    This implements Layer 4 of loop prevention by enforcing a hard timeout.
+    If the deliberation exceeds the timeout, it's killed and the last checkpoint is preserved.
+
+    Args:
+        graph: Compiled LangGraph
+        initial_state: Initial deliberation state
+        config: Graph config (includes thread_id for checkpointing)
+        timeout_seconds: Maximum execution time in seconds (default: 3600 = 1 hour)
+
+    Returns:
+        Final deliberation state
+
+    Raises:
+        asyncio.TimeoutError: If deliberation exceeds timeout
+
+    Example:
+        >>> graph = compile_graph_with_loop_prevention(workflow, checkpointer)
+        >>> config = {"configurable": {"thread_id": "session-123"}}
+        >>> result = await execute_deliberation_with_timeout(graph, initial_state, config)
+    """
+    session_id = config.get("configurable", {}).get("thread_id", "unknown")
+    logger.info(f"[{session_id}] Starting deliberation with {timeout_seconds}s timeout")
+
+    try:
+        # Execute with timeout (Layer 4)
+        result: DeliberationGraphState = await asyncio.wait_for(
+            graph.ainvoke(initial_state, config),
+            timeout=timeout_seconds,
+        )
+        logger.info(f"[{session_id}] Deliberation completed successfully")
+        return result
+
+    except TimeoutError:
+        logger.error(
+            f"[{session_id}] Deliberation TIMEOUT after {timeout_seconds}s. "
+            "This indicates a problem with loop prevention. "
+            "Last checkpoint preserved for inspection."
+        )
+        # Re-raise to allow caller to handle
+        raise
+
+    except Exception as e:
+        logger.error(f"[{session_id}] Deliberation failed with error: {e}")
+        raise
+
+
+# ============================================================================
+# Layer 5: Cost-Based Kill Switch
+# ============================================================================
+
+# Default cost limit: $1.00 per session
+# Configurable via environment variable and per-tier limits
+DEFAULT_MAX_COST_PER_SESSION = float(os.getenv("MAX_COST_PER_SESSION", "1.00"))
+
+# Per-tier cost limits (for future use with subscription tiers)
+TIER_COST_LIMITS = {
+    "free": 0.50,  # $0.50 max for free tier
+    "pro": 2.00,  # $2.00 max for pro tier
+    "enterprise": 10.00,  # $10.00 max for enterprise tier
+}
+
+
+def cost_guard_node(state: DeliberationGraphState) -> DeliberationGraphState:
+    """Check cost budget and set stop flags if exceeded.
+
+    This node implements Layer 5 of loop prevention by enforcing cost limits.
+    If total cost exceeds the budget, force early termination to synthesis.
+
+    Args:
+        state: Current deliberation state
+
+    Returns:
+        Updated state with should_stop and stop_reason set if budget exceeded
+    """
+    total_cost = state["metrics"].total_cost
+    max_cost = DEFAULT_MAX_COST_PER_SESSION
+
+    # Check if we have a tier-specific limit
+    # This will be used when user authentication is added (Week 7)
+    tier = state.get("subscription_tier")
+    if tier and isinstance(tier, str) and tier in TIER_COST_LIMITS:
+        max_cost = TIER_COST_LIMITS[tier]
+
+    if total_cost > max_cost:
+        logger.warning(
+            f"Cost budget EXCEEDED: ${total_cost:.4f} > ${max_cost:.2f}. "
+            "Forcing early termination to synthesis."
+        )
+        state["should_stop"] = True
+        state["stop_reason"] = "cost_budget_exceeded"
+    else:
+        logger.debug(f"Cost check passed: ${total_cost:.4f} / ${max_cost:.2f}")
+
+    return state
+
+
+def route_cost_guard(state: DeliberationGraphState) -> Literal["continue", "force_synthesis"]:
+    """Route based on cost guard check.
+
+    This is the conditional edge that prevents runaway costs.
+
+    Args:
+        state: Current deliberation state
+
+    Returns:
+        "force_synthesis" if cost exceeded (skip to synthesis)
+        "continue" if within budget (continue normal flow)
+    """
+    stop_reason = state.get("stop_reason")
+
+    if stop_reason == "cost_budget_exceeded":
+        logger.info("Cost guard: EXCEEDED -> forcing synthesis")
+        return "force_synthesis"
+    else:
+        logger.debug("Cost guard: OK -> continuing")
+        return "continue"
 
 
 # ============================================================================

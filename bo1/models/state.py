@@ -86,6 +86,10 @@ class DeliberationMetrics(BaseModel):
     cache_hits: int = Field(default=0, description="Number of cache hits")
     cache_creation_tokens: int = Field(default=0, description="Tokens used to create cache")
     cache_read_tokens: int = Field(default=0, description="Tokens read from cache")
+    phase_costs: dict[str, float] = Field(
+        default_factory=dict,
+        description="Cost breakdown by phase (e.g., problem_decomposition, persona_selection)",
+    )
     convergence_score: float | None = Field(
         default=None, ge=0.0, le=1.0, description="Semantic convergence score (0-1)"
     )

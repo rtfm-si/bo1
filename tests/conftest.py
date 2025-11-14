@@ -3,6 +3,10 @@
 from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
+
+# Load .env file for test environment
+load_dotenv()
 
 
 def pytest_configure(config: pytest.Config) -> None:

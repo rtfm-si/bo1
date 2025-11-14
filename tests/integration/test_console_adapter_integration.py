@@ -182,6 +182,7 @@ class TestConsoleAdapterErrorHandling:
 class TestSecurityValidation:
     """Test security-related validations."""
 
+    @pytest.mark.requires_llm
     @pytest.mark.asyncio
     async def test_script_injection_in_problem(self):
         """Test that script injection attempts in problem are sanitized."""
@@ -203,6 +204,7 @@ class TestSecurityValidation:
         assert state is not None
         assert state["problem"].description != ""
 
+    @pytest.mark.requires_llm
     @pytest.mark.asyncio
     async def test_sql_injection_in_problem(self):
         """Test that SQL injection attempts are handled."""

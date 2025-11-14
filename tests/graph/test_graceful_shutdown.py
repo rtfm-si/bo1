@@ -35,7 +35,7 @@ def session_manager(redis_manager):
     return manager
 
 
-async def long_running_task():
+async def long_running_task() -> str:
     """Long running task for shutdown tests."""
     try:
         await asyncio.sleep(30.0)
@@ -44,6 +44,7 @@ async def long_running_task():
         return "cancelled"
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_graceful_shutdown_cancels_tasks(session_manager):
     """Test: Graceful shutdown cancels all active tasks."""
@@ -67,6 +68,7 @@ async def test_graceful_shutdown_cancels_tasks(session_manager):
     assert len(session_manager.active_executions) == 0
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_shutdown_saves_metadata_for_all_sessions(session_manager):
     """Test: Graceful shutdown saves metadata for all sessions."""
@@ -92,6 +94,7 @@ async def test_shutdown_saves_metadata_for_all_sessions(session_manager):
         assert metadata["shutdown_reason"] == "System shutdown"
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_shutdown_with_zero_sessions(session_manager):
     """Test: Graceful shutdown works even with no active sessions."""
@@ -106,6 +109,7 @@ async def test_shutdown_with_zero_sessions(session_manager):
     assert shutdown_duration < 0.5
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_shutdown_timeout_handling(session_manager):
     """Test: Shutdown respects grace period timeout."""
@@ -127,6 +131,7 @@ async def test_shutdown_timeout_handling(session_manager):
     assert metadata["status"] == "shutdown"
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_multiple_shutdowns_are_safe(session_manager):
     """Test: Calling shutdown multiple times is safe."""
@@ -167,20 +172,22 @@ def test_signal_handlers_can_be_registered():
 
     # Create a mock session manager
     class MockRedis:
-        async def hset(self, *args, **kwargs):
+        async def hset(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
             pass
 
-        async def hgetall(self, *args, **kwargs):
+        async def hgetall(self, *args, **kwargs) -> dict:  # type: ignore[no-untyped-def, type-arg]
             return {}
 
-        async def expire(self, *args, **kwargs):
+        async def expire(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
             pass
 
     class MockRedisManager:
-        def __init__(self):
+        def __init__(self) -> None:
             self.client = MockRedis()
+            self.is_available = True
+            self.redis = self.client
 
-    mock_manager = SessionManager(redis_manager=MockRedisManager(), admin_user_ids=set())
+    mock_manager = SessionManager(redis_manager=MockRedisManager(), admin_user_ids=set())  # type: ignore[arg-type]
 
     # This should not raise an error
     # (actual signal behavior tested manually)

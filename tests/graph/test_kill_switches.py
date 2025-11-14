@@ -35,7 +35,7 @@ def session_manager(redis_manager):
     return manager
 
 
-async def dummy_task(duration: float = 10.0):
+async def dummy_task(duration: float = 10.0) -> str:
     """Dummy async task for testing."""
     try:
         await asyncio.sleep(duration)
@@ -44,6 +44,7 @@ async def dummy_task(duration: float = 10.0):
         return "cancelled"
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_user_can_kill_own_session(session_manager):
     """Test: User can kill their own session."""
@@ -81,6 +82,7 @@ async def test_user_can_kill_own_session(session_manager):
     assert metadata["admin_kill"] == "False"
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_user_cannot_kill_other_users_sessions(session_manager):
     """Test: User CANNOT kill sessions owned by other users."""
@@ -106,6 +108,7 @@ async def test_user_cannot_kill_other_users_sessions(session_manager):
     assert session_id in session_manager.active_executions
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_admin_can_kill_any_session(session_manager):
     """Test: Admin can kill any session (no ownership check)."""
@@ -139,6 +142,7 @@ async def test_admin_can_kill_any_session(session_manager):
     assert metadata["admin_kill"] == "True"
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_non_admin_cannot_use_admin_kill(session_manager):
     """Test: Non-admin user cannot use admin kill switch."""
@@ -161,6 +165,7 @@ async def test_non_admin_cannot_use_admin_kill(session_manager):
     assert session_id in session_manager.active_executions
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_admin_can_kill_all_sessions(session_manager):
     """Test: Admin can kill all active sessions."""
@@ -200,6 +205,7 @@ async def test_admin_can_kill_all_sessions(session_manager):
         assert metadata["admin_kill"] == "True"
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_non_admin_cannot_kill_all(session_manager):
     """Test: Non-admin user cannot kill all sessions."""
@@ -219,6 +225,7 @@ async def test_non_admin_cannot_kill_all(session_manager):
     assert len(session_manager.active_executions) == 2
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_graceful_shutdown_preserves_metadata(session_manager):
     """Test: Graceful shutdown saves metadata for all sessions."""
@@ -243,6 +250,7 @@ async def test_graceful_shutdown_preserves_metadata(session_manager):
         assert metadata["shutdown_reason"] == "System shutdown"
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_kill_nonexistent_session_returns_false(session_manager):
     """Test: Killing non-existent session returns False."""
@@ -252,6 +260,7 @@ async def test_kill_nonexistent_session_returns_false(session_manager):
     assert result is False
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_admin_kill_nonexistent_session_returns_false(session_manager):
     """Test: Admin killing non-existent session returns False."""
@@ -261,6 +270,7 @@ async def test_admin_kill_nonexistent_session_returns_false(session_manager):
     assert result is False
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_is_admin_check(session_manager):
     """Test: is_admin() correctly identifies admin users."""
@@ -268,6 +278,7 @@ async def test_is_admin_check(session_manager):
     assert session_manager.is_admin("regular_user") is False
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_session_metadata_persistence(session_manager):
     """Test: Session metadata persists correctly in Redis."""
@@ -295,6 +306,7 @@ async def test_session_metadata_persistence(session_manager):
     assert metadata["user_id"] == user_id  # Original field preserved
 
 
+@pytest.mark.requires_redis
 @pytest.mark.asyncio
 async def test_concurrent_session_management(session_manager):
     """Test: Can manage multiple concurrent sessions."""

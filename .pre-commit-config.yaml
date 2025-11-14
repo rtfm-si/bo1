@@ -7,9 +7,14 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.8.4
     hooks:
-      # Linter
+      # Linter (check mode - will fail on unfixable issues like N806)
       - id: ruff
-        args: [--fix]
+        name: ruff-check
+        args: []
+      # Linter (fix mode - auto-fix safe issues)
+      - id: ruff
+        name: ruff-fix
+        args: [--fix, --exit-non-zero-on-fix]
       # Formatter
       - id: ruff-format
 

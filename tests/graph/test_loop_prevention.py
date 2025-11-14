@@ -43,8 +43,8 @@ def test_recursion_limit_constant():
 
 def test_validate_graph_acyclic_no_cycles():
     """Test graph validation with no cycles (fully acyclic)."""
-    G = nx.DiGraph()
-    G.add_edges_from(
+    graph = nx.DiGraph()
+    graph.add_edges_from(
         [
             ("start", "decompose"),
             ("decompose", "select"),
@@ -55,13 +55,13 @@ def test_validate_graph_acyclic_no_cycles():
     )
 
     # Should not raise
-    validate_graph_acyclic(G)
+    validate_graph_acyclic(graph)
 
 
 def test_validate_graph_acyclic_with_controlled_cycle():
     """Test graph validation with a controlled cycle (has exit)."""
-    G = nx.DiGraph()
-    G.add_edges_from(
+    graph = nx.DiGraph()
+    graph.add_edges_from(
         [
             ("facilitator", "persona"),
             ("persona", "check_convergence"),
@@ -74,13 +74,13 @@ def test_validate_graph_acyclic_with_controlled_cycle():
     )
 
     # Should not raise (cycle has exit to "vote")
-    validate_graph_acyclic(G)
+    validate_graph_acyclic(graph)
 
 
 def test_validate_graph_acyclic_with_uncontrolled_cycle():
     """Test graph validation fails with uncontrolled cycle (no exit)."""
-    G = nx.DiGraph()
-    G.add_edges_from(
+    graph = nx.DiGraph()
+    graph.add_edges_from(
         [
             ("A", "B"),
             ("B", "C"),
@@ -89,7 +89,7 @@ def test_validate_graph_acyclic_with_uncontrolled_cycle():
     )
 
     with pytest.raises(ValueError, match="Uncontrolled cycle detected"):
-        validate_graph_acyclic(G)
+        validate_graph_acyclic(graph)
 
 
 # ============================================================================

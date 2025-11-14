@@ -45,7 +45,7 @@ run: ## Run deliberation in container (interactive)
 	docker-compose run --rm bo1 python -m bo1.main
 
 .PHONY: demo
-demo: ## Run complete Board of One demo (Days 1-14 pipeline, automated)
+demo: ## Run complete Board of One demo (FULL pipeline validation - Weeks 1-3)
 	docker-compose run --rm bo1 python bo1/demo.py
 
 .PHONY: demo-interactive

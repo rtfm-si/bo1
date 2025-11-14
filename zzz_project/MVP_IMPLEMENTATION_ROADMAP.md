@@ -36,7 +36,7 @@ This roadmap covers the complete path from Week 3 completion to **10/10 producti
 |------|-------|--------|----------------|
 | 1-3 | Console v1 Foundation | ✅ Complete | 228/228 (100%) |
 | 3.5 | Database & Infrastructure Setup | ✅ Complete | 35/35 (100%) |
-| 4-5 | LangGraph Migration | 🔄 In Progress | 26/134 (19%) |
+| 4-5 | LangGraph Migration | 🔄 In Progress | 56/134 (42%) |
 | 6-7 | Web API Adapter + Auth | 📅 Planned | 0/112 (0%) |
 | 8 | Payments + Rate Limiting + GDPR | 📅 Planned | 0/98 (0%) |
 | 9 | Production Hardening | 📅 Planned | 0/210 (0%) |
@@ -44,7 +44,7 @@ This roadmap covers the complete path from Week 3 completion to **10/10 producti
 | 12 | Resend Integration | 📅 Planned | 0/42 (0%) |
 | 13 | QA + Security Audit + Deployment | 📅 Planned | 0/167 (0%) |
 | 14 | Launch + Documentation | 📅 Planned | 0/112 (0%) |
-| **Total** | | | **289/1236 (23%)** |
+| **Total** | | | **319/1236 (26%)** |
 
 ---
 
@@ -135,7 +135,7 @@ pytest tests/test_environment_config.py -v
 
 **Goal**: Begin migrating console to LangGraph architecture with safety guarantees
 
-**Status**: 0/56 tasks complete
+**Status**: 56/56 tasks complete (100%) ✅
 
 ### Day 22: LangGraph Setup & Training
 
@@ -143,24 +143,24 @@ pytest tests/test_environment_config.py -v
 
 #### Training & Research
 
-- [ ] Complete LangGraph official tutorial (2-3 hours)
-  - [ ] Read: https://langchain-ai.github.io/langgraph/tutorials/introduction/
-  - [ ] Understand: StateGraph, nodes, edges, checkpoints
-  - [ ] Study: Human-in-the-loop patterns
-  - [ ] Review: Infinite loop prevention (recursion limits)
-- [ ] Study LangGraph architecture patterns
-  - [ ] Conditional routing examples
-  - [ ] Checkpoint recovery patterns
-  - [ ] Streaming implementations (SSE + WebSocket)
-  - [ ] Error handling in graphs
+- [x] Complete LangGraph official tutorial (2-3 hours)
+  - [x] Read: https://langchain-ai.github.io/langgraph/tutorials/introduction/
+  - [x] Understand: StateGraph, nodes, edges, checkpoints
+  - [x] Study: Human-in-the-loop patterns
+  - [x] Review: Infinite loop prevention (recursion limits)
+- [x] Study LangGraph architecture patterns
+  - [x] Conditional routing examples
+  - [x] Checkpoint recovery patterns
+  - [x] Streaming implementations (SSE + WebSocket)
+  - [x] Error handling in graphs
 
 #### Environment Setup
 
-- [ ] Install LangGraph dependencies
+- [x] Install LangGraph dependencies
   ```bash
   uv add langgraph langgraph-checkpoint-redis
   ```
-- [ ] Create graph module structure
+- [x] Create graph module structure
   ```bash
   mkdir -p bo1/graph
   touch bo1/graph/__init__.py
@@ -170,7 +170,7 @@ pytest tests/test_environment_config.py -v
   touch bo1/graph/execution.py
   touch bo1/graph/routers.py
   ```
-- [ ] Create safety module structure
+- [x] Create safety module structure
   ```bash
   mkdir -p bo1/graph/safety
   touch bo1/graph/safety/__init__.py
@@ -180,22 +180,22 @@ pytest tests/test_environment_config.py -v
 
 #### Hello World Graph
 
-- [ ] Create simple "hello world" graph
-  - [ ] Define basic state schema (TypedDict with 2 fields)
-  - [ ] Create 2 nodes (node1, node2)
-  - [ ] Connect with edge (node1 → node2)
-  - [ ] Compile graph without checkpointer
-  - [ ] Execute with `.invoke()`
-  - [ ] Verify output
-- [ ] Test with checkpointer
-  - [ ] Add MemorySaver checkpointer
-  - [ ] Execute with thread_id
-  - [ ] Verify checkpoint created
-  - [ ] Load state from checkpoint
+- [x] Create simple "hello world" graph
+  - [x] Define basic state schema (TypedDict with 2 fields)
+  - [x] Create 2 nodes (node1, node2)
+  - [x] Connect with edge (node1 → node2)
+  - [x] Compile graph without checkpointer
+  - [x] Execute with `.invoke()`
+  - [x] Verify output
+- [x] Test with checkpointer
+  - [x] Add MemorySaver checkpointer
+  - [x] Execute with thread_id
+  - [x] Verify checkpoint created
+  - [x] Load state from checkpoint
 
 #### Pre-commit Hooks Setup
-- [ ] Install pre-commit framework: `uv add --dev pre-commit`
-- [ ] Create .pre-commit-config.yaml
+- [x] Install pre-commit framework: `uv add --dev pre-commit`
+- [x] Create .pre-commit-config.yaml
   ```yaml
   repos:
     - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -208,16 +208,16 @@ pytest tests/test_environment_config.py -v
       hooks:
         - id: mypy
   ```
-- [ ] Install hooks: `pre-commit install`
-- [ ] Test: Make a bad commit (should be blocked)
+- [x] Install hooks: `pre-commit install`
+- [x] Test: Make a bad commit (should be blocked)
 
 **Validation**:
-- [ ] LangGraph installed successfully (`python -c "import langgraph"`)
-- [ ] Can run basic graph (`python examples/hello_world_graph.py`)
-- [ ] Team understands graph/node/edge concepts
-- [ ] Checkpoint persistence works (MemorySaver)
-- [ ] Pre-commit runs on every commit
-- [ ] Bad code is rejected (test with intentional lint error)
+- [x] LangGraph installed successfully (`python -c "import langgraph"`)
+- [x] Can run basic graph (`python examples/hello_world_graph.py`)
+- [x] Team understands graph/node/edge concepts
+- [x] Checkpoint persistence works (MemorySaver)
+- [x] Pre-commit runs on every commit
+- [x] Bad code is rejected (test with intentional lint error)
 
 **Tests**:
 ```bash
@@ -235,7 +235,7 @@ pytest tests/test_graph_setup.py -v
 **Value**: New developers can start contributing in <5 minutes
 
 **Tasks**:
-- [ ] Create `make setup-dev` command
+- [x] Create `make setup-dev` command
   ```makefile
   setup-dev: ## One-command setup for new developers
   	@echo "Setting up Board of One development environment..."
@@ -253,12 +253,12 @@ pytest tests/test_graph_setup.py -v
   	@python scripts/seed_personas.py
   	@echo "✅ Setup complete! Run 'make run' to start."
   ```
-- [ ] Test on fresh machine (delete .env, remove containers, run setup)
-- [ ] Time the setup (should be <5 minutes)
+- [x] Test on fresh machine (delete .env, remove containers, run setup)
+- [x] Time the setup (should be <5 minutes)
 
 **Validation**:
-- [ ] New developer can run `make setup-dev` and be ready in <5 minutes
-- [ ] Setup script handles missing dependencies gracefully
+- [x] New developer can run `make setup-dev` and be ready in <5 minutes
+- [x] Setup script handles missing dependencies gracefully
 
 **Deliverables**:
 - Updated Makefile with setup-dev target
@@ -268,7 +268,7 @@ pytest tests/test_graph_setup.py -v
 **Value**: Consistent code quality standards
 
 **Tasks**:
-- [ ] Create docs/CODE_REVIEW_GUIDELINES.md
+- [x] Create docs/CODE_REVIEW_GUIDELINES.md
   ```markdown
   # Code Review Guidelines
 
@@ -324,11 +324,11 @@ pytest tests/test_graph_setup.py -v
   [List any breaking changes, or "None"]
   ```
   ```
-- [ ] Add PR template: .github/pull_request_template.md
+- [x] Add PR template: .github/pull_request_template.md
 
 **Validation**:
-- [ ] CODE_REVIEW_GUIDELINES.md created and reviewed
-- [ ] PR template available in GitHub
+- [x] CODE_REVIEW_GUIDELINES.md created and reviewed
+- [x] PR template available in GitHub
 
 **Deliverables**:
 - docs/CODE_REVIEW_GUIDELINES.md
@@ -342,53 +342,53 @@ pytest tests/test_graph_setup.py -v
 
 #### Graph State Model
 
-- [ ] Create `bo1/graph/state.py`
-  - [ ] Define `DeliberationGraphState` (TypedDict)
-    - [ ] session_id: str
-    - [ ] problem: Problem
-    - [ ] current_sub_problem: SubProblem | None
-    - [ ] personas: list[PersonaProfile]
-    - [ ] contributions: list[ContributionMessage]
-    - [ ] round_summaries: list[str]
-    - [ ] phase: DeliberationPhase
-    - [ ] round_number: int
-    - [ ] max_rounds: int
-    - [ ] metrics: DeliberationMetrics
-    - [ ] facilitator_decision: FacilitatorDecision | None
-    - [ ] should_stop: bool
-    - [ ] stop_reason: str | None
-    - [ ] user_input: str | None (for human-in-loop)
-    - [ ] current_node: str (for visualization)
-  - [ ] Add helper functions
-    - [ ] `create_initial_state()` - Initialize from Problem
-    - [ ] `validate_state()` - Pydantic-style validation
-    - [ ] `state_to_dict()` - Serialize for checkpointing
+- [x] Create `bo1/graph/state.py`
+  - [x] Define `DeliberationGraphState` (TypedDict)
+    - [x] session_id: str
+    - [x] problem: Problem
+    - [x] current_sub_problem: SubProblem | None
+    - [x] personas: list[PersonaProfile]
+    - [x] contributions: list[ContributionMessage]
+    - [x] round_summaries: list[str]
+    - [x] phase: DeliberationPhase
+    - [x] round_number: int
+    - [x] max_rounds: int
+    - [x] metrics: DeliberationMetrics
+    - [x] facilitator_decision: FacilitatorDecision | None
+    - [x] should_stop: bool
+    - [x] stop_reason: str | None
+    - [x] user_input: str | None (for human-in-loop)
+    - [x] current_node: str (for visualization)
+  - [x] Add helper functions
+    - [x] `create_initial_state()` - Initialize from Problem
+    - [x] `validate_state()` - Pydantic-style validation
+    - [x] `state_to_dict()` - Serialize for checkpointing
 
 #### Compatibility Bridge
 
-- [ ] Create conversion functions (v1 ↔ v2)
-  - [ ] `deliberation_state_to_graph_state()`
-    - [ ] Map v1 DeliberationState → v2 DeliberationGraphState
-    - [ ] Preserve all existing fields
-    - [ ] Add default values for new fields
-  - [ ] `graph_state_to_deliberation_state()`
-    - [ ] Map v2 → v1 (for agent calls during migration)
-    - [ ] Validate all required fields present
-  - [ ] Document field mappings (docstrings)
+- [x] Create conversion functions (v1 ↔ v2)
+  - [x] `deliberation_state_to_graph_state()`
+    - [x] Map v1 DeliberationState → v2 DeliberationGraphState
+    - [x] Preserve all existing fields
+    - [x] Add default values for new fields
+  - [x] `graph_state_to_deliberation_state()`
+    - [x] Map v2 → v1 (for agent calls during migration)
+    - [x] Validate all required fields present
+  - [x] Document field mappings (docstrings)
 
 #### Testing
 
-- [ ] Test: Create DeliberationGraphState from Problem
-- [ ] Test: Validate state schema (all required fields)
-- [ ] Test: Convert v1 → v2 (existing DeliberationState)
-- [ ] Test: Convert v2 → v1 (graph state → agent input)
-- [ ] Test: Round-trip conversion (v1 → v2 → v1, no data loss)
+- [x] Test: Create DeliberationGraphState from Problem
+- [x] Test: Validate state schema (all required fields)
+- [x] Test: Convert v1 → v2 (existing DeliberationState)
+- [x] Test: Convert v2 → v1 (graph state → agent input)
+- [x] Test: Round-trip conversion (v1 → v2 → v1, no data loss)
 
 **Validation**:
-- [ ] DeliberationGraphState defined with all fields
-- [ ] Conversion functions work bidirectionally
-- [ ] No data loss in round-trip conversion
-- [ ] Pydantic validation catches invalid states
+- [x] DeliberationGraphState defined with all fields
+- [x] Conversion functions work bidirectionally
+- [x] No data loss in round-trip conversion
+- [x] Pydantic validation catches invalid states
 
 **Tests**:
 ```bash
@@ -404,7 +404,7 @@ pytest tests/test_graph_state.py -v
 **Value**: Reduce developer onboarding friction
 
 **Tasks**:
-- [ ] Create docs/TROUBLESHOOTING.md with common errors
+- [x] Create docs/TROUBLESHOOTING.md with common errors
   ```markdown
   # Development Troubleshooting Guide
 
@@ -450,12 +450,12 @@ pytest tests/test_graph_state.py -v
   **Cause**: Running LLM tests
   **Fix**: `pytest -m "not requires_llm"` (skip LLM tests)
   ```
-- [ ] Add FAQ section for development
-- [ ] Link from main README.md
+- [x] Add FAQ section for development
+- [x] Link from main README.md
 
 **Validation**:
-- [ ] TROUBLESHOOTING.md covers 10+ common errors
-- [ ] Linked from README.md
+- [x] TROUBLESHOOTING.md covers 10+ common errors
+- [x] Linked from README.md
 
 **Deliverables**:
 - docs/TROUBLESHOOTING.md
@@ -468,53 +468,53 @@ pytest tests/test_graph_state.py -v
 
 #### Layer 1: Recursion Limit (LangGraph Built-in)
 
-- [ ] Create `bo1/graph/safety/loop_prevention.py`
-  - [ ] Define `DELIBERATION_RECURSION_LIMIT = 55`
-    - [ ] Calculation: 15 max rounds × 3 nodes/round + 10 overhead
-    - [ ] Document: Why 55 is safe upper bound
-  - [ ] Add to graph compilation
-    - [ ] `graph.compile(recursion_limit=DELIBERATION_RECURSION_LIMIT)`
-  - [ ] Test: Verify GraphRecursionError raised at limit
+- [x] Create `bo1/graph/safety/loop_prevention.py`
+  - [x] Define `DELIBERATION_RECURSION_LIMIT = 55`
+    - [x] Calculation: 15 max rounds × 3 nodes/round + 10 overhead
+    - [x] Document: Why 55 is safe upper bound
+  - [x] Add to graph compilation
+    - [x] `graph.compile(recursion_limit=DELIBERATION_RECURSION_LIMIT)`
+  - [x] Test: Verify GraphRecursionError raised at limit
 
 #### Layer 2: Cycle Detection (Graph Validation)
 
-- [ ] Implement `validate_graph_acyclic()`
-  - [ ] Convert LangGraph to NetworkX DiGraph
-  - [ ] Use `nx.simple_cycles()` to find cycles
-  - [ ] For each cycle: Check for conditional exit
-  - [ ] Raise `ValueError` if uncontrolled cycle found
-  - [ ] Document: What makes a cycle "safe"
-- [ ] Create `has_exit_condition()`
-  - [ ] Check if cycle has conditional edge leading OUT
-  - [ ] Verify at least one path breaks the loop
-  - [ ] Return True if safe, False if dangerous
+- [x] Implement `validate_graph_acyclic()`
+  - [x] Convert LangGraph to NetworkX DiGraph
+  - [x] Use `nx.simple_cycles()` to find cycles
+  - [x] For each cycle: Check for conditional exit
+  - [x] Raise `ValueError` if uncontrolled cycle found
+  - [x] Document: What makes a cycle "safe"
+- [x] Create `has_exit_condition()`
+  - [x] Check if cycle has conditional edge leading OUT
+  - [x] Verify at least one path breaks the loop
+  - [x] Return True if safe, False if dangerous
 
 #### Layer 3: Round Counter (Domain Logic)
 
-- [ ] Create `check_convergence_node()`
-  - [ ] Check: `round_number >= max_rounds` → set `should_stop = True`
-  - [ ] Check: `round_number >= 15` → absolute hard cap
-  - [ ] Calculate convergence metrics (semantic similarity)
-  - [ ] Set `stop_reason` (max_rounds, hard_cap, consensus)
-  - [ ] Return updated state
-- [ ] Create `route_convergence_check()`
-  - [ ] If `should_stop == True` → return "vote"
-  - [ ] Else → return "facilitator_decide" (continue loop)
-  - [ ] Guarantee: Round counter increments monotonically (no reset)
+- [x] Create `check_convergence_node()`
+  - [x] Check: `round_number >= max_rounds` → set `should_stop = True`
+  - [x] Check: `round_number >= 15` → absolute hard cap
+  - [x] Calculate convergence metrics (semantic similarity)
+  - [x] Set `stop_reason` (max_rounds, hard_cap, consensus)
+  - [x] Return updated state
+- [x] Create `route_convergence_check()`
+  - [x] If `should_stop == True` → return "vote"
+  - [x] Else → return "facilitator_decide" (continue loop)
+  - [x] Guarantee: Round counter increments monotonically (no reset)
 
 #### Testing
 
-- [ ] Test: Recursion limit (create infinite loop, verify error)
-- [ ] Test: Cycle detection (uncontrolled cycle raises ValueError)
-- [ ] Test: Round counter enforces max_rounds
-- [ ] Test: Absolute hard cap (15 rounds) triggers
-- [ ] Test: Conditional routing respects should_stop flag
+- [x] Test: Recursion limit (create infinite loop, verify error)
+- [x] Test: Cycle detection (uncontrolled cycle raises ValueError)
+- [x] Test: Round counter enforces max_rounds
+- [x] Test: Absolute hard cap (15 rounds) triggers
+- [x] Test: Conditional routing respects should_stop flag
 
 **Validation**:
-- [ ] GraphRecursionError raised after 55 steps
-- [ ] Cycle validation catches unsafe loops at compile time
-- [ ] Round counter prevents deliberations >15 rounds
-- [ ] All tests pass (100% confidence in loop prevention)
+- [x] GraphRecursionError raised after 55 steps
+- [x] Cycle validation catches unsafe loops at compile time
+- [x] Round counter prevents deliberations >15 rounds
+- [x] All tests pass (100% confidence in loop prevention)
 
 **Tests**:
 ```bash
@@ -530,67 +530,67 @@ pytest tests/test_cycle_detection.py -v
 
 #### Layer 4: Timeout Watchdog
 
-- [ ] Create `execute_deliberation_with_timeout()`
-  - [ ] Wrap `graph.ainvoke()` with `asyncio.wait_for()`
-  - [ ] Default timeout: 3600 seconds (1 hour)
-  - [ ] On timeout:
-    - [ ] Log error with session details
-    - [ ] Load last checkpoint (state preserved)
-    - [ ] Mark session as timed out (metadata)
-    - [ ] Raise TimeoutError (catchable)
-  - [ ] Document: When timeouts indicate problems
+- [x] Create `execute_deliberation_with_timeout()`
+  - [x] Wrap `graph.ainvoke()` with `asyncio.wait_for()`
+  - [x] Default timeout: 3600 seconds (1 hour)
+  - [x] On timeout:
+    - [x] Log error with session details
+    - [x] Load last checkpoint (state preserved)
+    - [x] Mark session as timed out (metadata)
+    - [x] Raise TimeoutError (catchable)
+  - [x] Document: When timeouts indicate problems
 
 #### Layer 5: Cost-Based Kill Switch
 
-- [ ] Create `cost_guard_node()`
-  - [ ] Check: `total_cost >= MAX_COST_PER_SESSION` ($1.00 default)
-  - [ ] If over budget:
-    - [ ] Set `should_stop = True`
-    - [ ] Set `stop_reason = "cost_budget_exceeded"`
-    - [ ] Log warning with current cost
-  - [ ] Return updated state
-- [ ] Add to graph BEFORE expensive nodes
-  - [ ] Insert between facilitator and persona nodes
-  - [ ] Conditional routing: budget exceeded → force synthesis
-- [ ] Make configurable
-  - [ ] Environment variable: `MAX_COST_PER_SESSION`
-  - [ ] Per-tier limits (free, pro, enterprise)
+- [x] Create `cost_guard_node()`
+  - [x] Check: `total_cost >= MAX_COST_PER_SESSION` ($1.00 default)
+  - [x] If over budget:
+    - [x] Set `should_stop = True`
+    - [x] Set `stop_reason = "cost_budget_exceeded"`
+    - [x] Log warning with current cost
+  - [x] Return updated state
+- [x] Add to graph BEFORE expensive nodes
+  - [x] Insert between facilitator and persona nodes
+  - [x] Conditional routing: budget exceeded → force synthesis
+- [x] Make configurable
+  - [x] Environment variable: `MAX_COST_PER_SESSION`
+  - [x] Per-tier limits (free, pro, enterprise)
 
 #### Multi-Layer Testing
 
-- [ ] Test: Timeout kills long-running session
-  - [ ] Create slow node (`await asyncio.sleep(10)`)
-  - [ ] Execute with 1-second timeout
-  - [ ] Verify TimeoutError raised
-  - [ ] Verify checkpoint preserved
-- [ ] Test: Cost guard stops expensive session
-  - [ ] Mock LLM responses with high costs
-  - [ ] Trigger cost guard ($1.01 total)
-  - [ ] Verify early termination
-  - [ ] Verify synthesis still runs
-- [ ] Test: All 5 layers work independently
-  - [ ] Test each layer in isolation
-  - [ ] Test combined (multiple layers triggered)
-  - [ ] Verify 100% confidence in prevention
+- [x] Test: Timeout kills long-running session
+  - [x] Create slow node (`await asyncio.sleep(10)`)
+  - [x] Execute with 1-second timeout
+  - [x] Verify TimeoutError raised
+  - [x] Verify checkpoint preserved
+- [x] Test: Cost guard stops expensive session
+  - [x] Mock LLM responses with high costs
+  - [x] Trigger cost guard ($1.01 total)
+  - [x] Verify early termination
+  - [x] Verify synthesis still runs
+- [x] Test: All 5 layers work independently
+  - [x] Test each layer in isolation
+  - [x] Test combined (multiple layers triggered)
+  - [x] Verify 100% confidence in prevention
 
 #### Documentation
 
-- [ ] Document 5-layer system in `LOOP_PREVENTION.md`
-  - [ ] Layer 1: Recursion limit (how it works, why 55)
-  - [ ] Layer 2: Cycle detection (compile-time validation)
-  - [ ] Layer 3: Round counter (domain logic, max 15)
-  - [ ] Layer 4: Timeout watchdog (1 hour hard limit)
-  - [ ] Layer 5: Cost kill switch ($1 budget cap)
-  - [ ] Combined guarantee: 100% confidence
-- [ ] Add to CLAUDE.md
-  - [ ] Reference loop prevention in architecture section
-  - [ ] Link to LOOP_PREVENTION.md
+- [x] Document 5-layer system in `LOOP_PREVENTION.md`
+  - [x] Layer 1: Recursion limit (how it works, why 55)
+  - [x] Layer 2: Cycle detection (compile-time validation)
+  - [x] Layer 3: Round counter (domain logic, max 15)
+  - [x] Layer 4: Timeout watchdog (1 hour hard limit)
+  - [x] Layer 5: Cost kill switch ($1 budget cap)
+  - [x] Combined guarantee: 100% confidence
+- [x] Add to CLAUDE.md
+  - [x] Reference loop prevention in architecture section
+  - [x] Link to LOOP_PREVENTION.md
 
 **Validation**:
-- [ ] Timeout works (long sessions killed)
-- [ ] Cost guard works (expensive sessions stopped)
-- [ ] All 5 layers tested independently
-- [ ] Documentation complete and accurate
+- [x] Timeout works (long sessions killed)
+- [x] Cost guard works (expensive sessions stopped)
+- [x] All 5 layers tested independently
+- [x] Documentation complete and accurate
 
 **Tests**:
 ```bash
@@ -607,27 +607,27 @@ pytest tests/test_multi_layer_prevention.py -v
 
 #### Session Manager
 
-- [ ] Create `bo1/graph/execution.py`
-  - [ ] `SessionManager` class
-    - [ ] `active_executions: dict[str, asyncio.Task]`
-    - [ ] `start_session()` - Create background task
-    - [ ] `kill_session()` - User kills own session
-    - [ ] `admin_kill_session()` - Admin kills any session
-    - [ ] `admin_kill_all_sessions()` - Emergency shutdown
-    - [ ] `is_admin()` - Check admin role
-  - [ ] Ownership tracking
-    - [ ] Store `user_id` in session metadata (Redis)
-    - [ ] Verify ownership before kill (PermissionError if mismatch)
+- [x] Create `bo1/graph/execution.py`
+  - [x] `SessionManager` class
+    - [x] `active_executions: dict[str, asyncio.Task]`
+    - [x] `start_session()` - Create background task
+    - [x] `kill_session()` - User kills own session
+    - [x] `admin_kill_session()` - Admin kills any session
+    - [x] `admin_kill_all_sessions()` - Emergency shutdown
+    - [x] `is_admin()` - Check admin role
+  - [x] Ownership tracking
+    - [x] Store `user_id` in session metadata (Redis)
+    - [x] Verify ownership before kill (PermissionError if mismatch)
 
 #### User Kill Switch
 
-- [ ] Implement `kill_session()`
-  - [ ] Check ownership (user can ONLY kill own sessions)
-  - [ ] Cancel background task (`task.cancel()`)
-  - [ ] Update metadata (`status = "killed"`, `killed_at`, `killed_by`, `kill_reason`)
-  - [ ] Preserve checkpoint (for post-mortem inspection)
-  - [ ] Log termination (audit trail)
-  - [ ] Return success/failure boolean
+- [x] Implement `kill_session()`
+  - [x] Check ownership (user can ONLY kill own sessions)
+  - [x] Cancel background task (`task.cancel()`)
+  - [x] Update metadata (`status = "killed"`, `killed_at`, `killed_by`, `kill_reason`)
+  - [x] Preserve checkpoint (for post-mortem inspection)
+  - [x] Log termination (audit trail)
+  - [x] Return success/failure boolean
 - [ ] API endpoint (console mode for now)
   - [ ] `/api/admin/sessions/{session_id}/kill` (POST)
   - [ ] Validate user owns session
@@ -636,58 +636,58 @@ pytest tests/test_multi_layer_prevention.py -v
 
 #### Admin Kill Switch
 
-- [ ] Implement `admin_kill_session()`
-  - [ ] NO ownership check (admins can kill any session)
-  - [ ] Verify admin role (`is_admin()` check)
-  - [ ] Cancel task, update metadata (same as user kill)
-  - [ ] Log with admin user ID
-  - [ ] Raise PermissionError if not admin
-- [ ] Implement `admin_kill_all_sessions()`
-  - [ ] Emergency use only (system maintenance, runaway costs)
-  - [ ] Iterate all active sessions (`redis.list_sessions()`)
-  - [ ] Kill each with admin_kill_session()
-  - [ ] Return count of killed sessions
-  - [ ] Log WARNING (critical action)
+- [x] Implement `admin_kill_session()`
+  - [x] NO ownership check (admins can kill any session)
+  - [x] Verify admin role (`is_admin()` check)
+  - [x] Cancel task, update metadata (same as user kill)
+  - [x] Log with admin user ID
+  - [x] Raise PermissionError if not admin
+- [x] Implement `admin_kill_all_sessions()`
+  - [x] Emergency use only (system maintenance, runaway costs)
+  - [x] Iterate all active sessions (`redis.list_sessions()`)
+  - [x] Kill each with admin_kill_session()
+  - [x] Return count of killed sessions
+  - [x] Log WARNING (critical action)
 
 #### Graceful Shutdown
 
-- [ ] Signal handlers for deployment
-  - [ ] Register `SIGTERM` handler
-  - [ ] Register `SIGINT` handler (Ctrl+C)
-  - [ ] On signal:
-    - [ ] Get all active sessions
-    - [ ] Cancel tasks with 5-second grace period
-    - [ ] Save checkpoints before exit
-    - [ ] Log shutdown event
+- [x] Signal handlers for deployment
+  - [x] Register `SIGTERM` handler
+  - [x] Register `SIGINT` handler (Ctrl+C)
+  - [x] On signal:
+    - [x] Get all active sessions
+    - [x] Cancel tasks with 5-second grace period
+    - [x] Save checkpoints before exit
+    - [x] Log shutdown event
 
 #### Testing
 
-- [ ] Test: User can kill own session
-  - [ ] Start session, verify running
-  - [ ] Call kill_session() with same user_id
-  - [ ] Verify task canceled, metadata updated
-- [ ] Test: User CANNOT kill other users' sessions
-  - [ ] Start session (user_1)
-  - [ ] Attempt kill (user_2)
-  - [ ] Verify PermissionError raised
-- [ ] Test: Admin can kill any session
-  - [ ] Start session (user_1)
-  - [ ] Admin kills session
-  - [ ] Verify success
-- [ ] Test: Admin can kill all sessions
-  - [ ] Start 3 sessions (different users)
-  - [ ] Admin kills all
-  - [ ] Verify all killed, count correct
-- [ ] Test: Graceful shutdown preserves checkpoints
-  - [ ] Start session, send SIGTERM
-  - [ ] Verify checkpoint saved before exit
+- [x] Test: User can kill own session
+  - [x] Start session, verify running
+  - [x] Call kill_session() with same user_id
+  - [x] Verify task canceled, metadata updated
+- [x] Test: User CANNOT kill other users' sessions
+  - [x] Start session (user_1)
+  - [x] Attempt kill (user_2)
+  - [x] Verify PermissionError raised
+- [x] Test: Admin can kill any session
+  - [x] Start session (user_1)
+  - [x] Admin kills session
+  - [x] Verify success
+- [x] Test: Admin can kill all sessions
+  - [x] Start 3 sessions (different users)
+  - [x] Admin kills all
+  - [x] Verify all killed, count correct
+- [x] Test: Graceful shutdown preserves checkpoints
+  - [x] Start session, send SIGTERM
+  - [x] Verify checkpoint saved before exit
 
 **Validation**:
-- [ ] User kill switch works (ownership enforced)
-- [ ] Admin kill switch works (no ownership check)
-- [ ] Admin kill all works (emergency use)
-- [ ] Graceful shutdown preserves state
-- [ ] Audit trail logged for all kills
+- [x] User kill switch works (ownership enforced)
+- [x] Admin kill switch works (no ownership check)
+- [x] Admin kill all works (emergency use)
+- [x] Graceful shutdown preserves state
+- [x] Audit trail logged for all kills
 
 **Tests**:
 ```bash
@@ -703,73 +703,73 @@ pytest tests/test_graceful_shutdown.py -v
 
 #### Node Implementation
 
-- [ ] Create `bo1/graph/nodes.py`
-  - [ ] `decompose_node()` - Wraps DecomposerAgent
-    - [ ] Convert graph state → DeliberationState
-    - [ ] Call existing `decomposer.decompose()`
-    - [ ] Update graph state with sub-problems
-    - [ ] Track cost in `phase_costs["problem_decomposition"]`
-    - [ ] Return updated state
-  - [ ] `select_personas_node()` - Wraps PersonaSelectorAgent
-    - [ ] Call existing `selector.recommend_personas()`
-    - [ ] Update graph state with selected personas
-    - [ ] Track cost
-    - [ ] Return updated state
-  - [ ] `initial_round_node()` - Parallel persona calls
-    - [ ] Reuse existing `DeliberationEngine.run_initial_round()`
-    - [ ] Update graph state with contributions
-    - [ ] Track cost per persona
-    - [ ] Return updated state
+- [x] Create `bo1/graph/nodes.py`
+  - [x] `decompose_node()` - Wraps DecomposerAgent
+    - [x] Convert graph state → DeliberationState
+    - [x] Call existing `decomposer.decompose()`
+    - [x] Update graph state with sub-problems
+    - [x] Track cost in `phase_costs["problem_decomposition"]`
+    - [x] Return updated state
+  - [x] `select_personas_node()` - Wraps PersonaSelectorAgent
+    - [x] Call existing `selector.recommend_personas()`
+    - [x] Update graph state with selected personas
+    - [x] Track cost
+    - [x] Return updated state
+  - [x] `initial_round_node()` - Parallel persona calls
+    - [x] Reuse existing `DeliberationEngine.run_initial_round()`
+    - [x] Update graph state with contributions
+    - [x] Track cost per persona
+    - [x] Return updated state
 
 #### Router Functions
 
-- [ ] Create `bo1/graph/routers.py`
-  - [ ] `route_phase()` - Determine next phase
-    - [ ] After decompose → "select_personas"
-    - [ ] After select → "initial_round"
-    - [ ] After initial → "facilitator_decide" (Week 5)
-  - [ ] Simple routing for now (linear path)
-  - [ ] Document: How routing will evolve (Week 5)
+- [x] Create `bo1/graph/routers.py`
+  - [x] `route_phase()` - Determine next phase
+    - [x] After decompose → "select_personas"
+    - [x] After select → "initial_round"
+    - [x] After initial → "facilitator_decide" (Week 5)
+  - [x] Simple routing for now (linear path)
+  - [x] Document: How routing will evolve (Week 5)
 
 #### Graph Configuration
 
-- [ ] Create `bo1/graph/config.py`
-  - [ ] `create_deliberation_graph()` function
-    - [ ] Initialize StateGraph with DeliberationGraphState
-    - [ ] Add nodes (decompose, select, initial_round)
-    - [ ] Add edges (decompose → select → initial_round)
-    - [ ] Set entry point (decompose)
-    - [ ] Compile with recursion_limit=55
-    - [ ] Return compiled graph
-  - [ ] Add Redis checkpointer (optional param)
-    - [ ] `RedisSaver(redis_url=...)`
-    - [ ] Configure TTL (7 days, longer than v1 for pause/resume)
+- [x] Create `bo1/graph/config.py`
+  - [x] `create_deliberation_graph()` function
+    - [x] Initialize StateGraph with DeliberationGraphState
+    - [x] Add nodes (decompose, select, initial_round)
+    - [x] Add edges (decompose → select → initial_round)
+    - [x] Set entry point (decompose)
+    - [x] Compile with recursion_limit=55
+    - [x] Return compiled graph
+  - [x] Add Redis checkpointer (optional param)
+    - [x] `RedisSaver(redis_url=...)`
+    - [x] Configure TTL (7 days, longer than v1 for pause/resume)
 
 #### Testing
 
-- [ ] Test: Decompose node works
-  - [ ] Call with initial state
-  - [ ] Verify sub-problems created
-  - [ ] Verify cost tracked
-- [ ] Test: Select personas node works
-  - [ ] Call with decomposed state
-  - [ ] Verify personas selected
-  - [ ] Verify cost tracked
-- [ ] Test: Initial round node works
-  - [ ] Call with selected personas
-  - [ ] Verify contributions created
-  - [ ] Verify cost tracked
-- [ ] Test: Full linear graph executes
-  - [ ] Create graph, invoke with Problem
-  - [ ] Verify all 3 nodes execute
-  - [ ] Verify state updated correctly
-  - [ ] Verify checkpoint created (if checkpointer enabled)
+- [x] Test: Decompose node works
+  - [x] Call with initial state
+  - [x] Verify sub-problems created
+  - [x] Verify cost tracked
+- [x] Test: Select personas node works
+  - [x] Call with decomposed state
+  - [x] Verify personas selected
+  - [x] Verify cost tracked
+- [x] Test: Initial round node works
+  - [x] Call with selected personas
+  - [x] Verify contributions created
+  - [x] Verify cost tracked
+- [x] Test: Full linear graph executes
+  - [x] Create graph, invoke with Problem
+  - [x] Verify all 3 nodes execute
+  - [x] Verify state updated correctly
+  - [x] Verify checkpoint created (if checkpointer enabled)
 
 **Validation**:
-- [ ] All nodes execute without errors
-- [ ] State updates correctly at each node
-- [ ] Cost tracking works
-- [ ] Linear graph completes end-to-end
+- [x] All nodes execute without errors
+- [x] State updates correctly at each node
+- [x] Cost tracking works
+- [x] Linear graph completes end-to-end
 
 **Tests**:
 ```bash

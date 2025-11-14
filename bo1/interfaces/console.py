@@ -8,12 +8,13 @@ Provides a console-friendly interface for running deliberations with:
 """
 
 import logging
+from typing import Any
 
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from bo1.graph.config import create_deliberation_graph
-from bo1.graph.state import DeliberationGraphState, create_initial_state
+from bo1.graph.state import create_initial_state
 from bo1.models.problem import Problem
 from bo1.ui.console import Console
 
@@ -25,7 +26,7 @@ async def run_console_deliberation(
     session_id: str | None = None,
     max_rounds: int = 15,
     debug: bool = False,
-) -> DeliberationGraphState:
+) -> Any:  # Returns DeliberationGraphState but typing is complex
     """Run a deliberation session with console UI.
 
     Args:
@@ -47,8 +48,8 @@ async def run_console_deliberation(
     """
     console = Console(debug=debug)
 
-    # Create graph
-    graph = create_deliberation_graph(checkpointer=True)
+    # Create graph (checkpointer=None for now, Week 5 will add Redis checkpointing)
+    graph = create_deliberation_graph(checkpointer=None)
 
     # Resume from checkpoint or create new session
     if session_id:
@@ -80,10 +81,12 @@ async def run_console_deliberation(
         console.print_problem(problem)
 
         # Create initial state
-        initial_state = create_initial_state(problem, max_rounds=max_rounds)
         import uuid
 
         session_id = str(uuid.uuid4())
+        initial_state = create_initial_state(
+            session_id=session_id, problem=problem, max_rounds=max_rounds
+        )
         config = {"configurable": {"thread_id": session_id}}
 
     # Execute graph with progress display
@@ -119,7 +122,7 @@ async def run_console_deliberation(
     return final_state
 
 
-def _display_results(console: Console, state: DeliberationGraphState) -> None:
+def _display_results(console: Console, state: Any) -> None:  # state is DeliberationGraphState
     """Display final deliberation results.
 
     Args:
@@ -129,11 +132,14 @@ def _display_results(console: Console, state: DeliberationGraphState) -> None:
     # Display phase costs
     console.print_header("Deliberation Complete")
 
+    # Get metrics object
+    metrics = state["metrics"]
+
     # Summary panel
     summary_lines = [
         f"**Phase**: {state['phase'].value}",
         f"**Rounds**: {state['round_number']}",
-        f"**Total Cost**: ${state['metrics']['total_cost']:.4f}",
+        f"**Total Cost**: ${metrics.total_cost:.4f}",
         f"**Stop Reason**: {state.get('stop_reason', 'N/A')}",
     ]
 
@@ -145,23 +151,9 @@ def _display_results(console: Console, state: DeliberationGraphState) -> None:
         )
     )
 
-    # Phase costs breakdown
-    if state["metrics"]["phase_costs"]:
-        console.print("\n[title]Cost Breakdown by Phase[/title]\n")
-
-        from rich.table import Table
-
-        table = Table(show_header=True, header_style="bold cyan")
-        table.add_column("Phase", style="cyan")
-        table.add_column("Cost", justify="right")
-        table.add_column("% of Total", justify="right")
-
-        total = state["metrics"]["total_cost"]
-        for phase, cost in state["metrics"]["phase_costs"].items():
-            percentage = (cost / total * 100) if total > 0 else 0
-            table.add_row(phase, f"${cost:.4f}", f"{percentage:.1f}%")
-
-        console.print(table)
+    # Phase costs breakdown (Week 5 feature - not yet implemented)
+    # For now, just show total cost
+    console.print(f"\n[info]Total tokens: {metrics.total_tokens:,}[/info]")
 
     # Display contributions summary
     console.print(f"\n[info]Total Contributions: {len(state['contributions'])}[/info]")
@@ -173,7 +165,7 @@ def _display_results(console: Console, state: DeliberationGraphState) -> None:
 
 async def stream_deliberation_events(
     problem: Problem, session_id: str | None = None, max_rounds: int = 15
-) -> DeliberationGraphState:
+) -> Any:  # Returns DeliberationGraphState
     """Stream deliberation events in real-time (for future SSE support).
 
     Args:
@@ -185,17 +177,19 @@ async def stream_deliberation_events(
         Final deliberation state
     """
     # Create graph
-    graph = create_deliberation_graph(checkpointer=True)
+    graph = create_deliberation_graph(checkpointer=None)
 
     # Create initial state or resume
     if session_id:
         config = {"configurable": {"thread_id": session_id}}
         initial_state = None
     else:
-        initial_state = create_initial_state(problem, max_rounds=max_rounds)
         import uuid
 
         session_id = str(uuid.uuid4())
+        initial_state = create_initial_state(
+            session_id=session_id, problem=problem, max_rounds=max_rounds
+        )
         config = {"configurable": {"thread_id": session_id}}
 
     # Stream events

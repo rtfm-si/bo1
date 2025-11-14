@@ -63,10 +63,14 @@ def create_deliberation_graph(
         # Explicitly disabled (for tests)
         actual_checkpointer = None
         logger.info("Checkpointing disabled")
-    else:
+    elif isinstance(checkpointer, RedisSaver):
         # Use provided checkpointer
         actual_checkpointer = checkpointer
         logger.info("Using provided checkpointer")
+    else:
+        raise TypeError(
+            f"checkpointer must be None, False, or RedisSaver, got {type(checkpointer)}"
+        )
 
     # Initialize state graph
     workflow = StateGraph(DeliberationGraphState)

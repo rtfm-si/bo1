@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from anthropic import RateLimitError
+from anthropic.types import MessageParam, TextBlockParam
 from langchain_anthropic import ChatAnthropic
 from pydantic import BaseModel, Field
 
@@ -181,37 +182,42 @@ class ClaudeClient:
         anthropic_client = AsyncAnthropic(**client_kwargs)
 
         # Build messages in Anthropic format
-        anthropic_messages: list[dict[str, Any]] = []
+        anthropic_messages: list[MessageParam] = []
 
         # Add conversation messages
         for msg in messages:
-            anthropic_messages.append({"role": msg["role"], "content": msg["content"]})
+            # Cast role to proper literal type
+            role: Any = msg["role"]  # "user" or "assistant"
+            content: Any = msg["content"]
+            anthropic_messages.append({"role": role, "content": content})
 
         # Add prefill if provided
         if prefill:
             anthropic_messages.append({"role": "assistant", "content": prefill})
 
         # Prepare system parameter with caching
-        system_blocks: list[dict[str, Any]] | str | None = None
+        # Type is complex because Anthropic SDK uses Union with Omit
+        system_param: Any = None
         if system:
             if cache_system:
                 # Use Anthropic's cache_control format
-                system_blocks = [
-                    {
-                        "type": "text",
-                        "text": system,
-                        "cache_control": {"type": "ephemeral"},
-                    }
+                cache_control: dict[str, str] = {"type": "ephemeral"}
+                system_param = [
+                    TextBlockParam(
+                        type="text",
+                        text=system,
+                        cache_control=cache_control,  # type: ignore[typeddict-item]
+                    )
                 ]
             else:
-                system_blocks = system
+                system_param = system
 
         # Make direct Anthropic API call
         try:
             response = await anthropic_client.messages.create(
                 model=full_model_id,
                 messages=anthropic_messages,
-                system=system_blocks if system_blocks else None,
+                system=system_param,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )

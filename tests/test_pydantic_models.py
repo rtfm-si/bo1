@@ -29,10 +29,9 @@ from bo1.models.votes import Vote, VoteDecision
 def test_problem_model_round_trip():
     """Test: Problem model serializes and deserializes correctly."""
     original = Problem(
-        statement="Should we invest $500K in AI infrastructure?",
+        title="AI Infrastructure Investment",
+        description="Should we invest $500K in AI infrastructure?",
         context="Series A funded startup, 50 employees",
-        constraints="Must decide within 30 days, limited engineering bandwidth",
-        success_criteria="Clear ROI projection, team buy-in >80%",
     )
 
     # Serialize to dict
@@ -48,9 +47,8 @@ def test_problem_model_round_trip():
     # Deserialize from dict
     restored_from_dict = Problem.model_validate(data)
     assert restored_from_dict.title == original.title
+    assert restored_from_dict.description == original.description
     assert restored_from_dict.context == original.context
-    assert restored_from_dict.constraints == original.constraints
-    assert restored_from_dict.success_criteria == original.success_criteria
 
     # Deserialize from JSON
     restored_from_json = Problem.model_validate_json(json_str)
@@ -62,9 +60,9 @@ def test_sub_problem_model_round_trip():
     """Test: SubProblem model serializes and deserializes correctly."""
     original = SubProblem(
         id="sp-001",
-        statement="What is the projected ROI?",
+        goal="What is the projected ROI?",
         context="Need to justify the investment",
-        assigned_personas=["financial_analyst", "growth_hacker"],
+        complexity_score=6,
     )
 
     # Round trip through dict
@@ -72,14 +70,14 @@ def test_sub_problem_model_round_trip():
     restored = SubProblem.model_validate(data)
 
     assert restored.id == original.id
-    assert restored.title == original.title
+    assert restored.goal == original.goal
     assert restored.context == original.context
-    assert restored.assigned_personas == original.assigned_personas
+    assert restored.complexity_score == original.complexity_score
 
     # Round trip through JSON
     json_str = original.model_dump_json()
     restored_json = SubProblem.model_validate_json(json_str)
-    assert restored_json.title == original.title
+    assert restored_json.goal == original.goal
 
 
 @pytest.mark.unit
@@ -93,12 +91,12 @@ def test_persona_profile_model_round_trip(sample_persona):
 
     assert restored.code == original.code
     assert restored.name == original.name
-    assert restored.expertise == original.expertise
+    assert restored.domain_expertise == original.domain_expertise
     assert restored.system_prompt == original.system_prompt
 
     # Verify list fields are preserved
-    assert len(restored.expertise) == 3
-    assert "strategy" in restored.expertise
+    expertise_list = restored.get_expertise_list()
+    assert len(expertise_list) > 0
 
 
 @pytest.mark.unit
@@ -172,14 +170,34 @@ def test_deliberation_metrics_model_round_trip():
 @pytest.mark.unit
 def test_deliberation_state_model_round_trip():
     """Test: DeliberationState model serializes and deserializes correctly."""
-    problem = Problem(title="Test problem", description="Test context", context="Test constraints")
+    from bo1.models.persona import PersonaCategory, PersonaType, ResponseStyle
+
+    problem = Problem(title="Test problem", description="Test description", context="Test context")
 
     personas = [
         PersonaProfile(
+            id="test-id-123",
             code="test_expert",
             name="Test Expert",
-            expertise=["testing"],
+            archetype="Test Archetype",
+            category=PersonaCategory.STRATEGY,
+            description="Test description",
+            emoji="🧪",
+            color_hex="#FF0000",
+            traits={
+                "creative": 0.5,
+                "analytical": 0.8,
+                "optimistic": 0.6,
+                "risk_averse": 0.4,
+                "detail_oriented": 0.7,
+            },
+            default_weight=1.0,
+            temperature=0.7,
             system_prompt="You are a test expert.",
+            response_style=ResponseStyle.ANALYTICAL,
+            display_name="Test",
+            domain_expertise=["testing"],
+            persona_type=PersonaType.STANDARD,
         )
     ]
 
@@ -197,6 +215,7 @@ def test_deliberation_state_model_round_trip():
     original = DeliberationState(
         session_id="test-session-123",
         problem=problem,
+        current_sub_problem=None,
         selected_personas=personas,
         contributions=[contribution],
         round_summaries=["Round 0: Initial contributions collected"],
@@ -253,21 +272,19 @@ def test_vote_model_round_trip():
 @pytest.mark.unit
 def test_problem_model_requires_all_fields():
     """Test: Problem model raises ValidationError when required fields missing."""
-    # Missing statement
+    # Missing title
     with pytest.raises(ValidationError) as exc_info:
         Problem(
+            description="Test",
             context="Test",
-            constraints="Test",
-            success_criteria="Test",
         )  # type: ignore[call-arg]
-    assert "statement" in str(exc_info.value)
+    assert "title" in str(exc_info.value)
 
     # Missing context
     with pytest.raises(ValidationError) as exc_info:
         Problem(
-            statement="Test",
-            constraints="Test",
-            success_criteria="Test",
+            title="Test",
+            description="Test",
         )  # type: ignore[call-arg]
     assert "context" in str(exc_info.value)
 
@@ -295,6 +312,9 @@ def test_contribution_message_validates_round_number():
             persona_code="test",
             persona_name="Test",
             content="Test",
+            thinking=None,
+            token_count=None,
+            cost=None,
             round_number=-1,
         )
     assert "round_number" in str(exc_info.value) or "greater" in str(exc_info.value)
@@ -358,27 +378,45 @@ def test_vote_validates_confidence_range():
 @pytest.mark.unit
 def test_models_handle_empty_strings():
     """Test: Models handle empty strings appropriately."""
-    # Empty statement should be allowed (validation happens at business logic level)
+    # Empty fields should be allowed (validation happens at business logic level)
     problem = Problem(
-        statement="",
+        title="",
+        description="",
         context="",
-        constraints="",
-        success_criteria="",
     )
     assert problem.title == ""
 
 
 @pytest.mark.unit
-@pytest.mark.skip(reason="Needs PersonaProfile fixture update")
 def test_models_handle_empty_lists():
     """Test: Models handle empty lists correctly."""
+    from bo1.models.persona import PersonaCategory, PersonaType, ResponseStyle
+
     persona = PersonaProfile(
+        id="test-id",
         code="test",
         name="Test",
-        expertise=[],  # Empty list should be allowed
+        archetype="Test",
+        category=PersonaCategory.STRATEGY,
+        description="Test",
+        emoji="🧪",
+        color_hex="#FF0000",
+        traits={
+            "creative": 0.5,
+            "analytical": 0.8,
+            "optimistic": 0.6,
+            "risk_averse": 0.4,
+            "detail_oriented": 0.7,
+        },
+        default_weight=1.0,
+        temperature=0.7,
         system_prompt="Test",
+        response_style=ResponseStyle.ANALYTICAL,
+        display_name="Test",
+        domain_expertise=[],  # Empty list should be allowed
+        persona_type=PersonaType.STANDARD,
     )
-    assert persona.expertise == []
+    assert persona.get_expertise_list() == []
 
     state = DeliberationState(
         session_id="test",
@@ -387,6 +425,7 @@ def test_models_handle_empty_lists():
             description="",
             context="",
         ),
+        current_sub_problem=None,
         selected_personas=[],  # Empty list
         contributions=[],  # Empty list
         round_summaries=[],  # Empty list
@@ -449,10 +488,9 @@ def test_models_handle_very_long_strings():
     long_text = "A" * 10000  # 10K character string
 
     problem = Problem(
-        statement=long_text,
+        title=long_text,
+        description=long_text,
         context=long_text,
-        constraints=long_text,
-        success_criteria=long_text,
     )
 
     # Should serialize without issues
@@ -470,10 +508,9 @@ def test_models_handle_special_characters():
     special_text = "Test with émojis 🚀 and spëcial çhars: <>{}[]|\\\"'`~!@#$%^&*()"
 
     problem = Problem(
-        statement=special_text,
+        title=special_text,
+        description=special_text,
         context=special_text,
-        constraints=special_text,
-        success_criteria=special_text,
     )
 
     # JSON serialization should handle unicode
@@ -526,6 +563,9 @@ def test_models_coerce_compatible_types():
         persona_code="test",
         persona_name="Test",
         content="Test",
+        thinking=None,
+        token_count=None,
+        cost=None,
         round_number="5",  # type: ignore[arg-type]
     )
     assert contribution.round_number == 5
@@ -556,9 +596,9 @@ def test_models_reject_incompatible_types():
             content="Test",
             contribution_type="invalid_type",  # type: ignore[arg-type]
             thinking=None,
-        token_count=None,
-        cost=None,
-        round_number=0,
+            token_count=None,
+            cost=None,
+            round_number=0,
         )
 
     # Invalid phase enum
@@ -570,6 +610,7 @@ def test_models_reject_incompatible_types():
                 description="",
                 context="",
             ),
+            current_sub_problem=None,
             selected_personas=[],
             contributions=[],
             round_summaries=[],

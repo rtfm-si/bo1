@@ -34,6 +34,7 @@ async def test_console_deliberation_basic():
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_llm
 async def test_console_deliberation_session_id():
     """Test that session ID is generated and accessible."""
     problem = Problem(
@@ -53,6 +54,7 @@ async def test_console_deliberation_session_id():
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_llm
 async def test_display_results_structure():
     """Test that final state has required fields for display."""
     problem = Problem(

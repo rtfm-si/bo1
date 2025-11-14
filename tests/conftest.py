@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 from dotenv import load_dotenv
@@ -85,7 +86,7 @@ def redis_url() -> str:
 
 
 @pytest.fixture
-def redis_manager_or_skip(redis_url: str):
+def redis_manager_or_skip(redis_url: str) -> Any:
     """Provide Redis manager or skip test if Redis unavailable.
 
     This fixture allows tests to gracefully skip when Redis is not available
@@ -99,16 +100,19 @@ def redis_manager_or_skip(redis_url: str):
     from bo1.state.redis_manager import RedisManager
 
     try:
-        manager = RedisManager(redis_url=redis_url)
-        # Test connection
-        manager.client.ping()
+        # Parse redis_url if needed, or use default host/port
+        # RedisManager will use settings from config if not specified
+        manager = RedisManager()
+        # Test connection - RedisManager handles this internally
+        if not manager.is_available:
+            pytest.skip("Redis not available")
         yield manager
     except Exception as e:
         pytest.skip(f"Redis not available: {e}")
 
 
 @pytest.fixture
-def redis_manager_or_none(redis_url: str):
+def redis_manager_or_none(redis_url: str) -> Any:
     """Provide Redis manager or None if unavailable (no skip).
 
     This fixture returns None when Redis is unavailable, allowing tests
@@ -124,8 +128,10 @@ def redis_manager_or_none(redis_url: str):
     from bo1.state.redis_manager import RedisManager
 
     try:
-        manager = RedisManager(redis_url=redis_url)
-        manager.client.ping()
+        # RedisManager will use settings from config if not specified
+        manager = RedisManager()
+        if not manager.is_available:
+            return None
         return manager
     except Exception:
         return None

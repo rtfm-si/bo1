@@ -1256,4 +1256,3 @@ async def test_notification(
 **Approval Required**: Product Manager, Engineering Lead
 **Estimated Effort**: 2 weeks (1 full-stack engineer)
 **Dependencies**: LangGraph migration (Weeks 1-9), PostgreSQL setup
-

@@ -2204,4 +2204,3 @@ Fixed 3 failing tests discovered after Week 3 implementation:
   - `test_initial_round_execution`: Cost threshold increased from $0.05 to $0.10 (actual: $0.058)
 
 **Impact**: All tests now pass or are properly skipped. Pre-commit checks (lint + format + typecheck) passing.
-

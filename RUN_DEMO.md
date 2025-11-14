@@ -4,7 +4,7 @@ The current implementation includes **Problem Decomposition** and **Persona Sele
 
 ## Prerequisites
 
-1. **Docker environment running**: 
+1. **Docker environment running**:
    ```bash
    make up
    ```

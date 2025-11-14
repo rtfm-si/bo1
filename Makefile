@@ -245,6 +245,57 @@ install-dev: ## Install development dependencies locally (outside Docker, option
 	@echo ""
 	@echo "Note: You can develop entirely in Docker without this."
 
+.PHONY: setup-dev
+setup-dev: ## One-command setup for new developers (<5 min)
+	@echo "🚀 Setting up Board of One development environment..."
+	@echo ""
+	@echo "Step 1/7: Installing uv package manager..."
+	@command -v uv >/dev/null 2>&1 || { echo "Installing uv..."; curl -LsSf https://astral.sh/uv/install.sh | sh; }
+	@echo "✓ uv installed"
+	@echo ""
+	@echo "Step 2/7: Installing Python dependencies..."
+	@uv sync --frozen
+	@echo "✓ Dependencies installed"
+	@echo ""
+	@echo "Step 3/7: Creating .env file..."
+	@if [ ! -f .env ]; then \
+		cp .env.example .env; \
+		echo "✓ .env created from .env.example"; \
+		echo "  → IMPORTANT: Edit .env and add your ANTHROPIC_API_KEY"; \
+	else \
+		echo "✓ .env already exists"; \
+	fi
+	@echo ""
+	@echo "Step 4/7: Installing pre-commit hooks..."
+	@uv run pre-commit install
+	@echo "✓ Pre-commit hooks installed"
+	@echo ""
+	@echo "Step 5/7: Starting Docker services..."
+	@docker-compose up -d
+	@echo "✓ Docker services started"
+	@echo ""
+	@echo "Step 6/7: Waiting for services to be ready..."
+	@sleep 5
+	@echo "✓ Services ready"
+	@echo ""
+	@echo "Step 7/7: Running database migrations..."
+	@uv run alembic upgrade head
+	@echo "✓ Migrations complete"
+	@echo ""
+	@echo "Step 8/8: Seeding personas..."
+	@uv run python scripts/seed_personas.py
+	@echo "✓ Personas seeded"
+	@echo ""
+	@echo "✅ Setup complete! You're ready to develop."
+	@echo ""
+	@echo "Quick start:"
+	@echo "  • Run deliberation: make run"
+	@echo "  • Run tests: make test"
+	@echo "  • View Redis: make redis-ui (http://localhost:8081)"
+	@echo "  • View docs: cat CLAUDE.md"
+	@echo ""
+	@echo "⏱️  Total setup time: <5 minutes"
+
 # =============================================================================
 # Cloud Deployment Helpers (for future use)
 # =============================================================================

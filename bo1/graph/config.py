@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_deliberation_graph(
-    checkpointer: RedisSaver | None | bool = None,
+    checkpointer: Any = None,  # RedisSaver, MemorySaver, or other BaseCheckpointSaver
 ) -> Any:  # Returns CompiledStateGraph but type not exported
     """Create and compile the deliberation graph.
 
@@ -38,10 +38,10 @@ def create_deliberation_graph(
     - synthesize node
 
     Args:
-        checkpointer: Optional Redis checkpointer for pause/resume.
-                     - None: Auto-create from REDIS_URL env var
+        checkpointer: Optional checkpointer for pause/resume.
+                     - None: Auto-create RedisSaver from REDIS_URL env var
                      - False: Disable checkpointing (for tests)
-                     - RedisSaver: Use provided checkpointer
+                     - Any BaseCheckpointSaver: Use provided checkpointer (RedisSaver, MemorySaver, etc.)
 
     Returns:
         Compiled LangGraph ready for execution
@@ -53,7 +53,7 @@ def create_deliberation_graph(
     logger.info("Creating deliberation graph (Day 27: Linear flow)")
 
     # Handle checkpointer configuration
-    actual_checkpointer: RedisSaver | None = None
+    actual_checkpointer: Any = None  # RedisSaver, MemorySaver, or other checkpointer
     if checkpointer is None:
         # Auto-create from environment
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -63,14 +63,11 @@ def create_deliberation_graph(
         # Explicitly disabled (for tests)
         actual_checkpointer = None
         logger.info("Checkpointing disabled")
-    elif isinstance(checkpointer, RedisSaver):
-        # Use provided checkpointer
-        actual_checkpointer = checkpointer
-        logger.info("Using provided checkpointer")
     else:
-        raise TypeError(
-            f"checkpointer must be None, False, or RedisSaver, got {type(checkpointer)}"
-        )
+        # Use provided checkpointer (RedisSaver, MemorySaver, etc.)
+        # We accept Any type to support all BaseCheckpointSaver implementations
+        actual_checkpointer = checkpointer
+        logger.info(f"Using provided checkpointer: {type(checkpointer).__name__}")
 
     # Initialize state graph
     workflow = StateGraph(DeliberationGraphState)

@@ -26,7 +26,8 @@ async def test_console_deliberation_basic():
     assert state["session_id"] is not None
     assert state["problem"] == problem
     assert state["round_number"] >= 0
-    assert state["metrics"]["total_cost"] > 0
+    # metrics is a DeliberationMetrics object, not a dict
+    assert state["metrics"].total_cost > 0
 
     # Should have completed initial round at minimum
     assert len(state["contributions"]) > 0

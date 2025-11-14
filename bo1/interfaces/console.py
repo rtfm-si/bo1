@@ -8,6 +8,8 @@ Provides a console-friendly interface for running deliberations with:
 """
 
 import logging
+import re
+import uuid
 from typing import Any
 
 from rich.panel import Panel
@@ -19,6 +21,63 @@ from bo1.models.problem import Problem
 from bo1.ui.console import Console
 
 logger = logging.getLogger(__name__)
+
+
+def validate_session_id(session_id: str) -> bool:
+    """Validate session ID format (must be a valid UUID).
+
+    Args:
+        session_id: Session ID to validate
+
+    Returns:
+        True if valid UUID format, False otherwise
+    """
+    try:
+        uuid.UUID(session_id)
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
+def sanitize_problem_statement(statement: str) -> str:
+    """Sanitize problem statement to prevent injection attacks.
+
+    Removes potentially dangerous characters while preserving meaningful content.
+
+    Args:
+        statement: Raw problem statement from user input
+
+    Returns:
+        Sanitized problem statement
+    """
+    # Strip leading/trailing whitespace
+    sanitized = statement.strip()
+
+    # Limit length to prevent DoS
+    max_length = 10000
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length]
+
+    # Remove any null bytes
+    sanitized = sanitized.replace("\x00", "")
+
+    # Remove control characters except newlines, tabs, and carriage returns
+    sanitized = re.sub(r"[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]", "", sanitized)
+
+    return sanitized
+
+
+def validate_user_input(user_input: str, valid_options: list[str]) -> bool:
+    """Validate user input against allowed options.
+
+    Args:
+        user_input: User's input string
+        valid_options: List of valid options (case-insensitive)
+
+    Returns:
+        True if input is valid, False otherwise
+    """
+    return user_input.lower().strip() in [opt.lower() for opt in valid_options]
 
 
 async def run_console_deliberation(
@@ -38,6 +97,9 @@ async def run_console_deliberation(
     Returns:
         Final deliberation state
 
+    Raises:
+        ValueError: If session_id is invalid or problem statement is malformed
+
     Examples:
         >>> from bo1.models.problem import Problem
         >>> problem = Problem(
@@ -48,6 +110,26 @@ async def run_console_deliberation(
     """
     console = Console(debug=debug)
 
+    # Validate session_id if provided
+    if session_id and not validate_session_id(session_id):
+        error_msg = f"Invalid session ID format: {session_id}. Must be a valid UUID."
+        console.print(f"[error]{error_msg}[/error]")
+        raise ValueError(error_msg)
+
+    # Sanitize problem statement
+    if problem.description:
+        problem.description = sanitize_problem_statement(problem.description)
+    if problem.title:
+        problem.title = sanitize_problem_statement(problem.title)
+    if problem.context:
+        problem.context = sanitize_problem_statement(problem.context)
+
+    # Validate problem is not empty
+    if not problem.description or not problem.description.strip():
+        error_msg = "Problem description cannot be empty"
+        console.print(f"[error]{error_msg}[/error]")
+        raise ValueError(error_msg)
+
     # Create graph (checkpointer=False disables checkpointing for now)
     # Week 5 will enable Redis checkpointing for pause/resume
     graph = create_deliberation_graph(checkpointer=False)
@@ -57,9 +139,24 @@ async def run_console_deliberation(
         console.print(f"\n[info]Resuming session: {session_id}[/info]")
         config = {"configurable": {"thread_id": session_id}}
 
-        # Load checkpoint to display progress
-        state_snapshot = await graph.aget_state(config)
-        if state_snapshot.values:
+        try:
+            # Load checkpoint to display progress
+            state_snapshot = await graph.aget_state(config)
+
+            # Check if checkpoint exists and is valid
+            if not state_snapshot or not state_snapshot.values:
+                error_msg = f"No checkpoint found for session: {session_id}"
+                console.print(f"[error]{error_msg}[/error]")
+                raise ValueError(error_msg)
+
+            # Validate checkpoint has required fields
+            required_fields = ["phase", "round_number", "metrics"]
+            missing_fields = [f for f in required_fields if f not in state_snapshot.values]
+            if missing_fields:
+                error_msg = f"Corrupted checkpoint for session {session_id}. Missing fields: {missing_fields}"
+                console.print(f"[error]{error_msg}[/error]")
+                raise ValueError(error_msg)
+
             console.print(
                 f"[info]Resuming from phase: {state_snapshot.values.get('phase', 'UNKNOWN')}[/info]"
             )
@@ -70,11 +167,24 @@ async def run_console_deliberation(
                 f"[info]Cost so far: ${state_snapshot.values.get('metrics', {}).get('total_cost', 0.0):.4f}[/info]\n"
             )
 
-            # Ask user to continue
-            response = console.input("[yellow]Continue deliberation? (y/n):[/yellow] ")
+            # Ask user to continue with input validation
+            while True:
+                response = console.input("[yellow]Continue deliberation? (y/n):[/yellow] ")
+                if validate_user_input(response, ["y", "n"]):
+                    break
+                console.print("[warning]Invalid input. Please enter 'y' or 'n'.[/warning]")
+
             if response.lower() != "y":
                 console.print("[warning]Deliberation paused.[/warning]")
                 return state_snapshot.values
+
+        except Exception as e:
+            if "No checkpoint found" in str(e) or "Corrupted checkpoint" in str(e):
+                raise
+            # Re-raise with more context
+            error_msg = f"Error loading checkpoint for session {session_id}: {e}"
+            console.print(f"[error]{error_msg}[/error]")
+            raise ValueError(error_msg) from e
 
         initial_state = None  # Resume from checkpoint
     else:
@@ -82,8 +192,6 @@ async def run_console_deliberation(
         console.print_problem(problem)
 
         # Create initial state
-        import uuid
-
         session_id = str(uuid.uuid4())
         initial_state = create_initial_state(
             session_id=session_id, problem=problem, max_rounds=max_rounds

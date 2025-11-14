@@ -100,6 +100,15 @@ class RedisManager:
         logger.info(f"📝 Created new session: {session_id}")
         return session_id
 
+    @property
+    def client(self) -> redis.Redis | None:  # type: ignore[type-arg]
+        """Backward compatibility: alias for self.redis.
+
+        Returns:
+            Redis client instance or None if unavailable
+        """
+        return self.redis
+
     def _get_key(self, session_id: str) -> str:
         """Get Redis key for a session.
 
@@ -109,14 +118,23 @@ class RedisManager:
         Returns:
             Redis key string
         """
+        # Support both "session:id" and "deliberation:id" formats for backward compatibility
+        if session_id.startswith("session:") or session_id.startswith("deliberation:"):
+            return session_id
         return f"session:{session_id}"
 
-    def save_state(self, session_id: str, state: DeliberationState) -> bool:
+    def save_state(
+        self,
+        session_id: str,
+        state: DeliberationState | dict[str, Any],
+        ttl: int | None = None,
+    ) -> bool:
         """Save deliberation state to Redis.
 
         Args:
-            session_id: Session identifier
-            state: Deliberation state to save
+            session_id: Session identifier (can include "session:" or "deliberation:" prefix)
+            state: Deliberation state to save (Pydantic model or dict)
+            ttl: Optional TTL in seconds (overrides default)
 
         Returns:
             True if saved successfully, False otherwise
@@ -125,6 +143,8 @@ class RedisManager:
             >>> manager = RedisManager()
             >>> state = DeliberationState(...)
             >>> success = manager.save_state("bo1_abc123", state)
+            >>> # Or with dict
+            >>> success = manager.save_state("deliberation:test", state_dict, ttl=3600)
         """
         if not self.is_available:
             logger.debug("Redis unavailable, skipping save")
@@ -132,12 +152,16 @@ class RedisManager:
 
         try:
             # Serialize state to JSON
-            state_json = state.model_dump_json()
+            if isinstance(state, dict):
+                state_json = json.dumps(state)
+            else:
+                state_json = state.model_dump_json()
 
             # Save to Redis with TTL
             key = self._get_key(session_id)
+            ttl_seconds = ttl if ttl is not None else self.ttl_seconds
             assert self.redis is not None  # Type guard: checked by is_available
-            self.redis.setex(key, self.ttl_seconds, state_json)
+            self.redis.setex(key, ttl_seconds, state_json)
 
             logger.debug(f"💾 Saved state to Redis: {session_id}")
             return True
@@ -146,20 +170,21 @@ class RedisManager:
             logger.error(f"Failed to save state to Redis: {e}")
             return False
 
-    def load_state(self, session_id: str) -> DeliberationState | None:
+    def load_state(self, session_id: str) -> dict[str, Any] | DeliberationState | None:
         """Load deliberation state from Redis.
 
         Args:
-            session_id: Session identifier
+            session_id: Session identifier (can include "session:" or "deliberation:" prefix)
 
         Returns:
-            Deliberation state if found, None otherwise
+            Deliberation state as dict if found, None otherwise
+            (Returns dict for backward compatibility with tests)
 
         Examples:
             >>> manager = RedisManager()
             >>> state = manager.load_state("bo1_abc123")
             >>> if state:
-            ...     print(f"Loaded session with {len(state.contributions)} contributions")
+            ...     print(f"Loaded session with {len(state['contributions'])} contributions")
         """
         if not self.is_available:
             logger.debug("Redis unavailable, cannot load")
@@ -174,10 +199,10 @@ class RedisManager:
                 logger.debug(f"Session not found: {session_id}")
                 return None
 
-            # Deserialize from JSON
-            state = DeliberationState.model_validate_json(str(state_json))
+            # Deserialize from JSON to dict (for backward compatibility)
+            state_dict: dict[str, Any] = json.loads(str(state_json))
             logger.debug(f"📂 Loaded state from Redis: {session_id}")
-            return state
+            return state_dict
 
         except Exception as e:
             logger.error(f"Failed to load state from Redis: {e}")

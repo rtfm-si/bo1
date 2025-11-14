@@ -26,8 +26,9 @@ def test_redis_connection_success(redis_manager_or_skip):
     assert manager.client.ping() is True
 
     # Verify basic operations work
+    # Note: decode_responses=True in RedisManager, so strings are returned
     manager.client.set("test_key", "test_value")
-    assert manager.client.get("test_key") == b"test_value"
+    assert manager.client.get("test_key") == "test_value"
 
     # Cleanup
     manager.client.delete("test_key")

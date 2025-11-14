@@ -38,6 +38,46 @@ def personas_path() -> Path:
 
 
 @pytest.fixture
+def sample_problem():
+    """Create a simple test problem."""
+    from bo1.models.problem import Problem
+
+    return Problem(
+        title="Test Investment Decision",
+        description="Should we invest $500K in AI infrastructure?",
+        context="Series A funded startup, 50 employees, need to scale",
+    )
+
+
+@pytest.fixture
+def sample_persona():
+    """Get a real persona from the catalog for testing."""
+    from bo1.data import get_persona_by_code
+    from bo1.models.persona import PersonaProfile
+
+    persona_data = get_persona_by_code("growth_hacker")
+    if not persona_data:
+        pytest.skip("growth_hacker persona not found in catalog")
+    return PersonaProfile(**persona_data)
+
+
+@pytest.fixture
+def sample_personas():
+    """Get multiple real personas from the catalog for testing."""
+    from bo1.data import get_persona_by_code
+    from bo1.models.persona import PersonaProfile
+
+    codes = ["growth_hacker", "finance_strategist"]
+    personas = []
+    for code in codes:
+        persona_data = get_persona_by_code(code)
+        if not persona_data:
+            pytest.skip(f"{code} persona not found in catalog")
+        personas.append(PersonaProfile(**persona_data))
+    return personas
+
+
+@pytest.fixture
 def redis_url() -> str:
     """Get Redis URL from environment, with localhost fallback for local dev."""
     # Use Redis container in Docker, localhost for local dev

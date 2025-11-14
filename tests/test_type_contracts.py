@@ -26,7 +26,6 @@ from bo1.models.state import (
     DeliberationState,
 )
 
-
 # ============================================================================
 # LLM Client Type Contracts
 # ============================================================================
@@ -153,12 +152,7 @@ async def test_llm_client_call_for_role_returns_correct_types():
 @pytest.mark.unit
 def test_deliberation_graph_state_structure():
     """Test: DeliberationGraphState has all required fields with correct types."""
-    problem = Problem(
-        statement="Test problem",
-        context="Test context",
-        constraints="Test constraints",
-        success_criteria="Test success",
-    )
+    problem = Problem(title="Test problem", description="Test context", context="Test constraints")
 
     state = create_initial_state(
         session_id="test-123",
@@ -218,12 +212,7 @@ def test_state_validation_catches_missing_fields():
 @pytest.mark.unit
 def test_state_validation_catches_invalid_rounds():
     """Test: validate_state catches invalid round numbers."""
-    problem = Problem(
-        statement="Test",
-        context="Test",
-        constraints="Test",
-        success_criteria="Test",
-    )
+    problem = Problem(title="Test", description="Test", context="Test")
 
     # Test negative round_number
     state = create_initial_state("test", problem)
@@ -247,29 +236,19 @@ def test_state_validation_catches_invalid_rounds():
 
 
 @pytest.mark.unit
-def test_state_serialization_preserves_types():
+def test_state_serialization_preserves_types(sample_problem, sample_personas):
     """Test: state_to_dict serialization preserves all data."""
-    problem = Problem(
-        statement="Test problem",
-        context="Test context",
-        constraints="Test constraints",
-        success_criteria="Test success",
-    )
-
-    personas = [
-        PersonaProfile(
-            code="test_expert",
-            name="Test Expert",
-            expertise=["testing"],
-            system_prompt="You are a test expert.",
-        )
-    ]
+    problem = sample_problem
+    personas = sample_personas
 
     contribution = ContributionMessage(
         persona_code="test_expert",
         persona_name="Test Expert",
         content="Test contribution",
         contribution_type=ContributionType.INITIAL,
+        thinking=None,
+        token_count=None,
+        cost=None,
         round_number=0,
     )
 
@@ -300,23 +279,10 @@ def test_state_serialization_preserves_types():
 
 
 @pytest.mark.unit
-def test_v1_v2_state_conversion_preserves_types():
+def test_v1_v2_state_conversion_preserves_types(sample_problem, sample_personas):
     """Test: Converting between v1 and v2 state preserves all fields."""
-    problem = Problem(
-        statement="Test",
-        context="Test",
-        constraints="Test",
-        success_criteria="Test",
-    )
-
-    personas = [
-        PersonaProfile(
-            code="test_expert",
-            name="Test Expert",
-            expertise=["testing"],
-            system_prompt="Test prompt",
-        )
-    ]
+    problem = sample_problem
+    personas = sample_personas
 
     # Create v1 state
     v1_state = DeliberationState(
@@ -371,6 +337,9 @@ def test_contribution_message_fields_have_correct_types():
         persona_name="Test",
         content="Test content",
         contribution_type=ContributionType.INITIAL,
+        thinking=None,
+        token_count=None,
+        cost=None,
         round_number=0,
     )
 
@@ -407,33 +376,26 @@ def test_deliberation_metrics_fields_have_correct_types():
 
 
 @pytest.mark.unit
-def test_persona_profile_fields_have_correct_types():
+def test_persona_profile_fields_have_correct_types(sample_persona):
     """Test: PersonaProfile fields have correct types."""
-    persona = PersonaProfile(
-        code="test_expert",
-        name="Test Expert",
-        expertise=["testing", "quality"],
-        system_prompt="You are a test expert.",
-    )
+    persona = sample_persona
 
     assert isinstance(persona.code, str)
     assert isinstance(persona.name, str)
-    assert isinstance(persona.expertise, list)
-    assert all(isinstance(e, str) for e in persona.expertise)
+    # domain_expertise can be list or string (postgres array)
+    assert isinstance(persona.domain_expertise, (list, str))
+    if isinstance(persona.domain_expertise, list):
+        assert all(isinstance(e, str) for e in persona.domain_expertise)
     assert isinstance(persona.system_prompt, str)
 
 
 @pytest.mark.unit
-def test_problem_model_fields_have_correct_types():
+def test_problem_model_fields_have_correct_types(sample_problem):
     """Test: Problem model fields have correct types."""
-    problem = Problem(
-        statement="Should we invest?",
-        context="We have $100K budget",
-        constraints="Must decide in 30 days",
-        success_criteria="ROI > 20%",
-    )
+    problem = sample_problem
 
-    assert isinstance(problem.statement, str)
+    assert isinstance(problem.title, str)
+    assert isinstance(problem.description, str)
     assert isinstance(problem.context, str)
-    assert isinstance(problem.constraints, str)
-    assert isinstance(problem.success_criteria, str)
+    # constraints is a list of Constraint objects
+    assert isinstance(problem.constraints, list)

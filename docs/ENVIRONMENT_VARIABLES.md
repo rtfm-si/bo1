@@ -157,6 +157,36 @@ DEFAULT_MODEL_FACILITATOR=claude-sonnet-4-5-20250929
 DEFAULT_MODEL_SUMMARIZER=claude-haiku-4-5-20250929
 ```
 
+### AI Model Override (Testing Mode)
+
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `AI_OVERRIDE` | Boolean | No | `false` | Override ALL model calls with cheaper model (testing mode) |
+| `AI_OVERRIDE_MODEL` | String | No | `claude-3-5-haiku-latest` | Model to use when AI_OVERRIDE is true |
+
+**Purpose**: Prevent expensive Sonnet costs during testing and development by forcing all LLM calls to use a cheaper model (typically Haiku).
+
+**When to Use**:
+- ✅ **Local testing**: Set to `true` to avoid expensive API costs
+- ✅ **CI/CD pipelines**: Set to `true` to keep test costs low
+- ❌ **Production**: Should always be `false`
+
+**Example**:
+```bash
+# Enable override for local testing
+AI_OVERRIDE=true
+AI_OVERRIDE_MODEL=haiku  # or "claude-3-5-haiku-latest"
+```
+
+**How It Works**:
+- When `AI_OVERRIDE=true`, ALL model calls (persona, facilitator, decomposer, etc.) use `AI_OVERRIDE_MODEL` instead
+- The override happens at the `resolve_model_alias()` level, so it affects all parts of the system
+- Logs will show: `🔄 AI_OVERRIDE enabled: sonnet → haiku (using cheaper model for testing)`
+
+**Cost Savings**:
+- Sonnet: $3/1M input tokens → Haiku: $1/1M input tokens (**67% cheaper**)
+- Typical deliberation: ~$0.10 with Sonnet → ~$0.03 with Haiku
+
 ---
 
 ## Feature Flags

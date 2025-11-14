@@ -3,11 +3,14 @@
 Loads settings from environment variables and .env file.
 """
 
+import logging
 from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "Settings",
@@ -60,6 +63,16 @@ class Settings(BaseSettings):
 
     # A/B Testing
     ab_testing_enabled: bool = Field(default=True, description="Enable A/B testing")
+
+    # AI Model Override (for testing to avoid expensive model costs)
+    ai_override: bool = Field(
+        default=False,
+        description="Override ALL AI model calls with a cheaper model (for testing)",
+    )
+    ai_override_model: str = Field(
+        default="claude-3-5-haiku-latest",
+        description="Model to use when AI_OVERRIDE is True (alias or full ID)",
+    )
 
     # Paths
     @property
@@ -148,19 +161,39 @@ def get_settings() -> Settings:
 def resolve_model_alias(model_name: str) -> str:
     """Resolve a model alias to its full model ID.
 
+    If AI_OVERRIDE is enabled, ALL models are overridden with AI_OVERRIDE_MODEL.
+    This is useful for testing to avoid expensive model costs.
+
     Args:
         model_name: Model name (alias like 'sonnet' or full ID)
 
     Returns:
-        Full model ID
+        Full model ID (or override model if AI_OVERRIDE is True)
 
     Examples:
         >>> resolve_model_alias("sonnet")
         "claude-sonnet-4-5-20250929"
         >>> resolve_model_alias("claude-sonnet-4-5-20250929")
         "claude-sonnet-4-5-20250929"
+
+        >>> # With AI_OVERRIDE=True and AI_OVERRIDE_MODEL="haiku"
+        >>> resolve_model_alias("sonnet")
+        "claude-haiku-4-5-20251001"
     """
-    # If it's an alias, resolve it
+    # Check for AI override (for testing)
+    settings = get_settings()
+    if settings.ai_override:
+        override_model = settings.ai_override_model
+        logger.info(
+            f"🔄 AI_OVERRIDE enabled: {model_name} → {override_model} "
+            "(using cheaper model for testing)"
+        )
+        # Resolve the override model (in case it's also an alias)
+        if override_model in MODEL_ALIASES:
+            return MODEL_ALIASES[override_model]
+        return override_model
+
+    # Normal resolution: If it's an alias, resolve it
     if model_name in MODEL_ALIASES:
         return MODEL_ALIASES[model_name]
     # Otherwise, assume it's already a full model ID

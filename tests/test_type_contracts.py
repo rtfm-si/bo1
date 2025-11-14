@@ -16,7 +16,6 @@ from bo1.graph.state import (
     validate_state,
 )
 from bo1.llm.client import ClaudeClient, TokenUsage
-from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem
 from bo1.models.state import (
     ContributionMessage,
@@ -202,11 +201,11 @@ def test_state_validation_catches_missing_fields():
     """Test: validate_state raises ValueError for missing required fields."""
     # Empty state should fail
     with pytest.raises(ValueError, match="Missing required field"):
-        validate_state(DeliberationGraphState())  # type: ignore[typeddict-item]
+        validate_state(DeliberationGraphState())
 
     # State with only session_id should fail
     with pytest.raises(ValueError, match="Missing required field"):
-        validate_state(DeliberationGraphState(session_id="test"))  # type: ignore[typeddict-item]
+        validate_state(DeliberationGraphState(session_id="test"))
 
 
 @pytest.mark.unit
@@ -288,6 +287,7 @@ def test_v1_v2_state_conversion_preserves_types(sample_problem, sample_personas)
     v1_state = DeliberationState(
         session_id="test-123",
         problem=problem,
+        current_sub_problem=None,
         selected_personas=personas,
         contributions=[],
         round_summaries=[],
@@ -383,7 +383,7 @@ def test_persona_profile_fields_have_correct_types(sample_persona):
     assert isinstance(persona.code, str)
     assert isinstance(persona.name, str)
     # domain_expertise can be list or string (postgres array)
-    assert isinstance(persona.domain_expertise, (list, str))
+    assert isinstance(persona.domain_expertise, list | str)
     if isinstance(persona.domain_expertise, list):
         assert all(isinstance(e, str) for e in persona.domain_expertise)
     assert isinstance(persona.system_prompt, str)

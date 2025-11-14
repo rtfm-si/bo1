@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     redis_host: str = Field(default="localhost", description="Redis host")
     redis_port: int = Field(default=6379, description="Redis port")
     redis_db: int = Field(default=0, description="Redis database number")
+    redis_url: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
+
+    # PostgreSQL Configuration (v2+, Week 3.5)
+    database_url: str = Field(
+        default="postgresql://bo1:bo1_dev_password@localhost:5432/boardofone",
+        description="PostgreSQL connection URL",
+    )
 
     # Development Settings
     debug: bool = Field(default=False, description="Enable debug mode")

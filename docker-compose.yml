@@ -5,6 +5,29 @@
 
 services:
   # ---------------------------------------------------------------------------
+  # PostgreSQL: Primary database for users, sessions, and analytics
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: bo1-postgres
+    environment:
+      - POSTGRES_DB=boardofone
+      - POSTGRES_USER=bo1
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-bo1_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bo1 -d boardofone"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - bo1-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
   # Redis: State management, LLM caching, session storage
   # ---------------------------------------------------------------------------
   redis:
@@ -41,11 +64,21 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       # Redis Configuration
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
+
+      # PostgreSQL Configuration
+      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD:-bo1_dev_password}@postgres:5432/boardofone
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=boardofone
+      - POSTGRES_USER=bo1
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-bo1_dev_password}
 
       # API Keys (loaded from .env)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -106,6 +139,8 @@ services:
 
 volumes:
   redis-data:
+    driver: local
+  postgres-data:
     driver: local
 
 networks:

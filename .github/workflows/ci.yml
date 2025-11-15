@@ -72,24 +72,24 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build Docker images
-        run: docker-compose build
+        run: docker compose build
 
       - name: Start services
-        run: docker-compose up -d redis postgres
+        run: docker compose up -d redis postgres
 
       - name: Wait for services to be ready
         run: |
           echo "Waiting for Redis..."
-          timeout 30 sh -c 'until docker-compose exec -T redis redis-cli ping; do sleep 1; done'
+          timeout 30 sh -c 'until docker compose exec -T redis redis-cli ping; do sleep 1; done'
           echo "Waiting for PostgreSQL..."
-          timeout 30 sh -c 'until docker-compose exec -T postgres pg_isready; do sleep 1; done'
+          timeout 30 sh -c 'until docker compose exec -T postgres pg_isready; do sleep 1; done'
 
       - name: Run tests in Docker
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
-        run: docker-compose run --rm bo1 pytest -m "not requires_llm" -v
+        run: docker compose run --rm bo1 pytest -m "not requires_llm" -v
 
       - name: Cleanup
         if: always()
-        run: docker-compose down -v
+        run: docker compose down -v

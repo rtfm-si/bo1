@@ -927,38 +927,38 @@ pytest tests/integration/test_console_adapter_integration.py -v
 
 #### Facilitator Decision Node
 
-- [ ] Create `facilitator_decide_node()` in `bo1/graph/nodes.py`
-  - [ ] Convert graph state → DeliberationState
-  - [ ] Call existing `FacilitatorAgent.decide_next_action()`
-  - [ ] Update state with decision
-  - [ ] Track cost in `phase_costs["facilitator_decision"]`
-  - [ ] Return updated state with `facilitator_decision` field
+- [x] Create `facilitator_decide_node()` in `bo1/graph/nodes.py`
+  - [x] Convert graph state → DeliberationState
+  - [x] Call existing `FacilitatorAgent.decide_next_action()`
+  - [x] Update state with decision
+  - [x] Track cost in `phase_costs["facilitator_decision"]`
+  - [x] Return updated state with `facilitator_decision` field
 
 #### Routing Based on Decision
 
-- [ ] Update `bo1/graph/routers.py`
-  - [ ] `route_facilitator_decision()` function
-    - [ ] If decision.action == "vote" → return "vote"
-    - [ ] If decision.action == "moderator" → return "moderator_intervene"
-    - [ ] If decision.action == "continue" → return "persona_contribute"
-    - [ ] If decision.action == "research" → return END (Week 5, Day 31)
-  - [ ] Document: Decision types and routing logic
+- [x] Update `bo1/graph/routers.py`
+  - [x] `route_facilitator_decision()` function
+    - [x] If decision.action == "vote" → return "vote"
+    - [x] If decision.action == "moderator" → return "moderator_intervene"
+    - [x] If decision.action == "continue" → return "persona_contribute"
+    - [x] If decision.action == "research" → return END (Week 5, Day 31)
+  - [x] Document: Decision types and routing logic
 
 #### Testing
 
-- [ ] Test: Facilitator node works
-  - [ ] Call with initial round complete
-  - [ ] Verify decision created (continue/vote/moderator)
-  - [ ] Verify cost tracked
-- [ ] Test: Routing works for each decision type
-  - [ ] Mock decision.action = "vote" → routes to vote
-  - [ ] Mock decision.action = "moderator" → routes to moderator
-  - [ ] Mock decision.action = "continue" → routes to persona
+- [x] Test: Facilitator node works
+  - [x] Call with initial round complete
+  - [x] Verify decision created (continue/vote/moderator)
+  - [x] Verify cost tracked
+- [x] Test: Routing works for each decision type
+  - [x] Mock decision.action = "vote" → routes to vote
+  - [x] Mock decision.action = "moderator" → routes to moderator
+  - [x] Mock decision.action = "continue" → routes to persona
 
 **Validation**:
-- [ ] Facilitator node executes correctly
-- [ ] Routing logic handles all decision types
-- [ ] Cost tracking works
+- [x] Facilitator node executes correctly
+- [x] Routing logic handles all decision types
+- [x] Cost tracking works
 
 **Tests**:
 ```bash

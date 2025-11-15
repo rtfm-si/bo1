@@ -9,6 +9,7 @@ import logging
 from typing import Any
 
 from bo1.agents.decomposer import DecomposerAgent
+from bo1.agents.facilitator import FacilitatorAgent
 from bo1.agents.selector import PersonaSelectorAgent
 from bo1.graph.state import (
     DeliberationGraphState,
@@ -211,4 +212,62 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         "round_number": 1,
         "metrics": metrics,
         "current_node": "initial_round",
+    }
+
+
+async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Make facilitator decision on next action (continue/vote/moderator).
+
+    This node wraps the FacilitatorAgent.decide_next_action() method
+    and updates the graph state with the facilitator's decision.
+
+    Args:
+        state: Current graph state
+
+    Returns:
+        Dictionary with state updates
+    """
+    logger.info("facilitator_decide_node: Making facilitator decision")
+
+    # Convert graph state to v1 DeliberationState for facilitator
+    v1_state = graph_state_to_deliberation_state(state)
+
+    # Create facilitator agent
+    facilitator = FacilitatorAgent()
+
+    # Get current round number and max rounds
+    round_number = state.get("round_number", 1)
+    max_rounds = state.get("max_rounds", 10)
+
+    # Call facilitator to decide next action
+    decision, llm_response = await facilitator.decide_next_action(
+        state=v1_state,
+        round_number=round_number,
+        max_rounds=max_rounds,
+    )
+
+    # Track cost in metrics (if LLM was called)
+    metrics = state.get("metrics")
+    if metrics is None:
+        from bo1.models.state import DeliberationMetrics
+
+        metrics = DeliberationMetrics()
+
+    if llm_response:
+        metrics.phase_costs["facilitator_decision"] = (
+            metrics.phase_costs.get("facilitator_decision", 0.0) + llm_response.cost_total
+        )
+        metrics.total_cost += llm_response.cost_total
+        cost_msg = f"(cost: ${llm_response.cost_total:.4f})"
+    else:
+        cost_msg = "(no LLM call)"
+
+    logger.info(f"facilitator_decide_node: Complete - action={decision.action} {cost_msg}")
+
+    # Return state updates with facilitator decision
+    return {
+        "facilitator_decision": decision,
+        "phase": DeliberationPhase.DISCUSSION,
+        "metrics": metrics,
+        "current_node": "facilitator_decide",
     }

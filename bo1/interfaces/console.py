@@ -184,15 +184,21 @@ async def run_console_deliberation(
                 console.print("[warning]Deliberation paused.[/warning]")
                 return state_snapshot.values
 
-        except Exception as e:
-            if "No checkpoint found" in str(e) or "Corrupted checkpoint" in str(e):
-                raise
-            # Handle "No checkpointer set" error from LangGraph
+        except ValueError as e:
+            # Check for LangGraph "No checkpointer set" error first
             if "No checkpointer set" in str(e):
                 error_msg = f"No checkpoint found for session: {session_id}"
                 console.print(f"[error]{error_msg}[/error]")
                 raise ValueError(error_msg) from e
-            # Re-raise with more context
+            # Re-raise explicit errors (no checkpoint found, corrupted)
+            if "No checkpoint found" in str(e) or "Corrupted checkpoint" in str(e):
+                raise
+            # Re-raise other ValueErrors with context
+            error_msg = f"Error loading checkpoint for session {session_id}: {e}"
+            console.print(f"[error]{error_msg}[/error]")
+            raise ValueError(error_msg) from e
+        except Exception as e:
+            # Handle non-ValueError exceptions
             error_msg = f"Error loading checkpoint for session {session_id}: {e}"
             console.print(f"[error]{error_msg}[/error]")
             raise ValueError(error_msg) from e

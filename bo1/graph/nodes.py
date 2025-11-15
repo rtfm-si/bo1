@@ -461,3 +461,172 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
         "metrics": metrics,
         "current_node": "moderator_intervene",
     }
+
+
+async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Collect votes from all personas.
+
+    This node wraps the existing collect_votes() function from voting.py
+    and updates the graph state with the collected votes.
+
+    Args:
+        state: Current graph state
+
+    Returns:
+        Dictionary with state updates (votes, metrics)
+    """
+    from bo1.llm.broker import PromptBroker
+    from bo1.orchestration.voting import collect_votes
+
+    logger.info("vote_node: Starting voting phase")
+
+    # Convert graph state to v1 DeliberationState for voting
+    v1_state = graph_state_to_deliberation_state(state)
+
+    # Create broker for LLM calls
+    broker = PromptBroker()
+
+    # Collect votes from all personas
+    votes, llm_responses = await collect_votes(state=v1_state, broker=broker)
+
+    # Track cost in metrics
+    metrics = state.get("metrics")
+    if metrics is None:
+        from bo1.models.state import DeliberationMetrics
+
+        metrics = DeliberationMetrics()
+
+    vote_cost = sum(r.cost_total for r in llm_responses)
+    metrics.phase_costs["voting"] = vote_cost
+    metrics.total_cost += vote_cost
+
+    logger.info(f"vote_node: Complete - {len(votes)} votes collected (cost: ${vote_cost:.4f})")
+
+    # Convert Vote objects to dicts for state storage
+    votes_dicts = [
+        {
+            "persona_code": v.persona_code,
+            "persona_name": v.persona_name,
+            "decision": v.decision.value,
+            "reasoning": v.reasoning,
+            "confidence": v.confidence,
+            "conditions": v.conditions,
+            "weight": v.weight,
+        }
+        for v in votes
+    ]
+
+    # Return state updates
+    return {
+        "votes": votes_dicts,
+        "phase": DeliberationPhase.VOTING,
+        "metrics": metrics,
+        "current_node": "vote",
+    }
+
+
+async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Synthesize final recommendation from deliberation.
+
+    This node creates a comprehensive synthesis report using the
+    SYNTHESIS_PROMPT_TEMPLATE and updates the graph state.
+
+    Args:
+        state: Current graph state (must have votes and contributions)
+
+    Returns:
+        Dictionary with state updates (synthesis report, phase=COMPLETE)
+    """
+    from bo1.llm.broker import PromptBroker, PromptRequest
+    from bo1.prompts.reusable_prompts import SYNTHESIS_PROMPT_TEMPLATE
+
+    logger.info("synthesize_node: Starting synthesis")
+
+    # Get problem and contributions
+    problem = state.get("problem")
+    contributions = state.get("contributions", [])
+    votes = state.get("votes", [])
+
+    if not problem:
+        raise ValueError("synthesize_node called without problem in state")
+
+    # Format all contributions and votes for synthesis
+    all_contributions_and_votes = []
+
+    # Add discussion history
+    all_contributions_and_votes.append("=== DISCUSSION ===\n")
+    for contrib in contributions:
+        all_contributions_and_votes.append(
+            f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
+        )
+
+    # Add votes
+    all_contributions_and_votes.append("\n=== VOTES ===\n")
+    for vote in votes:
+        all_contributions_and_votes.append(
+            f"{vote['persona_name']}: {vote['decision']} "
+            f"(confidence: {vote['confidence']:.2f})\n"
+            f"Reasoning: {vote['reasoning']}\n"
+        )
+        if vote.get("conditions"):
+            all_contributions_and_votes.append(f"Conditions: {', '.join(vote['conditions'])}\n")
+        all_contributions_and_votes.append("\n")
+
+    full_context = "".join(all_contributions_and_votes)
+
+    # Compose synthesis prompt
+    synthesis_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(
+        problem_statement=problem.description,
+        all_contributions_and_votes=full_context,
+    )
+
+    # Create broker and request
+    broker = PromptBroker()
+    request = PromptRequest(
+        system=synthesis_prompt,
+        user_message="Generate the synthesis report now.",
+        prefill="<thinking>",
+        model="sonnet",  # Use Sonnet for high-quality synthesis
+        temperature=0.7,
+        max_tokens=3000,
+        phase="synthesis",
+        agent_type="synthesizer",
+    )
+
+    # Call LLM
+    response = await broker.call(request)
+
+    # Prepend prefill for complete content
+    synthesis_report = "<thinking>" + response.content
+
+    # Add AI-generated content disclaimer
+    disclaimer = (
+        "\n\n---\n\n"
+        "⚠️ This content is AI-generated for learning and knowledge purposes only, "
+        "not professional advisory.\n\n"
+        "Always verify recommendations using licensed legal/financial professionals "
+        "for your location."
+    )
+    synthesis_report_with_disclaimer = synthesis_report + disclaimer
+
+    # Track cost in metrics
+    metrics = state.get("metrics")
+    if metrics is None:
+        from bo1.models.state import DeliberationMetrics
+
+        metrics = DeliberationMetrics()
+
+    metrics.phase_costs["synthesis"] = response.cost_total
+    metrics.total_cost += response.cost_total
+
+    logger.info(
+        f"synthesize_node: Complete - synthesis generated (cost: ${response.cost_total:.4f})"
+    )
+
+    # Return state updates
+    return {
+        "synthesis": synthesis_report_with_disclaimer,
+        "phase": DeliberationPhase.COMPLETE,
+        "metrics": metrics,
+        "current_node": "synthesize",
+    }

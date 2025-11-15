@@ -130,9 +130,15 @@ async def run_console_deliberation(
         console.print(f"[error]{error_msg}[/error]")
         raise ValueError(error_msg)
 
-    # Create graph (checkpointer=False disables checkpointing for now)
-    # Week 5 will enable Redis checkpointing for pause/resume
-    graph = create_deliberation_graph(checkpointer=False)
+    # Create graph with checkpointer if resuming session
+    # Otherwise disable checkpointing (for now - Week 5 will enable by default)
+    checkpointer_enabled = session_id is not None
+    if checkpointer_enabled:
+        # Use Redis checkpointer for resume functionality
+        graph = create_deliberation_graph(checkpointer=None)  # Auto-creates RedisSaver
+    else:
+        # Disable checkpointing for new sessions (for now)
+        graph = create_deliberation_graph(checkpointer=False)
 
     # Resume from checkpoint or create new session
     if session_id:
@@ -181,6 +187,11 @@ async def run_console_deliberation(
         except Exception as e:
             if "No checkpoint found" in str(e) or "Corrupted checkpoint" in str(e):
                 raise
+            # Handle "No checkpointer set" error from LangGraph
+            if "No checkpointer set" in str(e):
+                error_msg = f"No checkpoint found for session: {session_id}"
+                console.print(f"[error]{error_msg}[/error]")
+                raise ValueError(error_msg) from e
             # Re-raise with more context
             error_msg = f"Error loading checkpoint for session {session_id}: {e}"
             console.print(f"[error]{error_msg}[/error]")
@@ -241,7 +252,7 @@ def _display_results(console: Console, state: Any) -> None:  # state is Delibera
     # Display phase costs
     console.print_header("Deliberation Complete")
 
-    # Get metrics object
+    # Get metrics object (DeliberationMetrics is already an object, not a dict)
     metrics = state["metrics"]
 
     # Summary panel

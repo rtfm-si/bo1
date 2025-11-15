@@ -197,6 +197,7 @@ class ClaudeClient:
 
         # Prepare system parameter with caching
         # Type is complex because Anthropic SDK uses Union with Omit
+        # NOTE: Newer models (Haiku 4.5+) require system to be a list of text blocks
         system_param: Any = None
         if system:
             if cache_system:
@@ -210,17 +211,27 @@ class ClaudeClient:
                     )
                 ]
             else:
-                system_param = system
+                # Always use list format for compatibility with newer models
+                system_param = [
+                    TextBlockParam(
+                        type="text",
+                        text=system,
+                    )
+                ]
 
         # Make direct Anthropic API call
+        # Build kwargs dynamically - only include system if it's not None
+        api_kwargs: dict[str, Any] = {
+            "model": full_model_id,
+            "messages": anthropic_messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if system_param is not None:
+            api_kwargs["system"] = system_param
+
         try:
-            response = await anthropic_client.messages.create(
-                model=full_model_id,
-                messages=anthropic_messages,
-                system=system_param,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+            response = await anthropic_client.messages.create(**api_kwargs)
         except RateLimitError as e:
             logger.error(f"Rate limit exceeded: {e}")
             raise

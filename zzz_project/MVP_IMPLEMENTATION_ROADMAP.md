@@ -28,6 +28,8 @@ This roadmap covers the complete path from Week 3 completion to **10/10 producti
 - ✅ **100% confidence infinite loop prevention** (5-layer safety system)
 - ✅ **10/10 Production Excellence** (vendor resilience, cost controls, zero-downtime deploys, business continuity)
 - ✅ **NEVER trust user input** (validate, sanitize, test malicious inputs - XSS, SQL injection, script tags)
+- ✅ **AI-generated content disclaimers** (all outputs labeled as learning/knowledge only, NOT professional advisory)
+- ✅ **Action tracking with follow-up** (see zzz_project/detail/ACTION_TRACKING_FEATURE.md for post-MVP implementation)
 
 ---
 
@@ -1030,9 +1032,9 @@ pytest tests/test_multi_round_loop.py -v
 
 ---
 
-### Day 31: Voting + Synthesis Nodes
+### Day 31: Voting + Synthesis Nodes + Background Summarizer
 
-**Value**: Complete deliberation with final recommendation
+**Value**: Complete deliberation with final recommendation + hierarchical context management
 
 #### Vote Node
 
@@ -1049,7 +1051,23 @@ pytest tests/test_multi_round_loop.py -v
   - [ ] Store synthesis report in state
   - [ ] Track cost in `phase_costs["synthesis"]`
   - [ ] Mark phase as COMPLETE
+  - [ ] Add AI-generated content disclaimer:
+    - [ ] "⚠️ This content is AI-generated for learning and knowledge purposes only, not professional advisory."
+    - [ ] "Always verify recommendations using licensed legal/financial professionals for your location."
   - [ ] Return updated state
+
+#### Background Summarizer Integration
+
+- [ ] Integrate `SummarizerAgent` for hierarchical context management
+  - [ ] Add `summarizer_node()` to run after each round (async background task)
+  - [ ] Runs in background (asyncio) while next round proceeds - zero latency impact
+  - [ ] Uses Haiku 4.5 for cost efficiency (~100 tokens per summary, ~$0.001 per round)
+  - [ ] Prevents quadratic context growth:
+    - [ ] Old rounds (1 to N-2) → 100-token summaries (cached)
+    - [ ] Current round (N-1) → Full detail (uncached)
+    - [ ] Total context: ~1,400 tokens (linear growth, not quadratic)
+  - [ ] Track cost in `phase_costs["summarization"]`
+  - [ ] Store summaries in `state["round_summaries"]`
 
 #### Final Graph Assembly
 
@@ -2453,6 +2471,8 @@ Manual testing on multiple devices
 
 **Goal**: Implement data export, account deletion, and data retention policies
 
+**CRITICAL SECURITY REQUIREMENT**: ALL user data operations (export, access, deletion) MUST have authentication & authorization. User A can NEVER access User B's data.
+
 **Tasks**:
 
 #### Data Export Endpoint (GDPR Art. 15)
@@ -2998,6 +3018,23 @@ pytest backend/tests/test_email_triggers.py -v
     - [ ] Duration >3x median
     - [ ] Cost >5x median
     - [ ] Rounds >max_rounds + 5
+
+#### Admin Resume/Restart Capability
+
+- [ ] Create `backend/api/admin/sessions.py`
+  - [ ] `POST /api/admin/sessions/{session_id}/resume` - Admin can resume killed session
+    - [ ] Verify admin role
+    - [ ] Load last checkpoint
+    - [ ] Clear kill metadata
+    - [ ] Restart execution
+    - [ ] Log admin action (audit trail: admin_id, reason, timestamp)
+  - [ ] `POST /api/admin/sessions/{session_id}/restart` - Admin can restart from beginning
+    - [ ] Verify admin role
+    - [ ] Reset state to initial (keep problem statement)
+    - [ ] Clear all checkpoints
+    - [ ] Start new execution
+    - [ ] Log admin action
+  - [ ] Use cases: False positive kills, user requests help, debugging
 
 #### Background Monitoring Task
 
@@ -4048,7 +4085,7 @@ Manual testing + Playwright E2E
   ```
 - [ ] Create charts:
   - [ ] Cost trend (line chart, last 24h)
-  - [ ] Cost by tier (pie chart)
+  - [ ] Cost by tier (bar chart or table)
   - [ ] Cost by phase (bar chart)
   - [ ] Top 10 expensive sessions (table)
 
@@ -4066,7 +4103,7 @@ Manual testing + Playwright E2E
   - [ ] Verify metrics displayed
 - [ ] Test: Charts render
   - [ ] Verify line chart (cost trend)
-  - [ ] Verify pie chart (cost by tier)
+  - [ ] Verify bar chart (cost by tier)
   - [ ] Verify bar chart (cost by phase)
 - [ ] Test: CSV export works
   - [ ] Click "Export CSV"
@@ -4113,8 +4150,25 @@ Manual testing
     - [ ] Stripe customer ID (link to Stripe dashboard)
   - [ ] Actions:
     - [ ] Change tier (manual override)
+    - [ ] Apply promo code (discount code, free months, etc.)
     - [ ] Ban user (disable account)
     - [ ] Delete user (anonymize, GDPR)
+
+#### Promo Code Application
+
+- [ ] Create `ApplyPromoModal.svelte`
+  - [ ] Input: Promo code (e.g., "LAUNCH50", "FREEMONTH")
+  - [ ] Validate promo code (check expiry, usage limits)
+  - [ ] Apply to user account (update subscription)
+  - [ ] Send email notification to user:
+    - [ ] Subject: "Promo code applied to your Board of One account"
+    - [ ] Details: Code, discount/benefit, expiry date
+  - [ ] Log admin action (audit trail)
+- [ ] Backend: `POST /api/admin/users/{user_id}/promo`
+  - [ ] Validate promo code
+  - [ ] Update user subscription
+  - [ ] Send email via Resend
+  - [ ] Return updated user data
 
 #### User Search
 
@@ -4460,7 +4514,7 @@ Manual testing (check inbox)
     - [ ] Recommendation (short version)
     - [ ] Key insights (3-5 bullets)
   - [ ] CTA: "View Full Report" (link to session page)
-  - [ ] Metrics: Rounds, cost, duration (optional)
+  - [ ] Metrics: Rounds, cost, duration (ONLY if user opted in via preferences)
 
 #### Trigger
 
@@ -4468,6 +4522,10 @@ Manual testing (check inbox)
   - [ ] In synthesis node (after synthesis complete)
   - [ ] Or: In webhook (deliberation.completed event)
 - [ ] Only send if user has emails enabled (preferences)
+- [ ] Respect user preference for including cost/metrics in email:
+  - [ ] `email_preferences.include_metrics`: true/false (default: false)
+  - [ ] If false: Hide rounds, cost, duration from email
+  - [ ] If true: Show full metrics
 
 #### Testing
 
@@ -4579,48 +4637,17 @@ Manual testing
 
 ---
 
-### Day 82: Session Expired Email
+### Day 82: ~~Session Expired Email~~ [REMOVED]
 
-**Value**: Notify user when paused session expires
+**Status**: ❌ Feature removed to reduce email noise
 
-#### Template Design
+**Rationale**: Session state change emails (paused/resumed/expired) create notification fatigue without clear user value. Focus on actionable notifications only (deliberation complete, action reminders).
 
-- [ ] Create email template
-  - [ ] Subject: "Your paused deliberation has expired"
-  - [ ] Message: Session paused for >7 days, checkpoint deleted
-  - [ ] CTA: "Start New Deliberation"
-  - [ ] Note: Data not recoverable
+**Alternative**: Show session expiry warning in-app (dashboard) for paused sessions approaching 7-day limit.
 
-#### Trigger
+**Tasks**: N/A (feature removed)
 
-- [ ] Create cleanup job (`backend/jobs/cleanup.py`)
-  - [ ] Run daily (cron or background task)
-  - [ ] Find sessions: `status=paused` AND `paused_at < NOW() - 7 days`
-  - [ ] For each:
-    - [ ] Send expiration email
-    - [ ] Delete checkpoint
-    - [ ] Mark session as expired
-
-#### Testing
-
-- [ ] Test: Cleanup job runs
-  - [ ] Create paused session (manually set paused_at to 8 days ago)
-  - [ ] Run cleanup job
-  - [ ] Verify email sent
-  - [ ] Verify checkpoint deleted
-- [ ] Test: Expiration email correct
-  - [ ] Verify subject, message, CTA
-
-**Validation**:
-- [ ] Cleanup job works (finds expired sessions)
-- [ ] Email sends on expiration
-- [ ] Checkpoint deleted
-- [ ] Session marked as expired
-
-**Tests**:
-```bash
-pytest backend/tests/test_cleanup_job.py -v
-```
+**Migration Note**: If Day 81 (Session Paused/Resumed emails) was implemented, remove those as well. Only keep "Deliberation Complete" emails (Day 79) and action-related notifications.
 
 ---
 

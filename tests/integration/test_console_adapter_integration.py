@@ -153,14 +153,13 @@ class TestConsoleAdapterErrorHandling:
                 max_rounds=1,
             )
 
-    @pytest.mark.skip(reason="Checkpointing not yet enabled (Week 5 feature)")
     @pytest.mark.asyncio
     async def test_missing_checkpoint(self):
         """Test that resuming from non-existent session raises ValueError.
 
-        Note: This test is skipped because checkpointing is not yet enabled.
-        Currently, console.py creates graphs with checkpointer=False.
-        This test will be re-enabled in Week 5 when Redis checkpointing is implemented.
+        When a session_id is provided, console.py enables Redis checkpointing.
+        This test verifies that trying to resume from a non-existent session
+        raises an appropriate error.
         """
         problem = Problem(
             title="Test",
@@ -171,7 +170,9 @@ class TestConsoleAdapterErrorHandling:
         # Use a valid UUID that doesn't exist
         fake_session_id = "550e8400-e29b-41d4-a716-446655440000"
 
-        with pytest.raises(ValueError, match="No checkpoint found|No checkpointer set"):
+        with pytest.raises(
+            ValueError, match="No checkpoint found|Corrupted checkpoint|Error loading checkpoint"
+        ):
             await run_console_deliberation(
                 problem=problem,
                 session_id=fake_session_id,

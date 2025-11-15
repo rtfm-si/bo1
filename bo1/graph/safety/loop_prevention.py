@@ -167,14 +167,35 @@ def check_convergence_node(state: DeliberationGraphState) -> DeliberationGraphSt
         return state
 
     # Convergence detection (Layer 3c)
-    # This will be implemented in Week 5 with full convergence metrics
-    # For now, just check if we have convergence_score in metrics
-    convergence_score = state["metrics"].convergence_score
-    if convergence_score is not None and convergence_score > 0.85:
-        logger.info(f"Round {round_number}: Convergence detected (score: {convergence_score:.2f})")
+    # Check if convergence score is already set, otherwise calculate it
+    metrics = state.get("metrics")
+    convergence_score = (
+        metrics.convergence_score if metrics and metrics.convergence_score is not None else 0.0
+    )
+
+    # If not already calculated, compute from recent contributions
+    if convergence_score == 0.0:
+        contributions = state.get("contributions", [])
+        if len(contributions) >= 6:
+            convergence_score = _calculate_convergence_score(contributions[-6:])
+            # Update metrics with calculated convergence
+            if metrics:
+                metrics.convergence_score = convergence_score
+
+    # Check if convergence threshold is met
+    if convergence_score > 0.85 and round_number >= 3:
+        logger.info(
+            f"Round {round_number}: Convergence detected "
+            f"(score: {convergence_score:.2f}, threshold: 0.85)"
+        )
         state["should_stop"] = True
         state["stop_reason"] = "consensus"
         return state
+    else:
+        logger.debug(
+            f"Round {round_number}: Convergence score {convergence_score:.2f} "
+            f"(threshold: 0.85, min rounds: 3)"
+        )
 
     # Continue deliberation
     logger.debug(f"Round {round_number}/{max_rounds}: Convergence check passed, continuing")
@@ -182,28 +203,91 @@ def check_convergence_node(state: DeliberationGraphState) -> DeliberationGraphSt
     return state
 
 
+def _calculate_convergence_score(contributions: list[Any]) -> float:
+    """Calculate convergence score from recent contributions.
+
+    Uses keyword-based heuristic: count agreement vs. total words.
+    Higher score = more convergence/agreement.
+
+    Args:
+        contributions: List of recent ContributionMessage objects
+
+    Returns:
+        Convergence score between 0.0 and 1.0
+    """
+    if not contributions:
+        return 0.0
+
+    # Agreement keywords that indicate convergence
+    agreement_keywords = [
+        "agree",
+        "yes",
+        "correct",
+        "exactly",
+        "support",
+        "aligned",
+        "consensus",
+        "concur",
+        "same",
+        "similarly",
+        "indeed",
+        "right",
+    ]
+
+    # Count agreement keywords across all contributions
+    total_words = 0
+    agreement_count = 0
+
+    for contrib in contributions:
+        # Get content from ContributionMessage
+        content = contrib.content.lower() if hasattr(contrib, "content") else str(contrib).lower()
+        words = content.split()
+        total_words += len(words)
+
+        # Count agreement keywords
+        for keyword in agreement_keywords:
+            agreement_count += content.count(keyword)
+
+    if total_words == 0:
+        return 0.0
+
+    # Calculate ratio and normalize to 0-1 scale
+    # We expect ~1-2% agreement keywords for high convergence
+    # So we scale: 2% agreement = 1.0 convergence
+    raw_score = (agreement_count / total_words) * 50.0  # 2% * 50 = 1.0
+    convergence = min(1.0, max(0.0, raw_score))
+
+    return convergence
+
+
 def route_convergence_check(
     state: DeliberationGraphState,
 ) -> Literal["vote", "facilitator_decide"]:
-    """Route based on convergence check result.
+    """Route after convergence check based on should_stop flag.
 
-    This is the conditional edge that breaks the deliberation loop.
+    This router is called after persona_contribute or moderator_intervene nodes.
+    It checks if convergence has been reached or round limits exceeded.
 
     Args:
-        state: Current deliberation state
+        state: Current graph state with should_stop flag
 
     Returns:
-        "vote" if should stop (proceed to voting)
-        "facilitator_decide" if should continue (continue deliberation)
+        - "facilitator_decide" if deliberation should continue
+        - "vote" if stopping condition met (max rounds, convergence, etc.)
     """
     should_stop = state.get("should_stop", False)
+    stop_reason = state.get("stop_reason")
+    round_number = state.get("round_number", 0)
+
+    logger.info(f"route_convergence_check: Round {round_number}, should_stop={should_stop}")
 
     if should_stop:
-        stop_reason = state.get("stop_reason", "unknown")
-        logger.info(f"Convergence check: STOP ({stop_reason}) -> routing to vote")
+        logger.info(
+            f"route_convergence_check: Stopping deliberation (reason: {stop_reason}) -> routing to vote"
+        )
         return "vote"
     else:
-        logger.debug("Convergence check: CONTINUE -> routing to facilitator")
+        logger.info("route_convergence_check: Continuing to facilitator_decide")
         return "facilitator_decide"
 
 

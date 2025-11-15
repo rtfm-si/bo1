@@ -1,30 +1,25 @@
-"""Utilities for parsing vote decisions and confidence from LLM responses."""
+"""Utilities for parsing vote decisions and confidence from LLM responses.
 
-from bo1.models.votes import VoteDecision
+DEPRECATED: The parse_vote_decision function is no longer used in the recommendation system.
+Only parse_confidence_level and parse_conditions are still actively used.
+"""
 
 
-def parse_vote_decision(decision_str: str | None) -> VoteDecision:
+def parse_vote_decision(decision_str: str | None) -> str:
     """Parse vote decision from string.
+
+    DEPRECATED: This function is no longer used in the recommendation system.
+    Kept for backward compatibility with old tests only.
 
     Args:
         decision_str: Decision string from vote (e.g., "Yes", "No", "Conditional")
                      Can be None or empty.
 
     Returns:
-        VoteDecision enum value
-
-    Examples:
-        >>> parse_vote_decision("Yes")
-        VoteDecision.YES
-        >>> parse_vote_decision("No - reject this proposal")
-        VoteDecision.NO
-        >>> parse_vote_decision("Conditional on budget approval")
-        VoteDecision.CONDITIONAL
-        >>> parse_vote_decision(None)
-        VoteDecision.ABSTAIN
+        String decision value ("yes", "no", "conditional", "abstain")
     """
     if not decision_str:
-        return VoteDecision.ABSTAIN
+        return "abstain"
 
     decision_lower = decision_str.lower().strip()
 
@@ -32,11 +27,11 @@ def parse_vote_decision(decision_str: str | None) -> VoteDecision:
     if any(
         keyword in decision_lower for keyword in ["conditional", " if ", "only if", "provided that"]
     ):
-        return VoteDecision.CONDITIONAL
+        return "conditional"
 
     # Check for yes/approve/support
     if any(keyword in decision_lower for keyword in ["yes", "approve", "support", "accept"]):
-        return VoteDecision.YES
+        return "yes"
 
     # Check for no/reject/oppose
     # Use word boundaries and handle standalone "no" or "no" with punctuation
@@ -48,10 +43,10 @@ def parse_vote_decision(decision_str: str | None) -> VoteDecision:
         or decision_lower.endswith(" no")
         or any(keyword in decision_lower for keyword in ["reject", "oppose", "decline"])
     ):
-        return VoteDecision.NO
+        return "no"
 
     # Default to abstain for unclear responses
-    return VoteDecision.ABSTAIN
+    return "abstain"
 
 
 def parse_confidence_level(confidence_str: str | None) -> float:

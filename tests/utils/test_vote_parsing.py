@@ -1,60 +1,66 @@
-"""Tests for vote parsing utilities."""
+"""Tests for vote parsing utilities.
 
-from bo1.models.votes import VoteDecision
+DEPRECATED: parse_vote_decision is no longer used in the recommendation system.
+Only testing parse_confidence_level and parse_conditions which are still used.
+"""
+
 from bo1.utils.vote_parsing import parse_conditions, parse_confidence_level, parse_vote_decision
 
 
 class TestParseVoteDecision:
-    """Test parse_vote_decision function."""
+    """Test parse_vote_decision function.
+
+    DEPRECATED: This function is no longer used but kept for backward compatibility.
+    """
 
     def test_yes_variations(self):
         """Test various forms of YES votes."""
-        assert parse_vote_decision("Yes") == VoteDecision.YES
-        assert parse_vote_decision("YES") == VoteDecision.YES
-        assert parse_vote_decision("yes") == VoteDecision.YES
-        assert parse_vote_decision("I approve this proposal") == VoteDecision.YES
-        assert parse_vote_decision("I support this idea") == VoteDecision.YES
-        assert parse_vote_decision("Accept") == VoteDecision.YES
+        assert parse_vote_decision("Yes") == "yes"
+        assert parse_vote_decision("YES") == "yes"
+        assert parse_vote_decision("yes") == "yes"
+        assert parse_vote_decision("I approve this proposal") == "yes"
+        assert parse_vote_decision("I support this idea") == "yes"
+        assert parse_vote_decision("Accept") == "yes"
 
     def test_no_variations(self):
         """Test various forms of NO votes."""
-        assert parse_vote_decision("No") == VoteDecision.NO
-        assert parse_vote_decision("NO") == VoteDecision.NO
-        assert parse_vote_decision("no") == VoteDecision.NO
-        assert parse_vote_decision("I reject this proposal") == VoteDecision.NO
-        assert parse_vote_decision("I oppose this plan") == VoteDecision.NO
-        assert parse_vote_decision("Decline") == VoteDecision.NO
+        assert parse_vote_decision("No") == "no"
+        assert parse_vote_decision("NO") == "no"
+        assert parse_vote_decision("no") == "no"
+        assert parse_vote_decision("I reject this proposal") == "no"
+        assert parse_vote_decision("I oppose this plan") == "no"
+        assert parse_vote_decision("Decline") == "no"
 
     def test_conditional_variations(self):
         """Test various forms of CONDITIONAL votes."""
-        assert parse_vote_decision("Conditional") == VoteDecision.CONDITIONAL
-        assert parse_vote_decision("CONDITIONAL") == VoteDecision.CONDITIONAL
-        assert parse_vote_decision("conditional") == VoteDecision.CONDITIONAL
-        assert parse_vote_decision("Yes, if budget is approved") == VoteDecision.CONDITIONAL
-        assert parse_vote_decision("Only if timeline is realistic") == VoteDecision.CONDITIONAL
-        assert parse_vote_decision("Provided that we have resources") == VoteDecision.CONDITIONAL
+        assert parse_vote_decision("Conditional") == "conditional"
+        assert parse_vote_decision("CONDITIONAL") == "conditional"
+        assert parse_vote_decision("conditional") == "conditional"
+        assert parse_vote_decision("Yes, if budget is approved") == "conditional"
+        assert parse_vote_decision("Only if timeline is realistic") == "conditional"
+        assert parse_vote_decision("Provided that we have resources") == "conditional"
 
     def test_abstain_variations(self):
         """Test various forms of ABSTAIN votes."""
-        assert parse_vote_decision("Abstain") == VoteDecision.ABSTAIN
-        assert parse_vote_decision("ABSTAIN") == VoteDecision.ABSTAIN
-        assert parse_vote_decision("abstain") == VoteDecision.ABSTAIN
-        assert parse_vote_decision("Unclear response") == VoteDecision.ABSTAIN
-        assert parse_vote_decision("") == VoteDecision.ABSTAIN
-        assert parse_vote_decision(None) == VoteDecision.ABSTAIN
+        assert parse_vote_decision("Abstain") == "abstain"
+        assert parse_vote_decision("ABSTAIN") == "abstain"
+        assert parse_vote_decision("abstain") == "abstain"
+        assert parse_vote_decision("Unclear response") == "abstain"
+        assert parse_vote_decision("") == "abstain"
+        assert parse_vote_decision(None) == "abstain"
 
     def test_ambiguous_responses(self):
         """Test handling of ambiguous responses."""
         # Should default to abstain for truly ambiguous cases
-        assert parse_vote_decision("Maybe") == VoteDecision.ABSTAIN
-        assert parse_vote_decision("I'm not sure") == VoteDecision.ABSTAIN
+        assert parse_vote_decision("Maybe") == "abstain"
+        assert parse_vote_decision("I'm not sure") == "abstain"
 
     def test_priority_handling(self):
         """Test that YES/NO take priority over conditional keywords."""
         # "Yes if" should be conditional, not yes
-        assert parse_vote_decision("Yes if budget approved") == VoteDecision.CONDITIONAL
+        assert parse_vote_decision("Yes if budget approved") == "conditional"
         # "No" should be no even with extra text (but "if" makes it conditional)
-        assert parse_vote_decision("No, I reject this") == VoteDecision.NO
+        assert parse_vote_decision("No, I reject this") == "no"
 
 
 class TestParseConfidenceLevel:

@@ -18,7 +18,7 @@ from bo1.models.state import (
     DeliberationPhase,
     DeliberationState,
 )
-from bo1.models.votes import Vote, VoteDecision
+from bo1.models.votes import Vote
 
 # ============================================================================
 # Round-Trip Serialization Tests
@@ -244,11 +244,11 @@ def test_deliberation_state_model_round_trip():
 
 @pytest.mark.unit
 def test_vote_model_round_trip():
-    """Test: Vote model serializes and deserializes correctly."""
+    """Test: Vote/Recommendation model serializes and deserializes correctly."""
     original = Vote(
         persona_code="strategic_advisor",
         persona_name="Maria Chen",
-        decision=VoteDecision.YES,
+        recommendation="Approve investment in X",
         confidence=0.8,
         reasoning="Strong financial projections and market validation",
     )
@@ -259,7 +259,7 @@ def test_vote_model_round_trip():
 
     assert restored.persona_code == original.persona_code
     assert restored.persona_name == original.persona_name
-    assert restored.decision == original.decision
+    assert restored.recommendation == original.recommendation
     assert restored.confidence == original.confidence
     assert restored.reasoning == original.reasoning
 
@@ -352,7 +352,7 @@ def test_vote_validates_confidence_range():
         Vote(
             persona_code="test",
             persona_name="Test",
-            decision=VoteDecision.YES,
+            recommendation="Approve investment",
             confidence=1.5,
             reasoning="Test",
         )
@@ -363,7 +363,7 @@ def test_vote_validates_confidence_range():
         Vote(
             persona_code="test",
             persona_name="Test",
-            decision=VoteDecision.YES,
+            recommendation="Approve investment",
             confidence=-0.1,
             reasoning="Test",
         )

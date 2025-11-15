@@ -195,7 +195,7 @@ def resolve_model_alias(model_name: str) -> str:
     settings = get_settings()
     if settings.ai_override:
         override_model = settings.ai_override_model
-        logger.info(
+        logger.debug(
             f"🔄 AI_OVERRIDE enabled: {model_name} → {override_model} "
             "(using cheaper model for testing)"
         )

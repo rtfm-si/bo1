@@ -50,7 +50,67 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     )
 
     # Parse decomposition
-    decomposition = json.loads(response.content)
+    # Note: response.content may already be sanitized by DecomposerAgent fallback
+    try:
+        decomposition = json.loads(response.content)
+    except json.JSONDecodeError as e:
+        # This should be rare - DecomposerAgent already handles fallback
+        # But if it happens, try to extract valid JSON from the response
+        logger.warning(
+            f"Failed to parse decomposition JSON in node (error: {e}). "
+            f"Attempting to extract valid JSON from response."
+        )
+        # Try to find the first complete JSON object
+        content = response.content.strip()
+        # Find the matching closing brace for the first opening brace
+        brace_count = 0
+        end_pos = -1
+        for i, char in enumerate(content):
+            if char == "{":
+                brace_count += 1
+            elif char == "}":
+                brace_count -= 1
+                if brace_count == 0:
+                    end_pos = i + 1
+                    break
+
+        if end_pos > 0:
+            # Try parsing just the valid JSON part
+            try:
+                decomposition = json.loads(content[:end_pos])
+                logger.info("Successfully extracted valid JSON from response")
+            except json.JSONDecodeError:
+                # Final fallback - this should never happen
+                logger.error("Could not extract valid JSON. Using atomic problem fallback.")
+                decomposition = {
+                    "analysis": "JSON parsing failed",
+                    "is_atomic": True,
+                    "sub_problems": [
+                        {
+                            "id": "sp_001",
+                            "goal": problem.description,
+                            "context": problem.context,
+                            "complexity_score": 5,
+                            "dependencies": [],
+                        }
+                    ],
+                }
+        else:
+            # No valid JSON found - use fallback
+            logger.error("No valid JSON structure found. Using atomic problem fallback.")
+            decomposition = {
+                "analysis": "JSON parsing failed",
+                "is_atomic": True,
+                "sub_problems": [
+                    {
+                        "id": "sp_001",
+                        "goal": problem.description,
+                        "context": problem.context,
+                        "complexity_score": 5,
+                        "dependencies": [],
+                    }
+                ],
+            }
 
     # Convert sub-problem dicts to SubProblem models
     sub_problems = [
@@ -76,6 +136,7 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     metrics.phase_costs["problem_decomposition"] = response.cost_total
     metrics.total_cost += response.cost_total
+    metrics.total_tokens += response.total_tokens
 
     logger.info(
         f"decompose_node: Complete - {len(sub_problems)} sub-problems "
@@ -151,6 +212,7 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     metrics.phase_costs["persona_selection"] = response.cost_total
     metrics.total_cost += response.cost_total
+    metrics.total_tokens += response.total_tokens
 
     logger.info(
         f"select_personas_node: Complete - {len(personas)} personas selected "
@@ -158,8 +220,10 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
     )
 
     # Return state updates
+    # Include recommendations for display (with rationale for each persona)
     return {
         "personas": personas,
+        "persona_recommendations": recommended_personas,  # Save for display
         "phase": DeliberationPhase.SELECTION,
         "metrics": metrics,
         "current_node": "select_personas",
@@ -197,8 +261,10 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         metrics = DeliberationMetrics()
 
     round_cost = sum(r.cost_total for r in llm_responses)
+    round_tokens = sum(r.total_tokens for r in llm_responses)
     metrics.phase_costs["initial_round"] = round_cost
     metrics.total_cost += round_cost
+    metrics.total_tokens += round_tokens
 
     logger.info(
         f"initial_round_node: Complete - {len(contributions)} contributions "
@@ -258,6 +324,7 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
             metrics.phase_costs.get("facilitator_decision", 0.0) + llm_response.cost_total
         )
         metrics.total_cost += llm_response.cost_total
+        metrics.total_tokens += llm_response.total_tokens
         cost_msg = f"(cost: ${llm_response.cost_total:.4f})"
     else:
         cost_msg = "(no LLM call)"
@@ -265,8 +332,10 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     logger.info(f"facilitator_decide_node: Complete - action={decision.action} {cost_msg}")
 
     # Return state updates with facilitator decision
+    # Include round_number so it's available for display
     return {
         "facilitator_decision": decision,
+        "round_number": round_number,  # Pass through current round for display
         "phase": DeliberationPhase.DISCUSSION,
         "metrics": metrics,
         "current_node": "facilitator_decide",
@@ -349,6 +418,7 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
         metrics.phase_costs.get(phase_key, 0.0) + llm_response.cost_total
     )
     metrics.total_cost += llm_response.cost_total
+    metrics.total_tokens += llm_response.total_tokens
 
     # Add new contribution to state
     contributions.append(contribution_msg)
@@ -446,6 +516,7 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
         metrics.phase_costs.get(phase_key, 0.0) + llm_response.cost_total
     )
     metrics.total_cost += llm_response.cost_total
+    metrics.total_tokens += llm_response.total_tokens
 
     # Add intervention to contributions
     contributions.append(intervention_msg)
@@ -464,30 +535,30 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
 
 
 async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
-    """Collect votes from all personas.
+    """Collect recommendations from all personas.
 
-    This node wraps the existing collect_votes() function from voting.py
-    and updates the graph state with the collected votes.
+    This node wraps the collect_recommendations() function from voting.py
+    and updates the graph state with the collected recommendations.
 
     Args:
         state: Current graph state
 
     Returns:
-        Dictionary with state updates (votes, metrics)
+        Dictionary with state updates (recommendations, metrics)
     """
     from bo1.llm.broker import PromptBroker
-    from bo1.orchestration.voting import collect_votes
+    from bo1.orchestration.voting import collect_recommendations
 
-    logger.info("vote_node: Starting voting phase")
+    logger.info("vote_node: Starting recommendation collection phase")
 
-    # Convert graph state to v1 DeliberationState for voting
+    # Convert graph state to v1 DeliberationState
     v1_state = graph_state_to_deliberation_state(state)
 
     # Create broker for LLM calls
     broker = PromptBroker()
 
-    # Collect votes from all personas
-    votes, llm_responses = await collect_votes(state=v1_state, broker=broker)
+    # Collect recommendations from all personas
+    recommendations, llm_responses = await collect_recommendations(state=v1_state, broker=broker)
 
     # Track cost in metrics
     metrics = state.get("metrics")
@@ -496,29 +567,35 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
 
         metrics = DeliberationMetrics()
 
-    vote_cost = sum(r.cost_total for r in llm_responses)
-    metrics.phase_costs["voting"] = vote_cost
-    metrics.total_cost += vote_cost
+    rec_cost = sum(r.cost_total for r in llm_responses)
+    rec_tokens = sum(r.total_tokens for r in llm_responses)
+    metrics.phase_costs["voting"] = rec_cost  # Keep key as "voting" for backward compat
+    metrics.total_cost += rec_cost
+    metrics.total_tokens += rec_tokens
 
-    logger.info(f"vote_node: Complete - {len(votes)} votes collected (cost: ${vote_cost:.4f})")
+    logger.info(
+        f"vote_node: Complete - {len(recommendations)} recommendations collected (cost: ${rec_cost:.4f})"
+    )
 
-    # Convert Vote objects to dicts for state storage
-    votes_dicts = [
+    # Convert Recommendation objects to dicts for state storage
+    recommendations_dicts = [
         {
-            "persona_code": v.persona_code,
-            "persona_name": v.persona_name,
-            "decision": v.decision.value,
-            "reasoning": v.reasoning,
-            "confidence": v.confidence,
-            "conditions": v.conditions,
-            "weight": v.weight,
+            "persona_code": r.persona_code,
+            "persona_name": r.persona_name,
+            "recommendation": r.recommendation,
+            "reasoning": r.reasoning,
+            "confidence": r.confidence,
+            "conditions": r.conditions,
+            "weight": r.weight,
         }
-        for v in votes
+        for r in recommendations
     ]
 
     # Return state updates
+    # Keep "votes" key for backward compatibility during migration
     return {
-        "votes": votes_dicts,
+        "votes": recommendations_dicts,
+        "recommendations": recommendations_dicts,
         "phase": DeliberationPhase.VOTING,
         "metrics": metrics,
         "current_node": "vote",
@@ -561,10 +638,10 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         )
 
     # Add votes
-    all_contributions_and_votes.append("\n=== VOTES ===\n")
+    all_contributions_and_votes.append("\n=== RECOMMENDATIONS ===\n")
     for vote in votes:
         all_contributions_and_votes.append(
-            f"{vote['persona_name']}: {vote['decision']} "
+            f"{vote['persona_name']}: {vote['recommendation']} "
             f"(confidence: {vote['confidence']:.2f})\n"
             f"Reasoning: {vote['reasoning']}\n"
         )
@@ -618,6 +695,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     metrics.phase_costs["synthesis"] = response.cost_total
     metrics.total_cost += response.cost_total
+    metrics.total_tokens += response.total_tokens
 
     logger.info(
         f"synthesize_node: Complete - synthesis generated (cost: ${response.cost_total:.4f})"

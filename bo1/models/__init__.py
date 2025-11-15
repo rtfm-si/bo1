@@ -8,6 +8,11 @@ from .persona import (
     ResponseStyle,
 )
 from .problem import Constraint, ConstraintType, Problem, SubProblem
+from .recommendations import (
+    ConsensusLevel,
+    Recommendation,
+    RecommendationAggregation,
+)
 from .state import (
     ContributionMessage,
     ContributionType,
@@ -15,13 +20,9 @@ from .state import (
     DeliberationPhase,
     DeliberationState,
 )
-from .votes import (
-    ConsensusLevel,
-    Vote,
-    VoteAggregation,
-    VoteDecision,
-    aggregate_votes,
-)
+
+# Legacy aliases
+from .votes import Vote, VoteAggregation
 
 __all__ = [
     # Persona models
@@ -41,10 +42,11 @@ __all__ = [
     "DeliberationMetrics",
     "ContributionMessage",
     "ContributionType",
-    # Vote models
-    "Vote",
-    "VoteDecision",
-    "VoteAggregation",
+    # Recommendation models
+    "Recommendation",
+    "RecommendationAggregation",
     "ConsensusLevel",
-    "aggregate_votes",
+    # Legacy aliases
+    "Vote",
+    "VoteAggregation",
 ]

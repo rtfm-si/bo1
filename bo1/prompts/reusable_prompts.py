@@ -355,36 +355,51 @@ Gather relevant evidence and information to support the deliberation, providing 
 
 # CACHE-OPTIMIZED: Generic voting system prompt (shared across all personas)
 # Persona identity moved to user message for cross-persona cache sharing
-VOTING_SYSTEM_PROMPT = """<instructions>
-The deliberation is concluding. Review the full discussion and provide your final assessment.
+RECOMMENDATION_SYSTEM_PROMPT = """<instructions>
+The deliberation is concluding. Review the full discussion and provide your final recommendation.
 
 <full_discussion>
 {discussion_history}
 </full_discussion>
 
-IMPORTANT: You MUST respond using the following XML structure. Do NOT use markdown headings or other formats.
+IMPORTANT: You MUST respond using the following XML structure. DO NOT use markdown headings or other formats.
 
 Your response will start with <thinking> (which is prefilled for you), and you must continue with the rest of the XML structure:
 
 <thinking>
 Reflect on the deliberation:
 1. What are the strongest arguments made?
-2. What risks or concerns remain from your perspective?
-3. What evidence supports each option?
+2. What alternatives have been discussed?
+3. What evidence supports different approaches?
 4. What is your domain-specific recommendation?
 5. How confident are you (and why)?
-6. What conditions would change your recommendation?
+6. What key risks or conditions apply?
 </thinking>
 
-<vote>
-<decision>Your recommended option - be specific (e.g., "SEO", "Paid Ads", "Neither - do X first", "Conditional on Y")</decision>
+<recommendation_block>
+<recommendation>
+Your specific, actionable recommendation. Be concrete and clear.
+
+For binary questions (e.g., "Should we invest in X?"):
+- You can recommend "Approve investment in X" or "Reject X, invest in Y instead"
+- You can also recommend alternatives: "Neither - do Z first, then reconsider"
+- Or hybrid approaches: "Test with $10K first, then scale if metrics hit targets"
+
+For strategy questions (e.g., "What compensation structure?"):
+- Provide a specific strategy: "60% salary, 40% dividends hybrid"
+- Or: "Pure salary until profitability, then transition to 50/50"
+- Be specific with percentages, timelines, and approaches
+
+Always consider alternatives beyond just yes/no to the stated option.
+</recommendation>
 
 <reasoning>
-2-3 paragraphs explaining your vote from your expert perspective:
-- Key factors influencing your decision
-- How the discussion shaped your thinking
-- Specific risks or opportunities you weight heavily
-- Evidence or frameworks supporting your choice
+2-3 paragraphs explaining your recommendation from your expert perspective:
+- Why this approach is best based on your domain expertise
+- What alternatives you considered and why you ruled them out
+- Key risks, opportunities, and trade-offs
+- How the deliberation shaped your thinking
+- Evidence or frameworks supporting your recommendation
 </reasoning>
 
 <confidence>high | medium | low</confidence>
@@ -394,18 +409,22 @@ Why this confidence level? What would increase or decrease it?
 </confidence_rationale>
 
 <conditions>
-Under what conditions would your recommendation change? What caveats apply?
-If none, write "No additional conditions."
-</conditions>
-</vote>
+Critical conditions or caveats (one per line):
+- Condition 1
+- Condition 2
+- Condition 3
 
-Remember: Use ONLY the XML tags shown above. Do NOT use markdown headings like ## Decision or # Vote.
+If none, write "No conditions."
+</conditions>
+</recommendation_block>
+
+Remember: Use ONLY the XML tags shown above. Do NOT use markdown headings like ## Recommendation or # Decision.
 </instructions>"""
 
-# User message template for voting (includes persona identity - NOT cached)
-VOTING_USER_MESSAGE = """You are {persona_name} preparing your final vote and recommendation.
+# User message template for recommendations (includes persona identity - NOT cached)
+RECOMMENDATION_USER_MESSAGE = """You are {persona_name} preparing your final recommendation.
 
-Please provide your final vote using the XML structure specified in the instructions above."""
+Please provide your recommendation using the XML structure specified in the instructions above."""
 
 # DEPRECATED: Old template kept for backward compatibility during migration
 VOTING_PROMPT_TEMPLATE = """<system_role>
@@ -434,7 +453,7 @@ Reflect on the deliberation:
 </thinking>
 
 <vote>
-<decision>Your recommended option - be specific (e.g., "SEO", "Paid Ads", "Neither - do X first", "Conditional on Y")</decision>
+<decision>approve | reject | conditional | abstain</decision>
 
 <reasoning>
 2-3 paragraphs explaining your vote from your expert perspective:
@@ -442,6 +461,7 @@ Reflect on the deliberation:
 - How the discussion shaped your thinking
 - Specific risks or opportunities you weight heavily
 - Evidence or frameworks supporting your choice
+- Your specific recommendation (what option/approach you favor)
 </reasoning>
 
 <confidence>high | medium | low</confidence>
@@ -451,10 +471,24 @@ Why this confidence level? What would increase or decrease it?
 </confidence_rationale>
 
 <conditions>
-Under what conditions would your recommendation change? What caveats apply?
+List any conditions or caveats that apply to your vote (one per line):
+- Condition 1
+- Condition 2
+- Condition 3
+
+If your vote is "conditional", specify what must be true for you to approve.
+If your vote is "approve" or "reject", list any important caveats.
 If none, write "No additional conditions."
 </conditions>
 </vote>
+
+IMPORTANT: Your <decision> tag MUST contain exactly one of these words: approve, reject, conditional, abstain
+- Use "approve" if you support the proposed approach
+- Use "reject" if you oppose the proposed approach
+- Use "conditional" if you support it ONLY with specific conditions met
+- Use "abstain" only if you genuinely cannot make a recommendation
+
+In your <reasoning>, explain your specific recommendation and preferred option.
 
 Remember: Use ONLY the XML tags shown above. Do NOT use markdown headings like ## Decision or # Vote.
 </instructions>"""

@@ -1,6 +1,6 @@
-"""Voting and synthesis orchestration for Board of One.
+"""Recommendation collection and synthesis orchestration for Board of One.
 
-Handles the final voting phase and synthesis of deliberation results.
+Handles the final recommendation phase and synthesis of deliberation results.
 """
 
 import logging
@@ -9,115 +9,124 @@ from typing import Any
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
 from bo1.llm.response_parser import ResponseParser
+from bo1.models.recommendations import ConsensusLevel, Recommendation, RecommendationAggregation
 from bo1.models.state import DeliberationState
-from bo1.models.votes import Vote, VoteAggregation, aggregate_votes
-from bo1.prompts.reusable_prompts import VOTING_SYSTEM_PROMPT, VOTING_USER_MESSAGE
+from bo1.prompts.reusable_prompts import RECOMMENDATION_SYSTEM_PROMPT, RECOMMENDATION_USER_MESSAGE
 from bo1.utils.json_parsing import parse_json_with_fallback
 from bo1.utils.logging_helpers import LogHelper
 
 logger = logging.getLogger(__name__)
 
 
-async def collect_votes(
+async def collect_recommendations(
     state: DeliberationState,
     broker: PromptBroker,
-) -> tuple[list[Vote], list[LLMResponse]]:
-    """Collect votes from all personas in parallel.
+) -> tuple[list[Recommendation], list[LLMResponse]]:
+    """Collect recommendations from all personas in parallel.
 
     Args:
         state: Current deliberation state
         broker: PromptBroker for LLM calls
 
     Returns:
-        Tuple of (votes, llm_responses)
+        Tuple of (recommendations, llm_responses)
     """
     import asyncio
 
-    logger.info(f"Collecting votes from {len(state.selected_personas)} personas (parallel)")
+    logger.info(
+        f"Collecting recommendations from {len(state.selected_personas)} personas (parallel)"
+    )
 
     # Build discussion history once
     discussion_history = _format_discussion_history(state)
 
-    # Create voting tasks for all personas
-    async def _collect_single_vote(persona: Any) -> tuple[Vote | None, LLMResponse | None]:
-        """Collect vote from a single persona."""
-        logger.info(f"Requesting vote from {persona.name} ({persona.code})")
+    # Create recommendation tasks for all personas
+    async def _collect_single_recommendation(
+        persona: Any,
+    ) -> tuple[Recommendation | None, LLMResponse | None]:
+        """Collect recommendation from a single persona."""
+        logger.info(f"Requesting recommendation from {persona.name} ({persona.code})")
 
         # CACHE-OPTIMIZED: System prompt shared across all personas (cached!)
         # Persona identity in user message (not cached, but tiny)
-        voting_system = VOTING_SYSTEM_PROMPT.format(
+        recommendation_system = RECOMMENDATION_SYSTEM_PROMPT.format(
             discussion_history=discussion_history,
         )
 
         # User message includes persona identity (variable per persona)
-        voting_user = VOTING_USER_MESSAGE.format(
+        recommendation_user = RECOMMENDATION_USER_MESSAGE.format(
             persona_name=persona.name,
         )
 
-        # Request vote from persona
+        # Request recommendation from persona
         # CACHE OPTIMIZATION: System prompt is IDENTICAL for all personas
         # - First persona: Creates cache (~1,200 tokens)
         # - Remaining personas: Hit cache (90% cost savings)
         # - Cross-persona cache sharing: 80% cache hit rate
         # - Sonnet cached ($0.30/1M) < Haiku ($1.00/1M) + better reasoning quality
         request = PromptRequest(
-            system=voting_system,  # CACHED - shared by all personas
-            user_message=voting_user,  # NOT cached - unique per persona
+            system=recommendation_system,  # CACHED - shared by all personas
+            user_message=recommendation_user,  # NOT cached - unique per persona
             prefill="<thinking>",  # Force XML structure
             model="sonnet",  # Sonnet + caching = 30% of Haiku cost + better quality
             cache_system=True,  # Enable prompt caching (discussion history cached)
-            temperature=0.7,  # Slightly lower for voting
+            temperature=0.7,  # Slightly lower for recommendations
             max_tokens=2000,
-            phase="voting",
+            phase="recommendation",
             agent_type=f"persona_{persona.code}",
         )
 
         try:
             response = await broker.call(request)
 
-            # Parse vote from response (prepend prefill for complete content)
+            # Parse recommendation from response (prepend prefill for complete content)
             full_content = "<thinking>" + response.content
-            vote = ResponseParser.parse_vote_from_response(full_content, persona)
-
-            LogHelper.log_vote_collected(
-                logger, persona.name, vote.decision.value, vote.confidence, vote.conditions
+            recommendation = ResponseParser.parse_recommendation_from_response(
+                full_content, persona
             )
 
-            return vote, response
+            logger.info(
+                f"✅ Collected recommendation from {persona.name}: "
+                f"{recommendation.recommendation[:80]}... (confidence: {recommendation.confidence:.2f})"
+            )
+
+            return recommendation, response
 
         except Exception as e:
-            logger.error(f"Failed to collect vote from {persona.name}: {e}")
+            logger.error(f"Failed to collect recommendation from {persona.name}: {e}")
             return None, None
 
-    # Collect votes using sequential-then-parallel pattern for cache optimization
-    # First vote creates cache, remaining votes hit cache (90% cost savings)
+    # Collect recommendations using sequential-then-parallel pattern for cache optimization
+    # First recommendation creates cache, remaining recommendations hit cache (90% cost savings)
     personas_list = state.selected_personas
 
     if not personas_list:
-        logger.warning("No personas to collect votes from")
+        logger.warning("No personas to collect recommendations from")
         return [], []
 
-    # Collect first vote to create prompt cache
-    logger.info(f"Collecting first vote from {personas_list[0].name} (creates cache)")
-    first_result = await _collect_single_vote(personas_list[0])
+    # Collect first recommendation to create prompt cache
+    logger.info(f"Collecting first recommendation from {personas_list[0].name} (creates cache)")
+    first_result = await _collect_single_recommendation(personas_list[0])
 
-    # Collect remaining votes in parallel (all hit cache)
+    # Collect remaining recommendations in parallel (all hit cache)
     if len(personas_list) > 1:
-        logger.info(f"Collecting remaining {len(personas_list) - 1} votes in parallel (cache hits)")
+        logger.info(
+            f"Collecting remaining {len(personas_list) - 1} recommendations in parallel (cache hits)"
+        )
         remaining_results = await asyncio.gather(
-            *[_collect_single_vote(persona) for persona in personas_list[1:]]
+            *[_collect_single_recommendation(persona) for persona in personas_list[1:]]
         )
         results = [first_result] + remaining_results
     else:
         results = [first_result]
 
-    # Separate votes and responses
-    votes = [vote for vote, _ in results if vote is not None]
+    # Separate recommendations and responses
+    recommendations = [rec for rec, _ in results if rec is not None]
     llm_responses = [resp for _, resp in results if resp is not None]
 
-    logger.info(f"Collected {len(votes)}/{len(state.selected_personas)} votes")
+    logger.info(f"Collected {len(recommendations)}/{len(state.selected_personas)} recommendations")
 
-    return votes, llm_responses
+    return recommendations, llm_responses
 
 
 def _format_discussion_history(state: DeliberationState) -> str:
@@ -144,38 +153,38 @@ def _format_discussion_history(state: DeliberationState) -> str:
     return "\n".join(lines)
 
 
-async def aggregate_votes_ai(
-    votes: list[Vote],
+async def aggregate_recommendations_ai(
+    recommendations: list[Recommendation],
     discussion_context: str,
     broker: PromptBroker,
-) -> tuple[VoteAggregation, LLMResponse]:
-    """Aggregate votes using AI-driven synthesis (Haiku).
+) -> tuple[RecommendationAggregation, LLMResponse]:
+    """Aggregate recommendations using AI-driven synthesis (Haiku).
 
-    This is an AI-first approach that understands conditional votes,
-    preserves minority perspectives, and captures nuance that pattern
-    matching would miss.
+    This AI approach understands flexible recommendations, preserves
+    minority perspectives, and captures nuance that mechanical aggregation
+    would miss.
 
     Args:
-        votes: List of Vote objects
+        recommendations: List of Recommendation objects
         discussion_context: Full discussion context for reference
         broker: PromptBroker for Haiku call
 
     Returns:
-        Tuple of (VoteAggregation, LLMResponse from Haiku)
+        Tuple of (RecommendationAggregation, LLMResponse from Haiku)
     """
-    logger.info(f"Synthesizing {len(votes)} votes using AI (Haiku)")
+    logger.info(f"Synthesizing {len(recommendations)} recommendations using AI (Haiku)")
 
-    # Format votes for analysis
-    votes_formatted = _format_votes_for_ai(votes)
+    # Format recommendations for analysis
+    recommendations_formatted = _format_recommendations_for_ai(recommendations)
 
-    # Compose Haiku prompt for vote synthesis
+    # Compose Haiku prompt for recommendation synthesis
     # Following PROMPT_ENGINEERING_FRAMEWORK.md best practices:
     # - Use assistant prefill ("{") to force JSON output
     # - Explicit format specification
     # - Example provided
-    system_prompt = """You are an expert vote synthesizer analyzing deliberation outcomes.
+    system_prompt = """You are an expert recommendation synthesizer analyzing deliberation outcomes.
 
-Your task: Intelligently aggregate votes, understanding conditional logic and preserving critical minority perspectives.
+Your task: Intelligently aggregate expert recommendations, understanding both binary and strategic recommendations, and preserving critical minority perspectives.
 
 CRITICAL OUTPUT REQUIREMENTS:
 - Output ONLY valid JSON
@@ -186,35 +195,38 @@ CRITICAL OUTPUT REQUIREMENTS:
 - Follow the example format precisely
 
 Required JSON fields:
-  "consensus_decision": "approve" | "reject" | "conditional" | "no_consensus"
+  "consensus_recommendation": "The synthesized recommendation (specific and actionable)"
   "confidence_level": "high" | "medium" | "low"
+  "alternative_approaches": ["Alternative 1", "Alternative 2", ...]
   "critical_conditions": ["condition 1", "condition 2", ...]
   "dissenting_views": ["PersonaName: reasoning", ...]
   "rationale": "2-3 sentences explaining the synthesis"
 
 Example output (continue after the opening brace):
-  "consensus_decision": "approve",
-  "confidence_level": "medium",
-  "critical_conditions": ["Validate market demand first", "Keep initial budget under $25K"],
-  "dissenting_views": ["Maria Santos: Concerned about cash flow impact"],
-  "rationale": "Majority supports the approach with careful budget management. Financial risks require monitoring."
+  "consensus_recommendation": "Hybrid compensation structure: 60% salary, 40% dividends",
+  "confidence_level": "high",
+  "alternative_approaches": ["Pure salary until profitability", "70/30 split with quarterly rebalancing"],
+  "critical_conditions": ["Quarterly review and rebalancing", "Legal compliance verification"],
+  "dissenting_views": ["Ahmad Ibrahim: Prefers pure salary until company reaches profitability"],
+  "rationale": "Majority of experts support a hybrid approach that balances stability with tax efficiency. Quarterly reviews will help adjust as company situation evolves."
 }"""
 
-    user_message = f"""Analyze these votes and synthesize a decision:
+    user_message = f"""Analyze these expert recommendations and synthesize a consensus:
 
-<votes>
-{votes_formatted}
-</votes>
+<recommendations>
+{recommendations_formatted}
+</recommendations>
 
 <discussion_context>
 {discussion_context[:1000]}...
 </discussion_context>
 
 Consider:
-1. What is the overall consensus? (approve/reject/conditional/no_consensus)
-2. What conditions are CRITICAL (mentioned by multiple personas or high-confidence votes)?
-3. Which dissenting views MUST be preserved (substantive concerns from domain experts)?
-4. What is the overall confidence level?
+1. What is the consensus recommendation? (synthesize from all expert views)
+2. What alternative approaches were proposed? (capture distinct minority recommendations)
+3. What conditions are CRITICAL (mentioned by multiple experts or high-confidence recommendations)?
+4. Which dissenting views MUST be preserved (substantive alternative perspectives from domain experts)?
+5. What is the overall confidence level based on expert agreement and confidence scores?
 
 Output ONLY the JSON object (starting with the fields after the opening brace)."""
 
@@ -222,11 +234,11 @@ Output ONLY the JSON object (starting with the fields after the opening brace)."
         system=system_prompt,
         user_message=user_message,
         prefill="{",  # JSON prefill
-        model="haiku",  # Use Haiku for vote synthesis
+        model="haiku",  # Use Haiku for recommendation synthesis
         temperature=0.3,  # Lower for analysis
         max_tokens=1500,
-        phase="vote_aggregation",
-        agent_type="vote_synthesizer",
+        phase="recommendation_aggregation",
+        agent_type="recommendation_synthesizer",
     )
 
     try:
@@ -244,40 +256,46 @@ Output ONLY the JSON object (starting with the fields after the opening brace)."
         synthesis_data, parsing_errors = parse_json_with_fallback(
             content=json_content,
             prefill="",  # Already prepended above
-            context="vote aggregation",
+            context="recommendation aggregation",
             logger=logger,
         )
 
         if synthesis_data is None:
             raise ValueError(f"Could not parse JSON from response. Errors: {parsing_errors}")
 
-        # Build VoteAggregation from AI synthesis + traditional metrics
-        traditional_agg = aggregate_votes(votes)
+        # Build RecommendationAggregation from AI synthesis
+        # Calculate basic metrics
+        total_recs = len(recommendations)
+        average_confidence = (
+            sum(r.confidence for r in recommendations) / total_recs if total_recs > 0 else 0.0
+        )
 
-        # Override with AI insights where appropriate
-        ai_aggregation = VoteAggregation(
-            total_votes=traditional_agg.total_votes,
-            yes_votes=traditional_agg.yes_votes,
-            no_votes=traditional_agg.no_votes,
-            abstain_votes=traditional_agg.abstain_votes,
-            conditional_votes=traditional_agg.conditional_votes,
-            simple_majority=traditional_agg.simple_majority,
-            supermajority=traditional_agg.supermajority,
-            consensus_level=traditional_agg.consensus_level,
-            confidence_weighted_score=traditional_agg.confidence_weighted_score,
-            average_confidence=traditional_agg.average_confidence,
-            # AI-enhanced fields
-            dissenting_opinions=synthesis_data.get(
-                "dissenting_views", traditional_agg.dissenting_opinions
+        # Determine consensus level from AI confidence
+        confidence_level_str = synthesis_data.get("confidence_level", "medium")
+        if confidence_level_str == "high":
+            consensus_level = ConsensusLevel.STRONG
+        elif confidence_level_str == "low":
+            consensus_level = ConsensusLevel.WEAK
+        else:
+            consensus_level = ConsensusLevel.MODERATE
+
+        ai_aggregation = RecommendationAggregation(
+            total_recommendations=total_recs,
+            consensus_recommendation=synthesis_data.get(
+                "consensus_recommendation", "No consensus reached"
             ),
-            conditions_summary=synthesis_data.get(
-                "critical_conditions", traditional_agg.conditions_summary
-            ),
+            confidence_level=confidence_level_str,
+            alternative_approaches=synthesis_data.get("alternative_approaches", []),
+            critical_conditions=synthesis_data.get("critical_conditions", []),
+            dissenting_views=synthesis_data.get("dissenting_views", []),
+            confidence_weighted_score=average_confidence,
+            average_confidence=average_confidence,
+            consensus_level=consensus_level,
         )
 
         logger.info(
-            f"AI vote synthesis: {synthesis_data.get('consensus_decision', 'unknown')} "
-            f"(confidence: {synthesis_data.get('confidence_level', 'unknown')})"
+            f"AI recommendation synthesis: {synthesis_data.get('consensus_recommendation', 'unknown')[:60]}... "
+            f"(confidence: {confidence_level_str})"
         )
 
         return ai_aggregation, response
@@ -285,13 +303,27 @@ Output ONLY the JSON object (starting with the fields after the opening brace)."
     except Exception as e:
         LogHelper.log_fallback_used(
             logger,
-            operation="AI vote aggregation",
+            operation="AI recommendation aggregation",
             reason="Failed to parse or call LLM",
-            fallback_action="traditional aggregate_votes() (mechanical synthesis)",
+            fallback_action="basic aggregate_votes() fallback",
             error=e,
         )
-        # Fallback to traditional aggregation
-        traditional_agg = aggregate_votes(votes)
+        # Fallback to simple aggregation
+        total_recs = len(recommendations)
+        average_confidence = (
+            sum(r.confidence for r in recommendations) / total_recs if total_recs > 0 else 0.0
+        )
+
+        fallback_agg = RecommendationAggregation(
+            total_recommendations=total_recs,
+            consensus_recommendation=recommendations[0].recommendation
+            if recommendations
+            else "No consensus",
+            confidence_level="medium",
+            confidence_weighted_score=average_confidence,
+            average_confidence=average_confidence,
+            consensus_level=ConsensusLevel.MODERATE,
+        )
 
         # Create a dummy response to indicate fallback was used
         import uuid
@@ -301,7 +333,7 @@ Output ONLY the JSON object (starting with the fields after the opening brace)."
         from bo1.llm.response import LLMResponse
 
         fallback_response = LLMResponse(
-            content="[FALLBACK: Traditional vote aggregation used due to AI synthesis failure]",
+            content="[FALLBACK: Simple aggregation used due to AI synthesis failure]",
             model="fallback",
             token_usage=TokenUsage(
                 input_tokens=0,
@@ -315,26 +347,26 @@ Output ONLY the JSON object (starting with the fields after the opening brace)."
             request_id=str(uuid.uuid4()),
         )
 
-        return traditional_agg, fallback_response
+        return fallback_agg, fallback_response
 
 
-def _format_votes_for_ai(votes: list[Vote]) -> str:
-    """Format votes for AI analysis.
+def _format_recommendations_for_ai(recommendations: list[Recommendation]) -> str:
+    """Format recommendations for AI analysis.
 
     Args:
-        votes: List of Vote objects
+        recommendations: List of Recommendation objects
 
     Returns:
         Formatted string for AI consumption
     """
     lines = []
-    for vote in votes:
-        lines.append(f"--- {vote.persona_name} ({vote.persona_code}) ---")
-        lines.append(f"Decision: {vote.decision.value}")
-        lines.append(f"Confidence: {vote.confidence:.2f}")
-        lines.append(f"Reasoning: {vote.reasoning}")
-        if vote.conditions:
-            lines.append(f"Conditions: {', '.join(vote.conditions)}")
+    for rec in recommendations:
+        lines.append(f"--- {rec.persona_name} ({rec.persona_code}) ---")
+        lines.append(f"Recommendation: {rec.recommendation}")
+        lines.append(f"Confidence: {rec.confidence:.2f}")
+        lines.append(f"Reasoning: {rec.reasoning}")
+        if rec.conditions:
+            lines.append(f"Conditions: {', '.join(rec.conditions)}")
         lines.append("")
 
     return "\n".join(lines)

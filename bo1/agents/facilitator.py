@@ -357,13 +357,13 @@ Consider:
         lines.append("")
         lines.append(state.format_discussion_history())
 
-        # Add votes
-        lines.append("FINAL VOTES:")
+        # Add recommendations
+        lines.append("FINAL RECOMMENDATIONS:")
         lines.append("")
 
         for vote in votes:
             lines.append(f"--- {vote.persona_name} ---")
-            lines.append(f"Decision: {vote.decision.value}")
+            lines.append(f"Recommendation: {vote.recommendation}")
             lines.append(f"Reasoning: {vote.reasoning}")
             if vote.conditions:
                 lines.append(f"Conditions: {', '.join(vote.conditions)}")
@@ -395,16 +395,20 @@ Consider:
         """
         logger.info("Validating synthesis quality with AI (Haiku)")
 
-        # Collect dissenting votes
-        dissenting_votes = [v for v in votes if v.decision.value in ["no", "abstain"]]
-        conditional_votes = [v for v in votes if v.decision.value == "conditional"]
+        # Collect recommendations with conditions (since we no longer have decision enum)
+        recommendations_with_conditions = [v for v in votes if v.conditions]
+        # Low confidence recommendations might indicate dissent/uncertainty
+        low_confidence_recommendations = [v for v in votes if v.confidence < 0.6]
 
         # Format for validation
         dissenting_summary = "\n".join(
-            [f"- {v.persona_name}: {v.reasoning[:200]}..." for v in dissenting_votes]
+            [f"- {v.persona_name}: {v.reasoning[:200]}..." for v in low_confidence_recommendations]
         )
         conditional_summary = "\n".join(
-            [f"- {v.persona_name}: {', '.join(v.conditions[:3])}" for v in conditional_votes]
+            [
+                f"- {v.persona_name}: {', '.join(v.conditions[:3])}"
+                for v in recommendations_with_conditions
+            ]
         )
 
         system_prompt = """You are a synthesis quality validator.
@@ -434,8 +438,8 @@ Output ONLY valid JSON in this exact format:
 </conditional_votes_expected>
 
 Check:
-1. Are all dissenting views ({len(dissenting_votes)}) included and explained?
-2. Are critical conditions ({len([c for v in conditional_votes for c in v.conditions])}) clearly stated?
+1. Are all low-confidence views ({len(low_confidence_recommendations)}) included and explained?
+2. Are critical conditions ({len([c for v in recommendations_with_conditions for c in v.conditions])}) clearly stated?
 3. Is the recommendation specific and actionable (not vague)?
 4. Are risks and implementation challenges addressed?
 

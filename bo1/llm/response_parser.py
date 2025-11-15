@@ -6,13 +6,12 @@ Consolidates parsing logic for structured responses from different agents.
 import logging
 from typing import Any
 
+from bo1.models.recommendations import Recommendation
 from bo1.models.state import DeliberationState
-from bo1.models.votes import Vote
 from bo1.utils.extraction import ResponseExtractor
 from bo1.utils.vote_parsing import (
     parse_conditions,
     parse_confidence_level,
-    parse_vote_decision,
 )
 from bo1.utils.xml_parsing import extract_xml_tag
 
@@ -66,61 +65,64 @@ class ResponseParser:
         return thinking, contribution
 
     @staticmethod
-    def parse_vote_from_response(response_content: str, persona: Any) -> Vote:
-        """Parse vote from LLM response.
+    def parse_recommendation_from_response(response_content: str, persona: Any) -> Recommendation:
+        """Parse recommendation from LLM response.
+
+        No keyword matching - just extracts structured fields.
+        Trusts the LLM to provide the recommendation.
 
         Args:
             response_content: Raw LLM response
             persona: Persona object with 'code' and 'name' attributes
 
         Returns:
-            Parsed Vote object
+            Parsed Recommendation object
 
         Example:
-            >>> content = '''<decision>approve</decision>
-            ... <reasoning>This is a good idea</reasoning>
+            >>> content = '''<recommendation>60% salary, 40% dividends hybrid</recommendation>
+            ... <reasoning>This balances tax efficiency...</reasoning>
             ... <confidence>high</confidence>
-            ... <conditions>Budget approval, Team buy-in</conditions>'''
+            ... <conditions>Review quarterly</conditions>'''
             >>> persona = type('P', (), {'code': 'test', 'name': 'Test Persona'})()
-            >>> vote = ResponseParser.parse_vote_from_response(content, persona)
-            >>> vote.decision
-            VoteDecision.YES
+            >>> rec = ResponseParser.parse_recommendation_from_response(content, persona)
+            >>> rec.recommendation
+            '60% salary, 40% dividends hybrid'
         """
-        # Extract and parse decision using utility
-        decision_str = extract_xml_tag(response_content, "decision")
-        if not decision_str:
+        # Extract recommendation text directly (no keyword matching!)
+        recommendation = extract_xml_tag(response_content, "recommendation")
+        if not recommendation:
             logger.error(
-                f"⚠️ FALLBACK: Could not extract <decision> tag from {persona.name} vote response. "
-                f"Defaulting to ABSTAIN. Response preview: {response_content[:200]}..."
+                f"⚠️ FALLBACK: Could not extract <recommendation> tag from {persona.name} response. "
+                f"Response preview: {response_content[:200]}..."
             )
-        decision = parse_vote_decision(decision_str)
+            recommendation = "[No recommendation provided]"
 
-        # Extract reasoning using utility
+        # Extract reasoning
         reasoning = extract_xml_tag(response_content, "reasoning")
         if not reasoning:
             logger.warning(
-                f"⚠️ FALLBACK: Could not extract <reasoning> tag from {persona.name} vote. "
+                f"⚠️ FALLBACK: Could not extract <reasoning> tag from {persona.name} recommendation. "
                 f"Using fallback text."
             )
             reasoning = "[Reasoning not provided in structured format]"
 
-        # Extract and parse confidence using utility
+        # Extract and parse confidence
         confidence_str = extract_xml_tag(response_content, "confidence")
         if not confidence_str:
             logger.warning(
-                f"⚠️ FALLBACK: Could not extract <confidence> tag from {persona.name} vote. "
+                f"⚠️ FALLBACK: Could not extract <confidence> tag from {persona.name} recommendation. "
                 f"Defaulting to 0.6 (medium)."
             )
         confidence = parse_confidence_level(confidence_str)
 
-        # Extract and parse conditions using utility
+        # Extract and parse conditions
         conditions_str = extract_xml_tag(response_content, "conditions")
         conditions = parse_conditions(conditions_str)
 
-        return Vote(
+        return Recommendation(
             persona_code=persona.code,
             persona_name=persona.name,
-            decision=decision,
+            recommendation=recommendation,  # Store as-is, no parsing!
             reasoning=reasoning,
             confidence=confidence,
             conditions=conditions,

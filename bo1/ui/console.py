@@ -262,7 +262,7 @@ class Console:
         confidence_pct = int(vote.confidence * 100)
         confidence_bar = "█" * (confidence_pct // 10) + "░" * (10 - confidence_pct // 10)
 
-        content = f"""[bold]Decision:[/bold] {vote.decision}
+        content = f"""[bold]Recommendation:[/bold] {vote.recommendation}
 [bold]Confidence:[/bold] {confidence_pct}% [{confidence_bar}]
 
 [bold]Reasoning:[/bold]
@@ -291,14 +291,20 @@ class Console:
         if not votes:
             return
 
-        table = Table(title="Voting Summary", show_header=True, header_style="bold green")
+        table = Table(title="Recommendations Summary", show_header=True, header_style="bold green")
         table.add_column("Persona", style="cyan")
-        table.add_column("Decision", style="bold")
+        table.add_column("Recommendation", style="bold")
         table.add_column("Confidence", justify="right")
 
         for vote in votes:
             confidence_pct = f"{int(vote.confidence * 100)}%"
-            table.add_row(vote.persona_name, vote.decision, confidence_pct)
+            # Truncate long recommendations for table display
+            rec_display = (
+                vote.recommendation[:60] + "..."
+                if len(vote.recommendation) > 60
+                else vote.recommendation
+            )
+            table.add_row(vote.persona_name, rec_display, confidence_pct)
 
         self.console.print(table)
         self.console.print()

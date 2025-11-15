@@ -13,7 +13,6 @@ import uuid
 from typing import Any
 
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from bo1.graph.config import create_deliberation_graph
 from bo1.graph.state import create_initial_state
@@ -85,6 +84,8 @@ async def run_console_deliberation(
     session_id: str | None = None,
     max_rounds: int = 15,
     debug: bool = False,
+    export: bool = False,
+    include_logs: bool = False,
 ) -> Any:  # Returns DeliberationGraphState but typing is complex
     """Run a deliberation session with console UI.
 
@@ -93,6 +94,8 @@ async def run_console_deliberation(
         session_id: Optional session ID to resume from checkpoint
         max_rounds: Maximum number of deliberation rounds
         debug: Enable debug output
+        export: Export transcript to exports/ directory (markdown + JSON)
+        include_logs: Include detailed logs in export (tokens, costs, thinking)
 
     Returns:
         Final deliberation state
@@ -130,122 +133,291 @@ async def run_console_deliberation(
         console.print(f"[error]{error_msg}[/error]")
         raise ValueError(error_msg)
 
-    # Create graph with checkpointer if resuming session
-    # Otherwise disable checkpointing (for now - Week 5 will enable by default)
-    checkpointer_enabled = session_id is not None
-    if checkpointer_enabled:
-        # Use Redis checkpointer for resume functionality
-        graph = create_deliberation_graph(checkpointer=None)  # Auto-creates RedisSaver
-    else:
-        # Disable checkpointing for new sessions (for now)
-        graph = create_deliberation_graph(checkpointer=False)
+    # Create graph without checkpointer for now
+    # TODO: Re-enable when RedisSaver async methods are properly implemented
+    # The current langgraph-checkpoint-redis package has NotImplementedError for async methods
+    graph = create_deliberation_graph(checkpointer=False)
 
     # Resume from checkpoint or create new session
     if session_id:
-        console.print(f"\n[info]Resuming session: {session_id}[/info]")
-        config = {"configurable": {"thread_id": session_id}}
-
-        try:
-            # Load checkpoint to display progress
-            state_snapshot = await graph.aget_state(config)
-
-            # Check if checkpoint exists and is valid
-            if not state_snapshot or not state_snapshot.values:
-                error_msg = f"No checkpoint found for session: {session_id}"
-                console.print(f"[error]{error_msg}[/error]")
-                raise ValueError(error_msg)
-
-            # Validate checkpoint has required fields
-            required_fields = ["phase", "round_number", "metrics"]
-            missing_fields = [f for f in required_fields if f not in state_snapshot.values]
-            if missing_fields:
-                error_msg = f"Corrupted checkpoint for session {session_id}. Missing fields: {missing_fields}"
-                console.print(f"[error]{error_msg}[/error]")
-                raise ValueError(error_msg)
-
-            console.print(
-                f"[info]Resuming from phase: {state_snapshot.values.get('phase', 'UNKNOWN')}[/info]"
-            )
-            console.print(
-                f"[info]Round: {state_snapshot.values.get('round_number', 0)}/{max_rounds}[/info]"
-            )
-            console.print(
-                f"[info]Cost so far: ${state_snapshot.values.get('metrics', {}).get('total_cost', 0.0):.4f}[/info]\n"
-            )
-
-            # Ask user to continue with input validation
-            while True:
-                response = console.input("[yellow]Continue deliberation? (y/n):[/yellow] ")
-                if validate_user_input(response, ["y", "n"]):
-                    break
-                console.print("[warning]Invalid input. Please enter 'y' or 'n'.[/warning]")
-
-            if response.lower() != "y":
-                console.print("[warning]Deliberation paused.[/warning]")
-                return state_snapshot.values
-
-        except ValueError as e:
-            # Check for LangGraph "No checkpointer set" error first
-            if "No checkpointer set" in str(e):
-                error_msg = f"No checkpoint found for session: {session_id}"
-                console.print(f"[error]{error_msg}[/error]")
-                raise ValueError(error_msg) from e
-            # Re-raise explicit errors (no checkpoint found, corrupted)
-            if "No checkpoint found" in str(e) or "Corrupted checkpoint" in str(e):
-                raise
-            # Re-raise other ValueErrors with context
-            error_msg = f"Error loading checkpoint for session {session_id}: {e}"
-            console.print(f"[error]{error_msg}[/error]")
-            raise ValueError(error_msg) from e
-        except Exception as e:
-            # Handle non-ValueError exceptions
-            error_msg = f"Error loading checkpoint for session {session_id}: {e}"
-            console.print(f"[error]{error_msg}[/error]")
-            raise ValueError(error_msg) from e
-
-        initial_state = None  # Resume from checkpoint
-    else:
-        console.print_header("Board of One - LangGraph Deliberation")
-        console.print_problem(problem)
-
-        # Create initial state
-        session_id = str(uuid.uuid4())
-        initial_state = create_initial_state(
-            session_id=session_id, problem=problem, max_rounds=max_rounds
+        # Session resume is currently disabled because checkpointing is disabled
+        error_msg = (
+            "Session resume is currently not supported. "
+            "Checkpointing is disabled because langgraph-checkpoint-redis "
+            "does not properly implement async methods (raises NotImplementedError). "
+            "Please start a new session without --resume flag."
         )
-        config = {"configurable": {"thread_id": session_id}}
+        console.print(f"[error]{error_msg}[/error]")
+        raise ValueError(error_msg)
+
+    # Create new session
+    console.print_header("Board of One - LangGraph Deliberation")
+    console.print_problem(problem)
+
+    # Create initial state
+    session_id = str(uuid.uuid4())
+    initial_state = create_initial_state(
+        session_id=session_id, problem=problem, max_rounds=max_rounds
+    )
+
+    # Import recursion limit from loop prevention
+    from bo1.graph.safety.loop_prevention import DELIBERATION_RECURSION_LIMIT
+
+    config = {
+        "configurable": {"thread_id": session_id},
+        "recursion_limit": DELIBERATION_RECURSION_LIMIT,
+    }
 
     # Execute graph with progress display
     console.print(f"\n[info]Session ID: {session_id}[/info]")
     console.print("[info]Starting deliberation...[/info]\n")
 
-    # Use Rich progress display
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console.console,
-    ) as progress:
-        task = progress.add_task("[cyan]Running deliberation...", total=None)
+    # Execute graph with streaming to display intermediate results
+    final_state = None
+    try:
+        # Use astream_events to intercept node completions and display progress
+        async for event in graph.astream_events(initial_state, config=config, version="v2"):
+            event_type = event.get("event")
+            event_name = event.get("name", "")
 
-        # Execute graph
-        try:
-            if initial_state:
-                final_state = await graph.ainvoke(initial_state, config=config)
-            else:
-                # Resume from checkpoint
-                final_state = await graph.ainvoke(None, config=config)
+            # Display output when nodes complete
+            if event_type == "on_chain_end" and "data" in event:
+                output = event.get("data", {}).get("output", {})
 
-            progress.update(task, description="[green]✓ Deliberation complete")
+                # Display based on node type
+                if event_name == "decompose" and isinstance(output, dict):
+                    _display_sub_problems(console, output)
+                elif event_name == "select_personas" and isinstance(output, dict):
+                    _display_personas(console, output)
+                elif event_name == "initial_round" and isinstance(output, dict):
+                    contributions = output.get("contributions", [])
+                    if contributions:
+                        console.print("\n")
+                        console.print_header("Initial Round - All Experts Contribute")
+                        for contrib in contributions:
+                            _display_contribution(console, contrib, round_num=0)
+                elif event_name == "facilitator_decide" and isinstance(output, dict):
+                    decision = output.get("facilitator_decision")
+                    round_num = output.get("round_number", 1)
+                    if decision:
+                        _display_facilitator_decision(console, decision, round_num)
+                elif event_name == "persona_contribute" and isinstance(output, dict):
+                    contributions = output.get("contributions", [])
+                    round_num = output.get("round_number", 1)
+                    if contributions:
+                        # Display the newest contribution
+                        _display_contribution(console, contributions[-1], round_num)
+                elif event_name == "check_convergence" and isinstance(output, dict):
+                    _display_convergence_check(console, output)
+                elif event_name == "moderator_intervene" and isinstance(output, dict):
+                    contributions = output.get("contributions", [])
+                    round_num = output.get("round_number", 1)
+                    if contributions:
+                        console.print(
+                            f"\n[magenta]═══ Moderator Intervention (Round {round_num}) ═══[/magenta]"
+                        )
+                        _display_contribution(console, contributions[-1], round_num)
+                elif event_name == "vote" and isinstance(output, dict):
+                    _display_votes(console, output)
+                elif event_name == "synthesize" and isinstance(output, dict):
+                    _display_synthesis(console, output)
 
-        except Exception as e:
-            progress.update(task, description=f"[red]✗ Error: {e}")
-            raise
+                # Capture the final state from the last event
+                if isinstance(output, dict):
+                    final_state = output
+
+    except Exception as e:
+        console.print(f"\n[red]✗ Error: {e}[/red]")
+        raise
 
     # Display results
-    console.print("\n")
-    _display_results(console, final_state)
+    if final_state:
+        _display_results(console, final_state)
+
+        # Export if requested
+        if export:
+            await _export_deliberation(console, final_state, include_logs)
+    else:
+        console.print("\n[yellow]Warning: No final state captured[/yellow]")
 
     return final_state
+
+
+def _display_sub_problems(console: Console, state: Any) -> None:
+    """Display decomposed sub-problems.
+
+    Args:
+        console: Console instance for output
+        state: Graph state with sub_problems
+    """
+    sub_problems = state.get("sub_problems", [])
+    if not sub_problems:
+        return
+
+    console.print("\n")
+    console.print_header("Problem Decomposition")
+    console.print(f"\n[cyan]Decomposed into {len(sub_problems)} sub-problems:[/cyan]\n")
+
+    for i, sp in enumerate(sub_problems, 1):
+        console.print(f"[bold cyan]{i}. {sp.goal}[/bold cyan]")
+        if sp.rationale:
+            console.print(f"   [dim]→ {sp.rationale}[/dim]")
+        console.print()
+
+
+def _display_personas(console: Console, state: Any) -> None:
+    """Display selected personas with selection rationale.
+
+    Args:
+        console: Console instance for output
+        state: Graph state with personas and recommendations
+    """
+    personas = state.get("personas", [])
+    recommendations = state.get("persona_recommendations", [])
+
+    if not personas:
+        return
+
+    console.print("\n")
+    console.print_header("Expert Panel Selected")
+    console.print(f"\n[cyan]{len(personas)} experts will deliberate:[/cyan]\n")
+
+    # Create a map of code -> rationale from recommendations
+    rationale_map = (
+        {rec["code"]: rec.get("rationale", "") for rec in recommendations}
+        if recommendations
+        else {}
+    )
+
+    for persona in personas:
+        console.print(f"  • [bold]{persona.name}[/bold] ({persona.code})")
+
+        # Display rationale if available
+        rationale = rationale_map.get(persona.code)
+        if rationale:
+            console.print(f"    [yellow]Why chosen:[/yellow] [dim]{rationale}[/dim]")
+
+        # Display domain expertise if available
+        expertise_list = persona.get_expertise_list()
+        if expertise_list:
+            expertise_str = ", ".join(expertise_list)
+            console.print(f"    [dim]Expertise: {expertise_str}[/dim]")
+        console.print()  # Add spacing between personas
+
+    console.print()
+
+
+def _display_contribution(console: Console, contribution: Any, round_num: int) -> None:
+    """Display a single expert contribution.
+
+    Args:
+        console: Console instance for output
+        contribution: ContributionMessage object
+        round_num: Current round number
+    """
+    console.print(
+        f"\n[bold cyan]═══ {contribution.persona_name} (Round {round_num}) ═══[/bold cyan]"
+    )
+    console.print(contribution.content)
+    console.print()
+
+
+def _display_facilitator_decision(console: Console, decision: Any, round_num: int) -> None:
+    """Display facilitator's decision.
+
+    Args:
+        console: Console instance for output
+        decision: FacilitatorDecision object
+        round_num: Current round number
+    """
+    console.print(f"\n[yellow]━━━ Facilitator Decision (Round {round_num}) ━━━[/yellow]")
+    console.print(f"Action: [bold]{decision.action}[/bold]")
+
+    if decision.reasoning:
+        console.print(f"Reasoning: {decision.reasoning[:200]}...")
+
+    if decision.action == "continue" and decision.next_speaker:
+        console.print(f"Next speaker: [cyan]{decision.next_speaker}[/cyan]")
+    elif decision.action == "moderator" and decision.moderator_type:
+        console.print(f"Moderator type: [magenta]{decision.moderator_type}[/magenta]")
+    elif decision.action == "research" and decision.research_query:
+        console.print(f"Research query: {decision.research_query[:100]}...")
+
+    console.print()
+
+
+def _display_convergence_check(console: Console, state: Any) -> None:
+    """Display convergence check results.
+
+    Args:
+        console: Console instance for output
+        state: Graph state with convergence metrics
+    """
+    should_stop = state.get("should_stop", False)
+    stop_reason = state.get("stop_reason")
+    round_number = state.get("round_number", 0)
+    max_rounds = state.get("max_rounds", 15)
+
+    status = "[green]CONTINUING[/green]" if not should_stop else "[red]STOPPING[/red]"
+    console.print(f"\n[dim]Convergence Check: {status} (Round {round_number}/{max_rounds})[/dim]")
+
+    if stop_reason:
+        console.print(f"[dim]Reason: {stop_reason}[/dim]")
+    console.print()
+
+
+def _display_votes(console: Console, state: Any) -> None:
+    """Display voting results.
+
+    Args:
+        console: Console instance for output
+        state: Graph state with votes
+    """
+    votes = state.get("votes", [])
+    if not votes:
+        return
+
+    console.print("\n")
+    console.print_header("Recommendations")
+    console.print(f"\n[cyan]{len(votes)} expert recommendations:[/cyan]\n")
+
+    for vote in votes:
+        # Extract recommendation data
+        persona_name = vote.get("persona_name", "Unknown")
+        recommendation = vote.get("recommendation", "No recommendation provided")
+        confidence = vote.get("confidence", 0.0)
+        reasoning = vote.get("reasoning", "")
+        conditions = vote.get("conditions", [])
+
+        # Display recommendation
+        console.print(
+            f"[bold]{persona_name}[/bold]: {recommendation} (confidence: {confidence:.0%})"
+        )
+        if reasoning:
+            # Truncate long reasoning
+            short_reasoning = reasoning[:150] + "..." if len(reasoning) > 150 else reasoning
+            console.print(f"  [dim]{short_reasoning}[/dim]")
+        if conditions:
+            console.print(f"  [yellow]Conditions: {', '.join(conditions)}[/yellow]")
+        console.print()
+
+
+def _display_synthesis(console: Console, state: Any) -> None:
+    """Display synthesis report.
+
+    Args:
+        console: Console instance for output
+        state: Graph state with synthesis
+    """
+    synthesis = state.get("synthesis")
+    if not synthesis:
+        return
+
+    console.print("\n")
+    console.print_header("Final Synthesis")
+    console.print()
+    console.print(synthesis)
+    console.print()
 
 
 def _display_results(console: Console, state: Any) -> None:  # state is DeliberationGraphState
@@ -256,6 +428,7 @@ def _display_results(console: Console, state: Any) -> None:  # state is Delibera
         state: Final deliberation state
     """
     # Display phase costs
+    console.print("\n")
     console.print_header("Deliberation Complete")
 
     # Get metrics object (DeliberationMetrics is already an object, not a dict)
@@ -266,7 +439,7 @@ def _display_results(console: Console, state: Any) -> None:  # state is Delibera
         f"**Phase**: {state['phase'].value}",
         f"**Rounds**: {state['round_number']}",
         f"**Total Cost**: ${metrics.total_cost:.4f}",
-        f"**Stop Reason**: {state.get('stop_reason', 'N/A')}",
+        f"**Stop Reason**: {state.get('stop_reason', 'None')}",
     ]
 
     console.print(
@@ -282,11 +455,78 @@ def _display_results(console: Console, state: Any) -> None:  # state is Delibera
     console.print(f"\n[info]Total tokens: {metrics.total_tokens:,}[/info]")
 
     # Display contributions summary
-    console.print(f"\n[info]Total Contributions: {len(state['contributions'])}[/info]")
+    contributions = state.get("contributions", [])
+    console.print(f"\n[info]Total Contributions: {len(contributions)}[/info]")
 
-    # Offer to save results
-    console.print(f"\n[success]Session saved with ID: {state['session_id']}[/success]")
-    console.print("[info]Use --resume <session_id> to continue or inspect this session[/info]")
+    # Show each contribution briefly
+    if contributions:
+        console.print("\n[cyan]Contribution Summary:[/cyan]")
+        for i, contrib in enumerate(contributions, 1):
+            snippet = (
+                contrib.content[:100] + "..." if len(contrib.content) > 100 else contrib.content
+            )
+            console.print(f"  {i}. [bold]{contrib.persona_name}:[/bold] {snippet}")
+
+    # Display session info
+    console.print(f"\n[success]Session ID: {state['session_id']}[/success]")
+    # Note: Resume functionality is currently disabled (checkpointing not working)
+
+
+async def _export_deliberation(console: Console, state: Any, include_logs: bool = False) -> None:
+    """Export deliberation to files.
+
+    Args:
+        console: Console instance for output
+        state: Final deliberation state (DeliberationGraphState)
+        include_logs: Include detailed logs (tokens, costs, thinking sections)
+    """
+    import os
+    from datetime import datetime
+
+    from bo1.graph.state import graph_state_to_deliberation_state
+    from bo1.state.serialization import to_json, to_markdown
+
+    console.print("\n")
+    console.print_header("Exporting Deliberation")
+
+    # Convert graph state to v1 DeliberationState for export
+    try:
+        v1_state = graph_state_to_deliberation_state(state)
+    except Exception as e:
+        console.print(f"[red]✗ Export failed: Could not convert state ({e})[/red]")
+        return
+
+    # Create exports directory if it doesn't exist
+    exports_dir = "exports"
+    os.makedirs(exports_dir, exist_ok=True)
+
+    # Generate filename with timestamp
+    session_id = state.get("session_id", "unknown")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_filename = f"{session_id}_{timestamp}"
+
+    # Export markdown transcript
+    try:
+        md_path = os.path.join(exports_dir, f"{base_filename}.md")
+        markdown_content = to_markdown(v1_state, include_metadata=include_logs)
+        with open(md_path, "w") as f:
+            f.write(markdown_content)
+        console.print(f"[green]✓[/green] Markdown transcript: {md_path}")
+    except Exception as e:
+        console.print(f"[red]✗ Markdown export failed: {e}[/red]")
+
+    # Export JSON (full state)
+    try:
+        json_path = os.path.join(exports_dir, f"{base_filename}.json")
+        json_content = to_json(v1_state, indent=2)
+        with open(json_path, "w") as f:
+            f.write(json_content)
+        console.print(f"[green]✓[/green] JSON state: {json_path}")
+    except Exception as e:
+        console.print(f"[red]✗ JSON export failed: {e}[/red]")
+
+    console.print(f"\n[cyan]Exports saved to ./{exports_dir}/[/cyan]")
+    console.print()
 
 
 async def stream_deliberation_events(
@@ -327,6 +567,7 @@ async def stream_deliberation_events(
         elif event_type == "on_chain_end":
             logger.debug(f"Node completed: {event.get('name')}")
 
-    # Get final state
-    final_state = await graph.aget_state(config)
-    return final_state.values
+    # Note: Without checkpointing, we can't retrieve final state
+    # This function is for future SSE support (Week 6)
+    # For now, just return None since streaming is not yet implemented
+    return None

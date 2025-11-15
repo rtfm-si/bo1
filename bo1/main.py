@@ -99,6 +99,8 @@ async def main_async(args: argparse.Namespace) -> None:
         session_id=None,
         max_rounds=args.max_rounds,
         debug=args.debug,
+        export=args.export,
+        include_logs=args.include_logs,
     )
 
 
@@ -131,6 +133,17 @@ def main() -> None:
         "-d",
         action="store_true",
         help="Enable debug output",
+    )
+    parser.add_argument(
+        "--export",
+        "-e",
+        action="store_true",
+        help="Export deliberation transcript to exports/ directory (markdown + JSON)",
+    )
+    parser.add_argument(
+        "--include-logs",
+        action="store_true",
+        help="Include detailed logs in export (tokens, costs, thinking sections)",
     )
 
     args = parser.parse_args()

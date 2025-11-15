@@ -311,32 +311,33 @@ async def run_complete_demo(interactive: bool = False) -> None:
     console.print("[dim]Collecting votes from all personas...[/dim]\n")
 
     # Import voting functions
-    from bo1.orchestration.voting import aggregate_votes_ai, collect_votes
+    from bo1.orchestration.voting import aggregate_recommendations_ai, collect_recommendations
 
-    # Collect votes
-    votes, vote_responses = await collect_votes(state=state, broker=broker)
+    # Collect recommendations
+    recommendations, vote_responses = await collect_recommendations(state=state, broker=broker)
     for response in vote_responses:
         all_metrics.add_response(response)
 
-    console.print(f"[green]✓ Collected {len(votes)} votes[/green]\n")
+    console.print(f"[green]✓ Collected {len(recommendations)} recommendations[/green]\n")
 
-    # Show vote summary
-    for vote in votes:
-        console.print(
-            f"  • {vote.persona_name}: {vote.decision.value} (confidence: {vote.confidence:.1%})"
+    # Show recommendations summary
+    for rec in recommendations:
+        rec_preview = (
+            rec.recommendation[:50] + "..." if len(rec.recommendation) > 50 else rec.recommendation
         )
+        console.print(f"  • {rec.persona_name}: {rec_preview} (confidence: {rec.confidence:.1%})")
 
-    # Aggregate votes using AI
-    console.print("\n[dim]Synthesizing votes using AI (Haiku)...[/dim]\n")
+    # Aggregate recommendations using AI
+    console.print("\n[dim]Synthesizing recommendations using AI (Haiku)...[/dim]\n")
     discussion_context = "\n".join([c.content for c in state.contributions[:3]])  # Sample
-    vote_agg, agg_response = await aggregate_votes_ai(
-        votes=votes, discussion_context=discussion_context, broker=broker
+    rec_agg, agg_response = await aggregate_recommendations_ai(
+        recommendations=recommendations, discussion_context=discussion_context, broker=broker
     )
     all_metrics.add_response(agg_response)
 
-    console.print("[green]✓ Vote aggregation complete[/green]")
-    console.print(f"[dim]  Simple majority: {vote_agg.simple_majority}[/dim]")
-    console.print(f"[dim]  Average confidence: {vote_agg.average_confidence:.1%}[/dim]\n")
+    console.print("[green]✓ Recommendation aggregation complete[/green]")
+    console.print(f"[dim]  Consensus: {rec_agg.consensus_recommendation[:60]}...[/dim]")
+    console.print(f"[dim]  Average confidence: {rec_agg.average_confidence:.1%}[/dim]\n")
 
     # Synthesize deliberation
     console.print("[dim]Generating final synthesis report...[/dim]\n")
@@ -346,7 +347,7 @@ async def run_complete_demo(interactive: bool = False) -> None:
     facilitator = FacilitatorAgent(broker=broker)
 
     synthesis_report, synthesis_response = await facilitator.synthesize_deliberation(
-        state=state, votes=votes, vote_aggregation=vote_agg
+        state=state, votes=recommendations, vote_aggregation=rec_agg
     )
     all_metrics.add_response(synthesis_response)
 
@@ -357,7 +358,7 @@ async def run_complete_demo(interactive: bool = False) -> None:
     is_valid, revision_feedback, validation_response = await facilitator.validate_synthesis_quality(
         synthesis_report=synthesis_report,
         state=state,
-        votes=votes,
+        votes=recommendations,
     )
     all_metrics.add_response(validation_response)
 
@@ -367,7 +368,7 @@ async def run_complete_demo(interactive: bool = False) -> None:
             original_synthesis=synthesis_report,
             feedback=revision_feedback,
             state=state,
-            votes=votes,
+            votes=recommendations,
         )
         all_metrics.add_response(revision_response)
         synthesis_report = revised_report

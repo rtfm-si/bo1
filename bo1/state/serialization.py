@@ -155,7 +155,7 @@ def to_markdown(state: DeliberationState, include_metadata: bool = True) -> str:
 
         for vote in state.votes:
             lines.append(f"### {vote.persona_name} (`{vote.persona_code}`)\n")
-            lines.append(f"**Decision**: {vote.decision}")
+            lines.append(f"**Recommendation**: {vote.recommendation}")
             lines.append(f"**Confidence**: {vote.confidence * 100:.0f}%\n")
 
             if vote.reasoning:

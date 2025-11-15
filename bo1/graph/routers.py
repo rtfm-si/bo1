@@ -53,7 +53,7 @@ def route_facilitator_decision(
     - "vote" → Move to voting phase
     - "moderator" → Trigger moderator intervention
     - "continue" → Persona contributes next round
-    - "research" → End (research not implemented in Week 5)
+    - "research" → Treat as continue (research not implemented)
 
     Args:
         state: Current graph state with facilitator_decision
@@ -80,9 +80,22 @@ def route_facilitator_decision(
         logger.info("route_facilitator_decision: Routing to persona_contribute")
         return "persona_contribute"
     elif action == "research":
-        # Research not implemented in Week 5, end for now
-        logger.info("route_facilitator_decision: Research requested, ending (not implemented)")
-        return "END"
+        # Research not implemented - pick a random persona to continue discussion
+        import random
+
+        personas = state.get("personas", [])
+        if personas:
+            # Randomly select a speaker since facilitator didn't specify one
+            random_speaker = random.choice(personas)  # noqa: S311
+            decision.next_speaker = random_speaker.code
+            logger.warning(
+                f"route_facilitator_decision: Research requested but not implemented. "
+                f"Selected random speaker '{random_speaker.code}' to continue discussion"
+            )
+            return "persona_contribute"
+        else:
+            logger.error("route_facilitator_decision: Research requested but no personas available")
+            return "END"
     else:
         logger.warning(f"route_facilitator_decision: Unknown action {action}, routing to END")
         return "END"
@@ -90,7 +103,7 @@ def route_facilitator_decision(
 
 def route_convergence_check(
     state: DeliberationGraphState,
-) -> Literal["facilitator_decide", "END"]:
+) -> Literal["facilitator_decide", "vote"]:
     """Route after convergence check based on should_stop flag.
 
     This router is called after persona_contribute or moderator_intervene nodes.
@@ -101,7 +114,7 @@ def route_convergence_check(
 
     Returns:
         - "facilitator_decide" if deliberation should continue
-        - "END" if stopping condition met (max rounds, convergence, etc.)
+        - "vote" if stopping condition met (max rounds, convergence, etc.) - Day 31
     """
     should_stop = state.get("should_stop", False)
     stop_reason = state.get("stop_reason")
@@ -110,8 +123,10 @@ def route_convergence_check(
     logger.info(f"route_convergence_check: Round {round_number}, should_stop={should_stop}")
 
     if should_stop:
-        logger.info(f"route_convergence_check: Stopping deliberation (reason: {stop_reason})")
-        return "END"
+        logger.info(
+            f"route_convergence_check: Stopping deliberation (reason: {stop_reason}) -> routing to vote"
+        )
+        return "vote"
     else:
         logger.info("route_convergence_check: Continuing to facilitator_decide")
         return "facilitator_decide"

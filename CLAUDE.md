@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Console-based AI system using multi-agent deliberation (Claude personas) to solve complex problems through structured debate and synthesis.
 
-**Status**: v1 development - Week 1 foundation complete (Days 1-7), Week 2 starting
+**Status**: v1 complete (Weeks 1-5), v2 planning (Web API + Auth)
 
 ---
 
@@ -16,8 +16,10 @@ Console-based AI system using multi-agent deliberation (Claude personas) to solv
 
 ```
 Problem → Decomposition (1-5 sub-problems) → Persona Selection (3-5 experts)
-→ Multi-Round Debate → Voting → Synthesis → Recommendation
+→ Multi-Round Debate → Recommendations → Synthesis → Final Output
 ```
+
+**Architecture**: LangGraph-based state machine with Redis checkpointing, 5-layer loop prevention, and AI-powered synthesis.
 
 ---
 
@@ -27,10 +29,11 @@ Problem → Decomposition (1-5 sub-problems) → Persona Selection (3-5 experts)
 # Setup (one-time)
 make setup           # Creates .env, directories
 make build           # Build Docker images
-make up              # Start Redis + app containers
+make up              # Start Redis + PostgreSQL + app containers
 
 # Development
 make run             # Run deliberation (interactive)
+make demo            # Run full pipeline demo
 make shell           # Bash in container
 make logs            # View all container logs
 make logs-app        # View app logs only
@@ -46,7 +49,7 @@ make pre-commit      # Full suite: lint + format + typecheck (RUN BEFORE GIT PUS
 make fix             # Auto-fix linting and formatting issues
 make lint            # ruff check
 make format          # ruff format
-make check           # lint + typecheck
+make typecheck       # mypy
 
 # Redis
 make redis-cli       # Open Redis CLI
@@ -62,24 +65,70 @@ make inspect         # View container configuration
 
 **Hot Reload**: Edit code locally, changes immediately available in container (no rebuild).
 
-**Local Development**: For running tests locally (outside Docker) before pushing:
+**Local Development**: For running tests locally (outside Docker):
 ```bash
-# Requires: Redis running locally, .env configured, uv sync completed
+# Requires: Redis + PostgreSQL running locally, .env configured, uv sync completed
 pytest                              # All tests
 pytest -m unit                      # Unit tests only
 pytest -m "not requires_llm"        # Skip LLM tests (faster)
-pytest tests/test_integration_day7.py::test_name -v  # Single test
+pytest tests/path/to/test.py::test_name -v  # Single test
 ruff check . && ruff format --check . && mypy bo1/   # Pre-commit checks
 ```
 
 ---
 
-## Architecture Specifics
+## Architecture
+
+### LangGraph State Machine
+
+Board of One uses **LangGraph** (not plain LangChain) for stateful orchestration:
+
+```
+decompose_node → select_personas_node → initial_round_node
+  → facilitator_decide_node → (persona_contribute_node | moderator_intervene_node)
+  → check_convergence_node → (loop back OR vote_node)
+  → synthesize_node → END
+```
+
+**Key files**:
+- `bo1/graph/config.py` - Graph construction and compilation
+- `bo1/graph/state.py` - TypedDict state definition + conversion to/from v1 models
+- `bo1/graph/nodes.py` - Node implementations (decompose, contribute, vote, etc.)
+- `bo1/graph/routers.py` - Conditional edge routing logic
+- `bo1/graph/safety/loop_prevention.py` - 5-layer loop prevention system
+
+**State management**:
+- LangGraph uses `DeliberationGraphState` (TypedDict) for graph execution
+- v1 models (`DeliberationState`, Pydantic) still used internally by agents
+- Conversion functions: `state_to_v1()` and `v1_to_state()` bridge the gap
+
+### Recommendation System (NOT Binary Voting)
+
+**IMPORTANT**: The system uses **flexible recommendations**, not binary yes/no votes.
+
+**Migration completed** (2025-01-15): Voting system replaced with recommendation system to support both:
+- Binary questions: "Should we invest in X?" → "Yes, invest" OR "No, invest in Y instead"
+- Strategy questions: "What compensation structure?" → "60% salary, 40% dividends"
+
+**Key models**:
+- `Recommendation` (replaces `Vote`) - `recommendation` field (free-form string), NOT `decision` enum
+- `RecommendationAggregation` (replaces `VoteAggregation`) - AI-synthesized consensus
+- Legacy aliases: `Vote` and `VoteAggregation` exist for backward compatibility ONLY
+
+**Prompts**:
+- Use `RECOMMENDATION_SYSTEM_PROMPT` (NOT `VOTING_SYSTEM_PROMPT`)
+- XML tags: `<recommendation>`, `<reasoning>`, `<confidence>`, `<conditions>`
+- NO keyword matching - recommendations stored as-is from experts
+
+**Functions**:
+- `collect_recommendations()` (NOT `collect_votes()`)
+- `aggregate_recommendations_ai()` (NOT `aggregate_votes_ai()`)
+- Response parser: `parse_recommendation_from_response()` - extracts from XML, no keyword logic
 
 ### Prompt Engineering (Critical)
 
 All prompts follow `zzz_important/PROMPT_ENGINEERING_FRAMEWORK.md`:
-- **XML structure** with `<thinking>`, `<contribution>` tags
+- **XML structure** with `<thinking>`, `<contribution>`, `<recommendation>` tags
 - **Modular composition**: Bespoke persona identity + generic protocols + dynamic context
 - Personas stored in `bo1/data/personas.json` (45 experts)
 - Generic protocols in `bo1/prompts/reusable_prompts.py`
@@ -123,7 +172,10 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 
 **Combined guarantee**: Even if 4 layers fail, the 5th will stop the loop.
 
-See `docs/LOOP_PREVENTION.md` for complete details on all 5 layers, testing strategy, and failure analysis.
+**IMPORTANT**: When modifying convergence logic in `bo1/graph/safety/loop_prevention.py`:
+- `check_convergence_node()` must respect pre-set `metrics.convergence_score` (don't recalculate if already set)
+- Convergence threshold: `convergence_score > 0.85 and round_number >= 3`
+- Handle `None` values: `metrics.convergence_score if metrics and metrics.convergence_score is not None else 0.0`
 
 ---
 
@@ -131,9 +183,11 @@ See `docs/LOOP_PREVENTION.md` for complete details on all 5 layers, testing stra
 
 - `bo1/data/personas.json` - 45 experts (ONLY bespoke `<system_role>`, 879 chars avg)
 - `bo1/prompts/reusable_prompts.py` - Generic protocols (behavioral, evidence, communication)
-- `bo1/prompts/summarizer_prompts.py` - Background summarization (Haiku)
-- `zzz_project/TASKS.md` - 28-day implementation roadmap (83 tasks)
-- `zzz_important/CONSENSUS_BUILDING_RESEARCH.md` - Research-backed stopping criteria
+- `bo1/models/recommendations.py` - Recommendation models (replaces votes.py)
+- `bo1/graph/` - LangGraph nodes, routers, state, config, loop prevention
+- `zzz_project/MVP_IMPLEMENTATION_ROADMAP.md` - 14-week roadmap (101 days)
+- `zzz_project/VOTING_TO_RECOMMENDATIONS_MIGRATION.md` - Migration details
+- `zzz_important/PROMPT_ENGINEERING_FRAMEWORK.md` - Prompt design guidelines
 - `exports/` - Generated deliberation outputs (JSON, markdown reports)
 - `backups/` - Redis backup files (created by `make backup-redis`)
 
@@ -141,10 +195,16 @@ See `docs/LOOP_PREVENTION.md` for complete details on all 5 layers, testing stra
 
 ## Important Design Constraints
 
-**v1 is console-only**:
-- No FastAPI, no web UI, no PostgreSQL
-- Redis for session state (24h TTL)
-- LangChain as library (NOT LangGraph)
+**v1 is console + LangGraph**:
+- LangGraph state machine (NOT plain LangChain)
+- Redis for checkpointing (pause/resume)
+- PostgreSQL for persistent storage (personas, sessions)
+- Console UI with Rich formatting
+
+**v2 (future)**:
+- FastAPI web API adapter (SSE streaming)
+- Supabase auth + RLS
+- Stripe payments + rate limiting
 
 **Cost targets**:
 - $0.10-0.15 per sub-problem deliberation
@@ -186,37 +246,65 @@ contributions = await asyncio.gather(
 )
 ```
 
-### Hierarchical Context Building
+### Graph Execution with Checkpointing
 
 ```python
-# Build context for Round N
-context = {
-    "round_summaries": state.round_summaries,  # Rounds 1 to N-2 (cached)
-    "current_round": state.current_round_contributions  # Round N-1 (full detail)
-}
+from bo1.graph.config import create_deliberation_graph
+from bo1.graph.state import create_initial_state
+
+# Create graph with Redis checkpointing
+graph = create_deliberation_graph()  # Auto-creates RedisSaver from env
+
+# Create initial state
+state = create_initial_state(
+    session_id="session-123",
+    problem=problem,
+    personas=personas,
+    max_rounds=10
+)
+
+# Execute with checkpointing
+config = {"configurable": {"thread_id": "session-123"}}
+result = await graph.ainvoke(state, config=config)
+
+# Resume from checkpoint
+result = await graph.ainvoke(None, config=config)  # Continues from last checkpoint
+```
+
+### State Conversion (v1 ↔ LangGraph)
+
+```python
+from bo1.graph.state import state_to_v1, v1_to_state
+
+# LangGraph state → v1 Pydantic models (for agent calls)
+v1_state = state_to_v1(graph_state)
+result = await some_agent.run(v1_state)
+
+# v1 Pydantic → LangGraph state (for graph updates)
+graph_state = v1_to_state(v1_state)
 ```
 
 ---
 
 ## Testing Strategy
 
-1. **Unit**: Pydantic models, prompt composition, vote aggregation
+1. **Unit**: Pydantic models, prompt composition, recommendation aggregation
    - `make test-unit` or `pytest -m unit` - Fast tests, no API calls
-2. **Integration**: Redis persistence, LLM calls, convergence detection
-   - `make test-integration` or `pytest -m integration` - Requires Redis + API keys
+2. **Integration**: Redis persistence, LLM calls, convergence detection, LangGraph execution
+   - `make test-integration` or `pytest -m integration` - Requires Redis + PostgreSQL + API keys
    - `pytest -m "not requires_llm"` - Skip LLM tests (faster CI/local checks)
-3. **Week 1 Integration**: Full pipeline validation
-   - `pytest tests/test_integration_day7.py -v`
-   - Validates: persona → prompt → LLM → cache → Redis → export
-4. **Scenario**: 10+ solopreneur problems from PRD (5-15 min, <$1, >70% consensus)
+3. **Graph Tests**: LangGraph node execution, routing, checkpointing
+   - `pytest tests/graph/ -v` - Tests for nodes, routers, loop prevention
+4. **Demo**: Full pipeline validation (Weeks 1-5)
+   - `make demo` - Runs complete deliberation with real LLM calls
 
 **Running Specific Tests**:
 ```bash
 # Run single test file
-pytest tests/test_integration_day7.py -v
+pytest tests/graph/test_loop_prevention.py -v
 
 # Run single test function
-pytest tests/test_integration_day7.py::test_function_name -v
+pytest tests/graph/test_loop_prevention.py::test_check_convergence_with_high_score -v
 
 # Run tests with coverage report
 make test-coverage  # Generates htmlcov/index.html
@@ -232,8 +320,10 @@ make test-coverage  # Generates htmlcov/index.html
 ## What NOT to Do
 
 - Don't create new personas (use existing 45 from `personas.json`)
-- Don't add web UI features (v2 only)
-- Don't use LangGraph (too heavy for v1)
+- Don't use binary voting (use recommendation system with `<recommendation>` tag)
+- Don't use `VoteDecision` enum (removed - use free-form recommendation strings)
 - Don't hardcode prompts (use composition functions)
 - Don't ignore cost optimization (prompt caching is critical)
 - Don't let context grow quadratically (use hierarchical summarization)
+- Don't modify `check_convergence_node()` without handling `None` values for `convergence_score`
+- Don't call functions `collect_votes()` or `aggregate_votes_ai()` (use `collect_recommendations()` and `aggregate_recommendations_ai()`)

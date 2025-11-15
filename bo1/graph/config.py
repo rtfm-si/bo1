@@ -27,15 +27,9 @@ def create_deliberation_graph(
 ) -> Any:  # Returns CompiledStateGraph but type not exported
     """Create and compile the deliberation graph.
 
-    This creates a linear graph for Day 27 (Week 4):
-    decompose -> select_personas -> initial_round -> END
-
-    Week 5 will add:
-    - facilitator_decide node
-    - persona_contribute node (multi-round loop)
-    - moderator_intervene node
-    - vote node
-    - synthesize node
+    This creates a complete graph with multi-round deliberation loop:
+    decompose -> select_personas -> initial_round -> facilitator_decide ->
+    (persona_contribute | moderator_intervene) -> check_convergence -> (loop or END)
 
     Args:
         checkpointer: Optional checkpointer for pause/resume.
@@ -50,7 +44,7 @@ def create_deliberation_graph(
         >>> graph = create_deliberation_graph()
         >>> result = await graph.ainvoke(initial_state, config={"thread_id": "123"})
     """
-    logger.info("Creating deliberation graph (Day 27: Linear flow)")
+    logger.info("Creating deliberation graph with multi-round loop")
 
     # Handle checkpointer configuration
     actual_checkpointer: Any = None  # RedisSaver, MemorySaver, or other checkpointer
@@ -69,8 +63,8 @@ def create_deliberation_graph(
         actual_checkpointer = None
         logger.info("Checkpointing disabled")
     else:
-        # Use provided checkpointer (RedisSaver, MemorySaver, etc.)
-        # We accept Any type to support all BaseCheckpointSaver implementations
+        # Use provided checkpointer (any BaseCheckpointSaver implementation)
+        # This accepts RedisSaver, MemorySaver, or any other compatible checkpointer
         actual_checkpointer = checkpointer
         logger.info(f"Using provided checkpointer: {type(checkpointer).__name__}")
 
@@ -79,6 +73,8 @@ def create_deliberation_graph(
         facilitator_decide_node,
         moderator_intervene_node,
         persona_contribute_node,
+        synthesize_node,
+        vote_node,
     )
     from bo1.graph.routers import route_convergence_check, route_facilitator_decision
     from bo1.graph.safety.loop_prevention import check_convergence_node
@@ -94,6 +90,8 @@ def create_deliberation_graph(
     workflow.add_node("persona_contribute", persona_contribute_node)  # Day 30
     workflow.add_node("moderator_intervene", moderator_intervene_node)  # Day 30
     workflow.add_node("check_convergence", check_convergence_node)  # Day 24
+    workflow.add_node("vote", vote_node)  # Day 31
+    workflow.add_node("synthesize", synthesize_node)  # Day 31
 
     # Add edges - Linear setup phase
     # decompose -> select_personas
@@ -105,7 +103,7 @@ def create_deliberation_graph(
     # initial_round -> facilitator_decide (Week 5 Day 29)
     workflow.add_edge("initial_round", "facilitator_decide")
 
-    # Add conditional edges - Multi-round deliberation loop (Week 5 Day 30)
+    # Add conditional edges - Multi-round deliberation loop (Week 5 Day 30-31)
     # facilitator_decide -> (continue/vote/moderator/research)
     workflow.add_conditional_edges(
         "facilitator_decide",
@@ -113,7 +111,7 @@ def create_deliberation_graph(
         {
             "persona_contribute": "persona_contribute",
             "moderator_intervene": "moderator_intervene",
-            "vote": END,  # Week 5 Day 31 will route to vote node instead
+            "vote": "vote",  # Day 31: Route to vote node
             "END": END,
         },
     )
@@ -124,20 +122,27 @@ def create_deliberation_graph(
     # moderator_intervene -> check_convergence
     workflow.add_edge("moderator_intervene", "check_convergence")
 
-    # check_convergence -> (facilitator_decide if continue, END if stop)
+    # check_convergence -> (facilitator_decide if continue, vote if stop)
     workflow.add_conditional_edges(
         "check_convergence",
         route_convergence_check,
         {
             "facilitator_decide": "facilitator_decide",  # Loop back for next round
-            "END": END,  # Stop deliberation
+            "vote": "vote",  # Day 31: Route to voting when stopped
         },
     )
+
+    # vote -> synthesize (Day 31)
+    workflow.add_edge("vote", "synthesize")
+
+    # synthesize -> END (Day 31)
+    workflow.add_edge("synthesize", END)
 
     # Set entry point
     workflow.set_entry_point("decompose")
 
-    # Compile graph with recursion limit
+    # Compile graph
+    # Note: recursion_limit is set in the config during execution, not compilation
     graph = workflow.compile(
         checkpointer=actual_checkpointer,
     )

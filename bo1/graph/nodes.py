@@ -271,3 +271,193 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         "metrics": metrics,
         "current_node": "facilitator_decide",
     }
+
+
+async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Single persona contributes in a multi-round deliberation.
+
+    This node is called when the facilitator decides to continue the deliberation
+    with a specific persona speaking. It:
+    1. Extracts the speaker from the facilitator decision
+    2. Gets the persona profile
+    3. Calls the persona to contribute
+    4. Adds the contribution to state
+    5. Increments round number
+    6. Tracks cost
+
+    Args:
+        state: Current graph state (must have facilitator_decision)
+
+    Returns:
+        Dictionary with state updates (new contribution, incremented round)
+    """
+    from bo1.models.contribution import ContributionType
+    from bo1.orchestration.deliberation import DeliberationEngine
+
+    logger.info("persona_contribute_node: Processing persona contribution")
+
+    # Get facilitator decision (must exist)
+    decision = state.get("facilitator_decision")
+    if not decision:
+        raise ValueError("persona_contribute_node called without facilitator_decision in state")
+
+    # Extract speaker from decision (correct field name is 'next_speaker')
+    speaker_code = decision.next_speaker
+    if not speaker_code:
+        raise ValueError("Facilitator decision missing next_speaker for 'continue' action")
+
+    logger.info(f"persona_contribute_node: Speaker={speaker_code}")
+
+    # Get persona profile
+    personas = state.get("personas", [])
+    persona = next((p for p in personas if p.code == speaker_code), None)
+    if not persona:
+        raise ValueError(f"Persona {speaker_code} not found in selected personas")
+
+    # Get problem and contribution context
+    problem = state.get("problem")
+    contributions = list(state.get("contributions", []))
+    round_number = state.get("round_number", 1)
+
+    # Build participant list
+    participant_list = ", ".join([p.name for p in personas])
+
+    # Create deliberation engine (constructor takes state argument)
+    v1_state = graph_state_to_deliberation_state(state)
+    engine = DeliberationEngine(state=v1_state)
+
+    # Call persona with correct signature
+    contribution_msg, llm_response = await engine._call_persona_async(
+        persona_profile=persona,
+        problem_statement=problem.description if problem else "",
+        problem_context=problem.context if problem else "",
+        participant_list=participant_list,
+        round_number=round_number,
+        contribution_type=ContributionType.DELIBERATION,
+        previous_contributions=contributions,
+    )
+
+    # Track cost in metrics
+    metrics = state.get("metrics")
+    if metrics is None:
+        from bo1.models.state import DeliberationMetrics
+
+        metrics = DeliberationMetrics()
+
+    phase_key = f"round_{round_number}_deliberation"
+    metrics.phase_costs[phase_key] = (
+        metrics.phase_costs.get(phase_key, 0.0) + llm_response.cost_total
+    )
+    metrics.total_cost += llm_response.cost_total
+
+    # Add new contribution to state
+    contributions.append(contribution_msg)
+
+    # Increment round number for next round
+    next_round = round_number + 1
+
+    logger.info(
+        f"persona_contribute_node: Complete - {speaker_code} contributed "
+        f"(round {round_number} → {next_round}, cost: ${llm_response.cost_total:.4f})"
+    )
+
+    # Return state updates
+    return {
+        "contributions": contributions,
+        "round_number": next_round,
+        "metrics": metrics,
+        "current_node": "persona_contribute",
+    }
+
+
+async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Moderator intervenes to redirect conversation.
+
+    This node is called when the facilitator detects the conversation has
+    drifted off-topic or needs moderation. It:
+    1. Calls the ModeratorAgent to intervene
+    2. Adds the intervention as a contribution
+    3. Tracks cost
+    4. Returns updated state
+
+    Args:
+        state: Current graph state
+
+    Returns:
+        Dictionary with state updates (intervention contribution added)
+    """
+    from bo1.agents.moderator import ModeratorAgent
+    from bo1.models.contribution import ContributionMessage, ContributionType
+
+    logger.info("moderator_intervene_node: Moderator intervening")
+
+    # Create moderator agent
+    moderator = ModeratorAgent()
+
+    # Get facilitator decision for intervention type
+    decision = state.get("facilitator_decision")
+    moderator_type = (
+        decision.moderator_type if decision and decision.moderator_type else "contrarian"
+    )
+
+    # Get problem and contributions
+    problem = state.get("problem")
+    contributions = list(state.get("contributions", []))
+
+    # Build discussion excerpt from recent contributions (last 3)
+    recent_contributions = contributions[-3:] if len(contributions) >= 3 else contributions
+    discussion_excerpt = "\n\n".join(
+        [f"{c.persona_name}: {c.content}" for c in recent_contributions]
+    )
+
+    # Get trigger reason from facilitator decision
+    trigger_reason = (
+        decision.moderator_focus
+        if decision and decision.moderator_focus
+        else "conversation drift detected"
+    )
+
+    # Call moderator with correct signature
+    intervention_text, llm_response = await moderator.intervene(
+        moderator_type=moderator_type,
+        problem_statement=problem.description if problem else "",
+        discussion_excerpt=discussion_excerpt,
+        trigger_reason=trigger_reason,
+    )
+
+    # Create ContributionMessage from moderator intervention
+    intervention_msg = ContributionMessage(
+        persona_code="moderator",
+        persona_name=f"{moderator_type.capitalize()} Moderator",
+        content=intervention_text,
+        contribution_type=ContributionType.MODERATOR,
+        round_number=state.get("round_number", 1),
+    )
+
+    # Track cost in metrics
+    metrics = state.get("metrics")
+    if metrics is None:
+        from bo1.models.state import DeliberationMetrics
+
+        metrics = DeliberationMetrics()
+
+    phase_key = f"moderator_intervention_{moderator_type}"
+    metrics.phase_costs[phase_key] = (
+        metrics.phase_costs.get(phase_key, 0.0) + llm_response.cost_total
+    )
+    metrics.total_cost += llm_response.cost_total
+
+    # Add intervention to contributions
+    contributions.append(intervention_msg)
+
+    logger.info(
+        f"moderator_intervene_node: Complete - {moderator_type} intervention "
+        f"(cost: ${llm_response.cost_total:.4f})"
+    )
+
+    # Return state updates
+    return {
+        "contributions": contributions,
+        "metrics": metrics,
+        "current_node": "moderator_intervene",
+    }

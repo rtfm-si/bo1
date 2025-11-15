@@ -74,6 +74,15 @@ def create_deliberation_graph(
         actual_checkpointer = checkpointer
         logger.info(f"Using provided checkpointer: {type(checkpointer).__name__}")
 
+    # Import nodes and routers
+    from bo1.graph.nodes import (
+        facilitator_decide_node,
+        moderator_intervene_node,
+        persona_contribute_node,
+    )
+    from bo1.graph.routers import route_convergence_check, route_facilitator_decision
+    from bo1.graph.safety.loop_prevention import check_convergence_node
+
     # Initialize state graph
     workflow = StateGraph(DeliberationGraphState)
 
@@ -81,26 +90,61 @@ def create_deliberation_graph(
     workflow.add_node("decompose", decompose_node)
     workflow.add_node("select_personas", select_personas_node)
     workflow.add_node("initial_round", initial_round_node)
+    workflow.add_node("facilitator_decide", facilitator_decide_node)  # Day 29
+    workflow.add_node("persona_contribute", persona_contribute_node)  # Day 30
+    workflow.add_node("moderator_intervene", moderator_intervene_node)  # Day 30
+    workflow.add_node("check_convergence", check_convergence_node)  # Day 24
 
-    # Add edges (linear flow for now)
+    # Add edges - Linear setup phase
     # decompose -> select_personas
     workflow.add_edge("decompose", "select_personas")
 
     # select_personas -> initial_round
     workflow.add_edge("select_personas", "initial_round")
 
-    # initial_round -> END (for now)
-    # Week 5 will add conditional edge to facilitator_decide
-    workflow.add_edge("initial_round", END)
+    # initial_round -> facilitator_decide (Week 5 Day 29)
+    workflow.add_edge("initial_round", "facilitator_decide")
+
+    # Add conditional edges - Multi-round deliberation loop (Week 5 Day 30)
+    # facilitator_decide -> (continue/vote/moderator/research)
+    workflow.add_conditional_edges(
+        "facilitator_decide",
+        route_facilitator_decision,
+        {
+            "persona_contribute": "persona_contribute",
+            "moderator_intervene": "moderator_intervene",
+            "vote": END,  # Week 5 Day 31 will route to vote node instead
+            "END": END,
+        },
+    )
+
+    # persona_contribute -> check_convergence
+    workflow.add_edge("persona_contribute", "check_convergence")
+
+    # moderator_intervene -> check_convergence
+    workflow.add_edge("moderator_intervene", "check_convergence")
+
+    # check_convergence -> (facilitator_decide if continue, END if stop)
+    workflow.add_conditional_edges(
+        "check_convergence",
+        route_convergence_check,
+        {
+            "facilitator_decide": "facilitator_decide",  # Loop back for next round
+            "END": END,  # Stop deliberation
+        },
+    )
 
     # Set entry point
     workflow.set_entry_point("decompose")
 
-    # Compile graph
-    graph = workflow.compile(checkpointer=actual_checkpointer)
+    # Compile graph with recursion limit
+    graph = workflow.compile(
+        checkpointer=actual_checkpointer,
+    )
 
     logger.info(
-        f"Graph compiled successfully (recursion_limit will be {DELIBERATION_RECURSION_LIMIT} when invoked)"
+        f"Graph compiled successfully with multi-round loop "
+        f"(recursion_limit={DELIBERATION_RECURSION_LIMIT})"
     )
 
     return graph

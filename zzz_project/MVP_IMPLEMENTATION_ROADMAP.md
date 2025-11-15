@@ -974,54 +974,54 @@ pytest tests/test_facilitator_routing.py -v
 
 #### Persona Contribution Node
 
-- [ ] Create `persona_contribute_node()` in `bo1/graph/nodes.py`
-  - [ ] Extract speaker from facilitator decision
-  - [ ] Get persona profile by code
-  - [ ] Reuse existing `DeliberationEngine._call_persona_async()`
-  - [ ] Add contribution to state
-  - [ ] Increment round_number
-  - [ ] Track cost in `phase_costs[f"round_{round_number}_deliberation"]`
-  - [ ] Return updated state
+- [x] Create `persona_contribute_node()` in `bo1/graph/nodes.py`
+  - [x] Extract speaker from facilitator decision
+  - [x] Get persona profile by code
+  - [x] Reuse existing `DeliberationEngine._call_persona_async()`
+  - [x] Add contribution to state
+  - [x] Increment round_number
+  - [x] Track cost in `phase_costs[f"round_{round_number}_deliberation"]`
+  - [x] Return updated state
 
 #### Moderator Intervention Node
 
-- [ ] Create `moderator_intervene_node()` in `bo1/graph/nodes.py`
-  - [ ] Call existing `ModeratorAgent.intervene()`
-  - [ ] Add intervention to contributions
-  - [ ] Track cost in `phase_costs["moderator_intervention"]`
-  - [ ] Return updated state
+- [x] Create `moderator_intervene_node()` in `bo1/graph/nodes.py`
+  - [x] Call existing `ModeratorAgent.intervene()`
+  - [x] Add intervention to contributions
+  - [x] Track cost in `phase_costs["moderator_intervention"]`
+  - [x] Return updated state
 
 #### Loop Edges
 
-- [ ] Update `bo1/graph/config.py`
-  - [ ] Add persona_contribute node
-  - [ ] Add moderator_intervene node
-  - [ ] Add edges: persona → check_convergence
-  - [ ] Add edges: moderator → check_convergence
-  - [ ] Add edge: check_convergence → facilitator (if continue)
-  - [ ] Add edge: check_convergence → vote (if stop)
+- [x] Update `bo1/graph/config.py`
+  - [x] Add persona_contribute node
+  - [x] Add moderator_intervene node
+  - [x] Add edges: persona → check_convergence
+  - [x] Add edges: moderator → check_convergence
+  - [x] Add edge: check_convergence → facilitator (if continue)
+  - [x] Add edge: check_convergence → vote (if stop)
 
 #### Testing
 
-- [ ] Test: Persona contribution node works
-  - [ ] Call with facilitator decision (continue)
-  - [ ] Verify contribution created
-  - [ ] Verify round_number incremented
-  - [ ] Verify cost tracked
-- [ ] Test: Moderator intervention node works
-  - [ ] Call with facilitator decision (moderator)
-  - [ ] Verify intervention created
-  - [ ] Verify cost tracked
-- [ ] Test: Multi-round loop works
-  - [ ] Execute graph with 3 rounds
-  - [ ] Verify loop: facilitator → persona → check → facilitator
-  - [ ] Verify convergence stops loop
+- [x] Test: Persona contribution node works
+  - [x] Call with facilitator decision (continue)
+  - [x] Verify contribution created
+  - [x] Verify round_number incremented
+  - [x] Verify cost tracked
+- [x] Test: Moderator intervention node works
+  - [x] Call with facilitator decision (moderator)
+  - [x] Verify intervention created
+  - [x] Verify cost tracked
+- [x] Test: Multi-round loop works
+  - [x] Execute graph with 3 rounds
+  - [x] Verify loop: facilitator → persona → check → facilitator
+  - [x] Verify convergence stops loop
 
 **Validation**:
-- [ ] Persona node executes correctly
-- [ ] Moderator node executes correctly
-- [ ] Multi-round loop works (no infinite loops)
-- [ ] Convergence stops loop correctly
+- [x] Persona node executes correctly
+- [x] Moderator node executes correctly
+- [x] Multi-round loop works (no infinite loops)
+- [x] Convergence stops loop correctly
 
 **Tests**:
 ```bash

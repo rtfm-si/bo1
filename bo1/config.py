@@ -98,9 +98,8 @@ MODEL_ALIASES = {
     "sonnet": "claude-sonnet-4-5-20250929",  # Current: Sonnet 4.5 (Sep 2025)
     "haiku": "claude-haiku-4-5-20251001",  # Current: Haiku 4.5 (Oct 2025)
     "opus": "claude-opus-4-1-20250805",  # Current: Opus 4.1 (Aug 2025) - not used in v1
-    # Legacy/testing aliases (Anthropic's "latest" tags)
-    "claude-3-5-haiku-latest": "claude-haiku-4-5-20251001",  # Map latest to Haiku 4.5
-    "claude-3-5-sonnet-latest": "claude-sonnet-4-5-20250929",  # Map latest to Sonnet 4.5
+    # Testing aliases (3.5 models - faster and cheaper for testing)
+    "claude-3-5-haiku-latest": "claude-3-5-haiku-20241022",  # 3.5 Haiku for testing
 }
 
 # =============================================================================
@@ -152,6 +151,15 @@ MODEL_PRICING = {
         "cache_read": 1.50,  # $1.50 per 1M cache read
         "context_window": 200_000,  # 200K tokens
         "max_output": 32_000,  # 32K tokens
+    },
+    # Claude 3.5 models (for testing - faster and cheaper than 4.5)
+    "claude-3-5-haiku-20241022": {
+        "input": 0.80,  # $0.80 per 1M input tokens
+        "output": 4.00,  # $4.00 per 1M output tokens
+        "cache_creation": 1.00,  # $1.00 per 1M cache write
+        "cache_read": 0.08,  # $0.08 per 1M cache read
+        "context_window": 200_000,  # 200K tokens
+        "max_output": 8_000,  # 8K tokens
     },
 }
 

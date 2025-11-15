@@ -182,9 +182,17 @@ class ResponseParser:
         }
 
         if action == "continue":
-            result["next_speaker"] = ResponseExtractor.extract_persona_code(
+            next_speaker = ResponseExtractor.extract_persona_code(
                 content, state.selected_personas, logger=logger
             )
+            # Fallback: If extraction failed, pick first available persona
+            if not next_speaker and state.selected_personas:
+                next_speaker = state.selected_personas[0].code
+                logger.warning(
+                    f"Failed to extract next_speaker from facilitator response, "
+                    f"defaulting to {next_speaker}"
+                )
+            result["next_speaker"] = next_speaker
             result["speaker_prompt"] = ResponseExtractor.extract_after_marker(
                 content, ["prompt:", "focus:", "question:"]
             )

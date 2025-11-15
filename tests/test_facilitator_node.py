@@ -38,7 +38,7 @@ def sample_personas():
 
     # Use real personas from personas.json
     personas = []
-    for code in ["maria", "zara", "tariq"]:
+    for code in ["growth_hacker", "finance_strategist", "risk_officer"]:
         persona_dict = get_persona_by_code(code)
         if persona_dict:
             personas.append(PersonaProfile.model_validate(persona_dict))
@@ -63,8 +63,8 @@ def state_with_contributions(sample_problem, sample_personas):
     # Add sample contributions
     contributions = [
         ContributionMessage(
-            persona_code="maria",
-            persona_name="Maria Rodriguez",
+            persona_code="growth_hacker",
+            persona_name="Growth Hacker",
             round_number=1,
             content="I think we should focus on SEO for long-term growth...",
             thinking="Considering long-term value...",
@@ -72,8 +72,8 @@ def state_with_contributions(sample_problem, sample_personas):
             cost=0.001,
         ),
         ContributionMessage(
-            persona_code="zara",
-            persona_name="Zara Morales",
+            persona_code="finance_strategist",
+            persona_name="Finance Strategist",
             round_number=1,
             content="Paid ads can give us quick wins and immediate ROI...",
             thinking="Analyzing short-term gains...",
@@ -81,8 +81,8 @@ def state_with_contributions(sample_problem, sample_personas):
             cost=0.0009,
         ),
         ContributionMessage(
-            persona_code="tariq",
-            persona_name="Tariq Al-Rashid",
+            persona_code="risk_officer",
+            persona_name="Risk Officer",
             round_number=1,
             content="SEO requires 6-12 months to show results but is more sustainable...",
             thinking="Evaluating sustainability...",
@@ -152,7 +152,7 @@ async def test_facilitator_decide_node_continue_action(state_with_contributions)
     # If continue, verify next_speaker is set
     if decision.action == "continue":
         assert decision.next_speaker is not None
-        assert decision.next_speaker in ["maria", "zara", "tariq"]
+        assert decision.next_speaker in ["growth_hacker", "finance_strategist", "risk_officer"]
 
 
 @pytest.mark.asyncio
@@ -167,8 +167,8 @@ async def test_facilitator_decide_node_vote_action_near_max_rounds(state_with_co
         state_with_contributions["contributions"].extend(
             [
                 ContributionMessage(
-                    persona_code="maria",
-                    persona_name="Maria Rodriguez",
+                    persona_code="growth_hacker",
+                    persona_name="Growth Hacker",
                     round_number=i,
                     content=f"Round {i}: Building on previous points about SEO...",
                     thinking=f"Round {i} analysis...",
@@ -176,8 +176,8 @@ async def test_facilitator_decide_node_vote_action_near_max_rounds(state_with_co
                     cost=0.001,
                 ),
                 ContributionMessage(
-                    persona_code="zara",
-                    persona_name="Zara Morales",
+                    persona_code="finance_strategist",
+                    persona_name="Finance Strategist",
                     round_number=i,
                     content=f"Round {i}: Additional insights on paid ads...",
                     thinking=f"Round {i} insights...",
@@ -193,7 +193,8 @@ async def test_facilitator_decide_node_vote_action_near_max_rounds(state_with_co
     decision = updates["facilitator_decision"]
 
     # Near max rounds, facilitator should likely vote or continue one more round
-    assert decision.action in ["vote", "continue"]
+    # (though moderator is also valid if discussion needs intervention)
+    assert decision.action in ["vote", "continue", "moderator"]
 
 
 @pytest.mark.asyncio

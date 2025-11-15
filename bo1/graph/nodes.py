@@ -291,7 +291,7 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
     Returns:
         Dictionary with state updates (new contribution, incremented round)
     """
-    from bo1.models.contribution import ContributionType
+    from bo1.models.state import ContributionType
     from bo1.orchestration.deliberation import DeliberationEngine
 
     logger.info("persona_contribute_node: Processing persona contribution")
@@ -333,7 +333,7 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
         problem_context=problem.context if problem else "",
         participant_list=participant_list,
         round_number=round_number,
-        contribution_type=ContributionType.DELIBERATION,
+        contribution_type=ContributionType.RESPONSE,
         previous_contributions=contributions,
     )
 

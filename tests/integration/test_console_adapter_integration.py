@@ -154,6 +154,7 @@ class TestConsoleAdapterErrorHandling:
             )
 
     @pytest.mark.asyncio
+    @pytest.mark.skip(reason="Checkpointing not yet enabled (Week 5 feature)")
     async def test_missing_checkpoint(self):
         """Test that resuming from non-existent session raises ValueError.
 

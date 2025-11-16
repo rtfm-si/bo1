@@ -64,28 +64,19 @@ def test_create_session_with_malicious_xss_input(
         },
     )
 
-    # Should succeed but sanitize input
-    assert response.status_code == 201
+    # Should be rejected by validation (security-first approach)
+    assert response.status_code == 422  # Validation error
     data = response.json()
-
-    # Verify session created
-    assert "id" in data
-
-    # Verify malicious content stored (validation is server-side, not storage)
-    # The API should validate and reject or sanitize - currently it stores as-is
-    # This test documents current behavior - sanitization will be added later
-    session_id = data["id"]
-    metadata = redis_manager.load_metadata(session_id)
-    assert metadata is not None
+    assert "detail" in data
 
 
 @pytest.mark.integration
 def test_create_session_with_sql_injection_attempt(
     client: TestClient, redis_manager: RedisManager
 ) -> None:
-    """Test that SQL injection attempts are handled safely.
+    """Test that SQL injection attempts are rejected.
 
-    Security test: Verifies parameterized queries prevent SQL injection.
+    Security test: Verifies input validation prevents SQL injection patterns.
     """
     if not redis_manager.is_available:
         pytest.skip("Redis not available")
@@ -99,10 +90,10 @@ def test_create_session_with_sql_injection_attempt(
         },
     )
 
-    # Should succeed (SQL injection only matters in DB queries, not Redis)
-    assert response.status_code == 201
+    # Should be rejected by validation
+    assert response.status_code == 422  # Validation error
     data = response.json()
-    assert "id" in data
+    assert "detail" in data
 
 
 @pytest.mark.integration
@@ -301,7 +292,7 @@ def test_create_multiple_sessions_sequential(
         response = client.post(
             "/api/v1/sessions",
             json={
-                "problem_statement": f"Problem {i}",
+                "problem_statement": f"Should we implement strategy {i} for growth?",
                 "problem_context": {},
             },
         )
@@ -408,7 +399,7 @@ def test_session_pagination(client: TestClient, redis_manager: RedisManager) -> 
         response = client.post(
             "/api/v1/sessions",
             json={
-                "problem_statement": f"Problem {i}",
+                "problem_statement": f"Should we implement strategy {i} for company growth?",
                 "problem_context": {},
             },
         )
@@ -433,7 +424,7 @@ def test_health_check_endpoint(client: TestClient) -> None:
 
     Integration test: Verifies API is responsive.
     """
-    response = client.get("/health")
+    response = client.get("/api/health")
 
     assert response.status_code == 200
     data = response.json()

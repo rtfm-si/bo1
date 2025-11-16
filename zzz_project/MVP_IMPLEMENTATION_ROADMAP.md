@@ -2038,40 +2038,40 @@ pytest tests/e2e/test_expert_memory_growth_scenario.py -v
 
 **See**: `zzz_project/detail/CONTEXT_COLLECTION_FEATURE.md` for full specification
 
-- [ ] Implement `context_collection_node()` in `bo1/graph/nodes.py`
-  - [ ] Load saved business context (if user_id exists)
-  - [ ] Prompt for business context (optional, with benefits explanation)
-  - [ ] Call `identify_information_gaps()` on sub-problems
-  - [ ] Collect CRITICAL internal answers via `collect_internal_answers()`
-  - [ ] Auto-research EXTERNAL gaps via `ResearcherAgent` **with semantic cache**
-  - [ ] Inject all context into `problem.context`
-  - [ ] Track cost in `phase_costs["context_collection"]`
-- [ ] Update `ResearcherAgent.research_questions()` to use semantic cache
-  - [ ] Generate embedding for each question (Voyage AI voyage-3)
-  - [ ] Check cache with `find_cached_research()` (similarity threshold 0.85)
-  - [ ] If cache hit: Return cached result, update access count
-  - [ ] If cache miss: Perform web research, save to cache
-  - [ ] Add cache metadata to results (cached: bool, cache_age_days: int, similarity: float)
-  - [ ] Extract category/industry from problem context for filtering
-- [ ] Implement `clarification_node()` in `bo1/graph/nodes.py`
-  - [ ] Display clarification question from facilitator
-  - [ ] Options: Answer now / Pause session / Skip
-  - [ ] If answer: Inject into context, continue
-  - [ ] If pause: Set `should_stop=True`, save `pending_clarification`
-  - [ ] If skip: Log skip, continue with warning
-- [ ] Update `FacilitatorDecision` to support `action="clarify"`
-  - [ ] Add `clarification_question: str | None`
-  - [ ] Add `clarification_reason: str | None`
-- [ ] Add `route_clarification()` router in `bo1/graph/routers.py`
-  - [ ] If `pending_clarification` and no answer → "wait_for_clarification"
-  - [ ] If answer provided → "continue"
-- [ ] Update `route_facilitator_decision()` to handle `"clarify"` action
-- [ ] Update graph structure in `bo1/graph/config.py`
-  - [ ] Add `context_collection` node after `decompose`
-  - [ ] Add `clarification` node after `facilitator_decide`
-  - [ ] Update edges: `decompose → context_collection → select_personas`
-  - [ ] Add conditional edge: `facilitator_decide → clarification` (if action="clarify")
-  - [ ] Add conditional edge: `clarification → persona_contribute` OR `END` (pause)
+- [x] Implement `context_collection_node()` in `bo1/graph/nodes.py`
+  - [x] Load saved business context (if user_id exists)
+  - [x] Prompt for business context (optional, with benefits explanation)
+  - [x] Call `identify_information_gaps()` on sub-problems
+  - [x] Collect CRITICAL internal answers via `collect_internal_answers()`
+  - [x] Auto-research EXTERNAL gaps via `ResearcherAgent` **with semantic cache**
+  - [x] Inject all context into `problem.context`
+  - [x] Track cost in `phase_costs["context_collection"]`
+- [x] Update `ResearcherAgent.research_questions()` to use semantic cache
+  - [x] Generate embedding for each question (Voyage AI voyage-3)
+  - [x] Check cache with `find_cached_research()` (similarity threshold 0.85)
+  - [x] If cache hit: Return cached result, update access count
+  - [x] If cache miss: Perform web research, save to cache
+  - [x] Add cache metadata to results (cached: bool, cache_age_days: int, similarity: float)
+  - [x] Extract category/industry from problem context for filtering
+- [x] Implement `clarification_node()` in `bo1/graph/nodes.py`
+  - [x] Display clarification question from facilitator
+  - [x] Options: Answer now / Pause session / Skip
+  - [x] If answer: Inject into context, continue
+  - [x] If pause: Set `should_stop=True`, save `pending_clarification`
+  - [x] If skip: Log skip, continue with warning
+- [x] Update `FacilitatorDecision` to support `action="clarify"`
+  - [x] Add `clarification_question: str | None`
+  - [x] Add `clarification_reason: str | None`
+- [x] Add `route_clarification()` router in `bo1/graph/routers.py`
+  - [x] If `pending_clarification` and no answer → "wait_for_clarification"
+  - [x] If answer provided → "continue"
+- [x] Update `route_facilitator_decision()` to handle `"clarify"` action
+- [x] Update graph structure in `bo1/graph/config.py`
+  - [x] Add `context_collection` node after `decompose`
+  - [x] Add `clarification` node after `facilitator_decide`
+  - [x] Update edges: `decompose → context_collection → select_personas`
+  - [x] Add conditional edge: `facilitator_decide → clarification` (if action="clarify")
+  - [x] Add conditional edge: `clarification → persona_contribute` OR `END` (pause)
 - [x] Write unit tests for context collection node (`tests/graph/test_context_collection_node.py`)
   - [x] Test: Load saved context from DB
   - [x] Test: Prompt for new context (no saved)
@@ -2098,70 +2098,70 @@ pytest tests/e2e/test_expert_memory_growth_scenario.py -v
 
 #### Session Models
 
-- [ ] Create `backend/api/models.py`
-  - [ ] `CreateSessionRequest` (Pydantic)
-    - [ ] problem_statement: str (min_length=10, max_length=10000, sanitize HTML/scripts)
-    - [ ] problem_context: dict | None (max_size=50KB, validate keys/values)
-    - [ ] **Input validation**: Reject empty strings, script tags, SQL injection attempts
-    - [ ] **Rate limiting**: Enforce tier limits (free: 2/day, pro: 10/day)
-  - [ ] `SessionResponse` (Pydantic)
-    - [ ] id: str (session_id)
-    - [ ] status: str (active, completed, failed)
-    - [ ] phase: str (current_phase)
-    - [ ] created_at: datetime
-    - [ ] updated_at: datetime
-    - [ ] problem_statement: str (truncated for list view)
+- [x] Create `backend/api/models.py`
+  - [x] `CreateSessionRequest` (Pydantic)
+    - [x] problem_statement: str (min_length=10, max_length=10000, sanitize HTML/scripts)
+    - [x] problem_context: dict | None (max_size=50KB, validate keys/values)
+    - [x] **Input validation**: Reject empty strings, script tags, SQL injection attempts
+    - [ ] **Rate limiting**: Enforce tier limits (free: 2/day, pro: 10/day) (deferred to Week 8)
+  - [x] `SessionResponse` (Pydantic)
+    - [x] id: str (session_id)
+    - [x] status: str (active, completed, failed)
+    - [x] phase: str (current_phase)
+    - [x] created_at: datetime
+    - [x] updated_at: datetime
+    - [x] problem_statement: str (truncated for list view)
 
 #### Session Endpoints
 
-- [ ] Create `backend/api/deliberation.py`
-  - [ ] `POST /api/v1/sessions` - Create new session
-    - [ ] Validate request body
-    - [ ] Generate session_id (UUID)
-    - [ ] Create initial graph state
-    - [ ] Save to Redis
-    - [ ] Return SessionResponse
-  - [ ] `GET /api/v1/sessions` - List user's sessions
+- [x] Create `backend/api/sessions.py`
+  - [x] `POST /api/v1/sessions` - Create new session
+    - [x] Validate request body
+    - [x] Generate session_id (UUID)
+    - [x] Create initial graph state
+    - [x] Save to Redis
+    - [x] Return SessionResponse
+  - [x] `GET /api/v1/sessions` - List user's sessions
     - [ ] Require authentication (Week 7)
-    - [ ] For now: List all sessions (no auth)
-    - [ ] Filter by status (query param)
-    - [ ] Paginate (limit, offset)
-    - [ ] Return list[SessionResponse]
-  - [ ] `GET /api/v1/sessions/{session_id}` - Get session details
-    - [ ] Load from Redis
-    - [ ] Return full DeliberationGraphState (JSON)
+    - [x] For now: List all sessions (no auth)
+    - [x] Filter by status (query param)
+    - [x] Paginate (limit, offset)
+    - [x] Return list[SessionResponse]
+  - [x] `GET /api/v1/sessions/{session_id}` - Get session details
+    - [x] Load from Redis
+    - [x] Return full DeliberationGraphState (JSON)
 
 #### Session Storage
 
-- [ ] Update `bo1/state/redis_manager.py`
-  - [ ] Add `list_sessions()` method
-    - [ ] Scan Redis for `session:*` keys
-    - [ ] Return list of session_ids
-  - [ ] Add `load_metadata()` method
-    - [ ] Load session metadata (status, phase, timestamps)
-    - [ ] Faster than loading full state
-  - [ ] Add `save_metadata()` method
-    - [ ] Update metadata only (not full state)
+- [x] Update `bo1/state/redis_manager.py`
+  - [x] Add `list_sessions()` method
+    - [x] Scan Redis for `session:*` keys
+    - [x] Return list of session_ids
+  - [x] Add `load_metadata()` method
+    - [x] Load session metadata (status, phase, timestamps)
+    - [x] Faster than loading full state
+  - [x] Add `save_metadata()` method
+    - [x] Update metadata only (not full state)
 
 #### Testing
 
-- [ ] Test: Create session endpoint
-  - [ ] POST with valid problem
-  - [ ] Verify session_id returned
-  - [ ] Verify session saved to Redis
-- [ ] Test: List sessions endpoint
-  - [ ] Create 3 sessions
-  - [ ] GET /api/v1/sessions
-  - [ ] Verify 3 sessions returned
-- [ ] Test: Get session details
-  - [ ] GET /api/v1/sessions/{id}
-  - [ ] Verify full state returned
+- [x] Test: Create session endpoint
+  - [x] POST with valid problem
+  - [x] Verify session_id returned
+  - [x] Verify session saved to Redis
+- [x] Test: List sessions endpoint
+  - [x] Create 3 sessions
+  - [x] GET /api/v1/sessions
+  - [x] Verify 3 sessions returned
+- [x] Test: Get session details
+  - [x] GET /api/v1/sessions/{id}
+  - [x] Verify full state returned
 
 **Validation**:
-- [ ] Session creation works
-- [ ] Session listing works (paginated)
-- [ ] Session details endpoint works
-- [ ] Redis storage works correctly
+- [x] Session creation works
+- [x] Session listing works (paginated)
+- [x] Session details endpoint works
+- [x] Redis storage works correctly
 
 **Tests**:
 ```bash

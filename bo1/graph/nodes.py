@@ -396,11 +396,19 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
 
     # Get facilitator decision for intervention type
     decision = state.get("facilitator_decision")
-    moderator_type = (
-        decision.get("moderator_type")
-        if decision and decision.get("moderator_type")
-        else "contrarian"
-    )
+
+    # Extract moderator type with proper type handling
+    from typing import Literal
+
+    moderator_type_value = decision.get("moderator_type") if decision else None
+    if moderator_type_value and isinstance(moderator_type_value, str):
+        # Validate it's one of the allowed types
+        if moderator_type_value in ("contrarian", "skeptic", "optimist"):
+            moderator_type: Literal["contrarian", "skeptic", "optimist"] = moderator_type_value
+        else:
+            moderator_type = "contrarian"
+    else:
+        moderator_type = "contrarian"
 
     # Get problem and contributions
     problem = state.get("problem")
@@ -413,9 +421,10 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
     )
 
     # Get trigger reason from facilitator decision
+    moderator_focus = decision.get("moderator_focus") if decision else None
     trigger_reason = (
-        decision.get("moderator_focus")
-        if decision and decision.get("moderator_focus")
+        moderator_focus
+        if moderator_focus and isinstance(moderator_focus, str)
         else "conversation drift detected"
     )
 
@@ -428,9 +437,10 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
     )
 
     # Create ContributionMessage from moderator intervention
+    moderator_name = moderator_type.capitalize() if moderator_type else "Moderator"
     intervention_msg = ContributionMessage(
         persona_code="moderator",
-        persona_name=f"{moderator_type.capitalize()} Moderator",
+        persona_name=f"{moderator_name} Moderator",
         content=intervention_text,
         contribution_type=ContributionType.MODERATOR,
         round_number=state.get("round_number", 1),

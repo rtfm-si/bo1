@@ -367,20 +367,20 @@ class DeliberationEngine:
             )
 
             # Handle facilitator decision
-            if decision["action"] == "vote":
+            if decision.action == "vote":
                 logger.info("Facilitator decided to transition to voting phase")
                 self.state.phase = DeliberationPhase.VOTING
                 # Only include facilitator_response if it's not None
                 return [], [facilitator_response] if facilitator_response else []
 
-            if decision["action"] == "moderator":
+            if decision.action == "moderator":
                 # Facilitator requested moderator intervention
-                mod_type = decision.get("moderator_type") or "contrarian"
+                mod_type = decision.moderator_type or "contrarian"
                 logger.info(f"Facilitator requested {mod_type} moderator intervention")
 
                 # Get discussion excerpt for moderator
                 discussion_excerpt = self.build_discussion_context(include_thinking=False)[-2000:]
-                trigger_reason = decision.get("moderator_focus") or decision.get("reasoning")
+                trigger_reason = decision.moderator_focus or decision.reasoning
 
                 # Get moderator intervention
                 intervention_text, mod_response = await self.moderator.intervene(
@@ -421,7 +421,7 @@ class DeliberationEngine:
 
                 return [moderator_contrib], [mod_response]
 
-            if decision["action"] == "research":
+            if decision.action == "research":
                 # TODO: Implement research tool (Week 4)
                 logger.warning("Research requested but not yet implemented")
                 # For now, fall through to continue with first persona
@@ -429,9 +429,9 @@ class DeliberationEngine:
                     self.state.selected_personas[0].code if self.state.selected_personas else None
                 )
 
-            if decision["action"] == "continue":
-                speaker_code = decision.get("next_speaker")
-                speaker_prompt = decision.get("speaker_prompt") or speaker_prompt
+            if decision.action == "continue":
+                speaker_code = decision.next_speaker
+                speaker_prompt = decision.speaker_prompt or speaker_prompt
 
             if not speaker_code:
                 # Fallback: use first persona

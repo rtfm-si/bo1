@@ -102,16 +102,16 @@ format-check: ## Check code formatting without changes
 	docker-compose run --rm bo1 ruff format --check .
 
 .PHONY: typecheck
-typecheck: ## Run type checker (mypy)
-	docker-compose run --rm bo1 mypy bo1/
+typecheck: ## Run type checker (mypy) - matches CI exactly
+	docker-compose run --rm bo1 mypy bo1/ --install-types --non-interactive
 
 .PHONY: check
 check: lint format-check typecheck ## Run all code quality checks
 	@echo "All checks passed!"
 
 .PHONY: pre-commit
-pre-commit: ## Run pre-commit checks (lint + format + typecheck) - USE BEFORE GIT COMMIT
-	@echo "🔍 Running pre-commit checks..."
+pre-commit: ## Run pre-commit checks (lint + format + typecheck) - MATCHES CI EXACTLY
+	@echo "🔍 Running pre-commit checks (matching CI)..."
 	@echo ""
 	@echo "1/3 Linting..."
 	@docker-compose run --rm bo1 ruff check .
@@ -121,11 +121,11 @@ pre-commit: ## Run pre-commit checks (lint + format + typecheck) - USE BEFORE GI
 	@docker-compose run --rm bo1 ruff format --check .
 	@echo "✓ Formatting passed"
 	@echo ""
-	@echo "3/3 Type checking..."
-	@docker-compose run --rm bo1 mypy bo1/
+	@echo "3/3 Type checking (full bo1/ directory)..."
+	@docker-compose run --rm bo1 mypy bo1/ --install-types --non-interactive
 	@echo "✓ Type checking passed"
 	@echo ""
-	@echo "✅ All pre-commit checks passed! Safe to commit."
+	@echo "✅ All pre-commit checks passed! Safe to commit and push."
 
 .PHONY: fix
 fix: ## Auto-fix linting and formatting issues

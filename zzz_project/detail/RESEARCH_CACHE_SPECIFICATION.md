@@ -508,7 +508,7 @@ async def generate_embedding(
     Cost:
         voyage-3: ~$0.00006 per 1K tokens (10x cheaper than OpenAI ada-002)
     """
-    api_key = os.getenv("VOYAGEAI_API_KEY")
+    api_key = os.getenv("VOYAGE_API_KEY")
     client = voyageai.Client(api_key=api_key)
 
     result = client.embed(

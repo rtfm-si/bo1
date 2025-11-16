@@ -40,9 +40,9 @@ def generate_embedding(
     if not text or not text.strip():
         raise ValueError("Text cannot be empty")
 
-    api_key = os.getenv("VOYAGEAI_API_KEY")
+    api_key = os.getenv("VOYAGE_API_KEY")
     if not api_key:
-        raise ValueError("VOYAGEAI_API_KEY environment variable not set")
+        raise ValueError("VOYAGE_API_KEY environment variable not set")
 
     if voyageai is None:
         raise ImportError("voyageai package is not installed. Install with: pip install voyageai")

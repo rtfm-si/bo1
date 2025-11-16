@@ -66,12 +66,26 @@ redis-ui: ## Start Redis Commander (web UI at http://localhost:8081)
 # =============================================================================
 
 .PHONY: test
-test: ## Run all tests in container (WARNING: includes LLM tests - use test-fast for development)
-	docker-compose run --rm bo1 pytest -v
+test: test-fast ## Default: Run fast tests (alias for test-fast)
 
 .PHONY: test-fast
-test-fast: ## Run tests WITHOUT LLM calls (safe for development, no API costs)
+test-fast: ## Run tests WITHOUT LLM calls (safe for development, no API costs) - DEFAULT
 	docker-compose run --rm bo1 pytest -v -m "not requires_llm"
+
+.PHONY: test-all
+test-all: ## Run ALL tests including LLM tests (WARNING: 15+ min, incurs API costs ~$1-2)
+	@echo "⚠️  WARNING: Running ALL tests including LLM tests. This will:"
+	@echo "   - Take 15-20 minutes"
+	@echo "   - Cost ~\$$1-2 in API calls"
+	@echo "   - Use test-fast for development (10 seconds, \$$0)"
+	@echo ""
+	@read -p "Continue? [y/N] " -n 1 -r; echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		docker-compose run --rm bo1 pytest -v; \
+	else \
+		echo "Cancelled. Use 'make test-fast' instead."; \
+		exit 1; \
+	fi
 
 .PHONY: test-llm
 test-llm: ## Run ONLY LLM tests (will incur API costs)

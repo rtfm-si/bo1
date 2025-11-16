@@ -34,9 +34,9 @@ class Settings(BaseSettings):
         extra="ignore",  # Ignore extra fields from .env (for v2 API settings)
     )
 
-    # LLM API Keys
-    anthropic_api_key: str = Field(..., description="Anthropic API key for Claude")
-    voyage_api_key: str = Field(..., description="Voyage AI API key for embeddings")
+    # LLM API Keys (optional to allow tests without real keys)
+    anthropic_api_key: str = Field(default="", description="Anthropic API key for Claude")
+    voyage_api_key: str = Field(default="", description="Voyage AI API key for embeddings")
 
     # Redis Configuration
     redis_host: str = Field(default="localhost", description="Redis host")
@@ -167,7 +167,7 @@ MODEL_PRICING = {
 
 def get_settings() -> Settings:
     """Get settings instance (lazy loaded)."""
-    return Settings()  # type: ignore[call-arg]
+    return Settings()
 
 
 def resolve_model_alias(model_name: str) -> str:

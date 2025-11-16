@@ -10,6 +10,14 @@ from dotenv import load_dotenv
 # Load .env file for test environment
 load_dotenv()
 
+# Set default environment variables for CI/testing if not already set
+# This allows tests to run without real API keys (non-LLM tests)
+os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-placeholder")
+os.environ.setdefault("VOYAGE_API_KEY", "test-key-placeholder")
+os.environ.setdefault("REDIS_HOST", "localhost")
+os.environ.setdefault("REDIS_PORT", "6379")
+os.environ.setdefault("DATABASE_URL", "postgresql://bo1:bo1_dev_password@localhost:5432/boardofone")
+
 
 def pytest_configure(config: pytest.Config) -> None:
     """Register custom markers."""

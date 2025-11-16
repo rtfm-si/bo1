@@ -76,8 +76,8 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           DATABASE_URL: postgresql://bo1:bo1_dev_password@localhost:5432/boardofone
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'test-key-placeholder' }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY || 'test-key-placeholder' }}
         run: uv run pytest -m "not requires_llm" --cov=bo1 --cov-report=xml
 
       - name: Upload coverage to Codecov
@@ -111,20 +111,20 @@ jobs:
 
       - name: Run database migrations
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'test-key-placeholder' }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY || 'test-key-placeholder' }}
         run: docker compose run --rm bo1 alembic upgrade head
 
       - name: Seed personas
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'test-key-placeholder' }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY || 'test-key-placeholder' }}
         run: docker compose run --rm bo1 python scripts/seed_personas.py
 
       - name: Run tests in Docker
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'test-key-placeholder' }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY || 'test-key-placeholder' }}
         run: docker compose run --rm bo1 pytest -m "not requires_llm" -v
 
       - name: Cleanup

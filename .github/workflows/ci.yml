@@ -24,6 +24,20 @@ jobs:
         ports:
           - 6379:6379
 
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_DB: boardofone
+          POSTGRES_USER: bo1
+          POSTGRES_PASSWORD: bo1_dev_password
+        options: >-
+          --health-cmd "pg_isready -U bo1 -d boardofone"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - uses: actions/checkout@v4
 
@@ -47,10 +61,21 @@ jobs:
       - name: Run type checker
         run: uv run mypy bo1/ --install-types --non-interactive
 
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://bo1:bo1_dev_password@localhost:5432/boardofone
+        run: uv run alembic upgrade head
+
+      - name: Seed personas
+        env:
+          DATABASE_URL: postgresql://bo1:bo1_dev_password@localhost:5432/boardofone
+        run: uv run python scripts/seed_personas.py
+
       - name: Run tests
         env:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
+          DATABASE_URL: postgresql://bo1:bo1_dev_password@localhost:5432/boardofone
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
         run: uv run pytest -m "not requires_llm" --cov=bo1 --cov-report=xml
@@ -83,6 +108,18 @@ jobs:
           timeout 30 sh -c 'until docker compose exec -T redis redis-cli ping; do sleep 1; done'
           echo "Waiting for PostgreSQL..."
           timeout 30 sh -c 'until docker compose exec -T postgres pg_isready; do sleep 1; done'
+
+      - name: Run database migrations
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+        run: docker compose run --rm bo1 alembic upgrade head
+
+      - name: Seed personas
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+        run: docker compose run --rm bo1 python scripts/seed_personas.py
 
       - name: Run tests in Docker
         env:

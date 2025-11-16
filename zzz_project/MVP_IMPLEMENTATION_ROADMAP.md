@@ -108,14 +108,14 @@ See `zzz_project/INTEGRATION_TEST_TEMPLATE.md` for full template and examples.
 | 4-5 | LangGraph Migration | ✅ Complete | 215/215 (100%) |
 | 5 (Day 35) | Week 5 Retrospective + Pre-commit | ✅ Complete | 17/17 (100%) |
 | 5 (Day 36.5) | Multi-Sub-Problem Iteration (Core) | ✅ Complete | 83/83 (100%) |
-| 6-7 | Web API Adapter + Auth | 🔄 In Progress | 0/112 (0%) |
+| 6-7 | Web API Adapter + Auth | 🔄 In Progress | 29/112 (26%) |
 | 8 | Payments + Rate Limiting + GDPR | 📅 Planned | 0/98 (0%) |
 | 9 | Production Hardening | 📅 Planned | 0/210 (0%) |
 | 10-11 | Admin Dashboard | 📅 Planned | 0/98 (0%) |
 | 12 | Resend Integration | 📅 Planned | 0/42 (0%) |
 | 13 | QA + Security Audit + Deployment | 📅 Planned | 0/167 (0%) |
 | 14 | Launch + Documentation | 📅 Planned | 0/112 (0%) |
-| **Total** | | | **574/1377 (42%)** |
+| **Total** | | | **603/1377 (44%)** |
 
 ---
 
@@ -2072,29 +2072,29 @@ pytest tests/e2e/test_expert_memory_growth_scenario.py -v
   - [ ] Update edges: `decompose → context_collection → select_personas`
   - [ ] Add conditional edge: `facilitator_decide → clarification` (if action="clarify")
   - [ ] Add conditional edge: `clarification → persona_contribute` OR `END` (pause)
-- [ ] Write unit tests for context collection node (`tests/graph/test_context_collection_node.py`)
-  - [ ] Test: Load saved context from DB
-  - [ ] Test: Prompt for new context (no saved)
-  - [ ] Test: Identify information gaps
-  - [ ] Test: Collect internal answers
-  - [ ] Test: Skip optional collection
-- [ ] Write unit tests for research cache (`tests/agents/test_researcher_cache.py`)
-  - [ ] Test: Cache hit for identical question
-  - [ ] Test: Cache hit for semantically similar question (>0.85 similarity)
-  - [ ] Test: Cache miss for dissimilar question
-  - [ ] Test: Stale cached result not returned (exceeds freshness_days)
-  - [ ] Test: Category/industry filtering works
-  - [ ] Test: Access count incremented on cache hit
-  - [ ] Test: Recent result prioritized over older result (same similarity) - **NEW**
-  - [ ] Test: Higher similarity beats recency (0.95 old > 0.88 new) - **NEW**
-- [ ] Write unit tests for clarification node (`tests/graph/test_clarification_node.py`)
-  - [ ] Test: Answer clarification immediately
-  - [ ] Test: Pause session for clarification
-  - [ ] Test: Skip clarification question
-  - [ ] Test: Resume with answer after pause
-- [ ] Write integration test for full context flow (`tests/integration/test_context_collection_flow.py`)
-  - [ ] Test: Full flow with business context + gap collection + deliberation
-  - [ ] Test: Clarification pause → resume → continue
+- [x] Write unit tests for context collection node (`tests/graph/test_context_collection_node.py`)
+  - [x] Test: Load saved context from DB
+  - [x] Test: Prompt for new context (no saved)
+  - [x] Test: Identify information gaps
+  - [x] Test: Collect internal answers
+  - [x] Test: Skip optional collection
+- [x] Write unit tests for research cache (`tests/agents/test_researcher_cache.py`)
+  - [x] Test: Cache hit for identical question
+  - [x] Test: Cache hit for semantically similar question (>0.85 similarity)
+  - [x] Test: Cache miss for dissimilar question
+  - [x] Test: Stale cached result not returned (exceeds freshness_days)
+  - [x] Test: Category/industry filtering works
+  - [x] Test: Access count incremented on cache hit
+  - [x] Test: Recent result prioritized over older result (same similarity) - **NEW**
+  - [ ] Test: Higher similarity beats recency (0.95 old > 0.88 new) - **NEW** (not implemented - simple cache used)
+- [x] Write unit tests for clarification node (`tests/graph/test_clarification_node.py`)
+  - [x] Test: Answer clarification immediately
+  - [x] Test: Pause session for clarification
+  - [x] Test: Skip clarification question
+  - [x] Test: Resume with answer after pause
+- [x] Write integration test for full context flow (`tests/integration/test_context_collection_flow.py`)
+  - [x] Test: Full flow with business context + gap collection + deliberation
+  - [x] Test: Clarification pause → resume → continue
 
 #### Session Models
 
@@ -2170,16 +2170,16 @@ pytest backend/tests/test_sessions_api.py -v
 
 **Integration Tests** (REQUIRED):
 ```bash
-pytest tests/integration/test_session_api_integration.py -v
+pytest backend/tests/test_session_api_integration.py -v
 ```
 **Required Test Coverage**:
-- [ ] **Malicious input**: XSS in problem_statement (`<script>alert('xss')</script>`)
-- [ ] **SQL injection**: `'; DROP TABLE sessions; --` in problem_statement
-- [ ] **Boundary tests**: Empty string, 10,001 char problem_statement, null values
-- [ ] **Authorization**: User A cannot access User B's sessions (RLS test)
-- [ ] **Rate limiting**: Exceed tier limit, verify 429 response
-- [ ] **Invalid session_id**: Non-UUID, SQL injection in path parameter
-- [ ] **Pagination attacks**: Negative offset, offset=999999, limit=999999
+- [x] **Malicious input**: XSS in problem_statement (`<script>alert('xss')</script>`)
+- [x] **SQL injection**: `'; DROP TABLE sessions; --` in problem_statement
+- [x] **Boundary tests**: Empty string, 10,001 char problem_statement, null values
+- [x] **Authorization**: User A cannot access User B's sessions (RLS test) (documented - not yet enforced)
+- [ ] **Rate limiting**: Exceed tier limit, verify 429 response (deferred to Week 8)
+- [x] **Invalid session_id**: Non-UUID, SQL injection in path parameter
+- [x] **Pagination attacks**: Negative offset, offset=999999, limit=999999
 
 ---
 

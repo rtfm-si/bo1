@@ -22,7 +22,10 @@ RUN pip install uv
 WORKDIR /app
 
 # Copy dependency files and README (needed by pyproject.toml)
-COPY pyproject.toml uv.lock README.md ./
+# Note: Build context is the repo root, so paths are relative to root
+COPY pyproject.toml ./
+COPY README.md ./
+COPY uv.lock ./
 
 # Copy source code (needed for local package build during uv sync)
 COPY bo1/ /app/bo1/

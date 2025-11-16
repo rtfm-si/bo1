@@ -69,7 +69,8 @@ class RedisManager:
             )
             # Note: decode_responses=True returns str, but Redis typing is complex
             # Different redis-py versions have different type parameter requirements
-            self.redis: redis.Redis[Any] | None = redis.Redis(connection_pool=self.pool)
+            # Using bare redis.Redis for compatibility across versions
+            self.redis: redis.Redis | None = redis.Redis(connection_pool=self.pool)  # type: ignore[type-arg]
 
             # Test connection
             assert self.redis is not None  # Type guard: checked by is_available
@@ -103,7 +104,7 @@ class RedisManager:
         return session_id
 
     @property
-    def client(self) -> redis.Redis[Any] | None:
+    def client(self) -> redis.Redis | None:  # type: ignore[type-arg]
         """Backward compatibility: alias for self.redis.
 
         Returns:

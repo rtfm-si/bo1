@@ -253,17 +253,23 @@ class RedisManager:
             return []
 
         try:
-            # Scan for all session keys
+            # Scan for all session keys (both session: and metadata: prefixes)
             assert self.redis is not None  # Type guard: checked by is_available
-            keys_result = self.redis.keys("session:bo1_*")
-            # Extract session IDs (keys are already strings with decode_responses=True)
-            # Note: redis.keys() can return different types based on decode_responses
-            if not keys_result:
-                return []
-            # Cast to list to help mypy understand the type - redis.keys() return type varies
-            keys_list = cast(list[str], list(keys_result))
-            session_ids = [key.replace("session:", "") for key in keys_list]
-            return session_ids
+            session_keys = self.redis.keys("session:bo1_*")
+            metadata_keys = self.redis.keys("metadata:bo1_*")
+
+            # Extract session IDs from both sources
+            session_ids_set: set[str] = set()
+
+            if session_keys:
+                keys_list = cast(list[str], list(session_keys))
+                session_ids_set.update(key.replace("session:", "") for key in keys_list)
+
+            if metadata_keys:
+                keys_list = cast(list[str], list(metadata_keys))
+                session_ids_set.update(key.replace("metadata:", "") for key in keys_list)
+
+            return list(session_ids_set)
 
         except Exception as e:
             logger.error(f"Failed to list sessions: {e}")

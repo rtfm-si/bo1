@@ -15,7 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api import health
+from backend.api import health, sessions
 
 
 @asynccontextmanager
@@ -51,6 +51,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health.router, prefix="/api", tags=["health"])
+app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 
 
 @app.exception_handler(Exception)

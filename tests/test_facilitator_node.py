@@ -2,7 +2,6 @@
 
 import pytest
 
-from bo1.agents.facilitator import FacilitatorDecision
 from bo1.graph.nodes import facilitator_decide_node
 from bo1.graph.state import create_initial_state
 from bo1.models.problem import SubProblem
@@ -68,12 +67,12 @@ async def test_facilitator_decide_node_creates_decision(state_with_contributions
     assert "phase" in updates
     assert "current_node" in updates
 
-    # Verify decision structure
+    # Verify decision structure (dict, not object)
     decision = updates["facilitator_decision"]
-    assert isinstance(decision, FacilitatorDecision)
-    assert decision.action in ["continue", "vote", "moderator", "research"]
-    assert decision.reasoning is not None
-    assert len(decision.reasoning) > 0
+    assert isinstance(decision, dict)
+    assert decision["action"] in ["continue", "vote", "moderator", "research"]
+    assert decision["reasoning"] is not None
+    assert len(decision["reasoning"]) > 0
 
 
 @pytest.mark.asyncio
@@ -103,12 +102,12 @@ async def test_facilitator_decide_node_continue_action(state_with_contributions)
 
     # At round 2 of 10, facilitator should likely continue
     # (though not guaranteed depending on LLM response)
-    assert decision.action in ["continue", "vote", "moderator"]
+    assert decision["action"] in ["continue", "vote", "moderator"]
 
     # If continue, verify next_speaker is set
-    if decision.action == "continue":
-        assert decision.next_speaker is not None
-        assert decision.next_speaker in ["growth_hacker", "finance_strategist", "risk_officer"]
+    if decision["action"] == "continue":
+        assert decision["next_speaker"] is not None
+        assert decision["next_speaker"] in ["growth_hacker", "finance_strategist", "risk_officer"]
 
 
 @pytest.mark.asyncio
@@ -150,7 +149,7 @@ async def test_facilitator_decide_node_vote_action_near_max_rounds(state_with_co
 
     # Near max rounds, facilitator should likely vote or continue one more round
     # (though moderator is also valid if discussion needs intervention)
-    assert decision.action in ["vote", "continue", "moderator"]
+    assert decision["action"] in ["vote", "continue", "moderator"]
 
 
 @pytest.mark.asyncio

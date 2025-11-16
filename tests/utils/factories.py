@@ -130,8 +130,6 @@ def create_test_metrics(
         phase_costs=phase_costs,
         convergence_score=kwargs.get("convergence_score"),
         novelty_score=kwargs.get("novelty_score"),
-        start_time=kwargs.get("start_time"),
-        end_time=kwargs.get("end_time"),
         **{
             k: v
             for k, v in kwargs.items()

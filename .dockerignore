@@ -34,7 +34,7 @@ ENV/
 
 # uv
 .uv/
-uv.lock
+# uv.lock - NEEDED for Docker builds (reproducible dependencies)
 
 # IDEs
 .vscode/

@@ -2,7 +2,7 @@
 # Backend Dockerfile for Board of One FastAPI Service
 # =============================================================================
 
-FROM python:3.12-slim as base
+FROM python:3.12-slim AS base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -21,16 +21,19 @@ RUN pip install uv
 
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
+# Copy dependency files and README (needed by pyproject.toml)
+COPY pyproject.toml uv.lock README.md ./
 
-# Install Python dependencies
+# Copy source code (needed for local package build during uv sync)
+COPY bo1/ /app/bo1/
+
+# Install Python dependencies (including local bo1 package)
 RUN uv sync --frozen
 
 # =============================================================================
 # Development Stage
 # =============================================================================
-FROM base as development
+FROM base AS development
 
 # Copy application code
 COPY backend/ /app/backend/
@@ -45,7 +48,7 @@ CMD ["uv", "run", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--por
 # =============================================================================
 # Production Stage
 # =============================================================================
-FROM base as production
+FROM base AS production
 
 # Copy application code
 COPY backend/ /app/backend/

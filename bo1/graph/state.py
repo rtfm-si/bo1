@@ -13,6 +13,7 @@ from bo1.models.state import (
     DeliberationMetrics,
     DeliberationPhase,
     DeliberationState,
+    SubProblemResult,
 )
 
 
@@ -65,6 +66,10 @@ class DeliberationGraphState(TypedDict, total=False):
     votes: list[dict[str, Any]]  # Vote objects
     synthesis: str | None
 
+    # Multi-sub-problem tracking (Day 36.5)
+    sub_problem_results: list[SubProblemResult]
+    sub_problem_index: int
+
 
 def create_initial_state(
     session_id: str,
@@ -101,6 +106,8 @@ def create_initial_state(
         current_node="start",
         votes=[],
         synthesis=None,
+        sub_problem_results=[],
+        sub_problem_index=0,
     )
 
 

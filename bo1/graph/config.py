@@ -76,12 +76,18 @@ def create_deliberation_graph(
     # Import nodes and routers
     from bo1.graph.nodes import (
         facilitator_decide_node,
+        meta_synthesize_node,
         moderator_intervene_node,
+        next_subproblem_node,
         persona_contribute_node,
         synthesize_node,
         vote_node,
     )
-    from bo1.graph.routers import route_convergence_check, route_facilitator_decision
+    from bo1.graph.routers import (
+        route_after_synthesis,
+        route_convergence_check,
+        route_facilitator_decision,
+    )
     from bo1.graph.safety.loop_prevention import check_convergence_node
 
     # Initialize state graph
@@ -97,6 +103,8 @@ def create_deliberation_graph(
     workflow.add_node("check_convergence", check_convergence_node)  # Day 24
     workflow.add_node("vote", vote_node)  # Day 31
     workflow.add_node("synthesize", synthesize_node)  # Day 31
+    workflow.add_node("next_subproblem", next_subproblem_node)  # Day 36.5
+    workflow.add_node("meta_synthesis", meta_synthesize_node)  # Day 36.5
 
     # Add edges - Linear setup phase
     # decompose -> select_personas
@@ -140,8 +148,22 @@ def create_deliberation_graph(
     # vote -> synthesize (Day 31)
     workflow.add_edge("vote", "synthesize")
 
-    # synthesize -> END (Day 31)
-    workflow.add_edge("synthesize", END)
+    # synthesize -> (next_subproblem | meta_synthesis | END) (Day 36.5)
+    workflow.add_conditional_edges(
+        "synthesize",
+        route_after_synthesis,
+        {
+            "next_subproblem": "next_subproblem",
+            "meta_synthesis": "meta_synthesis",
+            "END": END,
+        },
+    )
+
+    # next_subproblem -> select_personas (loop back for next sub-problem) (Day 36.5)
+    workflow.add_edge("next_subproblem", "select_personas")
+
+    # meta_synthesis -> END (Day 36.5)
+    workflow.add_edge("meta_synthesis", END)
 
     # Set entry point
     workflow.set_entry_point("decompose")

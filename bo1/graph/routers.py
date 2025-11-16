@@ -121,3 +121,55 @@ def route_convergence_check(
     else:
         logger.info("route_convergence_check: Continuing to facilitator_decide")
         return "facilitator_decide"
+
+
+def route_after_synthesis(
+    state: DeliberationGraphState,
+) -> Literal["next_subproblem", "meta_synthesis", "END"]:
+    """Route after sub-problem synthesis.
+
+    This router determines whether to:
+    - Move to next sub-problem (if more exist)
+    - Perform meta-synthesis (if all sub-problems complete and >1 sub-problem)
+    - End directly (if only 1 sub-problem - atomic problem)
+
+    Args:
+        state: Current graph state
+
+    Returns:
+        - "next_subproblem" if more sub-problems exist
+        - "meta_synthesis" if all complete and multiple sub-problems
+        - "END" if atomic problem (only 1 sub-problem)
+    """
+    problem = state.get("problem")
+    sub_problem_index = state.get("sub_problem_index", 0)
+
+    if not problem:
+        logger.error("route_after_synthesis: No problem in state!")
+        return "END"
+
+    total_sub_problems = len(problem.sub_problems)
+
+    logger.info(
+        f"route_after_synthesis: Sub-problem {sub_problem_index + 1}/{total_sub_problems} complete"
+    )
+
+    # Atomic optimization: If only 1 sub-problem, skip meta-synthesis
+    if total_sub_problems == 1:
+        logger.info("route_after_synthesis: Atomic problem (1 sub-problem) -> routing to END")
+        return "END"
+
+    # Check if more sub-problems exist
+    if sub_problem_index + 1 < total_sub_problems:
+        logger.info(
+            f"route_after_synthesis: More sub-problems exist ({sub_problem_index + 2}/{total_sub_problems}) "
+            f"-> routing to next_subproblem"
+        )
+        return "next_subproblem"
+    else:
+        # All complete → meta-synthesis
+        logger.info(
+            f"route_after_synthesis: All {total_sub_problems} sub-problems complete "
+            f"-> routing to meta_synthesis"
+        )
+        return "meta_synthesis"

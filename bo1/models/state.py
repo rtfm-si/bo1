@@ -14,6 +14,46 @@ from .problem import Problem, SubProblem
 from .types import OptionalScore
 
 
+class SubProblemResult(BaseModel):
+    """Result of deliberating a single sub-problem."""
+
+    sub_problem_id: str = Field(..., description="Sub-problem ID")
+    sub_problem_goal: str = Field(..., description="Sub-problem goal statement")
+    synthesis: str = Field(..., description="Final synthesis report for this sub-problem")
+    votes: list[Any] = Field(default_factory=list, description="Votes from personas (Vote objects)")
+    contribution_count: int = Field(..., description="Number of contributions made")
+    cost: float = Field(..., description="Total cost for this sub-problem deliberation (USD)")
+    duration_seconds: float = Field(..., description="Duration of deliberation in seconds")
+    expert_panel: list[str] = Field(
+        default_factory=list, description="Persona codes of experts who deliberated"
+    )
+    expert_summaries: dict[str, str] = Field(
+        default_factory=dict,
+        description="Per-expert contribution summaries for memory (persona_code → 50-100 token summary)",
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "sub_problem_id": "sp_001",
+                    "sub_problem_goal": "Determine target CAC for acquisition channels",
+                    "synthesis": "Based on deliberation, target CAC should be <$150...",
+                    "votes": [],
+                    "contribution_count": 15,
+                    "cost": 0.12,
+                    "duration_seconds": 180.5,
+                    "expert_panel": ["maria", "zara", "chen"],
+                    "expert_summaries": {
+                        "maria": "Maria recommended CAC <$150 based on $40 MRR...",
+                        "zara": "Zara emphasized testing paid channels first...",
+                    },
+                }
+            ]
+        }
+    )
+
+
 class DeliberationPhase(str, Enum):
     """Current phase of the deliberation process."""
 

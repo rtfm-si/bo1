@@ -198,18 +198,13 @@ def test_update_context_with_all_fields(client: TestClient, db_cleanup: None) ->
     assert data["context"]["website"] == "https://example.com"
 
 
-def test_clarification_endpoint_stub(client: TestClient) -> None:
-    """Test clarification endpoint (stub implementation).
+def test_clarification_endpoint_moved_to_control() -> None:
+    """Test that clarification endpoint was moved to control.py.
 
-    Args:
-        client: FastAPI test client
+    Note: This test was replaced - the clarification endpoint moved
+    to /api/v1/sessions/{id}/clarify in control.py (Day 39).
+    Full tests are in test_control_api.py.
     """
-    response = client.post(
-        "/api/v1/sessions/bo1_test/clarify",
-        json={"answer": "Yes, we should proceed with the investment."},
-    )
-
-    # For now, just verify endpoint exists and responds
-    # Full implementation will be in Day 39
-    assert response.status_code == 200
-    assert response.json()["status"] == "resumed"
+    # This test is kept as a placeholder to document the migration
+    # See test_control_api.py::test_submit_clarification_* for actual tests
+    assert True  # Placeholder - endpoint moved to control.py

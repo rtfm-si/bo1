@@ -2317,76 +2317,76 @@ pytest backend/tests/test_sse_streaming_integration.py -v
 
 #### Start Deliberation
 
-- [ ] Add `POST /api/v1/sessions/{session_id}/start`
-  - [ ] Validate session exists and not already running
-  - [ ] Start deliberation in background (asyncio.create_task)
-  - [ ] Track in SessionManager.active_executions
-  - [ ] Return 202 Accepted (async started)
+- [x] Add `POST /api/v1/sessions/{session_id}/start`
+  - [x] Validate session exists and not already running
+  - [x] Start deliberation in background (asyncio.create_task)
+  - [x] Track in SessionManager.active_executions
+  - [x] Return 202 Accepted (async started)
 
 #### Pause Deliberation
 
-- [ ] Add `POST /api/v1/sessions/{session_id}/pause`
-  - [ ] Mark session as paused (metadata)
-  - [ ] Checkpoint auto-saved by LangGraph
-  - [ ] Return pause confirmation
+- [x] Add `POST /api/v1/sessions/{session_id}/pause`
+  - [x] Mark session as paused (metadata)
+  - [x] Checkpoint auto-saved by LangGraph
+  - [x] Return pause confirmation
 
 #### Kill Deliberation
 
-- [ ] Add `POST /api/v1/sessions/{session_id}/kill`
-  - [ ] Require: User owns session (auth check)
-  - [ ] Call SessionManager.kill_session()
-  - [ ] Return kill confirmation
-  - [ ] Include: Audit trail (who, when, why)
+- [x] Add `POST /api/v1/sessions/{session_id}/kill`
+  - [x] Require: User owns session (auth check)
+  - [x] Call SessionManager.kill_session()
+  - [x] Return kill confirmation
+  - [x] Include: Audit trail (who, when, why)
 
 #### Resume Deliberation
 
-- [ ] Add `POST /api/v1/sessions/{session_id}/resume`
-  - [ ] Load checkpoint from Redis
-  - [ ] Continue graph execution
-  - [ ] Update metadata (paused = false)
-  - [ ] Return resume confirmation
+- [x] Add `POST /api/v1/sessions/{session_id}/resume`
+  - [x] Load checkpoint from Redis
+  - [x] Continue graph execution
+  - [x] Update metadata (paused = false)
+  - [x] Return resume confirmation
 
 #### Testing
 
-- [ ] Test: Start deliberation
-  - [ ] POST /start
-  - [ ] Verify background task created
-  - [ ] Verify 202 Accepted response
-- [ ] Test: Pause deliberation
-  - [ ] Start, then pause
-  - [ ] Verify checkpoint saved
-  - [ ] Verify metadata updated
-- [ ] Test: Kill deliberation
-  - [ ] Start, then kill
-  - [ ] Verify task canceled
-  - [ ] Verify audit trail logged
-- [ ] Test: Resume deliberation
-  - [ ] Pause, then resume
-  - [ ] Verify continues from checkpoint
-  - [ ] Verify no data loss
+- [x] Test: Start deliberation
+  - [x] POST /start
+  - [x] Verify background task created
+  - [x] Verify 202 Accepted response
+- [x] Test: Pause deliberation
+  - [x] Start, then pause
+  - [x] Verify checkpoint saved
+  - [x] Verify metadata updated
+- [x] Test: Kill deliberation
+  - [x] Start, then kill
+  - [x] Verify task canceled
+  - [x] Verify audit trail logged
+- [x] Test: Resume deliberation
+  - [x] Pause, then resume
+  - [x] Verify continues from checkpoint
+  - [x] Verify no data loss
 
 **Validation**:
-- [ ] Start endpoint works (async background task)
-- [ ] Pause endpoint works (checkpoint saved)
-- [ ] Kill endpoint works (audit trail logged)
-- [ ] Resume endpoint works (checkpoint loaded)
+- [x] Start endpoint works (async background task)
+- [x] Pause endpoint works (checkpoint saved)
+- [x] Kill endpoint works (audit trail logged)
+- [x] Resume endpoint works (checkpoint loaded)
 
 **Tests**:
 ```bash
-pytest backend/tests/test_deliberation_control.py -v
+pytest backend/tests/test_control_api.py -v  # 18 unit tests pass
 ```
 
 **Integration Tests** (REQUIRED):
 ```bash
-pytest tests/integration/test_deliberation_control_integration.py -v
+pytest backend/tests/test_control_api_integration.py -v  # 18 integration tests pass
 ```
 **Required Test Coverage**:
-- [ ] **Invalid session_id**: Non-UUID, SQL injection in path parameter
-- [ ] **Authorization**: User A cannot pause/kill User B's sessions
-- [ ] **Double start prevention**: Cannot start already running session
-- [ ] **Invalid state transitions**: Cannot resume non-paused session
-- [ ] **Race conditions**: Two users cannot kill same session simultaneously
-- [ ] **Audit trail**: All control actions logged with user_id, timestamp, reason
+- [x] **Invalid session_id**: Non-UUID, SQL injection in path parameter
+- [x] **Authorization**: User A cannot pause/kill User B's sessions
+- [x] **Double start prevention**: Cannot start already running session
+- [x] **Invalid state transitions**: Cannot resume non-paused session
+- [x] **Race conditions**: Two users cannot kill same session simultaneously
+- [x] **Audit trail**: All control actions logged with user_id, timestamp, reason
 
 ---
 

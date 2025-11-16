@@ -66,8 +66,16 @@ redis-ui: ## Start Redis Commander (web UI at http://localhost:8081)
 # =============================================================================
 
 .PHONY: test
-test: ## Run all tests in container
+test: ## Run all tests in container (WARNING: includes LLM tests - use test-fast for development)
 	docker-compose run --rm bo1 pytest -v
+
+.PHONY: test-fast
+test-fast: ## Run tests WITHOUT LLM calls (safe for development, no API costs)
+	docker-compose run --rm bo1 pytest -v -m "not requires_llm"
+
+.PHONY: test-llm
+test-llm: ## Run ONLY LLM tests (will incur API costs)
+	docker-compose run --rm bo1 pytest -v -m "requires_llm"
 
 .PHONY: test-unit
 test-unit: ## Run unit tests only
@@ -82,8 +90,8 @@ test-scenario: ## Run scenario tests only
 	docker-compose run --rm bo1 pytest -v tests/scenarios
 
 .PHONY: test-coverage
-test-coverage: ## Run tests with coverage report
-	docker-compose run --rm bo1 pytest --cov=bo1 --cov-report=html --cov-report=term
+test-coverage: ## Run tests with coverage report (excludes LLM tests)
+	docker-compose run --rm bo1 pytest --cov=bo1 --cov-report=html --cov-report=term -m "not requires_llm"
 
 # =============================================================================
 # Code Quality Commands (In Docker)

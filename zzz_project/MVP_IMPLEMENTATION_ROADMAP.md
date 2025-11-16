@@ -107,7 +107,7 @@ See `zzz_project/INTEGRATION_TEST_TEMPLATE.md` for full template and examples.
 | 3.5 | Database & Infrastructure Setup | ✅ Complete | 35/35 (100%) |
 | 4-5 | LangGraph Migration | ✅ Complete | 215/215 (100%) |
 | 5 (Day 35) | Week 5 Retrospective + Pre-commit | ✅ Complete | 17/17 (100%) |
-| 5 (Day 36.5) | Multi-Sub-Problem Iteration (Core) | ✅ Complete | 45/83 (54%) |
+| 5 (Day 36.5) | Multi-Sub-Problem Iteration (Core) | ✅ Complete | 79/83 (95%) |
 | 6-7 | Web API Adapter + Auth | 🔄 In Progress | 0/112 (0%) |
 | 8 | Payments + Rate Limiting + GDPR | 📅 Planned | 0/98 (0%) |
 | 9 | Production Hardening | 📅 Planned | 0/210 (0%) |
@@ -115,7 +115,7 @@ See `zzz_project/INTEGRATION_TEST_TEMPLATE.md` for full template and examples.
 | 12 | Resend Integration | 📅 Planned | 0/42 (0%) |
 | 13 | QA + Security Audit + Deployment | 📅 Planned | 0/167 (0%) |
 | 14 | Launch + Documentation | 📅 Planned | 0/112 (0%) |
-| **Total** | | | **540/1377 (39%)** |
+| **Total** | | | **574/1377 (42%)** |
 
 ---
 
@@ -1740,11 +1740,11 @@ curl http://localhost:8000/api/health
 
 **CRITICAL ISSUE RESOLVED**: System now deliberates on ALL sub-problems, not just the first one.
 
-**Implementation Summary**: See `DAY_36_5_IMPLEMENTATION_SUMMARY.md` for full details
+**Implementation Summary**: See `zzz_project/detail/DAY_36_5_STATUS_UPDATE.md` for full details
 - Core flow: ✅ 100% complete (601 LOC added, 186 tests passing)
-- Expert memory: ~70% complete (summaries generated but not yet injected)
-- Console UI: 0% complete (deferred)
-- Integration tests: 0% complete (deferred)
+- Expert memory: ✅ 100% complete (summaries generated AND injected into prompts)
+- Console UI: 0% complete (deferred to Week 6 refinements)
+- Integration tests: 0% complete (deferred - requires LLM budget)
 
 **See**: `zzz_project/detail/MULTI_SUBPROBLEM_DELIBERATION.md` for full specification
 
@@ -1760,9 +1760,8 @@ curl http://localhost:8000/api/health
 - ✅ All 186 unit tests passing, pre-commit checks passing
 
 **DEFERRED TASKS** (can be completed in Week 6 as refinements):
-- Expert memory injection into persona prompts (~70% done, summaries generated)
-- Console display updates (sub-problem progress headers)
-- Integration and E2E tests (requires LLM calls)
+- Console display updates (sub-problem progress headers, meta-synthesis formatting)
+- Integration and E2E tests (requires LLM calls + budget)
 
 ---
 

@@ -62,13 +62,37 @@ class ActiveSessionInfo(BaseModel):
         cost: Total cost so far
     """
 
-    session_id: str = Field(..., description="Session identifier")
-    user_id: str = Field(..., description="User who owns the session")
-    status: str = Field(..., description="Current session status")
-    phase: str | None = Field(None, description="Current deliberation phase")
-    started_at: str = Field(..., description="When session started (ISO 8601)")
-    duration_seconds: float = Field(..., description="How long session has been running")
-    cost: float | None = Field(None, description="Total cost so far (USD)")
+    session_id: str = Field(
+        ..., description="Session identifier", examples=["550e8400-e29b-41d4-a716-446655440000"]
+    )
+    user_id: str = Field(..., description="User who owns the session", examples=["test_user_1"])
+    status: str = Field(..., description="Current session status", examples=["active", "running"])
+    phase: str | None = Field(
+        None, description="Current deliberation phase", examples=["discussion", "voting"]
+    )
+    started_at: str = Field(
+        ..., description="When session started (ISO 8601)", examples=["2025-01-15T12:00:00"]
+    )
+    duration_seconds: float = Field(
+        ..., description="How long session has been running", examples=[120.5]
+    )
+    cost: float | None = Field(None, description="Total cost so far (USD)", examples=[0.0145])
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "user_id": "test_user_1",
+                    "status": "running",
+                    "phase": "discussion",
+                    "started_at": "2025-01-15T12:00:00",
+                    "duration_seconds": 120.5,
+                    "cost": 0.0145,
+                }
+            ]
+        }
+    }
 
 
 class ActiveSessionsResponse(BaseModel):
@@ -81,7 +105,7 @@ class ActiveSessionsResponse(BaseModel):
         most_expensive: Top N most expensive sessions
     """
 
-    active_count: int = Field(..., description="Number of active sessions")
+    active_count: int = Field(..., description="Number of active sessions", examples=[3])
     sessions: list[ActiveSessionInfo] = Field(..., description="List of active sessions")
     longest_running: list[ActiveSessionInfo] = Field(
         ..., description="Top N longest running sessions"
@@ -89,6 +113,49 @@ class ActiveSessionsResponse(BaseModel):
     most_expensive: list[ActiveSessionInfo] = Field(
         ..., description="Top N most expensive sessions"
     )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "active_count": 3,
+                    "sessions": [
+                        {
+                            "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                            "user_id": "test_user_1",
+                            "status": "running",
+                            "phase": "discussion",
+                            "started_at": "2025-01-15T12:00:00",
+                            "duration_seconds": 120.5,
+                            "cost": 0.0145,
+                        }
+                    ],
+                    "longest_running": [
+                        {
+                            "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                            "user_id": "test_user_1",
+                            "status": "running",
+                            "phase": "discussion",
+                            "started_at": "2025-01-15T12:00:00",
+                            "duration_seconds": 120.5,
+                            "cost": 0.0145,
+                        }
+                    ],
+                    "most_expensive": [
+                        {
+                            "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                            "user_id": "test_user_1",
+                            "status": "running",
+                            "phase": "discussion",
+                            "started_at": "2025-01-15T12:00:00",
+                            "duration_seconds": 120.5,
+                            "cost": 0.0145,
+                        }
+                    ],
+                }
+            ]
+        }
+    }
 
 
 class FullSessionResponse(BaseModel):

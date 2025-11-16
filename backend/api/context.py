@@ -93,6 +93,32 @@ class ContextResponse(BaseModel):
     context: BusinessContext | None = Field(None, description="Business context data")
     updated_at: datetime | None = Field(None, description="Last update timestamp")
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "exists": True,
+                    "context": {
+                        "business_model": "B2B SaaS",
+                        "target_market": "Small businesses in North America",
+                        "product_description": "AI-powered project management tool",
+                        "revenue": 50000.0,
+                        "customers": 150,
+                        "growth_rate": 15.5,
+                        "competitors": ["Asana", "Monday.com", "Jira"],
+                        "website": "https://example.com",
+                    },
+                    "updated_at": "2025-01-15T12:00:00",
+                },
+                {
+                    "exists": False,
+                    "context": None,
+                    "updated_at": None,
+                },
+            ]
+        }
+    }
+
 
 class ClarificationRequest(BaseModel):
     """Request model for clarification answer.
@@ -127,7 +153,58 @@ def _get_user_id_from_header() -> str:
     "/v1/context",
     response_model=ContextResponse,
     summary="Get user's saved business context",
-    description="Retrieve the authenticated user's saved business context.",
+    description="""
+    Retrieve the authenticated user's saved business context.
+
+    Business context is persistent across sessions and helps the AI personas
+    provide more relevant recommendations. Context includes:
+    - Business model and target market
+    - Product/service description
+    - Revenue and growth metrics
+    - Competitor information
+
+    **Use Cases:**
+    - Check if user has saved context before starting deliberation
+    - Display saved context in user profile
+    - Pre-fill forms with existing context
+    """,
+    responses={
+        200: {
+            "description": "Context retrieved successfully (exists=true if saved, false if not)",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "with_context": {
+                            "summary": "User has saved context",
+                            "value": {
+                                "exists": True,
+                                "context": {
+                                    "business_model": "B2B SaaS",
+                                    "target_market": "Small businesses in North America",
+                                    "product_description": "AI-powered project management tool",
+                                    "revenue": 50000.0,
+                                    "customers": 150,
+                                    "growth_rate": 15.5,
+                                    "competitors": ["Asana", "Monday.com", "Jira"],
+                                    "website": "https://example.com",
+                                },
+                                "updated_at": "2025-01-15T12:00:00",
+                            },
+                        },
+                        "no_context": {
+                            "summary": "User has no saved context",
+                            "value": {
+                                "exists": False,
+                                "context": None,
+                                "updated_at": None,
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        500: {"description": "Database error"},
+    },
 )
 async def get_context() -> ContextResponse:
     """Get user's saved business context.
@@ -177,7 +254,27 @@ async def get_context() -> ContextResponse:
     "/v1/context",
     response_model=dict[str, str],
     summary="Update user's business context",
-    description="Create or update the authenticated user's business context.",
+    description="""
+    Create or update the authenticated user's business context.
+
+    Business context is saved to PostgreSQL and persists across sessions.
+    This context is used during deliberations to provide more relevant
+    recommendations from AI personas.
+
+    **Use Cases:**
+    - Save business context during onboarding
+    - Update context when business metrics change
+    - Pre-populate context for faster deliberation setup
+
+    **Note:** All fields are optional. Only provided fields will be saved.
+    """,
+    responses={
+        200: {
+            "description": "Context updated successfully",
+            "content": {"application/json": {"example": {"status": "updated"}}},
+        },
+        500: {"description": "Database error"},
+    },
 )
 async def update_context(context: BusinessContext) -> dict[str, str]:
     """Update user's business context.
@@ -224,8 +321,30 @@ async def update_context(context: BusinessContext) -> dict[str, str]:
 @router.delete(
     "/v1/context",
     response_model=dict[str, str],
+    status_code=200,
     summary="Delete user's saved context",
-    description="Delete the authenticated user's saved business context.",
+    description="""
+    Delete the authenticated user's saved business context.
+
+    This permanently removes all saved business context from the database.
+    Future deliberations will not have access to this context unless
+    it is re-entered.
+
+    **Use Cases:**
+    - User wants to start fresh
+    - User wants to remove outdated business information
+    - Privacy: Remove all stored business data
+
+    **Warning:** This action cannot be undone.
+    """,
+    responses={
+        200: {
+            "description": "Context deleted successfully",
+            "content": {"application/json": {"example": {"status": "deleted"}}},
+        },
+        404: {"description": "No context found to delete"},
+        500: {"description": "Database error"},
+    },
 )
 async def delete_context() -> dict[str, str]:
     """Delete user's saved business context.

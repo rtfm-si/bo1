@@ -10,7 +10,7 @@ Handles:
 import json
 import logging
 import uuid
-from typing import Any
+from typing import Any, cast
 
 import redis
 
@@ -67,7 +67,9 @@ class RedisManager:
                 decode_responses=True,  # Auto-decode bytes to str
                 max_connections=10,
             )
-            self.redis: redis.Redis | None = redis.Redis(connection_pool=self.pool)  # type: ignore[type-arg]
+            # Note: decode_responses=True returns str, but Redis typing is complex
+            # Different redis-py versions have different type parameter requirements
+            self.redis: redis.Redis[Any] | None = redis.Redis(connection_pool=self.pool)
 
             # Test connection
             assert self.redis is not None  # Type guard: checked by is_available
@@ -101,7 +103,7 @@ class RedisManager:
         return session_id
 
     @property
-    def client(self) -> redis.Redis | None:  # type: ignore[type-arg]
+    def client(self) -> redis.Redis[Any] | None:
         """Backward compatibility: alias for self.redis.
 
         Returns:
@@ -254,8 +256,12 @@ class RedisManager:
             assert self.redis is not None  # Type guard: checked by is_available
             keys_result = self.redis.keys("session:bo1_*")
             # Extract session IDs (keys are already strings with decode_responses=True)
-            keys = list(keys_result) if keys_result else []
-            session_ids = [str(key).replace("session:", "") for key in keys]
+            # Note: redis.keys() can return different types based on decode_responses
+            if not keys_result:
+                return []
+            # Cast to list to help mypy understand the type - redis.keys() return type varies
+            keys_list = cast(list[str], list(keys_result))
+            session_ids = [key.replace("session:", "") for key in keys_list]
             return session_ids
 
         except Exception as e:
@@ -282,8 +288,9 @@ class RedisManager:
         try:
             key = self._get_key(session_id)
             assert self.redis is not None  # Type guard: checked by is_available
-            ttl = self.redis.ttl(key)
-            return int(ttl)
+            ttl_value = self.redis.ttl(key)
+            # Redis ttl() returns int directly when decode_responses=True
+            return int(ttl_value) if isinstance(ttl_value, (int, str)) else -2
 
         except Exception as e:
             logger.error(f"Failed to get TTL: {e}")
@@ -309,7 +316,9 @@ class RedisManager:
         try:
             key = self._get_key(session_id)
             assert self.redis is not None  # Type guard: checked by is_available
-            current_ttl = int(self.redis.ttl(key))
+            ttl_value = self.redis.ttl(key)
+            # Redis ttl() returns int directly when decode_responses=True
+            current_ttl = int(ttl_value) if isinstance(ttl_value, (int, str)) else -2
 
             if current_ttl < 0:
                 # Session doesn't exist or has no expiry

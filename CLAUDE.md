@@ -196,20 +196,21 @@ Board of One caches external research results with semantic similarity matching 
 
 **Architecture**:
 - **Storage**: PostgreSQL `research_cache` table with pgvector embeddings
-- **Embeddings**: OpenAI ada-002 (1536 dimensions, ~$0.0001 per query)
+- **Embeddings**: Voyage AI voyage-3 (1024 dimensions, ~$0.00006 per query)
 - **Similarity Matching**: Cosine similarity threshold 0.85
 - **Freshness Policy**: Category-based (saas_metrics: 90 days, pricing: 180 days, competitor_analysis: 30 days)
 
 **Cache Flow**:
-1. Generate embedding for question (ada-002)
+1. Generate embedding for question (Voyage AI voyage-3)
 2. Semantic search in cache (pgvector cosine similarity)
-3. If similarity >0.85 and fresh → return cached result (~50ms, $0.0001)
+3. If similarity >0.85 and fresh → return cached result (~50ms, $0.00006)
 4. If cache miss → web search + summarization (~5-10s, $0.05-0.10) → save to cache
 
 **Cost Reduction**:
 - **Without cache**: 300 queries/month × $0.07 = $21.00/month
 - **With cache (70% hit rate)**: $6.32/month (70% savings)
 - **With cache (90% hit rate)**: $2.13/month (90% savings)
+- **Voyage AI embeddings**: 10x cheaper than OpenAI ada-002 ($0.06/M tokens vs $0.10/M tokens)
 
 **Example Cache Hits**:
 - "What is average churn rate for B2B SaaS?" (original)
@@ -246,7 +247,7 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - `bo1/graph/analytics.py` - Cost analytics and phase breakdown (CSV/JSON export)
 - `bo1/agents/context_collector.py` - Business context + information gap collection
 - `bo1/agents/researcher.py` - External research with semantic cache (Week 6)
-- `bo1/llm/embeddings.py` - OpenAI ada-002 embedding generation (Week 6)
+- `bo1/llm/embeddings.py` - Voyage AI voyage-3 embedding generation (Week 6)
 - `bo1/interfaces/console.py` - Console adapter with pause/resume support
 - `zzz_project/MVP_IMPLEMENTATION_ROADMAP.md` - 14-week roadmap (101 days)
 - `zzz_project/detail/CONTEXT_COLLECTION_FEATURE.md` - Context collection specification (Week 6)

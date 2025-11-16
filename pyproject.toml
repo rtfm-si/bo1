@@ -16,8 +16,7 @@ dependencies = [
     "langchain-community>=0.4.0,<1.0",  # Current stable
     # State & Embeddings
     "redis>=6.0.0,<7.0",  # 6.x has performance improvements
-    "voyageai>=0.3.0",  # Current stable embeddings API
-    "openai>=1.0.0,<2.0",  # For ada-002 embeddings
+    "voyageai>=0.3.0",  # Voyage AI embeddings API
     # Database (v2+)
     "alembic>=1.17.0",  # Latest migration tool
     "psycopg2-binary>=2.9.9",  # Stable postgres driver

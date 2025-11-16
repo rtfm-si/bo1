@@ -29,7 +29,7 @@ CREATE TABLE research_cache (
 
     -- Question & Answer
     question TEXT NOT NULL,
-    question_embedding vector(1536),  -- OpenAI ada-002 embeddings
+    question_embedding vector(1024),  -- Voyage AI voyage-3 embeddings
     answer_summary TEXT NOT NULL,
     confidence TEXT CHECK (confidence IN ('high', 'medium', 'low')),
 
@@ -94,7 +94,7 @@ CREATE TABLE research_aggregations (
 
     -- Aggregation metadata
     question_cluster TEXT,  -- Representative question for this cluster
-    cluster_embedding vector(1536),
+    cluster_embedding vector(1024),  -- Voyage AI voyage-3 embeddings
 
     -- Aggregated results
     combined_summary TEXT,  -- Synthesized from multiple sources
@@ -122,7 +122,7 @@ User Question: "What is the average churn rate for B2B SaaS?"
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. Generate Embedding (question)                           │
-│    - OpenAI ada-002: ~$0.0001 per 1K tokens                │
+│    - Voyage AI voyage-3: ~$0.00006 per 1K tokens           │
 └─────────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -141,7 +141,7 @@ User Question: "What is the average churn rate for B2B SaaS?"
 │ 3a. Return Cached Result │  │ 3b. Perform Research     │
 │  - Update access_count   │  │  - Web search (Brave)    │
 │  - Update last_accessed  │  │  - Extract content       │
-│  - Cost: ~$0.0001        │  │  - Summarize (Haiku)     │
+│  - Cost: ~$0.00006       │  │  - Summarize (Haiku)     │
 │  - Time: ~50ms           │  │  - Cache result          │
 │                          │  │  - Cost: ~$0.05-0.10     │
 │                          │  │  - Time: ~5-10 seconds   │
@@ -488,29 +488,36 @@ async def update_research_access(cache_id: str) -> None:
 # bo1/llm/embeddings.py
 
 import os
-from openai import AsyncOpenAI
+import voyageai
 
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-async def generate_embedding(text: str, model: str = "text-embedding-ada-002") -> list[float]:
+async def generate_embedding(
+    text: str,
+    model: str = "voyage-3",
+    input_type: str | None = None,
+) -> list[float]:
     """Generate embedding vector for semantic similarity.
 
     Args:
         text: Text to embed (question, typically)
-        model: OpenAI embedding model (ada-002 = 1536 dimensions)
+        model: Voyage AI embedding model (voyage-3 = 1024 dimensions)
+        input_type: Optional - 'query' or 'document' for optimized retrieval
 
     Returns:
         List of floats (embedding vector)
 
     Cost:
-        ada-002: ~$0.0001 per 1K tokens (very cheap)
+        voyage-3: ~$0.00006 per 1K tokens (10x cheaper than OpenAI ada-002)
     """
-    response = await client.embeddings.create(
-        input=text,
+    api_key = os.getenv("VOYAGEAI_API_KEY")
+    client = voyageai.Client(api_key=api_key)
+
+    result = client.embed(
+        texts=[text.strip()],
         model=model,
+        input_type=input_type,
     )
 
-    return response.data[0].embedding
+    return result.embeddings[0]
 ```
 
 ---
@@ -769,17 +776,19 @@ async def refresh_stale_cache():
 - **300 research queries**
 - **Cache hits**: 210 (70%)
 - **Cache misses**: 90 (30%)
-- **Cache hit cost**: 210 × $0.0001 = $0.02 (embeddings only)
+- **Cache hit cost**: 210 × $0.00006 = $0.01 (Voyage AI embeddings only)
 - **Cache miss cost**: 90 × $0.07 = $6.30
-- **Total monthly cost**: $6.32
-- **Savings**: $14.68/month (70% reduction)
+- **Total monthly cost**: $6.31
+- **Savings**: $14.69/month (70% reduction)
 
 ### With Cache (90% hit rate after 3 months)
 
 - **Cache hits**: 270 (90%)
 - **Cache misses**: 30 (10%)
-- **Total monthly cost**: $2.13
-- **Savings**: $18.87/month (90% reduction)
+- **Cache hit cost**: 270 × $0.00006 = $0.02 (Voyage AI embeddings)
+- **Cache miss cost**: 30 × $0.07 = $2.10
+- **Total monthly cost**: $2.12
+- **Savings**: $18.88/month (90% reduction)
 
 ---
 

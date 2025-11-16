@@ -1,29 +1,37 @@
-"""OpenAI embeddings for semantic similarity and research caching.
+"""Voyage AI embeddings for semantic similarity and research caching.
 
-Uses OpenAI's text-embedding-ada-002 model (1536 dimensions) for:
+Uses Voyage AI's voyage-3 model (1024 dimensions) for:
 - Semantic similarity search in research cache
 - Question matching with cosine similarity
-- Cost: ~$0.0001 per 1K tokens (~750 words)
+- Cost: ~$0.00006 per 1K tokens (10x cheaper than OpenAI ada-002)
 """
 
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from openai import OpenAI
+if TYPE_CHECKING:
+    import voyageai
+else:
+    try:
+        import voyageai
+    except ImportError:
+        voyageai = None  # type: ignore[assignment]
 
 
 def generate_embedding(
     text: str,
-    model: str = "text-embedding-ada-002",
+    model: str = "voyage-3",
+    input_type: str | None = None,
 ) -> list[float]:
     """Generate embedding vector for text.
 
     Args:
         text: Input text to embed
-        model: OpenAI embedding model (default: ada-002)
+        model: Voyage AI embedding model (default: voyage-3)
+        input_type: Optional - 'query' or 'document' for optimized retrieval
 
     Returns:
-        Embedding vector (1536 dimensions for ada-002)
+        Embedding vector (1024 dimensions for voyage-3)
 
     Raises:
         ValueError: If text is empty or API key is missing
@@ -32,18 +40,25 @@ def generate_embedding(
     if not text or not text.strip():
         raise ValueError("Text cannot be empty")
 
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("VOYAGEAI_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable not set")
+        raise ValueError("VOYAGEAI_API_KEY environment variable not set")
 
-    client = OpenAI(api_key=api_key)
+    if voyageai is None:
+        raise ImportError("voyageai package is not installed. Install with: pip install voyageai")
+
+    # voyageai does not explicitly export Client in stubs, but it exists at runtime
+    client = voyageai.Client(api_key=api_key)  # type: ignore[attr-defined]
 
     try:
-        response = client.embeddings.create(
-            input=text.strip(),
+        # Voyage AI accepts single string or list of strings
+        result = client.embed(
+            texts=[text.strip()],
             model=model,
+            input_type=input_type,
         )
-        embedding: list[float] = response.data[0].embedding
+        # Convert to list[float] to satisfy type checker
+        embedding = [float(x) for x in result.embeddings[0]]
         return embedding
     except Exception as e:
         raise Exception(f"Failed to generate embedding: {e}") from e

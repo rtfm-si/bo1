@@ -100,7 +100,7 @@ def upgrade() -> None:
         sa.Column("question", sa.Text, nullable=False),
         sa.Column(
             "question_embedding", sa.dialects.postgresql.ARRAY(sa.Float), nullable=True
-        ),  # vector(1536) for ada-002
+        ),  # vector(1024) for Voyage AI voyage-3
         sa.Column("answer_summary", sa.Text, nullable=False),
         sa.Column("confidence", sa.String(length=20), nullable=True),
         sa.Column("sources", sa.dialects.postgresql.JSONB, nullable=True),

@@ -34,6 +34,7 @@ repos:
           - langchain-anthropic>=0.1.0
           - langgraph>=0.2.0
           - langgraph-checkpoint-redis>=0.1.2
+          - voyageai>=0.3.0
         files: ^bo1/
         exclude: ^(tests/|scripts/|examples/)
         args: [--install-types, --non-interactive, --show-error-codes]

@@ -1496,7 +1496,7 @@ python scripts/compare_v1_v2_results.py
   CREATE TABLE research_cache (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       question TEXT NOT NULL,
-      question_embedding vector(1536),  -- OpenAI ada-002 embeddings
+      question_embedding vector(1024),  -- Voyage AI voyage-3 embeddings
       answer_summary TEXT NOT NULL,
       confidence TEXT CHECK (confidence IN ('high', 'medium', 'low')),
       sources JSONB,
@@ -1525,8 +1525,8 @@ python scripts/compare_v1_v2_results.py
   - [ ] `save_research_result(question, embedding, summary, sources, ...)` - Cache research
   - [ ] `update_research_access(cache_id)` - Update access count
 - [ ] Create `bo1/llm/embeddings.py` module
-  - [ ] `generate_embedding(text, model)` - OpenAI ada-002 embeddings (1536 dimensions)
-  - [ ] Cost: ~$0.0001 per 1K tokens
+  - [ ] `generate_embedding(text, model, input_type)` - Voyage AI voyage-3 embeddings (1024 dimensions)
+  - [ ] Cost: ~$0.00006 per 1K tokens (10x cheaper than OpenAI ada-002)
 - [ ] Write tests for user_context CRUD operations
   - [ ] Test: Load non-existent context returns None
   - [ ] Test: Save context creates new row
@@ -2046,7 +2046,7 @@ pytest tests/e2e/test_expert_memory_growth_scenario.py -v
   - [ ] Inject all context into `problem.context`
   - [ ] Track cost in `phase_costs["context_collection"]`
 - [ ] Update `ResearcherAgent.research_questions()` to use semantic cache
-  - [ ] Generate embedding for each question (OpenAI ada-002)
+  - [ ] Generate embedding for each question (Voyage AI voyage-3)
   - [ ] Check cache with `find_cached_research()` (similarity threshold 0.85)
   - [ ] If cache hit: Return cached result, update access count
   - [ ] If cache miss: Perform web research, save to cache

@@ -330,11 +330,30 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
     # Build participant list
     participant_list = ", ".join([p.name for p in personas])
 
+    # Check if expert has memory from previous sub-problems
+    expert_memory: str | None = None
+    sub_problem_results = state.get("sub_problem_results", [])
+
+    if sub_problem_results:
+        # Collect memory from all previous sub-problems where this expert contributed
+        memory_parts = []
+        for result in sub_problem_results:
+            if speaker_code in result.expert_summaries:
+                prev_summary = result.expert_summaries[speaker_code]
+                prev_goal = result.sub_problem_goal
+                memory_parts.append(f"Sub-problem: {prev_goal}\nYour position: {prev_summary}")
+
+        if memory_parts:
+            expert_memory = "\n\n".join(memory_parts)
+            logger.info(
+                f"{persona.display_name} has memory from {len(memory_parts)} previous sub-problem(s)"
+            )
+
     # Create deliberation engine (constructor takes state argument)
     v1_state = graph_state_to_deliberation_state(state)
     engine = DeliberationEngine(state=v1_state)
 
-    # Call persona with correct signature
+    # Call persona with correct signature (including expert_memory)
     contribution_msg, llm_response = await engine._call_persona_async(
         persona_profile=persona,
         problem_statement=problem.description if problem else "",
@@ -343,6 +362,7 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
         round_number=round_number,
         contribution_type=ContributionType.RESPONSE,
         previous_contributions=contributions,
+        expert_memory=expert_memory,
     )
 
     # Track cost in metrics

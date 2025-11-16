@@ -1,9 +1,13 @@
 """Unit tests for multi-sub-problem iteration (Day 36.5)."""
 
+import pytest
+
+from bo1.graph.nodes import next_subproblem_node
 from bo1.graph.routers import route_after_synthesis
 from bo1.graph.state import DeliberationGraphState
+from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
-from bo1.models.state import DeliberationMetrics, DeliberationPhase
+from bo1.models.state import ContributionMessage, DeliberationMetrics, DeliberationPhase
 
 
 class TestRouteAfterSynthesis:
@@ -153,3 +157,203 @@ class TestRouteAfterSynthesis:
 
         # Atomic optimization: skip meta-synthesis
         assert result == "END"
+
+
+def create_test_persona(code: str = "test_persona") -> PersonaProfile:
+    """Helper to create a minimal PersonaProfile for testing."""
+    from bo1.models.persona import PersonaCategory, ResponseStyle
+
+    return PersonaProfile(
+        id="test-id",
+        code=code,
+        name="Test Persona",
+        archetype="Test",
+        category=PersonaCategory.FINANCE,
+        description="Test persona",
+        emoji="🧪",
+        color_hex="#000000",
+        traits={"analytical": 0.8, "creative": 0.5, "collaborative": 0.7},
+        default_weight=1.0,
+        temperature=0.7,
+        system_prompt="Test system prompt",
+        response_style=ResponseStyle.ANALYTICAL,
+        display_name="Test",
+        domain_expertise=["testing"],
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+class TestNextSubproblemNode:
+    """Test the next_subproblem_node function."""
+
+    async def test_increments_index_correctly(self):
+        """Should increment sub_problem_index when moving to next."""
+        problem = Problem(
+            title="Test",
+            description="Test problem",
+            context="",
+            sub_problems=[
+                SubProblem(
+                    id="sp_001", goal="SP1", context="", complexity_score=5, dependencies=[]
+                ),
+                SubProblem(
+                    id="sp_002", goal="SP2", context="", complexity_score=6, dependencies=[]
+                ),
+            ],
+        )
+
+        state = DeliberationGraphState(
+            session_id="test-session",
+            problem=problem,
+            current_sub_problem=problem.sub_problems[0],
+            personas=[create_test_persona()],
+            contributions=[],
+            round_summaries=[],
+            phase=DeliberationPhase.SYNTHESIS,
+            round_number=3,
+            max_rounds=10,
+            metrics=DeliberationMetrics(total_cost=0.05),
+            facilitator_decision=None,
+            should_stop=False,
+            stop_reason=None,
+            user_input=None,
+            current_node="synthesize",
+            votes=[],
+            synthesis="Test synthesis",
+            sub_problem_results=[],
+            sub_problem_index=0,
+        )
+
+        result = await next_subproblem_node(state)
+
+        assert result["sub_problem_index"] == 1
+        assert result["current_sub_problem"] == problem.sub_problems[1]
+
+    async def test_resets_deliberation_state(self):
+        """Should reset contributions, votes, and round_number for new sub-problem."""
+        problem = Problem(
+            title="Test",
+            description="Test problem",
+            context="",
+            sub_problems=[
+                SubProblem(
+                    id="sp_001", goal="SP1", context="", complexity_score=5, dependencies=[]
+                ),
+                SubProblem(
+                    id="sp_002", goal="SP2", context="", complexity_score=6, dependencies=[]
+                ),
+            ],
+        )
+
+        # State with some contributions and votes from first sub-problem
+        from bo1.models.state import ContributionType
+
+        contribution = ContributionMessage(
+            persona_code="test_persona",
+            persona_name="Test",
+            content="Some contribution",
+            thinking=None,
+            contribution_type=ContributionType.INITIAL,
+            round_number=2,
+            token_count=None,
+            cost=None,
+        )
+
+        state = DeliberationGraphState(
+            session_id="test-session",
+            problem=problem,
+            current_sub_problem=problem.sub_problems[0],
+            personas=[create_test_persona()],
+            contributions=[contribution],
+            round_summaries=["Round 1 summary"],
+            phase=DeliberationPhase.SYNTHESIS,
+            round_number=3,
+            max_rounds=10,
+            metrics=DeliberationMetrics(total_cost=0.05),
+            facilitator_decision=None,
+            should_stop=False,
+            stop_reason=None,
+            user_input=None,
+            current_node="synthesize",
+            votes=[{"persona_code": "test_persona", "recommendation": "Yes"}],
+            synthesis="Test synthesis",
+            sub_problem_results=[],
+            sub_problem_index=0,
+        )
+
+        result = await next_subproblem_node(state)
+
+        # Should reset deliberation state
+        assert result["contributions"] == []
+        assert result["votes"] == []
+        assert result["round_number"] == 0  # Will be set to 1 by initial_round_node
+        assert result["round_summaries"] == []
+        assert result["synthesis"] is None
+        assert result["facilitator_decision"] is None
+        assert result["should_stop"] is False
+        assert result["stop_reason"] is None
+
+    async def test_saves_sub_problem_result(self):
+        """Should save current sub-problem result before moving to next."""
+        problem = Problem(
+            title="Test",
+            description="Test problem",
+            context="",
+            sub_problems=[
+                SubProblem(
+                    id="sp_001", goal="SP1", context="", complexity_score=5, dependencies=[]
+                ),
+                SubProblem(
+                    id="sp_002", goal="SP2", context="", complexity_score=6, dependencies=[]
+                ),
+            ],
+        )
+
+        from bo1.models.state import ContributionType
+
+        contribution = ContributionMessage(
+            persona_code="test_persona",
+            persona_name="Test",
+            content="Test contribution",
+            thinking=None,
+            contribution_type=ContributionType.INITIAL,
+            round_number=1,
+            token_count=None,
+            cost=None,
+        )
+
+        state = DeliberationGraphState(
+            session_id="test-session",
+            problem=problem,
+            current_sub_problem=problem.sub_problems[0],
+            personas=[create_test_persona()],
+            contributions=[contribution],
+            round_summaries=[],
+            phase=DeliberationPhase.SYNTHESIS,
+            round_number=2,
+            max_rounds=10,
+            metrics=DeliberationMetrics(total_cost=0.05, phase_costs={"test": 0.05}),
+            facilitator_decision=None,
+            should_stop=False,
+            stop_reason=None,
+            user_input=None,
+            current_node="synthesize",
+            votes=[],
+            synthesis="SP1 synthesis",
+            sub_problem_results=[],
+            sub_problem_index=0,
+        )
+
+        result = await next_subproblem_node(state)
+
+        # Should have saved result
+        assert len(result["sub_problem_results"]) == 1
+
+        saved_result = result["sub_problem_results"][0]
+        assert saved_result.sub_problem_id == "sp_001"
+        assert saved_result.sub_problem_goal == "SP1"
+        assert saved_result.synthesis == "SP1 synthesis"
+        assert saved_result.contribution_count == 1
+        assert saved_result.expert_panel == ["test_persona"]
+        assert saved_result.cost == 0.05

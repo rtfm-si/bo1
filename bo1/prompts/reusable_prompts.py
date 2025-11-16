@@ -678,6 +678,7 @@ def compose_persona_prompt(
     problem_statement: str,
     participant_list: str,
     current_phase: str = "discussion",
+    expert_memory: str | None = None,
 ) -> str:
     """Compose a complete framework-aligned persona system prompt.
 
@@ -691,6 +692,7 @@ def compose_persona_prompt(
         problem_statement: The problem being deliberated
         participant_list: Names of other personas in deliberation
         current_phase: Current deliberation phase (e.g., "initial", "discussion", "voting")
+        expert_memory: Optional cross-sub-problem memory (summary from previous sub-problems)
 
     Returns:
         Complete system prompt following PROMPT_ENGINEERING_FRAMEWORK.md
@@ -705,6 +707,25 @@ def compose_persona_prompt(
         ...     current_phase="discussion"
         ... )
     """
+    # Build parts list for composition
+    parts = [persona_system_role]
+
+    # Inject expert memory if available (cross-sub-problem memory)
+    if expert_memory:
+        parts.append(f"""
+
+<your_previous_analysis>
+You previously contributed to an earlier sub-problem in this deliberation.
+Here's a summary of your position from that analysis:
+
+{expert_memory}
+
+You should build on this earlier analysis, maintaining consistency with your
+previous recommendations unless new information changes your view. If you
+change your position, explain why.
+</your_previous_analysis>
+""")
+
     # Build deliberation context
     context = DELIBERATION_CONTEXT_TEMPLATE.format(
         problem_statement=problem_statement,
@@ -712,21 +733,16 @@ def compose_persona_prompt(
         current_phase=current_phase,
     )
 
+    parts.append(f"\n{context}\n")
+    parts.append(f"\n{BEHAVIORAL_GUIDELINES}\n")
+    parts.append(f"\n{EVIDENCE_PROTOCOL}\n")
+    parts.append(f"\n{COMMUNICATION_PROTOCOL}\n")
+
     # Build security addendum
     security_task = SECURITY_ADDENDUM.format(security_protocol=SECURITY_PROTOCOL)
+    parts.append(f"\n{security_task}")
 
-    # Compose: BESPOKE + DYNAMIC + GENERIC
-    return f"""{persona_system_role}
-
-{context}
-
-{BEHAVIORAL_GUIDELINES}
-
-{EVIDENCE_PROTOCOL}
-
-{COMMUNICATION_PROTOCOL}
-
-{security_task}"""
+    return "".join(parts)
 
 
 def compose_persona_prompt_cached(

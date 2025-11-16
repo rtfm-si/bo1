@@ -1857,25 +1857,25 @@ curl http://localhost:8000/api/health
 
 #### Console Display Updates
 
-- [ ] Update `bo1/interfaces/console.py`
-  - [ ] Show sub-problem progress header:
+- [x] Update `bo1/interfaces/console.py`
+  - [x] Show sub-problem progress header:
     ```python
     if len(problem.sub_problems) > 1:
         console.print(f"\n[bold cyan]Sub-Problem {sub_problem_index + 1} of {len(problem.sub_problems)}[/bold cyan]")
         console.print(f"[dim]{current_sub_problem.goal}[/dim]\n")
     ```
-  - [ ] After each sub-problem synthesis:
+  - [x] After each sub-problem synthesis:
     ```python
     console.print(f"\n[green]✓ Sub-problem {sub_problem_index + 1} complete[/green]")
     console.print(f"[dim]Cost: ${result.cost:.4f} | Duration: {result.duration_seconds:.1f}s[/dim]")
     console.print(f"[dim]Expert panel: {', '.join(result.expert_panel)}[/dim]\n")
     ```
-  - [ ] Before meta-synthesis:
+  - [x] Before meta-synthesis:
     ```python
     console.print(f"\n[bold magenta]═══ Cross-Sub-Problem Meta-Synthesis ═══[/bold magenta]")
     console.print(f"[dim]Integrating insights from {len(sub_problem_results)} deliberations...[/dim]\n")
     ```
-  - [ ] Display meta-synthesis report with Rich formatting
+  - [x] Display meta-synthesis report with Rich formatting
 
 #### Expert Memory Across Sub-Problems (INTEGRATED FEATURE)
 
@@ -1885,56 +1885,56 @@ curl http://localhost:8000/api/health
 
 **Example**: Maria (Finance) appears in SP1 (CAC Analysis) and SP2 (Channel Selection). In SP2, she builds on her $150 CAC target from SP1 instead of re-deriving it.
 
-- [ ] Add `expert_summaries: dict[str, str]` to `SubProblemResult` model
-  - [ ] Per-expert 50-100 token summaries for memory
-  - [ ] Format: `{"maria": "Maria recommended CAC <$150...", "zara": "..."}`
+- [x] Add `expert_summaries: dict[str, str]` to `SubProblemResult` model
+  - [x] Per-expert 50-100 token summaries for memory
+  - [x] Format: `{"maria": "Maria recommended CAC <$150...", "zara": "..."}`
 
-- [ ] Implement `summarize_expert_contributions()` in `SummarizerAgent`
-  - [ ] Accepts: persona_code, persona_name, sub_problem_goal, contributions
-  - [ ] Returns: 50-100 token summary of expert's position
-  - [ ] Uses: Haiku 4.5 (~$0.0008 per expert)
-  - [ ] Model: Haiku 4.5
-  - [ ] Temperature: 0.3 (factual)
-  - [ ] Max tokens: 100
+- [x] Implement `summarize_expert_contributions()` in `SummarizerAgent`
+  - [x] Accepts: persona_code, persona_name, sub_problem_goal, contributions
+  - [x] Returns: 50-100 token summary of expert's position
+  - [x] Uses: Haiku 4.5 (~$0.0008 per expert)
+  - [x] Model: Haiku 4.5
+  - [x] Temperature: 0.3 (factual)
+  - [x] Max tokens: 100
 
-- [ ] Create `EXPERT_SUMMARY_SYSTEM_PROMPT` in `summarizer_prompts.py`
-  - [ ] Instructs: Summarize position, evidence, confidence
-  - [ ] Format: 50-100 tokens (strict)
-  - [ ] Preserves: Numbers, metrics, key conditions
+- [x] Create `EXPERT_SUMMARY_SYSTEM_PROMPT` in `summarizer_prompts.py`
+  - [x] Instructs: Summarize position, evidence, confidence
+  - [x] Format: 50-100 tokens (strict)
+  - [x] Preserves: Numbers, metrics, key conditions
 
-- [ ] Create `compose_expert_summary_request()` in `summarizer_prompts.py`
-  - [ ] Formats: Expert name, sub-problem, contributions
-  - [ ] Output: Prompt for per-expert summarization
+- [x] Create `compose_expert_summary_request()` in `summarizer_prompts.py`
+  - [x] Formats: Expert name, sub-problem, contributions
+  - [x] Output: Prompt for per-expert summarization
 
-- [ ] Update `next_subproblem_node()` to generate expert summaries
-  - [ ] After synthesis, before moving to next sub-problem
-  - [ ] For each expert who contributed, generate summary
-  - [ ] Store in `result.expert_summaries`
-  - [ ] Track cost in `metrics.phase_costs["expert_memory"]`
-  - [ ] Log: "Generated memory summary for Maria: 72 tokens"
+- [x] Update `next_subproblem_node()` to generate expert summaries
+  - [x] After synthesis, before moving to next sub-problem
+  - [x] For each expert who contributed, generate summary
+  - [x] Store in `result.expert_summaries`
+  - [x] Track cost in `metrics.phase_costs["expert_memory"]`
+  - [x] Log: "Generated memory summary for Maria: 72 tokens"
 
-- [ ] Update `compose_persona_prompt()` to accept `expert_memory` parameter
-  - [ ] New parameter: `expert_memory: str | None = None`
-  - [ ] If provided, inject `<your_previous_analysis>` section
-  - [ ] Instructs expert to build on earlier analysis or explain changes
+- [x] Update `compose_persona_prompt()` to accept `expert_memory` parameter
+  - [x] New parameter: `expert_memory: str | None = None`
+  - [x] If provided, inject `<your_previous_analysis>` section
+  - [x] Instructs expert to build on earlier analysis or explain changes
 
-- [ ] Update `persona_contribute_node()` to inject expert memory
-  - [ ] Check `sub_problem_results` for previous appearances
-  - [ ] If found, extract expert summary from `expert_summaries`
-  - [ ] Format: "Sub-problem: {goal}\nYour previous position: {summary}"
-  - [ ] Pass to `compose_persona_prompt(expert_memory=...)`
-  - [ ] Log: "Maria has memory from previous sub-problem: sp_001"
+- [x] Update `persona_contribute_node()` to inject expert memory
+  - [x] Check `sub_problem_results` for previous appearances
+  - [x] If found, extract expert summary from `expert_summaries`
+  - [x] Format: "Sub-problem: {goal}\nYour previous position: {summary}"
+  - [x] Pass to `compose_persona_prompt(expert_memory=...)`
+  - [x] Log: "Maria has memory from previous sub-problem: sp_001"
 
 #### Testing
 
-- [ ] Unit tests (`tests/graph/test_multi_subproblem.py`)
-  - [ ] Test: `next_subproblem_node()` increments index correctly
-  - [ ] Test: `next_subproblem_node()` resets deliberation state
-  - [ ] Test: `next_subproblem_node()` saves sub-problem result
-  - [ ] Test: `route_after_synthesis()` routes to next_subproblem if more exist
-  - [ ] Test: `route_after_synthesis()` routes to meta_synthesis if all complete
-  - [ ] Test: `meta_synthesize_node()` includes all sub-problem results
-  - [ ] Test: Meta-synthesis cost tracking
+- [x] Unit tests (`tests/graph/test_multi_subproblem.py`)
+  - [x] Test: `next_subproblem_node()` increments index correctly
+  - [x] Test: `next_subproblem_node()` resets deliberation state
+  - [x] Test: `next_subproblem_node()` saves sub-problem result
+  - [x] Test: `route_after_synthesis()` routes to next_subproblem if more exist
+  - [x] Test: `route_after_synthesis()` routes to meta_synthesis if all complete
+  - [ ] Test: `meta_synthesize_node()` includes all sub-problem results (deferred - requires LLM)
+  - [ ] Test: Meta-synthesis cost tracking (deferred - requires LLM)
 
 - [ ] Integration tests (`tests/integration/test_multi_subproblem_flow.py`)
   - [ ] Test: 2 sub-problems deliberated sequentially

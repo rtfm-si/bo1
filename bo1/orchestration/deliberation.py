@@ -110,6 +110,26 @@ class DeliberationEngine:
         # Create tasks for parallel execution
         tasks = []
         for persona_profile in self.state.selected_personas:
+            # Check if expert has memory from previous sub-problems
+            expert_memory: str | None = None
+            if hasattr(self.state, "sub_problem_results") and self.state.sub_problem_results:
+                # Collect memory from all previous sub-problems where this expert contributed
+                memory_parts = []
+                for result in self.state.sub_problem_results:
+                    if persona_profile.code in result.expert_summaries:
+                        prev_summary = result.expert_summaries[persona_profile.code]
+                        prev_goal = result.sub_problem_goal
+                        memory_parts.append(
+                            f"Sub-problem: {prev_goal}\nYour position: {prev_summary}"
+                        )
+
+                if memory_parts:
+                    expert_memory = "\n\n".join(memory_parts)
+                    logger.info(
+                        f"{persona_profile.display_name} has memory from {len(memory_parts)} "
+                        f"previous sub-problem(s)"
+                    )
+
             task = self._call_persona_async(
                 persona_profile=persona_profile,
                 problem_statement=current_sp.goal,
@@ -117,6 +137,7 @@ class DeliberationEngine:
                 participant_list=participant_list,
                 round_number=0,
                 contribution_type=ContributionType.INITIAL,
+                expert_memory=expert_memory,
             )
             tasks.append(task)
 
@@ -148,6 +169,7 @@ class DeliberationEngine:
         round_number: int,
         contribution_type: ContributionType,
         previous_contributions: list[ContributionMessage] | None = None,
+        expert_memory: str | None = None,
     ) -> tuple[ContributionMessage, Any]:
         """Call a single persona asynchronously.
 
@@ -159,6 +181,7 @@ class DeliberationEngine:
             round_number: Current round number
             contribution_type: Type of contribution
             previous_contributions: Previous round contributions (for context)
+            expert_memory: Optional cross-sub-problem memory (summary from previous sub-problems)
 
         Returns:
             Tuple of (contribution_message, llm_response) for metrics tracking
@@ -188,6 +211,7 @@ class DeliberationEngine:
             problem_statement=problem_statement,
             participant_list=participant_list,
             current_phase="initial_round" if round_number == 0 else "discussion",
+            expert_memory=expert_memory,
         )
 
         # Build user message with adaptive directive and context

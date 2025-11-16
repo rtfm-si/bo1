@@ -231,6 +231,20 @@ async def run_console_deliberation(
                     _display_sub_problems(console, output)
                 elif event_name == "select_personas" and isinstance(output, dict):
                     _display_personas(console, output)
+                    # Check if this is a multi-sub-problem scenario
+                    problem = output.get("problem")  # type: ignore[assignment]
+                    sub_problem_index = output.get("sub_problem_index", 0)
+                    if (
+                        problem
+                        and hasattr(problem, "sub_problems")
+                        and len(problem.sub_problems) > 1
+                    ):
+                        current_sp = output.get("current_sub_problem")
+                        if current_sp:
+                            console.print(
+                                f"\n[bold cyan]═══ Sub-Problem {sub_problem_index + 1} of {len(problem.sub_problems)} ═══[/bold cyan]"
+                            )
+                            console.print(f"[dim]{current_sp.goal}[/dim]\n")
                 elif event_name == "initial_round" and isinstance(output, dict):
                     contributions = output.get("contributions", [])
                     if contributions:
@@ -263,6 +277,12 @@ async def run_console_deliberation(
                     _display_votes(console, output)
                 elif event_name == "synthesize" and isinstance(output, dict):
                     _display_synthesis(console, output)
+                elif event_name == "next_subproblem" and isinstance(output, dict):
+                    # Display sub-problem completion message
+                    _display_subproblem_completion(console, output)
+                elif event_name == "meta_synthesize" and isinstance(output, dict):
+                    # Display meta-synthesis header and result
+                    _display_meta_synthesis(console, output)
 
                 # Capture the final state from the last event
                 if isinstance(output, dict):
@@ -459,6 +479,56 @@ def _display_synthesis(console: Console, state: Any) -> None:
     console.print()
     console.print(synthesis)
     console.print()
+
+
+def _display_subproblem_completion(console: Console, state: Any) -> None:
+    """Display sub-problem completion message.
+
+    Args:
+        console: Console instance for output
+        state: Graph state with sub_problem_results
+    """
+    sub_problem_results = state.get("sub_problem_results", [])
+    if not sub_problem_results:
+        return
+
+    # Get the most recently completed sub-problem
+    result = sub_problem_results[-1]
+    sub_problem_index = len(sub_problem_results) - 1
+
+    console.print(f"\n[green]✓ Sub-problem {sub_problem_index + 1} complete[/green]")
+    console.print(f"[dim]Cost: ${result.cost:.4f} | Duration: {result.duration_seconds:.1f}s[/dim]")
+    console.print(f"[dim]Expert panel: {', '.join(result.expert_panel)}[/dim]\n")
+
+
+def _display_meta_synthesis(console: Console, state: Any) -> None:
+    """Display meta-synthesis header and report.
+
+    Args:
+        console: Console instance for output
+        state: Graph state with meta-synthesis
+    """
+    sub_problem_results = state.get("sub_problem_results", [])
+    synthesis = state.get("synthesis")
+
+    # Display header before synthesis
+    if sub_problem_results:
+        console.print("\n[bold magenta]═══ Cross-Sub-Problem Meta-Synthesis ═══[/bold magenta]")
+        console.print(
+            f"[dim]Integrating insights from {len(sub_problem_results)} deliberations...[/dim]\n"
+        )
+
+    # Display the meta-synthesis report with Rich formatting
+    if synthesis:
+        console.print("\n")
+        console.print(
+            Panel(
+                synthesis,
+                title="[magenta]Meta-Synthesis Report[/magenta]",
+                border_style="magenta",
+            )
+        )
+        console.print()
 
 
 def _display_phase_costs(console: Console, state: Any) -> None:

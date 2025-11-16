@@ -2390,72 +2390,72 @@ pytest backend/tests/test_control_api_integration.py -v  # 18 integration tests 
 
 ---
 
-### Day 40: Admin API Endpoints
+### Day 40: Admin API Endpoints ✅
 
 **Value**: Admin monitoring and control
 
 #### Admin Session Monitoring
 
-- [ ] Add `GET /api/admin/sessions/active`
-  - [ ] List all active sessions (any user)
-  - [ ] Include: user_id, session_id, duration, cost, phase
-  - [ ] Calculate: vs median (runaway detection)
-  - [ ] Return: Top 10 longest + top 10 most expensive
-- [ ] Add `GET /api/admin/sessions/{session_id}/full`
-  - [ ] Return complete session state
-  - [ ] Include: All contributions, votes, costs, tokens
-  - [ ] Calculate: Cache hit rate, per-phase costs
+- [x] Add `GET /api/admin/sessions/active`
+  - [x] List all active sessions (any user)
+  - [x] Include: user_id, session_id, duration, cost, phase
+  - [x] Calculate: vs median (runaway detection)
+  - [x] Return: Top 10 longest + top 10 most expensive
+- [x] Add `GET /api/admin/sessions/{session_id}/full`
+  - [x] Return complete session state
+  - [x] Include: All contributions, votes, costs, tokens
+  - [x] Calculate: Cache hit rate, per-phase costs
 
 #### Admin Kill Switches
 
-- [ ] Add `POST /api/admin/sessions/{session_id}/kill`
-  - [ ] Require admin role
-  - [ ] Call SessionManager.admin_kill_session()
-  - [ ] No ownership check (admin can kill any)
-  - [ ] Log with admin user_id
-- [ ] Add `POST /api/admin/sessions/kill-all`
-  - [ ] Emergency shutdown (system maintenance)
-  - [ ] Require: confirm=true query param
-  - [ ] Call SessionManager.admin_kill_all_sessions()
-  - [ ] Return: count of killed sessions
+- [x] Add `POST /api/admin/sessions/{session_id}/kill`
+  - [x] Require admin role
+  - [x] Call SessionManager.admin_kill_session()
+  - [x] No ownership check (admin can kill any)
+  - [x] Log with admin user_id
+- [x] Add `POST /api/admin/sessions/kill-all`
+  - [x] Emergency shutdown (system maintenance)
+  - [x] Require: confirm=true query param
+  - [x] Call SessionManager.admin_kill_all_sessions()
+  - [x] Return: count of killed sessions
 
 #### Admin Middleware
 
-- [ ] Create `backend/api/middleware/admin.py`
-  - [ ] `require_admin()` dependency
-    - [ ] Check: X-Admin-Key header
-    - [ ] Compare with ADMIN_API_KEY env var
-    - [ ] Raise 403 if not admin
-  - [ ] For MVP: Simple API key auth
-  - [ ] For v2: Role-based auth (self-hosted Supabase)
+- [x] Create `backend/api/middleware/admin.py`
+  - [x] `require_admin()` dependency
+    - [x] Check: X-Admin-Key header
+    - [x] Compare with ADMIN_API_KEY env var
+    - [x] Raise 403 if not admin
+  - [x] For MVP: Simple API key auth
+  - [x] For v2: Role-based auth (self-hosted Supabase)
 
 #### Testing
 
-- [ ] Test: Admin can list active sessions
-  - [ ] Start 3 sessions
-  - [ ] GET /api/admin/sessions/active
-  - [ ] Verify all 3 returned
-- [ ] Test: Admin can view full session
-  - [ ] GET /api/admin/sessions/{id}/full
-  - [ ] Verify all data returned (not just metadata)
-- [ ] Test: Admin can kill any session
-  - [ ] Start session (user_1)
-  - [ ] Admin kills session
-  - [ ] Verify success
-- [ ] Test: Admin can kill all sessions
-  - [ ] Start 5 sessions
-  - [ ] POST /api/admin/sessions/kill-all?confirm=true
-  - [ ] Verify all 5 killed
+- [x] Test: Admin can list active sessions
+  - [x] Start 3 sessions
+  - [x] GET /api/admin/sessions/active
+  - [x] Verify all 3 returned
+- [x] Test: Admin can view full session
+  - [x] GET /api/admin/sessions/{id}/full
+  - [x] Verify all data returned (not just metadata)
+- [x] Test: Admin can kill any session
+  - [x] Start session (user_1)
+  - [x] Admin kills session
+  - [x] Verify success
+- [x] Test: Admin can kill all sessions
+  - [x] Start 5 sessions
+  - [x] POST /api/admin/sessions/kill-all?confirm=true
+  - [x] Verify all 5 killed
 
 **Validation**:
-- [ ] Admin endpoints work
-- [ ] Admin auth required (API key)
-- [ ] Admin kill switches work
-- [ ] Audit trail logged
+- [x] Admin endpoints work
+- [x] Admin auth required (API key)
+- [x] Admin kill switches work
+- [x] Audit trail logged
 
 **Tests**:
 ```bash
-pytest backend/tests/test_admin_api.py -v
+pytest backend/tests/test_admin_api.py -v  # 17 tests pass
 ```
 
 ---

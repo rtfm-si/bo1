@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str = Field(default="", description="Anthropic API key for Claude")
     voyage_api_key: str = Field(default="", description="Voyage AI API key for embeddings")
 
+    # Research API Keys (for external research features)
+    tavily_api_key: str = Field(default="", description="Tavily API key for web search")
+    brave_api_key: str = Field(default="", description="Brave Search API key")
+
     # Redis Configuration
     redis_host: str = Field(default="localhost", description="Redis host")
     redis_port: int = Field(default=6379, description="Redis port")

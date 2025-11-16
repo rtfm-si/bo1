@@ -40,3 +40,7 @@ Should I leave my stable corporate job to start a SaaS business, or build it nig
 Should I add enterprise features to attract big clients or focus on SMBs?
 
 Should we move from London to Leeds to reduce costs and buy a house?
+
+update app domain > boardof.one
+
+admin has a supr weak api_key

@@ -381,3 +381,149 @@ def update_research_access(cache_id: str) -> None:
             conn.commit()
     finally:
         conn.close()
+
+
+def get_research_cache_stats() -> dict[str, Any]:
+    """Get research cache analytics and statistics.
+
+    Returns:
+        Dictionary with cache statistics:
+        {
+            "total_cached_results": int,
+            "cache_hit_rate_30d": float,  # Percentage (0-100)
+            "cost_savings_30d": float,  # USD
+            "top_cached_questions": [  # Top 10 by access_count
+                {
+                    "id": str,
+                    "question": str,
+                    "category": str,
+                    "access_count": int,
+                    "last_accessed_at": str,
+                }
+            ]
+        }
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Total cached results
+            cur.execute("SELECT COUNT(*) as total FROM research_cache")
+            total_result = cur.fetchone()
+            total_cached_results = total_result["total"] if total_result else 0
+
+            # Cache hit rate (30 days) - access_count > 1 means cache hit
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) FILTER (WHERE access_count > 1) as hits,
+                    COUNT(*) as total
+                FROM research_cache
+                WHERE research_date >= NOW() - INTERVAL '30 days'
+                """
+            )
+            hit_rate_result = cur.fetchone()
+            hits = hit_rate_result["hits"] if hit_rate_result else 0
+            total_30d = hit_rate_result["total"] if hit_rate_result else 0
+            cache_hit_rate_30d = (hits / total_30d * 100) if total_30d > 0 else 0.0
+
+            # Cost savings (30 days)
+            # Assumption: Each cache hit saves $0.07 (avg web search + summarization)
+            # vs $0.00006 embedding cost
+            cost_per_hit_savings = 0.07 - 0.00006
+            cost_savings_30d = hits * cost_per_hit_savings
+
+            # Top cached questions by access_count
+            cur.execute(
+                """
+                SELECT
+                    id::text,
+                    question,
+                    category,
+                    access_count,
+                    last_accessed_at
+                FROM research_cache
+                ORDER BY access_count DESC
+                LIMIT 10
+                """
+            )
+            top_questions = [dict(row) for row in cur.fetchall()]
+
+            # Convert datetime to ISO string
+            for q in top_questions:
+                if q.get("last_accessed_at"):
+                    q["last_accessed_at"] = q["last_accessed_at"].isoformat()
+
+            return {
+                "total_cached_results": total_cached_results,
+                "cache_hit_rate_30d": round(cache_hit_rate_30d, 2),
+                "cost_savings_30d": round(cost_savings_30d, 2),
+                "top_cached_questions": top_questions,
+            }
+    finally:
+        conn.close()
+
+
+def delete_research_cache_entry(cache_id: str) -> bool:
+    """Delete a specific research cache entry.
+
+    Args:
+        cache_id: Research cache record ID (string representation of UUID)
+
+    Returns:
+        True if deleted, False if not found
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM research_cache
+                WHERE id = %s
+                """,
+                (cache_id,),
+            )
+            conn.commit()
+            # Cast to int to satisfy mypy
+            rowcount: int = cur.rowcount if cur.rowcount is not None else 0
+            return rowcount > 0
+    finally:
+        conn.close()
+
+
+def get_stale_research_cache_entries(days_old: int = 90) -> list[dict[str, Any]]:
+    """Get research cache entries that are older than specified days.
+
+    Args:
+        days_old: Number of days to consider stale (default: 90)
+
+    Returns:
+        List of stale cache entries with id, question, category, research_date
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    id::text,
+                    question,
+                    category,
+                    industry,
+                    research_date,
+                    freshness_days
+                FROM research_cache
+                WHERE research_date < NOW() - INTERVAL '%s days'
+                ORDER BY research_date ASC
+                """,
+                (days_old,),
+            )
+            entries = [dict(row) for row in cur.fetchall()]
+
+            # Convert datetime to ISO string
+            for entry in entries:
+                if entry.get("research_date"):
+                    entry["research_date"] = entry["research_date"].isoformat()
+
+            return entries
+    finally:
+        conn.close()

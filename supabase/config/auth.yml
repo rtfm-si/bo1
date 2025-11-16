@@ -1,0 +1,77 @@
+# =============================================================================
+# Supabase GoTrue Auth Configuration
+# Self-hosted authentication for Board of One
+# =============================================================================
+
+# Site Configuration
+site_url: ${SITE_URL:-http://localhost:3000}
+api_url: http://localhost:9999
+
+# JWT Configuration
+jwt_secret: ${SUPABASE_JWT_SECRET}
+jwt_exp: 3600  # Access token expiry (1 hour)
+jwt_default_group_name: authenticated
+
+# Security
+disable_signup: false
+require_email_confirmation: false  # Set to true in production
+
+# Rate Limiting
+rate_limit_header: X-RateLimit-Limit
+rate_limit_email_sent: 4  # Max emails per hour
+rate_limit_token_refresh: 150  # Max token refreshes per hour
+
+# Email Configuration (disabled for MVP, use OAuth only)
+mailer_autoconfirm: true
+mailer_urlpaths:
+  confirmation: /auth/confirm
+  invite: /auth/invite
+  recovery: /auth/recover
+  email_change: /auth/email-change
+
+# External OAuth Providers
+external:
+  google:
+    enabled: ${GOOGLE_OAUTH_ENABLED:-false}
+    client_id: ${GOOGLE_OAUTH_CLIENT_ID}
+    secret: ${GOOGLE_OAUTH_CLIENT_SECRET}
+    redirect_uri: ${SUPABASE_URL:-http://localhost:9999}/callback
+    url: https://accounts.google.com
+
+  github:
+    enabled: ${GITHUB_OAUTH_ENABLED:-false}
+    client_id: ${GITHUB_OAUTH_CLIENT_ID}
+    secret: ${GITHUB_OAUTH_CLIENT_SECRET}
+    redirect_uri: ${SUPABASE_URL:-http://localhost:9999}/callback
+    url: https://github.com
+
+  linkedin:
+    enabled: ${LINKEDIN_OAUTH_ENABLED:-false}
+    client_id: ${LINKEDIN_OAUTH_CLIENT_ID}
+    secret: ${LINKEDIN_OAUTH_CLIENT_SECRET}
+    redirect_uri: ${SUPABASE_URL:-http://localhost:9999}/callback
+    url: https://www.linkedin.com
+
+# Session Configuration
+sessions:
+  timebox: 86400  # 24 hours
+  inactivity_timeout: 3600  # 1 hour
+
+# Password Policy (for email/password signups, if enabled)
+password_min_length: 8
+password_required_characters: ''
+
+# Logging
+log_level: ${LOG_LEVEL:-info}
+
+# Database Configuration
+db_url: ${DATABASE_URL}
+db_driver: postgres
+
+# SMTP Configuration (optional, for email-based auth)
+# smtp:
+#   host: ${SMTP_HOST}
+#   port: ${SMTP_PORT:-587}
+#   user: ${SMTP_USER}
+#   pass: ${SMTP_PASS}
+#   admin_email: ${SMTP_ADMIN_EMAIL:-noreply@boardofone.com}

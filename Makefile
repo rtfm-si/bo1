@@ -266,9 +266,9 @@ setup-dev: ## One-command setup for new developers (<5 min)
 		echo "✓ .env already exists"; \
 	fi
 	@echo ""
-	@echo "Step 4/7: Installing pre-commit hooks..."
-	@uv run pre-commit install
-	@echo "✓ Pre-commit hooks installed"
+	@echo "Step 4/7: Installing git hooks (pre-commit + pre-push)..."
+	@bash scripts/install-hooks.sh
+	@echo "✓ Git hooks installed"
 	@echo ""
 	@echo "Step 5/7: Starting Docker services..."
 	@docker-compose up -d

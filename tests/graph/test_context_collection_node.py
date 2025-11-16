@@ -36,9 +36,10 @@ async def test_context_collection_node_without_user_id():
     result = await context_collection_node(state)
 
     # Verify result structure
-    assert "phase_costs" in result
-    assert "context_collection" in result["phase_costs"]
-    assert result["phase_costs"]["context_collection"] == 0.0
+    assert "metrics" in result
+    assert result["metrics"] is not None
+    assert "context_collection" in result["metrics"].phase_costs
+    assert result["metrics"].phase_costs["context_collection"] == 0.0
     assert result["current_node"] == "context_collection"
 
 
@@ -70,8 +71,9 @@ async def test_context_collection_node_with_user_id_no_saved():
     result = await context_collection_node(state)
 
     # Verify result structure
-    assert "phase_costs" in result
-    assert "context_collection" in result["phase_costs"]
+    assert "metrics" in result
+    assert result["metrics"] is not None
+    assert "context_collection" in result["metrics"].phase_costs
     assert result["current_node"] == "context_collection"
 
 
@@ -151,11 +153,12 @@ async def test_context_collection_node_preserves_existing_phase_costs():
     # Call node
     result = await context_collection_node(state)
 
-    # Verify existing costs preserved and new cost added
-    assert "phase_costs" in result
-    assert result["phase_costs"]["context_collection"] == 0.0
-    # Note: The node returns phase_costs from state.get(), so existing costs may not be preserved
-    # This is acceptable as the graph merges state updates
+    # Verify metrics returned with context_collection cost
+    assert "metrics" in result
+    assert result["metrics"] is not None
+    assert "context_collection" in result["metrics"].phase_costs
+    assert result["metrics"].phase_costs["context_collection"] == 0.0
+    # Note: Graph state merging will preserve existing phase_costs from previous nodes
 
 
 @pytest.mark.unit
@@ -185,4 +188,5 @@ async def test_context_collection_node_skip_prompt():
 
     # Verify completed successfully
     assert result["current_node"] == "context_collection"
-    assert "phase_costs" in result
+    assert "metrics" in result
+    assert result["metrics"] is not None

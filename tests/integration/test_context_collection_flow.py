@@ -42,8 +42,9 @@ async def test_context_collection_flow_without_user_interaction():
 
     # Verify context collection completed
     assert result["current_node"] == "context_collection"
-    assert "phase_costs" in result
-    assert "context_collection" in result["phase_costs"]
+    assert "metrics" in result
+    assert result["metrics"] is not None
+    assert "context_collection" in result["metrics"].phase_costs
 
 
 @pytest.mark.integration
@@ -220,9 +221,10 @@ async def test_context_collection_node_cost_tracking():
     result = await context_collection_node(state)
 
     # Verify cost tracked
-    assert "phase_costs" in result
-    assert "context_collection" in result["phase_costs"]
-    assert result["phase_costs"]["context_collection"] == 0.0  # Stub implementation
+    assert "metrics" in result
+    assert result["metrics"] is not None
+    assert "context_collection" in result["metrics"].phase_costs
+    assert result["metrics"].phase_costs["context_collection"] == 0.0  # Stub implementation
 
 
 @pytest.mark.integration

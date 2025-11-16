@@ -9,7 +9,6 @@ import logging
 from dataclasses import asdict
 from typing import Any
 
-from bo1.agents.context_collector import BusinessContextCollector
 from bo1.agents.decomposer import DecomposerAgent
 from bo1.agents.facilitator import FacilitatorAgent
 from bo1.agents.selector import PersonaSelectorAgent
@@ -26,7 +25,7 @@ from bo1.graph.utils import (
 from bo1.models.problem import SubProblem
 from bo1.models.state import DeliberationPhase
 from bo1.orchestration.deliberation import DeliberationEngine
-from bo1.state.postgres_manager import load_user_context, save_user_context
+from bo1.state.postgres_manager import load_user_context
 from bo1.utils.json_parsing import extract_json_with_fallback
 
 logger = logging.getLogger(__name__)
@@ -932,15 +931,14 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
 
     This node:
     1. Loads saved business context (if user_id exists)
-    2. Prompts for business context (optional, with benefits explanation)
-    3. Identifies information gaps for each sub-problem
-    4. Collects CRITICAL internal answers via user input
-    5. Auto-researches EXTERNAL gaps via ResearcherAgent with semantic cache
-    6. Injects all context into problem.context
-    7. Tracks cost in phase_costs["context_collection"]
+    2. Injects context into problem.context dictionary
+    3. Tracks cost in metrics.phase_costs["context_collection"] (data loading = $0)
+
+    Note: Full context collection (prompts, information gaps, research) will be
+    implemented in future iterations. Currently just loads saved context.
 
     Args:
-        state: Current graph state (must have decomposed sub-problems)
+        state: Current graph state (must have problem)
 
     Returns:
         Dictionary with state updates (problem with enriched context)
@@ -961,45 +959,42 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
     business_context = None
     if user_id:
         logger.info(f"Loading saved business context for user_id: {user_id}")
-        saved_context = load_user_context(user_id)
-        if saved_context:
-            logger.info("Found saved business context")
-            business_context = saved_context
+        try:
+            saved_context = load_user_context(user_id)
+            if saved_context:
+                logger.info("Found saved business context")
+                business_context = saved_context
 
-    # Step 2: Prompt for business context (if not already saved or if update requested)
-    if not business_context and state.get("collect_context", True):
-        logger.info("Prompting user for business context")
-        collector = BusinessContextCollector()
-        new_context = collector.collect_context(skip_prompt=False)
+                # Inject business context into problem.context (append to string)
+                # Format business context as a readable addition
+                context_lines = [
+                    "\n\n## Business Context",
+                ]
+                if saved_context.get("business_model"):
+                    context_lines.append(f"- Business Model: {saved_context['business_model']}")
+                if saved_context.get("target_market"):
+                    context_lines.append(f"- Target Market: {saved_context['target_market']}")
+                if saved_context.get("revenue"):
+                    context_lines.append(f"- Revenue: {saved_context['revenue']}")
+                if saved_context.get("customers"):
+                    context_lines.append(f"- Customers: {saved_context['customers']}")
+                if saved_context.get("growth_rate"):
+                    context_lines.append(f"- Growth Rate: {saved_context['growth_rate']}")
 
-        if new_context and user_id:
-            # Save to database for future sessions
-            save_user_context(user_id, new_context)
-            logger.info("Saved business context to database")
+                # Append to existing context
+                problem.context = problem.context + "\n".join(context_lines)
+                logger.info("Injected business context into problem.context")
+        except Exception as e:
+            logger.warning(f"Failed to load business context: {e}")
 
-        if new_context:
-            business_context = new_context
+    # Track cost in metrics (data loading = $0, no LLM calls)
+    track_phase_cost(metrics, "context_collection", None)
 
-    # Step 3: Identify information gaps
-    # For now, we'll skip automatic information gap identification
-    # This will be implemented in a follow-up task
-    logger.info("Information gap identification not yet implemented (Day 37 follow-up)")
-
-    # Step 4 & 5: Collect internal answers and research external gaps
-    # This will be implemented when ResearcherAgent is updated with semantic cache
-    logger.info("Research with semantic cache not yet implemented (Day 37 follow-up)")
-
-    # Track minimal cost for this node (no LLM calls yet in this stub)
-    # When fully implemented, this will track context collection costs
-    if "phase_costs" not in state:
-        state["phase_costs"] = {}
-    state["phase_costs"]["context_collection"] = 0.0
-
-    logger.info("context_collection_node: Complete (stub implementation)")
+    logger.info("context_collection_node: Complete")
 
     return {
+        "problem": problem,
         "business_context": business_context,
-        "phase_costs": state.get("phase_costs", {}),
         "metrics": metrics,
         "current_node": "context_collection",
     }

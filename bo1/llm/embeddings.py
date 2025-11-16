@@ -50,7 +50,7 @@ def generate_embedding(
     if voyageai is None:
         raise ImportError("voyageai package is not installed. Install with: pip install voyageai")
 
-    # voyageai does not explicitly export Client in stubs, but it exists at runtime
+    # mypy doesn't know about voyageai.Client, but it exists at runtime
     client = voyageai.Client(api_key=api_key)  # type: ignore[attr-defined]
 
     try:

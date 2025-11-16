@@ -39,7 +39,7 @@ def ensure_metrics(state: "DeliberationGraphState") -> "DeliberationMetrics":
 def track_phase_cost(
     metrics: "DeliberationMetrics",
     phase_name: str,
-    response: "LLMResponse",
+    response: "LLMResponse | None",
 ) -> None:
     """Track cost for a single LLM response (replaces existing phase cost).
 
@@ -49,15 +49,21 @@ def track_phase_cost(
     Args:
         metrics: DeliberationMetrics object to update
         phase_name: Name of the phase (e.g., "problem_decomposition")
-        response: LLMResponse containing cost information
+        response: LLMResponse containing cost information (or None for $0 cost)
 
     Example:
         >>> metrics = ensure_metrics(state)
         >>> track_phase_cost(metrics, "problem_decomposition", response)
+        >>> # For phases with no LLM calls
+        >>> track_phase_cost(metrics, "context_collection", None)
     """
-    metrics.phase_costs[phase_name] = response.cost_total
-    metrics.total_cost += response.cost_total
-    metrics.total_tokens += response.total_tokens
+    if response is None:
+        # No LLM call = $0 cost
+        metrics.phase_costs[phase_name] = 0.0
+    else:
+        metrics.phase_costs[phase_name] = response.cost_total
+        metrics.total_cost += response.cost_total
+        metrics.total_tokens += response.total_tokens
 
 
 def track_accumulated_cost(

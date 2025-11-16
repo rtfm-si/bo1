@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
+from bo1.models.recommendations import Recommendation
 from bo1.models.state import (
     ContributionMessage,
     ContributionType,
@@ -18,7 +19,6 @@ from bo1.models.state import (
     DeliberationPhase,
     DeliberationState,
 )
-from bo1.models.votes import Vote
 
 # ============================================================================
 # Round-Trip Serialization Tests
@@ -95,8 +95,7 @@ def test_persona_profile_model_round_trip(sample_persona):
     assert restored.system_prompt == original.system_prompt
 
     # Verify list fields are preserved
-    expertise_list = restored.get_expertise_list()
-    assert len(expertise_list) > 0
+    assert len(restored.domain_expertise) > 0
 
 
 @pytest.mark.unit
@@ -245,7 +244,7 @@ def test_deliberation_state_model_round_trip():
 @pytest.mark.unit
 def test_vote_model_round_trip():
     """Test: Vote/Recommendation model serializes and deserializes correctly."""
-    original = Vote(
+    original = Recommendation(
         persona_code="strategic_advisor",
         persona_name="Maria Chen",
         recommendation="Approve investment in X",
@@ -255,7 +254,7 @@ def test_vote_model_round_trip():
 
     # Round trip through dict
     data = original.model_dump()
-    restored = Vote.model_validate(data)
+    restored = Recommendation.model_validate(data)
 
     assert restored.persona_code == original.persona_code
     assert restored.persona_name == original.persona_name
@@ -349,7 +348,7 @@ def test_vote_validates_confidence_range():
     """Test: Vote validates confidence is in [0, 1] range."""
     # confidence > 1.0 should fail
     with pytest.raises(ValidationError) as exc_info:
-        Vote(
+        Recommendation(
             persona_code="test",
             persona_name="Test",
             recommendation="Approve investment",
@@ -360,7 +359,7 @@ def test_vote_validates_confidence_range():
 
     # confidence < 0.0 should fail
     with pytest.raises(ValidationError) as exc_info:
-        Vote(
+        Recommendation(
             persona_code="test",
             persona_name="Test",
             recommendation="Approve investment",
@@ -416,7 +415,7 @@ def test_models_handle_empty_lists():
         domain_expertise=[],  # Empty list should be allowed
         persona_type=PersonaType.STANDARD,
     )
-    assert persona.get_expertise_list() == []
+    assert persona.domain_expertise == []
 
     state = DeliberationState(
         session_id="test",

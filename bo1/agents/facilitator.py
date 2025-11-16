@@ -8,10 +8,11 @@ The facilitator:
 """
 
 import logging
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from bo1.agents.base import BaseAgent
-from bo1.llm.broker import PromptBroker, PromptRequest
+from bo1.llm.broker import PromptBroker
 from bo1.llm.response import LLMResponse
 from bo1.llm.response_parser import ResponseParser
 from bo1.models.state import DeliberationState
@@ -19,40 +20,29 @@ from bo1.prompts.reusable_prompts import compose_facilitator_prompt
 from bo1.utils.deliberation_analysis import DeliberationAnalyzer
 from bo1.utils.json_parsing import parse_json_with_fallback
 from bo1.utils.logging_helpers import LogHelper
-from bo1.utils.xml_parsing import extract_xml_tag
+from bo1.utils.xml_parsing import extract_xml_tag_with_fallback
 
 logger = logging.getLogger(__name__)
 
 FacilitatorAction = Literal["continue", "vote", "research", "moderator"]
 
 
+@dataclass
 class FacilitatorDecision:
     """Parsed decision from facilitator."""
 
-    def __init__(
-        self,
-        action: FacilitatorAction,
-        reasoning: str,
-        # For "continue" action
-        next_speaker: str | None = None,
-        speaker_prompt: str | None = None,
-        # For "moderator" action
-        moderator_type: Literal["contrarian", "skeptic", "optimist"] | None = None,
-        moderator_focus: str | None = None,
-        # For "research" action
-        research_query: str | None = None,
-        # For "vote" action (transition)
-        phase_summary: str | None = None,
-    ) -> None:
-        """Initialize facilitator decision."""
-        self.action = action
-        self.reasoning = reasoning
-        self.next_speaker = next_speaker
-        self.speaker_prompt = speaker_prompt
-        self.moderator_type = moderator_type
-        self.moderator_focus = moderator_focus
-        self.research_query = research_query
-        self.phase_summary = phase_summary
+    action: FacilitatorAction
+    reasoning: str
+    # For "continue" action
+    next_speaker: str | None = None
+    speaker_prompt: str | None = None
+    # For "moderator" action
+    moderator_type: Literal["contrarian", "skeptic", "optimist"] | None = None
+    moderator_focus: str | None = None
+    # For "research" action
+    research_query: str | None = None
+    # For "vote" action (transition)
+    phase_summary: str | None = None
 
 
 class FacilitatorAgent(BaseAgent):
@@ -201,18 +191,14 @@ Personas participating: {", ".join([p.code for p in state.selected_personas])}
 
 Analyze the discussion and decide the next action."""
 
-        # Call LLM
-        request = PromptRequest(
+        # Use new helper method instead of manual PromptRequest creation
+        response = await self._create_and_call_prompt(
             system=system_prompt,
             user_message=user_message,
-            temperature=1.0,
-            max_tokens=800,  # Reduced from 2048 - facilitator doesn't need long responses
             phase="facilitator_decision",
-            agent_type="facilitator",
-            model=self.model,  # Use configured model (Haiku by default)
+            temperature=1.0,
+            max_tokens=800,
         )
-
-        response = await self.broker.call(request)
 
         # Parse decision from response
         parsed = ResponseParser.parse_facilitator_decision(response.content, state)
@@ -312,29 +298,23 @@ Consider:
             all_contributions_and_votes=all_contributions_and_votes,
         )
 
-        # Request synthesis from Sonnet (needs reasoning capability)
-        request = PromptRequest(
+        # Use new helper method instead of manual PromptRequest creation
+        response = await self._create_and_call_prompt(
             system=synthesis_prompt,
             user_message="Generate the comprehensive synthesis report.",
+            phase="synthesis",
             temperature=0.7,
             max_tokens=4096,
-            phase="synthesis",
-            agent_type="facilitator_synthesis",
         )
 
-        response = await self.broker.call(request)
-        synthesis_report = extract_xml_tag(response.content, "synthesis_report")
-
-        if not synthesis_report:
-            # Fallback: use full response if no tags
-            logger.warning(
-                f"⚠️ FALLBACK: Could not extract <synthesis_report> tag from synthesis response. "
-                f"Using full response content instead. This may include thinking tags and other metadata. "
-                f"Response preview: {response.content[:200]}..."
-            )
-            synthesis_report = response.content
-        else:
-            logger.info("✓ Successfully extracted structured synthesis report")
+        # Use new extract_xml_tag_with_fallback utility
+        synthesis_report = extract_xml_tag_with_fallback(
+            response.content,
+            "synthesis_report",
+            logger=logger,
+            fallback_to_full=True,
+            context="synthesis response",
+        )
 
         logger.info(f"Generated synthesis report ({len(synthesis_report)} chars)")
 
@@ -445,17 +425,15 @@ Check:
 
 Output JSON only."""
 
-        request = PromptRequest(
+        # Use new helper method instead of manual PromptRequest creation
+        response = await self._create_and_call_prompt(
             system=system_prompt,
             user_message=user_message,
+            phase="synthesis_validation",
             prefill="{",
             temperature=0.3,
             max_tokens=1000,
-            phase="synthesis_validation",
-            agent_type="synthesis_validator",
         )
-
-        response = await self.broker.call(request)
 
         try:
             # Parse validation result using utility
@@ -544,26 +522,23 @@ Ensure the revised report:
 
 Output the complete revised <synthesis_report>...</synthesis_report>."""
 
-        request = PromptRequest(
+        # Use new helper method instead of manual PromptRequest creation
+        response = await self._create_and_call_prompt(
             system=system_prompt,
             user_message=user_message,
+            phase="synthesis_revision",
             temperature=0.7,
             max_tokens=4096,
-            phase="synthesis_revision",
-            agent_type="facilitator_synthesis",
         )
 
-        response = await self.broker.call(request)
-        revised_synthesis = extract_xml_tag(response.content, "synthesis_report")
-
-        if not revised_synthesis:
-            logger.warning(
-                f"⚠️ FALLBACK: Could not extract <synthesis_report> tag from REVISED synthesis response. "
-                f"Using full response content instead. Response preview: {response.content[:200]}..."
-            )
-            revised_synthesis = response.content
-        else:
-            logger.info("✓ Successfully extracted structured revised synthesis report")
+        # Use new extract_xml_tag_with_fallback utility
+        revised_synthesis = extract_xml_tag_with_fallback(
+            response.content,
+            "synthesis_report",
+            logger=logger,
+            fallback_to_full=True,
+            context="revised synthesis response",
+        )
 
         logger.info(f"Generated revised synthesis ({len(revised_synthesis)} chars)")
 

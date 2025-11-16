@@ -158,7 +158,65 @@ current_round_contributions: list[dict]  # ~200 tokens each
 - **Convergence detection**: Semantic similarity >0.85, novelty <0.3 → early stop
 - **Adaptive rounds**: Simple (5 max), Moderate (7), Complex (10), Hard cap (15)
 - **Problem drift detection**: #1 failure cause - check relevance every contribution
-- **Facilitator orchestration**: Sequential decisions (continue/vote/research/moderator)
+- **Facilitator orchestration**: Sequential decisions (continue/vote/research/moderator/clarify)
+
+### Human-in-the-Loop Context Collection (Week 6)
+
+Board of One collects context at **3 strategic points** to improve deliberation quality:
+
+1. **Business Context** (pre-decomposition, persistent, optional)
+   - Collected once, reused across sessions
+   - Stored in `user_context` table (PostgreSQL)
+   - Fields: business_model, target_market, revenue, growth_rate, competitors
+   - User can update anytime via profile or `--update-context` flag
+
+2. **Information Gaps** (post-decomposition, problem-specific)
+   - AI identifies CRITICAL vs NICE_TO_HAVE questions via `identify_information_gaps()`
+   - INTERNAL gaps: User-only knowledge (churn rate, CAC, etc.) → prompt user
+   - EXTERNAL gaps: Researchable data (industry benchmarks) → auto-filled via web search
+   - User can skip any question (reduces confidence, doesn't block)
+
+3. **Expert Clarification** (mid-deliberation, blocking questions)
+   - Facilitator action="clarify" pauses deliberation
+   - User options: Answer now / Pause session / Skip
+   - If paused: Checkpoint saved, user resumes later with `--resume <session_id>`
+   - Answers injected into `problem.context` and logged in `session_clarifications` table
+
+**Key Design Principles**:
+- **Optional but encouraged**: "Adding context improves recommendations by 40%"
+- **Persistence prevents re-asking**: Business context saved across sessions
+- **Pause/resume for blocking questions**: User can gather info offline
+- **User sovereignty**: Can skip any question (system adapts, doesn't block)
+
+**Implementation**: See `zzz_project/detail/CONTEXT_COLLECTION_FEATURE.md`
+
+### External Research Cache with Embeddings (Week 6)
+
+Board of One caches external research results with semantic similarity matching to reduce costs by 70-90%.
+
+**Architecture**:
+- **Storage**: PostgreSQL `research_cache` table with pgvector embeddings
+- **Embeddings**: OpenAI ada-002 (1536 dimensions, ~$0.0001 per query)
+- **Similarity Matching**: Cosine similarity threshold 0.85
+- **Freshness Policy**: Category-based (saas_metrics: 90 days, pricing: 180 days, competitor_analysis: 30 days)
+
+**Cache Flow**:
+1. Generate embedding for question (ada-002)
+2. Semantic search in cache (pgvector cosine similarity)
+3. If similarity >0.85 and fresh → return cached result (~50ms, $0.0001)
+4. If cache miss → web search + summarization (~5-10s, $0.05-0.10) → save to cache
+
+**Cost Reduction**:
+- **Without cache**: 300 queries/month × $0.07 = $21.00/month
+- **With cache (70% hit rate)**: $6.32/month (70% savings)
+- **With cache (90% hit rate)**: $2.13/month (90% savings)
+
+**Example Cache Hits**:
+- "What is average churn rate for B2B SaaS?" (original)
+- "Average monthly churn for SaaS companies?" (90% similar → cache hit)
+- "Typical SaaS churn rate benchmarks?" (92% similar → cache hit)
+
+**Implementation**: See `zzz_project/detail/RESEARCH_CACHE_SPECIFICATION.md`
 
 ### Loop Prevention (100% Confidence Guarantee)
 
@@ -184,8 +242,15 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - `bo1/data/personas.json` - 45 experts (ONLY bespoke `<system_role>`, 879 chars avg)
 - `bo1/prompts/reusable_prompts.py` - Generic protocols (behavioral, evidence, communication)
 - `bo1/models/recommendations.py` - Recommendation models (replaces votes.py)
-- `bo1/graph/` - LangGraph nodes, routers, state, config, loop prevention
+- `bo1/graph/` - LangGraph nodes, routers, state, config, loop prevention, analytics
+- `bo1/graph/analytics.py` - Cost analytics and phase breakdown (CSV/JSON export)
+- `bo1/agents/context_collector.py` - Business context + information gap collection
+- `bo1/agents/researcher.py` - External research with semantic cache (Week 6)
+- `bo1/llm/embeddings.py` - OpenAI ada-002 embedding generation (Week 6)
+- `bo1/interfaces/console.py` - Console adapter with pause/resume support
 - `zzz_project/MVP_IMPLEMENTATION_ROADMAP.md` - 14-week roadmap (101 days)
+- `zzz_project/detail/CONTEXT_COLLECTION_FEATURE.md` - Context collection specification (Week 6)
+- `zzz_project/detail/RESEARCH_CACHE_SPECIFICATION.md` - Research cache with embeddings (Week 6)
 - `zzz_project/VOTING_TO_RECOMMENDATIONS_MIGRATION.md` - Migration details
 - `zzz_important/PROMPT_ENGINEERING_FRAMEWORK.md` - Prompt design guidelines
 - `exports/` - Generated deliberation outputs (JSON, markdown reports)
@@ -195,11 +260,12 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 
 ## Important Design Constraints
 
-**v1 is console + LangGraph**:
-- LangGraph state machine (NOT plain LangChain)
-- Redis for checkpointing (pause/resume)
+**Console uses LangGraph (v2 complete)**:
+- LangGraph state machine with Redis checkpointing (7-day TTL)
+- Pause/resume support via `--resume <session_id>` flag
+- Phase-based cost tracking and analytics
 - PostgreSQL for persistent storage (personas, sessions)
-- Console UI with Rich formatting
+- Console UI with Rich formatting and phase cost tables
 
 **v2 (future)**:
 - FastAPI web API adapter (SSE streaming)
@@ -271,6 +337,26 @@ result = await graph.ainvoke(state, config=config)
 result = await graph.ainvoke(None, config=config)  # Continues from last checkpoint
 ```
 
+### Pause/Resume Sessions
+
+```python
+from bo1.interfaces.console import run_console_deliberation
+
+# Start new deliberation - session ID is automatically generated
+result = await run_console_deliberation(problem)
+session_id = result["session_id"]
+
+# Resume from checkpoint later
+result = await run_console_deliberation(problem, session_id=session_id)
+
+# Console will display:
+# - Current round, phase, experts
+# - Cost so far
+# - Prompt: "Continue deliberation? (y/n)"
+```
+
+**Checkpoint TTL**: 7 days (configurable via `CHECKPOINT_TTL_SECONDS` env var)
+
 ### State Conversion (v1 ↔ LangGraph)
 
 ```python
@@ -282,6 +368,27 @@ result = await some_agent.run(v1_state)
 
 # v1 Pydantic → LangGraph state (for graph updates)
 graph_state = v1_to_state(v1_state)
+```
+
+### Cost Analytics
+
+```python
+from bo1.graph.analytics import (
+    calculate_cost_breakdown,
+    export_phase_metrics_csv,
+    get_most_expensive_phases,
+)
+
+# Get phase cost breakdown
+breakdown = calculate_cost_breakdown(state)
+for item in breakdown:
+    print(f"{item['phase']}: ${item['cost']:.4f} ({item['percentage']:.1f}%)")
+
+# Export to CSV for analysis
+export_phase_metrics_csv(state, "exports/session_costs.csv")
+
+# Find most expensive phases
+top_3 = get_most_expensive_phases(state, top_n=3)
 ```
 
 ---

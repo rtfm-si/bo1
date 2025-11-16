@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from bo1.ui.console import Console
+from bo1.utils.formatting import XMLContextFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -149,48 +150,8 @@ class BusinessContextCollector:
         if not context:
             return ""
 
-        lines = ["<business_context>"]
-
-        # Business model
-        if "business_model" in context:
-            lines.append(f"  <business_model>{context['business_model']}</business_model>")
-
-        # Target market
-        if "target_market" in context:
-            lines.append(f"  <target_market>{context['target_market']}</target_market>")
-
-        # Product description
-        if "product_description" in context:
-            lines.append(
-                f"  <product_description>{context['product_description']}</product_description>"
-            )
-
-        # Metrics
-        metrics = []
-        if "revenue" in context:
-            metrics.append(f"Revenue: {context['revenue']}")
-        if "customers" in context:
-            metrics.append(f"Customers: {context['customers']}")
-        if "growth_rate" in context:
-            metrics.append(f"Growth Rate: {context['growth_rate']}")
-
-        if metrics:
-            lines.append("  <metrics>")
-            for metric in metrics:
-                lines.append(f"    {metric}")
-            lines.append("  </metrics>")
-
-        # Competitors
-        if "competitors" in context:
-            lines.append(f"  <competitors>{context['competitors']}</competitors>")
-
-        # Website
-        if "website" in context:
-            lines.append(f"  <website>{context['website']}</website>")
-
-        lines.append("</business_context>")
-
-        return "\n".join(lines)
+        # Use XMLContextFormatter utility instead of manual formatting
+        return XMLContextFormatter.format_dict_as_xml(context, "business_context")
 
     def collect_internal_answers(self, internal_gaps: list[dict[str, Any]]) -> dict[str, str]:
         """Collect answers to internal information gap questions.

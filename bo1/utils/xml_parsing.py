@@ -4,6 +4,7 @@ This module consolidates XML tag extraction logic that was previously
 duplicated across multiple files (voting.py, facilitator.py, moderator.py).
 """
 
+import logging
 import re
 
 
@@ -59,3 +60,59 @@ def extract_multiple_tags(
         {'vote': 'Yes', 'confidence': None}
     """
     return {tag: extract_xml_tag(text, tag, case_insensitive) for tag in tags}
+
+
+def extract_xml_tag_with_fallback(
+    text: str,
+    tag: str,
+    logger: logging.Logger | None = None,
+    fallback_to_full: bool = True,
+    context: str = "",
+) -> str:
+    """Extract XML tag with automatic fallback and logging.
+
+    Consolidates the common pattern of extracting XML tags with fallback
+    handling and standardized logging messages.
+
+    Args:
+        text: Text containing XML tag
+        tag: Tag name to extract (without < >)
+        logger: Logger instance for logging messages (optional)
+        fallback_to_full: If True, return full text when tag not found.
+                         If False, return empty string. (default True)
+        context: Optional context string for log messages (e.g., "synthesis report")
+
+    Returns:
+        Extracted tag content, or fallback value if not found
+
+    Examples:
+        >>> import logging
+        >>> logger = logging.getLogger(__name__)
+        >>> text = "<report>Analysis complete</report>"
+        >>> extract_xml_tag_with_fallback(text, "report", logger)
+        'Analysis complete'
+
+        >>> extract_xml_tag_with_fallback("No tags", "report", logger, context="synthesis")
+        'No tags'
+
+        >>> extract_xml_tag_with_fallback("No tags", "report", fallback_to_full=False)
+        ''
+    """
+    extracted = extract_xml_tag(text, tag)
+
+    if extracted:
+        if logger:
+            context_msg = f" ({context})" if context else ""
+            logger.info(f"✓ Successfully extracted <{tag}> tag{context_msg}")
+        return extracted
+
+    # Tag not found - use fallback
+    if logger:
+        context_msg = f" ({context})" if context else ""
+        fallback_msg = "full response" if fallback_to_full else "empty string"
+        logger.warning(
+            f"⚠️ FALLBACK: Could not extract <{tag}> tag{context_msg}. "
+            f"Using {fallback_msg}. Preview: {text[:200]}..."
+        )
+
+    return text if fallback_to_full else ""

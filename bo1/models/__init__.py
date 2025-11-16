@@ -21,9 +21,6 @@ from .state import (
     DeliberationState,
 )
 
-# Legacy aliases
-from .votes import Vote, VoteAggregation
-
 __all__ = [
     # Persona models
     "PersonaProfile",
@@ -46,7 +43,4 @@ __all__ = [
     "Recommendation",
     "RecommendationAggregation",
     "ConsensusLevel",
-    # Legacy aliases
-    "Vote",
-    "VoteAggregation",
 ]

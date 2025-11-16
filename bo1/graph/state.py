@@ -6,7 +6,6 @@ between v1 (DeliberationState) and v2 (DeliberationGraphState).
 
 from typing import Any, TypedDict
 
-from bo1.agents.facilitator import FacilitatorDecision
 from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
 from bo1.models.state import (
@@ -49,8 +48,8 @@ class DeliberationGraphState(TypedDict, total=False):
     # Metrics
     metrics: DeliberationMetrics
 
-    # Decision tracking
-    facilitator_decision: FacilitatorDecision | None
+    # Decision tracking (stored as dict for serializability)
+    facilitator_decision: dict[str, Any] | None
 
     # Control flags
     should_stop: bool
@@ -172,19 +171,8 @@ def state_to_dict(state: DeliberationGraphState) -> dict[str, Any]:
     if "metrics" in result and result["metrics"] is not None:
         result["metrics"] = result["metrics"].model_dump()  # type: ignore[attr-defined]
 
-    # Convert FacilitatorDecision (not a Pydantic model)
-    if "facilitator_decision" in result and result["facilitator_decision"] is not None:
-        decision = result["facilitator_decision"]
-        result["facilitator_decision"] = {
-            "action": decision.action,  # type: ignore[attr-defined]
-            "reasoning": decision.reasoning,  # type: ignore[attr-defined]
-            "next_speaker": decision.next_speaker,  # type: ignore[attr-defined]
-            "speaker_prompt": decision.speaker_prompt,  # type: ignore[attr-defined]
-            "moderator_type": decision.moderator_type,  # type: ignore[attr-defined]
-            "moderator_focus": decision.moderator_focus,  # type: ignore[attr-defined]
-            "research_query": decision.research_query,  # type: ignore[attr-defined]
-            "phase_summary": decision.phase_summary,  # type: ignore[attr-defined]
-        }
+    # facilitator_decision is already a dict (converted in node using asdict())
+    # No conversion needed
 
     return result
 

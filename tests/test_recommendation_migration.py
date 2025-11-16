@@ -53,11 +53,11 @@ def test_recommendation_aggregation_model():
 
 
 def test_backward_compatibility():
-    """Test that Vote and VoteAggregation aliases still work."""
-    from bo1.models.votes import Vote, VoteAggregation
+    """Test that Recommendation and RecommendationAggregation work correctly."""
+    from bo1.models.recommendations import Recommendation, RecommendationAggregation
 
-    # Vote is aliased to Recommendation
-    vote = Vote(
+    # Test Recommendation model
+    vote = Recommendation(
         persona_code="test",
         persona_name="Test Expert",
         recommendation="Approve investment in SEO",
@@ -69,8 +69,8 @@ def test_backward_compatibility():
 
     assert vote.recommendation == "Approve investment in SEO"
 
-    # VoteAggregation is aliased to RecommendationAggregation
-    agg = VoteAggregation(
+    # Test RecommendationAggregation model
+    agg = RecommendationAggregation(
         total_recommendations=3,
         consensus_recommendation="Approve SEO investment",
         confidence_level="medium",

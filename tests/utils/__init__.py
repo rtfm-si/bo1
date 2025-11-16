@@ -1,1 +1,1 @@
-"""Tests for utility modules."""
+"""Shared test utilities for Board of One."""

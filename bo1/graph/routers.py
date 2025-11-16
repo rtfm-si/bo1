@@ -67,7 +67,8 @@ def route_facilitator_decision(
         logger.error("route_facilitator_decision: No facilitator decision in state!")
         return "END"
 
-    action = decision.action
+    # decision is now a dict (converted from dataclass using asdict())
+    action = decision["action"]
     logger.info(f"route_facilitator_decision: Routing based on action = {action}")
 
     if action == "vote":
@@ -80,22 +81,12 @@ def route_facilitator_decision(
         logger.info("route_facilitator_decision: Routing to persona_contribute")
         return "persona_contribute"
     elif action == "research":
-        # Research not implemented - pick a random persona to continue discussion
-        import random
-
-        personas = state.get("personas", [])
-        if personas:
-            # Randomly select a speaker since facilitator didn't specify one
-            random_speaker = random.choice(personas)  # noqa: S311
-            decision.next_speaker = random_speaker.code
-            logger.warning(
-                f"route_facilitator_decision: Research requested but not implemented. "
-                f"Selected random speaker '{random_speaker.code}' to continue discussion"
-            )
-            return "persona_contribute"
-        else:
-            logger.error("route_facilitator_decision: Research requested but no personas available")
-            return "END"
+        # Research not implemented in Week 5 - transition to voting instead
+        logger.warning(
+            "route_facilitator_decision: Research requested but not implemented in Week 5. "
+            "Routing to vote (research will be implemented in Week 6)."
+        )
+        return "vote"
     else:
         logger.warning(f"route_facilitator_decision: Unknown action {action}, routing to END")
         return "END"

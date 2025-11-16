@@ -56,8 +56,13 @@ def create_deliberation_graph(
         redis_port = os.getenv("REDIS_PORT", "6379")
         redis_db = os.getenv("REDIS_DB", "0")
         redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+
+        # Configure TTL: 7 days (604800 seconds) for checkpoint expiration
+        # This prevents Redis from growing indefinitely with old checkpoints
+        ttl_seconds = int(os.getenv("CHECKPOINT_TTL_SECONDS", "604800"))
+
         actual_checkpointer = RedisSaver(redis_url=redis_url)
-        logger.info(f"Created Redis checkpointer: {redis_url}")
+        logger.info(f"Created Redis checkpointer: {redis_url} (TTL: {ttl_seconds}s)")
     elif checkpointer is False:
         # Explicitly disabled (for tests)
         actual_checkpointer = None

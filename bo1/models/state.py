@@ -7,10 +7,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from .persona import PersonaProfile
 from .problem import Problem, SubProblem
+from .types import OptionalScore
 
 
 class DeliberationPhase(str, Enum):
@@ -90,15 +91,13 @@ class DeliberationMetrics(BaseModel):
         default_factory=dict,
         description="Cost breakdown by phase (e.g., problem_decomposition, persona_selection)",
     )
-    convergence_score: float | None = Field(
-        default=None, ge=0.0, le=1.0, description="Semantic convergence score (0-1)"
+    convergence_score: OptionalScore = Field(
+        default=None, description="Semantic convergence score (0-1)"
     )
-    novelty_score: float | None = Field(
-        default=None, ge=0.0, le=1.0, description="Average novelty of recent contributions (0-1)"
+    novelty_score: OptionalScore = Field(
+        default=None, description="Average novelty of recent contributions (0-1)"
     )
-    conflict_score: float | None = Field(
-        default=None, ge=0.0, le=1.0, description="Level of disagreement (0-1)"
-    )
+    conflict_score: OptionalScore = Field(default=None, description="Level of disagreement (0-1)")
     drift_events: int = Field(default=0, description="Number of problem drift events detected")
 
 
@@ -275,6 +274,9 @@ class DeliberationState(BaseModel):
     ) -> str:
         r"""Format discussion history for prompt inclusion.
 
+        Delegates to bo1.state.formatting.format_discussion_history for
+        the actual formatting logic.
+
         Args:
             include_round_numbers: Include round number in header
             include_thinking: Include <thinking> tags in output
@@ -291,35 +293,18 @@ class DeliberationState(BaseModel):
             >>> state.format_discussion_history(max_contributions=5)
             # Only last 5 contributions
         """
-        import re
+        # Import here to avoid circular dependency
+        from bo1.state.formatting import format_discussion_history
 
-        contributions = self.contributions
-        if max_contributions:
-            contributions = contributions[-max_contributions:]
+        return format_discussion_history(
+            state=self,
+            include_round_numbers=include_round_numbers,
+            include_thinking=include_thinking,
+            max_contributions=max_contributions,
+            separator=separator,
+        )
 
-        lines = []
-        for msg in contributions:
-            # Header
-            if include_round_numbers:
-                header = f"{separator} {msg.persona_name} (Round {msg.round_number}) {separator}"
-            else:
-                header = f"{separator} {msg.persona_name} {separator}"
-            lines.append(header)
-
-            # Content
-            content = msg.content
-            if not include_thinking and msg.thinking:
-                # Strip <thinking> tags if requested
-                content = re.sub(
-                    r"<thinking>.*?</thinking>", "", content, flags=re.DOTALL | re.IGNORECASE
-                )
-                content = content.strip()
-
-            lines.append(content)
-            lines.append("")  # Blank line between contributions
-
-        return "\n".join(lines)
-
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def participant_list(self) -> str:
         """Comma-separated list of participant names.

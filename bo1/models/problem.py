@@ -6,7 +6,7 @@ Defines the core problem decomposition models.
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class ConstraintType(str, Enum):
@@ -152,6 +152,8 @@ class Problem(BaseModel):
                 return sp
         return None
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def is_atomic(self) -> bool:
         """Check if this is an atomic problem (no decomposition needed).
 

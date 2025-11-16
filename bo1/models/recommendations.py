@@ -8,6 +8,8 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .types import Confidence, Weight
+
 
 class Recommendation(BaseModel):
     """Expert recommendation with full flexibility.
@@ -22,16 +24,12 @@ class Recommendation(BaseModel):
         ..., description="Free-form recommendation (specific and actionable)"
     )
     reasoning: str = Field(..., description="Full explanation (2-3 paragraphs)")
-    confidence: float = Field(
-        ..., ge=0.0, le=1.0, description="Confidence in this recommendation (0-1)"
-    )
+    confidence: Confidence = Field(..., description="Confidence in this recommendation (0-1)")
     conditions: list[str] = Field(
         default_factory=list,
         description="Critical conditions or caveats",
     )
-    weight: float = Field(
-        default=1.0, ge=0.0, le=2.0, description="Weighting for this persona's recommendation"
-    )
+    weight: Weight = Field(default=1.0, description="Weighting for this persona's recommendation")
 
     # Optional fields for richer recommendations
     alternatives_considered: list[str] | None = Field(
@@ -100,11 +98,11 @@ class RecommendationAggregation(BaseModel):
     dissenting_views: list[str] = Field(
         default_factory=list, description="Minority perspectives to preserve"
     )
-    confidence_weighted_score: float = Field(
-        ..., ge=0.0, le=1.0, description="Confidence-weighted score for metrics"
+    confidence_weighted_score: Confidence = Field(
+        ..., description="Confidence-weighted score for metrics"
     )
-    average_confidence: float = Field(
-        ..., ge=0.0, le=1.0, description="Average confidence across all recommendations"
+    average_confidence: Confidence = Field(
+        ..., description="Average confidence across all recommendations"
     )
 
     # Legacy fields for backward compatibility with metrics

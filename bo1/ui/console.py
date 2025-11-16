@@ -22,7 +22,7 @@ from bo1.llm.client import TokenUsage
 from bo1.llm.response import DeliberationMetrics, LLMResponse
 from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
-from bo1.models.votes import Vote
+from bo1.models.recommendations import Recommendation
 
 logger = logging.getLogger(__name__)
 
@@ -252,11 +252,11 @@ class Console:
         )
         self.console.print()
 
-    def print_vote(self, vote: Vote) -> None:
+    def print_vote(self, vote: Recommendation) -> None:
         """Print a single vote.
 
         Args:
-            vote: Vote to display
+            vote: Recommendation to display
         """
         color = self._persona_colors.get(vote.persona_code, "blue")
         confidence_pct = int(vote.confidence * 100)
@@ -282,7 +282,7 @@ class Console:
             )
         )
 
-    def print_votes_summary(self, votes: list[Vote]) -> None:
+    def print_votes_summary(self, votes: list[Recommendation]) -> None:
         """Print voting summary.
 
         Args:

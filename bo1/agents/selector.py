@@ -11,7 +11,6 @@ from typing import Any
 from bo1.agents.base import BaseAgent
 from bo1.config import MODEL_BY_ROLE
 from bo1.data import get_active_personas, get_persona_by_code
-from bo1.llm.broker import PromptRequest
 from bo1.llm.response import LLMResponse
 from bo1.models.problem import SubProblem
 
@@ -193,19 +192,14 @@ Ensure domain coverage, perspective diversity, and appropriate expertise depth.
 Provide your recommendation as JSON following the format in your system prompt.
 """
 
-        # Create prompt request
-        request = PromptRequest(
+        # Use new helper method instead of manual PromptRequest creation
+        response = await self._create_and_call_prompt(
             system=SELECTOR_SYSTEM_PROMPT,
             user_message=user_message,
-            model=self.model,
-            prefill="{",  # Ensure JSON response starts with {
-            cache_system=False,  # No caching needed for one-off selection
             phase="selection",
-            agent_type="PersonaSelectorAgent",
+            prefill="{",
+            cache_system=False,
         )
-
-        # Call LLM via broker (handles retry/rate-limit)
-        response = await self.broker.call(request)
 
         # Validate JSON structure
         try:

@@ -13,7 +13,6 @@ import logging
 from typing import Literal
 
 from bo1.agents.base import BaseAgent
-from bo1.llm.broker import PromptRequest
 from bo1.llm.response import LLMResponse
 from bo1.prompts.reusable_prompts import compose_moderator_prompt
 from bo1.utils.xml_parsing import extract_xml_tag
@@ -104,17 +103,14 @@ Use the <thinking> and <intervention> structure as specified in your guidelines.
 Remember: Your goal is to improve the quality of the deliberation by raising an important
 question or challenge, then return focus to the standard expert personas."""
 
-        # Call LLM
-        request = PromptRequest(
+        # Use new helper method instead of manual PromptRequest creation
+        response = await self._create_and_call_prompt(
             system=system_prompt,
             user_message=user_message,
+            phase="moderator_intervention",
             temperature=1.0,
             max_tokens=1024,
-            phase="moderator_intervention",
-            agent_type=f"moderator_{moderator_type}",
         )
-
-        response = await self.broker.call(request)
 
         # Extract intervention content
         intervention_text = self._extract_intervention(response.content)
@@ -132,7 +128,7 @@ question or challenge, then return focus to the standard expert personas."""
         Returns:
             Intervention text (with or without tags)
         """
-        # Try to extract from <intervention> tags using utility
+        # Use new extract_xml_tag_with_fallback utility
         intervention = extract_xml_tag(content, "intervention")
         if intervention:
             return intervention

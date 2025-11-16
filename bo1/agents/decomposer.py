@@ -10,7 +10,6 @@ from typing import Any
 
 from bo1.agents.base import BaseAgent
 from bo1.config import MODEL_BY_ROLE
-from bo1.llm.broker import PromptRequest
 from bo1.llm.response import LLMResponse
 from bo1.models.problem import Problem, SubProblem
 from bo1.prompts.decomposer_prompts import (
@@ -34,7 +33,7 @@ class DecomposerAgent(BaseAgent):
         """Return default model for decomposer."""
         return MODEL_BY_ROLE["decomposer"]
 
-    def extract_problem_statement(
+    async def extract_problem_statement(
         self,
         user_input: str,
         interactive: bool = True,
@@ -52,7 +51,7 @@ class DecomposerAgent(BaseAgent):
 
         Examples:
             >>> agent = DecomposerAgent()
-            >>> desc, ctx, constraints = agent.extract_problem_statement(
+            >>> desc, ctx, constraints = await agent.extract_problem_statement(
             ...     "I need to decide on pricing for my SaaS",
             ...     interactive=False
             ... )
@@ -82,17 +81,15 @@ Respond with a JSON array of questions:
 Keep questions focused and actionable. Avoid generic questions like "Tell me more."
 """
 
-        messages = [{"role": "user", "content": clarification_prompt}]
-        import asyncio
-
-        response_text, _ = asyncio.run(
-            self.broker.client.call(
-                model=self.model,
-                messages=messages,
-                system="You are a problem clarification expert. Generate targeted questions to understand the user's problem.",
-                cache_system=False,
-            )
+        # Use new helper method instead of manual PromptRequest creation
+        response = await self._create_and_call_prompt(
+            system="You are a problem clarification expert. Generate targeted questions to understand the user's problem.",
+            user_message=clarification_prompt,
+            phase="problem_clarification",
+            prefill="{",
+            cache_system=False,
         )
+        response_text = response.content
 
         # Parse questions
         try:
@@ -161,19 +158,14 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             constraints=constraints,
         )
 
-        # Create prompt request
-        request = PromptRequest(
+        # Use new helper method instead of manual PromptRequest creation
+        response = await self._create_and_call_prompt(
             system=DECOMPOSER_SYSTEM_PROMPT,
             user_message=user_message,
-            model=self.model,
-            prefill="{",  # Ensure JSON response starts with {
-            cache_system=False,  # No caching needed for one-off decomposition
             phase="decomposition",
-            agent_type="DecomposerAgent",
+            prefill="{",
+            cache_system=False,
         )
-
-        # Call LLM via broker (handles retry/rate-limit)
-        response = await self.broker.call(request)
 
         # Validate JSON structure
         try:
@@ -434,19 +426,14 @@ Be specific and targeted. Only include gaps that would materially improve delibe
 </task>
 """
 
-        # Create prompt request
-        request = PromptRequest(
+        # Use new helper method instead of manual PromptRequest creation
+        response = await self._create_and_call_prompt(
             system="You are an expert at identifying information needs for strategic decision-making. You help ensure deliberations have all necessary context for high-quality recommendations.",
             user_message=user_message,
-            model=MODEL_BY_ROLE["decomposer"],  # Use Sonnet for analysis
-            prefill="{",  # Ensure JSON response
-            cache_system=False,
             phase="information_gap_analysis",
-            agent_type="DecomposerAgent",
+            prefill="{",
+            cache_system=False,
         )
-
-        # Call LLM
-        response = await self.broker.call(request)
 
         # Validate JSON structure
         try:

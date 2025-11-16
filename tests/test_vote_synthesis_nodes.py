@@ -132,18 +132,19 @@ async def test_vote_node_collects_votes(state_with_contributions):
     assert isinstance(votes, list)
     assert len(votes) == 3  # One vote per persona
 
-    # Verify each vote has required fields
+    # Verify each vote has required fields (using recommendation system)
     for vote in votes:
         assert "persona_code" in vote
         assert "persona_name" in vote
-        assert "decision" in vote
+        assert "recommendation" in vote  # Changed from "decision"
         assert "reasoning" in vote
         assert "confidence" in vote
         assert "conditions" in vote
         assert "weight" in vote
 
-        # Verify decision is valid
-        assert vote["decision"] in ["yes", "no", "abstain"]
+        # Verify recommendation is a non-empty string (not binary decision)
+        assert isinstance(vote["recommendation"], str)
+        assert len(vote["recommendation"]) > 0
 
         # Verify confidence is 0-1
         assert 0 <= vote["confidence"] <= 1

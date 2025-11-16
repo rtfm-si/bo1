@@ -1,22 +1,19 @@
 """Tests for facilitator routing logic."""
 
+from dataclasses import asdict
+
 import pytest
 
 from bo1.agents.facilitator import FacilitatorDecision
 from bo1.graph.routers import route_facilitator_decision
 from bo1.graph.state import create_initial_state
-from bo1.models.problem import Problem
+from tests.utils.factories import create_test_problem
 
 
 @pytest.fixture
 def sample_state():
     """Create a sample state for testing."""
-    problem = Problem(
-        title="Test Problem",
-        description="Test description",
-        context="Test context",
-        sub_problems=[],
-    )
+    problem = create_test_problem()
 
     return create_initial_state(
         session_id="test_route_session",
@@ -34,8 +31,8 @@ def test_route_facilitator_decision_vote(sample_state):
         phase_summary="Group converged on SEO strategy",
     )
 
-    # Add decision to state
-    sample_state["facilitator_decision"] = decision
+    # Add decision to state as dict (to match real graph behavior)
+    sample_state["facilitator_decision"] = asdict(decision)
 
     # Test routing
     next_node = route_facilitator_decision(sample_state)
@@ -53,8 +50,8 @@ def test_route_facilitator_decision_moderator(sample_state):
         moderator_focus="Challenge SEO assumptions",
     )
 
-    # Add decision to state
-    sample_state["facilitator_decision"] = decision
+    # Add decision to state as dict (to match real graph behavior)
+    sample_state["facilitator_decision"] = asdict(decision)
 
     # Test routing
     next_node = route_facilitator_decision(sample_state)
@@ -72,8 +69,8 @@ def test_route_facilitator_decision_continue(sample_state):
         speaker_prompt="Analyze paid ads ROI potential",
     )
 
-    # Add decision to state
-    sample_state["facilitator_decision"] = decision
+    # Add decision to state as dict (to match real graph behavior)
+    sample_state["facilitator_decision"] = asdict(decision)
 
     # Test routing
     next_node = route_facilitator_decision(sample_state)
@@ -82,7 +79,7 @@ def test_route_facilitator_decision_continue(sample_state):
 
 
 def test_route_facilitator_decision_research(sample_state):
-    """Test routing when facilitator requests research (ends for Week 5)."""
+    """Test routing when facilitator requests research (routes to vote in Week 5)."""
     # Create facilitator decision for research
     decision = FacilitatorDecision(
         action="research",
@@ -90,14 +87,14 @@ def test_route_facilitator_decision_research(sample_state):
         research_query="Average SEO costs for B2B SaaS",
     )
 
-    # Add decision to state
-    sample_state["facilitator_decision"] = decision
+    # Add decision to state as dict (to match real graph behavior)
+    sample_state["facilitator_decision"] = asdict(decision)
 
     # Test routing
     next_node = route_facilitator_decision(sample_state)
 
-    # Research not implemented in Week 5, should route to END
-    assert next_node == "END"
+    # Research not implemented in Week 5, should route to vote
+    assert next_node == "vote"
 
 
 def test_route_facilitator_decision_missing_decision(sample_state):
@@ -120,8 +117,8 @@ def test_route_facilitator_decision_unknown_action(sample_state):
     # Manually override action to test error handling
     decision.action = "invalid_action"  # type: ignore[assignment]
 
-    # Add decision to state
-    sample_state["facilitator_decision"] = decision
+    # Add decision to state as dict (to match real graph behavior)
+    sample_state["facilitator_decision"] = asdict(decision)
 
     # Test routing
     next_node = route_facilitator_decision(sample_state)

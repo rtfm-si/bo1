@@ -133,37 +133,74 @@ async def run_console_deliberation(
         console.print(f"[error]{error_msg}[/error]")
         raise ValueError(error_msg)
 
-    # Create graph without checkpointer for now
-    # TODO: Re-enable when RedisSaver async methods are properly implemented
-    # The current langgraph-checkpoint-redis package has NotImplementedError for async methods
-    graph = create_deliberation_graph(checkpointer=False)
+    # Create graph with Redis checkpointer
+    graph = create_deliberation_graph()  # Uses RedisSaver by default
 
     # Resume from checkpoint or create new session
     if session_id:
-        # Session resume is currently disabled because checkpointing is disabled
-        error_msg = (
-            "Session resume is currently not supported. "
-            "Checkpointing is disabled because langgraph-checkpoint-redis "
-            "does not properly implement async methods (raises NotImplementedError). "
-            "Please start a new session without --resume flag."
+        # Attempt to resume from checkpoint
+        console.print_header("Board of One - Resume Session")
+        console.print(f"\n[info]Attempting to resume session: {session_id}[/info]\n")
+
+        config = {"configurable": {"thread_id": session_id}}
+
+        try:
+            # Get checkpoint state
+            checkpoint_state = await graph.aget_state(config)
+
+            if not checkpoint_state or not checkpoint_state.values:
+                error_msg = f"No checkpoint found for session: {session_id}"
+                console.print(f"[error]{error_msg}[/error]")
+                raise ValueError(error_msg)
+
+            # Display resume info
+            state_values = checkpoint_state.values
+            round_number = state_values.get("round_number", 0)
+            phase = state_values.get("phase", "unknown")
+            personas = state_values.get("personas", [])
+            metrics = state_values.get("metrics", {})
+
+            # Handle metrics as either dict or DeliberationMetrics object
+            if hasattr(metrics, "total_cost"):
+                total_cost = metrics.total_cost
+            else:
+                total_cost = metrics.get("total_cost", 0.0)
+
+            console.print("[cyan]Checkpoint found![/cyan]")
+            console.print(f"  Round: {round_number}")
+            console.print(f"  Phase: {phase}")
+            console.print(f"  Experts: {len(personas)}")
+            console.print(f"  Cost so far: ${total_cost:.4f}")
+            console.print()
+
+            # Ask user to continue
+            response = input("Continue deliberation? (y/n): ").strip().lower()
+            if response != "y":
+                console.print("\n[yellow]Resume cancelled by user.[/yellow]")
+                return state_values
+
+            console.print("\n[info]Resuming deliberation...[/info]\n")
+            initial_state = None  # Resume from checkpoint
+
+        except Exception as e:
+            error_msg = f"Failed to resume session: {e}"
+            console.print(f"[error]{error_msg}[/error]")
+            raise ValueError(error_msg) from e
+    else:
+        # Create new session
+        console.print_header("Board of One - LangGraph Deliberation")
+        console.print_problem(problem)
+
+        # Create initial state
+        session_id = str(uuid.uuid4())
+        initial_state = create_initial_state(
+            session_id=session_id, problem=problem, max_rounds=max_rounds
         )
-        console.print(f"[error]{error_msg}[/error]")
-        raise ValueError(error_msg)
-
-    # Create new session
-    console.print_header("Board of One - LangGraph Deliberation")
-    console.print_problem(problem)
-
-    # Create initial state
-    session_id = str(uuid.uuid4())
-    initial_state = create_initial_state(
-        session_id=session_id, problem=problem, max_rounds=max_rounds
-    )
 
     # Import recursion limit from loop prevention
     from bo1.graph.safety.loop_prevention import DELIBERATION_RECURSION_LIMIT
 
-    config = {
+    run_config: dict[str, Any] = {
         "configurable": {"thread_id": session_id},
         "recursion_limit": DELIBERATION_RECURSION_LIMIT,
     }
@@ -176,7 +213,12 @@ async def run_console_deliberation(
     final_state = None
     try:
         # Use astream_events to intercept node completions and display progress
-        async for event in graph.astream_events(initial_state, config=config, version="v2"):
+        # If resuming (initial_state is None), pass None to continue from checkpoint
+        async for event in (
+            graph.astream_events(initial_state, config=run_config, version="v2")
+            if initial_state
+            else graph.astream_events(None, config=run_config, version="v2")
+        ):
             event_type = event.get("event")
             event_name = event.get("name", "")
 
@@ -298,9 +340,8 @@ def _display_personas(console: Console, state: Any) -> None:
             console.print(f"    [yellow]Why chosen:[/yellow] [dim]{rationale}[/dim]")
 
         # Display domain expertise if available
-        expertise_list = persona.get_expertise_list()
-        if expertise_list:
-            expertise_str = ", ".join(expertise_list)
+        if persona.domain_expertise:
+            expertise_str = ", ".join(persona.domain_expertise)
             console.print(f"    [dim]Expertise: {expertise_str}[/dim]")
         console.print()  # Add spacing between personas
 
@@ -331,17 +372,17 @@ def _display_facilitator_decision(console: Console, decision: Any, round_num: in
         round_num: Current round number
     """
     console.print(f"\n[yellow]━━━ Facilitator Decision (Round {round_num}) ━━━[/yellow]")
-    console.print(f"Action: [bold]{decision.action}[/bold]")
+    console.print(f"Action: [bold]{decision['action']}[/bold]")
 
-    if decision.reasoning:
-        console.print(f"Reasoning: {decision.reasoning[:200]}...")
+    if decision.get("reasoning"):
+        console.print(f"Reasoning: {decision['reasoning'][:200]}...")
 
-    if decision.action == "continue" and decision.next_speaker:
-        console.print(f"Next speaker: [cyan]{decision.next_speaker}[/cyan]")
-    elif decision.action == "moderator" and decision.moderator_type:
-        console.print(f"Moderator type: [magenta]{decision.moderator_type}[/magenta]")
-    elif decision.action == "research" and decision.research_query:
-        console.print(f"Research query: {decision.research_query[:100]}...")
+    if decision["action"] == "continue" and decision.get("next_speaker"):
+        console.print(f"Next speaker: [cyan]{decision['next_speaker']}[/cyan]")
+    elif decision["action"] == "moderator" and decision.get("moderator_type"):
+        console.print(f"Moderator type: [magenta]{decision['moderator_type']}[/magenta]")
+    elif decision["action"] == "research" and decision.get("research_query"):
+        console.print(f"Research query: {decision['research_query'][:100]}...")
 
     console.print()
 
@@ -420,6 +461,38 @@ def _display_synthesis(console: Console, state: Any) -> None:
     console.print()
 
 
+def _display_phase_costs(console: Console, state: Any) -> None:
+    """Display phase cost breakdown table.
+
+    Args:
+        console: Console instance for output
+        state: Graph state with phase costs
+    """
+    from rich.table import Table
+
+    from bo1.graph.analytics import calculate_cost_breakdown
+
+    breakdown = calculate_cost_breakdown(state)
+    if not breakdown:
+        return
+
+    # Create Rich table
+    table = Table(title="Cost Breakdown by Phase", show_header=True, header_style="bold cyan")
+    table.add_column("Phase", style="cyan", no_wrap=False)
+    table.add_column("Cost (USD)", justify="right", style="green")
+    table.add_column("% of Total", justify="right", style="yellow")
+
+    # Add rows for each phase
+    for item in breakdown:
+        phase_name = item["phase"].replace("_", " ").title()
+        cost = f"${item['cost']:.4f}"
+        percentage = f"{item['percentage']:.1f}%"
+        table.add_row(phase_name, cost, percentage)
+
+    console.print("\n")
+    console.print(table)
+
+
 def _display_results(console: Console, state: Any) -> None:  # state is DeliberationGraphState
     """Display final deliberation results.
 
@@ -450,8 +523,9 @@ def _display_results(console: Console, state: Any) -> None:  # state is Delibera
         )
     )
 
-    # Phase costs breakdown (Week 5 feature - not yet implemented)
-    # For now, just show total cost
+    # Display phase cost breakdown
+    _display_phase_costs(console, state)
+
     console.print(f"\n[info]Total tokens: {metrics.total_tokens:,}[/info]")
 
     # Display contributions summary
@@ -469,7 +543,11 @@ def _display_results(console: Console, state: Any) -> None:  # state is Delibera
 
     # Display session info
     console.print(f"\n[success]Session ID: {state['session_id']}[/success]")
-    # Note: Resume functionality is currently disabled (checkpointing not working)
+    console.print(
+        "[info]To resume this session later, use: --resume {session_id}[/info]".format(
+            session_id=state["session_id"]
+        )
+    )
 
 
 async def _export_deliberation(console: Console, state: Any, include_logs: bool = False) -> None:
@@ -542,8 +620,8 @@ async def stream_deliberation_events(
     Returns:
         Final deliberation state
     """
-    # Create graph (disable checkpointing for streaming)
-    graph = create_deliberation_graph(checkpointer=False)
+    # Create graph with checkpointing enabled
+    graph = create_deliberation_graph()
 
     # Create initial state or resume
     if session_id:
@@ -559,15 +637,23 @@ async def stream_deliberation_events(
         config = {"configurable": {"thread_id": session_id}}
 
     # Stream events
-    async for event in graph.astream_events(initial_state or {}, config=config, version="v2"):
+    final_state = None
+    async for event in graph.astream_events(initial_state or None, config=config, version="v2"):
         # Yield events for SSE streaming (Week 6)
         event_type = event.get("event")
         if event_type == "on_chain_start":
             logger.debug(f"Node started: {event.get('name')}")
         elif event_type == "on_chain_end":
             logger.debug(f"Node completed: {event.get('name')}")
+            # Capture final state from last event
+            output = event.get("data", {}).get("output", {})
+            if isinstance(output, dict):
+                final_state = output
 
-    # Note: Without checkpointing, we can't retrieve final state
-    # This function is for future SSE support (Week 6)
-    # For now, just return None since streaming is not yet implemented
-    return None
+    # Retrieve final state from checkpoint if not captured
+    if not final_state:
+        checkpoint_state = await graph.aget_state(config)
+        if checkpoint_state:
+            final_state = checkpoint_state.values
+
+    return final_state

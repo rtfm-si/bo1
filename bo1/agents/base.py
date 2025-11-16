@@ -57,3 +57,53 @@ class BaseAgent(ABC):
             Any exceptions from the broker.call() method
         """
         return await self.broker.call(request)
+
+    async def _create_and_call_prompt(
+        self,
+        system: str,
+        user_message: str,
+        phase: str,
+        *,
+        prefill: str = "",
+        temperature: float = 1.0,
+        max_tokens: int = 2048,
+        cache_system: bool = True,
+    ) -> LLMResponse:
+        """Create PromptRequest and call LLM with standard pattern.
+
+        Consolidates the common pattern of creating a PromptRequest and calling
+        the broker, reducing duplication across agent implementations.
+
+        Args:
+            system: System prompt for the LLM
+            user_message: User message/prompt
+            phase: Phase name for cost tracking (e.g., "decomposition", "selection")
+            prefill: Optional prefill text (e.g., "{" for JSON responses)
+            temperature: LLM temperature (0.0-2.0, default 1.0)
+            max_tokens: Maximum tokens in response (default 2048)
+            cache_system: Whether to cache system prompt (default True)
+
+        Returns:
+            LLMResponse from the model
+
+        Examples:
+            >>> response = await self._create_and_call_prompt(
+            ...     system=SYSTEM_PROMPT,
+            ...     user_message=user_input,
+            ...     phase="decomposition",
+            ...     prefill="{",
+            ...     temperature=0.7,
+            ... )
+        """
+        request = PromptRequest(
+            system=system,
+            user_message=user_message,
+            model=self.model,
+            prefill=prefill,
+            cache_system=cache_system,
+            phase=phase,
+            agent_type=self.__class__.__name__,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return await self.broker.call(request)

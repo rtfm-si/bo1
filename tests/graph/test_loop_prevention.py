@@ -5,6 +5,7 @@ import asyncio
 import networkx as nx
 import pytest
 
+from bo1.graph.routers import route_convergence_check
 from bo1.graph.safety.loop_prevention import (
     DEFAULT_MAX_COST_PER_SESSION,
     DEFAULT_TIMEOUT_SECONDS,
@@ -13,7 +14,6 @@ from bo1.graph.safety.loop_prevention import (
     check_convergence_node,
     cost_guard_node,
     execute_deliberation_with_timeout,
-    route_convergence_check,
     route_cost_guard,
     validate_graph_acyclic,
     validate_round_counter_invariants,

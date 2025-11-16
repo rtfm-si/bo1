@@ -6,6 +6,7 @@ and integrate them into the LangGraph execution model.
 
 import json
 import logging
+from dataclasses import asdict
 from typing import Any
 
 from bo1.agents.decomposer import DecomposerAgent
@@ -15,9 +16,16 @@ from bo1.graph.state import (
     DeliberationGraphState,
     graph_state_to_deliberation_state,
 )
+from bo1.graph.utils import (
+    ensure_metrics,
+    track_accumulated_cost,
+    track_aggregated_cost,
+    track_phase_cost,
+)
 from bo1.models.problem import SubProblem
 from bo1.models.state import DeliberationPhase
 from bo1.orchestration.deliberation import DeliberationEngine
+from bo1.utils.json_parsing import extract_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -49,68 +57,27 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
         constraints=[],  # TODO: Add constraints from problem model
     )
 
-    # Parse decomposition
-    # Note: response.content may already be sanitized by DecomposerAgent fallback
-    try:
-        decomposition = json.loads(response.content)
-    except json.JSONDecodeError as e:
-        # This should be rare - DecomposerAgent already handles fallback
-        # But if it happens, try to extract valid JSON from the response
-        logger.warning(
-            f"Failed to parse decomposition JSON in node (error: {e}). "
-            f"Attempting to extract valid JSON from response."
-        )
-        # Try to find the first complete JSON object
-        content = response.content.strip()
-        # Find the matching closing brace for the first opening brace
-        brace_count = 0
-        end_pos = -1
-        for i, char in enumerate(content):
-            if char == "{":
-                brace_count += 1
-            elif char == "}":
-                brace_count -= 1
-                if brace_count == 0:
-                    end_pos = i + 1
-                    break
-
-        if end_pos > 0:
-            # Try parsing just the valid JSON part
-            try:
-                decomposition = json.loads(content[:end_pos])
-                logger.info("Successfully extracted valid JSON from response")
-            except json.JSONDecodeError:
-                # Final fallback - this should never happen
-                logger.error("Could not extract valid JSON. Using atomic problem fallback.")
-                decomposition = {
-                    "analysis": "JSON parsing failed",
-                    "is_atomic": True,
-                    "sub_problems": [
-                        {
-                            "id": "sp_001",
-                            "goal": problem.description,
-                            "context": problem.context,
-                            "complexity_score": 5,
-                            "dependencies": [],
-                        }
-                    ],
+    # Parse decomposition using utility function
+    def create_fallback() -> dict[str, Any]:
+        return {
+            "analysis": "JSON parsing failed",
+            "is_atomic": True,
+            "sub_problems": [
+                {
+                    "id": "sp_001",
+                    "goal": problem.description,
+                    "context": problem.context,
+                    "complexity_score": 5,
+                    "dependencies": [],
                 }
-        else:
-            # No valid JSON found - use fallback
-            logger.error("No valid JSON structure found. Using atomic problem fallback.")
-            decomposition = {
-                "analysis": "JSON parsing failed",
-                "is_atomic": True,
-                "sub_problems": [
-                    {
-                        "id": "sp_001",
-                        "goal": problem.description,
-                        "context": problem.context,
-                        "complexity_score": 5,
-                        "dependencies": [],
-                    }
-                ],
-            }
+            ],
+        }
+
+    decomposition = extract_json_with_fallback(
+        content=response.content,
+        fallback_factory=create_fallback,
+        logger=logger,
+    )
 
     # Convert sub-problem dicts to SubProblem models
     sub_problems = [
@@ -128,15 +95,8 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     problem.sub_problems = sub_problems
 
     # Track cost in metrics
-    metrics = state.get("metrics")
-    if metrics is None:
-        from bo1.models.state import DeliberationMetrics
-
-        metrics = DeliberationMetrics()
-
-    metrics.phase_costs["problem_decomposition"] = response.cost_total
-    metrics.total_cost += response.cost_total
-    metrics.total_tokens += response.total_tokens
+    metrics = ensure_metrics(state)
+    track_phase_cost(metrics, "problem_decomposition", response)
 
     logger.info(
         f"decompose_node: Complete - {len(sub_problems)} sub-problems "
@@ -204,15 +164,8 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
             logger.warning(f"Persona '{code}' not found, skipping")
 
     # Track cost in metrics
-    metrics = state.get("metrics")
-    if metrics is None:
-        from bo1.models.state import DeliberationMetrics
-
-        metrics = DeliberationMetrics()
-
-    metrics.phase_costs["persona_selection"] = response.cost_total
-    metrics.total_cost += response.cost_total
-    metrics.total_tokens += response.total_tokens
+    metrics = ensure_metrics(state)
+    track_phase_cost(metrics, "persona_selection", response)
 
     logger.info(
         f"select_personas_node: Complete - {len(personas)} personas selected "
@@ -254,17 +207,10 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     contributions, llm_responses = await engine.run_initial_round()
 
     # Track cost in metrics
-    metrics = state.get("metrics")
-    if metrics is None:
-        from bo1.models.state import DeliberationMetrics
-
-        metrics = DeliberationMetrics()
+    metrics = ensure_metrics(state)
+    track_aggregated_cost(metrics, "initial_round", llm_responses)
 
     round_cost = sum(r.cost_total for r in llm_responses)
-    round_tokens = sum(r.total_tokens for r in llm_responses)
-    metrics.phase_costs["initial_round"] = round_cost
-    metrics.total_cost += round_cost
-    metrics.total_tokens += round_tokens
 
     logger.info(
         f"initial_round_node: Complete - {len(contributions)} contributions "
@@ -313,18 +259,10 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     )
 
     # Track cost in metrics (if LLM was called)
-    metrics = state.get("metrics")
-    if metrics is None:
-        from bo1.models.state import DeliberationMetrics
-
-        metrics = DeliberationMetrics()
+    metrics = ensure_metrics(state)
 
     if llm_response:
-        metrics.phase_costs["facilitator_decision"] = (
-            metrics.phase_costs.get("facilitator_decision", 0.0) + llm_response.cost_total
-        )
-        metrics.total_cost += llm_response.cost_total
-        metrics.total_tokens += llm_response.total_tokens
+        track_accumulated_cost(metrics, "facilitator_decision", llm_response)
         cost_msg = f"(cost: ${llm_response.cost_total:.4f})"
     else:
         cost_msg = "(no LLM call)"
@@ -333,8 +271,9 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
 
     # Return state updates with facilitator decision
     # Include round_number so it's available for display
+    # Convert dataclass to dict for serializability
     return {
-        "facilitator_decision": decision,
+        "facilitator_decision": asdict(decision),
         "round_number": round_number,  # Pass through current round for display
         "phase": DeliberationPhase.DISCUSSION,
         "metrics": metrics,
@@ -371,7 +310,7 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
         raise ValueError("persona_contribute_node called without facilitator_decision in state")
 
     # Extract speaker from decision (correct field name is 'next_speaker')
-    speaker_code = decision.next_speaker
+    speaker_code = decision.get("next_speaker")
     if not speaker_code:
         raise ValueError("Facilitator decision missing next_speaker for 'continue' action")
 
@@ -407,18 +346,9 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
     )
 
     # Track cost in metrics
-    metrics = state.get("metrics")
-    if metrics is None:
-        from bo1.models.state import DeliberationMetrics
-
-        metrics = DeliberationMetrics()
-
+    metrics = ensure_metrics(state)
     phase_key = f"round_{round_number}_deliberation"
-    metrics.phase_costs[phase_key] = (
-        metrics.phase_costs.get(phase_key, 0.0) + llm_response.cost_total
-    )
-    metrics.total_cost += llm_response.cost_total
-    metrics.total_tokens += llm_response.total_tokens
+    track_accumulated_cost(metrics, phase_key, llm_response)
 
     # Add new contribution to state
     contributions.append(contribution_msg)
@@ -467,7 +397,9 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
     # Get facilitator decision for intervention type
     decision = state.get("facilitator_decision")
     moderator_type = (
-        decision.moderator_type if decision and decision.moderator_type else "contrarian"
+        decision.get("moderator_type")
+        if decision and decision.get("moderator_type")
+        else "contrarian"
     )
 
     # Get problem and contributions
@@ -482,8 +414,8 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
 
     # Get trigger reason from facilitator decision
     trigger_reason = (
-        decision.moderator_focus
-        if decision and decision.moderator_focus
+        decision.get("moderator_focus")
+        if decision and decision.get("moderator_focus")
         else "conversation drift detected"
     )
 
@@ -505,18 +437,9 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
     )
 
     # Track cost in metrics
-    metrics = state.get("metrics")
-    if metrics is None:
-        from bo1.models.state import DeliberationMetrics
-
-        metrics = DeliberationMetrics()
-
+    metrics = ensure_metrics(state)
     phase_key = f"moderator_intervention_{moderator_type}"
-    metrics.phase_costs[phase_key] = (
-        metrics.phase_costs.get(phase_key, 0.0) + llm_response.cost_total
-    )
-    metrics.total_cost += llm_response.cost_total
-    metrics.total_tokens += llm_response.total_tokens
+    track_accumulated_cost(metrics, phase_key, llm_response)
 
     # Add intervention to contributions
     contributions.append(intervention_msg)
@@ -561,17 +484,10 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
     recommendations, llm_responses = await collect_recommendations(state=v1_state, broker=broker)
 
     # Track cost in metrics
-    metrics = state.get("metrics")
-    if metrics is None:
-        from bo1.models.state import DeliberationMetrics
-
-        metrics = DeliberationMetrics()
+    metrics = ensure_metrics(state)
+    track_aggregated_cost(metrics, "voting", llm_responses)
 
     rec_cost = sum(r.cost_total for r in llm_responses)
-    rec_tokens = sum(r.total_tokens for r in llm_responses)
-    metrics.phase_costs["voting"] = rec_cost  # Keep key as "voting" for backward compat
-    metrics.total_cost += rec_cost
-    metrics.total_tokens += rec_tokens
 
     logger.info(
         f"vote_node: Complete - {len(recommendations)} recommendations collected (cost: ${rec_cost:.4f})"
@@ -687,15 +603,8 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     synthesis_report_with_disclaimer = synthesis_report + disclaimer
 
     # Track cost in metrics
-    metrics = state.get("metrics")
-    if metrics is None:
-        from bo1.models.state import DeliberationMetrics
-
-        metrics = DeliberationMetrics()
-
-    metrics.phase_costs["synthesis"] = response.cost_total
-    metrics.total_cost += response.cost_total
-    metrics.total_tokens += response.total_tokens
+    metrics = ensure_metrics(state)
+    track_phase_cost(metrics, "synthesis", response)
 
     logger.info(
         f"synthesize_node: Complete - synthesis generated (cost: ${response.cost_total:.4f})"

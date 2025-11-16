@@ -79,6 +79,133 @@ def sample_personas():
 
 
 @pytest.fixture
+def sample_problem_simple():
+    """Create a minimal problem with no sub-problems (for simple tests)."""
+    from bo1.models.problem import Problem
+
+    return Problem(
+        title="Test Investment Decision",
+        description="Should we invest $500K in AI infrastructure?",
+        context="Series A funded startup, 50 employees",
+    )
+
+
+@pytest.fixture
+def sample_problem_marketing():
+    """Create a marketing-focused problem (for specialized tests)."""
+    from bo1.models.problem import Problem
+
+    return Problem(
+        title="Marketing Budget Decision",
+        description="Should I invest $50K in SEO or paid ads?",
+        context="Solo founder, B2B SaaS, $100K ARR",
+    )
+
+
+@pytest.fixture
+def load_personas_by_codes():
+    """Factory function to load personas by codes.
+
+    Returns:
+        Callable that takes a list of persona codes and returns PersonaProfile list
+
+    Example:
+        def test_something(load_personas_by_codes):
+            personas = load_personas_by_codes(["growth_hacker", "risk_officer"])
+            # Use personas...
+    """
+    from bo1.data import get_persona_by_code
+    from bo1.models.persona import PersonaProfile
+
+    def _load(codes: list[str]) -> list[PersonaProfile]:
+        personas = []
+        for code in codes:
+            data = get_persona_by_code(code)
+            if not data:
+                pytest.skip(f"{code} persona not found in catalog")
+            personas.append(PersonaProfile(**data))
+        return personas
+
+    return _load
+
+
+@pytest.fixture
+def state_builder(sample_problem, sample_personas):
+    """Builder pattern for creating test states with fluent API.
+
+    Returns:
+        StateBuilder instance for constructing test states
+
+    Example:
+        def test_something(state_builder):
+            state = (state_builder
+                .with_round(3)
+                .with_personas()
+                .with_metrics(total_cost=0.05)
+                .build())
+    """
+    from bo1.graph.state import create_initial_state
+    from bo1.models.state import DeliberationMetrics
+
+    class StateBuilder:
+        def __init__(self):
+            self.state = create_initial_state(
+                session_id="test-session-builder",
+                problem=sample_problem,
+                max_rounds=5,
+            )
+
+        def with_session_id(self, session_id: str):
+            """Set custom session ID."""
+            self.state["session_id"] = session_id
+            return self
+
+        def with_problem(self, problem):
+            """Set custom problem."""
+            self.state["problem"] = problem
+            return self
+
+        def with_personas(self, personas=None):
+            """Add personas to state (uses sample_personas if None)."""
+            self.state["personas"] = personas if personas is not None else sample_personas
+            return self
+
+        def with_round(self, num: int):
+            """Set round number."""
+            self.state["round_number"] = num
+            return self
+
+        def with_max_rounds(self, num: int):
+            """Set max rounds."""
+            self.state["max_rounds"] = num
+            return self
+
+        def with_contributions(self, contributions: list):
+            """Add contributions to state."""
+            self.state["contributions"] = contributions
+            return self
+
+        def with_metrics(self, metrics=None, **kwargs):
+            """Add metrics to state (create new if None, accepts kwargs for fields)."""
+            if metrics is not None:
+                self.state["metrics"] = metrics
+            elif kwargs:
+                self.state["metrics"] = DeliberationMetrics(**kwargs)
+            return self
+
+        def with_current_sub_problem(self, sub_problem):
+            """Set current sub-problem."""
+            self.state["current_sub_problem"] = sub_problem
+            return self
+
+        def build(self):
+            """Return the constructed state."""
+            return self.state
+
+    return StateBuilder()
+
+
+@pytest.fixture
 def redis_url() -> str:
     """Get Redis URL from environment, with localhost fallback for local dev."""
     # Use Redis container in Docker, localhost for local dev
@@ -86,41 +213,22 @@ def redis_url() -> str:
 
 
 @pytest.fixture
-def redis_manager_or_skip(redis_url: str) -> Any:
-    """Provide Redis manager or skip test if Redis unavailable.
+def redis_manager(request) -> Any:
+    """Provide Redis manager with behavior based on marker.
 
-    This fixture allows tests to gracefully skip when Redis is not available
-    (e.g., in CI without Redis, or local dev without Docker).
+    - If test has @pytest.mark.requires_redis: Skip if Redis unavailable
+    - Otherwise: Return None if Redis unavailable (for fallback testing)
 
     Usage:
-        def test_something(redis_manager_or_skip):
-            manager = redis_manager_or_skip
+        @pytest.mark.requires_redis
+        def test_redis_feature(redis_manager):
+            # redis_manager is guaranteed to be available or test is skipped
+            manager = redis_manager
             # Use manager...
-    """
-    from bo1.state.redis_manager import RedisManager
 
-    try:
-        # Parse redis_url if needed, or use default host/port
-        # RedisManager will use settings from config if not specified
-        manager = RedisManager()
-        # Test connection - RedisManager handles this internally
-        if not manager.is_available:
-            pytest.skip("Redis not available")
-        yield manager
-    except Exception as e:
-        pytest.skip(f"Redis not available: {e}")
-
-
-@pytest.fixture
-def redis_manager_or_none(redis_url: str) -> Any:
-    """Provide Redis manager or None if unavailable (no skip).
-
-    This fixture returns None when Redis is unavailable, allowing tests
-    to validate fallback behavior without skipping.
-
-    Usage:
-        def test_graceful_degradation(redis_manager_or_none):
-            if redis_manager_or_none is None:
+        def test_fallback_behavior(redis_manager):
+            # redis_manager may be None, allowing fallback testing
+            if redis_manager is None:
                 # Test fallback behavior
             else:
                 # Test with Redis
@@ -128,10 +236,34 @@ def redis_manager_or_none(redis_url: str) -> Any:
     from bo1.state.redis_manager import RedisManager
 
     try:
-        # RedisManager will use settings from config if not specified
         manager = RedisManager()
         if not manager.is_available:
+            if request.node.get_closest_marker("requires_redis"):
+                pytest.skip("Redis not available")
             return None
         return manager
-    except Exception:
+    except Exception as e:
+        if request.node.get_closest_marker("requires_redis"):
+            pytest.skip(f"Redis not available: {e}")
         return None
+
+
+# Legacy aliases for backward compatibility
+@pytest.fixture
+def redis_manager_or_skip(redis_manager) -> Any:
+    """Legacy alias for redis_manager with requires_redis marker.
+
+    DEPRECATED: Use @pytest.mark.requires_redis with redis_manager instead.
+    """
+    if redis_manager is None:
+        pytest.skip("Redis not available")
+    return redis_manager
+
+
+@pytest.fixture
+def redis_manager_or_none(redis_manager) -> Any:
+    """Legacy alias for redis_manager without marker.
+
+    DEPRECATED: Use redis_manager directly instead.
+    """
+    return redis_manager

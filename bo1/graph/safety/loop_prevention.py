@@ -260,37 +260,6 @@ def _calculate_convergence_score(contributions: list[Any]) -> float:
     return convergence
 
 
-def route_convergence_check(
-    state: DeliberationGraphState,
-) -> Literal["vote", "facilitator_decide"]:
-    """Route after convergence check based on should_stop flag.
-
-    This router is called after persona_contribute or moderator_intervene nodes.
-    It checks if convergence has been reached or round limits exceeded.
-
-    Args:
-        state: Current graph state with should_stop flag
-
-    Returns:
-        - "facilitator_decide" if deliberation should continue
-        - "vote" if stopping condition met (max rounds, convergence, etc.)
-    """
-    should_stop = state.get("should_stop", False)
-    stop_reason = state.get("stop_reason")
-    round_number = state.get("round_number", 0)
-
-    logger.info(f"route_convergence_check: Round {round_number}, should_stop={should_stop}")
-
-    if should_stop:
-        logger.info(
-            f"route_convergence_check: Stopping deliberation (reason: {stop_reason}) -> routing to vote"
-        )
-        return "vote"
-    else:
-        logger.info("route_convergence_check: Continuing to facilitator_decide")
-        return "facilitator_decide"
-
-
 # ============================================================================
 # Validation Utilities
 # ============================================================================

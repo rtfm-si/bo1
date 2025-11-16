@@ -43,24 +43,18 @@ class ResponseParser:
             >>> contribution
             'My view is...'
         """
-        thinking = None
-        contribution = content
-
-        # Extract <thinking> if present
-        if "<thinking>" in content and "</thinking>" in content:
-            thinking_start = content.index("<thinking>") + len("<thinking>")
-            thinking_end = content.index("</thinking>")
-            thinking = content[thinking_start:thinking_end].strip()
+        # Use extract_xml_tag utility instead of manual parsing
+        thinking = extract_xml_tag(content, "thinking")
 
         # Extract <contribution> if present
-        if "<contribution>" in content and "</contribution>" in content:
-            contrib_start = content.index("<contribution>") + len("<contribution>")
-            contrib_end = content.index("</contribution>")
-            contribution = content[contrib_start:contrib_end].strip()
-        else:
+        contribution = extract_xml_tag(content, "contribution")
+        if not contribution:
             # If no explicit <contribution> tag, use the part after </thinking>
             if "</thinking>" in content:
                 contribution = content.split("</thinking>", 1)[1].strip()
+            else:
+                # No tags at all - use full content
+                contribution = content
 
         return thinking, contribution
 

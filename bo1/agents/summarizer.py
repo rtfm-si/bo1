@@ -10,7 +10,6 @@ from typing import Any
 from bo1.agents.base import BaseAgent
 from bo1.config import get_model_for_role
 from bo1.constants import TokenLimits
-from bo1.llm.broker import PromptRequest
 from bo1.llm.response import LLMResponse
 from bo1.prompts.summarizer_prompts import (
     SUMMARIZER_SYSTEM_PROMPT,
@@ -101,19 +100,15 @@ class SummarizerAgent(BaseAgent):
             problem_statement=problem_statement,
         )
 
-        # Create prompt request
-        request = PromptRequest(
-            system=SUMMARIZER_SYSTEM_PROMPT,
-            user_message=user_message,
-            temperature=0.3,  # Lower temperature for consistent, factual summaries
-            max_tokens=target + 50,  # Allow slight overage
-            phase="summarization",
-            agent_type="summarizer",
-        )
-
-        # Call LLM
+        # Use new helper method instead of manual PromptRequest creation
         try:
-            response = await self._call_llm(request)
+            response = await self._create_and_call_prompt(
+                system=SUMMARIZER_SYSTEM_PROMPT,
+                user_message=user_message,
+                phase="summarization",
+                temperature=0.3,
+                max_tokens=target + 50,
+            )
 
             logger.info(
                 f"Round {round_number} summary generated: {response.token_usage.output_tokens} tokens, "

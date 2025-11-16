@@ -9,6 +9,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .types import Score, Temperature, Weight
+
 
 class PersonaType(str, Enum):
     """Type of persona."""
@@ -54,13 +56,11 @@ class PersonaCategory(str, Enum):
 class PersonaTraits(BaseModel):
     """Personality traits that influence persona behavior."""
 
-    creative: float = Field(..., ge=0.0, le=1.0, description="Creativity level (0-1)")
-    analytical: float = Field(..., ge=0.0, le=1.0, description="Analytical thinking level (0-1)")
-    optimistic: float = Field(..., ge=0.0, le=1.0, description="Optimism level (0-1)")
-    risk_averse: float = Field(..., ge=0.0, le=1.0, description="Risk aversion level (0-1)")
-    detail_oriented: float = Field(
-        ..., ge=0.0, le=1.0, description="Detail orientation level (0-1)"
-    )
+    creative: Score = Field(..., description="Creativity level (0-1)")
+    analytical: Score = Field(..., description="Analytical thinking level (0-1)")
+    optimistic: Score = Field(..., description="Optimism level (0-1)")
+    risk_averse: Score = Field(..., description="Risk aversion level (0-1)")
+    detail_oriented: Score = Field(..., description="Detail orientation level (0-1)")
 
 
 class PersonaProfile(BaseModel):
@@ -77,10 +77,10 @@ class PersonaProfile(BaseModel):
     traits: dict[str, float] | PersonaTraits = Field(
         ..., description="Personality traits (can be dict or PersonaTraits object)"
     )
-    default_weight: float = Field(
-        ..., ge=0.0, le=2.0, description="Default voting weight (0-2, typically 0.8-1.2)"
+    default_weight: Weight = Field(
+        ..., description="Default voting weight (0-2, typically 0.8-1.2)"
     )
-    temperature: float = Field(..., ge=0.0, le=2.0, description="LLM temperature for this persona")
+    temperature: Temperature = Field(..., description="LLM temperature for this persona")
     system_prompt: str = Field(
         ...,
         description="Bespoke system prompt defining persona's identity and role (XML format)",
@@ -90,8 +90,8 @@ class PersonaProfile(BaseModel):
     persona_type: PersonaType = Field(default=PersonaType.STANDARD, description="Type of persona")
     is_visible: bool = Field(default=True, description="Whether this persona is visible in UI")
     display_name: str = Field(..., description="Short display name (e.g., 'Zara')")
-    domain_expertise: list[str] | str = Field(
-        ..., description="Areas of domain expertise (can be list or postgres array string)"
+    domain_expertise: list[str] = Field(
+        ..., description="Areas of domain expertise (always a list after validation)"
     )
 
     @property
@@ -112,14 +112,18 @@ class PersonaProfile(BaseModel):
 
     @field_validator("domain_expertise", mode="before")
     @classmethod
-    def parse_domain_expertise(cls, v: Any) -> list[str] | str:
-        """Parse domain expertise from PostgreSQL array format if needed."""
+    def parse_domain_expertise(cls, v: Any) -> list[str]:
+        """Parse domain expertise from PostgreSQL array format if needed.
+
+        Always returns a list - converts PostgreSQL array format if needed.
+        """
+        if isinstance(v, list):
+            return v
         if isinstance(v, str) and v.startswith("{"):
             # PostgreSQL array format: {technical,strategic}
-            parsed_list: list[str] = [e.strip() for e in v.strip("{}").split(",")]
-            return parsed_list
-        result: list[str] | str = v
-        return result
+            return [e.strip() for e in v.strip("{}").split(",") if e.strip()]
+        # Fallback: single string becomes single-item list
+        return [v] if v else []
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -164,15 +168,3 @@ class PersonaProfile(BaseModel):
             return self.traits
         # Convert dict to PersonaTraits
         return PersonaTraits(**self.traits)
-
-    def get_expertise_list(self) -> list[str]:
-        """Get domain expertise as a list.
-
-        Returns:
-            List of expertise areas
-        """
-        if isinstance(self.domain_expertise, list):
-            return self.domain_expertise
-        # Parse PostgreSQL array format: {technical,strategic} -> ["technical", "strategic"]
-        expertise_str = self.domain_expertise.strip("{}")
-        return [e.strip() for e in expertise_str.split(",") if e.strip()]

@@ -219,21 +219,31 @@ class DeliberationEngine:
 
         user_message = "".join(user_message_parts)
 
-        # Call LLM (async) with timing
+        # Call LLM (async) with timing - use PromptBroker for retry protection
         from datetime import datetime
 
+        from bo1.llm.broker import PromptBroker, PromptRequest
         from bo1.llm.response import LLMResponse
 
         start_time = datetime.now()
-        messages = [{"role": "user", "content": user_message}]
-        response_text, token_usage = await self.client.call(
-            model=self.model_name,
-            messages=messages,
+
+        # Create prompt request to use broker (with retry protection)
+        broker = PromptBroker(client=self.client)
+        request = PromptRequest(
             system=system_prompt,
+            user_message=user_message,
+            model=self.model_name,
             cache_system=True,  # Enable prompt caching for cost optimization
             temperature=round_config["temperature"],  # Adaptive temperature
             max_tokens=round_config["max_tokens"],  # Adaptive token limit
+            phase="deliberation",
+            agent_type=f"persona_{persona_profile.code}",
         )
+
+        # Use broker call for retry protection (not direct client call)
+        llm_response_temp = await broker.call(request)
+        response_text = llm_response_temp.content
+        token_usage = llm_response_temp.token_usage
         duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
         # Parse response (extract <thinking> and <contribution>)
@@ -357,20 +367,20 @@ class DeliberationEngine:
             )
 
             # Handle facilitator decision
-            if decision.action == "vote":
+            if decision["action"] == "vote":
                 logger.info("Facilitator decided to transition to voting phase")
                 self.state.phase = DeliberationPhase.VOTING
                 # Only include facilitator_response if it's not None
                 return [], [facilitator_response] if facilitator_response else []
 
-            if decision.action == "moderator":
+            if decision["action"] == "moderator":
                 # Facilitator requested moderator intervention
-                mod_type = decision.moderator_type or "contrarian"
+                mod_type = decision.get("moderator_type") or "contrarian"
                 logger.info(f"Facilitator requested {mod_type} moderator intervention")
 
                 # Get discussion excerpt for moderator
                 discussion_excerpt = self.build_discussion_context(include_thinking=False)[-2000:]
-                trigger_reason = decision.moderator_focus or decision.reasoning
+                trigger_reason = decision.get("moderator_focus") or decision.get("reasoning")
 
                 # Get moderator intervention
                 intervention_text, mod_response = await self.moderator.intervene(
@@ -411,7 +421,7 @@ class DeliberationEngine:
 
                 return [moderator_contrib], [mod_response]
 
-            if decision.action == "research":
+            if decision["action"] == "research":
                 # TODO: Implement research tool (Week 4)
                 logger.warning("Research requested but not yet implemented")
                 # For now, fall through to continue with first persona
@@ -419,9 +429,9 @@ class DeliberationEngine:
                     self.state.selected_personas[0].code if self.state.selected_personas else None
                 )
 
-            if decision.action == "continue":
-                speaker_code = decision.next_speaker
-                speaker_prompt = decision.speaker_prompt or speaker_prompt
+            if decision["action"] == "continue":
+                speaker_code = decision.get("next_speaker")
+                speaker_prompt = decision.get("speaker_prompt") or speaker_prompt
 
             if not speaker_code:
                 # Fallback: use first persona

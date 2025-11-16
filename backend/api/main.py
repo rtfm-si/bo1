@@ -15,7 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api import context, health, sessions, streaming
+from backend.api import context, control, health, sessions, streaming
 
 
 @asynccontextmanager
@@ -54,6 +54,7 @@ app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(streaming.router, prefix="/api", tags=["streaming"])
 app.include_router(context.router, prefix="/api", tags=["context"])
+app.include_router(control.router, prefix="/api", tags=["deliberation-control"])
 
 
 @app.exception_handler(Exception)

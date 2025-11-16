@@ -262,39 +262,4 @@ async def delete_context() -> dict[str, str]:
         ) from e
 
 
-@router.post(
-    "/v1/sessions/{session_id}/clarify",
-    response_model=dict[str, str],
-    summary="Submit clarification answer",
-    description="Submit an answer to a pending clarification question and resume deliberation.",
-)
-async def submit_clarification(
-    session_id: str,
-    request: ClarificationRequest,
-) -> dict[str, str]:
-    """Submit clarification answer and resume deliberation.
-
-    Args:
-        session_id: Session identifier
-        request: Clarification answer
-
-    Returns:
-        Status message
-
-    Raises:
-        HTTPException: If session not found or no pending clarification
-    """
-    try:
-        # TODO: Implement clarification submission
-        # This will be fully implemented in Day 39 with deliberation control
-
-        logger.info(f"Clarification submitted for session {session_id}")
-
-        return {"status": "resumed"}
-
-    except Exception as e:
-        logger.error(f"Failed to submit clarification: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to submit clarification: {str(e)}",
-        ) from e
+# Clarify endpoint moved to control.py (Day 39)

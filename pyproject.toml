@@ -17,15 +17,24 @@ dependencies = [
     # State & Embeddings
     "redis>=6.0.0,<7.0",  # 6.x has performance improvements
     "voyageai>=0.3.0",  # Current stable embeddings API
+    "openai>=1.0.0,<2.0",  # For ada-002 embeddings
     # Database (v2+)
     "alembic>=1.17.0",  # Latest migration tool
     "psycopg2-binary>=2.9.9",  # Stable postgres driver
     "sqlalchemy>=2.0.0,<3.0",  # 2.x is stable, cap before 3.0
     "asyncpg>=0.29.0",  # Async postgres driver
+    "pgvector>=0.2.0",  # PostgreSQL vector extension
     # Data & Config
     "pydantic>=2.12.0,<3.0",  # 2.12+ has latest validation features
     "pydantic-settings>=2.12.0,<3.0",  # Aligned with pydantic
     "python-dotenv>=1.0.0",  # Stable env loading
+    # Web API
+    "fastapi>=0.110.0,<1.0",  # Web API framework
+    "uvicorn[standard]>=0.27.0,<1.0",  # ASGI server
+    "sse-starlette>=2.0.0,<3.0",  # SSE streaming support
+    "python-multipart>=0.0.9",  # Form data parsing
+    "supabase>=2.0.0,<3.0",  # Supabase client for auth
+    "pyjwt>=2.8.0,<3.0",  # JWT token verification
     # Console UI
     "rich>=14.0.0",  # 14.x current stable
     # Utilities

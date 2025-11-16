@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any
 
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import Json, RealDictCursor
 
 from bo1.config import Settings
 
@@ -344,7 +344,7 @@ def save_research_result(
                     embedding,
                     summary,
                     confidence,
-                    sources,
+                    Json(sources) if sources else None,  # Use psycopg2.extras.Json for JSONB
                     len(sources) if sources else 0,
                     category,
                     industry,

@@ -46,13 +46,14 @@ def route_phase(
 
 def route_facilitator_decision(
     state: DeliberationGraphState,
-) -> Literal["vote", "moderator_intervene", "persona_contribute", "END"]:
+) -> Literal["vote", "moderator_intervene", "persona_contribute", "clarification", "END"]:
     """Route based on facilitator's decision.
 
     Routes to different nodes based on the facilitator's action:
     - "vote" → Move to voting phase
     - "moderator" → Trigger moderator intervention
     - "continue" → Persona contributes next round
+    - "clarify" → Request clarification from user (Day 37)
     - "research" → Treat as continue (research not implemented)
 
     Args:
@@ -80,6 +81,9 @@ def route_facilitator_decision(
     elif action == "continue":
         logger.info("route_facilitator_decision: Routing to persona_contribute")
         return "persona_contribute"
+    elif action == "clarify":
+        logger.info("route_facilitator_decision: Routing to clarification (Day 37)")
+        return "clarification"
     elif action == "research":
         # Research not implemented in Week 5 - transition to voting instead
         logger.warning(
@@ -173,3 +177,34 @@ def route_after_synthesis(
             f"-> routing to meta_synthesis"
         )
         return "meta_synthesis"
+
+
+def route_clarification(
+    state: DeliberationGraphState,
+) -> Literal["persona_contribute", "END"]:
+    """Route after clarification based on should_stop flag.
+
+    This router determines whether to:
+    - Continue deliberation (if clarification answered or skipped)
+    - Pause session (if user requested pause)
+
+    Args:
+        state: Current graph state
+
+    Returns:
+        - "persona_contribute" if continuing deliberation
+        - "END" if session paused
+    """
+    should_stop = state.get("should_stop", False)
+    pending_clarification = state.get("pending_clarification")
+
+    logger.info(
+        f"route_clarification: should_stop={should_stop}, pending={pending_clarification is not None}"
+    )
+
+    if should_stop:
+        logger.info("route_clarification: Session paused by user -> routing to END")
+        return "END"
+    else:
+        logger.info("route_clarification: Clarification handled -> routing to persona_contribute")
+        return "persona_contribute"

@@ -12,6 +12,8 @@ from langgraph.checkpoint.redis import RedisSaver
 from langgraph.graph import END, StateGraph
 
 from bo1.graph.nodes import (
+    clarification_node,
+    context_collection_node,
     decompose_node,
     initial_round_node,
     select_personas_node,
@@ -85,6 +87,7 @@ def create_deliberation_graph(
     )
     from bo1.graph.routers import (
         route_after_synthesis,
+        route_clarification,
         route_convergence_check,
         route_facilitator_decision,
     )
@@ -95,6 +98,7 @@ def create_deliberation_graph(
 
     # Add nodes
     workflow.add_node("decompose", decompose_node)
+    workflow.add_node("context_collection", context_collection_node)  # Day 37
     workflow.add_node("select_personas", select_personas_node)
     workflow.add_node("initial_round", initial_round_node)
     workflow.add_node("facilitator_decide", facilitator_decide_node)  # Day 29
@@ -105,10 +109,14 @@ def create_deliberation_graph(
     workflow.add_node("synthesize", synthesize_node)  # Day 31
     workflow.add_node("next_subproblem", next_subproblem_node)  # Day 36.5
     workflow.add_node("meta_synthesis", meta_synthesize_node)  # Day 36.5
+    workflow.add_node("clarification", clarification_node)  # Day 37
 
     # Add edges - Linear setup phase
-    # decompose -> select_personas
-    workflow.add_edge("decompose", "select_personas")
+    # decompose -> context_collection (Day 37)
+    workflow.add_edge("decompose", "context_collection")
+
+    # context_collection -> select_personas (Day 37)
+    workflow.add_edge("context_collection", "select_personas")
 
     # select_personas -> initial_round
     workflow.add_edge("select_personas", "initial_round")
@@ -117,7 +125,7 @@ def create_deliberation_graph(
     workflow.add_edge("initial_round", "facilitator_decide")
 
     # Add conditional edges - Multi-round deliberation loop (Week 5 Day 30-31)
-    # facilitator_decide -> (continue/vote/moderator/research)
+    # facilitator_decide -> (continue/vote/moderator/research/clarify)
     workflow.add_conditional_edges(
         "facilitator_decide",
         route_facilitator_decision,
@@ -125,6 +133,17 @@ def create_deliberation_graph(
             "persona_contribute": "persona_contribute",
             "moderator_intervene": "moderator_intervene",
             "vote": "vote",  # Day 31: Route to vote node
+            "clarification": "clarification",  # Day 37: Route to clarification node
+            "END": END,
+        },
+    )
+
+    # clarification -> (persona_contribute if answered/skipped, END if paused) (Day 37)
+    workflow.add_conditional_edges(
+        "clarification",
+        route_clarification,
+        {
+            "persona_contribute": "persona_contribute",
             "END": END,
         },
     )

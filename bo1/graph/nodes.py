@@ -9,6 +9,7 @@ import logging
 from dataclasses import asdict
 from typing import Any
 
+from bo1.agents.context_collector import BusinessContextCollector
 from bo1.agents.decomposer import DecomposerAgent
 from bo1.agents.facilitator import FacilitatorAgent
 from bo1.agents.selector import PersonaSelectorAgent
@@ -25,6 +26,7 @@ from bo1.graph.utils import (
 from bo1.models.problem import SubProblem
 from bo1.models.state import DeliberationPhase
 from bo1.orchestration.deliberation import DeliberationEngine
+from bo1.state.postgres_manager import load_user_context, save_user_context
 from bo1.utils.json_parsing import extract_json_with_fallback
 
 logger = logging.getLogger(__name__)
@@ -923,3 +925,174 @@ Always verify recommendations using licensed legal/financial professionals for y
         "metrics": metrics,
         "current_node": "meta_synthesis",
     }
+
+
+async def context_collection_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Collect business context and information gaps before deliberation.
+
+    This node:
+    1. Loads saved business context (if user_id exists)
+    2. Prompts for business context (optional, with benefits explanation)
+    3. Identifies information gaps for each sub-problem
+    4. Collects CRITICAL internal answers via user input
+    5. Auto-researches EXTERNAL gaps via ResearcherAgent with semantic cache
+    6. Injects all context into problem.context
+    7. Tracks cost in phase_costs["context_collection"]
+
+    Args:
+        state: Current graph state (must have decomposed sub-problems)
+
+    Returns:
+        Dictionary with state updates (problem with enriched context)
+    """
+    logger.info("context_collection_node: Starting context collection")
+
+    problem = state.get("problem")
+    if not problem:
+        raise ValueError("context_collection_node called without problem")
+
+    # Get user_id from state (optional)
+    user_id = state.get("user_id")
+
+    # Initialize metrics
+    metrics = ensure_metrics(state)
+
+    # Step 1: Load saved business context
+    business_context = None
+    if user_id:
+        logger.info(f"Loading saved business context for user_id: {user_id}")
+        saved_context = load_user_context(user_id)
+        if saved_context:
+            logger.info("Found saved business context")
+            business_context = saved_context
+
+    # Step 2: Prompt for business context (if not already saved or if update requested)
+    if not business_context and state.get("collect_context", True):
+        logger.info("Prompting user for business context")
+        collector = BusinessContextCollector()
+        new_context = collector.collect_context(skip_prompt=False)
+
+        if new_context and user_id:
+            # Save to database for future sessions
+            save_user_context(user_id, new_context)
+            logger.info("Saved business context to database")
+
+        if new_context:
+            business_context = new_context
+
+    # Step 3: Identify information gaps
+    # For now, we'll skip automatic information gap identification
+    # This will be implemented in a follow-up task
+    logger.info("Information gap identification not yet implemented (Day 37 follow-up)")
+
+    # Step 4 & 5: Collect internal answers and research external gaps
+    # This will be implemented when ResearcherAgent is updated with semantic cache
+    logger.info("Research with semantic cache not yet implemented (Day 37 follow-up)")
+
+    # Track minimal cost for this node (no LLM calls yet in this stub)
+    # When fully implemented, this will track context collection costs
+    if "phase_costs" not in state:
+        state["phase_costs"] = {}
+    state["phase_costs"]["context_collection"] = 0.0
+
+    logger.info("context_collection_node: Complete (stub implementation)")
+
+    return {
+        "business_context": business_context,
+        "phase_costs": state.get("phase_costs", {}),
+        "metrics": metrics,
+        "current_node": "context_collection",
+    }
+
+
+async def clarification_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Handle clarification questions from facilitator during deliberation.
+
+    This node:
+    1. Displays clarification question from facilitator
+    2. Provides options: Answer now / Pause session / Skip
+    3. If answer: Injects into context, continues
+    4. If pause: Sets should_stop=True, saves pending_clarification
+    5. If skip: Logs skip, continues with warning
+
+    Args:
+        state: Current graph state (must have pending_clarification)
+
+    Returns:
+        Dictionary with state updates (context with answer, or paused state)
+    """
+    logger.info("clarification_node: Handling clarification request")
+
+    pending_clarification = state.get("pending_clarification")
+
+    if not pending_clarification:
+        logger.warning("clarification_node called without pending_clarification")
+        return {
+            "current_node": "clarification",
+        }
+
+    # For now, we'll implement a simple console-based clarification prompt
+    # Full implementation will include web API support for async clarification
+
+    from bo1.ui.console import Console
+
+    console = Console()
+
+    question = pending_clarification.get("question", "Unknown question")
+    reason = pending_clarification.get("reason", "")
+
+    console.print("\n[bold yellow]Clarification Needed[/bold yellow]")
+    console.print(f"Question: {question}")
+    if reason:
+        console.print(f"Reason: {reason}")
+
+    console.print("\nOptions:")
+    console.print("1. Answer now")
+    console.print("2. Pause session (resume later)")
+    console.print("3. Skip question")
+
+    choice = console.input("\nYour choice (1-3): ").strip()
+
+    if choice == "1":
+        # Collect answer
+        answer = console.input("\nYour answer: ").strip()
+
+        # Store answer in pending_clarification for later injection
+        answered_clarification = pending_clarification.copy()
+        answered_clarification["answer"] = answer
+        answered_clarification["answered"] = True
+
+        logger.info(f"Clarification answered: {question[:50]}...")
+
+        # Update business_context with clarification
+        business_context = state.get("business_context") or {}
+        if not isinstance(business_context, dict):
+            business_context = {}
+        clarifications = business_context.get("clarifications", {})
+        clarifications[question] = answer
+        business_context["clarifications"] = clarifications
+
+        return {
+            "business_context": business_context,
+            "pending_clarification": None,
+            "current_node": "clarification",
+        }
+
+    elif choice == "2":
+        # Pause session
+        logger.info("User requested session pause for clarification")
+
+        return {
+            "should_stop": True,
+            "pending_clarification": pending_clarification,
+            "current_node": "clarification",
+        }
+
+    else:
+        # Skip question
+        logger.info(f"User skipped clarification: {question[:50]}...")
+
+        return {
+            "pending_clarification": None,
+            "current_node": "clarification",
+        }

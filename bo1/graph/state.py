@@ -58,6 +58,7 @@ class DeliberationGraphState(TypedDict, total=False):
 
     # Human-in-the-loop
     user_input: str | None
+    user_id: str | None  # For context persistence
 
     # Visualization
     current_node: str
@@ -70,12 +71,20 @@ class DeliberationGraphState(TypedDict, total=False):
     sub_problem_results: list[SubProblemResult]
     sub_problem_index: int
 
+    # Context collection (Day 37)
+    collect_context: bool  # Whether to collect business context
+    business_context: dict[str, Any] | None  # Collected business context from user
+    pending_clarification: dict[str, Any] | None  # Clarification question waiting for answer
+    phase_costs: dict[str, float]  # Cost tracking by phase
+
 
 def create_initial_state(
     session_id: str,
     problem: Problem,
     personas: list[PersonaProfile] | None = None,
     max_rounds: int = 10,
+    user_id: str | None = None,
+    collect_context: bool = True,
 ) -> DeliberationGraphState:
     """Create initial graph state from a problem.
 
@@ -84,6 +93,8 @@ def create_initial_state(
         problem: The problem to deliberate on
         personas: Selected personas (if already selected)
         max_rounds: Maximum rounds allowed
+        user_id: Optional user ID for context persistence
+        collect_context: Whether to collect business context (default: True)
 
     Returns:
         Initial DeliberationGraphState ready for graph execution
@@ -103,11 +114,16 @@ def create_initial_state(
         should_stop=False,
         stop_reason=None,
         user_input=None,
+        user_id=user_id,
         current_node="start",
         votes=[],
         synthesis=None,
         sub_problem_results=[],
         sub_problem_index=0,
+        collect_context=collect_context,
+        business_context=None,
+        pending_clarification=None,
+        phase_costs={},
     )
 
 

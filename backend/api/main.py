@@ -34,9 +34,64 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 # Create FastAPI application
 app = FastAPI(
     title="Board of One API",
-    description="Multi-agent deliberation system for strategic decision-making",
+    description="""
+    **Board of One** is a multi-agent deliberation system that uses AI personas
+    to provide strategic decision-making insights through structured debate and synthesis.
+
+    ## Features
+
+    - **Multi-Agent Deliberation**: 3-5 expert personas debate your problem
+    - **Structured Synthesis**: AI-powered consensus building
+    - **Real-time Streaming**: Server-Sent Events (SSE) for live updates
+    - **Context Management**: Business context and clarification support
+    - **Session Control**: Pause, resume, and kill deliberations
+    - **Admin Monitoring**: Track and manage all active sessions
+
+    ## Authentication
+
+    - **User Endpoints**: Currently use hardcoded user ID (test_user_1) for MVP
+    - **Admin Endpoints**: Require X-Admin-Key header with valid admin API key
+
+    ## Rate Limits
+
+    - No rate limits enforced in v1.0 (MVP)
+    - Will be added in v2.0 with Stripe integration
+
+    ## Support
+
+    - Documentation: [GitHub](https://github.com/anthropics/board-of-one)
+    - Issues: [GitHub Issues](https://github.com/anthropics/board-of-one/issues)
+    """,
     version="1.0.0",
     lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_tags=[
+        {
+            "name": "health",
+            "description": "Health check endpoints for monitoring system status",
+        },
+        {
+            "name": "sessions",
+            "description": "Session management (create, list, get details)",
+        },
+        {
+            "name": "streaming",
+            "description": "Real-time deliberation streaming via Server-Sent Events (SSE)",
+        },
+        {
+            "name": "context",
+            "description": "User context management (business info, clarifications)",
+        },
+        {
+            "name": "deliberation-control",
+            "description": "Deliberation control (start, pause, resume, kill, clarify)",
+        },
+        {
+            "name": "admin",
+            "description": "Admin endpoints (requires X-Admin-Key header)",
+        },
+    ],
 )
 
 # Configure CORS

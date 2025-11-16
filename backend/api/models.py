@@ -32,6 +32,31 @@ class CreateSessionRequest(BaseModel):
         examples=[{"budget": 500000, "timeline": "Q2 2025", "market": "B2B SaaS"}],
     )
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "problem_statement": "Should we invest $500K in expanding to the European market?",
+                    "problem_context": {
+                        "budget": 500000,
+                        "timeline": "Q2 2025",
+                        "current_markets": ["US", "Canada"],
+                        "target_market": "EU (Germany, France, UK)",
+                    },
+                },
+                {
+                    "problem_statement": "What pricing strategy should we use for our new SaaS product?",
+                    "problem_context": {
+                        "product": "AI-powered project management",
+                        "target_customer": "Small businesses (10-50 employees)",
+                        "competitors": ["Asana", "Monday.com", "ClickUp"],
+                        "cost_per_user": 5.0,
+                    },
+                },
+            ]
+        }
+    }
+
     @field_validator("problem_statement")
     @classmethod
     def validate_problem_statement(cls, v: str) -> str:
@@ -184,6 +209,25 @@ class ControlResponse(BaseModel):
     )
     status: str = Field(..., description="Result status", examples=["success", "failed"])
     message: str = Field(..., description="Human-readable message")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "action": "start",
+                    "status": "success",
+                    "message": "Deliberation started in background",
+                },
+                {
+                    "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "action": "kill",
+                    "status": "success",
+                    "message": "Deliberation killed. Reason: User requested stop",
+                },
+            ]
+        }
+    }
 
 
 class ErrorResponse(BaseModel):

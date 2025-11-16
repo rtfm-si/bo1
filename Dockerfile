@@ -38,6 +38,13 @@ COPY README.md .
 # Copy source code (needed for editable install)
 COPY bo1/ ./bo1/
 
+# Copy alembic configuration and migrations
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
+
+# Copy scripts (for seed_personas.py)
+COPY scripts/ ./scripts/
+
 # Create virtual environment and install dependencies
 RUN uv venv && \
     uv pip install -e .
@@ -58,6 +65,9 @@ RUN uv pip install -e .[dev]
 # Copy source code (will be overridden by volume mount in docker-compose)
 COPY bo1/ ./bo1/
 COPY zzz_important/ ./zzz_important/
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
+COPY scripts/ ./scripts/
 
 # Create exports directory
 RUN mkdir -p /app/exports
@@ -78,6 +88,9 @@ WORKDIR /app
 # Copy only application code (not dev files)
 COPY bo1/ ./bo1/
 COPY zzz_important/ ./zzz_important/
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
+COPY scripts/ ./scripts/
 
 # Create exports directory
 RUN mkdir -p /app/exports

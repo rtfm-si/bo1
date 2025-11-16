@@ -30,7 +30,7 @@ ENV/
 
 # uv
 .uv/
-uv.lock
+# uv.lock - MUST be committed for reproducible Docker builds
 
 # IDEs
 .vscode/

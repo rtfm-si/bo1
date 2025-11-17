@@ -2974,6 +2974,103 @@ Manual testing via browser
 
 ---
 
+### Day 43.5: Design System Implementation
+
+**Value**: Comprehensive design system for consistent UI/UX across all pages
+
+#### Layer 1: Design Tokens
+
+- [ ] Create `frontend/src/lib/design/tokens.ts`
+  - [ ] Color tokens (semantic: brand, accent, success, warning, error)
+  - [ ] Spacing tokens (4px grid system)
+  - [ ] Typography tokens (font families, sizes, weights, line heights)
+  - [ ] Shadow tokens (elevation system)
+  - [ ] Border radius tokens
+  - [ ] Transition tokens (durations, easings)
+- [ ] Update `frontend/tailwind.config.js`
+  - [ ] Integrate design tokens
+  - [ ] Configure dark mode class strategy
+  - [ ] Add custom utilities
+
+#### Layer 2: Theme System
+
+- [ ] Create `frontend/src/lib/design/themes.ts`
+  - [ ] Theme presets: light, dark, ocean
+  - [ ] Theme type definitions
+  - [ ] Theme application logic
+- [ ] Create `frontend/src/lib/stores/theme.ts`
+  - [ ] Theme switcher store (Svelte writable)
+  - [ ] localStorage persistence
+  - [ ] System preference detection
+  - [ ] Theme application on mount
+
+#### Layer 3: Component Library
+
+- [ ] Create `frontend/src/lib/components/ui/Button.svelte`
+  - [ ] Variants: brand, accent, secondary, ghost, danger
+  - [ ] Sizes: sm, md, lg
+  - [ ] Loading state support
+  - [ ] Icon support (left, right, only)
+  - [ ] TypeScript props with validation
+  - [ ] ARIA labels and keyboard navigation
+- [ ] Create `frontend/src/lib/components/ui/Card.svelte`
+  - [ ] Default, bordered, elevated variants
+  - [ ] Slots: header, footer, default
+  - [ ] TypeScript props
+- [ ] Create `frontend/src/lib/components/ui/Input.svelte`
+  - [ ] Text, email, password, number types
+  - [ ] Error state support
+  - [ ] Label and helper text
+  - [ ] TypeScript props
+  - [ ] ARIA attributes for accessibility
+- [ ] Create `frontend/src/lib/components/ui/Badge.svelte`
+  - [ ] Variants: success, warning, error, info, neutral
+  - [ ] Sizes: sm, md, lg
+  - [ ] TypeScript props
+- [ ] Create `frontend/src/lib/components/ui/Alert.svelte`
+  - [ ] Variants: success, warning, error, info
+  - [ ] Dismissable option
+  - [ ] Icon support
+  - [ ] TypeScript props
+
+#### Layer 4: Component Index
+
+- [ ] Create `frontend/src/lib/components/ui/index.ts`
+  - [ ] Barrel export for all UI components
+  - [ ] Easy imports: `import { Button, Card } from '$lib/components/ui'`
+
+#### Layer 5: Theme Switcher
+
+- [ ] Create `frontend/src/lib/components/ThemeSwitcher.svelte`
+  - [ ] Dropdown with theme options (light, dark, ocean)
+  - [ ] Visual preview of each theme
+  - [ ] Keyboard navigation
+  - [ ] Current theme indicator
+
+#### Refactoring
+
+- [ ] Update `frontend/src/lib/components/CookieConsent.svelte`
+  - [ ] Replace inline classes with Button component
+  - [ ] Use design tokens for colors
+  - [ ] Use semantic color names (brand, accent)
+- [ ] Update `frontend/src/app.css`
+  - [ ] Add CSS custom properties for theming
+  - [ ] Remove hardcoded utility classes
+  - [ ] Add theme-specific base styles
+
+**Validation**:
+- [ ] All components render correctly
+- [ ] Dark mode works across all components
+- [ ] Theme switcher persists preference
+- [ ] CookieConsent uses new design system
+- [ ] TypeScript types enforce prop validation
+- [ ] Accessibility standards met (ARIA, keyboard navigation)
+
+**Tests**:
+Manual testing via browser + component screenshots
+
+---
+
 ### Day 44: API Client + State Management
 
 **Value**: Connect frontend to backend API

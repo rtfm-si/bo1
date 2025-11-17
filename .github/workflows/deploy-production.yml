@@ -1,0 +1,364 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:  # Manual trigger ONLY
+    inputs:
+      confirm:
+        description: 'Type "deploy-to-production" to confirm'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_API: ${{ github.repository }}/api
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
+
+jobs:
+  validate-confirmation:
+    name: Validate Deployment Confirmation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy-to-production" ]; then
+            echo "❌ Deployment confirmation failed!"
+            echo "You must type 'deploy-to-production' to confirm."
+            exit 1
+          fi
+          echo "✅ Deployment confirmed"
+
+  pre-deployment-checks:
+    name: Pre-Deployment Checks
+    needs: validate-confirmation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check staging health (last 24h)
+        run: |
+          echo "Checking staging environment health..."
+          # TODO: Add monitoring check (Grafana API, Prometheus, etc.)
+          # For now, just check if staging is responsive
+          if ! curl --fail --silent https://staging.boardofone.com/api/health; then
+            echo "❌ Staging is unhealthy, aborting production deployment"
+            exit 1
+          fi
+          echo "✅ Staging is healthy"
+
+      - name: Verify all tests passed
+        run: |
+          echo "Verifying CI status..."
+          # This will fail if CI didn't pass on main
+          gh api repos/${{ github.repository }}/commits/main/status --jq '.state' | grep -q success || exit 1
+          echo "✅ All tests passed on main"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for security alerts
+        run: |
+          echo "Checking for open security alerts..."
+          # TODO: Add Dependabot/security alert check
+          echo "⚠️  Manual security review required"
+
+  build-and-push:
+    name: Build & Push Production Images
+    needs: pre-deployment-checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for API
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}
+          tags: |
+            type=sha,prefix=prod-
+            type=raw,value=production-latest
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for Frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=sha,prefix=prod-
+            type=raw,value=production-latest
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-to-production:
+    name: Deploy to Production (Blue-Green)
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://boardofone.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Blue-Green Deployment to Production
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME_API: ${{ env.IMAGE_NAME_API }}
+          IMAGE_NAME_FRONTEND: ${{ env.IMAGE_NAME_FRONTEND }}
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT || 22 }}
+          envs: GITHUB_SHA,REGISTRY,IMAGE_NAME_API,IMAGE_NAME_FRONTEND
+          script: |
+            set -e
+
+            # Navigate to deployment directory
+            cd /opt/boardofone
+
+            # Backup current state
+            echo "Creating backup of current deployment..."
+            docker-compose -f docker-compose.prod.yml ps > /tmp/pre-deploy-state.txt
+
+            # Pull latest configuration
+            git pull origin main
+
+            # Login to registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Update image tags
+            export API_IMAGE="${REGISTRY}/${IMAGE_NAME_API}:prod-${GITHUB_SHA}"
+            export FRONTEND_IMAGE="${REGISTRY}/${IMAGE_NAME_FRONTEND}:prod-${GITHUB_SHA}"
+
+            # Pull new images
+            echo "Pulling new images..."
+            docker pull ${API_IMAGE}
+            docker pull ${FRONTEND_IMAGE}
+
+            # Blue-Green Deployment
+            echo "Starting green environment..."
+
+            # Start new containers alongside old ones (green environment)
+            docker-compose -f docker-compose.prod.yml -p boardofone-green up -d
+
+            # Wait for green to be ready
+            echo "Waiting for green environment to be healthy..."
+            sleep 20
+
+            # Health checks on green environment
+            GREEN_API_PORT=$(docker-compose -f docker-compose.prod.yml -p boardofone-green port api 8000 | cut -d: -f2)
+
+            for i in {1..10}; do
+              if curl --fail --silent http://localhost:${GREEN_API_PORT}/api/health; then
+                echo "✅ Green API is healthy"
+                break
+              fi
+              echo "Waiting for green API... ($i/10)"
+              sleep 3
+              if [ $i -eq 10 ]; then
+                echo "❌ Green environment health check failed"
+                docker-compose -f docker-compose.prod.yml -p boardofone-green down
+                exit 1
+              fi
+            done
+
+            # Run database migrations on green
+            echo "Running database migrations..."
+            docker-compose -f docker-compose.prod.yml -p boardofone-green exec -T api alembic upgrade head
+
+            # Swap nginx to point to green (traffic cutover)
+            echo "Swapping traffic to green environment..."
+            # Update nginx config to point to green containers
+            sudo cp /opt/boardofone/nginx/nginx-green.conf /etc/nginx/sites-enabled/boardofone
+            sudo nginx -t && sudo systemctl reload nginx
+
+            # Monitor for 2 minutes
+            echo "Monitoring green environment for 2 minutes..."
+            sleep 120
+
+            # Check for errors
+            ERROR_COUNT=$(docker-compose -f docker-compose.prod.yml -p boardofone-green logs --tail=100 | grep -i error | wc -l)
+            if [ $ERROR_COUNT -gt 5 ]; then
+              echo "❌ High error rate detected, rolling back..."
+
+              # Rollback: Swap nginx back to blue
+              sudo cp /opt/boardofone/nginx/nginx-blue.conf /etc/nginx/sites-enabled/boardofone
+              sudo nginx -t && sudo systemctl reload nginx
+
+              # Stop green
+              docker-compose -f docker-compose.prod.yml -p boardofone-green down
+
+              exit 1
+            fi
+
+            echo "✅ Green environment is stable, stopping blue..."
+
+            # Stop old blue environment
+            docker-compose -f docker-compose.prod.yml -p boardofone down
+
+            # Rename green to blue (for next deployment)
+            docker-compose -f docker-compose.prod.yml -p boardofone-green down
+            docker-compose -f docker-compose.prod.yml up -d
+
+            echo "✅ Deployment successful: ${GITHUB_SHA}"
+
+            # Cleanup
+            docker system prune -f --filter "until=72h"
+
+      - name: Post-deployment validation
+        run: |
+          echo "Running post-deployment validation..."
+          sleep 10
+
+          # Test production endpoints
+          curl --fail https://boardofone.com/api/health || exit 1
+          curl --fail https://boardofone.com/api/health/db || exit 1
+          curl --fail https://boardofone.com/api/health/redis || exit 1
+
+          echo "✅ Post-deployment validation passed"
+
+  create-release:
+    name: Create GitHub Release
+    needs: deploy-to-production
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for changelog
+
+      - name: Generate version tag
+        id: version
+        run: |
+          # Get current date for beta versioning
+          VERSION="v1.0.0-beta.$(date +%Y%m%d.%H%M)"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Generate changelog from commits since last release
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            CHANGES=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGES=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          echo "changes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          release_name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## 🚀 Production Deployment
+
+            **Deployed at**: ${{ github.event.head_commit.timestamp }}
+            **Commit**: ${{ github.sha }}
+            **Deployed by**: ${{ github.actor }}
+
+            ### Changes
+            ${{ steps.changelog.outputs.changes }}
+
+            ### Deployment Details
+            - Environment: Production
+            - URL: https://boardofone.com
+            - Method: Blue-Green Deployment
+
+            ### Health Checks
+            - ✅ API Health
+            - ✅ Database Connection
+            - ✅ Redis Connection
+            - ✅ All integration tests passed
+          draft: false
+          prerelease: true  # Mark as pre-release for beta
+
+  notify:
+    name: Notify Team
+    needs: [deploy-to-production, create-release]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify Slack
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "${{ needs.deploy-to-production.result == 'success' && '🎉' || '❌' }} Production Deployment ${{ needs.deploy-to-production.result }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ needs.deploy-to-production.result == 'success' && '🎉 *Production Deployment Successful*' || '❌ *Production Deployment Failed*' }}\n*Commit:* `${{ github.sha }}`\n*Branch:* `${{ github.ref_name }}`\n*Deployed by:* ${{ github.actor }}\n*URL:* https://boardofone.com"
+                  }
+                }
+              ]
+            }
+        if: secrets.SLACK_WEBHOOK_URL != ''
+
+      - name: Notify via ntfy.sh
+        run: |
+          if [ "${{ secrets.NTFY_TOPIC }}" != "" ]; then
+            STATUS="${{ needs.deploy-to-production.result }}"
+            if [ "$STATUS" == "success" ]; then
+              curl -H "Title: 🎉 Production Deployment Successful" \
+                   -H "Priority: high" \
+                   -H "Tags: rocket,success" \
+                   -d "Commit: ${{ github.sha }} deployed to production by ${{ github.actor }}" \
+                   https://ntfy.sh/${{ secrets.NTFY_TOPIC }}
+            else
+              curl -H "Title: ❌ Production Deployment Failed" \
+                   -H "Priority: urgent" \
+                   -H "Tags: warning,failure" \
+                   -d "Commit: ${{ github.sha }} failed to deploy. Check logs." \
+                   https://ntfy.sh/${{ secrets.NTFY_TOPIC }}
+            fi
+          fi

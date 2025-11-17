@@ -1,0 +1,204 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_API: ${{ github.repository }}/api
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for API
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}
+          tags: |
+            type=sha,prefix=staging-
+            type=raw,value=staging-latest
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for Frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=sha,prefix=staging-
+            type=raw,value=staging-latest
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-to-staging:
+    name: Deploy to Staging Server
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.boardofone.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to DigitalOcean Droplet
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME_API: ${{ env.IMAGE_NAME_API }}
+          IMAGE_NAME_FRONTEND: ${{ env.IMAGE_NAME_FRONTEND }}
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          port: ${{ secrets.STAGING_SSH_PORT || 22 }}
+          envs: GITHUB_SHA,REGISTRY,IMAGE_NAME_API,IMAGE_NAME_FRONTEND
+          script: |
+            # Navigate to deployment directory
+            cd /opt/boardofone
+
+            # Pull latest docker-compose configuration
+            git pull origin main
+
+            # Login to GitHub Container Registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Update image tags in docker-compose
+            export API_IMAGE="${REGISTRY}/${IMAGE_NAME_API}:staging-${GITHUB_SHA}"
+            export FRONTEND_IMAGE="${REGISTRY}/${IMAGE_NAME_FRONTEND}:staging-${GITHUB_SHA}"
+
+            # Pull new images
+            docker pull ${API_IMAGE}
+            docker pull ${FRONTEND_IMAGE}
+
+            # Blue-green deployment: Start new containers with temporary names
+            docker-compose -f docker-compose.prod.yml up -d --no-build
+
+            # Wait for services to be healthy
+            echo "Waiting for services to start..."
+            sleep 15
+
+            # Health checks
+            echo "Running health checks..."
+            if ! curl --fail --silent http://localhost:8000/api/health; then
+              echo "❌ API health check failed"
+              echo "Rolling back to previous version..."
+              docker-compose -f docker-compose.prod.yml down
+              docker-compose -f docker-compose.prod.yml up -d
+              exit 1
+            fi
+
+            if ! curl --fail --silent http://localhost:8000/api/health/db; then
+              echo "❌ Database health check failed"
+              echo "Rolling back to previous version..."
+              docker-compose -f docker-compose.prod.yml down
+              docker-compose -f docker-compose.prod.yml up -d
+              exit 1
+            fi
+
+            if ! curl --fail --silent http://localhost:8000/api/health/redis; then
+              echo "❌ Redis health check failed"
+              echo "Rolling back to previous version..."
+              docker-compose -f docker-compose.prod.yml down
+              docker-compose -f docker-compose.prod.yml up -d
+              exit 1
+            fi
+
+            echo "✅ All health checks passed"
+            echo "✅ Deployment successful: ${GITHUB_SHA}"
+
+            # Cleanup old images (keep last 3)
+            docker image prune -a -f --filter "until=72h"
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests against staging..."
+          sleep 5
+
+          # Test API endpoints
+          curl --fail https://staging.boardofone.com/api/health || exit 1
+          curl --fail https://staging.boardofone.com/api/health/db || exit 1
+          curl --fail https://staging.boardofone.com/api/health/redis || exit 1
+
+          echo "✅ Smoke tests passed"
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ Staging deployment successful!"
+          echo "Commit: ${{ github.sha }}"
+          echo "URL: https://staging.boardofone.com"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Staging deployment failed!"
+          echo "Commit: ${{ github.sha }}"
+          echo "Check logs for details"
+
+  notify-slack:
+    name: Notify Slack
+    needs: deploy-to-staging
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "${{ needs.deploy-to-staging.result == 'success' && '✅' || '❌' }} Staging Deployment ${{ needs.deploy-to-staging.result }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ needs.deploy-to-staging.result == 'success' && '✅ *Staging Deployment Successful*' || '❌ *Staging Deployment Failed*' }}\n*Commit:* `${{ github.sha }}`\n*Branch:* `${{ github.ref_name }}`\n*Author:* ${{ github.actor }}\n*URL:* https://staging.boardofone.com"
+                  }
+                }
+              ]
+            }
+        if: secrets.SLACK_WEBHOOK_URL != ''

@@ -115,3 +115,8 @@ postgres-data/
 
 # A/B testing
 ab_test_results/
+
+# Project docs
+zzz_important/
+zzz_project/
+*.md

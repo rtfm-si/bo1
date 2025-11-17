@@ -4,27 +4,103 @@ Provides CRUD operations for:
 - user_context: Persistent business context per user
 - session_clarifications: Expert clarification questions during deliberation
 - research_cache: External research results with semantic embeddings
+
+Uses connection pooling for improved performance and resource management.
 """
 
+from contextlib import contextmanager
 from datetime import datetime
+from functools import lru_cache
 from typing import Any
 
 import psycopg2
+from psycopg2 import pool
 from psycopg2.extras import Json, RealDictCursor
 
 from bo1.config import Settings
+
+# Global connection pool (initialized once)
+_connection_pool: pool.ThreadedConnectionPool | None = None
+
+
+@lru_cache(maxsize=1)
+def _get_settings() -> Settings:
+    """Get cached Settings instance.
+
+    Returns:
+        Settings instance (cached)
+    """
+    return Settings(
+        anthropic_api_key="dummy",  # Not needed for DB operations
+        voyage_api_key="dummy",  # Not needed for DB operations
+    )
+
+
+def get_connection_pool() -> pool.ThreadedConnectionPool:
+    """Get or create the global connection pool.
+
+    Returns:
+        ThreadedConnectionPool instance
+
+    Raises:
+        ValueError: If DATABASE_URL is not configured
+    """
+    global _connection_pool
+
+    if _connection_pool is None:
+        settings = _get_settings()
+
+        if not settings.database_url:
+            raise ValueError("DATABASE_URL environment variable is required")
+
+        # Create connection pool with min=1, max=20 connections
+        _connection_pool = pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=20,
+            dsn=settings.database_url,
+            cursor_factory=RealDictCursor,
+        )
+
+    return _connection_pool
+
+
+@contextmanager
+def db_session() -> Any:
+    """Context manager for database transactions.
+
+    Provides automatic connection pooling, commit/rollback, and cleanup.
+
+    Yields:
+        Database connection from pool
+
+    Examples:
+        >>> with db_session() as conn:
+        ...     with conn.cursor() as cur:
+        ...         cur.execute("SELECT * FROM user_context WHERE user_id = %s", (user_id,))
+        ...         result = cur.fetchone()
+    """
+    pool_instance = get_connection_pool()
+    conn = pool_instance.getconn()
+
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        pool_instance.putconn(conn)
 
 
 def get_connection() -> psycopg2.extensions.connection:
     """Get PostgreSQL database connection.
 
+    DEPRECATED: Use db_session() context manager instead for automatic cleanup.
+
     Returns:
         Database connection with RealDictCursor for dict-like rows
     """
-    settings = Settings(
-        anthropic_api_key="dummy",  # Not needed for DB operations
-        voyage_api_key="dummy",  # Not needed for DB operations
-    )
+    settings = _get_settings()
     return psycopg2.connect(
         settings.database_url,
         cursor_factory=RealDictCursor,
@@ -280,8 +356,11 @@ def find_cached_research(
                 params.append(industry)
 
             if max_age_days:
-                query += " AND research_date >= NOW() - INTERVAL '%s days'"
-                params.append(max_age_days)
+                # Validate max_age_days to prevent SQL injection
+                if not isinstance(max_age_days, int) or max_age_days < 0:
+                    raise ValueError("max_age_days must be a positive integer")
+                # Safe to use f-string since we validated it's an int
+                query += f" AND research_date >= NOW() - INTERVAL '{max_age_days} days'"
             else:
                 query += " AND research_date >= NOW() - (freshness_days || ' days')::interval"
 
@@ -499,11 +578,17 @@ def get_stale_research_cache_entries(days_old: int = 90) -> list[dict[str, Any]]
     Returns:
         List of stale cache entries with id, question, category, research_date
     """
+    # Validate days_old to prevent SQL injection
+    if not isinstance(days_old, int) or days_old < 0:
+        raise ValueError("days_old must be a positive integer")
+
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Safe to use f-string since we validated it's an int
+            # noqa: S608 - SQL injection prevented by integer validation above
             cur.execute(
-                """
+                f"""
                 SELECT
                     id::text,
                     question,
@@ -512,10 +597,9 @@ def get_stale_research_cache_entries(days_old: int = 90) -> list[dict[str, Any]]
                     research_date,
                     freshness_days
                 FROM research_cache
-                WHERE research_date < NOW() - INTERVAL '%s days'
+                WHERE research_date < NOW() - INTERVAL '{days_old} days'
                 ORDER BY research_date ASC
-                """,
-                (days_old,),
+                """  # noqa: S608
             )
             entries = [dict(row) for row in cur.fetchall()]
 

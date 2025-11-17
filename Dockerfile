@@ -64,6 +64,7 @@ RUN uv pip install -e .[dev]
 
 # Copy source code (will be overridden by volume mount in docker-compose)
 COPY bo1/ ./bo1/
+COPY backend/ ./backend/
 COPY zzz_important/ ./zzz_important/
 COPY alembic.ini ./
 COPY migrations/ ./migrations/
@@ -87,6 +88,7 @@ WORKDIR /app
 
 # Copy only application code (not dev files)
 COPY bo1/ ./bo1/
+COPY backend/ ./backend/
 COPY zzz_important/ ./zzz_important/
 COPY alembic.ini ./
 COPY migrations/ ./migrations/
@@ -116,6 +118,7 @@ WORKDIR /app
 
 # Copy test files
 COPY tests/ ./tests/
+COPY backend/ ./backend/
 
 # Run tests
 CMD ["pytest", "-v", "--tb=short"]

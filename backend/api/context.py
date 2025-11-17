@@ -13,6 +13,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.api.utils.validation import validate_user_id
 from bo1.state.postgres_manager import (
     delete_user_context,
     load_user_context,
@@ -146,7 +147,10 @@ def _get_user_id_from_header() -> str:
     """
     # TODO(Week 7): Extract from JWT token
     # For now, use a test user ID
-    return "test_user_1"
+    user_id = "test_user_1"
+
+    # Validate user ID format (prevents injection even with hardcoded value)
+    return validate_user_id(user_id)
 
 
 @router.get(

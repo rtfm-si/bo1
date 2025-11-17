@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
+from backend.api.dependencies import get_redis_manager
 from backend.api.models import (
     CreateSessionRequest,
     ErrorResponse,
@@ -18,35 +19,12 @@ from backend.api.models import (
     SessionListResponse,
     SessionResponse,
 )
-from bo1.state.redis_manager import RedisManager
+from backend.api.utils.text import truncate_text
+from backend.api.utils.validation import validate_session_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
-
-
-def _create_redis_manager() -> RedisManager:
-    """Create Redis manager instance.
-
-    Returns:
-        RedisManager instance
-    """
-    return RedisManager()
-
-
-def _truncate_text(text: str, max_length: int = 100) -> str:
-    """Truncate text to max length.
-
-    Args:
-        text: Text to truncate
-        max_length: Maximum length
-
-    Returns:
-        Truncated text with ellipsis if needed
-    """
-    if len(text) <= max_length:
-        return text
-    return text[: max_length - 3] + "..."
 
 
 @router.post(
@@ -85,7 +63,7 @@ async def create_session(request: CreateSessionRequest) -> SessionResponse:
     """
     try:
         # Create Redis manager
-        redis_manager = _create_redis_manager()
+        redis_manager = get_redis_manager()
 
         if not redis_manager.is_available:
             raise HTTPException(
@@ -123,7 +101,7 @@ async def create_session(request: CreateSessionRequest) -> SessionResponse:
             phase=None,
             created_at=now,
             updated_at=now,
-            problem_statement=_truncate_text(request.problem_statement),
+            problem_statement=truncate_text(request.problem_statement),
             cost=None,
         )
 
@@ -175,7 +153,7 @@ async def list_sessions(
     """
     try:
         # Create Redis manager
-        redis_manager = _create_redis_manager()
+        redis_manager = get_redis_manager()
 
         if not redis_manager.is_available:
             # Return empty list if Redis is unavailable
@@ -215,7 +193,7 @@ async def list_sessions(
                 phase=metadata.get("phase"),
                 created_at=created_at,
                 updated_at=updated_at,
-                problem_statement=_truncate_text(
+                problem_statement=truncate_text(
                     metadata.get("problem_statement", "Unknown problem")
                 ),
                 cost=metadata.get("cost"),
@@ -277,8 +255,11 @@ async def get_session(session_id: str) -> SessionDetailResponse:
         HTTPException: If session not found or retrieval fails
     """
     try:
+        # Validate session ID format
+        session_id = validate_session_id(session_id)
+
         # Create Redis manager
-        redis_manager = _create_redis_manager()
+        redis_manager = get_redis_manager()
 
         if not redis_manager.is_available:
             raise HTTPException(

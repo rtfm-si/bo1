@@ -13,40 +13,14 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from backend.api.dependencies import get_redis_manager, get_session_manager
 from backend.api.middleware.admin import require_admin
 from backend.api.models import ControlResponse, ErrorResponse
-from bo1.graph.execution import SessionManager
-from bo1.state.redis_manager import RedisManager
+from backend.api.utils.validation import validate_session_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-# Global session manager (initialized on first use)
-_session_manager: SessionManager | None = None
-
-
-def _get_session_manager() -> SessionManager:
-    """Get or create the global session manager.
-
-    Returns:
-        SessionManager instance
-    """
-    global _session_manager
-    if _session_manager is None:
-        redis_manager = RedisManager()
-        # For admin endpoints, we use a special admin user ID
-        _session_manager = SessionManager(redis_manager, admin_user_ids={"admin"})
-    return _session_manager
-
-
-def _create_redis_manager() -> RedisManager:
-    """Create Redis manager instance.
-
-    Returns:
-        RedisManager instance
-    """
-    return RedisManager()
 
 
 class ActiveSessionInfo(BaseModel):
@@ -217,8 +191,8 @@ async def list_active_sessions(
         HTTPException: If retrieval fails
     """
     try:
-        session_manager = _get_session_manager()
-        redis_manager = _create_redis_manager()
+        session_manager = get_session_manager()
+        redis_manager = get_redis_manager()
 
         # Get all active session IDs
         active_session_ids = list(session_manager.active_executions.keys())
@@ -308,8 +282,11 @@ async def get_full_session(
         HTTPException: If session not found or retrieval fails
     """
     try:
-        session_manager = _get_session_manager()
-        redis_manager = _create_redis_manager()
+        # Validate session ID format
+        session_id = validate_session_id(session_id)
+
+        session_manager = get_session_manager()
+        redis_manager = get_redis_manager()
 
         # Load metadata
         metadata = redis_manager.load_metadata(session_id)
@@ -376,7 +353,9 @@ async def admin_kill_session(
         HTTPException: If session not found or kill fails
     """
     try:
-        session_manager = _get_session_manager()
+        # Validate session ID format
+        session_id = validate_session_id(session_id)
+        session_manager = get_session_manager()
 
         # Admin kill (no ownership check)
         killed = await session_manager.admin_kill_session(session_id, "admin", reason)
@@ -446,7 +425,7 @@ async def admin_kill_all_sessions(
                 detail="Must set confirm=true to kill all sessions",
             )
 
-        session_manager = _get_session_manager()
+        session_manager = get_session_manager()
 
         # Admin kill all
         killed_count = await session_manager.admin_kill_all_sessions("admin", reason)

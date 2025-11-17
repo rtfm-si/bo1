@@ -48,7 +48,8 @@ def require_admin(x_admin_key: str = Header(...)) -> str:
         )
 
     if x_admin_key != ADMIN_API_KEY:
-        logger.warning(f"Invalid admin API key attempted: {x_admin_key[:8]}...")
+        # Security: Don't log the actual API key, even partially
+        logger.warning("Invalid admin API key attempted")
         raise HTTPException(
             status_code=403,
             detail="Invalid admin API key",

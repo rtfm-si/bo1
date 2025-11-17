@@ -102,6 +102,7 @@ services:
     volumes:
       # Mount source code for hot reload (development)
       - ./bo1:/app/bo1
+      - ./backend:/app/backend
       - ./zzz_important:/app/zzz_important
       - ./zzz_project:/app/zzz_project
 

@@ -11,26 +11,18 @@ from collections.abc import AsyncGenerator
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from backend.api.dependencies import get_redis_manager
 from backend.api.events import (
     complete_event,
     error_event,
     node_end_event,
     node_start_event,
 )
-from bo1.state.redis_manager import RedisManager
+from backend.api.utils.validation import validate_session_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/sessions", tags=["streaming"])
-
-
-def _create_redis_manager() -> RedisManager:
-    """Create Redis manager instance.
-
-    Returns:
-        RedisManager instance
-    """
-    return RedisManager()
 
 
 async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
@@ -55,7 +47,7 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
         yield node_start_event("stream_connected", session_id)
 
         # Poll for state updates
-        redis_manager = _create_redis_manager()
+        redis_manager = get_redis_manager()
 
         # In a real implementation, we would:
         # 1. Use graph.astream_events() to get real-time events
@@ -153,8 +145,11 @@ async def stream_deliberation(session_id: str) -> StreamingResponse:
         HTTPException: If session not found
     """
     try:
+        # Validate session ID format
+        session_id = validate_session_id(session_id)
+
         # Verify session exists
-        redis_manager = _create_redis_manager()
+        redis_manager = get_redis_manager()
 
         if not redis_manager.is_available:
             raise HTTPException(

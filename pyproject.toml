@@ -112,7 +112,7 @@ ignore_missing_imports = true
 minversion = "8.0"
 addopts = "-ra -q --strict-markers --cov=bo1 --cov-report=term-missing"
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "backend"]
 asyncio_mode = "auto"
 
 [tool.coverage.run]

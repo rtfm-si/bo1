@@ -126,7 +126,7 @@ services:
   # Supabase GoTrue: Self-hosted OAuth authentication server
   # ---------------------------------------------------------------------------
   supabase-auth:
-    image: supabase/gotrue:latest
+    image: supabase/gotrue:v2.158.1
     container_name: bo1-supabase-auth
     depends_on:
       postgres:

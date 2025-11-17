@@ -40,9 +40,8 @@ ENV/
 *~
 .DS_Store
 
-# Environment variables
-.env
-.env.local
+# Environment variables (git-crypt encrypted files are tracked)
+# .env files are now encrypted with git-crypt and tracked in git
 .env.*.local
 
 # Logs
@@ -118,3 +117,8 @@ postgres-data/
 
 # A/B testing results
 ab_test_results/
+
+# Project docs
+zzz_important/
+zzz_project/
+*.md

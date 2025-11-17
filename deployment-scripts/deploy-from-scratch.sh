@@ -66,9 +66,10 @@ if ! ssh -o ConnectTimeout=5 -o BatchMode=yes root@"$SERVER_IP" exit 2>/dev/null
 fi
 echo -e "${GREEN}✓ SSH connection successful${NC}"
 
-# Check if git-crypt is unlocked locally
-if ! git-crypt status | grep -q "encrypted"; then
+# Check if git-crypt is unlocked locally (files should show as "encrypted" when unlocked)
+if git-crypt status .env 2>&1 | grep -q "not encrypted"; then
     echo -e "${RED}✗ Repository not unlocked with git-crypt${NC}"
+    echo "  .env file is not managed by git-crypt or repository is locked"
     echo "  Run: git-crypt unlock ~/bo1-git-crypt.key"
     exit 1
 fi

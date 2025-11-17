@@ -118,7 +118,11 @@ postgres-data/
 # A/B testing results
 ab_test_results/
 
-# Project docs
+# Project docs (exclude from git)
 zzz_important/
 zzz_project/
+
+# Markdown files (exclude all except README.md in root)
 *.md
+!README.md
+!/*/README.md

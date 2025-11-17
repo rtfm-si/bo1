@@ -39,7 +39,7 @@ jobs:
           echo "Checking staging environment health..."
           # TODO: Add monitoring check (Grafana API, Prometheus, etc.)
           # For now, just check if staging is responsive
-          if ! curl --fail --silent https://staging.boardofone.com/api/health; then
+          if ! curl --fail --silent https://staging.boardof.one/api/health; then
             echo "❌ Staging is unhealthy, aborting production deployment"
             exit 1
           fi
@@ -131,7 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://boardofone.com
+      url: https://boardof.one
 
     steps:
       - uses: actions/checkout@v4
@@ -250,9 +250,9 @@ jobs:
           sleep 10
 
           # Test production endpoints
-          curl --fail https://boardofone.com/api/health || exit 1
-          curl --fail https://boardofone.com/api/health/db || exit 1
-          curl --fail https://boardofone.com/api/health/redis || exit 1
+          curl --fail https://boardof.one/api/health || exit 1
+          curl --fail https://boardof.one/api/health/db || exit 1
+          curl --fail https://boardof.one/api/health/redis || exit 1
 
           echo "✅ Post-deployment validation passed"
 
@@ -308,7 +308,7 @@ jobs:
 
             ### Deployment Details
             - Environment: Production
-            - URL: https://boardofone.com
+            - URL: https://boardof.one
             - Method: Blue-Green Deployment
 
             ### Health Checks
@@ -337,7 +337,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "${{ needs.deploy-to-production.result == 'success' && '🎉 *Production Deployment Successful*' || '❌ *Production Deployment Failed*' }}\n*Commit:* `${{ github.sha }}`\n*Branch:* `${{ github.ref_name }}`\n*Deployed by:* ${{ github.actor }}\n*URL:* https://boardofone.com"
+                    "text": "${{ needs.deploy-to-production.result == 'success' && '🎉 *Production Deployment Successful*' || '❌ *Production Deployment Failed*' }}\n*Commit:* `${{ github.sha }}`\n*Branch:* `${{ github.ref_name }}`\n*Deployed by:* ${{ github.actor }}\n*URL:* https://boardof.one"
                   }
                 }
               ]

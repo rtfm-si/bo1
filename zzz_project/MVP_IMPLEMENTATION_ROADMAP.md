@@ -1625,7 +1625,7 @@ curl http://localhost:8000/api/health
   ```
 - [x] Create `supabase/config/auth.yml`
   - [x] JWT secret (generate with `openssl rand -base64 32`)
-  - [x] Site URL (http://localhost:3000 dev, https://boardofone.com prod)
+  - [x] Site URL (http://localhost:3000 dev, https://boardof.one prod)
   - [x] Redirect URLs (callback, error)
   - [x] Email templates (confirmation, password reset)
   - [x] Rate limits (signups, logins, password resets)
@@ -1718,9 +1718,9 @@ curl http://localhost:8000/api/health
 
 **Production Deployment** (Deferred to v2.0):
 - [ ] Update redirect URLs for production domain
-  - [ ] Google: https://auth.boardofone.com/callback
-  - [ ] LinkedIn: https://auth.boardofone.com/callback
-  - [ ] GitHub: https://auth.boardofone.com/callback
+  - [ ] Google: https://auth.boardof.one/callback
+  - [ ] LinkedIn: https://auth.boardof.one/callback
+  - [ ] GitHub: https://auth.boardof.one/callback
 - [ ] Use production JWT secret (store in secrets manager)
 - [ ] Enable email confirmation (require verified email)
 - [ ] Configure email provider (SMTP via Resend)
@@ -3893,7 +3893,7 @@ pytest tests/integration/test_stripe_webhooks_integration.py -v
 #### Resend Account Setup
 
 - [ ] Create Resend account at resend.com
-  - [ ] Verify domain (boardofone.com)
+  - [ ] Verify domain (boardof.one)
   - [ ] Add DNS records:
     - [ ] TXT: resend._domainkey (DKIM)
     - [ ] TXT: SPF record
@@ -3905,9 +3905,9 @@ pytest tests/integration/test_stripe_webhooks_integration.py -v
 - [ ] Add Resend variables to `.env`
   ```bash
   RESEND_API_KEY=re_xxx
-  RESEND_FROM_EMAIL=noreply@boardofone.com
+  RESEND_FROM_EMAIL=noreply@boardof.one
   RESEND_FROM_NAME="Board of One"
-  RESEND_REPLY_TO=support@boardofone.com
+  RESEND_REPLY_TO=support@boardof.one
   ```
 
 #### Email Service
@@ -5044,7 +5044,7 @@ curl -X POST http://localhost:8000/admin/test-alert
   - [ ] Add `role` field to `users` table
     ```sql
     ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';
-    UPDATE users SET role = 'admin' WHERE email = 'admin@boardofone.com';
+    UPDATE users SET role = 'admin' WHERE email = 'admin@boardof.one';
     ```
 
 #### Admin API Client
@@ -5769,7 +5769,7 @@ Manual testing
 #### Unsubscribe Link
 
 - [ ] Add unsubscribe link to all emails
-  - [ ] Link: `https://app.boardofone.com/unsubscribe?token={token}`
+  - [ ] Link: `https://app.boardof.one/unsubscribe?token={token}`
   - [ ] Token: JWT with user_id + email_type
   - [ ] On click: Disable that email type for user
   - [ ] Show confirmation page
@@ -6262,7 +6262,7 @@ npx playwright test tests/e2e/user_flows.spec.ts
 #### Privacy Policy & Terms of Service (GDPR Art. 13-14)
 - [ ] Draft privacy policy covering:
   - [ ] Identity of data controller (Board of One, Inc.)
-  - [ ] Contact details (support@boardofone.com)
+  - [ ] Contact details (support@boardof.one)
   - [ ] Purposes of processing (provide deliberation service)
   - [ ] Legal basis (contract performance, consent, legitimate interest)
   - [ ] Data retention periods (365 days default)
@@ -6322,7 +6322,7 @@ npx playwright test tests/e2e/user_flows.spec.ts
 - [ ] Test: Create tag v0.1.0, verify production deployment
 
 #### DNS & SSL Setup
-- [ ] Purchase boardofone.com (Namecheap or Cloudflare Registrar)
+- [ ] Purchase boardof.one (Namecheap or Cloudflare Registrar)
 - [ ] Configure DNS records:
   ```
   A      @                → DigitalOcean IP (after deployment)
@@ -6330,9 +6330,9 @@ npx playwright test tests/e2e/user_flows.spec.ts
   CNAME  api              → @
   TXT    @                → SPF: v=spf1 include:resend.com ~all
   TXT    resend._domainkey → [DKIM from Resend]
-  TXT    _dmarc           → v=DMARC1; p=none; rua=mailto:security@boardofone.com
+  TXT    _dmarc           → v=DMARC1; p=none; rua=mailto:security@boardof.one
   ```
-- [ ] Verify DNS propagation: `dig boardofone.com`
+- [ ] Verify DNS propagation: `dig boardof.one`
 - [ ] Setup Let's Encrypt (auto-provisioned by DigitalOcean App Platform)
 - [ ] Test HTTPS redirect
 
@@ -6360,7 +6360,7 @@ npx playwright test tests/e2e/user_flows.spec.ts
 - [ ] Monitor /api/health/db (database health)
 - [ ] Monitor /api/health/redis (Redis health)
 - [ ] Configure alerts:
-  - [ ] Email: team@boardofone.com
+  - [ ] Email: team@boardof.one
   - [ ] SMS: [optional]
   - [ ] Slack webhook: [optional]
 - [ ] Target: 99.9% uptime (8.7 hours/year downtime allowed)
@@ -6547,7 +6547,7 @@ pytest tests/test_security.py -v
 - [ ] Run smoke tests against green environment
   ```bash
   # Test green environment health
-  curl https://green.boardofone.com/health
+  curl https://green.boardof.one/health
 
   # Run integration tests
   pytest tests/test_green_environment.py --env=green
@@ -6694,14 +6694,14 @@ pytest tests/test_security.py -v
 
 - [ ] Point domain to DigitalOcean
   - [ ] Add A records:
-    - [ ] `app.boardofone.com` → Load balancer IP
-    - [ ] `api.boardofone.com` → Load balancer IP
+    - [ ] `app.boardof.one` → Load balancer IP
+    - [ ] `api.boardof.one` → Load balancer IP
   - [ ] Add CNAME records:
-    - [ ] `www.boardofone.com` → `app.boardofone.com`
+    - [ ] `www.boardof.one` → `app.boardof.one`
 - [ ] Configure SSL (Let's Encrypt via Traefik)
   - [ ] Add cert-manager to Kubernetes
   - [ ] Configure Let's Encrypt issuer
-  - [ ] Request wildcard cert (`*.boardofone.com`)
+  - [ ] Request wildcard cert (`*.boardof.one`)
 
 #### Testing
 
@@ -6719,7 +6719,7 @@ pytest tests/test_security.py -v
   ```
 - [ ] Test: DNS resolves
   ```bash
-  nslookup app.boardofone.com
+  nslookup app.boardof.one
   ```
 
 **Validation**:
@@ -6945,7 +6945,7 @@ Manual verification + test checkout
 
 - [ ] Test: Security headers present
   ```bash
-  curl -I https://app.boardofone.com
+  curl -I https://app.boardof.one
   ```
   - [ ] Verify HSTS header
   - [ ] Verify CSP header
@@ -7005,7 +7005,7 @@ Manual security testing
 #### Testing
 
 - [ ] Test: Landing page loads
-  - [ ] Visit https://app.boardofone.com
+  - [ ] Visit https://app.boardof.one
   - [ ] Verify content correct
   - [ ] Verify CTA works (signup)
 - [ ] Test: Demo video works
@@ -7058,7 +7058,7 @@ Manual testing
   - [ ] Watch for cost spikes
   - [ ] Watch for system errors
 - [ ] Monitor support requests
-  - [ ] Check support email (support@boardofone.com)
+  - [ ] Check support email (support@boardof.one)
   - [ ] Respond within 4 hours (SLA for launch day)
 
 #### Celebrate
@@ -7095,7 +7095,7 @@ Live production monitoring
     - Anthropic API key
     - GitHub repository (admin)
     - Domain registrar (Namecheap/Cloudflare)
-    - Email admin (support@boardofone.com)
+    - Email admin (support@boardof.one)
   - Share vault with trusted person (family member, co-founder, or lawyer)
 - [ ] Document emergency contact list
   ```markdown
@@ -7111,7 +7111,7 @@ Live production monitoring
   - Account email: [email]
   - Support: support@digitalocean.com
 
-  **Users**: Can contact support@boardofone.com
+  **Users**: Can contact support@boardof.one
   - Auto-responder: "Service may be delayed due to emergency"
 
   **Revenue**: Stripe continues to charge subscriptions

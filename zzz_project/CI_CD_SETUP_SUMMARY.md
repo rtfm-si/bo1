@@ -41,9 +41,9 @@
 ```bash
 # In your domain registrar:
 # Add A records pointing to droplet IP:
-#   boardofone.com → YOUR_DROPLET_IP
-#   www.boardofone.com → YOUR_DROPLET_IP
-#   staging.boardofone.com → YOUR_DROPLET_IP
+#   boardof.one → YOUR_DROPLET_IP
+#   www.boardof.one → YOUR_DROPLET_IP
+#   staging.boardof.one → YOUR_DROPLET_IP
 ```
 
 ### 3. Run Setup Script (10 minutes)
@@ -65,15 +65,15 @@ nano .env.production
 # - POSTGRES_PASSWORD (generate: openssl rand -base64 32)
 # - ADMIN_API_KEY (generate: openssl rand -base64 32)
 # - ANTHROPIC_API_KEY (from console.anthropic.com)
-# - CORS_ORIGINS=https://boardofone.com
+# - CORS_ORIGINS=https://boardof.one
 
 cp .env.production .env
 ```
 
 ### 5. Setup SSL (3 minutes)
 ```bash
-# Wait for DNS propagation first (nslookup boardofone.com)
-certbot --nginx -d boardofone.com -d www.boardofone.com -d staging.boardofone.com
+# Wait for DNS propagation first (nslookup boardof.one)
+certbot --nginx -d boardof.one -d www.boardof.one -d staging.boardof.one
 
 # Follow prompts, select redirect HTTP to HTTPS
 ```
@@ -278,7 +278,7 @@ git merge test-ci
 git push origin main
 
 # Check GitHub Actions → Deploy to Staging
-# Should deploy to staging.boardofone.com
+# Should deploy to staging.boardof.one
 ```
 
 ### Test Production Deployment

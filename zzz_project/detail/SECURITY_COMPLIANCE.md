@@ -408,7 +408,7 @@ User Browser
 // Supabase Dashboard → Authentication → Settings
 {
   "DISABLE_SIGNUP": false, // Allow new signups
-  "SITE_URL": "https://app.boardofone.com",
+  "SITE_URL": "https://app.boardof.one",
   "EXTERNAL_EMAIL_ENABLED": true,
   "MAILER_AUTOCONFIRM": false, // Require email confirmation
   "SECURITY_CAPTCHA_ENABLED": true, // Prevent bot signups (hCaptcha)
@@ -648,7 +648,7 @@ export const GET = async ({ request }) => {
 
 **Certificate Management**:
 - Automatic renewal via Let's Encrypt (Traefik ACME)
-- Wildcard certificate for subdomains (*.boardofone.com)
+- Wildcard certificate for subdomains (*.boardof.one)
 - HSTS header: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
 
 ### 7.2 Encryption at Rest
@@ -805,8 +805,8 @@ const result = await db.query(`SELECT * FROM users WHERE email = '${email}'`);
 ```typescript
 // src/hooks.server.ts
 const allowedOrigins = [
-  'https://app.boardofone.com',
-  'https://www.boardofone.com'
+  'https://app.boardof.one',
+  'https://www.boardof.one'
 ];
 
 export const handle = async ({ event, resolve }) => {
@@ -832,7 +832,7 @@ export const handle = async ({ event, resolve }) => {
 // Allow localhost in dev
 const allowedOrigins = process.env.NODE_ENV === 'development'
   ? ['http://localhost:5173', 'http://localhost:3000']
-  : ['https://app.boardofone.com'];
+  : ['https://app.boardof.one'];
 ```
 
 ### 8.4 CSRF Protection
@@ -982,7 +982,7 @@ What You Should Do:
 
 We sincerely apologize for this incident and are committed to protecting your data.
 
-For more information, visit: https://boardofone.com/security-incident
+For more information, visit: https://boardof.one/security-incident
 
 Sincerely,
 Board of One Security Team
@@ -991,11 +991,11 @@ Board of One Security Team
 ### 10.3 Contact Information
 
 **Data Protection Officer** (DPO):
-- Email: dpo@boardofone.com
+- Email: dpo@boardof.one
 - Required for GDPR if >250 employees OR high-risk processing
 
 **Security Team**:
-- Email: security@boardofone.com
+- Email: security@boardof.one
 - Responsible disclosure: Acknowledge within 24h, remediate within 90 days
 
 **Supervisory Authority** (GDPR):

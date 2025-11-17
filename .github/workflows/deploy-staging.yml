@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: staging
-      url: https://staging.boardofone.com
+      url: https://staging.boardof.one
 
     steps:
       - uses: actions/checkout@v4
@@ -158,9 +158,9 @@ jobs:
           sleep 5
 
           # Test API endpoints
-          curl --fail https://staging.boardofone.com/api/health || exit 1
-          curl --fail https://staging.boardofone.com/api/health/db || exit 1
-          curl --fail https://staging.boardofone.com/api/health/redis || exit 1
+          curl --fail https://staging.boardof.one/api/health || exit 1
+          curl --fail https://staging.boardof.one/api/health/db || exit 1
+          curl --fail https://staging.boardof.one/api/health/redis || exit 1
 
           echo "✅ Smoke tests passed"
 
@@ -169,7 +169,7 @@ jobs:
         run: |
           echo "✅ Staging deployment successful!"
           echo "Commit: ${{ github.sha }}"
-          echo "URL: https://staging.boardofone.com"
+          echo "URL: https://staging.boardof.one"
 
       - name: Notify on failure
         if: failure()
@@ -196,7 +196,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "${{ needs.deploy-to-staging.result == 'success' && '✅ *Staging Deployment Successful*' || '❌ *Staging Deployment Failed*' }}\n*Commit:* `${{ github.sha }}`\n*Branch:* `${{ github.ref_name }}`\n*Author:* ${{ github.actor }}\n*URL:* https://staging.boardofone.com"
+                    "text": "${{ needs.deploy-to-staging.result == 'success' && '✅ *Staging Deployment Successful*' || '❌ *Staging Deployment Failed*' }}\n*Commit:* `${{ github.sha }}`\n*Branch:* `${{ github.ref_name }}`\n*Author:* ${{ github.actor }}\n*URL:* https://staging.boardof.one"
                   }
                 }
               ]

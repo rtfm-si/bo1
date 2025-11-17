@@ -159,11 +159,11 @@ Redis (Upstash or Render Redis)
 **1. Account Setup**:
 ```bash
 # Sign up at resend.com
-# Verify domain (boardofone.com)
+# Verify domain (boardof.one)
 # Add DNS records:
-#   TXT: resend._domainkey.boardofone.com (DKIM)
-#   TXT: boardofone.com (SPF: v=spf1 include:resend.com ~all)
-#   TXT: _dmarc.boardofone.com (DMARC: v=DMARC1; p=none)
+#   TXT: resend._domainkey.boardof.one (DKIM)
+#   TXT: boardof.one (SPF: v=spf1 include:resend.com ~all)
+#   TXT: _dmarc.boardof.one (DMARC: v=DMARC1; p=none)
 # Get API key
 ```
 
@@ -171,9 +171,9 @@ Redis (Upstash or Render Redis)
 ```bash
 # .env
 RESEND_API_KEY=re_abc123...
-RESEND_FROM_EMAIL=noreply@boardofone.com
+RESEND_FROM_EMAIL=noreply@boardof.one
 RESEND_FROM_NAME="Board of One"
-RESEND_REPLY_TO=support@boardofone.com
+RESEND_REPLY_TO=support@boardof.one
 ```
 
 **3. Python SDK Installation**:
@@ -193,9 +193,9 @@ resend.api_key = os.getenv("RESEND_API_KEY")
 class EmailService:
     """Transactional email service using Resend."""
 
-    FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "noreply@boardofone.com")
+    FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "noreply@boardof.one")
     FROM_NAME = os.getenv("RESEND_FROM_NAME", "Board of One")
-    REPLY_TO = os.getenv("RESEND_REPLY_TO", "support@boardofone.com")
+    REPLY_TO = os.getenv("RESEND_REPLY_TO", "support@boardof.one")
 
     @staticmethod
     async def send_email(
@@ -290,13 +290,13 @@ export const WelcomeEmail = ({ userEmail, userName }: WelcomeEmailProps) => (
           <li>💾 Session history & exports</li>
         </ul>
         <Text style={text}>
-          <Link href="https://boardofone.com/new-session" style={link}>
+          <Link href="https://boardof.one/new-session" style={link}>
             Start your first deliberation →
           </Link>
         </Text>
         <Text style={footer}>
           Questions? Reply to this email or visit our{' '}
-          <Link href="https://boardofone.com/help">Help Center</Link>.
+          <Link href="https://boardof.one/help">Help Center</Link>.
         </Text>
       </Container>
     </Body>
@@ -353,14 +353,14 @@ class EmailTemplates:
                     <li>💾 Session history & exports</li>
                 </ul>
                 <p style="color: #333; font-size: 16px; line-height: 26px;">
-                    <a href="https://boardofone.com/new-session"
+                    <a href="https://boardof.one/new-session"
                        style="color: #5469d4; text-decoration: underline;">
                         Start your first deliberation →
                     </a>
                 </p>
                 <p style="color: #8898aa; font-size: 12px; margin-top: 32px;">
                     Questions? Reply to this email or visit our
-                    <a href="https://boardofone.com/help" style="color: #5469d4;">Help Center</a>.
+                    <a href="https://boardof.one/help" style="color: #5469d4;">Help Center</a>.
                 </p>
             </div>
         </body>
@@ -401,7 +401,7 @@ class EmailTemplates:
                     {summary[:300]}...
                 </p>
                 <p style="color: #333; font-size: 16px; line-height: 26px;">
-                    <a href="https://boardofone.com/sessions/{session_id}"
+                    <a href="https://boardof.one/sessions/{session_id}"
                        style="display: inline-block; background: #5469d4; color: white;
                               padding: 12px 24px; text-decoration: none; border-radius: 4px;">
                         View Full Results →
@@ -409,7 +409,7 @@ class EmailTemplates:
                 </p>
                 <p style="color: #8898aa; font-size: 12px; margin-top: 32px;">
                     Want to share your insights?
-                    <a href="https://boardofone.com/sessions/{session_id}/share"
+                    <a href="https://boardof.one/sessions/{session_id}/share"
                        style="color: #5469d4;">Share this deliberation</a>
                 </p>
             </div>
@@ -647,17 +647,17 @@ async def handle_deliberation_complete(session_id: str):
 
 ### 5.2 Domain & SSL
 
-**Domain**: boardofone.com (purchase via Namecheap or Cloudflare)
+**Domain**: boardof.one (purchase via Namecheap or Cloudflare)
 - Cost: $10-15/year
 
 **DNS Records**:
 ```
-A      boardofone.com          → Render/Railway IP
-CNAME  www.boardofone.com      → boardofone.com
-CNAME  api.boardofone.com      → boardofone.com
-TXT    boardofone.com          → SPF: v=spf1 include:resend.com ~all
+A      boardof.one          → Render/Railway IP
+CNAME  www.boardof.one      → boardof.one
+CNAME  api.boardof.one      → boardof.one
+TXT    boardof.one          → SPF: v=spf1 include:resend.com ~all
 TXT    resend._domainkey...    → DKIM (from Resend)
-TXT    _dmarc.boardofone.com   → DMARC: v=DMARC1; p=none; rua=mailto:...
+TXT    _dmarc.boardof.one   → DMARC: v=DMARC1; p=none; rua=mailto:...
 ```
 
 **SSL**: Auto-provisioned by Render/Railway (Let's Encrypt)
@@ -670,7 +670,7 @@ TXT    _dmarc.boardofone.com   → DMARC: v=DMARC1; p=none; rua=mailto:...
 ENVIRONMENT=production
 LOG_LEVEL=info
 SECRET_KEY=<random-256-bit-key>
-ALLOWED_ORIGINS=https://boardofone.com,https://www.boardofone.com
+ALLOWED_ORIGINS=https://boardof.one,https://www.boardof.one
 
 # Database
 DATABASE_URL=postgresql://user:pass@db.supabase.co:5432/postgres
@@ -692,9 +692,9 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 
 # Resend (NEW)
 RESEND_API_KEY=re_...
-RESEND_FROM_EMAIL=noreply@boardofone.com
+RESEND_FROM_EMAIL=noreply@boardof.one
 RESEND_FROM_NAME="Board of One"
-RESEND_REPLY_TO=support@boardofone.com
+RESEND_REPLY_TO=support@boardof.one
 
 # ntfy.sh (Admin Notifications)
 NTFY_SERVER=https://ntfy.sh

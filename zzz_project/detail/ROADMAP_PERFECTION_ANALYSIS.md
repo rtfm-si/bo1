@@ -471,7 +471,7 @@ The MVP Implementation Roadmap is **exceptional** at 9/10. It demonstrates produ
      - **Redis**: Separate instance (staging)
      - **Stripe**: Test mode (NOT live)
      - **Anthropic**: Same API key (but track costs separately)
-     - **Domain**: `staging.boardofone.com`
+     - **Domain**: `staging.boardof.one`
    - Purpose: Final testing before production deployment
    - Deploy every PR merge to staging automatically (CI/CD)
    - Document in: `docs/ENVIRONMENTS.md`
@@ -629,7 +629,7 @@ The MVP Implementation Roadmap is **exceptional** at 9/10. It demonstrates produ
    - Document in: `frontend/docs/TOOLTIPS.md`
 
 3. **Support Email Triage System** - Week 12 Day 85 - 2h
-   - Setup: `support@boardofone.com` (Google Workspace or ProtonMail)
+   - Setup: `support@boardof.one` (Google Workspace or ProtonMail)
    - Use Gmail filters to auto-label:
      - Subject contains "bug" → Label: `Support/Bug`
      - Subject contains "payment" → Label: `Support/Billing`

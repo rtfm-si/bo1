@@ -1086,7 +1086,7 @@ entryPoints:
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: admin@boardofone.com
+      email: admin@boardof.one
       storage: /acme.json
       httpChallenge:
         entryPoint: web
@@ -1100,7 +1100,7 @@ services:
   web:
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.web.rule=Host(`app.boardofone.com`)"
+      - "traefik.http.routers.web.rule=Host(`app.boardof.one`)"
       - "traefik.http.routers.web.entrypoints=websecure"
       - "traefik.http.routers.web.tls.certresolver=letsencrypt"
       - "traefik.http.services.web.loadbalancer.server.port=5173"
@@ -1108,7 +1108,7 @@ services:
   api:
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`api.boardofone.com`)"
+      - "traefik.http.routers.api.rule=Host(`api.boardof.one`)"
       - "traefik.http.routers.api.entrypoints=websecure"
       - "traefik.http.routers.api.tls.certresolver=letsencrypt"
       - "traefik.http.services.api.loadbalancer.server.port=8000"

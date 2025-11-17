@@ -633,7 +633,7 @@ You have 3 overdue actions from your Board of One deliberations:
 
 Don't let these slip! Stay on track to achieve your goals.
 
-[View All Actions] → https://app.boardofone.com/actions
+[View All Actions] → https://app.boardof.one/actions
 
 ---
 Board of One

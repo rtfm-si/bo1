@@ -123,6 +123,57 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # Supabase GoTrue: Self-hosted OAuth authentication server
+  # ---------------------------------------------------------------------------
+  supabase-auth:
+    image: supabase/gotrue:latest
+    container_name: bo1-supabase-auth
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database
+      - GOTRUE_DB_DRIVER=postgres
+      - DATABASE_URL=${DATABASE_URL}
+
+      # Site Configuration
+      - GOTRUE_SITE_URL=${SITE_URL:-http://localhost:3000}
+      - GOTRUE_URI_ALLOW_LIST=${SITE_URL:-http://localhost:3000}
+
+      # JWT Configuration
+      - GOTRUE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - GOTRUE_JWT_EXP=3600
+      - GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated
+
+      # Auth Configuration
+      - GOTRUE_DISABLE_SIGNUP=false
+      - GOTRUE_MAILER_AUTOCONFIRM=true
+      - API_EXTERNAL_URL=http://supabase-auth:9999
+
+      # Google OAuth
+      - GOTRUE_EXTERNAL_GOOGLE_ENABLED=${GOOGLE_OAUTH_ENABLED:-false}
+      - GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - GOTRUE_EXTERNAL_GOOGLE_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      - GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=${SUPABASE_URL:-http://localhost:9999}/callback
+
+      # GitHub OAuth
+      - GOTRUE_EXTERNAL_GITHUB_ENABLED=${GITHUB_OAUTH_ENABLED:-false}
+      - GOTRUE_EXTERNAL_GITHUB_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID:-}
+      - GOTRUE_EXTERNAL_GITHUB_SECRET=${GITHUB_OAUTH_CLIENT_SECRET:-}
+      - GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI=${SUPABASE_URL:-http://localhost:9999}/callback
+
+      # LinkedIn OAuth
+      - GOTRUE_EXTERNAL_LINKEDIN_ENABLED=${LINKEDIN_OAUTH_ENABLED:-false}
+      - GOTRUE_EXTERNAL_LINKEDIN_CLIENT_ID=${LINKEDIN_OAUTH_CLIENT_ID:-}
+      - GOTRUE_EXTERNAL_LINKEDIN_SECRET=${LINKEDIN_OAUTH_CLIENT_SECRET:-}
+      - GOTRUE_EXTERNAL_LINKEDIN_REDIRECT_URI=${SUPABASE_URL:-http://localhost:9999}/callback
+    ports:
+      - "9999:9999"
+    networks:
+      - bo1-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
   # FastAPI: Web API for deliberation endpoints
   # ---------------------------------------------------------------------------
   api:

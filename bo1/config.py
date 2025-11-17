@@ -79,6 +79,23 @@ class Settings(BaseSettings):
         description="Model to use when AI_OVERRIDE is True (alias or full ID)",
     )
 
+    # Beta Whitelist (Closed Beta Access Control)
+    closed_beta_mode: bool = Field(
+        default=False,
+        description="Enable closed beta mode - only whitelisted emails can authenticate",
+    )
+    beta_whitelist: str = Field(
+        default="",
+        description="Comma-separated list of whitelisted emails for closed beta (e.g., 'alice@example.com,bob@company.com')",
+    )
+
+    @property
+    def beta_whitelist_emails(self) -> set[str]:
+        """Parse beta whitelist into a set of lowercase emails."""
+        if not self.beta_whitelist:
+            return set()
+        return {email.strip().lower() for email in self.beta_whitelist.split(",") if email.strip()}
+
     # Paths
     @property
     def personas_path(self) -> Path:

@@ -570,10 +570,10 @@ Staging Server (Railway/Render)
 
 ```
 Production (AWS ECS/EKS)
-  ├── Web App (SvelteKit, app.boardofone.com)
+  ├── Web App (SvelteKit, app.boardof.one)
   │   ├── Load Balancer (Traefik, 3 instances)
   │   └── Auto-scaling (CPU > 70%)
-  ├── Admin Console (FastAPI, admin.boardofone.com, VPN-only)
+  ├── Admin Console (FastAPI, admin.boardof.one, VPN-only)
   │   └── Single instance (low traffic)
   ├── PostgreSQL (AWS RDS, Multi-AZ)
   ├── Redis (AWS ElastiCache, cluster mode)

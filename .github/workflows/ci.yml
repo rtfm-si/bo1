@@ -2,131 +2,162 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: ['**']
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 jobs:
-  test:
+  lint-and-typecheck:
+    name: Lint & Type Check
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Backend linting
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install Python dependencies
+        run: uv sync --frozen
+
+      - name: Lint backend (ruff)
+        run: uv run ruff check .
+
+      - name: Format check (ruff)
+        run: uv run ruff format --check .
+
+      - name: Typecheck (mypy)
+        run: uv run mypy bo1/ backend/
+
+      # Frontend linting
+      - name: Cache Node modules
+        uses: actions/cache@v3
+        with:
+          path: frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Lint frontend (ESLint)
+        run: cd frontend && npm run lint
+
+      - name: Typecheck frontend (svelte-check)
+        run: cd frontend && npm run check
+
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
 
     services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: boardofone_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
       redis:
         image: redis:7-alpine
+        ports:
+          - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-        ports:
-          - 6379:6379
-
-      postgres:
-        image: pgvector/pgvector:pg15
-        env:
-          POSTGRES_DB: boardofone
-          POSTGRES_USER: bo1
-          POSTGRES_PASSWORD: bo1_dev_password
-        options: >-
-          --health-cmd "pg_isready -U bo1 -d boardofone"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v2
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          version: "latest"
+          python-version: '3.12'
 
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
 
       - name: Install dependencies
-        run: uv sync --all-extras --dev
-
-      - name: Run linter
-        run: uv run ruff check .
-
-      - name: Run formatter check
-        run: uv run ruff format --check .
-
-      - name: Run type checker
-        run: uv run mypy bo1/ --install-types --non-interactive
+        run: uv sync --frozen
 
       - name: Run database migrations
-        env:
-          DATABASE_URL: postgresql://bo1:bo1_dev_password@localhost:5432/boardofone
         run: uv run alembic upgrade head
-
-      - name: Seed personas
         env:
-          DATABASE_URL: postgresql://bo1:bo1_dev_password@localhost:5432/boardofone
-        run: uv run python scripts/seed_personas.py
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/boardofone_test
 
-      - name: Run tests
+      - name: Run tests (skip LLM tests)
+        run: uv run pytest -m "not requires_llm" --cov=bo1 --cov=backend --cov-report=xml --cov-report=term -v
         env:
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          DATABASE_URL: postgresql://bo1:bo1_dev_password@localhost:5432/boardofone
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'test-key-placeholder' }}
-          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY || 'test-key-placeholder' }}
-        run: uv run pytest -m "not requires_llm" --cov=bo1 --cov-report=xml
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/boardofone_test
+          REDIS_URL: redis://localhost:6379
+          ANTHROPIC_API_KEY: test-key-not-used
+          ADMIN_API_KEY: test-admin-key
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
+          flags: backend
           fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  docker-test:
+  test-frontend:
+    name: Frontend Build
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Build Docker images
-        run: docker compose build
+      - name: Cache Node modules
+        uses: actions/cache@v3
+        with:
+          path: frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-      - name: Start services
-        run: docker compose up -d redis postgres
+      - name: Install dependencies
+        run: cd frontend && npm ci
 
-      - name: Wait for services to be ready
-        run: |
-          echo "Waiting for Redis..."
-          timeout 30 sh -c 'until docker compose exec -T redis redis-cli ping; do sleep 1; done'
-          echo "Waiting for PostgreSQL..."
-          timeout 30 sh -c 'until docker compose exec -T postgres pg_isready; do sleep 1; done'
-
-      - name: Run database migrations
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'test-key-placeholder' }}
-          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY || 'test-key-placeholder' }}
-        run: docker compose run --rm bo1 alembic upgrade head
-
-      - name: Seed personas
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'test-key-placeholder' }}
-          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY || 'test-key-placeholder' }}
-        run: docker compose run --rm bo1 python scripts/seed_personas.py
-
-      - name: Run tests in Docker
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'test-key-placeholder' }}
-          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY || 'test-key-placeholder' }}
-        run: docker compose run --rm bo1 pytest -m "not requires_llm" -v
-
-      - name: Cleanup
-        if: always()
-        run: docker compose down -v
+      - name: Build frontend (verify TypeScript compiles)
+        run: cd frontend && npm run build

@@ -591,7 +591,7 @@ async def send_runaway_alert(session: dict) -> None:
     )
 
     # Add action buttons
-    base_url = "https://admin.boardofone.com"
+    base_url = "https://admin.boardof.one"
     actions = [
         {
             "action": "view",
@@ -736,7 +736,7 @@ async def send_daily_cost_report():
         message=message,
         priority="default",
         tags="chart_with_upwards_trend,money_bag",
-        click_url="https://admin.boardofone.com/admin/analytics/costs"
+        click_url="https://admin.boardof.one/admin/analytics/costs"
     )
 
 # Schedule with cron or APScheduler
@@ -829,12 +829,12 @@ async def send_weekly_cost_summary():
             {
                 "action": "view",
                 "label": "View Dashboard",
-                "url": "https://admin.boardofone.com/admin/analytics/costs?range=week"
+                "url": "https://admin.boardof.one/admin/analytics/costs?range=week"
             },
             {
                 "action": "http",
                 "label": "Download CSV",
-                "url": "https://admin.boardofone.com/api/admin/analytics/export?range=week&format=csv"
+                "url": "https://admin.boardof.one/api/admin/analytics/export?range=week&format=csv"
             }
         ]
     )
@@ -919,7 +919,7 @@ async def send_signup_alert(user: dict):
         message=message,
         priority="low",  # Don't spam for every signup
         tags="tada,bust_in_silhouette",
-        click_url=f"https://admin.boardofone.com/admin/users/{user['id']}"
+        click_url=f"https://admin.boardof.one/admin/users/{user['id']}"
     )
 
     # Check for milestones
@@ -948,7 +948,7 @@ async def send_milestone_alert(user_count: int):
         message=message,
         priority="high",  # Important milestone
         tags="partying_face,trophy",
-        click_url="https://admin.boardofone.com/admin/analytics/engagement"
+        click_url="https://admin.boardof.one/admin/analytics/engagement"
     )
 
 async def send_conversion_alert(user: dict, plan_change: dict):
@@ -977,7 +977,7 @@ async def send_conversion_alert(user: dict, plan_change: dict):
         message=message,
         priority="high",  # Revenue event
         tags="money_bag,rocket",
-        click_url=f"https://admin.boardofone.com/admin/users/{user['id']}/journey"
+        click_url=f"https://admin.boardof.one/admin/users/{user['id']}/journey"
     )
 ```
 
@@ -1039,9 +1039,9 @@ async def check_error_rate():
             tags="rotating_light,warning",
             actions=[
                 {"action": "view", "label": "View Logs",
-                 "url": "https://admin.boardofone.com/admin/logs"},
+                 "url": "https://admin.boardof.one/admin/logs"},
                 {"action": "view", "label": "View Metrics",
-                 "url": "https://admin.boardofone.com/admin/metrics"}
+                 "url": "https://admin.boardof.one/admin/metrics"}
             ]
         )
 
@@ -1173,7 +1173,7 @@ ntfy subscribe \
 Configure ntfy to forward to email:
 ```bash
 ntfy subscribe bo1_runaway_sessions \
-  --cmd "sendmail admin@boardofone.com"
+  --cmd "sendmail admin@boardof.one"
 ```
 
 ### 6.9 Testing Notifications

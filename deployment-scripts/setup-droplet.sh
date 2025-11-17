@@ -71,7 +71,7 @@ ADMIN_USER_ID=admin
 ENABLE_SUPABASE_AUTH=false
 
 # CORS
-CORS_ORIGINS=https://boardofone.com,https://www.boardofone.com
+CORS_ORIGINS=https://boardof.one,https://www.boardof.one
 
 # Rate Limiting
 RATE_LIMIT_ENABLED=true
@@ -81,7 +81,7 @@ API_IMAGE=ghcr.io/yourusername/bo1/api:production-latest
 FRONTEND_IMAGE=ghcr.io/yourusername/bo1/frontend:production-latest
 
 # Frontend
-PUBLIC_API_URL=https://boardofone.com
+PUBLIC_API_URL=https://boardof.one
 
 # Environment
 ENVIRONMENT=production
@@ -122,7 +122,7 @@ nginx -t && systemctl reload nginx
 
 # Setup SSL with Let's Encrypt
 echo "🔒 Setting up SSL (you'll need to configure your domain first)..."
-echo "    Run: certbot --nginx -d boardofone.com -d www.boardofone.com"
+echo "    Run: certbot --nginx -d boardof.one -d www.boardof.one"
 echo "    This will be done manually after DNS is configured"
 
 # Setup firewall
@@ -206,10 +206,10 @@ echo ""
 echo "✅ DigitalOcean Droplet setup complete!"
 echo ""
 echo "📋 Next Steps:"
-echo "   1. Configure DNS: Point boardofone.com to this droplet's IP"
+echo "   1. Configure DNS: Point boardof.one to this droplet's IP"
 echo "   2. Edit /opt/boardofone/.env.production with your secrets"
 echo "   3. Copy to .env: cp .env.production .env"
-echo "   4. Setup SSL: certbot --nginx -d boardofone.com -d www.boardofone.com"
+echo "   4. Setup SSL: certbot --nginx -d boardof.one -d www.boardof.one"
 echo "   5. Login to GitHub Container Registry:"
 echo "      docker login ghcr.io -u YOUR_GITHUB_USERNAME"
 echo "   6. Pull and start services:"

@@ -112,7 +112,7 @@ interface EmailProvider {
 class ResendProvider implements EmailProvider {
   async send(to: string, template: string, data: any) {
     await resend.emails.send({
-      from: 'Board of One <noreply@boardofone.com>',
+      from: 'Board of One <noreply@boardof.one>',
       to,
       subject: templates[template].subject,
       html: renderTemplate(template, data)
@@ -125,7 +125,7 @@ class ResendProvider implements EmailProvider {
 - Week 12: Integrate Resend SDK
 - Create email templates (password reset, session complete, cost alerts)
 - Set up webhook handlers (delivery, bounce, spam)
-- Configure domain (boardofone.com) with DNS records
+- Configure domain (boardof.one) with DNS records
 - Test deliverability across providers (Gmail, Outlook, ProtonMail)
 
 ---
@@ -161,7 +161,7 @@ services:
       - ntfy-data:/var/lib/ntfy
       - ./ntfy/server.yml:/etc/ntfy/server.yml
     environment:
-      - NTFY_BASE_URL=https://alerts.boardofone.com
+      - NTFY_BASE_URL=https://alerts.boardof.one
       - NTFY_CACHE_FILE=/var/lib/ntfy/cache.db
 ```
 
@@ -173,7 +173,7 @@ services:
 
 **Implementation Plan**:
 - Week 10: Add ntfy to `docker-compose.yml`
-- Configure subdomain (alerts.boardofone.com)
+- Configure subdomain (alerts.boardof.one)
 - Create topics (runaway-sessions, cost-alerts, errors)
 - Integrate with admin dashboard
 - Test mobile app notifications
@@ -422,7 +422,7 @@ services:
 2. **Week 12** (Email Integration):
    - Integrate Resend SDK
    - Create email templates (React components)
-   - Configure boardofone.com domain with Resend
+   - Configure boardof.one domain with Resend
    - Set up webhook handlers (delivery, bounce, spam)
    - Test deliverability across email providers
 

@@ -204,7 +204,7 @@ Used to get new access tokens without re-authenticating.
 - OAuth redirect URLs: `http://localhost:9999/callback`
 
 ### Production
-- Use `https://auth.boardofone.com` for Supabase URL
+- Use `https://auth.boardof.one` for Supabase URL
 - Store secrets in environment variables or secrets manager
 - Update OAuth redirect URLs to production domain
 - Enable email confirmation (`GOTRUE_MAILER_AUTOCONFIRM=false`)

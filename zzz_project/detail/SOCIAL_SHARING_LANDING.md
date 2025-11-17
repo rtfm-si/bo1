@@ -54,7 +54,7 @@ Recommendation: [1-SENTENCE SUMMARY]
 
 Powered by Board of One - AI-powered decision-making for complex problems.
 
-[View Full Report] → https://app.boardofone.com/share/[SESSION_ID]
+[View Full Report] → https://app.boardof.one/share/[SESSION_ID]
 
 #DecisionMaking #AITools #ProductStrategy #BoardOfOne
 ```
@@ -91,7 +91,7 @@ View Full Report → ${shareUrl}
 ```
 
 **Shareable Report URL**:
-- Public read-only link: `https://app.boardofone.com/share/[SESSION_ID]`
+- Public read-only link: `https://app.boardof.one/share/[SESSION_ID]`
 - Requires session owner to enable sharing (privacy control)
 - Displays: Executive summary, key insights, vote distribution (NOT full transcript)
 - Anonymizes: User email, cost metrics, internal reasoning
@@ -234,13 +234,13 @@ export const POST = async ({ locals, params, request }) => {
   // Send email via SendGrid/Mailgun
   await sendEmail({
     to: recipients,
-    from: 'noreply@boardofone.com',
+    from: 'noreply@boardof.one',
     subject: `Expert deliberation: ${session.problem_statement.slice(0, 50)}...`,
     html: renderEmailTemplate({
       session,
       synthesis: session.synthesis_report,
       userMessage: message,
-      shareUrl: `https://app.boardofone.com/share/${session.share_token}`
+      shareUrl: `https://app.boardof.one/share/${session.share_token}`
     })
   });
 
@@ -254,7 +254,7 @@ export const POST = async ({ locals, params, request }) => {
 
 ### 2.1 Overview
 
-**URL**: `https://www.boardofone.com` (or `https://app.boardofone.com`)
+**URL**: `https://www.boardof.one` (or `https://app.boardof.one`)
 
 **Goal**: Convert visitors to users (free signups)
 
@@ -594,7 +594,7 @@ export const POST = async ({ locals, params, request }) => {
       <summary>Do you offer refunds?</summary>
       <p>
         Yes. Pro subscriptions come with a 30-day money-back guarantee, no
-        questions asked. Email us at support@boardofone.com for a refund.
+        questions asked. Email us at support@boardof.one for a refund.
       </p>
     </details>
   </div>
@@ -688,18 +688,18 @@ export const POST = async ({ locals, params, request }) => {
   <!-- Open Graph (LinkedIn, Facebook) -->
   <meta property="og:title" content="Board of One - AI-Powered Decision Making">
   <meta property="og:description" content="Expert deliberation for complex decisions. Get recommendations from diverse AI perspectives in minutes.">
-  <meta property="og:image" content="https://www.boardofone.com/og-image.png">
-  <meta property="og:url" content="https://www.boardofone.com">
+  <meta property="og:image" content="https://www.boardof.one/og-image.png">
+  <meta property="og:url" content="https://www.boardof.one">
   <meta property="og:type" content="website">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Board of One - AI-Powered Decision Making">
   <meta name="twitter:description" content="Expert deliberation for complex decisions. Get recommendations from diverse AI perspectives in minutes.">
-  <meta name="twitter:image" content="https://www.boardofone.com/twitter-card.png">
+  <meta name="twitter:image" content="https://www.boardof.one/twitter-card.png">
 
   <!-- Canonical URL -->
-  <link rel="canonical" href="https://www.boardofone.com">
+  <link rel="canonical" href="https://www.boardof.one">
 </head>
 ```
 
@@ -712,7 +712,7 @@ export const POST = async ({ locals, params, request }) => {
   <meta property="og:title" content="{problemTitle} - Expert Deliberation">
   <meta property="og:description" content="{synthesisExcerpt}">
   <meta property="og:image" content="{dynamicOgImage}">
-  <meta property="og:url" content="https://app.boardofone.com/share/{token}">
+  <meta property="og:url" content="https://app.boardof.one/share/{token}">
 
   <!-- Prevent indexing of shared reports (privacy) -->
   <meta name="robots" content="noindex, nofollow">
@@ -726,23 +726,23 @@ export const POST = async ({ locals, params, request }) => {
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://www.boardofone.com</loc>
+    <loc>https://www.boardof.one</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://www.boardofone.com/pricing</loc>
+    <loc>https://www.boardof.one/pricing</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.boardofone.com/how-it-works</loc>
+    <loc>https://www.boardof.one/how-it-works</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <!-- Blog posts (dynamic) -->
   <url>
-    <loc>https://www.boardofone.com/blog/post-slug</loc>
+    <loc>https://www.boardof.one/blog/post-slug</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -758,8 +758,8 @@ export const POST = async ({ locals, params, request }) => {
   "@context": "https://schema.org",
   "@type": "Organization",
   "name": "Board of One",
-  "url": "https://www.boardofone.com",
-  "logo": "https://www.boardofone.com/logo.png",
+  "url": "https://www.boardof.one",
+  "logo": "https://www.boardof.one/logo.png",
   "description": "AI-powered decision making platform for founders and product leaders",
   "sameAs": [
     "https://twitter.com/boardofone",
@@ -817,7 +817,7 @@ export const POST = async ({ locals, params, request }) => {
 - Show complete flow (problem → deliberation → synthesis)
 - Real example: "Should I build feature A or B?"
 - Voiceover explaining each step
-- CTA: "Try it free at boardofone.com"
+- CTA: "Try it free at boardof.one"
 
 **Short Clips** (Twitter, LinkedIn):
 - 30-second clips of deliberation in action

@@ -3,6 +3,7 @@
 Provides JWT-based authentication using self-hosted Supabase GoTrue.
 
 For MVP: Uses hardcoded user ID (test_user_1) for development
+For Closed Beta: Supabase auth + email whitelist validation
 For v2+: Full Supabase auth with OAuth providers (Google, LinkedIn, GitHub)
 """
 
@@ -11,6 +12,8 @@ import os
 from typing import Any
 
 from fastapi import Header, HTTPException
+
+from bo1.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +85,25 @@ async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
 
         user = user_response.user
         logger.info(f"Authenticated user: {user.id}")
+
+        # Check beta whitelist if closed beta mode is enabled
+        settings = get_settings()
+        if settings.closed_beta_mode:
+            user_email = (user.email or "").lower()
+            if user_email not in settings.beta_whitelist_emails:
+                logger.warning(
+                    f"User {user_email} not in beta whitelist. "
+                    f"Whitelist has {len(settings.beta_whitelist_emails)} emails."
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "closed_beta",
+                        "message": "Thanks for your interest! We're currently in closed beta. "
+                        "Join our waitlist at https://boardof.one/waitlist",
+                    },
+                )
+            logger.info(f"User {user_email} found in beta whitelist - access granted")
 
         return {
             "user_id": user.id,

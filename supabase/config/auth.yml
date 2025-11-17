@@ -74,4 +74,4 @@ db_driver: postgres
 #   port: ${SMTP_PORT:-587}
 #   user: ${SMTP_USER}
 #   pass: ${SMTP_PASS}
-#   admin_email: ${SMTP_ADMIN_EMAIL:-noreply@boardofone.com}
+#   admin_email: ${SMTP_ADMIN_EMAIL:-noreply@boardof.one}

@@ -560,10 +560,10 @@ DESIGN_SUMMARY.md (this file)
 
 **Internal Team**:
 - Slack: #bo1-design-review
-- Email: design@boardofone.com
+- Email: design@boardof.one
 
 **External Stakeholders**:
-- Email: founders@boardofone.com
+- Email: founders@boardof.one
 
 **Documentation Issues**:
 - GitHub Issues: https://github.com/boardofone/bo1/issues

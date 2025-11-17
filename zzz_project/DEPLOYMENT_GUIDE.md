@@ -8,7 +8,7 @@ Complete guide for deploying Board of One to DigitalOcean with GitHub Actions CI
 
 - **DigitalOcean Account**: [Sign up](https://www.digitalocean.com/)
 - **GitHub Account**: Repository with Actions enabled
-- **Domain Name**: boardofone.com (configure DNS)
+- **Domain Name**: boardof.one (configure DNS)
 - **Anthropic API Key**: [Get key](https://console.anthropic.com/)
 - **Voyage AI API Key**: [Get key](https://www.voyageai.com/) (optional for embeddings)
 
@@ -47,21 +47,21 @@ gh auth login
 1. Go to your domain registrar (Namecheap, Cloudflare, etc.)
 2. Add A records:
    ```
-   A     boardofone.com        → 123.456.789.0
-   A     www.boardofone.com    → 123.456.789.0
-   A     staging.boardofone.com → 123.456.789.0
+   A     boardof.one        → 123.456.789.0
+   A     www.boardof.one    → 123.456.789.0
+   A     staging.boardof.one → 123.456.789.0
    ```
 3. Wait for DNS propagation (5-30 minutes)
-4. Verify: `dig boardofone.com` or `nslookup boardofone.com`
+4. Verify: `dig boardof.one` or `nslookup boardof.one`
 
 ### Step 3: SSH into Droplet
 
 ```bash
 # Copy your SSH key to DigitalOcean if not done during creation
-ssh-copy-id root@123.456.789.0
+ssh-copy-id root@139.59.201.65
 
 # SSH into droplet
-ssh root@123.456.789.0
+ssh root@139.59.201.65
 ```
 
 ### Step 4: Run Setup Script
@@ -105,7 +105,7 @@ cp .env.production .env
 apt-get install -y certbot python3-certbot-nginx
 
 # Obtain SSL certificate
-certbot --nginx -d boardofone.com -d www.boardofone.com -d staging.boardofone.com
+certbot --nginx -d boardof.one -d www.boardof.one -d staging.boardof.one
 
 # Follow prompts:
 # - Enter email address
@@ -127,6 +127,7 @@ Go to your repository → Settings → Secrets and variables → Actions
 Add the following secrets:
 
 #### Staging Secrets
+
 ```
 STAGING_HOST=123.456.789.0
 STAGING_USER=root
@@ -135,6 +136,7 @@ STAGING_SSH_PORT=22
 ```
 
 #### Production Secrets
+
 ```
 PRODUCTION_HOST=123.456.789.0
 PRODUCTION_USER=root
@@ -143,6 +145,7 @@ PRODUCTION_SSH_PORT=22
 ```
 
 #### Optional Secrets
+
 ```
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 NTFY_TOPIC=boardofone-alerts
@@ -180,12 +183,14 @@ docker pull ghcr.io/yourusername/bo1/api:staging-latest
 Edit `.github/workflows/deploy-staging.yml` and `.github/workflows/deploy-production.yml`:
 
 Replace:
+
 ```yaml
 IMAGE_NAME_API: ${{ github.repository }}/api
 IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
 ```
 
 With your repository path:
+
 ```yaml
 IMAGE_NAME_API: yourusername/bo1/api
 IMAGE_NAME_FRONTEND: yourusername/bo1/frontend
@@ -217,7 +222,7 @@ git push origin main
 # Should complete in 5-10 minutes
 
 # Verify staging deployment
-curl https://staging.boardofone.com/api/health
+curl https://staging.boardof.one/api/health
 ```
 
 ### Option B: Manual (for testing)
@@ -254,7 +259,7 @@ curl http://localhost:8000/api/health
 # Should return: {"status": "healthy"}
 
 # Test externally
-curl https://boardofone.com/api/health
+curl https://boardof.one/api/health
 ```
 
 ---
@@ -333,16 +338,16 @@ tail -f /var/log/nginx/boardofone-error.log
 
 ```bash
 # API health
-curl https://boardofone.com/api/health
+curl https://boardof.one/api/health
 
 # Database health
-curl https://boardofone.com/api/health/db
+curl https://boardof.one/api/health/db
 
 # Redis health
-curl https://boardofone.com/api/health/redis
+curl https://boardof.one/api/health/redis
 
 # Anthropic API health
-curl https://boardofone.com/api/health/anthropic
+curl https://boardof.one/api/health/anthropic
 ```
 
 ### Backups
@@ -468,6 +473,7 @@ truncate -s 0 /var/log/nginx/*.log
 ### Database Connection Pool
 
 Edit `.env`:
+
 ```bash
 DB_POOL_SIZE=20  # Adjust based on traffic
 DB_MAX_OVERFLOW=10
@@ -476,6 +482,7 @@ DB_MAX_OVERFLOW=10
 ### Uvicorn Workers
 
 Edit `.env`:
+
 ```bash
 UVICORN_WORKERS=4  # 2-4 per CPU core
 ```
@@ -483,6 +490,7 @@ UVICORN_WORKERS=4  # 2-4 per CPU core
 ### Redis Memory Limit
 
 Edit `docker-compose.prod.yml`:
+
 ```yaml
 redis:
   command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
@@ -502,7 +510,7 @@ Already configured in `nginx/nginx.conf` for static assets (1 day cache).
 # Add to docker-compose.prod.yml
 # (Full configuration in Week 9 roadmap)
 
-# Access Grafana: https://boardofone.com:3001
+# Access Grafana: https://boardof.one:3001
 # Default login: admin/admin
 ```
 
@@ -523,6 +531,7 @@ curl -H "Title: Test Alert" -d "This is a test" https://ntfy.sh/boardofone-alert
 ## Cost Estimation
 
 **Monthly Costs:**
+
 - DigitalOcean Droplet (4GB): $24/month
 - Domain name: $10-15/year (~$1/month)
 - SSL (Let's Encrypt): Free
@@ -531,6 +540,7 @@ curl -H "Title: Test Alert" -d "This is a test" https://ntfy.sh/boardofone-alert
 - **Total: ~$80-240/month**
 
 **Scaling Plan:**
+
 - 0-100 users: Single $24 droplet (current setup)
 - 100-500 users: Upgrade to $48 droplet (8GB RAM)
 - 500+ users: Load balancer + multiple app servers
@@ -552,6 +562,7 @@ curl -H "Title: Test Alert" -d "This is a test" https://ntfy.sh/boardofone-alert
 ## Support
 
 For issues or questions:
+
 - GitHub Issues: https://github.com/yourusername/bo1/issues
-- Documentation: https://boardofone.com/docs
-- Email: support@boardofone.com
+- Documentation: https://boardof.one/docs
+- Email: support@boardof.one

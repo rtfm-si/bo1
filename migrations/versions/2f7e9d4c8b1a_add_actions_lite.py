@@ -101,20 +101,17 @@ def upgrade() -> None:
 
     # Create RLS policy: users can only access their own actions
     # Note: Uses current_setting() for compatibility with non-Supabase PostgreSQL (CI, local dev)
+    # The user_id in actions table directly matches users.id
     op.execute(
         """
         CREATE POLICY "users_own_actions" ON actions
             FOR ALL
-            USING (
-                user_id IN (
-                    SELECT id FROM users
-                    WHERE supabase_user_id = current_setting('app.current_user_id', TRUE)::text
-                )
-            );
+            USING (user_id = current_setting('app.current_user_id', TRUE)::text);
         """
     )
 
     # Optional: Create policy for admins to view all actions (for support/debugging)
+    # Note: subscription_tier column name, not 'tier'
     op.execute(
         """
         CREATE POLICY "admins_view_all_actions" ON actions
@@ -123,8 +120,8 @@ def upgrade() -> None:
                 EXISTS (
                     SELECT 1
                     FROM users
-                    WHERE supabase_user_id = current_setting('app.current_user_id', TRUE)::text
-                    AND tier = 'admin'
+                    WHERE id = current_setting('app.current_user_id', TRUE)::text
+                    AND subscription_tier = 'admin'
                 )
             );
         """

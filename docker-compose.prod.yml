@@ -5,6 +5,38 @@
 
 services:
   # ---------------------------------------------------------------------------
+  # PostgreSQL: Database with pgvector for embeddings
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: bo1-postgres-prod
+    environment:
+      - POSTGRES_DB=boardofone
+      - POSTGRES_USER=bo1
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"  # Only localhost access
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d  # Auto-run SQL scripts on first init (creates auth schema)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bo1 -d boardofone"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bo1-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
   # Redis: State management, LLM caching, session storage
   # ---------------------------------------------------------------------------
   redis:
@@ -48,9 +80,15 @@ services:
       target: production  # Use production stage (minimal, non-root)
     container_name: bo1-app-prod
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
+      # Database Configuration
+      - DATABASE_URL=${DATABASE_URL}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
       # Redis Configuration
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -60,6 +98,8 @@ services:
       # API Keys (loaded from .env)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - VOYAGE_API_KEY=${VOYAGE_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
 
       # Application Configuration (production defaults)
       - DEBUG=false
@@ -100,6 +140,8 @@ services:
           memory: 1G
 
 volumes:
+  postgres-data:
+    driver: local
   redis-data:
     driver: local
 

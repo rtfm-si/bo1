@@ -171,19 +171,19 @@ set -euo pipefail
 cd /opt/boardofone
 
 # Build images
-docker-compose build --quiet
+docker-compose -f docker-compose.prod.yml build --quiet
 
 # Start services
-docker-compose up -d
+docker-compose -f docker-compose.prod.yml up -d
 
 # Wait for services to be healthy
 echo "Waiting for services to start..."
 sleep 10
 
 # Check if containers are running
-if ! docker ps | grep -q bo1-app; then
+if ! docker ps | grep -q bo1-app-prod; then
     echo "Error: Application container failed to start"
-    docker-compose logs bo1-app
+    docker-compose -f docker-compose.prod.yml logs bo1
     exit 1
 fi
 ENDSSH
@@ -254,7 +254,7 @@ echo -e "   ${BLUE}openssl rand -base64 32${NC}  # For SUPABASE_JWT_SECRET"
 echo -e "   ${BLUE}openssl rand -base64 16${NC}  # For DATABASE_URL password"
 echo ""
 echo -e "3. ${YELLOW}Restart application:${NC}"
-echo -e "   ${BLUE}docker-compose restart bo1-app${NC}"
+echo -e "   ${BLUE}docker-compose -f docker-compose.prod.yml restart bo1${NC}"
 echo ""
 echo -e "4. ${YELLOW}Verify deployment:${NC}"
 echo -e "   ${BLUE}curl https://api.$DOMAIN/health${NC}"

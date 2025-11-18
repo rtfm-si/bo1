@@ -11,7 +11,7 @@ import logging
 import os
 from typing import Any
 
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
 
 from bo1.config import get_settings
 
@@ -50,6 +50,7 @@ async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
             "email": f"{DEFAULT_USER_ID}@test.com",
             "role": "authenticated",
             "subscription_tier": "free",
+            "is_admin": False,  # MVP user is not admin
         }
 
     # v2+: Full Supabase authentication
@@ -105,11 +106,23 @@ async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
                 )
             logger.info(f"User {user_email} found in beta whitelist - access granted")
 
+        # Extract role from user metadata (custom claim)
+        is_admin = user.user_metadata.get("is_admin", False) or user.app_metadata.get(
+            "is_admin", False
+        )
+
+        # Auto-grant admin to @boardof.one email addresses
+        user_email = (user.email or "").lower()
+        if user_email.endswith("@boardof.one"):
+            is_admin = True
+            logger.info(f"Auto-granted admin access to {user_email} (boardof.one domain)")
+
         return {
             "user_id": user.id,
             "email": user.email,
             "role": user.role or "authenticated",
             "subscription_tier": user.user_metadata.get("subscription_tier", "free"),
+            "is_admin": is_admin,
         }
 
     except HTTPException:
@@ -161,4 +174,40 @@ def require_auth(user: dict[str, Any]) -> dict[str, Any]:
             status_code=401,
             detail="Authentication required",
         )
+    return user
+
+
+async def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """Dependency to require admin access for an endpoint.
+
+    Usage:
+        @app.get("/admin/endpoint")
+        async def admin_route(user: dict = Depends(require_admin)):
+            return {"message": "Admin access granted"}
+
+    Args:
+        user: User data from get_current_user()
+
+    Returns:
+        User data if user is admin
+
+    Raises:
+        HTTPException: 401 if not authenticated, 403 if not admin
+    """
+    if not user or not user.get("user_id"):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+        )
+
+    if not user.get("is_admin", False):
+        logger.warning(
+            f"Non-admin user {user.get('email', 'unknown')} attempted to access admin endpoint"
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required",
+        )
+
+    logger.info(f"Admin access granted to {user.get('email', 'unknown')}")
     return user

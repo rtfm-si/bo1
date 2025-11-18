@@ -10,12 +10,15 @@ Provides HTTP endpoints for:
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from backend.api import admin, context, control, health, sessions, streaming
+from backend.api.middleware.auth import require_admin
 
 
 @asynccontextmanager
@@ -64,8 +67,9 @@ app = FastAPI(
     """,
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None,  # Disable public docs (admin-only via custom endpoint)
+    redoc_url=None,  # Disable public redoc
+    openapi_url=None,  # Disable public OpenAPI spec
     openapi_tags=[
         {
             "name": "health",
@@ -139,17 +143,69 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 
 @app.get("/")
-async def root() -> dict[str, str]:
-    """Root endpoint.
+async def root(user: dict[str, Any] = Depends(require_admin)) -> dict[str, str]:
+    """Root endpoint (admin-only).
+
+    Args:
+        user: Admin user data
 
     Returns:
-        Welcome message
+        API information
     """
     return {
         "message": "Board of One API",
         "version": "1.0.0",
-        "docs": "/docs",
+        "admin": user.get("email"),
+        "docs": "/admin/docs",
+        "openapi": "/admin/openapi.json",
     }
+
+
+@app.get("/admin/docs", response_class=HTMLResponse, include_in_schema=False)
+async def admin_docs(user: dict[str, Any] = Depends(require_admin)) -> HTMLResponse:
+    """Admin-only Swagger UI documentation.
+
+    Args:
+        user: Admin user data
+
+    Returns:
+        Swagger UI HTML
+    """
+    return get_swagger_ui_html(
+        openapi_url="/admin/openapi.json",
+        title=f"{app.title} - Admin Documentation",
+        swagger_favicon_url="/favicon.ico",
+    )
+
+
+@app.get("/admin/redoc", response_class=HTMLResponse, include_in_schema=False)
+async def admin_redoc(user: dict[str, Any] = Depends(require_admin)) -> HTMLResponse:
+    """Admin-only ReDoc documentation.
+
+    Args:
+        user: Admin user data
+
+    Returns:
+        ReDoc HTML
+    """
+    return get_redoc_html(
+        openapi_url="/admin/openapi.json",
+        title=f"{app.title} - Admin Documentation",
+        redoc_favicon_url="/favicon.ico",
+    )
+
+
+@app.get("/admin/openapi.json", include_in_schema=False)
+async def admin_openapi(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    """Admin-only OpenAPI specification.
+
+    Args:
+        user: Admin user data
+
+    Returns:
+        OpenAPI JSON spec
+    """
+    return app.openapi()
 
 
 if __name__ == "__main__":

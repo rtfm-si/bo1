@@ -100,15 +100,15 @@ def upgrade() -> None:
     op.execute("ALTER TABLE actions ENABLE ROW LEVEL SECURITY;")
 
     # Create RLS policy: users can only access their own actions
+    # Note: Uses current_setting() for compatibility with non-Supabase PostgreSQL (CI, local dev)
     op.execute(
         """
         CREATE POLICY "users_own_actions" ON actions
             FOR ALL
             USING (
-                auth.uid() = (
-                    SELECT supabase_user_id
-                    FROM users
-                    WHERE id = actions.user_id
+                user_id IN (
+                    SELECT id FROM users
+                    WHERE supabase_user_id = current_setting('app.current_user_id', TRUE)::text
                 )
             );
         """
@@ -123,7 +123,7 @@ def upgrade() -> None:
                 EXISTS (
                     SELECT 1
                     FROM users
-                    WHERE supabase_user_id = auth.uid()
+                    WHERE supabase_user_id = current_setting('app.current_user_id', TRUE)::text
                     AND tier = 'admin'
                 )
             );

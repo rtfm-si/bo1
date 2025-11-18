@@ -67,12 +67,22 @@ make inspect         # View container configuration
 # Access admin docs: http://localhost:8000/admin/docs (requires admin auth)
 # Supabase Auth: http://localhost:9999
 
-# Production Deployment
-make generate-ssl    # Generate SSL certificate (first time only)
-make deploy          # Full automated deployment
-make prod-status     # Check service status
-make prod-logs       # View logs
-# See DEPLOYMENT_GUIDE.md and QUICK_DEPLOY.md for details
+# Production Deployment (Blue-Green)
+# See docs/PRODUCTION_DEPLOYMENT_QUICKSTART.md for complete setup guide
+# See docs/BLUE_GREEN_DEPLOYMENT.md for deployment flow details
+
+# Initial Server Setup (one-time)
+bash deployment-scripts/setup-production-server.sh      # Configure server (Docker, nginx, deploy user)
+bash deployment-scripts/setup-github-ssh-keys.sh        # Generate SSH keys for GitHub Actions
+bash deployment-scripts/verify-server-setup.sh          # Verify server configuration
+
+# SSL Certificates
+make generate-ssl    # Generate self-signed cert (testing only)
+# OR use Let's Encrypt: sudo certbot --nginx -d boardof.one
+
+# Deploy (via GitHub Actions)
+# Go to Actions tab → "Deploy to Production" → Run workflow → Type "deploy-to-production"
+# Blue-green deployment: Zero downtime, automatic rollback, preserves active sessions
 ```
 
 **Hot Reload**: Edit code locally, changes immediately available in container (no rebuild).

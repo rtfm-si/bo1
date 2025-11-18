@@ -142,6 +142,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify secrets are set
+        run: |
+          if [ -z "${{ secrets.PRODUCTION_HOST }}" ]; then
+            echo "❌ PRODUCTION_HOST secret is not set!"
+            echo "Go to: https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo "Add secret: PRODUCTION_HOST with value: 139.59.201.65"
+            exit 1
+          fi
+          if [ -z "${{ secrets.PRODUCTION_USER }}" ]; then
+            echo "❌ PRODUCTION_USER secret is not set!"
+            exit 1
+          fi
+          if [ -z "${{ secrets.PRODUCTION_SSH_KEY }}" ]; then
+            echo "❌ PRODUCTION_SSH_KEY secret is not set!"
+            exit 1
+          fi
+          echo "✅ All required secrets are set"
+          echo "Host: ${{ secrets.PRODUCTION_HOST }}"
+          echo "User: ${{ secrets.PRODUCTION_USER }}"
+
       - name: Safe Deployment to Production
         uses: appleboy/ssh-action@v1.0.3
         env:

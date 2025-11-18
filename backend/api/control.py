@@ -10,11 +10,13 @@ Provides:
 
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.api.dependencies import get_redis_manager, get_session_manager
+from backend.api.middleware.auth import get_current_user
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.validation import validate_session_id, validate_user_id
 from bo1.data import load_personas
@@ -90,7 +92,9 @@ class KillRequest(BaseModel):
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
-async def start_deliberation(session_id: str) -> ControlResponse:
+async def start_deliberation(
+    session_id: str, user: dict[str, Any] = Depends(get_current_user)
+) -> ControlResponse:
     """Start deliberation in background.
 
     This endpoint starts a deliberation session as an asyncio background task.
@@ -98,6 +102,7 @@ async def start_deliberation(session_id: str) -> ControlResponse:
 
     Args:
         session_id: Session identifier
+        user: Authenticated user data
 
     Returns:
         ControlResponse with 202 Accepted
@@ -215,7 +220,9 @@ async def start_deliberation(session_id: str) -> ControlResponse:
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
-async def pause_deliberation(session_id: str) -> ControlResponse:
+async def pause_deliberation(
+    session_id: str, user: dict[str, Any] = Depends(get_current_user)
+) -> ControlResponse:
     """Pause a running deliberation.
 
     This marks the session as paused in metadata. LangGraph automatically
@@ -223,6 +230,7 @@ async def pause_deliberation(session_id: str) -> ControlResponse:
 
     Args:
         session_id: Session identifier
+        user: Authenticated user data
 
     Returns:
         ControlResponse with pause confirmation
@@ -284,13 +292,16 @@ async def pause_deliberation(session_id: str) -> ControlResponse:
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
-async def resume_deliberation(session_id: str) -> ControlResponse:
+async def resume_deliberation(
+    session_id: str, user: dict[str, Any] = Depends(get_current_user)
+) -> ControlResponse:
     """Resume a paused deliberation from checkpoint.
 
     Loads the checkpoint from Redis and continues graph execution.
 
     Args:
         session_id: Session identifier
+        user: Authenticated user data
 
     Returns:
         ControlResponse with resume confirmation
@@ -377,7 +388,11 @@ async def resume_deliberation(session_id: str) -> ControlResponse:
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
-async def kill_deliberation(session_id: str, request: KillRequest | None = None) -> ControlResponse:
+async def kill_deliberation(
+    session_id: str,
+    request: KillRequest | None = None,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ControlResponse:
     """Kill a running deliberation (user must own the session).
 
     This cancels the background task and logs the termination in an audit trail.
@@ -385,6 +400,7 @@ async def kill_deliberation(session_id: str, request: KillRequest | None = None)
     Args:
         session_id: Session identifier
         request: Optional kill request with reason
+        user: Authenticated user data
 
     Returns:
         ControlResponse with kill confirmation
@@ -452,6 +468,7 @@ async def kill_deliberation(session_id: str, request: KillRequest | None = None)
 async def submit_clarification(
     session_id: str,
     request: ClarificationRequest,
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> ControlResponse:
     """Submit clarification answer and resume deliberation.
 
@@ -464,6 +481,7 @@ async def submit_clarification(
     Args:
         session_id: Session identifier
         request: Clarification answer
+        user: Authenticated user data
 
     Returns:
         ControlResponse with resume confirmation

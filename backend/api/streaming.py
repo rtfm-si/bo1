@@ -7,8 +7,9 @@ Provides:
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
+from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from backend.api.dependencies import get_redis_manager
@@ -18,6 +19,7 @@ from backend.api.events import (
     node_end_event,
     node_start_event,
 )
+from backend.api.middleware.auth import get_current_user
 from backend.api.utils.validation import validate_session_id
 
 logger = logging.getLogger(__name__)
@@ -132,11 +134,15 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
         500: {"description": "Internal server error"},
     },
 )
-async def stream_deliberation(session_id: str) -> StreamingResponse:
+async def stream_deliberation(
+    session_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> StreamingResponse:
     """Stream deliberation events via Server-Sent Events.
 
     Args:
         session_id: Session identifier
+        user: Authenticated user data
 
     Returns:
         StreamingResponse with SSE events

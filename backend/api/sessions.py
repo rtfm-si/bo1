@@ -10,9 +10,10 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.api.dependencies import get_redis_manager
+from backend.api.middleware.auth import get_current_user
 from backend.api.models import (
     CreateSessionRequest,
     ErrorResponse,
@@ -46,7 +47,10 @@ router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
         },
     },
 )
-async def create_session(request: CreateSessionRequest) -> SessionResponse:
+async def create_session(
+    request: CreateSessionRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> SessionResponse:
     """Create a new deliberation session.
 
     This endpoint creates a new session with a unique identifier and saves
@@ -55,6 +59,7 @@ async def create_session(request: CreateSessionRequest) -> SessionResponse:
 
     Args:
         request: Session creation request
+        user: Authenticated user data
 
     Returns:
         SessionResponse with session details
@@ -130,6 +135,7 @@ async def create_session(request: CreateSessionRequest) -> SessionResponse:
     },
 )
 async def list_sessions(
+    user: dict[str, Any] = Depends(get_current_user),
     status: str | None = Query(
         None, description="Filter by status (active, completed, failed, paused)"
     ),
@@ -142,6 +148,7 @@ async def list_sessions(
     can be retrieved via the GET /sessions/{session_id} endpoint.
 
     Args:
+        user: Authenticated user data
         status: Optional status filter
         limit: Page size (1-100)
         offset: Page offset
@@ -240,7 +247,10 @@ async def list_sessions(
         },
     },
 )
-async def get_session(session_id: str) -> SessionDetailResponse:
+async def get_session(
+    session_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> SessionDetailResponse:
     """Get detailed information about a session.
 
     Returns full session state including deliberation progress, contributions,
@@ -248,6 +258,7 @@ async def get_session(session_id: str) -> SessionDetailResponse:
 
     Args:
         session_id: Session identifier
+        user: Authenticated user data
 
     Returns:
         SessionDetailResponse with full session details

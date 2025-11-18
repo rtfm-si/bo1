@@ -42,13 +42,13 @@ def upgrade() -> None:
         ),
         sa.Column(
             "user_id",
-            UUID(as_uuid=True),
+            sa.String(length=255),  # Match users.id type (VARCHAR not UUID)
             sa.ForeignKey("users.id", ondelete="CASCADE"),
             nullable=False,
         ),
         sa.Column(
             "session_id",
-            UUID(as_uuid=True),
+            sa.String(length=255),  # Match sessions.id type (VARCHAR not UUID)
             sa.ForeignKey("sessions.id", ondelete="CASCADE"),
             nullable=False,
         ),

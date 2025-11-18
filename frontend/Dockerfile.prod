@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (including devDependencies needed for build)
+RUN npm ci
 
 # Copy application code
 COPY . .
@@ -15,7 +15,7 @@ COPY . .
 # Build the app
 RUN npm run build
 
-# Prune dev dependencies
+# Prune dev dependencies after build
 RUN npm prune --production
 
 # Production stage

@@ -66,6 +66,7 @@ appendonly.aof
 
 # Docker
 docker-compose.override.yml
+docker-compose.prod.override.yml
 
 # Session data (JSON exports)
 sessions/
@@ -122,7 +123,8 @@ ab_test_results/
 zzz_important/
 zzz_project/
 
-# Markdown files (exclude all except README.md in root)
+# Markdown files (exclude all except README.md and deployment docs)
 *.md
 !README.md
 !/*/README.md
+!deployment-scripts/*.md

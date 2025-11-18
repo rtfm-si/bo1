@@ -158,6 +158,11 @@ jobs:
             echo "❌ PRODUCTION_SSH_KEY secret is not set!"
             exit 1
           fi
+          if [ -z "${{ secrets.POSTGRES_PASSWORD }}" ]; then
+            echo "❌ POSTGRES_PASSWORD secret is not set!"
+            echo "Generate one with: openssl rand -base64 32"
+            exit 1
+          fi
           echo "✅ All required secrets are set"
           echo "Host: ${{ secrets.PRODUCTION_HOST }}"
           echo "User: ${{ secrets.PRODUCTION_USER }}"
@@ -185,22 +190,49 @@ jobs:
             echo "Creating backup of current deployment..."
             docker-compose -f docker-compose.prod.yml ps > /tmp/pre-deploy-state.txt
 
-            # Pull latest configuration
+            # Pull latest configuration (stash any local changes first)
+            git stash --include-untracked || true
             git pull origin main
+
+            # Create override file for production-specific settings (if not exists)
+            if [ ! -f docker-compose.prod.override.yml ]; then
+              echo "Creating production override file..."
+              cat > docker-compose.prod.override.yml <<'OVERRIDE_EOF'
+            # Production-specific overrides (not tracked in git)
+            services:
+              nginx:
+                image: nginx:1.25-alpine
+                container_name: bo1-nginx-prod
+                depends_on:
+                  - api
+                  - frontend
+                ports:
+                  - "80:80"
+                  - "443:443"
+                volumes:
+                  - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+                  - /etc/letsencrypt/live/boardof.one:/etc/nginx/ssl:ro
+                  - nginx-logs:/var/log/nginx
+                  - nginx-cache:/var/cache/nginx
+                networks:
+                  - bo1-network
+                restart: unless-stopped
+            OVERRIDE_EOF
+            fi
 
             # Build images locally (faster and more reliable than pulling from registry)
             echo "Building images locally..."
-            docker-compose -f docker-compose.prod.yml build --no-cache
+            docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml build --no-cache
 
             # Safe Deployment with Health Checks
             echo "Stopping current environment..."
 
             # Stop old containers (brief downtime, but prevents port conflicts)
-            docker-compose -f docker-compose.prod.yml down
+            docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml down
 
             # Start new containers
             echo "Starting new environment..."
-            docker-compose -f docker-compose.prod.yml up -d
+            docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml up -d
 
             # Wait for services to be ready
             echo "Waiting for services to start..."
@@ -240,7 +272,7 @@ jobs:
 
             # Run database migrations
             echo "Running database migrations..."
-            docker-compose -f docker-compose.prod.yml exec -T api alembic upgrade head
+            docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml exec -T api alembic upgrade head
 
             # Test nginx configuration
             echo "Testing nginx configuration..."
@@ -258,7 +290,7 @@ jobs:
             sleep 60
 
             # Check for errors
-            ERROR_COUNT=$(docker-compose -f docker-compose.prod.yml logs --tail=100 | grep -i "error\|exception\|failed" | grep -v "health" | wc -l)
+            ERROR_COUNT=$(docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml logs --tail=100 | grep -i "error\|exception\|failed" | grep -v "health" | wc -l)
             if [ $ERROR_COUNT -gt 10 ]; then
               echo "⚠️ Warning: High error rate detected ($ERROR_COUNT errors)"
               echo "Continuing anyway - check logs manually"

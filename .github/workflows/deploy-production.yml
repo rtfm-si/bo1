@@ -188,17 +188,9 @@ jobs:
             # Pull latest configuration
             git pull origin main
 
-            # Login to registry
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-            # Update image tags
-            export API_IMAGE="${REGISTRY}/${IMAGE_NAME_API}:prod-${GITHUB_SHA}"
-            export FRONTEND_IMAGE="${REGISTRY}/${IMAGE_NAME_FRONTEND}:prod-${GITHUB_SHA}"
-
-            # Pull new images
-            echo "Pulling new images..."
-            docker pull ${API_IMAGE}
-            docker pull ${FRONTEND_IMAGE}
+            # Build images locally (faster and more reliable than pulling from registry)
+            echo "Building images locally..."
+            docker-compose -f docker-compose.prod.yml build --no-cache
 
             # Safe Deployment with Health Checks
             echo "Stopping current environment..."

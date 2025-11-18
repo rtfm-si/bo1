@@ -92,16 +92,12 @@ test-llm: ## Run ONLY LLM tests (will incur API costs)
 	docker-compose run --rm bo1 pytest -v -m "requires_llm"
 
 .PHONY: test-unit
-test-unit: ## Run unit tests only
-	docker-compose run --rm bo1 pytest -v tests/unit
+test-unit: ## Run unit tests only (using pytest markers)
+	docker-compose run --rm bo1 pytest -v -m "unit and not requires_llm"
 
 .PHONY: test-integration
-test-integration: ## Run integration tests only
-	docker-compose run --rm bo1 pytest -v tests/integration
-
-.PHONY: test-scenario
-test-scenario: ## Run scenario tests only
-	docker-compose run --rm bo1 pytest -v tests/scenarios
+test-integration: ## Run integration tests only (using pytest markers)
+	docker-compose run --rm bo1 pytest -v -m "integration and not requires_llm"
 
 .PHONY: test-coverage
 test-coverage: ## Run tests with coverage report (excludes LLM tests)

@@ -224,32 +224,33 @@ services:
 
   # ---------------------------------------------------------------------------
   # Nginx: Reverse proxy and load balancer
+  # NOTE: Commented out - using host-level nginx with SSL instead
   # ---------------------------------------------------------------------------
-  nginx:
-    image: nginx:1.25-alpine
-    container_name: bo1-nginx-prod
-    depends_on:
-      - api
-      - frontend
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - nginx-logs:/var/log/nginx
-      - nginx-cache:/var/cache/nginx
-    networks:
-      - bo1-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
+  # nginx:
+  #   image: nginx:1.25-alpine
+  #   container_name: bo1-nginx-prod
+  #   depends_on:
+  #     - api
+  #     - frontend
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./nginx/ssl:/etc/nginx/ssl:ro
+  #     - nginx-logs:/var/log/nginx
+  #     - nginx-cache:/var/cache/nginx
+  #   networks:
+  #     - bo1-network
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.5'
+  #         memory: 256M
+  #       reservations:
+  #         cpus: '0.25'
+  #         memory: 128M
 
   # ---------------------------------------------------------------------------
   # Bo1 App: Main application container (production mode)

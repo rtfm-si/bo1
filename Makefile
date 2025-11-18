@@ -228,6 +228,41 @@ prune: ## Remove unused Docker resources (system-wide)
 	docker volume prune -f
 
 # =============================================================================
+# Production Deployment Commands
+# =============================================================================
+
+.PHONY: prod-build
+prod-build: ## Build production images
+	docker-compose -f docker-compose.prod.yml build
+
+.PHONY: prod-up
+prod-up: ## Start production environment
+	docker-compose -f docker-compose.prod.yml up -d
+
+.PHONY: prod-down
+prod-down: ## Stop production environment
+	docker-compose -f docker-compose.prod.yml down
+
+.PHONY: prod-logs
+prod-logs: ## Show production logs
+	docker-compose -f docker-compose.prod.yml logs -f
+
+.PHONY: prod-status
+prod-status: ## Show production service status
+	docker-compose -f docker-compose.prod.yml ps
+
+.PHONY: prod-restart
+prod-restart: prod-down prod-up ## Restart production environment
+
+.PHONY: deploy
+deploy: ## Full production deployment (automated script)
+	@bash scripts/deploy-production.sh
+
+.PHONY: generate-ssl
+generate-ssl: ## Generate self-signed SSL certificate (dev/testing only)
+	@bash scripts/generate-ssl-cert.sh
+
+# =============================================================================
 # Setup Commands
 # =============================================================================
 

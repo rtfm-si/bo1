@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Console-based AI system using multi-agent deliberation (Claude personas) to solve complex problems through structured debate and synthesis.
 
-**Status**: v1 complete (Weeks 1-5), v2 planning (Web API + Auth)
+**Status**: v2 complete (Console + Web API + Auth deployed)
 
 ---
 
@@ -29,7 +29,7 @@ Problem → Decomposition (1-5 sub-problems) → Persona Selection (3-5 experts)
 # Setup (one-time)
 make setup           # Creates .env, directories
 make build           # Build Docker images
-make up              # Start Redis + PostgreSQL + app containers
+make up              # Start all services (Redis + PostgreSQL + API + Supabase Auth + app)
 
 # Development
 make run             # Run deliberation (interactive)
@@ -61,6 +61,18 @@ make clean-redis     # Clear all Redis data (WARNING: deletes everything)
 make status          # Show container status
 make stats           # Show resource usage
 make inspect         # View container configuration
+
+# API (Web Interface)
+# API runs automatically with `make up` on http://localhost:8000
+# Access admin docs: http://localhost:8000/admin/docs (requires admin auth)
+# Supabase Auth: http://localhost:9999
+
+# Production Deployment
+make generate-ssl    # Generate SSL certificate (first time only)
+make deploy          # Full automated deployment
+make prod-status     # Check service status
+make prod-logs       # View logs
+# See DEPLOYMENT_GUIDE.md and QUICK_DEPLOY.md for details
 ```
 
 **Hot Reload**: Edit code locally, changes immediately available in container (no rebuild).
@@ -249,6 +261,11 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - `bo1/agents/researcher.py` - External research with semantic cache (Week 6)
 - `bo1/llm/embeddings.py` - Voyage AI voyage-3 embedding generation (Week 6)
 - `bo1/interfaces/console.py` - Console adapter with pause/resume support
+- `backend/api/main.py` - FastAPI application entry point
+- `backend/api/streaming.py` - SSE streaming endpoints for real-time updates
+- `backend/api/middleware/auth.py` - Supabase JWT authentication middleware
+- `backend/api/admin.py` - Admin-only endpoints (session monitoring, metrics)
+- `docker-compose.prod.yml` - Production deployment configuration
 - `zzz_project/MVP_IMPLEMENTATION_ROADMAP.md` - 14-week roadmap (101 days)
 - `zzz_project/detail/CONTEXT_COLLECTION_FEATURE.md` - Context collection specification (Week 6)
 - `zzz_project/detail/RESEARCH_CACHE_SPECIFICATION.md` - Research cache with embeddings (Week 6)
@@ -261,17 +278,20 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 
 ## Important Design Constraints
 
-**Console uses LangGraph (v2 complete)**:
+**Console (v1)**:
 - LangGraph state machine with Redis checkpointing (7-day TTL)
 - Pause/resume support via `--resume <session_id>` flag
 - Phase-based cost tracking and analytics
 - PostgreSQL for persistent storage (personas, sessions)
 - Console UI with Rich formatting and phase cost tables
 
-**v2 (future)**:
-- FastAPI web API adapter (SSE streaming)
-- Supabase auth + RLS
-- Stripe payments + rate limiting
+**Web API (v2 - deployed)**:
+- FastAPI with SSE streaming (`backend/api/`)
+- Supabase GoTrue auth (JWT-based, OAuth support for Google/GitHub/LinkedIn)
+- Admin-only API docs (`/admin/docs` requires X-Admin-Key or admin JWT)
+- Public landing page at root (`/`)
+- Endpoints: health, sessions, streaming, context, control, admin
+- Production compose file: `docker-compose.prod.yml`
 
 **Cost targets**:
 - $0.10-0.15 per sub-problem deliberation

@@ -45,7 +45,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Typecheck (mypy)
-        run: uv run mypy bo1/ backend/
+        run: uv run mypy bo1/ backend/api/
 
       # Frontend linting
       - name: Cache Node modules
@@ -68,7 +68,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: boardofone_test

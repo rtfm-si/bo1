@@ -158,6 +158,7 @@ jobs:
 
       - name: Verify secrets are set
         run: |
+          # Only verify SSH credentials (application secrets are in .env on server)
           if [ -z "${{ secrets.PRODUCTION_HOST }}" ]; then
             echo "❌ PRODUCTION_HOST secret is not set!"
             echo "Go to: https://github.com/${{ github.repository }}/settings/secrets/actions"
@@ -172,12 +173,7 @@ jobs:
             echo "❌ PRODUCTION_SSH_KEY secret is not set!"
             exit 1
           fi
-          if [ -z "${{ secrets.POSTGRES_PASSWORD }}" ]; then
-            echo "❌ POSTGRES_PASSWORD secret is not set!"
-            echo "Generate one with: openssl rand -base64 32"
-            exit 1
-          fi
-          echo "✅ All required secrets are set"
+          echo "✅ SSH credentials configured"
           echo "Host: ${{ secrets.PRODUCTION_HOST }}"
           echo "User: ${{ secrets.PRODUCTION_USER }}"
 
@@ -202,37 +198,33 @@ jobs:
 
             # Backup current state
             echo "Creating backup of current deployment..."
-            docker-compose -f docker-compose.prod.yml ps > /tmp/pre-deploy-state.txt
+            docker-compose -f docker-compose.prod.yml ps > /tmp/pre-deploy-state.txt || true
 
             # Pull latest configuration (stash any local changes first)
             git stash --include-untracked || true
             git pull origin main
 
-            # Create override file for production-specific settings (if not exists)
-            if [ ! -f docker-compose.prod.override.yml ]; then
-              echo "Creating production override file..."
-              cat > docker-compose.prod.override.yml <<'OVERRIDE_EOF'
-            # Production-specific overrides (not tracked in git)
-            services:
-              nginx:
-                image: nginx:1.25-alpine
-                container_name: bo1-nginx-prod
-                depends_on:
-                  - api
-                  - frontend
-                ports:
-                  - "80:80"
-                  - "443:443"
-                volumes:
-                  - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-                  - /etc/letsencrypt/live/boardof.one:/etc/nginx/ssl:ro
-                  - nginx-logs:/var/log/nginx
-                  - nginx-cache:/var/cache/nginx
-                networks:
-                  - bo1-network
-                restart: unless-stopped
-            OVERRIDE_EOF
+            # Verify .env exists (fail fast if missing)
+            if [ ! -f ".env" ]; then
+              echo "❌ Error: .env file not found at /opt/boardofone/.env"
+              echo "Please create it manually using deployment-scripts/fix-deployment-issues.sh"
+              echo "Or see: deployment-scripts/PRODUCTION_ENV_SETUP.md"
+              exit 1
             fi
+            echo "✅ .env file exists"
+
+            # Create/update override file for production-specific settings
+            # NOTE: nginx is NOT included - it runs standalone on the host
+            # Always regenerate to ensure nginx is not accidentally included
+            echo "Creating production override file..."
+            cat > docker-compose.prod.override.yml <<'OVERRIDE_EOF'
+            # Production-specific overrides (not tracked in git)
+            # NOTE: nginx runs standalone on host (not containerized)
+            # Containers expose ports only to localhost for host nginx to proxy
+            version: '3.8'
+            services: {}
+            OVERRIDE_EOF
+            echo "✅ Override file created (nginx excluded - runs on host)"
 
             # Build images locally (faster and more reliable than pulling from registry)
             echo "Building images locally..."

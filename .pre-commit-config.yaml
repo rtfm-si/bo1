@@ -67,3 +67,4 @@ repos:
         args: [--maxkb=1000]
       - id: check-merge-conflict
       - id: detect-private-key
+        exclude: ^deployment-scripts/setup-github-ssh-keys\.sh$  # Script displays key generation instructions

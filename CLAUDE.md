@@ -149,7 +149,7 @@ decompose_node → select_personas_node → initial_round_node
 
 ### Prompt Engineering (Critical)
 
-All prompts follow `zzz_important/PROMPT_ENGINEERING_FRAMEWORK.md`:
+All prompts follow the Prompt Engineering Framework (documented in zzz_important/):
 - **XML structure** with `<thinking>`, `<contribution>`, `<recommendation>` tags
 - **Modular composition**: Bespoke persona identity + generic protocols + dynamic context
 - Personas stored in `bo1/data/personas.json` (45 experts)
@@ -210,7 +210,7 @@ Board of One collects context at **3 strategic points** to improve deliberation 
 - **Pause/resume for blocking questions**: User can gather info offline
 - **User sovereignty**: Can skip any question (system adapts, doesn't block)
 
-**Implementation**: See `zzz_project/detail/CONTEXT_COLLECTION_FEATURE.md`
+**Implementation**: See zzz_project/detail/CONTEXT_COLLECTION_FEATURE.md (not tracked in git)
 
 ### External Research Cache with Embeddings (Week 6)
 
@@ -239,7 +239,7 @@ Board of One caches external research results with semantic similarity matching 
 - "Average monthly churn for SaaS companies?" (90% similar → cache hit)
 - "Typical SaaS churn rate benchmarks?" (92% similar → cache hit)
 
-**Implementation**: See `zzz_project/detail/RESEARCH_CACHE_SPECIFICATION.md`
+**Implementation**: See zzz_project/detail/RESEARCH_CACHE_SPECIFICATION.md (not tracked in git)
 
 ### Loop Prevention (100% Confidence Guarantee)
 
@@ -276,11 +276,15 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - `backend/api/middleware/auth.py` - Supabase JWT authentication middleware
 - `backend/api/admin.py` - Admin-only endpoints (session monitoring, metrics)
 - `docker-compose.prod.yml` - Production deployment configuration
-- `zzz_project/MVP_IMPLEMENTATION_ROADMAP.md` - 14-week roadmap (101 days)
-- `zzz_project/detail/CONTEXT_COLLECTION_FEATURE.md` - Context collection specification (Week 6)
-- `zzz_project/detail/RESEARCH_CACHE_SPECIFICATION.md` - Research cache with embeddings (Week 6)
-- `zzz_project/VOTING_TO_RECOMMENDATIONS_MIGRATION.md` - Migration details
-- `zzz_important/PROMPT_ENGINEERING_FRAMEWORK.md` - Prompt design guidelines
+- `MVP_IMPLEMENTATION_ROADMAP.md` - 14-week roadmap (101 days)
+- `docs/QUICKSTART.md` - Getting started guide
+- `docs/DEMO.md` - Demo and validation guide
+- `docs/DOCKER.md` - Docker development guide
+- `docs/TESTING.md` - Testing guide and patterns
+- `docs/PRODUCTION_DEPLOYMENT_QUICKSTART.md` - Production deployment
+- `docs/BLUE_GREEN_DEPLOYMENT.md` - Blue-green deployment details
+- `docs/COMPANY_STRUCTURE.md` - Company structure and decision-making
+- `deployment-scripts/PRODUCTION_ENV_SETUP.md` - Environment setup guide
 - `exports/` - Generated deliberation outputs (JSON, markdown reports)
 - `backups/` - Redis backup files (created by `make backup-redis`)
 

@@ -36,7 +36,7 @@ jobs:
             ${{ runner.os }}-uv-
 
       - name: Install Python dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --all-extras
 
       - name: Lint backend (ruff)
         run: uv run ruff check .
@@ -110,7 +110,7 @@ jobs:
             ${{ runner.os }}-uv-
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --all-extras
 
       - name: Run database migrations
         run: uv run alembic upgrade head

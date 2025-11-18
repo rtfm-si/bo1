@@ -5,8 +5,14 @@ from alembic import context
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (if it exists and is readable)
+# In CI/CD, DATABASE_URL is set via environment variables directly
+try:
+    load_dotenv(override=False)
+except (UnicodeDecodeError, FileNotFoundError):
+    # Skip if .env file doesn't exist or has encoding issues
+    # CI/CD will use environment variables directly
+    pass
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

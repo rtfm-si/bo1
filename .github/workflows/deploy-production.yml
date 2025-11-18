@@ -325,25 +325,6 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Notify Slack
-        if: secrets.SLACK_WEBHOOK_URL != ''
-        uses: slackapi/slack-github-action@v1.25.0
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          payload: |
-            {
-              "text": "${{ needs.deploy-to-production.result == 'success' && '🎉' || '❌' }} Production Deployment ${{ needs.deploy-to-production.result }}",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "${{ needs.deploy-to-production.result == 'success' && '🎉 *Production Deployment Successful*' || '❌ *Production Deployment Failed*' }}\n*Commit:* `${{ github.sha }}`\n*Branch:* `${{ github.ref_name }}`\n*Deployed by:* ${{ github.actor }}\n*URL:* https://boardof.one"
-                  }
-                }
-              ]
-            }
-
       - name: Notify via ntfy.sh
         run: |
           if [ "${{ secrets.NTFY_TOPIC }}" != "" ]; then

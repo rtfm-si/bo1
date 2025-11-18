@@ -177,27 +177,3 @@ jobs:
           echo "❌ Staging deployment failed!"
           echo "Commit: ${{ github.sha }}"
           echo "Check logs for details"
-
-  notify-slack:
-    name: Notify Slack
-    needs: deploy-to-staging
-    runs-on: ubuntu-latest
-    if: always() && secrets.SLACK_WEBHOOK_URL != ''
-    steps:
-      - name: Send Slack notification
-        uses: slackapi/slack-github-action@v1.25.0
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          payload: |
-            {
-              "text": "${{ needs.deploy-to-staging.result == 'success' && '✅' || '❌' }} Staging Deployment ${{ needs.deploy-to-staging.result }}",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "${{ needs.deploy-to-staging.result == 'success' && '✅ *Staging Deployment Successful*' || '❌ *Staging Deployment Failed*' }}\n*Commit:* `${{ github.sha }}`\n*Branch:* `${{ github.ref_name }}`\n*Author:* ${{ github.actor }}\n*URL:* https://staging.boardof.one"
-                  }
-                }
-              ]
-            }

@@ -14,14 +14,14 @@ RUN pip install --no-cache-dir uv
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
+# Copy dependency files and minimal source for installation
+COPY pyproject.toml uv.lock README.md ./
+COPY bo1/ ./bo1/
 
 # Install dependencies (production only, no dev deps)
 RUN uv sync --frozen --no-dev
 
-# Copy application code
-COPY bo1/ ./bo1/
+# Copy rest of application code
 COPY backend/ ./backend/
 COPY migrations/ ./migrations/
 COPY alembic.ini ./

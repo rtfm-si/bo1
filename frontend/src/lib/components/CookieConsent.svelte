@@ -20,6 +20,8 @@
 
 	function acceptAll() {
 		// Store consent with analytics enabled
+		// Essential: Auth tokens, consent preference, session data
+		// Analytics: Usage tracking, performance monitoring (when implemented)
 		Cookies.set(
 			CONSENT_COOKIE,
 			JSON.stringify({
@@ -27,17 +29,22 @@
 				analytics: true,
 				timestamp: new Date().toISOString()
 			}),
-			{ expires: 365 }
+			{ expires: 365, sameSite: 'Lax', secure: true }
 		);
 
 		showBanner = false;
 
-		// TODO: Enable analytics tracking here (e.g., Google Analytics)
+		// TODO: Enable analytics tracking here (e.g., Plausible Analytics)
+		// Note: We use privacy-friendly analytics (Plausible/Fathom), not Google Analytics
 		console.log('Analytics cookies accepted');
 	}
 
 	function acceptEssential() {
 		// Store consent with only essential cookies
+		// Essential cookies used:
+		// - bo1_cookie_consent: Stores this preference (this cookie)
+		// - auth tokens: Supabase JWT (when auth enabled)
+		// - theme preference: Stored in localStorage (not a cookie)
 		Cookies.set(
 			CONSENT_COOKIE,
 			JSON.stringify({
@@ -45,7 +52,7 @@
 				analytics: false,
 				timestamp: new Date().toISOString()
 			}),
-			{ expires: 365 }
+			{ expires: 365, sameSite: 'Lax', secure: true }
 		);
 
 		showBanner = false;
@@ -63,13 +70,13 @@
 			<div class="flex-1">
 				<h3 class="text-lg font-semibold mb-2">Cookie Consent</h3>
 				<p class="text-neutral-300 text-sm">
-					We use cookies to enhance your experience. Essential cookies are required for
-					authentication. Analytics cookies help us improve the service (optional).
+					We use cookies to enhance your experience. Essential cookies (authentication, preferences) are necessary for the site to function. Optional analytics cookies help us improve the service.
+					<a href="/privacy" class="underline hover:text-neutral-100 ml-1">Learn more</a>
 				</p>
 			</div>
 
-			<div class="flex gap-3">
-				<Button variant="secondary" size="md" on:click={acceptEssential}>
+			<div class="flex flex-col sm:flex-row gap-3">
+				<Button variant="ghost" size="md" on:click={acceptEssential}>
 					Essential Only
 				</Button>
 				<Button variant="brand" size="md" on:click={acceptAll}>

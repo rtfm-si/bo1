@@ -7,8 +7,13 @@ from typing import Any
 import pytest
 from dotenv import load_dotenv
 
-# Load .env file for test environment
-load_dotenv()
+# Load .env file for test environment (ignore encoding errors in CI)
+try:
+    load_dotenv()
+except (UnicodeDecodeError, FileNotFoundError):
+    # Skip if .env has encoding issues or doesn't exist
+    # CI will use environment variables directly
+    pass
 
 # Set default environment variables for CI/testing if not already set
 # This allows tests to run without real API keys (non-LLM tests)

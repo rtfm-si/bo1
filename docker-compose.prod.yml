@@ -167,6 +167,13 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
 
+      # Supabase Auth Configuration
+      - ENABLE_SUPABASE_AUTH=${ENABLE_SUPABASE_AUTH:-true}
+      - CLOSED_BETA_MODE=${CLOSED_BETA_MODE:-true}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+
       # Application Configuration
       - DEBUG=false
       - LOG_LEVEL=${LOG_LEVEL:-INFO}

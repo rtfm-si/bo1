@@ -143,21 +143,46 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 
 @app.get("/")
-async def root(user: dict[str, Any] = Depends(require_admin)) -> dict[str, str]:
-    """Root endpoint (admin-only).
+async def root() -> dict[str, str]:
+    """Public landing page.
+
+    Returns:
+        Welcome message for visitors
+    """
+    return {
+        "service": "Board of One",
+        "description": "AI-powered strategic decision-making through multi-agent deliberation",
+        "status": "Private Beta",
+        "message": "This is a private API service. Access requires authentication.",
+        "contact": "For access, visit boardof.one",
+    }
+
+
+@app.get("/admin/info")
+async def admin_info(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    """Admin-only API information endpoint.
 
     Args:
         user: Admin user data
 
     Returns:
-        API information
+        Detailed API information for admins
     """
     return {
-        "message": "Board of One API",
+        "message": "Board of One API - Admin Panel",
         "version": "1.0.0",
-        "admin": user.get("email"),
-        "docs": "/admin/docs",
-        "openapi": "/admin/openapi.json",
+        "admin_user": user.get("email"),
+        "admin_id": user.get("user_id"),
+        "documentation": {
+            "swagger": "/admin/docs",
+            "redoc": "/admin/redoc",
+            "openapi_spec": "/admin/openapi.json",
+        },
+        "services": {
+            "api": "Running",
+            "authentication": "Supabase JWT",
+            "mode": "Closed Beta",
+        },
     }
 
 

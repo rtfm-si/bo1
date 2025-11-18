@@ -5,7 +5,7 @@
  * Includes error handling, type safety, and environment-based configuration.
  */
 
-import { PUBLIC_API_URL } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 import type {
 	CreateSessionRequest,
 	SessionResponse,
@@ -39,7 +39,7 @@ export class ApiClient {
 	private baseUrl: string;
 
 	constructor(baseUrl?: string) {
-		this.baseUrl = baseUrl || PUBLIC_API_URL || 'http://localhost:8000';
+		this.baseUrl = baseUrl || env.PUBLIC_API_URL || 'http://localhost:8000';
 	}
 
 	/**

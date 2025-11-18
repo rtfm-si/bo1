@@ -5,7 +5,7 @@
  * Provides type-safe event handling and automatic reconnection.
  */
 
-import { PUBLIC_API_URL } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 
 /**
  * SSE Event Types from backend/api/events.py
@@ -158,7 +158,7 @@ export class SSEClient {
 	private onCloseCallback?: () => void;
 
 	constructor(options: SSEClientOptions = {}) {
-		this.baseUrl = options.baseUrl || PUBLIC_API_URL || 'http://localhost:8000';
+		this.baseUrl = options.baseUrl || env.PUBLIC_API_URL || 'http://localhost:8000';
 		this.reconnect = options.reconnect ?? true;
 		this.reconnectInterval = options.reconnectInterval ?? 3000;
 		this.onOpenCallback = options.onOpen;

@@ -182,7 +182,7 @@ jobs:
     name: Notify Slack
     needs: deploy-to-staging
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && secrets.SLACK_WEBHOOK_URL != ''
     steps:
       - name: Send Slack notification
         uses: slackapi/slack-github-action@v1.25.0
@@ -201,4 +201,3 @@ jobs:
                 }
               ]
             }
-        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}

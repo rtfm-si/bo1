@@ -65,7 +65,7 @@ async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
     try:
         # Import supabase client only when auth is enabled (avoid dependency for MVP)
         try:
-            from supabase import create_client  # type: ignore[import-untyped]
+            from supabase import create_client
         except ImportError as e:
             logger.error("supabase-py not installed - required for auth")
             raise HTTPException(

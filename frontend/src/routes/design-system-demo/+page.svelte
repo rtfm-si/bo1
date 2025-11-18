@@ -248,7 +248,7 @@
 
 				<!-- Semantic Colors Grid -->
 				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-					{#each ['success', 'warning', 'error', 'info'] as colorName}
+					{#each (['success', 'warning', 'error', 'info'] as const) as colorName}
 						<Card variant="bordered">
 							<h4
 								class="text-sm font-semibold mb-2 text-neutral-800 dark:text-neutral-200 capitalize"

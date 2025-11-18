@@ -201,4 +201,4 @@ jobs:
                 }
               ]
             }
-        if: secrets.SLACK_WEBHOOK_URL != ''
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}

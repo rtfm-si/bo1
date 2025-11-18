@@ -8,6 +8,7 @@ Provides:
 
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -294,14 +295,23 @@ async def get_session(session_id: str) -> SessionDetailResponse:
             "context": metadata.get("problem_context", {}),
         }
 
+        # Convert state to dict if it's a DeliberationState
+        state_dict: dict[str, Any] | None = None
+        if state:
+            if isinstance(state, dict):
+                state_dict = state
+            else:
+                # Convert DeliberationState to dict
+                state_dict = state.model_dump() if hasattr(state, "model_dump") else None
+
         # Extract metrics from state if available
         metrics = None
-        if state:
+        if state_dict:
             metrics = {
-                "round_number": state.get("round_number", 0),
-                "total_cost": state.get("total_cost", 0.0),
-                "phase_costs": state.get("phase_costs", {}),
-                "contributions_count": len(state.get("contributions", [])),
+                "round_number": state_dict.get("round_number", 0),
+                "total_cost": state_dict.get("total_cost", 0.0),
+                "phase_costs": state_dict.get("phase_costs", {}),
+                "contributions_count": len(state_dict.get("contributions", [])),
             }
 
         return SessionDetailResponse(
@@ -311,7 +321,7 @@ async def get_session(session_id: str) -> SessionDetailResponse:
             created_at=created_at,
             updated_at=updated_at,
             problem=problem_dict,
-            state=state,
+            state=state_dict,
             metrics=metrics,
         )
 

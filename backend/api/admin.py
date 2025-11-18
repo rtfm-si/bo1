@@ -12,6 +12,7 @@ Provides:
 
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -146,8 +147,8 @@ class FullSessionResponse(BaseModel):
     """
 
     session_id: str = Field(..., description="Session identifier")
-    metadata: dict = Field(..., description="Full session metadata")
-    state: dict | None = Field(None, description="Full deliberation state")
+    metadata: dict[str, Any] = Field(..., description="Full session metadata")
+    state: dict[str, Any] | None = Field(None, description="Full deliberation state")
     is_active: bool = Field(..., description="Whether session is currently running")
 
 
@@ -302,6 +303,15 @@ async def get_full_session(
         # Load state
         state = redis_manager.load_state(session_id)
 
+        # Convert state to dict if it's a DeliberationState
+        state_dict: dict[str, Any] | None = None
+        if state:
+            if isinstance(state, dict):
+                state_dict = state
+            else:
+                # Convert DeliberationState to dict
+                state_dict = state.model_dump() if hasattr(state, "model_dump") else None
+
         # Check if active
         is_active = session_id in session_manager.active_executions
 
@@ -310,7 +320,7 @@ async def get_full_session(
         return FullSessionResponse(
             session_id=session_id,
             metadata=metadata,
-            state=state,
+            state=state_dict,
             is_active=is_active,
         )
 
@@ -468,7 +478,7 @@ class ResearchCacheStats(BaseModel):
         ..., description="Cache hit rate in last 30 days (percentage)"
     )
     cost_savings_30d: float = Field(..., description="Cost savings in last 30 days (USD)")
-    top_cached_questions: list[dict] = Field(
+    top_cached_questions: list[dict[str, Any]] = Field(
         ..., description="Top 10 most accessed cached questions"
     )
 
@@ -482,7 +492,7 @@ class StaleEntriesResponse(BaseModel):
     """
 
     stale_count: int = Field(..., description="Number of stale entries found")
-    entries: list[dict] = Field(..., description="List of stale cache entries")
+    entries: list[dict[str, Any]] = Field(..., description="List of stale cache entries")
 
 
 @router.get(
@@ -721,9 +731,9 @@ async def list_beta_whitelist(
         HTTPException: If retrieval fails
     """
     try:
-        from bo1.state.postgres_manager import get_db_connection
+        from bo1.state.postgres_manager import get_connection
 
-        with get_db_connection() as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -790,7 +800,7 @@ async def add_to_beta_whitelist(
         HTTPException: If email is invalid or already exists
     """
     try:
-        from bo1.state.postgres_manager import get_db_connection
+        from bo1.state.postgres_manager import get_connection
 
         # Normalize email
         email = request.email.strip().lower()
@@ -802,7 +812,7 @@ async def add_to_beta_whitelist(
                 detail=f"Invalid email address: {email}",
             )
 
-        with get_db_connection() as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 # Check if email already exists
                 cur.execute("SELECT id FROM beta_whitelist WHERE email = %s", (email,))
@@ -876,12 +886,12 @@ async def remove_from_beta_whitelist(
         HTTPException: If email not found or removal fails
     """
     try:
-        from bo1.state.postgres_manager import get_db_connection
+        from bo1.state.postgres_manager import get_connection
 
         # Normalize email
         email = email.strip().lower()
 
-        with get_db_connection() as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 # Delete email
                 cur.execute("DELETE FROM beta_whitelist WHERE email = %s RETURNING id", (email,))

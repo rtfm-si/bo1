@@ -159,9 +159,11 @@ async def start_deliberation(session_id: str) -> ControlResponse:
         # Load personas (for MVP, we'll use a default set)
         # TODO(Week 7+): Load personas from session metadata or user selection
         all_personas = load_personas()  # Returns tuple of dicts
-        # Select first 3 personas as default for MVP
+        # Select first 3 personas as default for MVP and convert to PersonaProfile objects
+        from bo1.models.personas import PersonaProfile
+
         personas = [
-            {"code": p["code"], "name": p["name"], "system_prompt": p["system_prompt"]}
+            PersonaProfile(code=p["code"], name=p["name"], system_prompt=p["system_prompt"])
             for p in all_personas[:3]
         ]
 
@@ -397,7 +399,7 @@ async def kill_deliberation(session_id: str, request: KillRequest | None = None)
         user_id = _get_user_id_from_header()
         session_manager = get_session_manager()
 
-        reason = request.reason if request else "User requested stop"
+        reason = (request.reason if request and request.reason else None) or "User requested stop"
 
         # Attempt to kill the session (with ownership check)
         killed = await session_manager.kill_session(session_id, user_id, reason)
@@ -506,6 +508,10 @@ async def submit_clarification(
                 status_code=500,
                 detail=f"Failed to load state for session {session_id}",
             )
+
+        # Convert state to dict if it's a DeliberationState
+        if not isinstance(state, dict):
+            state = state.model_dump() if hasattr(state, "model_dump") else {}
 
         # Inject clarification answer into problem context
         if "problem" not in state:

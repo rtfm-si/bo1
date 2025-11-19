@@ -302,6 +302,9 @@ jobs:
               echo "Building blue environment images..."
               docker-compose -p boardofone -f docker-compose.prod.yml build api frontend
 
+              # Remove old containers (idempotent)
+              docker-compose -p boardofone -f docker-compose.prod.yml rm -f -s api frontend 2>/dev/null || true
+
               echo "Starting blue environment (api + frontend only)..."
               docker-compose -p boardofone -f docker-compose.prod.yml up -d api frontend
 
@@ -313,8 +316,11 @@ jobs:
               echo "Building green environment images..."
               docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml build api frontend
 
+              # Remove old containers (idempotent)
+              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml rm -f -s api frontend 2>/dev/null || true
+
               echo "Starting green environment (api + frontend only)..."
-              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml up -d api frontend
+              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml up -d --force-recreate api frontend
 
               TARGET_API_PORT=8001
               TARGET_FRONTEND_PORT=3001

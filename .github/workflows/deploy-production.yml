@@ -207,92 +207,211 @@ jobs:
             fi
             echo "✅ .env file exists"
 
-            # Create override file (nginx runs on host, not in Docker)
-            cat > docker-compose.prod.override.yml <<'OVERRIDE_EOF'
-            version: '3.8'
-            services: {}
-            OVERRIDE_EOF
-            echo "✅ Override file created"
+            # =================================================================
+            # STEP 1: Create external network if it doesn't exist
+            # =================================================================
+            if ! docker network ls | grep -q "bo1-network"; then
+              echo "Creating external Docker network: bo1-network"
+              docker network create bo1-network
+            else
+              echo "✅ External network bo1-network already exists"
+            fi
 
-            # Detect current environment (blue or green, or neither for first deploy)
+            # =================================================================
+            # STEP 2: Detect current environment (blue/green/none)
+            # =================================================================
             CURRENT_ENV="none"
+            TARGET_ENV="blue"
+
             if docker ps --format '{{.Names}}' | grep -q "^boardofone-api-1\$"; then
               CURRENT_ENV="blue"
+              TARGET_ENV="green"
             elif docker ps --format '{{.Names}}' | grep -q "^boardofone-green-api-1\$"; then
               CURRENT_ENV="green"
+              TARGET_ENV="blue"
             elif docker ps --format '{{.Names}}' | grep -q "^bo1-api-prod\$"; then
               CURRENT_ENV="blue"  # Old naming
+              TARGET_ENV="green"
             fi
 
-            echo "Current environment: ${CURRENT_ENV}"
+            echo "📍 Current environment: ${CURRENT_ENV}"
+            echo "🎯 Target environment: ${TARGET_ENV}"
 
-            # For blue-green: we deploy new version, test it, switch nginx, then stop old
-            # Since both environments need same ports, we do rolling restart (not true parallel)
+            # =================================================================
+            # STEP 3: Ensure shared infrastructure is running
+            # =================================================================
+            echo "🏗️  Starting shared infrastructure..."
 
-            echo "🚀 Deploying new version..."
+            # Start shared services using default project (blue)
+            docker-compose -p boardofone -f docker-compose.prod.yml up -d postgres redis supabase-auth
 
-            # Stop and remove old containers if they exist (one-time migration from hardcoded names)
-            if docker ps -a --format '{{.Names}}' | grep -q "^bo1-api-prod\$"; then
-              echo "Migrating from old container names..."
-              docker stop bo1-api-prod bo1-frontend-prod bo1-supabase-auth-prod bo1-postgres-prod bo1-redis-prod bo1-app-prod 2>/dev/null || true
-              docker rm bo1-api-prod bo1-frontend-prod bo1-supabase-auth-prod bo1-postgres-prod bo1-redis-prod bo1-app-prod 2>/dev/null || true
-            fi
-
-            # Build new images
-            echo "Building new images..."
-            docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml build --no-cache
-
-            # Rolling update strategy:
-            # 1. Start new containers (will replace old ones with same names)
-            # 2. Docker Compose will gracefully stop old containers before starting new ones
-            echo "Deploying new containers (rolling update)..."
-            docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml up -d
-
-            # Wait for containers to start
-            echo "Waiting for services to start..."
-            sleep 30
-
-            # Health checks
-            echo "Running health checks..."
+            # Wait for shared services to be healthy
+            echo "⏳ Waiting for shared infrastructure to be healthy..."
+            sleep 10
 
             for i in {1..10}; do
-              if curl --fail --silent --max-time 5 http://localhost:8000/api/health > /dev/null 2>&1; then
-                echo "✅ API is healthy"
+              if docker exec boardofone-postgres-1 pg_isready -U bo1 -d boardofone > /dev/null 2>&1; then
+                echo "✅ PostgreSQL is healthy"
                 break
               fi
-              echo "Waiting for API... ($i/10)"
+              echo "Waiting for PostgreSQL... ($i/10)"
               sleep 3
               if [ $i -eq 10 ]; then
-                echo "❌ API health check failed"
-                docker-compose -f docker-compose.prod.yml logs --tail=50 api
-                echo "🔴 Deployment failed"
+                echo "❌ PostgreSQL health check failed"
+                docker logs boardofone-postgres-1 --tail=50
+                exit 1
+              fi
+            done
+
+            # Load REDIS_PASSWORD from .env
+            export $(grep REDIS_PASSWORD .env | xargs)
+
+            for i in {1..10}; do
+              if docker exec boardofone-redis-1 redis-cli -a "${REDIS_PASSWORD}" ping > /dev/null 2>&1; then
+                echo "✅ Redis is healthy"
+                break
+              fi
+              echo "Waiting for Redis... ($i/10)"
+              sleep 2
+              if [ $i -eq 10 ]; then
+                echo "❌ Redis health check failed"
+                exit 1
+              fi
+            done
+
+            echo "✅ Shared infrastructure is running"
+
+            # =================================================================
+            # STEP 4: Deploy target environment
+            # =================================================================
+            echo "🚀 Deploying ${TARGET_ENV} environment..."
+
+            if [ "$TARGET_ENV" = "blue" ]; then
+              # Deploy blue environment (default project, ports 8000/3000)
+              echo "Building blue environment images..."
+              docker-compose -p boardofone -f docker-compose.prod.yml build api frontend
+
+              echo "Starting blue environment (api + frontend only)..."
+              docker-compose -p boardofone -f docker-compose.prod.yml up -d api frontend
+
+              TARGET_API_PORT=8000
+              TARGET_FRONTEND_PORT=3000
+              TARGET_PROJECT="boardofone"
+            else
+              # Deploy green environment (green project, ports 8001/3001)
+              echo "Building green environment images..."
+              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml build api frontend
+
+              echo "Starting green environment (api + frontend only)..."
+              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml up -d api frontend
+
+              TARGET_API_PORT=8001
+              TARGET_FRONTEND_PORT=3001
+              TARGET_PROJECT="boardofone-green"
+            fi
+
+            # =================================================================
+            # STEP 5: Wait for target environment to be healthy
+            # =================================================================
+            echo "⏳ Waiting for ${TARGET_ENV} environment to start..."
+            sleep 20
+
+            echo "🏥 Running health checks on ${TARGET_ENV} environment..."
+
+            for i in {1..15}; do
+              if curl --fail --silent --max-time 5 http://localhost:${TARGET_API_PORT}/api/health > /dev/null 2>&1; then
+                echo "✅ ${TARGET_ENV} API is healthy"
+                break
+              fi
+              echo "Waiting for ${TARGET_ENV} API... ($i/15)"
+              sleep 3
+              if [ $i -eq 15 ]; then
+                echo "❌ ${TARGET_ENV} API health check failed"
+                docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml logs --tail=50 api
+                echo "🔴 Deployment failed - keeping current environment"
                 exit 1
               fi
             done
 
             # Additional health checks
-            echo "Checking database connectivity..."
-            if ! curl --fail --silent --max-time 5 http://localhost:8000/api/health/db > /dev/null 2>&1; then
-              echo "❌ Database health check failed"
-              docker-compose -f docker-compose.prod.yml logs --tail=50 api
+            echo "Checking ${TARGET_ENV} database connectivity..."
+            if ! curl --fail --silent --max-time 5 http://localhost:${TARGET_API_PORT}/api/health/db > /dev/null 2>&1; then
+              echo "❌ ${TARGET_ENV} database health check failed"
+              docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml logs --tail=50 api
               exit 1
             fi
 
-            echo "Checking Redis connectivity..."
-            if ! curl --fail --silent --max-time 5 http://localhost:8000/api/health/redis > /dev/null 2>&1; then
-              echo "❌ Redis health check failed"
-              docker-compose -f docker-compose.prod.yml logs --tail=50 api
+            echo "Checking ${TARGET_ENV} Redis connectivity..."
+            if ! curl --fail --silent --max-time 5 http://localhost:${TARGET_API_PORT}/api/health/redis > /dev/null 2>&1; then
+              echo "❌ ${TARGET_ENV} Redis health check failed"
+              docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml logs --tail=50 api
               exit 1
             fi
 
-            # Run database migrations
-            echo "Running database migrations..."
-            docker-compose -f docker-compose.prod.yml exec -T api alembic upgrade head
+            echo "✅ All ${TARGET_ENV} health checks passed"
 
-            echo "✅ Deployment successful: ${GITHUB_SHA}"
+            # =================================================================
+            # STEP 6: Run database migrations (on shared infrastructure)
+            # =================================================================
+            echo "🗄️  Running database migrations..."
+            docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml exec -T api alembic upgrade head
 
-            # Cleanup old images
+            # =================================================================
+            # STEP 7: Switch nginx to target environment
+            # =================================================================
+            echo "🔀 Switching nginx to ${TARGET_ENV} environment..."
+
+            if [ "$TARGET_ENV" = "blue" ]; then
+              sudo cp /opt/boardofone/nginx/nginx-blue.conf /etc/nginx/sites-available/boardofone
+            else
+              sudo cp /opt/boardofone/nginx/nginx-green.conf /etc/nginx/sites-available/boardofone
+            fi
+
+            # Test nginx configuration
+            if ! sudo nginx -t; then
+              echo "❌ nginx configuration test failed"
+              exit 1
+            fi
+
+            # Reload nginx (zero downtime)
+            sudo systemctl reload nginx
+            echo "✅ nginx reloaded with ${TARGET_ENV} configuration"
+
+            # =================================================================
+            # STEP 8: Stop old environment (if not first deploy)
+            # =================================================================
+            if [ "$CURRENT_ENV" != "none" ]; then
+              echo "🛑 Stopping ${CURRENT_ENV} environment..."
+
+              # Wait a bit for in-flight requests to complete
+              sleep 5
+
+              if [ "$CURRENT_ENV" = "blue" ]; then
+                docker-compose -p boardofone -f docker-compose.prod.yml stop api frontend
+              else
+                docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml stop api frontend
+              fi
+
+              echo "✅ ${CURRENT_ENV} environment stopped"
+            fi
+
+            # =================================================================
+            # STEP 9: Cleanup
+            # =================================================================
+            echo "🧹 Cleaning up old Docker images..."
             docker system prune -f --filter "until=72h"
+
+            echo ""
+            echo "✅ ✅ ✅ Deployment successful! ✅ ✅ ✅"
+            echo ""
+            echo "📊 Deployment Summary:"
+            echo "   Current environment: ${CURRENT_ENV} → ${TARGET_ENV}"
+            echo "   Commit: ${GITHUB_SHA}"
+            echo "   API Port: ${TARGET_API_PORT}"
+            echo "   Frontend Port: ${TARGET_FRONTEND_PORT}"
+            echo ""
+            echo "🌐 Production URL: https://boardof.one"
+            echo ""
 
       - name: Post-deployment validation
         run: |

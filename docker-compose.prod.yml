@@ -327,4 +327,4 @@ volumes:
 
 networks:
   bo1-network:
-    driver: bridge
+    external: true  # Use external network for blue-green deployment

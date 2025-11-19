@@ -1,0 +1,32 @@
+# =============================================================================
+# Docker Compose Override for Green Environment
+# Uses different ports to avoid conflicts with blue environment
+# =============================================================================
+
+services:
+  # Green environment API - uses port 8001 instead of 8000
+  api:
+    ports:
+      - "127.0.0.1:8001:8000"
+
+  # Green environment Frontend - uses port 3001 instead of 3000
+  frontend:
+    ports:
+      - "127.0.0.1:3001:3000"
+
+  # Shared infrastructure services (scaled to 0 in green environment)
+  postgres:
+    deploy:
+      replicas: 0
+
+  redis:
+    deploy:
+      replicas: 0
+
+  supabase-auth:
+    deploy:
+      replicas: 0
+
+  bo1:
+    deploy:
+      replicas: 0

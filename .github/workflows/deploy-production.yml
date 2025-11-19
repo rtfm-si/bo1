@@ -260,7 +260,7 @@ jobs:
             echo "🏗️  Starting shared infrastructure..."
 
             # Start shared infrastructure using separate compose file
-            docker-compose -f docker-compose.infrastructure.yml -p infrastructure up -d
+            docker-compose -f docker-compose.infrastructure.yml -p infrastructure up -d --remove-orphans
 
             # Wait for shared services to be healthy
             echo "⏳ Waiting for shared infrastructure to be healthy..."
@@ -318,7 +318,7 @@ jobs:
 
               echo "Starting blue environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})..."
               API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} up -d
+                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} up -d --remove-orphans
             else
               # Deploy green environment (green project, ports 8001/3001)
               TARGET_API_PORT=8001
@@ -335,7 +335,7 @@ jobs:
 
               echo "Starting green environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})..."
               API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} up -d
+                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} up -d --remove-orphans
             fi
 
             # =================================================================
@@ -382,7 +382,7 @@ jobs:
             # STEP 6: Run database migrations (on shared infrastructure)
             # =================================================================
             echo "🗄️  Running database migrations..."
-            docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api alembic upgrade head
+            docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api uv run alembic upgrade head
 
             # =================================================================
             # STEP 7: Switch nginx to target environment

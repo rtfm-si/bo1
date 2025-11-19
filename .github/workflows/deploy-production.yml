@@ -389,15 +389,24 @@ jobs:
             # =================================================================
             echo "🔀 Switching nginx to ${TARGET_ENV} environment..."
 
+            # Remove any duplicate config files (boardofone.conf) that cause zone conflicts
+            sudo rm -f /etc/nginx/sites-enabled/boardofone.conf
+            sudo rm -f /etc/nginx/sites-available/boardofone.conf
+
+            # Copy the correct environment config to sites-available
             if [ "$TARGET_ENV" = "blue" ]; then
               sudo cp /opt/boardofone/nginx/nginx-blue.conf /etc/nginx/sites-available/boardofone
             else
               sudo cp /opt/boardofone/nginx/nginx-green.conf /etc/nginx/sites-available/boardofone
             fi
 
+            # Ensure symlink exists in sites-enabled
+            sudo ln -sf /etc/nginx/sites-available/boardofone /etc/nginx/sites-enabled/boardofone
+
             # Test nginx configuration
             if ! sudo nginx -t; then
               echo "❌ nginx configuration test failed"
+              sudo nginx -T 2>&1 | grep -A 5 "limit_req_zone" || true
               exit 1
             fi
 

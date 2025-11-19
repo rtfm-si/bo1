@@ -174,7 +174,7 @@ services:
       - DEBUG=false
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     ports:
-      - "127.0.0.1:8000:8000"  # Only localhost access
+      - "127.0.0.1:${API_PORT:-8000}:8000"  # Blue: 8000, Green: 8001
     networks:
       - bo1-network
     restart: unless-stopped
@@ -199,7 +199,7 @@ services:
       - PUBLIC_API_URL=http://api:8000
       - ORIGIN=https://boardof.one
     ports:
-      - "127.0.0.1:3000:3000"  # Only localhost access (nginx proxies)
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"  # Blue: 3000, Green: 3001
     networks:
       - bo1-network
     restart: unless-stopped

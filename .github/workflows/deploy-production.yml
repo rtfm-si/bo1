@@ -299,41 +299,42 @@ jobs:
 
             if [ "$TARGET_ENV" = "blue" ]; then
               # Deploy blue environment (default project, ports 8000/3000)
-              echo "Building blue environment images..."
-              docker-compose -p boardofone -f docker-compose.prod.yml build api frontend
-
-              # Remove old containers (idempotent)
-              docker-compose -p boardofone -f docker-compose.prod.yml rm -f -s api frontend 2>/dev/null || true
-
-              echo "Starting blue environment (api + frontend only)..."
-              docker-compose -p boardofone -f docker-compose.prod.yml up -d api frontend
-
               TARGET_API_PORT=8000
               TARGET_FRONTEND_PORT=3000
               TARGET_PROJECT="boardofone"
+
+              echo "Building blue environment images..."
+              API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
+                docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml build api frontend
+
+              # Remove old containers (idempotent)
+              docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml rm -f -s api frontend 2>/dev/null || true
+
+              echo "Starting blue environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})..."
+              API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
+                docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml up -d api frontend
             else
               # Deploy green environment (green project, ports 8001/3001)
+              TARGET_API_PORT=8001
+              TARGET_FRONTEND_PORT=3001
+              TARGET_PROJECT="boardofone-green"
+
               echo "Building green environment images..."
-              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml build api frontend
+              API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
+                docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml build api frontend
 
               # Stop and remove old green containers completely
               echo "Removing old green containers..."
               docker stop boardofone-green-api-1 boardofone-green-frontend-1 2>/dev/null || true
               docker rm -f boardofone-green-api-1 boardofone-green-frontend-1 2>/dev/null || true
 
-              # Verify docker-compose.green.yml is being read
-              echo "Verifying green environment configuration..."
-              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml config | grep -A2 "api:" | grep "8001" || {
-                echo "❌ Green override file not being applied - port 8001 not found in config"
-                exit 1
-              }
+              echo "Starting green environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})..."
+              API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
+                docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml up -d api frontend
 
-              echo "Starting green environment (api + frontend on ports 8001/3001)..."
-              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml up -d --no-deps api frontend
-
-              TARGET_API_PORT=8001
-              TARGET_FRONTEND_PORT=3001
-              TARGET_PROJECT="boardofone-green"
+              # Connect green containers to shared network
+              docker network connect bo1-network boardofone-green-api-1 2>/dev/null || echo "Already connected"
+              docker network connect bo1-network boardofone-green-frontend-1 2>/dev/null || echo "Already connected"
             fi
 
             # =================================================================

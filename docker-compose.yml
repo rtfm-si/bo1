@@ -135,7 +135,7 @@ services:
     environment:
       # Database
       - GOTRUE_DB_DRIVER=postgres
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://bo1:bo1_dev_password@postgres:5432/boardofone
 
       # Site Configuration
       - GOTRUE_SITE_URL=${SITE_URL:-http://localhost:3000}

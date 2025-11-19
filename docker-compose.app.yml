@@ -25,7 +25,7 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
 
       # PostgreSQL Configuration
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/boardofone
 
       # API Keys
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}

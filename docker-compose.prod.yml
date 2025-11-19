@@ -9,7 +9,6 @@ services:
   # ---------------------------------------------------------------------------
   postgres:
     image: pgvector/pgvector:pg15
-    container_name: bo1-postgres-prod
     environment:
       - POSTGRES_DB=boardofone
       - POSTGRES_USER=bo1
@@ -41,7 +40,6 @@ services:
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
-    container_name: bo1-redis-prod
     ports:
       - "127.0.0.1:6379:6379"  # Only localhost access
     volumes:
@@ -75,7 +73,6 @@ services:
   # ---------------------------------------------------------------------------
   supabase-auth:
     image: supabase/gotrue:v2.158.1
-    container_name: bo1-supabase-auth-prod
     depends_on:
       postgres:
         condition: service_healthy
@@ -137,7 +134,6 @@ services:
       context: .
       dockerfile: backend/Dockerfile
       target: production
-    container_name: bo1-api-prod
     depends_on:
       redis:
         condition: service_healthy
@@ -198,7 +194,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
-    container_name: bo1-frontend-prod
     environment:
       - NODE_ENV=production
       - PUBLIC_API_URL=http://api:8000
@@ -260,7 +255,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: production  # Use production stage (minimal, non-root)
-    container_name: bo1-app-prod
     depends_on:
       postgres:
         condition: service_healthy

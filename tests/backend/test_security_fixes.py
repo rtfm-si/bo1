@@ -137,7 +137,7 @@ class TestSQLInjectionPrevention:
                 max_age_days="90; DROP TABLE research_cache;--",  # type: ignore[arg-type]
             )
 
-        assert "must be a positive integer" in str(exc_info.value)
+        assert "days must be an integer" in str(exc_info.value)
 
     def test_max_age_days_negative_validation(self):
         """Negative max_age_days should be rejected."""
@@ -147,7 +147,7 @@ class TestSQLInjectionPrevention:
                 max_age_days=-1,
             )
 
-        assert "must be a positive integer" in str(exc_info.value)
+        assert "days must be non-negative" in str(exc_info.value)
 
     def test_days_old_integer_validation(self):
         """days_old must be a positive integer."""
@@ -157,14 +157,14 @@ class TestSQLInjectionPrevention:
                 days_old="90; DROP TABLE research_cache;--",  # type: ignore[arg-type]
             )
 
-        assert "must be a positive integer" in str(exc_info.value)
+        assert "days must be an integer" in str(exc_info.value)
 
     def test_days_old_negative_validation(self):
         """Negative days_old should be rejected."""
         with pytest.raises(ValueError) as exc_info:
             get_stale_research_cache_entries(days_old=-1)
 
-        assert "must be a positive integer" in str(exc_info.value)
+        assert "days must be non-negative" in str(exc_info.value)
 
 
 class TestAPIKeySecurity:

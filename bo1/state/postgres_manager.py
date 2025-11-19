@@ -329,6 +329,13 @@ def find_cached_research(
     Returns:
         Cached research result or None if no match found
     """
+    # Validate max_age_days BEFORE database connection (prevents injection early)
+    if max_age_days is not None:
+        if not isinstance(max_age_days, int):
+            raise ValueError(f"days must be an integer, got {type(max_age_days).__name__}")
+        if max_age_days < 0:
+            raise ValueError(f"days must be non-negative, got {max_age_days}")
+
     conn = get_connection()
     try:
         with conn.cursor() as cur:
@@ -582,12 +589,14 @@ def get_stale_research_cache_entries(days_old: int = 90) -> list[dict[str, Any]]
     Returns:
         List of stale cache entries with id, question, category, research_date
     """
+    # Validate days_old BEFORE database connection (prevents injection early)
+    if not isinstance(days_old, int):
+        raise ValueError(f"days must be an integer, got {type(days_old).__name__}")
+    if days_old < 0:
+        raise ValueError(f"days must be non-negative, got {days_old}")
+
     # Use SafeQueryBuilder to prevent SQL injection
     from bo1.utils.sql_safety import SafeQueryBuilder
-
-    # Validate days_old parameter
-    if not isinstance(days_old, int) or days_old < 0:
-        raise ValueError("days_old must be a positive integer")
 
     conn = get_connection()
     try:

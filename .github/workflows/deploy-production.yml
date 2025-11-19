@@ -210,12 +210,23 @@ jobs:
             # =================================================================
             # STEP 1: Create external network if it doesn't exist
             # =================================================================
-            if ! docker network ls | grep -q "bo1-network"; then
+            echo "Checking for existing networks..."
+            docker network ls
+
+            if ! docker network inspect bo1-network > /dev/null 2>&1; then
               echo "Creating external Docker network: bo1-network"
               docker network create bo1-network
             else
               echo "✅ External network bo1-network already exists"
             fi
+
+            # Double-check network is ready
+            docker network inspect bo1-network > /dev/null 2>&1 || {
+              echo "❌ Network bo1-network not found"
+              exit 1
+            }
+
+            echo "✅ External network bo1-network ready"
 
             # =================================================================
             # STEP 2: Detect current environment (blue/green/none)

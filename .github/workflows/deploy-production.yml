@@ -253,15 +253,15 @@ jobs:
             # =================================================================
             echo "🏗️  Starting shared infrastructure..."
 
-            # Start shared services using default project (blue)
-            docker-compose -p boardofone -f docker-compose.prod.yml up -d postgres redis supabase-auth
+            # Start shared infrastructure using separate compose file
+            docker-compose -f docker-compose.infrastructure.yml -p infrastructure up -d
 
             # Wait for shared services to be healthy
             echo "⏳ Waiting for shared infrastructure to be healthy..."
             sleep 10
 
             for i in {1..10}; do
-              if docker exec boardofone-postgres-1 pg_isready -U bo1 -d boardofone > /dev/null 2>&1; then
+              if docker exec infrastructure-postgres-1 pg_isready -U bo1 -d boardofone > /dev/null 2>&1; then
                 echo "✅ PostgreSQL is healthy"
                 break
               fi
@@ -269,7 +269,7 @@ jobs:
               sleep 3
               if [ $i -eq 10 ]; then
                 echo "❌ PostgreSQL health check failed"
-                docker logs boardofone-postgres-1 --tail=50
+                docker logs infrastructure-postgres-1 --tail=50
                 exit 1
               fi
             done
@@ -278,7 +278,7 @@ jobs:
             export $(grep REDIS_PASSWORD .env | xargs)
 
             for i in {1..10}; do
-              if docker exec boardofone-redis-1 redis-cli -a "${REDIS_PASSWORD}" ping > /dev/null 2>&1; then
+              if docker exec infrastructure-redis-1 redis-cli -a "${REDIS_PASSWORD}" ping > /dev/null 2>&1; then
                 echo "✅ Redis is healthy"
                 break
               fi
@@ -305,18 +305,14 @@ jobs:
 
               echo "Building blue environment images..."
               API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml build api frontend
+                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} build
 
               # Remove old containers (idempotent)
-              docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml rm -f -s api frontend 2>/dev/null || true
+              docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} rm -f -s 2>/dev/null || true
 
               echo "Starting blue environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})..."
               API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml up -d --no-deps api frontend
-
-              # Ensure blue containers are connected to shared network
-              docker network connect bo1-network boardofone-api-1 2>/dev/null || echo "Already connected"
-              docker network connect bo1-network boardofone-frontend-1 2>/dev/null || echo "Already connected"
+                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} up -d
             else
               # Deploy green environment (green project, ports 8001/3001)
               TARGET_API_PORT=8001
@@ -325,20 +321,15 @@ jobs:
 
               echo "Building green environment images..."
               API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml build api frontend
+                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} build
 
               # Stop and remove old green containers completely
               echo "Removing old green containers..."
-              docker stop boardofone-green-api-1 boardofone-green-frontend-1 2>/dev/null || true
-              docker rm -f boardofone-green-api-1 boardofone-green-frontend-1 2>/dev/null || true
+              docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} down 2>/dev/null || true
 
               echo "Starting green environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})..."
               API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml up -d --no-deps api frontend
-
-              # Connect green containers to shared network
-              docker network connect bo1-network boardofone-green-api-1 2>/dev/null || echo "Already connected"
-              docker network connect bo1-network boardofone-green-frontend-1 2>/dev/null || echo "Already connected"
+                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} up -d
             fi
 
             # =================================================================
@@ -385,7 +376,7 @@ jobs:
             # STEP 6: Run database migrations (on shared infrastructure)
             # =================================================================
             echo "🗄️  Running database migrations..."
-            docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml exec -T api alembic upgrade head
+            docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api alembic upgrade head
 
             # =================================================================
             # STEP 7: Switch nginx to target environment
@@ -418,9 +409,9 @@ jobs:
               sleep 5
 
               if [ "$CURRENT_ENV" = "blue" ]; then
-                docker-compose -p boardofone -f docker-compose.prod.yml stop api frontend
+                docker-compose -f docker-compose.app.yml -p boardofone stop
               else
-                docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml stop api frontend
+                docker-compose -f docker-compose.app.yml -p boardofone-green stop
               fi
 
               echo "✅ ${CURRENT_ENV} environment stopped"

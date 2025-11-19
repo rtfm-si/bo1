@@ -1,0 +1,101 @@
+# =============================================================================
+# Docker Compose - Shared Infrastructure (Postgres, Redis, Supabase Auth)
+# For Blue-Green Deployment
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL: Shared database for both blue and green
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg15
+    environment:
+      - POSTGRES_DB=boardofone
+      - POSTGRES_USER=bo1
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bo1 -d boardofone"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bo1-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Redis: Shared cache for both blue and green
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 300 10
+      --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bo1-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Supabase GoTrue: Shared auth server for both blue and green
+  # ---------------------------------------------------------------------------
+  supabase-auth:
+    image: supabase/gotrue:v2.158.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - GOTRUE_DB_DRIVER=postgres
+      - DATABASE_URL=${DATABASE_URL}
+      - GOTRUE_SITE_URL=${SITE_URL}
+      - GOTRUE_URI_ALLOW_LIST=${SITE_URL}
+      - GOTRUE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - GOTRUE_JWT_EXP=3600
+      - GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated
+      - GOTRUE_DISABLE_SIGNUP=false
+      - GOTRUE_MAILER_AUTOCONFIRM=true
+      - API_EXTERNAL_URL=http://supabase-auth:9999
+      - GOTRUE_EXTERNAL_GOOGLE_ENABLED=${GOOGLE_OAUTH_ENABLED:-false}
+      - GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - GOTRUE_EXTERNAL_GOOGLE_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      - GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=${SUPABASE_URL}/callback
+      - GOTRUE_EXTERNAL_GITHUB_ENABLED=${GITHUB_OAUTH_ENABLED:-false}
+      - GOTRUE_EXTERNAL_GITHUB_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID:-}
+      - GOTRUE_EXTERNAL_GITHUB_SECRET=${GITHUB_OAUTH_CLIENT_SECRET:-}
+      - GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI=${SUPABASE_URL}/callback
+      - GOTRUE_EXTERNAL_LINKEDIN_ENABLED=${LINKEDIN_OAUTH_ENABLED:-false}
+      - GOTRUE_EXTERNAL_LINKEDIN_CLIENT_ID=${LINKEDIN_OAUTH_CLIENT_ID:-}
+      - GOTRUE_EXTERNAL_LINKEDIN_SECRET=${LINKEDIN_OAUTH_CLIENT_SECRET:-}
+      - GOTRUE_EXTERNAL_LINKEDIN_REDIRECT_URI=${SUPABASE_URL}/callback
+    ports:
+      - "127.0.0.1:9999:9999"
+    networks:
+      - bo1-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  bo1-network:
+    name: bo1-network
+    driver: bridge

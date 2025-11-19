@@ -1,0 +1,84 @@
+# =============================================================================
+# Docker Compose - Application Services (API + Frontend)
+# For Blue-Green Deployment
+# =============================================================================
+# Usage:
+#   Blue:  API_PORT=8000 FRONTEND_PORT=3000 docker-compose -f docker-compose.app.yml -p boardofone up -d
+#   Green: API_PORT=8001 FRONTEND_PORT=3001 docker-compose -f docker-compose.app.yml -p boardofone-green up -d
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # FastAPI: Web API for deliberation endpoints
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: production
+    environment:
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+
+      # PostgreSQL Configuration
+      - DATABASE_URL=${DATABASE_URL}
+
+      # API Keys
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - VOYAGE_API_KEY=${VOYAGE_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
+
+      # API Configuration
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - API_RELOAD=false
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
+
+      # Supabase Auth Configuration
+      - ENABLE_SUPABASE_AUTH=${ENABLE_SUPABASE_AUTH:-true}
+      - CLOSED_BETA_MODE=${CLOSED_BETA_MODE:-true}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+
+      # Application Configuration
+      - DEBUG=false
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    networks:
+      - bo1-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Frontend: SvelteKit Web UI
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    environment:
+      - NODE_ENV=production
+      - PUBLIC_API_URL=http://api:8000
+      - ORIGIN=https://boardof.one
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    networks:
+      - bo1-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  bo1-network:
+    name: bo1-network
+    external: true

@@ -3,6 +3,8 @@
 # Uses different ports to avoid conflicts with blue environment
 # =============================================================================
 
+version: '3.8'
+
 services:
   # Green environment API - uses port 8001 instead of 8000
   api:
@@ -14,19 +16,15 @@ services:
     ports:
       - "127.0.0.1:3001:3000"
 
-  # Shared infrastructure services (scaled to 0 in green environment)
+  # Shared infrastructure services (not started in green environment)
   postgres:
-    deploy:
-      replicas: 0
+    scale: 0
 
   redis:
-    deploy:
-      replicas: 0
+    scale: 0
 
   supabase-auth:
-    deploy:
-      replicas: 0
+    scale: 0
 
   bo1:
-    deploy:
-      replicas: 0
+    scale: 0

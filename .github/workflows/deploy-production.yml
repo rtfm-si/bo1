@@ -316,11 +316,20 @@ jobs:
               echo "Building green environment images..."
               docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml build api frontend
 
-              # Remove old containers (idempotent)
-              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml rm -f -s api frontend 2>/dev/null || true
+              # Stop and remove old green containers completely
+              echo "Removing old green containers..."
+              docker stop boardofone-green-api-1 boardofone-green-frontend-1 2>/dev/null || true
+              docker rm -f boardofone-green-api-1 boardofone-green-frontend-1 2>/dev/null || true
 
-              echo "Starting green environment (api + frontend only)..."
-              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml up -d --force-recreate api frontend
+              # Verify docker-compose.green.yml is being read
+              echo "Verifying green environment configuration..."
+              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml config | grep -A2 "api:" | grep "8001" || {
+                echo "❌ Green override file not being applied - port 8001 not found in config"
+                exit 1
+              }
+
+              echo "Starting green environment (api + frontend on ports 8001/3001)..."
+              docker-compose -p boardofone-green -f docker-compose.prod.yml -f docker-compose.green.yml up -d --no-deps api frontend
 
               TARGET_API_PORT=8001
               TARGET_FRONTEND_PORT=3001

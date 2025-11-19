@@ -327,4 +327,5 @@ volumes:
 
 networks:
   bo1-network:
+    name: bo1-network  # Explicit name (no project prefix)
     external: true  # Use external network for blue-green deployment

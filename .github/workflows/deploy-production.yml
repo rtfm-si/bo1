@@ -313,6 +313,10 @@ jobs:
               echo "Starting blue environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})..."
               API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
                 docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml up -d --no-deps api frontend
+
+              # Ensure blue containers are connected to shared network
+              docker network connect bo1-network boardofone-api-1 2>/dev/null || echo "Already connected"
+              docker network connect bo1-network boardofone-frontend-1 2>/dev/null || echo "Already connected"
             else
               # Deploy green environment (green project, ports 8001/3001)
               TARGET_API_PORT=8001

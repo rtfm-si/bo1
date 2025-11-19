@@ -62,7 +62,7 @@ services:
         condition: service_healthy
     environment:
       - GOTRUE_DB_DRIVER=postgres
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/boardofone
       - GOTRUE_SITE_URL=${SITE_URL}
       - GOTRUE_URI_ALLOW_LIST=${SITE_URL}
       - GOTRUE_JWT_SECRET=${SUPABASE_JWT_SECRET}

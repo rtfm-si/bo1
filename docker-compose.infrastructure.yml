@@ -99,3 +99,4 @@ networks:
   bo1-network:
     name: bo1-network
     driver: bridge
+    external: false

@@ -208,25 +208,31 @@ jobs:
             echo "✅ .env file exists"
 
             # =================================================================
-            # STEP 1: Create external network if it doesn't exist
+            # STEP 1: Clean up old networks and prepare for deployment
             # =================================================================
             echo "Checking for existing networks..."
             docker network ls
 
-            if ! docker network inspect bo1-network > /dev/null 2>&1; then
-              echo "Creating external Docker network: bo1-network"
-              docker network create bo1-network
-            else
-              echo "✅ External network bo1-network already exists"
+            # Remove old project-specific networks if they exist (from previous deployments)
+            docker network rm boardofone_bo1-network 2>/dev/null || true
+            docker network rm boardofone-green_bo1-network 2>/dev/null || true
+
+            # If bo1-network exists without proper labels, remove it
+            if docker network inspect bo1-network > /dev/null 2>&1; then
+              # Check if it has the compose project label
+              NETWORK_LABEL=$(docker network inspect bo1-network --format '{{index .Labels "com.docker.compose.project"}}' 2>/dev/null || echo "")
+              if [ -z "$NETWORK_LABEL" ] || [ "$NETWORK_LABEL" != "infrastructure" ]; then
+                echo "Removing old bo1-network (incorrect labels)..."
+                # Stop all containers using this network first
+                docker network inspect bo1-network --format '{{range .Containers}}{{.Name}} {{end}}' | xargs -r docker stop 2>/dev/null || true
+                docker network rm bo1-network 2>/dev/null || true
+                echo "✅ Old network removed"
+              else
+                echo "✅ Network bo1-network has correct labels"
+              fi
             fi
 
-            # Double-check network is ready
-            docker network inspect bo1-network > /dev/null 2>&1 || {
-              echo "❌ Network bo1-network not found"
-              exit 1
-            }
-
-            echo "✅ External network bo1-network ready"
+            echo "✅ Network cleanup complete"
 
             # =================================================================
             # STEP 2: Detect current environment (blue/green/none)
@@ -249,7 +255,7 @@ jobs:
             echo "🎯 Target environment: ${TARGET_ENV}"
 
             # =================================================================
-            # STEP 3: Ensure shared infrastructure is running
+            # STEP 3: Start shared infrastructure (creates bo1-network)
             # =================================================================
             echo "🏗️  Starting shared infrastructure..."
 
@@ -349,7 +355,7 @@ jobs:
               sleep 3
               if [ $i -eq 15 ]; then
                 echo "❌ ${TARGET_ENV} API health check failed"
-                docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml logs --tail=50 api
+                docker-compose -p ${TARGET_PROJECT} -f docker-compose.app.yml logs --tail=50 api
                 echo "🔴 Deployment failed - keeping current environment"
                 exit 1
               fi
@@ -359,14 +365,14 @@ jobs:
             echo "Checking ${TARGET_ENV} database connectivity..."
             if ! curl --fail --silent --max-time 5 http://localhost:${TARGET_API_PORT}/api/health/db > /dev/null 2>&1; then
               echo "❌ ${TARGET_ENV} database health check failed"
-              docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml logs --tail=50 api
+              docker-compose -p ${TARGET_PROJECT} -f docker-compose.app.yml logs --tail=50 api
               exit 1
             fi
 
             echo "Checking ${TARGET_ENV} Redis connectivity..."
             if ! curl --fail --silent --max-time 5 http://localhost:${TARGET_API_PORT}/api/health/redis > /dev/null 2>&1; then
               echo "❌ ${TARGET_ENV} Redis health check failed"
-              docker-compose -p ${TARGET_PROJECT} -f docker-compose.prod.yml logs --tail=50 api
+              docker-compose -p ${TARGET_PROJECT} -f docker-compose.app.yml logs --tail=50 api
               exit 1
             fi
 

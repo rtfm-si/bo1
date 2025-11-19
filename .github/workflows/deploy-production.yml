@@ -64,9 +64,12 @@ jobs:
           # Export dependencies
           pip freeze > requirements-check.txt
 
-          # Run safety check (will fail on known vulnerabilities)
-          safety check --file requirements-check.txt --json > safety-report.json || true
-          safety check --file requirements-check.txt
+          # Run safety scan (new command - replaces deprecated 'check')
+          # --output json for artifact
+          safety scan --target requirements-check.txt --output json > safety-report.json || true
+
+          # Run with default output for console
+          safety scan --target requirements-check.txt
         continue-on-error: true  # Don't block deployment on warnings
 
       - name: Upload security reports

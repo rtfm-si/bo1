@@ -1,1 +1,0 @@
-I want to add to the list of future features: 'bring plan forward' - allow users who run out of 'credits' to be able to bring their billing period forward instead of having to wait til next billing cycle. i think this will be offered alongside 'top ups' and upgrades

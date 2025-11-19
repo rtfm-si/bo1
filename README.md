@@ -4,16 +4,17 @@ AI-powered decision-making system that helps solve complex problems through stru
 
 ## Project Status
 
-**v1 Development Phase** - Week 1 foundation complete (Days 1-6), Day 7 integration testing in progress.
+**v2 Deployed to Production** - Live at [https://boardof.one](https://boardof.one)
 
-### Week 1 Progress (Days 1-7)
-- ✅ Core Pydantic models (Problem, Persona, State, Votes)
-- ✅ LLM client with prompt caching (90% cost reduction)
-- ✅ Redis state management with serialization
-- ✅ Console UI with Rich formatting
-- ✅ 45 expert personas catalog
-- ✅ Modular prompt composition system
-- 🚧 Week 1 integration tests
+### Current State
+- ✅ Console application (v1) - LangGraph-based multi-agent deliberation
+- ✅ Web API (v2) - FastAPI with SSE streaming
+- ✅ Supabase Auth - OAuth (Google/GitHub/LinkedIn)
+- ✅ Production deployment - Blue-green with automated SSL
+- ✅ PostgreSQL + pgvector - Persistent storage with embeddings
+- ✅ Redis checkpointing - Session state management
+- ✅ 45 expert personas - Modular prompt composition
+- ✅ Closed beta mode - Email whitelist validation
 
 ## Quick Start
 

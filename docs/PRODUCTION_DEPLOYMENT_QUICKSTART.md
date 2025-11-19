@@ -122,46 +122,44 @@ cat ~/.ssh/boardofone-deploy/id_ed25519
 
 ---
 
-## Step 4: SSL Certificates (5 minutes)
+## Step 4: SSL Certificates (Automated)
 
-### Option A: Let's Encrypt (Recommended for Production)
+**No action required!** ✅
 
-```bash
-# SSH into server
-ssh deploy@YOUR_SERVER_IP
+SSL certificates are now **automatically obtained during deployment**:
 
-# Install certbot
-sudo apt install -y certbot python3-certbot-nginx
+1. **First Deployment**: GitHub Actions workflow will:
+   - Detect that no Let's Encrypt certificate exists
+   - Run `deployment-scripts/setup-letsencrypt.sh`
+   - Obtain certificate from Let's Encrypt via certbot
+   - Configure nginx to use the certificate
 
-# Generate certificate (replace with your domain)
-sudo certbot --nginx -d boardof.one -d www.boardof.one
+2. **Auto-Renewal**: Certbot timer automatically renews certificates every 60 days
 
-# Certificates will be automatically placed in /etc/letsencrypt/live/boardof.one/
-# Symlink them to nginx/ssl directory
-sudo ln -s /etc/letsencrypt/live/boardof.one/fullchain.pem /etc/nginx/ssl/boardofone.crt
-sudo ln -s /etc/letsencrypt/live/boardof.one/privkey.pem /etc/nginx/ssl/boardofone.key
+3. **Result**: Production-grade HTTPS with no browser warnings
 
-# Test nginx config
-sudo nginx -t
-sudo systemctl reload nginx
-```
+**What you need to ensure:**
+- ☐ Domain `boardof.one` points to your server IP (DNS A record)
+- ☐ Port 80 is open (required for Let's Encrypt HTTP challenge)
+- ☐ Certbot is installed on server (done by setup-production-server.sh)
 
-### Option B: Self-Signed (Testing Only)
+**Manual Setup (Optional)**
+
+If you want to set up Let's Encrypt before deployment:
 
 ```bash
 # SSH into server
 ssh deploy@YOUR_SERVER_IP
 cd /opt/boardofone
 
-# Generate self-signed certificate
-make generate-ssl
-
-# This creates:
-# - /etc/nginx/ssl/boardofone.crt
-# - /etc/nginx/ssl/boardofone.key
+# Run Let's Encrypt setup script
+sudo bash deployment-scripts/setup-letsencrypt.sh
 ```
 
-**⚠️ Self-signed certificates show browser warnings. Use Let's Encrypt for production.**
+This obtains:
+- Certificate: `/etc/letsencrypt/live/boardof.one/fullchain.pem`
+- Private key: `/etc/letsencrypt/live/boardof.one/privkey.pem`
+- Auto-renewal via certbot.timer service
 
 ---
 

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Console-based AI system using multi-agent deliberation (Claude personas) to solve complex problems through structured debate and synthesis.
 
-**Status**: v2 complete (Console + Web API + Auth deployed)
+**Status**: v2 deployed to production (https://boardof.one)
 
 ---
 
@@ -76,13 +76,15 @@ bash deployment-scripts/setup-production-server.sh      # Configure server (Dock
 bash deployment-scripts/setup-github-ssh-keys.sh        # Generate SSH keys for GitHub Actions
 bash deployment-scripts/verify-server-setup.sh          # Verify server configuration
 
-# SSL Certificates
-make generate-ssl    # Generate self-signed cert (testing only)
-# OR use Let's Encrypt: sudo certbot --nginx -d boardof.one
+# SSL Certificates (Automated)
+# Let's Encrypt certificates are automatically obtained during first deployment
+# Auto-renewal via certbot.timer (every 60 days)
+# Manual setup: bash deployment-scripts/setup-letsencrypt.sh
 
 # Deploy (via GitHub Actions)
 # Go to Actions tab → "Deploy to Production" → Run workflow → Type "deploy-to-production"
 # Blue-green deployment: Zero downtime, automatic rollback, preserves active sessions
+# First deployment automatically sets up Let's Encrypt SSL certificates
 ```
 
 **Hot Reload**: Edit code locally, changes immediately available in container (no rebuild).
@@ -319,6 +321,19 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 **Safety**:
 - All personas refuse harmful/illegal/unethical requests
 - Generic safety protocol in `reusable_prompts.py`
+
+**Production Deployment** (Blue-Green):
+- Automated via GitHub Actions workflow
+- Zero-downtime blue-green deployment
+- Automated Let's Encrypt SSL certificate management
+- Health checks before traffic switch
+- Automatic rollback on failure
+- Docker network hostnames for inter-container communication:
+  - DATABASE_URL uses `postgres` hostname (not `localhost`)
+  - REDIS_URL uses `redis` hostname (not `localhost`)
+  - Supabase auth uses `postgres` hostname for DATABASE_URL
+- Infrastructure components (postgres, redis, supabase-auth) shared between blue/green
+- Application containers (api, frontend) deployed to separate blue/green environments
 
 ---
 

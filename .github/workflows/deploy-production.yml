@@ -389,20 +389,13 @@ jobs:
             # =================================================================
             echo "🔀 Switching nginx to ${TARGET_ENV} environment..."
 
-            # Generate self-signed SSL certificate if it doesn't exist
-            if [ ! -f /etc/nginx/ssl/boardofone.crt ]; then
-              echo "🔒 Generating self-signed SSL certificate..."
-              sudo mkdir -p /etc/nginx/ssl
-              sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-                -keyout /etc/nginx/ssl/boardofone.key \
-                -out /etc/nginx/ssl/boardofone.crt \
-                -subj "/C=US/ST=California/L=San Francisco/O=Board of One/CN=boardof.one"
-              sudo chmod 600 /etc/nginx/ssl/boardofone.key
-              sudo chmod 644 /etc/nginx/ssl/boardofone.crt
-              echo "✅ Self-signed SSL certificate generated"
-              echo "⚠️  For production, replace with Let's Encrypt: sudo certbot --nginx -d boardof.one"
+            # Setup Let's Encrypt certificate if it doesn't exist
+            if [ ! -f /etc/letsencrypt/live/boardof.one/fullchain.pem ]; then
+              echo "🔒 Setting up Let's Encrypt SSL certificate..."
+              sudo bash /opt/boardofone/deployment-scripts/setup-letsencrypt.sh
+              echo "✅ Let's Encrypt certificate obtained"
             else
-              echo "✅ SSL certificate already exists"
+              echo "✅ Let's Encrypt certificate already exists"
             fi
 
             # Remove any duplicate config files (boardofone.conf) that cause zone conflicts

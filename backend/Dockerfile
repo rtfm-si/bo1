@@ -42,6 +42,10 @@ FROM base AS development
 COPY backend/ /app/backend/
 COPY bo1/ /app/bo1/
 
+# Copy alembic configuration and migrations
+COPY alembic.ini /app/alembic.ini
+COPY migrations/ /app/migrations/
+
 # Expose port
 EXPOSE 8000
 
@@ -56,6 +60,10 @@ FROM base AS production
 # Copy application code
 COPY backend/ /app/backend/
 COPY bo1/ /app/bo1/
+
+# Copy alembic configuration and migrations
+COPY alembic.ini /app/alembic.ini
+COPY migrations/ /app/migrations/
 
 # Expose port
 EXPOSE 8000

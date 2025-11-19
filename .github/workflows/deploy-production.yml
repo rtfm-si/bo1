@@ -389,6 +389,22 @@ jobs:
             # =================================================================
             echo "🔀 Switching nginx to ${TARGET_ENV} environment..."
 
+            # Generate self-signed SSL certificate if it doesn't exist
+            if [ ! -f /etc/nginx/ssl/boardofone.crt ]; then
+              echo "🔒 Generating self-signed SSL certificate..."
+              sudo mkdir -p /etc/nginx/ssl
+              sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                -keyout /etc/nginx/ssl/boardofone.key \
+                -out /etc/nginx/ssl/boardofone.crt \
+                -subj "/C=US/ST=California/L=San Francisco/O=Board of One/CN=boardof.one"
+              sudo chmod 600 /etc/nginx/ssl/boardofone.key
+              sudo chmod 644 /etc/nginx/ssl/boardofone.crt
+              echo "✅ Self-signed SSL certificate generated"
+              echo "⚠️  For production, replace with Let's Encrypt: sudo certbot --nginx -d boardof.one"
+            else
+              echo "✅ SSL certificate already exists"
+            fi
+
             # Remove any duplicate config files (boardofone.conf) that cause zone conflicts
             sudo rm -f /etc/nginx/sites-enabled/boardofone.conf
             sudo rm -f /etc/nginx/sites-available/boardofone.conf

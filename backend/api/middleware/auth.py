@@ -5,6 +5,8 @@ Provides JWT-based authentication using self-hosted Supabase GoTrue.
 For MVP: Uses hardcoded user ID (test_user_1) for development
 For Closed Beta: Supabase auth + email whitelist validation
 For v2+: Full Supabase auth with OAuth providers (Google, LinkedIn, GitHub)
+
+SECURITY: MVP mode MUST be disabled in production environments.
 """
 
 import logging
@@ -25,6 +27,28 @@ SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 
 # MVP: Hardcoded user ID for development
 DEFAULT_USER_ID = "test_user_1"
+
+
+def require_production_auth() -> None:
+    """Validates that authentication is properly configured in production.
+
+    This function MUST be called during application startup to prevent
+    deploying with MVP mode enabled in production.
+
+    Raises:
+        RuntimeError: If authentication is not enabled in production mode
+    """
+    settings = get_settings()
+
+    # Check if running in production (not debug mode)
+    if not settings.debug and not ENABLE_SUPABASE_AUTH:
+        error_msg = (
+            "SECURITY VIOLATION: Supabase authentication MUST be enabled in production. "
+            "Set ENABLE_SUPABASE_AUTH=true in environment variables. "
+            "Current settings: DEBUG=false, ENABLE_SUPABASE_AUTH=false"
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
 
 
 async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
@@ -107,15 +131,11 @@ async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
             logger.info(f"User {user_email} found in beta whitelist - access granted")
 
         # Extract role from user metadata (custom claim)
+        # SECURITY: Removed email-based admin auto-grant
+        # Admin access must be explicitly set in database admin_users table
         is_admin = user.user_metadata.get("is_admin", False) or user.app_metadata.get(
             "is_admin", False
         )
-
-        # Auto-grant admin to @boardof.one email addresses
-        user_email = (user.email or "").lower()
-        if user_email.endswith("@boardof.one"):
-            is_admin = True
-            logger.info(f"Auto-granted admin access to {user_email} (boardof.one domain)")
 
         return {
             "user_id": user.id,

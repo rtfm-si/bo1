@@ -80,18 +80,32 @@ class Settings(BaseSettings):
     )
 
     # Beta Whitelist (Closed Beta Access Control)
+    # DEPRECATED: Use database-managed whitelist instead (see backend/api/admin.py)
+    # This environment variable approach will be removed in v2.0
     closed_beta_mode: bool = Field(
         default=False,
         description="Enable closed beta mode - only whitelisted emails can authenticate",
     )
     beta_whitelist: str = Field(
         default="",
-        description="Comma-separated list of whitelisted emails for closed beta (e.g., 'alice@example.com,bob@company.com')",
+        description="DEPRECATED: Use database-managed whitelist instead. "
+        "Comma-separated list of whitelisted emails for closed beta (e.g., 'alice@example.com,bob@company.com')",
     )
 
     @property
     def beta_whitelist_emails(self) -> set[str]:
-        """Parse beta whitelist into a set of lowercase emails."""
+        """Parse beta whitelist into a set of lowercase emails.
+
+        DEPRECATED: This property is deprecated in favor of database-managed whitelist.
+        Will be removed in v2.0. Use admin API endpoints to manage whitelist instead.
+        """
+        if self.beta_whitelist:
+            logger.warning(
+                "DEPRECATION WARNING: BETA_WHITELIST environment variable is deprecated. "
+                "Please migrate to database-managed whitelist using admin API endpoints. "
+                "This will be removed in v2.0."
+            )
+
         if not self.beta_whitelist:
             return set()
         return {email.strip().lower() for email in self.beta_whitelist.split(",") if email.strip()}

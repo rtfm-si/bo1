@@ -18,7 +18,9 @@ from pydantic import BaseModel, Field
 from backend.api.dependencies import get_redis_manager, get_session_manager
 from backend.api.middleware.auth import get_current_user
 from backend.api.models import ControlResponse, ErrorResponse
-from backend.api.utils.validation import validate_session_id, validate_user_id
+from backend.api.utils.auth_helpers import extract_user_id
+from backend.api.utils.security import verify_session_ownership
+from backend.api.utils.validation import validate_session_id
 from bo1.data import load_personas
 from bo1.graph.config import create_deliberation_graph
 from bo1.graph.execution import PermissionError
@@ -28,23 +30,6 @@ from bo1.models.problem import Problem
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/sessions", tags=["deliberation-control"])
-
-
-def _get_user_id_from_header() -> str:
-    """Get user ID from request header.
-
-    For MVP, we'll use a hardcoded user ID. In production (Week 7+),
-    this will extract user ID from JWT token.
-
-    Returns:
-        User ID string
-    """
-    # TODO(Week 7): Extract from JWT token
-    # For now, use a test user ID
-    user_id = "test_user_1"
-
-    # Validate user ID format (prevents injection even with hardcoded value)
-    return validate_user_id(user_id)
 
 
 class ClarificationRequest(BaseModel):
@@ -114,17 +99,13 @@ async def start_deliberation(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        user_id = _get_user_id_from_header()
+        user_id = extract_user_id(user)
         session_manager = get_session_manager()
         redis_manager = get_redis_manager()
 
-        # Check if session exists
+        # Check if session exists and verify ownership
         metadata = redis_manager.load_metadata(session_id)
-        if not metadata:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session not found: {session_id}",
-            )
+        metadata = await verify_session_ownership(session_id, user_id, metadata)
 
         # Check if already running
         if session_id in session_manager.active_executions:
@@ -242,15 +223,13 @@ async def pause_deliberation(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
+        # Extract user ID and verify ownership
+        user_id = extract_user_id(user)
         redis_manager = get_redis_manager()
 
-        # Check if session exists
+        # Check if session exists and verify ownership
         metadata = redis_manager.load_metadata(session_id)
-        if not metadata:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session not found: {session_id}",
-            )
+        metadata = await verify_session_ownership(session_id, user_id, metadata)
 
         # Update metadata to mark as paused
         now = datetime.now(UTC)
@@ -313,17 +292,13 @@ async def resume_deliberation(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        user_id = _get_user_id_from_header()
+        user_id = extract_user_id(user)
         session_manager = get_session_manager()
         redis_manager = get_redis_manager()
 
-        # Check if session exists
+        # Check if session exists and verify ownership
         metadata = redis_manager.load_metadata(session_id)
-        if not metadata:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session not found: {session_id}",
-            )
+        metadata = await verify_session_ownership(session_id, user_id, metadata)
 
         # Validate session status
         status = metadata.get("status")
@@ -412,7 +387,7 @@ async def kill_deliberation(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        user_id = _get_user_id_from_header()
+        user_id = extract_user_id(user)
         session_manager = get_session_manager()
 
         reason = (request.reason if request and request.reason else None) or "User requested stop"
@@ -493,7 +468,7 @@ async def submit_clarification(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        user_id = _get_user_id_from_header()
+        user_id = extract_user_id(user)
         redis_manager = get_redis_manager()
 
         # Check if session exists

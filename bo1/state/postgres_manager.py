@@ -356,11 +356,15 @@ def find_cached_research(
                 params.append(industry)
 
             if max_age_days:
-                # Validate max_age_days to prevent SQL injection
-                if not isinstance(max_age_days, int) or max_age_days < 0:
-                    raise ValueError("max_age_days must be a positive integer")
-                # Safe to use f-string since we validated it's an int
-                query += f" AND research_date >= NOW() - INTERVAL '{max_age_days} days'"
+                # Use SafeQueryBuilder for interval filter (prevents SQL injection)
+                from bo1.utils.sql_safety import SafeQueryBuilder
+
+                # Create builder from existing query
+                builder = SafeQueryBuilder.__new__(SafeQueryBuilder)
+                builder.query = query
+                builder.params = params
+                builder.add_interval_filter("research_date", max_age_days)
+                query, params = builder.build()
             else:
                 query += " AND research_date >= NOW() - (freshness_days || ' days')::interval"
 
@@ -578,17 +582,19 @@ def get_stale_research_cache_entries(days_old: int = 90) -> list[dict[str, Any]]
     Returns:
         List of stale cache entries with id, question, category, research_date
     """
-    # Validate days_old to prevent SQL injection
+    # Use SafeQueryBuilder to prevent SQL injection
+    from bo1.utils.sql_safety import SafeQueryBuilder
+
+    # Validate days_old parameter
     if not isinstance(days_old, int) or days_old < 0:
         raise ValueError("days_old must be a positive integer")
 
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Safe to use f-string since we validated it's an int
-            # noqa: S608 - SQL injection prevented by integer validation above
-            cur.execute(
-                f"""
+            # Build safe query with parameterized interval
+            builder = SafeQueryBuilder(
+                """
                 SELECT
                     id::text,
                     question,
@@ -597,10 +603,15 @@ def get_stale_research_cache_entries(days_old: int = 90) -> list[dict[str, Any]]
                     research_date,
                     freshness_days
                 FROM research_cache
-                WHERE research_date < NOW() - INTERVAL '{days_old} days'
-                ORDER BY research_date ASC
-                """  # noqa: S608
+                WHERE 1=1
+                """
             )
+            # Add interval filter (safe - validates integer and uses f-string internally)
+            builder.add_interval_filter("research_date", days_old, operator="<")
+            builder.add_order_by("research_date", "ASC")
+
+            query, params = builder.build()
+            cur.execute(query, params)
             entries = [dict(row) for row in cur.fetchall()]
 
             # Convert datetime to ISO string

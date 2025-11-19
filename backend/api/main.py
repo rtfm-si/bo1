@@ -19,6 +19,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from backend.api import admin, context, control, health, sessions, streaming
 from backend.api.middleware.auth import require_admin
+from bo1.config import get_settings
 
 
 @asynccontextmanager
@@ -29,6 +30,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Startup
     print("Starting Board of One API...")
+
+    # SECURITY: Validate authentication is enabled in production
+    from backend.api.middleware.auth import require_production_auth
+
+    try:
+        require_production_auth()
+        print("✓ Production authentication check passed")
+    except RuntimeError as e:
+        print(f"✗ SECURITY ERROR: {e}")
+        raise
+
     yield
     # Shutdown
     print("Shutting down Board of One API...")
@@ -98,18 +110,40 @@ app = FastAPI(
     ],
 )
 
-# Configure CORS
+# Configure CORS with explicit allow lists (SECURITY: No wildcards in production)
 # Parse CORS origins from environment variable
 # Format: Comma-separated list (e.g., "http://localhost:3000,http://localhost:5173")
 cors_origins_env = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
 CORS_ORIGINS = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
 
+# SECURITY: Validate no wildcards in production
+settings_for_cors = get_settings()
+if not settings_for_cors.debug:
+    if "*" in cors_origins_env:
+        raise RuntimeError(
+            "SECURITY: Wildcard CORS origins not allowed in production. "
+            "Set specific origins in CORS_ORIGINS environment variable."
+        )
+
+# Explicit allowed methods (no wildcards)
+ALLOWED_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+# Explicit allowed headers (common auth headers)
+ALLOWED_HEADERS = [
+    "Authorization",
+    "Content-Type",
+    "Accept",
+    "X-Admin-Key",
+    "X-Request-ID",
+    "Origin",
+    "Referer",
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=ALLOWED_METHODS,
+    allow_headers=ALLOWED_HEADERS,
 )
 
 # Include routers
@@ -125,21 +159,57 @@ app.include_router(admin.router, prefix="/api", tags=["admin"])
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler for unhandled errors.
 
+    SECURITY: Sanitizes error messages in production to prevent information leakage.
+    Development mode returns full error details for debugging.
+
     Args:
         request: FastAPI request object
         exc: Exception that was raised
 
     Returns:
-        JSON error response
+        JSON error response (sanitized in production)
     """
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Internal server error",
-            "message": str(exc),
-            "type": type(exc).__name__,
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Get settings to check debug mode
+    from bo1.config import get_settings
+
+    settings = get_settings()
+
+    # Log full error server-side for all environments
+    logger.error(
+        f"Unhandled exception: {type(exc).__name__}: {exc}",
+        exc_info=True,
+        extra={
+            "request_path": request.url.path,
+            "request_method": request.method,
         },
     )
+
+    if settings.debug:
+        # Development: Return full error details
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Internal server error",
+                "message": str(exc),
+                "type": type(exc).__name__,
+                "debug_mode": True,
+            },
+        )
+    else:
+        # Production: Return sanitized generic error
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Internal server error",
+                "message": "An unexpected error occurred. Please try again later. "
+                "If the problem persists, contact support.",
+                "type": "InternalError",
+            },
+        )
 
 
 @app.get("/")

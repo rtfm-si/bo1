@@ -3,10 +3,13 @@
 Provides simple API key-based authentication for admin endpoints.
 For MVP: Uses environment variable ADMIN_API_KEY
 For v2+: Will use role-based auth with Supabase
+
+SECURITY: Uses constant-time comparison to prevent timing attacks.
 """
 
 import logging
 import os
+import secrets
 
 from fastapi import Header, HTTPException
 
@@ -17,6 +20,26 @@ ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
 
 if not ADMIN_API_KEY:
     logger.warning("ADMIN_API_KEY not set - admin endpoints will be disabled")
+
+
+def verify_admin_key_secure(provided_key: str, expected_key: str) -> bool:
+    """Constant-time admin key comparison to prevent timing attacks.
+
+    Uses secrets.compare_digest() for constant-time string comparison,
+    preventing attackers from using timing analysis to guess the key.
+
+    Args:
+        provided_key: API key from request header
+        expected_key: Expected API key from environment
+
+    Returns:
+        True if keys match, False otherwise
+    """
+    if not provided_key or not expected_key:
+        return False
+
+    # Use constant-time comparison to prevent timing attacks
+    return secrets.compare_digest(provided_key, expected_key)
 
 
 def require_admin(x_admin_key: str = Header(...)) -> str:
@@ -47,7 +70,8 @@ def require_admin(x_admin_key: str = Header(...)) -> str:
             detail="Admin API key required",
         )
 
-    if x_admin_key != ADMIN_API_KEY:
+    # Use constant-time comparison to prevent timing attacks
+    if not verify_admin_key_secure(x_admin_key, ADMIN_API_KEY):
         # Security: Don't log the actual API key, even partially
         logger.warning("Invalid admin API key attempted")
         raise HTTPException(
@@ -55,5 +79,5 @@ def require_admin(x_admin_key: str = Header(...)) -> str:
             detail="Invalid admin API key",
         )
 
-    logger.info("Admin access granted")
+    logger.debug("Admin access granted")  # Changed from INFO to DEBUG for reduced verbosity
     return x_admin_key

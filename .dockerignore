@@ -44,10 +44,32 @@ ENV/
 *~
 .DS_Store
 
-# Environment variables (will be passed via docker-compose)
+# SECURITY: Environment variables and secrets (will be passed via docker-compose)
+# NEVER include these in Docker images
 .env
+.env.*
 .env.local
+.env.production
+.env.development
+.env.staging
+.env.test
 .env.*.local
+
+# SSH keys and certificates
+*.pem
+*.key
+*.pub
+*.crt
+*.cer
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# Secret directories
+secrets/
+.secrets/
+credentials/
 
 # Logs
 *.log

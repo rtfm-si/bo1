@@ -266,6 +266,48 @@ echo -e "${GREEN}✓ Firewall configured${NC}"
 ufw status
 
 # =============================================================================
+# Optional: Disable Password Authentication (Recommended for Production)
+# =============================================================================
+echo ""
+echo -e "${YELLOW}Optional: Disable password authentication (SSH key-only access)${NC}"
+echo -e "This is ${GREEN}highly recommended${NC} for production security."
+echo ""
+read -p "Disable password authentication? (y/n) " -n 1 -r
+echo ""
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo -e "${YELLOW}Disabling password authentication...${NC}"
+
+    # Backup original sshd_config
+    cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup
+
+    # Disable password authentication
+    sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/^PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+    # Disable challenge-response (another form of password auth)
+    sed -i 's/^#ChallengeResponseAuthentication yes/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/^ChallengeResponseAuthentication yes/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
+
+    # Ensure PubkeyAuthentication is enabled
+    sed -i 's/^#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+
+    # Test SSH config before restarting
+    sshd -t
+    if [ $? -eq 0 ]; then
+        systemctl restart sshd
+        echo -e "${GREEN}✓ Password authentication disabled${NC}"
+        echo -e "${RED}WARNING: Ensure you have SSH key access before logging out!${NC}"
+    else
+        echo -e "${RED}✗ SSH config test failed - reverting changes${NC}"
+        mv /etc/ssh/sshd_config.backup /etc/ssh/sshd_config
+    fi
+else
+    echo -e "${YELLOW}Skipping password authentication disable${NC}"
+    echo -e "${YELLOW}You can enable this later with:${NC}"
+    echo -e "  ${YELLOW}DISABLE_PASSWORD_AUTH=true bash $0${NC}"
+fi
+
+# =============================================================================
 # Setup Complete
 # =============================================================================
 echo -e "\n${GREEN}========================================${NC}"
@@ -278,14 +320,17 @@ echo -e "1. Add GitHub Actions SSH public key:"
 echo -e "   ${YELLOW}sudo nano /home/$DEPLOY_USER/.ssh/authorized_keys${NC}"
 echo -e "   (Paste the public key from your GitHub secrets setup)"
 echo ""
-echo -e "2. Generate SSL certificates:"
+echo -e "2. ${RED}IMPORTANT: Test SSH key access before disabling passwords!${NC}"
+echo -e "   ${YELLOW}ssh -i /path/to/key $DEPLOY_USER@YOUR_SERVER_IP${NC}"
+echo ""
+echo -e "3. Generate SSL certificates:"
 echo -e "   ${YELLOW}cd $DEPLOY_DIR && make generate-ssl${NC}"
 echo ""
-echo -e "3. Create .env file with production secrets:"
+echo -e "4. Create .env file with production secrets:"
 echo -e "   ${YELLOW}sudo -u $DEPLOY_USER nano $DEPLOY_DIR/.env${NC}"
 echo -e "   (Copy from .env.example and fill in production values)"
 echo ""
-echo -e "4. Set up GitHub repository secrets:"
+echo -e "5. Set up GitHub repository secrets:"
 echo -e "   - PRODUCTION_HOST (this server's IP/domain)"
 echo -e "   - PRODUCTION_USER (deploy)"
 echo -e "   - PRODUCTION_SSH_KEY (private key matching the public key above)"

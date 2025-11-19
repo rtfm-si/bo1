@@ -9,11 +9,13 @@ Provides:
 
 import logging
 from datetime import datetime
+from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.api.utils.validation import validate_user_id
+from backend.api.middleware.auth import get_current_user
+from backend.api.utils.auth_helpers import extract_user_id
 from bo1.state.postgres_manager import (
     delete_user_context,
     load_user_context,
@@ -136,23 +138,6 @@ class ClarificationRequest(BaseModel):
     )
 
 
-def _get_user_id_from_header() -> str:
-    """Get user ID from request header.
-
-    For MVP, we'll use a hardcoded user ID. In production (Week 7+),
-    this will extract user ID from JWT token.
-
-    Returns:
-        User ID string
-    """
-    # TODO(Week 7): Extract from JWT token
-    # For now, use a test user ID
-    user_id = "test_user_1"
-
-    # Validate user ID format (prevents injection even with hardcoded value)
-    return validate_user_id(user_id)
-
-
 @router.get(
     "/v1/context",
     response_model=ContextResponse,
@@ -210,8 +195,11 @@ def _get_user_id_from_header() -> str:
         500: {"description": "Database error"},
     },
 )
-async def get_context() -> ContextResponse:
+async def get_context(user: dict[str, Any] = Depends(get_current_user)) -> ContextResponse:
     """Get user's saved business context.
+
+    Args:
+        user: Authenticated user data
 
     Returns:
         ContextResponse with context data if exists
@@ -220,7 +208,7 @@ async def get_context() -> ContextResponse:
         HTTPException: If database error occurs
     """
     try:
-        user_id = _get_user_id_from_header()
+        user_id = extract_user_id(user)
 
         # Load context from database
         context_data = load_user_context(user_id)
@@ -280,11 +268,14 @@ async def get_context() -> ContextResponse:
         500: {"description": "Database error"},
     },
 )
-async def update_context(context: BusinessContext) -> dict[str, str]:
+async def update_context(
+    context: BusinessContext, user: dict[str, Any] = Depends(get_current_user)
+) -> dict[str, str]:
     """Update user's business context.
 
     Args:
         context: Business context to save
+        user: Authenticated user data
 
     Returns:
         Status message
@@ -293,7 +284,7 @@ async def update_context(context: BusinessContext) -> dict[str, str]:
         HTTPException: If database error occurs
     """
     try:
-        user_id = _get_user_id_from_header()
+        user_id = extract_user_id(user)
 
         # Convert to dict for save function
         context_dict = {
@@ -350,8 +341,11 @@ async def update_context(context: BusinessContext) -> dict[str, str]:
         500: {"description": "Database error"},
     },
 )
-async def delete_context() -> dict[str, str]:
+async def delete_context(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, str]:
     """Delete user's saved business context.
+
+    Args:
+        user: Authenticated user data
 
     Returns:
         Status message
@@ -360,7 +354,7 @@ async def delete_context() -> dict[str, str]:
         HTTPException: If database error occurs
     """
     try:
-        user_id = _get_user_id_from_header()
+        user_id = extract_user_id(user)
 
         # Delete from database
         deleted = delete_user_context(user_id)

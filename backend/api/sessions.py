@@ -21,6 +21,8 @@ from backend.api.models import (
     SessionListResponse,
     SessionResponse,
 )
+from backend.api.utils.auth_helpers import extract_user_id
+from backend.api.utils.security import verify_session_ownership
 from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
 
@@ -77,6 +79,9 @@ async def create_session(
                 detail="Redis unavailable - cannot create session",
             )
 
+        # Extract user ID from authenticated user
+        user_id = extract_user_id(user)
+
         # Generate session ID
         session_id = redis_manager.create_session()
 
@@ -85,6 +90,7 @@ async def create_session(
         metadata = {
             "status": "created",
             "phase": None,
+            "user_id": user_id,  # SECURITY: Track session ownership
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
             "problem_statement": request.problem_statement,
@@ -160,6 +166,9 @@ async def list_sessions(
         HTTPException: If listing fails
     """
     try:
+        # Extract user ID from authenticated user
+        user_id = extract_user_id(user)
+
         # Create Redis manager
         redis_manager = get_redis_manager()
 
@@ -180,6 +189,10 @@ async def list_sessions(
         for session_id in session_ids:
             metadata = redis_manager.load_metadata(session_id)
             if not metadata:
+                continue
+
+            # SECURITY: Only show sessions owned by the user
+            if metadata.get("user_id") != user_id:
                 continue
 
             # Apply status filter
@@ -270,6 +283,9 @@ async def get_session(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
+        # Extract user ID from authenticated user
+        user_id = extract_user_id(user)
+
         # Create Redis manager
         redis_manager = get_redis_manager()
 
@@ -279,13 +295,11 @@ async def get_session(
                 detail="Redis unavailable - cannot retrieve session",
             )
 
-        # Load metadata
+        # Load metadata and verify ownership
         metadata = redis_manager.load_metadata(session_id)
-        if not metadata:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session not found: {session_id}",
-            )
+
+        # SECURITY: Verify session ownership (returns 404 if not owned)
+        metadata = await verify_session_ownership(session_id, user_id, metadata)
 
         # Load full state (if available)
         state = redis_manager.load_state(session_id)

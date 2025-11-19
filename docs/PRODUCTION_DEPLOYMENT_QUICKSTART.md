@@ -21,14 +21,21 @@ ssh root@YOUR_SERVER_IP
 
 ### 1.2 Run Automated Setup Script
 
+**SECURITY BEST PRACTICE**: Always download, review, and verify scripts before running them. Never pipe directly to bash (`curl | bash`).
+
 ```bash
-# Download and run the setup script
+# Download the setup script
 curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/bo1/main/deployment-scripts/setup-production-server.sh -o setup.sh
 
-# Review the script (optional but recommended)
+# IMPORTANT: Review the script before running
 less setup.sh
 
-# Run it
+# (Optional but recommended) Verify checksum
+# Get expected checksum from repository or maintainer
+# sha256sum setup.sh
+# Compare with expected value
+
+# Run it after review
 sudo bash setup.sh
 ```
 

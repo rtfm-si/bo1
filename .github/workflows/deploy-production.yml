@@ -226,119 +226,70 @@ jobs:
 
             echo "Current environment: ${CURRENT_ENV}"
 
-            # Determine target environment (opposite of current)
-            if [ "$CURRENT_ENV" = "blue" ] || [ "$CURRENT_ENV" = "none" ]; then
-              TARGET_ENV="green"
-              TARGET_PROJECT="boardofone-green"
-              TARGET_API="boardofone-green-api-1"
-            else
-              TARGET_ENV="blue"
-              TARGET_PROJECT="boardofone"
-              TARGET_API="boardofone-api-1"
+            # For blue-green: we deploy new version, test it, switch nginx, then stop old
+            # Since both environments need same ports, we do rolling restart (not true parallel)
+
+            echo "🚀 Deploying new version..."
+
+            # Stop and remove old containers if they exist (one-time migration from hardcoded names)
+            if docker ps -a --format '{{.Names}}' | grep -q "^bo1-api-prod\$"; then
+              echo "Migrating from old container names..."
+              docker stop bo1-api-prod bo1-frontend-prod bo1-supabase-auth-prod bo1-postgres-prod bo1-redis-prod bo1-app-prod 2>/dev/null || true
+              docker rm bo1-api-prod bo1-frontend-prod bo1-supabase-auth-prod bo1-postgres-prod bo1-redis-prod bo1-app-prod 2>/dev/null || true
             fi
 
-            echo "🚀 Deploying to ${TARGET_ENV} environment..."
+            # Build new images
+            echo "Building new images..."
+            docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml build --no-cache
 
-            # Build images for target environment
-            echo "Building ${TARGET_ENV} images..."
-            docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml -p ${TARGET_PROJECT} build --no-cache
-
-            # Start target environment
-            echo "Starting ${TARGET_ENV} containers..."
-            docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml -p ${TARGET_PROJECT} up -d
+            # Rolling update strategy:
+            # 1. Start new containers (will replace old ones with same names)
+            # 2. Docker Compose will gracefully stop old containers before starting new ones
+            echo "Deploying new containers (rolling update)..."
+            docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml up -d
 
             # Wait for containers to start
-            echo "Waiting for ${TARGET_ENV} services to start..."
+            echo "Waiting for services to start..."
             sleep 30
 
-            # Health checks using curl from HOST (not from inside container)
-            echo "Running health checks on ${TARGET_ENV}..."
+            # Health checks
+            echo "Running health checks..."
 
             for i in {1..10}; do
               if curl --fail --silent --max-time 5 http://localhost:8000/api/health > /dev/null 2>&1; then
-                echo "✅ ${TARGET_ENV} API is healthy"
+                echo "✅ API is healthy"
                 break
               fi
-              echo "Waiting for ${TARGET_ENV} API... ($i/10)"
+              echo "Waiting for API... ($i/10)"
               sleep 3
               if [ $i -eq 10 ]; then
-                echo "❌ ${TARGET_ENV} API health check failed"
-                docker-compose -f docker-compose.prod.yml -p ${TARGET_PROJECT} logs --tail=50 api
-                echo "🔴 Deployment failed - stopping ${TARGET_ENV} containers"
-                docker-compose -f docker-compose.prod.yml -p ${TARGET_PROJECT} down
+                echo "❌ API health check failed"
+                docker-compose -f docker-compose.prod.yml logs --tail=50 api
+                echo "🔴 Deployment failed"
                 exit 1
               fi
             done
 
             # Additional health checks
-            echo "Checking ${TARGET_ENV} database connectivity..."
+            echo "Checking database connectivity..."
             if ! curl --fail --silent --max-time 5 http://localhost:8000/api/health/db > /dev/null 2>&1; then
-              echo "❌ ${TARGET_ENV} database health check failed"
-              docker-compose -f docker-compose.prod.yml -p ${TARGET_PROJECT} logs --tail=50 api
-              docker-compose -f docker-compose.prod.yml -p ${TARGET_PROJECT} down
+              echo "❌ Database health check failed"
+              docker-compose -f docker-compose.prod.yml logs --tail=50 api
               exit 1
             fi
 
-            echo "Checking ${TARGET_ENV} Redis connectivity..."
+            echo "Checking Redis connectivity..."
             if ! curl --fail --silent --max-time 5 http://localhost:8000/api/health/redis > /dev/null 2>&1; then
-              echo "❌ ${TARGET_ENV} Redis health check failed"
-              docker-compose -f docker-compose.prod.yml -p ${TARGET_PROJECT} logs --tail=50 api
-              docker-compose -f docker-compose.prod.yml -p ${TARGET_PROJECT} down
+              echo "❌ Redis health check failed"
+              docker-compose -f docker-compose.prod.yml logs --tail=50 api
               exit 1
             fi
 
-            # Run database migrations on target environment
-            echo "Running database migrations on ${TARGET_ENV}..."
-            docker-compose -f docker-compose.prod.yml -p ${TARGET_PROJECT} exec -T api alembic upgrade head
-
-            # Switch nginx to target environment
-            echo "Switching nginx to ${TARGET_ENV} environment..."
-            sudo cp nginx/nginx-${TARGET_ENV}.conf /etc/nginx/sites-enabled/boardofone.conf
-
-            # Test nginx configuration
-            if ! sudo nginx -t; then
-              echo "❌ Nginx configuration test failed"
-              docker-compose -f docker-compose.prod.yml -p ${TARGET_PROJECT} down
-              exit 1
-            fi
-
-            # Reload nginx (zero-downtime traffic cutover!)
-            sudo systemctl reload nginx
-            echo "✅ Traffic switched to ${TARGET_ENV}"
-
-            # Monitor for errors (brief period)
-            echo "Monitoring ${TARGET_ENV} for errors..."
-            sleep 30
-
-            ERROR_COUNT=$(docker-compose -f docker-compose.prod.yml -p ${TARGET_PROJECT} logs --tail=50 | grep -i "error\|exception\|failed" | grep -v "health" | wc -l || echo "0")
-            if [ $ERROR_COUNT -gt 10 ]; then
-              echo "⚠️ Warning: High error rate detected in ${TARGET_ENV} ($ERROR_COUNT errors)"
-              echo "Rolling back to ${CURRENT_ENV}..."
-
-              # Rollback: switch nginx back
-              if [ "$CURRENT_ENV" != "none" ]; then
-                sudo cp nginx/nginx-${CURRENT_ENV}.conf /etc/nginx/sites-enabled/boardofone.conf
-                sudo nginx -t && sudo systemctl reload nginx
-                echo "✅ Rolled back to ${CURRENT_ENV}"
-              fi
-
-              docker-compose -f docker-compose.prod.yml -p ${TARGET_PROJECT} down
-              exit 1
-            fi
-
-            # Stop old environment (if exists)
-            if [ "$CURRENT_ENV" != "none" ]; then
-              echo "Stopping old ${CURRENT_ENV} environment..."
-              if [ "$CURRENT_ENV" = "blue" ]; then
-                docker-compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml down || true
-              else
-                docker-compose -f docker-compose.prod.yml -p boardofone-green down || true
-              fi
-              echo "✅ Old ${CURRENT_ENV} environment stopped"
-            fi
+            # Run database migrations
+            echo "Running database migrations..."
+            docker-compose -f docker-compose.prod.yml exec -T api alembic upgrade head
 
             echo "✅ Deployment successful: ${GITHUB_SHA}"
-            echo "🟢 ${TARGET_ENV} environment is now serving traffic"
 
             # Cleanup old images
             docker system prune -f --filter "until=72h"

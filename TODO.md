@@ -33,9 +33,9 @@ PROBLEM: Too abstract. Telling instead of showing. Redundant with other sections
 RECOMMENDATION: Replace with concrete proof:
 
 - Option A: Show a real decision output screenshot (blurred sensitive details) with annotations
-- Option B: Add a 2-sentence case study snippet: "Founder choosing between 2 growth strategies. Board of One
-  identified 3 blind spots. Decision made in 12 minutes. Saved $40K."
-- Option C: Remove this section entirely and merge the 3 cards into social proof or testimonials
+  - use frontend/static/demo_meeting.jpg
+  - add the image to a card that 'pops' off the page (rounded edges, shadow)
+  - the image is oversized, so the edges of the iage should sit 'outside' (and not visible) of the card. the card acts as a mask
 
 WHY:
 
@@ -143,11 +143,7 @@ WHY:
 
 8. Hero Section - Metrics Band
 
-RECOMMENDATION: Consider adding one more metric for symmetry (makes 4 → 5):
-
-- "1 Question" - "One problem at a time"
-
-ALTERNATIVE: Keep 4 but adjust to 2x2 grid on tablet instead of 4 columns
+Adjust to 2x2 grid on tablet instead of 4 columns
 
 WHY:
 
@@ -173,22 +169,6 @@ WHY:
 
 ---
 
-10. Add "See It In Action" Section (Optional)
-
-RECOMMENDATION: After "How It Works", add a lightweight "See a Sample Session" section:
-
-- Screenshot or simple illustration of the interface
-- OR embed a 30-second screen recording walkthrough (when available)
-- Keep it simple and tasteful
-
-WHY:
-
-- Shows > Tells
-- Reduces uncertainty
-- Makes it feel real and tangible
-
----
-
 COPY IMPROVEMENTS
 
 11. Tighten Language Throughout
@@ -205,20 +185,6 @@ WHY:
 
 - BRAND.md: "Direct", "No waffle"
 - Shorter = punchier = more confident
-
----
-
-SUMMARY: PRIORITY ORDER
-
-Do immediately:
-
-1. ✅ Replace 4 centered paragraphs with "How It Works" 3-step process
-2. ✅ Remove colored box from "Early access" section
-3. ✅ Consolidate value blocks (4 → 3 stronger ones)
-
-Do next: 4. ✅ Add social proof section (even placeholder testimonials) 5. ✅ Move decision carousel higher on page 6. ✅ Replace "How We're Different" section with concrete proof/example
-
-Polish later: 7. Add hover states with examples to value blocks 8. Tighten copy throughout 9. Consider "See It In Action" section
 
 ---
 

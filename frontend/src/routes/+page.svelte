@@ -111,39 +111,22 @@
 
 	const valueBlocks = [
 		{
-			title: 'Clarity on Demand',
-			description: 'Ask a question, get a clear recommendation.',
-			icon: 'target',
-		},
-		{
-			title: 'Expert-Level Thinking',
-			description: 'Multiple expert angles. One clear path.',
+			title: 'Expert-Level Analysis',
+			description: 'Complete breakdown with multiple expert perspectives. See blind spots and trade-offs you wouldn\'t find alone.',
 			icon: 'users',
+			example: 'Identified cap table dilution risk you hadn\'t considered',
 		},
 		{
-			title: 'Fast and Frictionless',
-			description: 'Minutes, not meetings.',
-			icon: 'zap',
+			title: 'Clear Recommendations',
+			description: 'Not just analysis — decisive recommendations grounded in real-world constraints. Decisions that hold up when stakes are high.',
+			icon: 'target',
+			example: 'Hire first, spend 30% on ads later',
 		},
 		{
-			title: 'Accountability Built In',
-			description: 'Track actions, get follow-up support. Plan B when things don\'t pan out.',
+			title: 'Ongoing Support',
+			description: 'Track progress, get follow-up support. Plan B when things change. Minutes, not meetings.',
 			icon: 'check-circle',
-		},
-	];
-
-	const features = [
-		{
-			label: 'Complete breakdown',
-			description: 'Not just a single answer — full analysis with reasoning.',
-		},
-		{
-			label: 'Multiple perspectives',
-			description: 'See blind spots and trade-offs you wouldn\'t find alone.',
-		},
-		{
-			label: 'Real-world recommendations',
-			description: 'Decisions that hold up when stakes are high.',
+			example: 'Track 3 KPIs, adjust pricing in Q2',
 		},
 	];
 
@@ -208,16 +191,20 @@
 
 	const faqs = [
 		{
+			question: 'What kind of decisions does Board of One help with?',
+			answer: 'Hiring, strategy, pricing, positioning, new opportunities, product choices, competitor moves, prioritization, and more. Any strategic decision where you need clarity.',
+		},
+		{
 			question: 'Is Board of One another AI chat tool?',
 			answer: 'No. Board of One analyzes your question, surfaces expert-level insights, and distills everything into a clear recommendation. Most AI tools answer questions. Board of One helps you think.',
 		},
 		{
-			question: 'Do I need to be technical?',
-			answer: 'Not at all. If you can type your problem, you can use Board of One. It\'s designed for operators, founders, and decision-makers — not engineers.',
+			question: 'How does it work?',
+			answer: 'Describe your decision in plain language. Board of One breaks it down, analyzes it from multiple expert perspectives, identifies blind spots and trade-offs, then delivers a clear recommendation with next steps. Minutes, not meetings.',
 		},
 		{
-			question: 'What kind of decisions does Board of One help with?',
-			answer: 'Hiring, strategy, pricing, positioning, new opportunities, product choices, competitor moves, prioritization, and more. Any strategic decision where you need clarity.',
+			question: 'Do I need to be technical?',
+			answer: 'Not at all. If you can type your problem, you can use Board of One. It\'s designed for operators, founders, and decision-makers — not engineers.',
 		},
 		{
 			question: 'Is my data safe?',
@@ -594,7 +581,7 @@
 									</Button>
 								</form>
 								<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-4">
-									No credit card. No commitment. Cancel anytime.
+									No credit card. No commitment.
 								</p>
 							</div>
 						</div>
@@ -635,7 +622,7 @@
 	<!-- Quantified Value Metrics -->
 	<section id="metrics-section" class="py-16 bg-white dark:bg-neutral-900 border-y border-neutral-200 dark:border-neutral-800">
 		<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-			<div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
+			<div class="grid grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
 				{#each metrics as metric, i}
 					<div
 						class="text-center metric-card"
@@ -657,7 +644,7 @@
 	</section>
 
 	<!-- Why This Matters -->
-	<section class="py-20 bg-neutral-50 dark:bg-neutral-800">
+	<section class="py-20 bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-800">
 		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 			<h2 class="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-4 text-center leading-tight">
 				<span class="text-neutral-700 dark:text-neutral-300 font-normal">The toughest part of running a business isn't the work.</span><br />
@@ -673,8 +660,42 @@
 		</div>
 	</section>
 
-	<!-- How It Feels -->
-	<section class="py-24 bg-white dark:bg-neutral-900 relative overflow-hidden">
+	<!-- Use Cases -->
+	<section class="py-16 bg-white dark:bg-neutral-900 overflow-hidden border-y border-neutral-200 dark:border-neutral-800">
+		<div class="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="text-center mb-8">
+				<h3 class="text-xl md:text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
+					What kind of decisions does <span class="text-brand-600 dark:text-brand-400 italic font-extrabold">Board of One</span> help with?
+				</h3>
+			</div>
+
+			<!-- Infinite horizontal carousel -->
+			<div class="relative w-full">
+				<!-- Gradient fade edges -->
+				<div class="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-white dark:from-neutral-900 to-transparent z-10 pointer-events-none"></div>
+				<div class="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-white dark:from-neutral-900 to-transparent z-10 pointer-events-none"></div>
+
+				<!-- Carousel container with two identical groups for seamless loop -->
+				<div class="carousel-container text-lg font-medium text-neutral-700 dark:text-neutral-300">
+					<!-- First group -->
+					<div class="carousel-group">
+						{#each decisionTypes as decision, i (i)}
+							<span class="carousel-item">{decision}</span>
+						{/each}
+					</div>
+					<!-- Second group (duplicate for seamless loop) -->
+					<div class="carousel-group" aria-hidden="true">
+						{#each decisionTypes as decision, i (`duplicate-${i}`)}
+							<span class="carousel-item">{decision}</span>
+						{/each}
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- How It Works -->
+	<section class="py-24 bg-white dark:bg-neutral-900 relative overflow-hidden border-y border-neutral-200 dark:border-neutral-800">
 		<!-- Background decoration -->
 		<div class="absolute top-0 right-0 w-96 h-96 bg-brand-400/5 dark:bg-brand-600/5 rounded-full blur-3xl animate-float"></div>
 
@@ -684,26 +705,69 @@
 					<span class="text-neutral-700 dark:text-neutral-300 font-normal">You bring the question.</span><br />
 					<span class="text-brand-600 dark:text-brand-400 emphasis-word">We bring the <span class="italic font-extrabold">clarity</span>.</span>
 				</h2>
-				<div class="max-w-2xl mx-auto text-center space-y-3 mt-8">
-					<p class="text-lg text-neutral-600 dark:text-neutral-400">Ask any strategic question</p>
-					<p class="text-lg text-neutral-600 dark:text-neutral-400">Get expert-level analysis with blind-spot checks, risks, trade-offs, and clear actions</p>
-					<p class="text-lg text-neutral-600 dark:text-neutral-400">Track progress, get follow-up support. Plan B when things don't work out</p>
-					<p class="text-lg text-neutral-600 dark:text-neutral-400">No back-and-forth. No waiting. No second-guessing.</p>
+			</div>
+
+			<!-- 3-Step Process -->
+			<div class="max-w-5xl mx-auto">
+				<div class="grid md:grid-cols-3 gap-8 md:gap-12">
+					<!-- Step 1 -->
+					<div class="relative">
+						<div class="flex flex-col items-center text-center">
+							<div class="w-16 h-16 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center mb-4">
+								<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-brand-600 dark:text-brand-400">
+									<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+								</svg>
+							</div>
+							<div class="text-sm font-bold text-brand-600 dark:text-brand-400 mb-2 uppercase tracking-wide">Step 1</div>
+							<h3 class="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-2">Ask Your Question</h3>
+							<p class="text-neutral-600 dark:text-neutral-400">Describe your decision in plain language</p>
+						</div>
+						<!-- Arrow for desktop -->
+						<div class="hidden md:block absolute top-8 -right-6 text-brand-400 dark:text-brand-600 text-3xl">→</div>
+					</div>
+
+					<!-- Step 2 -->
+					<div class="relative">
+						<div class="flex flex-col items-center text-center">
+							<div class="w-16 h-16 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center mb-4">
+								<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-brand-600 dark:text-brand-400">
+									<path d={getIconPath('users')}/>
+								</svg>
+							</div>
+							<div class="text-sm font-bold text-brand-600 dark:text-brand-400 mb-2 uppercase tracking-wide">Step 2</div>
+							<h3 class="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-2">Get Expert Analysis</h3>
+							<p class="text-neutral-600 dark:text-neutral-400">3-5 expert perspectives surface blind spots and trade-offs</p>
+						</div>
+						<!-- Arrow for desktop -->
+						<div class="hidden md:block absolute top-8 -right-6 text-brand-400 dark:text-brand-600 text-3xl">→</div>
+					</div>
+
+					<!-- Step 3 -->
+					<div class="flex flex-col items-center text-center">
+						<div class="w-16 h-16 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center mb-4">
+							<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-brand-600 dark:text-brand-400">
+								<path d={getIconPath('check-circle')}/>
+							</svg>
+						</div>
+						<div class="text-sm font-bold text-brand-600 dark:text-brand-400 mb-2 uppercase tracking-wide">Step 3</div>
+						<h3 class="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-2">Take Action</h3>
+						<p class="text-neutral-600 dark:text-neutral-400">Walk away with a clear recommendation and next steps</p>
+					</div>
 				</div>
 			</div>
 
 			<!-- Value Blocks -->
-			<div id="value-blocks" class="grid md:grid-cols-4 gap-6 max-w-6xl mx-auto">
+			<div id="value-blocks" class="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto mt-16">
 				{#each valueBlocks as block, i}
 					<div
-						class="bg-white dark:bg-neutral-900 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 card-hover border-glow"
+						class="bg-white dark:bg-neutral-900 rounded-lg p-8 border border-neutral-200 dark:border-neutral-700 card-hover border-glow group"
 						class:stagger-item={valueBlocksVisible}
 					>
-						<div class="card-icon mb-4">
+						<div class="card-icon mb-6">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
-								width="32"
-								height="32"
+								width="40"
+								height="40"
 								viewBox="0 0 24 24"
 								fill="none"
 								stroke="currentColor"
@@ -715,16 +779,22 @@
 								<path d={getIconPath(block.icon)} />
 							</svg>
 						</div>
-						<h3 class="font-bold text-lg text-neutral-900 dark:text-neutral-100 mb-2">{block.title}</h3>
-						<p class="text-sm text-neutral-600 dark:text-neutral-400">{block.description}</p>
+						<h3 class="font-bold text-xl text-neutral-900 dark:text-neutral-100 mb-3">{block.title}</h3>
+						<p class="text-base text-neutral-600 dark:text-neutral-400 leading-relaxed mb-4">{block.description}</p>
+
+						<!-- Hover Example -->
+						<div class="opacity-0 group-hover:opacity-100 transition-opacity duration-300 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+							<p class="text-sm text-brand-600 dark:text-brand-400 font-medium mb-1">Example:</p>
+							<p class="text-sm text-neutral-700 dark:text-neutral-300 italic">"{block.example}"</p>
+						</div>
 					</div>
 				{/each}
 			</div>
 		</div>
 	</section>
 
-	<!-- How We're Different -->
-	<section id="features-section" class="py-24 bg-neutral-50 dark:bg-neutral-800 relative overflow-hidden">
+	<!-- See It In Action -->
+	<section id="features-section" class="py-24 bg-neutral-50 dark:bg-neutral-800 relative overflow-hidden border-y border-neutral-200 dark:border-neutral-800">
 		<div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 			<div class="text-center mb-16">
 				<h2 class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-neutral-100 mb-6 leading-tight">
@@ -739,27 +809,44 @@
 				</p>
 			</div>
 
-			<!-- Comparison with other tools -->
+			<!-- Demo Screenshot Card -->
 			<div class="max-w-5xl mx-auto">
-				<div class="grid md:grid-cols-3 gap-6">
-					{#each features as feature, i}
-						<div
-							class="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-6 card-hover"
-							class:stagger-item={featuresVisible}
-						>
-							<div class="text-xs font-semibold text-brand-600 dark:text-brand-400 mb-2 uppercase tracking-wide">
-								{feature.label}
-							</div>
-							<p class="text-sm text-neutral-600 dark:text-neutral-400">{feature.description}</p>
+				<div class="relative">
+					<!-- Elevated card with design system shadow -->
+					<div class="relative bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl overflow-hidden border border-neutral-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-[0_30px_60px_-15px_rgb(0_0_0_/0.3)]">
+						<!-- Image container with aspect ratio and cropping to show white panels -->
+						<div class="relative w-full" style="aspect-ratio: 16 / 10;">
+							<img
+								src="/demo_meeting.jpg"
+								alt="Board of One decision process example"
+								class="absolute inset-0 w-full h-full object-cover"
+								style="object-position: 52% 50%;"
+							/>
 						</div>
-					{/each}
+					</div>
+
+					<!-- Annotations -->
+					<div class="mt-8 grid md:grid-cols-3 gap-6 text-center">
+						<div>
+							<div class="text-sm font-bold text-brand-600 dark:text-brand-400 mb-2 uppercase tracking-wide">Complete Breakdown</div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400">Full analysis with reasoning, not just a single answer</p>
+						</div>
+						<div>
+							<div class="text-sm font-bold text-brand-600 dark:text-brand-400 mb-2 uppercase tracking-wide">Multiple Perspectives</div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400">See blind spots and trade-offs you wouldn't find alone</p>
+						</div>
+						<div>
+							<div class="text-sm font-bold text-brand-600 dark:text-brand-400 mb-2 uppercase tracking-wide">Real-World Recommendations</div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400">Decisions that hold up when stakes are high</p>
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
 	</section>
 
 	<!-- Before/After Snippet -->
-	<section class="py-24 bg-white dark:bg-neutral-900 relative overflow-hidden">
+	<section class="py-24 bg-white dark:bg-neutral-900 relative overflow-hidden border-y border-neutral-200 dark:border-neutral-800">
 		<!-- Subtle background decoration for emphasis -->
 		<div class="absolute inset-0 pointer-events-none opacity-30">
 			<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-br from-brand-400/20 to-success-400/20 dark:from-brand-600/10 dark:to-success-600/10 rounded-full blur-3xl"></div>
@@ -810,19 +897,45 @@
 		</div>
 	</section>
 
+	<!-- Social Proof -->
+	<section class="py-16 bg-neutral-50 dark:bg-neutral-800 border-y border-neutral-200 dark:border-neutral-800">
+		<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="grid md:grid-cols-3 gap-8">
+				<div class="text-center">
+					<p class="text-neutral-700 dark:text-neutral-300 leading-relaxed mb-3">
+						"Saved 3 days of research on a pricing decision."
+					</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">— Founder, B2B SaaS</p>
+				</div>
+				<div class="text-center">
+					<p class="text-neutral-700 dark:text-neutral-300 leading-relaxed mb-3">
+						"Caught a risk I totally missed in my hiring plan."
+					</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">— Solo Consultant</p>
+				</div>
+				<div class="text-center">
+					<p class="text-neutral-700 dark:text-neutral-300 leading-relaxed mb-3">
+						"Made my first confident pricing decision in minutes."
+					</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">— E-commerce Operator</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
 	<!-- Closed Beta Invitation -->
-	<section id="beta-invite-section" class="py-24 bg-white dark:bg-neutral-900">
+	<section id="beta-invite-section" class="py-24 bg-white dark:bg-neutral-900 border-y border-neutral-200 dark:border-neutral-800">
 		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 			<div class="text-center mb-12">
 				<h2 class="text-3xl md:text-4xl font-bold mb-4 leading-tight">
 					<span class="text-neutral-700 dark:text-neutral-300 font-normal">Early access</span> <span class="text-brand-600 dark:text-brand-400 italic font-extrabold emphasis-word">is open</span>
 				</h2>
 				<p class="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto">
-					Built for operators who want sharper thinking and faster decisions. Early users get direct input on what we build next.
+					For operators who need clarity, fast.
 				</p>
 			</div>
 
-			<div class="bg-gradient-to-br from-brand-50 to-accent-50 dark:from-brand-900/20 dark:to-accent-900/20 rounded-xl p-8 md:p-12 border-2 border-brand-200 dark:border-brand-700">
+			<div class="bg-white dark:bg-neutral-800 rounded-xl p-8 md:p-12 border border-neutral-200 dark:border-neutral-700">
 				<h3 class="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
 					What you get:
 				</h3>
@@ -850,7 +963,7 @@
 						Request Early Access
 					</Button>
 					<p class="text-sm text-neutral-600 dark:text-neutral-400 mt-4">
-						Rolling invites throughout Q4 2025. We'll notify you when ready.
+						Invites sent weekly. First-come, first-served.
 					</p>
 				</div>
 			</div>
@@ -858,7 +971,7 @@
 	</section>
 
 	<!-- Future Pricing Note -->
-	<section class="py-16 bg-neutral-50 dark:bg-neutral-800 border-y border-neutral-200 dark:border-neutral-700">
+	<section class="py-16 bg-neutral-50 dark:bg-neutral-800 border-y border-neutral-200 dark:border-neutral-800">
 		<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
 			<div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 mb-4">
 				<span class="text-brand-600 dark:text-brand-400 text-sm font-semibold">Beta Pricing</span>
@@ -867,7 +980,7 @@
 				Pricing launches later this year
 			</h3>
 			<p class="text-base text-neutral-600 dark:text-neutral-400 mb-4">
-				Beta users get preferential pricing when we launch paid plans. No credit card. No commitment.
+				Beta users get preferential pricing. No credit card. No commitment.
 			</p>
 			<div class="flex flex-wrap justify-center gap-4 text-sm text-neutral-600 dark:text-neutral-400">
 				<span class="flex items-center gap-2">
@@ -883,7 +996,7 @@
 	</section>
 
 	<!-- FAQ Section -->
-	<section class="py-24 bg-white dark:bg-neutral-900">
+	<section class="py-24 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800">
 		<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
 			<h2 class="text-3xl md:text-4xl font-bold mb-12 text-center leading-tight">
 				<span class="text-neutral-700 dark:text-neutral-300 font-normal">Questions?</span> <span class="text-brand-600 dark:text-brand-400 italic font-extrabold emphasis-word">We've Got Answers.</span>
@@ -913,40 +1026,6 @@
 		</div>
 	</section>
 
-	<!-- Use Cases -->
-	<section class="py-16 bg-neutral-50 dark:bg-neutral-800 overflow-hidden">
-		<div class="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-			<div class="text-center mb-8">
-				<h3 class="text-xl md:text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
-					What kind of decisions does <span class="text-brand-600 dark:text-brand-400 italic font-extrabold">Board of One</span> help with?
-				</h3>
-			</div>
-
-			<!-- Infinite horizontal carousel -->
-			<div class="relative w-full">
-				<!-- Gradient fade edges -->
-				<div class="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-neutral-50 dark:from-neutral-800 to-transparent z-10 pointer-events-none"></div>
-				<div class="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-neutral-50 dark:from-neutral-800 to-transparent z-10 pointer-events-none"></div>
-
-				<!-- Carousel container with two identical groups for seamless loop -->
-				<div class="carousel-container text-lg font-medium text-neutral-700 dark:text-neutral-300">
-					<!-- First group -->
-					<div class="carousel-group">
-						{#each decisionTypes as decision, i (i)}
-							<span class="carousel-item">{decision}</span>
-						{/each}
-					</div>
-					<!-- Second group (duplicate for seamless loop) -->
-					<div class="carousel-group" aria-hidden="true">
-						{#each decisionTypes as decision, i (`duplicate-${i}`)}
-							<span class="carousel-item">{decision}</span>
-						{/each}
-					</div>
-				</div>
-			</div>
-		</div>
-	</section>
-
 	<!-- Final CTA -->
 	<section class="relative py-24 bg-gradient-to-r from-brand-600 to-brand-700 dark:from-brand-700 dark:to-brand-800 overflow-hidden">
 		<div class="absolute inset-0 opacity-10">
@@ -958,7 +1037,7 @@
 				Get Clarity in Minutes
 			</h2>
 			<p class="text-lg !text-white mb-8 max-w-xl mx-auto drop-shadow-md">
-				We're onboarding a small cohort of early users. Request access if you're ready.
+				Small cohort. Rolling invites. Request access if you're ready.
 			</p>
 			<Button
 				variant="secondary"
@@ -969,7 +1048,7 @@
 				Request Early Access
 			</Button>
 			<p class="text-sm !text-white/95 mt-6 drop-shadow-md">
-				No credit card required. Cancel anytime. Spaces are limited.
+				No credit card. Limited spots.
 			</p>
 		</div>
 	</section>

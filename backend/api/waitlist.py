@@ -11,9 +11,10 @@ import re
 from datetime import UTC, datetime
 from typing import Literal
 
-from bo1.database.connection import get_database_connection
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
+
+from bo1.state.postgres_manager import db_session
 
 router = APIRouter(prefix="/waitlist", tags=["waitlist"])
 
@@ -77,45 +78,39 @@ async def add_to_waitlist(request: WaitlistRequest) -> WaitlistResponse:
         )
 
     # Check if already in waitlist
-    conn = get_database_connection()
-    cursor = conn.cursor()
-
     try:
-        # Check for duplicate
-        cursor.execute("SELECT id, status FROM waitlist WHERE email = %s", (email,))
-        existing = cursor.fetchone()
+        with db_session() as conn:
+            with conn.cursor() as cursor:
+                # Check for duplicate
+                cursor.execute("SELECT id, status FROM waitlist WHERE email = %s", (email,))
+                existing = cursor.fetchone()
 
-        if existing:
-            return WaitlistResponse(
-                status="already_exists",
-                message="You're already on the waitlist! We'll notify you when you're in.",
-            )
+                if existing:
+                    return WaitlistResponse(
+                        status="already_exists",
+                        message="You're already on the waitlist! We'll notify you when you're in.",
+                    )
 
-        # Insert new waitlist entry
-        cursor.execute(
-            """
-            INSERT INTO waitlist (email, status, created_at)
-            VALUES (%s, %s, %s)
-            RETURNING id
-            """,
-            (email, "pending", datetime.now(UTC)),
-        )
-        conn.commit()
+                # Insert new waitlist entry
+                cursor.execute(
+                    """
+                    INSERT INTO waitlist (email, status, created_at)
+                    VALUES (%s, %s, %s)
+                    RETURNING id
+                    """,
+                    (email, "pending", datetime.now(UTC)),
+                )
 
-        return WaitlistResponse(
-            status="added",
-            message="Success! Check your email for next steps.",
-        )
+                return WaitlistResponse(
+                    status="added",
+                    message="Success! Check your email for next steps.",
+                )
 
     except Exception as e:
-        conn.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to add to waitlist: {str(e)}",
         ) from e
-    finally:
-        cursor.close()
-        conn.close()
 
 
 @router.post("/check", response_model=dict[str, bool])

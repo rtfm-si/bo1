@@ -26,6 +26,7 @@ dependencies = [
     # Data & Config
     "pydantic>=2.12.0,<3.0",  # 2.12+ has latest validation features
     "pydantic-settings>=2.12.0,<3.0",  # Aligned with pydantic
+    "email-validator>=2.0.0",  # Email validation for Pydantic EmailStr
     "python-dotenv>=1.0.0",  # Stable env loading
     # Web API
     "fastapi>=0.110.0,<1.0",  # Web API framework

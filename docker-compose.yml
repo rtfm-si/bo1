@@ -159,7 +159,7 @@ services:
       # Auth Configuration
       - GOTRUE_DISABLE_SIGNUP=false
       - GOTRUE_MAILER_AUTOCONFIRM=true
-      - API_EXTERNAL_URL=http://supabase-auth:9999
+      - API_EXTERNAL_URL=http://supabase-auth:8081
       - GOTRUE_EXTERNAL_FLOW_STATE_EXPIRY_DURATION=300s
       - GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL=0
 
@@ -193,6 +193,34 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # SuperTokens: Lightweight auth server built for BFF pattern (~100MB RAM)
+  # ---------------------------------------------------------------------------
+  supertokens:
+    image: registry.supertokens.io/supertokens/supertokens-postgresql:9.2.2
+    container_name: bo1-supertokens
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database Configuration
+      - POSTGRESQL_CONNECTION_URI=postgresql://bo1:${POSTGRES_PASSWORD:-bo1_dev_password}@postgres:5432/boardofone
+      - POSTGRESQL_TABLE_SCHEMA=supertokens
+
+      # SuperTokens Configuration
+      - API_KEYS=${SUPERTOKENS_API_KEY:-dev_api_key_change_in_production}
+    ports:
+      - "3567:3567"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3567/hello"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - bo1-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
   # FastAPI: Web API for deliberation endpoints
   # ---------------------------------------------------------------------------
   api:
@@ -208,7 +236,7 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      supabase-auth:
+      supertokens:
         condition: service_healthy
     environment:
       # Redis Configuration
@@ -232,7 +260,8 @@ services:
       - ADMIN_API_KEY=${ADMIN_API_KEY}
 
       # Supabase Auth Configuration
-      - SUPABASE_URL=http://supabase-auth:8081
+      - SUPABASE_URL=http://supabase-auth:8081  # Internal API calls
+      - SUPABASE_BROWSER_URL=http://localhost:9999  # Browser redirects
       - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
 
       # Application Configuration

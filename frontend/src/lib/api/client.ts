@@ -43,15 +43,10 @@ export class ApiClient {
 	}
 
 	/**
-	 * Get access token from localStorage
-	 */
-	private getAccessToken(): string | null {
-		if (typeof window === 'undefined') return null;
-		return localStorage.getItem('bo1_access_token');
-	}
-
-	/**
-	 * Internal fetch wrapper with error handling and authentication
+	 * Internal fetch wrapper with error handling and authentication.
+	 *
+	 * BFF Pattern: Authentication via httpOnly cookies (no tokens in localStorage).
+	 * Cookies are automatically sent with credentials: 'include'.
 	 */
 	private async fetch<T>(
 		endpoint: string,
@@ -59,19 +54,12 @@ export class ApiClient {
 	): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
 
-		// Get access token and add to Authorization header
-		const accessToken = this.getAccessToken();
-		const authHeaders = accessToken
-			? { 'Authorization': `Bearer ${accessToken}` }
-			: {};
-
 		try {
 			const response = await fetch(url, {
 				...options,
-				credentials: 'include', // Send cookies
+				credentials: 'include', // Send httpOnly cookies automatically
 				headers: {
 					'Content-Type': 'application/json',
-					...authHeaders,
 					...options?.headers
 				}
 			});

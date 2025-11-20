@@ -2,12 +2,10 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { isAuthenticated } from '$lib/stores/auth';
-
 	import { browser } from '$app/environment';
 
-	// OAuth configuration
-	const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:9999';
-	const REDIRECT_URI = browser ? `${window.location.origin}/callback` : '';
+	// Backend URL for OAuth initiation
+	const BACKEND_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
 
 	let isLoading = false;
 	let error: string | null = null;
@@ -20,84 +18,50 @@
 			}
 		});
 
+		// Check for error query param (from backend redirect)
+		if (browser) {
+			const params = new URLSearchParams(window.location.search);
+			const errorParam = params.get('error');
+
+			if (errorParam) {
+				// Map error codes to user-friendly messages
+				const errorMessages: Record<string, string> = {
+					auth_init_failed: 'Failed to initiate sign-in. Please try again.',
+					oauth_error: 'OAuth provider returned an error.',
+					missing_parameters: 'Missing authorization parameters.',
+					csrf_validation_failed: 'Security validation failed. Please try again.',
+					state_expired: 'Sign-in session expired. Please try again.',
+					invalid_state: 'Invalid sign-in state.',
+					token_exchange_failed: 'Failed to exchange authorization code for tokens.',
+					invalid_token_response: 'Invalid response from authentication server.',
+					missing_user_data: 'Failed to get user data from Google.',
+					closed_beta: 'Access limited to beta users. Join our waitlist!',
+					callback_failed: 'Authentication callback failed. Please try again.',
+				};
+
+				error = errorMessages[errorParam] || 'Authentication failed. Please try again.';
+			}
+		}
+
 		return unsubscribe;
 	});
 
 	/**
-	 * Generate a random string for PKCE code verifier.
+	 * Initiate Google OAuth flow via backend BFF pattern.
+	 * Simply redirects to backend /api/auth/google/login endpoint.
+	 * Backend handles all PKCE generation, state management, and OAuth flow.
 	 */
-	function generateRandomString(length: number): string {
-		const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-		const randomValues = new Uint8Array(length);
-		crypto.getRandomValues(randomValues);
-		return Array.from(randomValues)
-			.map(v => charset[v % charset.length])
-			.join('');
-	}
-
-	/**
-	 * Generate SHA-256 hash of the code verifier.
-	 */
-	async function sha256(plain: string): Promise<ArrayBuffer> {
-		const encoder = new TextEncoder();
-		const data = encoder.encode(plain);
-		return await crypto.subtle.digest('SHA-256', data);
-	}
-
-	/**
-	 * Base64-URL encode the hash.
-	 */
-	function base64UrlEncode(buffer: ArrayBuffer): string {
-		const bytes = new Uint8Array(buffer);
-		const binary = String.fromCharCode(...bytes);
-		const base64 = btoa(binary);
-		return base64
-			.replace(/\+/g, '-')
-			.replace(/\//g, '_')
-			.replace(/=/g, '');
-	}
-
-	/**
-	 * Initiate Google OAuth flow via Supabase GoTrue with PKCE.
-	 * PKCE (Proof Key for Code Exchange) ensures secure authorization code flow.
-	 */
-	async function handleGoogleSignIn() {
-		if (!SUPABASE_URL) {
-			error = 'Authentication is not configured. Please contact support.';
-			return;
-		}
-
+	function handleGoogleSignIn() {
 		isLoading = true;
 		error = null;
 
-		try {
-			// Generate PKCE code verifier (random string 43-128 chars)
-			const codeVerifier = generateRandomString(128);
-
-			// Generate code challenge (SHA-256 hash of verifier, base64-url encoded)
-			const hashed = await sha256(codeVerifier);
-			const codeChallenge = base64UrlEncode(hashed);
-
-			// Store code verifier in sessionStorage for callback page
-			sessionStorage.setItem('pkce_code_verifier', codeVerifier);
-
-			// Build Supabase OAuth URL for Google provider with PKCE parameters
-			const params = new URLSearchParams({
-				provider: 'google',
-				redirect_to: REDIRECT_URI,
-				code_challenge: codeChallenge,
-				code_challenge_method: 'S256'
-			});
-
-			const supabaseAuthUrl = `${SUPABASE_URL}/authorize?${params.toString()}`;
-
-			// Redirect to Supabase GoTrue (which redirects to Google)
-			window.location.href = supabaseAuthUrl;
-		} catch (err) {
-			console.error('Failed to initiate OAuth:', err);
-			isLoading = false;
-			error = 'Failed to initiate sign-in. Please try again.';
-		}
+		// Redirect to backend OAuth login endpoint
+		// Backend will:
+		// 1. Generate PKCE challenge
+		// 2. Store verifier in Redis
+		// 3. Set temporary cookie with state
+		// 4. Redirect to Supabase OAuth
+		window.location.href = `${BACKEND_URL}/api/auth/google/login`;
 	}
 </script>
 
@@ -140,6 +104,11 @@
 					<p class="text-sm text-red-900 dark:text-red-200">
 						{error}
 					</p>
+					{#if error.includes('beta') || error.includes('whitelist')}
+						<a href="/waitlist" class="block mt-2 text-sm text-red-900 dark:text-red-200 underline">
+							Join our waitlist for early access
+						</a>
+					{/if}
 				</div>
 			{/if}
 

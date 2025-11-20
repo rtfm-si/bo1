@@ -1,6 +1,19 @@
-"""Supabase authentication middleware for Board of One API.
+"""Supabase authentication middleware for Board of One API - BFF Pattern.
 
-Provides JWT-based authentication using self-hosted Supabase GoTrue.
+Provides JWT-based authentication using httpOnly session cookies.
+
+Flow:
+1. Frontend sends request with httpOnly session cookie
+2. Middleware extracts session_id from cookie
+3. Retrieves session from Redis (contains access_token)
+4. Validates JWT token using PyJWT
+5. Returns user data if valid, raises 401 if not
+
+Security:
+- Tokens stored in Redis (never exposed to frontend)
+- httpOnly cookies prevent XSS attacks
+- Session expiry enforced
+- Beta whitelist checking
 
 For MVP: Uses hardcoded user ID (test_user_1) for development
 For Closed Beta: Supabase auth + email whitelist validation
@@ -13,8 +26,9 @@ import logging
 import os
 from typing import Any
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Cookie, HTTPException, Request
 
+from backend.api.session import SessionManager
 from bo1.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -25,8 +39,14 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "http://localhost:9999")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 
+# Session configuration
+SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "bo1_session")
+
 # MVP: Hardcoded user ID for development
 DEFAULT_USER_ID = "test_user_1"
+
+# Initialize session manager
+session_manager = SessionManager()
 
 
 def require_production_auth() -> None:
@@ -51,14 +71,18 @@ def require_production_auth() -> None:
         raise RuntimeError(error_msg)
 
 
-async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
-    """Verify JWT token from Supabase auth.
+async def verify_jwt(
+    request: Request,
+    bo1_session: str | None = Cookie(None),
+) -> dict[str, Any]:
+    """Verify JWT token from session cookie.
 
     For MVP: Returns hardcoded user data (no auth required)
-    For v2+: Validates JWT token and returns user data from Supabase
+    For v2+: Validates JWT token from Redis session and returns user data
 
     Args:
-        authorization: Authorization header with Bearer token
+        request: FastAPI request object
+        bo1_session: Session ID from httpOnly cookie
 
     Returns:
         User data dictionary with user_id, email, role
@@ -77,18 +101,34 @@ async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
             "is_admin": False,  # MVP user is not admin
         }
 
-    # v2+: Full Supabase authentication
-    if not authorization or not authorization.startswith("Bearer "):
-        logger.warning("Missing or invalid Authorization header")
+    # v2+: Full session-based authentication
+    if not bo1_session:
+        logger.warning("Missing session cookie")
         raise HTTPException(
             status_code=401,
-            detail="Missing or invalid authorization header",
+            detail="Not authenticated - missing session cookie",
         )
 
-    token = authorization.replace("Bearer ", "")
-
     try:
-        # Import PyJWT for local token validation (avoid HTTP request)
+        # Get session from Redis
+        session = session_manager.get_session(bo1_session)
+        if not session:
+            logger.warning(f"Session not found or expired: {bo1_session[:8]}...")
+            raise HTTPException(
+                status_code=401,
+                detail="Session expired or invalid",
+            )
+
+        # Extract access token from session
+        access_token = session.get("access_token")
+        if not access_token:
+            logger.error("Session missing access_token")
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid session - missing token",
+            )
+
+        # Validate JWT token using PyJWT
         try:
             import jwt
         except ImportError as e:
@@ -109,7 +149,7 @@ async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
         # Decode and verify JWT token locally
         try:
             payload = jwt.decode(
-                token,
+                access_token,
                 SUPABASE_JWT_SECRET,
                 algorithms=["HS256"],
                 audience="authenticated",  # Verify aud claim
@@ -180,20 +220,24 @@ async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Token verification failed: {e}")
+        logger.error(f"Token verification failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=401,
             detail=f"Token verification failed: {str(e)}",
         ) from e
 
 
-async def get_current_user(authorization: str = Header(None)) -> dict[str, Any]:
+async def get_current_user(
+    request: Request,
+    bo1_session: str | None = Cookie(None),
+) -> dict[str, Any]:
     """Get current authenticated user.
 
     Alias for verify_jwt() to match common FastAPI patterns.
 
     Args:
-        authorization: Authorization header with Bearer token
+        request: FastAPI request object
+        bo1_session: Session ID from httpOnly cookie
 
     Returns:
         User data dictionary
@@ -201,7 +245,7 @@ async def get_current_user(authorization: str = Header(None)) -> dict[str, Any]:
     Raises:
         HTTPException: 401 if authentication fails
     """
-    return await verify_jwt(authorization)
+    return await verify_jwt(request, bo1_session)
 
 
 def require_auth(user: dict[str, Any]) -> dict[str, Any]:
@@ -229,7 +273,10 @@ def require_auth(user: dict[str, Any]) -> dict[str, Any]:
     return user
 
 
-async def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+async def require_admin(
+    request: Request,
+    bo1_session: str | None = Cookie(None),
+) -> dict[str, Any]:
     """Dependency to require admin access for an endpoint.
 
     Usage:
@@ -238,7 +285,8 @@ async def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dic
             return {"message": "Admin access granted"}
 
     Args:
-        user: User data from get_current_user()
+        request: FastAPI request object
+        bo1_session: Session ID from httpOnly cookie
 
     Returns:
         User data if user is admin
@@ -246,6 +294,8 @@ async def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dic
     Raises:
         HTTPException: 401 if not authenticated, 403 if not admin
     """
+    user = await get_current_user(request, bo1_session)
+
     if not user or not user.get("user_id"):
         raise HTTPException(
             status_code=401,

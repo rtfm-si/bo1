@@ -1,22 +1,35 @@
-"""OAuth authentication endpoints for Board of One API.
+"""OAuth authentication endpoints for Board of One API - BFF Pattern.
 
-Handles Google OAuth flow:
-1. User clicks "Sign in with Google" in frontend
-2. Frontend redirects to Google OAuth
-3. Google redirects to callback with code
-4. Frontend sends code to /api/auth/google/callback
-5. Backend exchanges code for user data, creates/updates user, returns JWT
+BFF (Backend-for-Frontend) OAuth flow:
+1. User clicks "Sign in with Google" → GET /api/auth/google/login
+2. Backend generates PKCE challenge, stores verifier in Redis
+3. Backend redirects browser to Supabase /authorize
+4. Supabase redirects to Google, user signs in
+5. Google redirects to Supabase, Supabase redirects to backend callback
+6. Backend receives code → GET /api/auth/callback
+7. Backend retrieves verifier, exchanges code+verifier for tokens
+8. Backend stores tokens in Redis, sets httpOnly cookie
+9. Backend redirects browser to frontend /dashboard
 
-For MVP: Google OAuth only (LinkedIn/GitHub deferred to v2.0)
+Security:
+- PKCE prevents authorization code interception
+- State parameter prevents CSRF attacks
+- Tokens never exposed to frontend (stored in Redis)
+- httpOnly cookies prevent XSS attacks
 """
 
+import hashlib
 import logging
 import os
+import secrets
+from base64 import urlsafe_b64encode
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Cookie, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
 
+from backend.api.session import SessionManager
 from bo1.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -24,30 +37,27 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # OAuth configuration
-GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
-GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
-SUPABASE_URL = os.getenv("SUPABASE_URL", "http://localhost:9999")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "http://localhost:9999")  # Internal API calls
+SUPABASE_BROWSER_URL = os.getenv(
+    "SUPABASE_BROWSER_URL", "http://localhost:9999"
+)  # Browser redirects
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 
+# Frontend configuration
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
-# Request/Response Models
-class OAuthCallbackRequest(BaseModel):
-    """Request model for OAuth callback."""
+# Cookie configuration
+SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "bo1_session")
+OAUTH_STATE_COOKIE_NAME = "oauth_state"
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", "localhost")
 
-    code: str  # Authorization code from OAuth provider
-    redirect_uri: str  # Redirect URI used in OAuth flow (must match)
-    code_verifier: str  # PKCE code verifier for secure code exchange
-
-
-class OAuthCallbackResponse(BaseModel):
-    """Response model for OAuth callback."""
-
-    access_token: str  # JWT access token
-    refresh_token: str  # JWT refresh token
-    expires_in: int  # Token expiry in seconds
-    user: dict[str, Any]  # User data
+# Initialize session manager
+session_manager = SessionManager()
 
 
+# Response Models
 class UserResponse(BaseModel):
     """User data response."""
 
@@ -58,237 +68,460 @@ class UserResponse(BaseModel):
     created_at: str
 
 
-@router.post("/auth/google/callback", response_model=OAuthCallbackResponse)
-async def google_oauth_callback(request: OAuthCallbackRequest) -> OAuthCallbackResponse:
-    """Handle Google OAuth callback and exchange code for JWT.
-
-    Flow:
-    1. Verify code with Supabase GoTrue
-    2. Get user data from Google
-    3. Create user in database if first sign-in
-    4. Link user to trial tier
-    5. Return JWT tokens
-
-    Args:
-        request: OAuth callback request with authorization code
+# Helper Functions
+def generate_pkce_pair() -> tuple[str, str]:
+    """Generate PKCE code_verifier and code_challenge.
 
     Returns:
-        JWT tokens and user data
+        Tuple of (code_verifier, code_challenge)
 
-    Raises:
-        HTTPException: 400 if code is invalid, 500 if OAuth provider error
+    Examples:
+        >>> verifier, challenge = generate_pkce_pair()
+        >>> print(len(verifier), len(challenge))
+        128 43
     """
-    # Note: We call GoTrue's token endpoint directly instead of using Supabase client
-    # because we need to pass the PKCE code_verifier
+    # Generate code verifier (random 128 char string)
+    code_verifier = secrets.token_urlsafe(96)  # 96 bytes = 128 chars base64url
 
+    # Generate code challenge (SHA256 hash of verifier)
+    verifier_bytes = code_verifier.encode("ascii")
+    sha256_hash = hashlib.sha256(verifier_bytes).digest()
+    code_challenge = urlsafe_b64encode(sha256_hash).decode("ascii").rstrip("=")
+
+    return code_verifier, code_challenge
+
+
+# OAuth Endpoints
+
+
+@router.get("/auth/google/login")
+async def google_oauth_login() -> RedirectResponse:
+    """Initiate Google OAuth flow with PKCE.
+
+    Flow:
+    1. Generate PKCE code_verifier and code_challenge
+    2. Generate random state parameter (CSRF protection)
+    3. Store code_verifier in Redis with state as key
+    4. Set temporary cookie with state
+    5. Redirect to Supabase /authorize
+
+    Returns:
+        Redirect to Supabase OAuth URL
+    """
     try:
-        import httpx
-
-        # Exchange authorization code for tokens via Supabase GoTrue with PKCE
-        # PKCE (Proof Key for Code Exchange) ensures secure code exchange
+        # Generate PKCE pair
+        code_verifier, code_challenge = generate_pkce_pair()
         logger.info(
-            f"Exchanging authorization code for tokens with PKCE (redirect_uri: {request.redirect_uri})"
+            f"Generated PKCE pair (verifier: {len(code_verifier)} chars, challenge: {len(code_challenge)} chars)"
         )
 
-        # Exchange code for session using PKCE verifier
-        # Call GoTrue's token endpoint directly with the code_verifier
+        # Store code_verifier in Redis and get state_id
+        state_id = session_manager.create_oauth_state(
+            code_verifier=code_verifier,
+            redirect_uri=f"{FRONTEND_URL}/dashboard",
+        )
 
-        token_url = f"{SUPABASE_URL}/token?grant_type=pkce"
+        # Build Supabase OAuth URL
+        callback_url = f"{BACKEND_URL}/api/auth/callback"
+        params = {
+            "provider": "google",
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+            "state": state_id,
+            "redirect_to": callback_url,
+        }
+
+        # Build query string with proper URL encoding
+        from urllib.parse import urlencode
+
+        query_string = urlencode(params)
+        oauth_url = f"{SUPABASE_BROWSER_URL}/authorize?{query_string}"
+
+        logger.info(f"Redirecting to Supabase OAuth URL (state: {state_id[:8]}...)")
+
+        # Create redirect response
+        response = RedirectResponse(url=oauth_url, status_code=302)
+
+        # Set temporary cookie with state (for CSRF validation)
+        response.set_cookie(
+            key=OAUTH_STATE_COOKIE_NAME,
+            value=state_id,
+            max_age=600,  # 10 minutes
+            httponly=True,
+            samesite="lax",
+            secure=COOKIE_SECURE,
+            domain=COOKIE_DOMAIN if COOKIE_DOMAIN != "localhost" else None,
+        )
+
+        return response
+
+    except Exception as e:
+        logger.error(f"OAuth login failed: {e}", exc_info=True)
+        # Redirect to frontend login with error
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/login?error=auth_init_failed",
+            status_code=302,
+        )
+
+
+@router.get("/auth/callback")
+async def google_oauth_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    oauth_state: str | None = Cookie(None),
+) -> RedirectResponse:
+    """Handle Google OAuth callback and create session.
+
+    Flow:
+    1. Validate state parameter (CSRF check)
+    2. Retrieve code_verifier from Redis
+    3. Exchange code + verifier for tokens via Supabase
+    4. Check beta whitelist
+    5. Create/update user in database
+    6. Create session in Redis
+    7. Set httpOnly session cookie
+    8. Redirect to frontend dashboard
+
+    Args:
+        code: Authorization code from Supabase
+        state: State parameter (CSRF protection)
+        error: Error from OAuth provider
+        oauth_state: State from cookie (for validation)
+
+    Returns:
+        Redirect to frontend (dashboard or login with error)
+    """
+    try:
+        # Check for OAuth errors
+        if error:
+            logger.error(f"OAuth error: {error}")
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?error=oauth_error",
+                status_code=302,
+            )
+
+        # Validate required parameters
+        if not code or not state:
+            logger.error("Missing code or state parameter")
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?error=missing_parameters",
+                status_code=302,
+            )
+
+        # CSRF check: state from query must match state from cookie
+        if state != oauth_state:
+            logger.error(
+                f"CSRF validation failed: state mismatch (query: {state[:8]}..., cookie: {oauth_state[:8] if oauth_state else 'None'}...)"
+            )
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?error=csrf_validation_failed",
+                status_code=302,
+            )
+
+        # Retrieve code_verifier from Redis
+        oauth_state_data = session_manager.get_oauth_state(state)
+        if not oauth_state_data:
+            logger.error(f"OAuth state not found or expired: {state[:8]}...")
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?error=state_expired",
+                status_code=302,
+            )
+
+        code_verifier = oauth_state_data.get("code_verifier")
+        if not code_verifier:
+            logger.error("Code verifier missing from OAuth state")
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?error=invalid_state",
+                status_code=302,
+            )
+
+        # Delete OAuth state (one-time use)
+        session_manager.delete_oauth_state(state)
+
+        logger.info(
+            f"Exchanging authorization code for tokens (code: {code[:10]}..., verifier: {code_verifier[:10]}...)"
+        )
+
+        # Exchange code + verifier for tokens via Supabase
+        import httpx
+
+        token_url = f"{SUPABASE_URL}/token"
         token_data = {
-            "auth_code": request.code,
-            "code_verifier": request.code_verifier,
+            "grant_type": "authorization_code",
+            "code": code,
+            "code_verifier": code_verifier,
+            "redirect_uri": f"{BACKEND_URL}/api/auth/callback",
         }
 
-        headers = {
-            "Content-Type": "application/json",
-        }
-
-        # Add apikey header if available (not required for self-hosted GoTrue)
+        headers = {}
         if SUPABASE_ANON_KEY and SUPABASE_ANON_KEY != "your_supabase_anon_key_here":
             headers["apikey"] = SUPABASE_ANON_KEY
 
         async with httpx.AsyncClient() as client:
             token_response = await client.post(
                 token_url,
-                json=token_data,
+                data=token_data,  # Form-encoded (OAuth2 spec)
                 headers=headers,
             )
 
+            # Check response status
             if token_response.status_code != 200:
-                logger.error(
-                    f"Token exchange failed: {token_response.status_code} - {token_response.text}"
-                )
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid or expired authorization code",
+                error_text = token_response.text
+                logger.error(f"Token exchange failed: {token_response.status_code} - {error_text}")
+                return RedirectResponse(
+                    url=f"{FRONTEND_URL}/login?error=token_exchange_failed",
+                    status_code=302,
                 )
 
+            # Parse tokens
             token_data_response = token_response.json()
 
-        # Extract session and user data from response
+        # Extract user and token data
         if not token_data_response or "access_token" not in token_data_response:
-            logger.error("Failed to exchange code for session")
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid or expired authorization code",
+            logger.error("Token response missing access_token")
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?error=invalid_token_response",
+                status_code=302,
             )
 
-        # Create session object manually from token response
-        class Session:
-            def __init__(self, data: dict[str, Any]) -> None:
-                self.access_token = data.get("access_token", "")
-                self.refresh_token = data.get("refresh_token")
-                self.expires_in = data.get("expires_in", 3600)
-                self.user_data = data.get("user", {})
+        user_data = token_data_response.get("user", {})
+        user_id = user_data.get("id")
+        user_email = user_data.get("email")
 
-        class User:
-            def __init__(self, data: dict[str, Any]) -> None:
-                self.id = data.get("id", "")
-                self.email = data.get("email", "")
-                self.user_metadata = data.get("user_metadata", {})
-                self.app_metadata = data.get("app_metadata", {})
-
-        session = Session(token_data_response)
-        user = User(token_data_response.get("user", {}))
-
-        if not user or not user.id or not user.email:
-            logger.error("OAuth response missing user data")
-            raise HTTPException(
-                status_code=400,
-                detail="Failed to get user data from Google",
+        if not user_id or not user_email:
+            logger.error("User data missing from token response")
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?error=missing_user_data",
+                status_code=302,
             )
 
-        logger.info(f"Successfully authenticated user: {user.email} (id: {user.id})")
+        logger.info(f"Successfully authenticated user: {user_email} (id: {user_id})")
 
         # Check beta whitelist if closed beta mode is enabled
         settings = get_settings()
         if settings.closed_beta_mode:
-            user_email = user.email.lower()
-            if user_email not in settings.beta_whitelist_emails:
+            user_email_lower = user_email.lower()
+            if user_email_lower not in settings.beta_whitelist_emails:
                 logger.warning(
-                    f"User {user_email} not in beta whitelist. "
+                    f"User {user_email_lower} not in beta whitelist. "
                     f"Whitelist has {len(settings.beta_whitelist_emails)} emails."
                 )
-                raise HTTPException(
-                    status_code=403,
-                    detail={
-                        "error": "closed_beta",
-                        "message": "Thanks for your interest! We're currently in closed beta. "
-                        "Join our waitlist at https://boardof.one/waitlist",
-                    },
+                return RedirectResponse(
+                    url=f"{FRONTEND_URL}/login?error=closed_beta",
+                    status_code=302,
                 )
-            logger.info(f"User {user_email} found in beta whitelist - access granted")
+            logger.info(f"User {user_email_lower} found in beta whitelist - access granted")
 
         # Create or update user in database
         _ensure_user_exists(
-            user_id=user.id,
-            email=user.email,
+            user_id=user_id,
+            email=user_email,
             auth_provider="google",
         )
 
-        # Return tokens and user data
-        return OAuthCallbackResponse(
-            access_token=session.access_token,
-            refresh_token=session.refresh_token or "",
-            expires_in=session.expires_in or 3600,
-            user={
-                "id": user.id,
-                "email": user.email,
-                "auth_provider": "google",
-                "subscription_tier": user.user_metadata.get("subscription_tier", "free"),
-            },
+        # Create session in Redis
+        tokens = {
+            "access_token": token_data_response.get("access_token", ""),
+            "refresh_token": token_data_response.get("refresh_token", ""),
+            "expires_in": token_data_response.get("expires_in", 3600),
+        }
+
+        session_id = session_manager.create_session(
+            user_id=user_id,
+            email=user_email,
+            tokens=tokens,
         )
 
-    except HTTPException:
-        raise
+        # Create redirect response to frontend dashboard
+        response = RedirectResponse(url=f"{FRONTEND_URL}/dashboard", status_code=302)
+
+        # Set httpOnly session cookie
+        response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=session_id,
+            max_age=3600,  # 1 hour
+            httponly=True,
+            samesite="lax",
+            secure=COOKIE_SECURE,
+            domain=COOKIE_DOMAIN if COOKIE_DOMAIN != "localhost" else None,
+        )
+
+        # Delete OAuth state cookie
+        response.delete_cookie(
+            key=OAUTH_STATE_COOKIE_NAME,
+            domain=COOKIE_DOMAIN if COOKIE_DOMAIN != "localhost" else None,
+        )
+
+        logger.info(f"Session created for {user_email}, redirecting to dashboard")
+        return response
+
     except Exception as e:
         logger.error(f"OAuth callback failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"OAuth authentication failed: {str(e)}",
-        ) from e
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/login?error=callback_failed",
+            status_code=302,
+        )
 
 
-@router.post("/auth/refresh", response_model=OAuthCallbackResponse)
-async def refresh_token(refresh_token: str) -> OAuthCallbackResponse:
-    """Refresh JWT access token using refresh token.
+@router.post("/auth/logout")
+async def logout(
+    request: Request,
+    bo1_session: str | None = Cookie(None),
+) -> dict[str, str]:
+    """Sign out user and invalidate session.
 
     Args:
-        refresh_token: JWT refresh token
+        bo1_session: Session ID from cookie
 
     Returns:
-        New JWT tokens
-
-    Raises:
-        HTTPException: 401 if refresh token is invalid or expired
+        Success message
     """
     try:
+        if bo1_session:
+            # Delete session from Redis
+            session_manager.delete_session(bo1_session)
+            logger.info(f"User logged out: {bo1_session[:8]}...")
+
+        return {"message": "Successfully signed out"}
+
+    except Exception as e:
+        logger.error(f"Logout failed: {e}")
+        # Return success anyway (local cleanup will happen)
+        return {"message": "Signed out"}
+
+
+@router.post("/auth/refresh")
+async def refresh_token(
+    request: Request,
+    bo1_session: str | None = Cookie(None),
+) -> dict[str, str]:
+    """Refresh access token using refresh token from session.
+
+    Args:
+        bo1_session: Session ID from cookie
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: 401 if session not found or refresh fails
+    """
+    try:
+        if not bo1_session:
+            raise HTTPException(
+                status_code=401,
+                detail="No session cookie",
+            )
+
+        # Get session from Redis
+        session = session_manager.get_session(bo1_session)
+        if not session:
+            raise HTTPException(
+                status_code=401,
+                detail="Session not found or expired",
+            )
+
+        # Check if token is near expiry
+        import time
+
+        expires_at = session.get("expires_at", 0)
+        now = time.time()
+        time_until_expiry = expires_at - now
+
+        # Only refresh if < 5 minutes remaining
+        if time_until_expiry > 300:
+            return {"message": "Token still valid, no refresh needed"}
+
+        # Get refresh token
+        refresh_token = session.get("refresh_token")
+        if not refresh_token:
+            raise HTTPException(
+                status_code=401,
+                detail="No refresh token available",
+            )
+
+        # Refresh via Supabase
         from supabase import create_client
 
         supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-
-        # Refresh session
         auth_response = supabase.auth.refresh_session(refresh_token)
 
         if not auth_response or not auth_response.session:
             raise HTTPException(
                 status_code=401,
-                detail="Invalid or expired refresh token",
+                detail="Token refresh failed",
             )
 
-        session = auth_response.session
-        user = auth_response.user
+        # Update session with new tokens
+        new_tokens = {
+            "access_token": auth_response.session.access_token,
+            "refresh_token": auth_response.session.refresh_token or refresh_token,
+            "expires_in": auth_response.session.expires_in or 3600,
+        }
 
-        return OAuthCallbackResponse(
-            access_token=session.access_token,
-            refresh_token=session.refresh_token or refresh_token,
-            expires_in=session.expires_in or 3600,
-            user={
-                "id": user.id,
-                "email": user.email,
-                "auth_provider": user.app_metadata.get("provider", "google"),
-                "subscription_tier": user.user_metadata.get("subscription_tier", "free"),
-            },
-        )
+        session_manager.refresh_session(bo1_session, new_tokens)
+
+        logger.info(f"Refreshed tokens for session: {bo1_session[:8]}...")
+        return {"message": "Token refreshed successfully"}
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Token refresh failed: {e}")
+        logger.error(f"Token refresh failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=401,
             detail=f"Token refresh failed: {str(e)}",
         ) from e
 
 
-@router.post("/auth/signout")
-async def signout(access_token: str) -> dict[str, str]:
-    """Sign out user and invalidate tokens.
+@router.get("/auth/me")
+async def get_current_user_info(
+    request: Request,
+    bo1_session: str | None = Cookie(None),
+) -> dict[str, Any]:
+    """Get current user info from session.
 
     Args:
-        access_token: JWT access token
+        bo1_session: Session ID from cookie
 
     Returns:
-        Success message
+        User data
 
     Raises:
-        HTTPException: 401 if token is invalid
+        HTTPException: 401 if not authenticated
     """
     try:
-        from supabase import create_client
+        if not bo1_session:
+            raise HTTPException(
+                status_code=401,
+                detail="Not authenticated",
+            )
 
-        supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+        # Get session from Redis
+        session = session_manager.get_session(bo1_session)
+        if not session:
+            raise HTTPException(
+                status_code=401,
+                detail="Session expired",
+            )
 
-        # Sign out (invalidates tokens)
-        supabase.auth.sign_out(access_token)
+        # Return user data (no tokens!)
+        return {
+            "id": session.get("user_id"),
+            "email": session.get("email"),
+            "auth_provider": "google",
+            "subscription_tier": "free",  # TODO: Get from database
+        }
 
-        return {"message": "Successfully signed out"}
-
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Signout failed: {e}")
+        logger.error(f"Failed to get user info: {e}")
         raise HTTPException(
-            status_code=401,
-            detail=f"Signout failed: {str(e)}",
+            status_code=500,
+            detail="Failed to get user info",
         ) from e
 
 

@@ -19,6 +19,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from backend.api import admin, auth, context, control, health, sessions, streaming, waitlist
 from backend.api.middleware.auth import require_admin
+from backend.api.supertokens_config import add_supertokens_middleware, init_supertokens
 from bo1.config import get_settings
 
 
@@ -118,6 +119,10 @@ app = FastAPI(
     ],
 )
 
+# Initialize SuperTokens (MUST be before CORS middleware)
+init_supertokens()
+add_supertokens_middleware(app)
+
 # Configure CORS with explicit allow lists (SECURITY: No wildcards in production)
 # Parse CORS origins from environment variable
 # Format: Comma-separated list (e.g., "http://localhost:3000,http://localhost:5173")
@@ -135,7 +140,7 @@ if not settings_for_cors.debug:
 
 # Explicit allowed methods (no wildcards)
 ALLOWED_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
-# Explicit allowed headers (common auth headers)
+# Explicit allowed headers (common auth headers + SuperTokens headers)
 ALLOWED_HEADERS = [
     "Authorization",
     "Content-Type",
@@ -144,6 +149,11 @@ ALLOWED_HEADERS = [
     "X-Request-ID",
     "Origin",
     "Referer",
+    # SuperTokens headers
+    "rid",  # Recipe ID
+    "fdi-version",  # Frontend driver interface version
+    "anti-csrf",  # CSRF token
+    "st-auth-mode",  # SuperTokens auth mode
 ]
 
 app.add_middleware(

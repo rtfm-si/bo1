@@ -88,36 +88,70 @@ async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
     token = authorization.replace("Bearer ", "")
 
     try:
-        # Import supabase client only when auth is enabled (avoid dependency for MVP)
+        # Import PyJWT for local token validation (avoid HTTP request)
         try:
-            from supabase import create_client
+            import jwt
         except ImportError as e:
-            logger.error("supabase-py not installed - required for auth")
+            logger.error("PyJWT not installed - required for auth")
             raise HTTPException(
                 status_code=500,
                 detail="Authentication system not configured",
             ) from e
 
-        # Verify token with Supabase
-        supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-        user_response = supabase.auth.get_user(token)
-
-        if not user_response or not user_response.user:
+        # Validate JWT secret is configured
+        if not SUPABASE_JWT_SECRET:
+            logger.error("SUPABASE_JWT_SECRET not configured")
             raise HTTPException(
-                status_code=401,
-                detail="Invalid or expired token",
+                status_code=500,
+                detail="Authentication system not configured",
             )
 
-        user = user_response.user
-        logger.info(f"Authenticated user: {user.id}")
+        # Decode and verify JWT token locally
+        try:
+            payload = jwt.decode(
+                token,
+                SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated",  # Verify aud claim
+                options={
+                    "verify_iss": False  # GoTrue v2.158.1 doesn't include iss claim
+                },
+            )
+        except jwt.ExpiredSignatureError as e:
+            logger.warning("Token has expired")
+            raise HTTPException(
+                status_code=401,
+                detail="Token has expired",
+            ) from e
+        except jwt.InvalidTokenError as e:
+            logger.warning(f"Invalid token: {e}")
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid token",
+            ) from e
+
+        # Extract user data from JWT claims
+        user_id = payload.get("sub")
+        user_email = payload.get("email")
+        user_role = payload.get("role", "authenticated")
+        user_metadata = payload.get("user_metadata", {})
+        app_metadata = payload.get("app_metadata", {})
+
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid token: missing user ID",
+            )
+
+        logger.info(f"Authenticated user: {user_id}")
 
         # Check beta whitelist if closed beta mode is enabled
         settings = get_settings()
         if settings.closed_beta_mode:
-            user_email = (user.email or "").lower()
-            if user_email not in settings.beta_whitelist_emails:
+            email_for_check = (user_email or "").lower()
+            if email_for_check not in settings.beta_whitelist_emails:
                 logger.warning(
-                    f"User {user_email} not in beta whitelist. "
+                    f"User {email_for_check} not in beta whitelist. "
                     f"Whitelist has {len(settings.beta_whitelist_emails)} emails."
                 )
                 raise HTTPException(
@@ -128,20 +162,18 @@ async def verify_jwt(authorization: str = Header(None)) -> dict[str, Any]:
                         "Join our waitlist at https://boardof.one/waitlist",
                     },
                 )
-            logger.info(f"User {user_email} found in beta whitelist - access granted")
+            logger.info(f"User {email_for_check} found in beta whitelist - access granted")
 
         # Extract role from user metadata (custom claim)
         # SECURITY: Removed email-based admin auto-grant
         # Admin access must be explicitly set in database admin_users table
-        is_admin = user.user_metadata.get("is_admin", False) or user.app_metadata.get(
-            "is_admin", False
-        )
+        is_admin = user_metadata.get("is_admin", False) or app_metadata.get("is_admin", False)
 
         return {
-            "user_id": user.id,
-            "email": user.email,
-            "role": user.role or "authenticated",
-            "subscription_tier": user.user_metadata.get("subscription_tier", "free"),
+            "user_id": user_id,
+            "email": user_email,
+            "role": user_role,
+            "subscription_tier": user_metadata.get("subscription_tier", "free"),
             "is_admin": is_admin,
         }
 

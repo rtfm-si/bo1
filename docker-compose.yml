@@ -8,7 +8,7 @@ services:
   # PostgreSQL: Primary database for users, sessions, and analytics
   # ---------------------------------------------------------------------------
   postgres:
-    image: pgvector/pgvector:pg15
+    image: pgvector/pgvector:0.8.1-pg16
     container_name: bo1-postgres
     environment:
       - POSTGRES_DB=boardofone
@@ -32,7 +32,7 @@ services:
   # Redis: State management, LLM caching, session storage
   # ---------------------------------------------------------------------------
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine  # Auto-updates to latest 7.x minor versions
     container_name: bo1-redis
     ports:
       - "6379:6379"
@@ -100,6 +100,15 @@ services:
       - ENABLE_CONVERGENCE_DETECTION=${ENABLE_CONVERGENCE_DETECTION:-true}
       - ENABLE_DRIFT_DETECTION=${ENABLE_DRIFT_DETECTION:-true}
       - ENABLE_EARLY_STOPPING=${ENABLE_EARLY_STOPPING:-true}
+
+      # Authentication & Authorization
+      - ENABLE_SUPABASE_AUTH=${ENABLE_SUPABASE_AUTH:-true}
+      - SUPABASE_URL=${SUPABASE_URL:-http://localhost:9999}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - CLOSED_BETA_MODE=${CLOSED_BETA_MODE:-false}
+      - BETA_WHITELIST=${BETA_WHITELIST}
     volumes:
       # Mount source code for hot reload (development)
       - ./bo1:/app/bo1
@@ -127,7 +136,7 @@ services:
   # Supabase GoTrue: Self-hosted OAuth authentication server
   # ---------------------------------------------------------------------------
   supabase-auth:
-    image: supabase/gotrue:v2.158.1
+    image: supabase/gotrue:v2.181.0
     container_name: bo1-supabase-auth
     depends_on:
       postgres:
@@ -135,11 +144,12 @@ services:
     environment:
       # Database
       - GOTRUE_DB_DRIVER=postgres
-      - DATABASE_URL=postgresql://bo1:bo1_dev_password@postgres:5432/boardofone
+      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/boardofone
+      - GOTRUE_DB_SCHEMA=auth
 
       # Site Configuration
-      - GOTRUE_SITE_URL=${SITE_URL:-http://localhost:3000}
-      - GOTRUE_URI_ALLOW_LIST=${SITE_URL:-http://localhost:3000}
+      - GOTRUE_SITE_URL=${SITE_URL:-http://localhost:5173}
+      - GOTRUE_URI_ALLOW_LIST=${SITE_URL:-http://localhost:5173}
 
       # JWT Configuration
       - GOTRUE_JWT_SECRET=${SUPABASE_JWT_SECRET}
@@ -150,26 +160,34 @@ services:
       - GOTRUE_DISABLE_SIGNUP=false
       - GOTRUE_MAILER_AUTOCONFIRM=true
       - API_EXTERNAL_URL=http://supabase-auth:9999
+      - GOTRUE_EXTERNAL_FLOW_STATE_EXPIRY_DURATION=300s
+      - GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL=0
 
       # Google OAuth
       - GOTRUE_EXTERNAL_GOOGLE_ENABLED=${GOOGLE_OAUTH_ENABLED:-false}
       - GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
       - GOTRUE_EXTERNAL_GOOGLE_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=${SUPABASE_URL:-http://localhost:9999}/callback
+      - GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=http://localhost:9999/callback
 
       # GitHub OAuth
       - GOTRUE_EXTERNAL_GITHUB_ENABLED=${GITHUB_OAUTH_ENABLED:-false}
       - GOTRUE_EXTERNAL_GITHUB_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID:-}
       - GOTRUE_EXTERNAL_GITHUB_SECRET=${GITHUB_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI=${SUPABASE_URL:-http://localhost:9999}/callback
+      - GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI=http://localhost:9999/callback
 
       # LinkedIn OAuth
       - GOTRUE_EXTERNAL_LINKEDIN_ENABLED=${LINKEDIN_OAUTH_ENABLED:-false}
       - GOTRUE_EXTERNAL_LINKEDIN_CLIENT_ID=${LINKEDIN_OAUTH_CLIENT_ID:-}
       - GOTRUE_EXTERNAL_LINKEDIN_SECRET=${LINKEDIN_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_LINKEDIN_REDIRECT_URI=${SUPABASE_URL:-http://localhost:9999}/callback
+      - GOTRUE_EXTERNAL_LINKEDIN_REDIRECT_URI=http://localhost:9999/callback
     ports:
-      - "9999:9999"
+      - "9999:8081"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     networks:
       - bo1-network
     restart: unless-stopped
@@ -183,10 +201,14 @@ services:
       dockerfile: backend/Dockerfile
       target: development
     container_name: bo1-api
+    env_file:
+      - .env
     depends_on:
       redis:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      supabase-auth:
         condition: service_healthy
     environment:
       # Redis Configuration
@@ -208,6 +230,10 @@ services:
       - API_RELOAD=true
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
+
+      # Supabase Auth Configuration
+      - SUPABASE_URL=http://supabase-auth:8081
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
 
       # Application Configuration
       - DEBUG=${DEBUG:-true}
@@ -231,10 +257,14 @@ services:
       dockerfile: Dockerfile
     container_name: bo1-frontend
     depends_on:
-      - api
+      api:
+        condition: service_started
+      supabase-auth:
+        condition: service_healthy
     environment:
       - NODE_ENV=development
       - PUBLIC_API_URL=http://localhost:8000
+      - VITE_API_BASE_URL=http://localhost:8000
     ports:
       - "5173:5173"  # Vite dev server
     volumes:
@@ -249,7 +279,7 @@ services:
   # Redis Commander: Web UI for Redis inspection (development only)
   # ---------------------------------------------------------------------------
   redis-commander:
-    image: rediscommander/redis-commander:latest
+    image: ghcr.io/joeferner/redis-commander:latest
     container_name: bo1-redis-commander
     depends_on:
       - redis

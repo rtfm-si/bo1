@@ -125,3 +125,4 @@ zzz_project/
 
 # Playwright MCP screenshots (temporary inspection files)
 .playwright-mcp/
+backups/*.sql

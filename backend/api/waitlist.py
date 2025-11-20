@@ -16,7 +16,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from bo1.state.postgres_manager import db_session
 
-router = APIRouter(prefix="/waitlist", tags=["waitlist"])
+router = APIRouter(prefix="/v1/waitlist", tags=["waitlist"])
 
 # Email whitelist (move to database/environment variable in production)
 BETA_WHITELIST = os.getenv("BETA_WHITELIST", "").split(",")

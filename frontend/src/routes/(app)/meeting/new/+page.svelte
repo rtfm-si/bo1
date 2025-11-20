@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { isAuthenticated } from '$lib/stores/auth';
+	import { apiClient } from '$lib/api/client';
 
 	let problemStatement = '';
 	let isSubmitting = false;
@@ -33,34 +34,14 @@
 			error = null;
 
 			// Create session
-			const createResponse = await fetch('/api/v1/sessions', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				credentials: 'include',
-				body: JSON.stringify({
-					problem_statement: problemStatement.trim()
-				})
+			const sessionData = await apiClient.createSession({
+				problem_statement: problemStatement.trim()
 			});
 
-			if (!createResponse.ok) {
-				const errorData = await createResponse.json();
-				throw new Error(errorData.detail || 'Failed to create session');
-			}
-
-			const sessionData = await createResponse.json();
-			const sessionId = sessionData.session_id;
+			const sessionId = sessionData.id;
 
 			// Start deliberation
-			const startResponse = await fetch(`/api/v1/sessions/${sessionId}/start`, {
-				method: 'POST',
-				credentials: 'include'
-			});
-
-			if (!startResponse.ok) {
-				throw new Error('Failed to start deliberation');
-			}
+			await apiClient.startDeliberation(sessionId);
 
 			// Redirect to meeting view
 			goto(`/meeting/${sessionId}`);
@@ -237,7 +218,7 @@
 								<li>A clear recommendation with action steps will be synthesized</li>
 							</ul>
 							<p class="mt-2 text-xs text-blue-700 dark:text-blue-400">
-								Average deliberation time: 5-15 minutes | Cost: ~$0.10-0.15
+								Average deliberation time: 5-15 minutes
 							</p>
 						</div>
 					</div>

@@ -51,15 +51,11 @@ export async function initAuth(): Promise<void> {
 	try {
 		authStore.update((state) => ({ ...state, isLoading: true, error: null }));
 
-		// Check if we have a valid session by calling a protected endpoint
-		// The JWT is stored in httpOnly cookie, so it's sent automatically
-		const response = await fetch('/api/sessions', {
-			credentials: 'include' // Send cookies
-		});
+		// Fetch user profile from localStorage
+		const userData = await fetchUserProfile();
 
-		if (response.ok) {
-			// User is authenticated - fetch user profile
-			const userData = await fetchUserProfile();
+		if (userData) {
+			// User data found - user is authenticated
 			authStore.set({
 				user: userData,
 				isAuthenticated: true,
@@ -67,7 +63,7 @@ export async function initAuth(): Promise<void> {
 				error: null
 			});
 		} else {
-			// Not authenticated
+			// No user data - not authenticated
 			authStore.set({
 				user: null,
 				isAuthenticated: false,
@@ -90,17 +86,22 @@ export async function initAuth(): Promise<void> {
  * Fetch user profile data.
  * Assumes user is authenticated (JWT in cookie).
  */
-async function fetchUserProfile(): Promise<User> {
+async function fetchUserProfile(): Promise<User | null> {
 	// For MVP, we'll get user data from the OAuth callback response
 	// In production, this would be a separate /api/auth/me endpoint
 	const storedUser = browser ? localStorage.getItem('bo1_user') : null;
 
 	if (storedUser) {
-		return JSON.parse(storedUser);
+		try {
+			return JSON.parse(storedUser);
+		} catch (e) {
+			console.error('Failed to parse stored user data:', e);
+			return null;
+		}
 	}
 
-	// Fallback - return default user (should not happen in normal flow)
-	throw new Error('User profile not found in localStorage');
+	// No user data in localStorage
+	return null;
 }
 
 /**
@@ -108,24 +109,46 @@ async function fetchUserProfile(): Promise<User> {
  *
  * @param code - Authorization code from OAuth provider
  * @param redirectUri - Redirect URI used in OAuth flow
+ * @param codeVerifier - PKCE code verifier for secure code exchange
  * @returns User data
  */
-export async function handleOAuthCallback(code: string, redirectUri: string): Promise<User> {
+export async function handleOAuthCallback(code: string, redirectUri: string, codeVerifier: string): Promise<User> {
 	try {
 		authStore.update((state) => ({ ...state, isLoading: true, error: null }));
 
-		const response = await fetch('/api/auth/google/callback', {
+		// Get API base URL from environment
+		const apiBaseUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
+
+		const response = await fetch(`${apiBaseUrl}/api/auth/google/callback`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
 			credentials: 'include', // Send and store cookies
-			body: JSON.stringify({ code, redirect_uri: redirectUri })
+			body: JSON.stringify({
+				code,
+				redirect_uri: redirectUri,
+				code_verifier: codeVerifier // PKCE verifier for secure exchange
+			})
 		});
 
 		if (!response.ok) {
-			const error = await response.json();
-			throw new Error(error.detail || 'OAuth callback failed');
+			// Try to parse error as JSON, fall back to text if that fails
+			let errorMessage = 'OAuth callback failed';
+			try {
+				const errorText = await response.text();
+				// Try to parse as JSON
+				try {
+					const error = JSON.parse(errorText);
+					errorMessage = error.detail || JSON.stringify(error);
+				} catch {
+					// Not JSON, use raw text
+					errorMessage = `HTTP ${response.status}: ${errorText}`;
+				}
+			} catch {
+				errorMessage = `HTTP ${response.status}: Unable to read response`;
+			}
+			throw new Error(errorMessage);
 		}
 
 		const data = await response.json();

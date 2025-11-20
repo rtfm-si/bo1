@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { isAuthenticated } from '$lib/stores/auth';
+	import { apiClient } from '$lib/api/client';
 
 	const sessionId = $page.params.id;
 
@@ -10,9 +11,8 @@
 		id: string;
 		problem_statement: string;
 		status: string;
-		phase: string;
+		phase: string | null;
 		round_number: number;
-		total_cost: number;
 		created_at: string;
 	}
 
@@ -22,12 +22,12 @@
 		timestamp: string;
 	}
 
-	let session: SessionData | null = null;
-	let events: StreamEvent[] = [];
-	let isLoading = true;
-	let error: string | null = null;
+	let session = $state<SessionData | null>(null);
+	let events = $state<StreamEvent[]>([]);
+	let isLoading = $state(true);
+	let error = $state<string | null>(null);
 	let eventSource: EventSource | null = null;
-	let autoScroll = true;
+	let autoScroll = $state(true);
 
 	onMount(async () => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
@@ -50,15 +50,7 @@
 
 	async function loadSession() {
 		try {
-			const response = await fetch(`/api/v1/sessions/${sessionId}`, {
-				credentials: 'include'
-			});
-
-			if (!response.ok) {
-				throw new Error('Failed to load session');
-			}
-
-			session = await response.json();
+			session = await apiClient.getSession(sessionId);
 			isLoading = false;
 		} catch (err) {
 			console.error('Failed to load session:', err);
@@ -143,10 +135,7 @@
 
 	async function handlePause() {
 		try {
-			await fetch(`/api/v1/sessions/${sessionId}/pause`, {
-				method: 'POST',
-				credentials: 'include'
-			});
+			await apiClient.pauseDeliberation(sessionId);
 		} catch (err) {
 			console.error('Failed to pause session:', err);
 		}
@@ -154,10 +143,7 @@
 
 	async function handleResume() {
 		try {
-			await fetch(`/api/v1/sessions/${sessionId}/resume`, {
-				method: 'POST',
-				credentials: 'include'
-			});
+			await apiClient.resumeDeliberation(sessionId);
 			startEventStream();
 		} catch (err) {
 			console.error('Failed to resume session:', err);
@@ -170,10 +156,7 @@
 		}
 
 		try {
-			await fetch(`/api/v1/sessions/${sessionId}/kill`, {
-				method: 'POST',
-				credentials: 'include'
-			});
+			await apiClient.killDeliberation(sessionId);
 			eventSource?.close();
 		} catch (err) {
 			console.error('Failed to kill session:', err);
@@ -211,6 +194,7 @@
 					<a
 						href="/dashboard"
 						class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors duration-200"
+						aria-label="Back to dashboard"
 					>
 						<svg class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -222,7 +206,7 @@
 						</h1>
 						{#if session}
 							<p class="text-sm text-slate-600 dark:text-slate-400">
-								{session.phase.replace(/_/g, ' ')} - Round {session.round_number}
+								{session.phase ? session.phase.replace(/_/g, ' ') : 'Initializing'} - Round {session.round_number}
 							</p>
 						{/if}
 					</div>
@@ -231,14 +215,14 @@
 				<div class="flex items-center gap-2">
 					{#if session?.status === 'active'}
 						<button
-							on:click={handlePause}
+							onclick={handlePause}
 							class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
 						>
 							⏸ Pause
 						</button>
 					{:else if session?.status === 'paused'}
 						<button
-							on:click={handleResume}
+							onclick={handleResume}
 							class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
 						>
 							▶ Resume
@@ -246,17 +230,11 @@
 					{/if}
 
 					<button
-						on:click={handleKill}
+						onclick={handleKill}
 						class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
 					>
 						⏹ Stop
 					</button>
-
-					{#if session}
-						<div class="px-4 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-300">
-							${session.total_cost.toFixed(2)}
-						</div>
-					{/if}
 				</div>
 			</div>
 		</div>
@@ -298,7 +276,7 @@
 								<p>Waiting for deliberation to start...</p>
 							</div>
 						{:else}
-							{#each events as event}
+							{#each events as event (event.timestamp)}
 								<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
 									<div class="flex items-start gap-3">
 										<span class="text-2xl">{getEventIcon(event.type)}</span>
@@ -371,19 +349,13 @@
 							<div>
 								<dt class="text-slate-600 dark:text-slate-400">Phase</dt>
 								<dd class="font-medium text-slate-900 dark:text-white mt-1">
-									{session.phase.replace(/_/g, ' ')}
+									{session.phase ? session.phase.replace(/_/g, ' ') : 'Initializing'}
 								</dd>
 							</div>
 							<div>
 								<dt class="text-slate-600 dark:text-slate-400">Round</dt>
 								<dd class="font-medium text-slate-900 dark:text-white mt-1">
 									{session.round_number}
-								</dd>
-							</div>
-							<div>
-								<dt class="text-slate-600 dark:text-slate-400">Cost</dt>
-								<dd class="font-medium text-slate-900 dark:text-white mt-1">
-									${session.total_cost.toFixed(2)}
 								</dd>
 							</div>
 						</dl>

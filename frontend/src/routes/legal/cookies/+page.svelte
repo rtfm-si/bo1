@@ -251,38 +251,71 @@
 
 <style>
 	:global(.prose h2) {
-		@apply text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-12 mb-4;
+		font-size: 1.5rem;
+		font-weight: 700;
+		margin-top: 3rem;
+		margin-bottom: 1rem;
+		color: var(--color-textPrimary);
 	}
 
 	:global(.prose h3) {
-		@apply text-xl font-semibold text-neutral-900 dark:text-neutral-100 mt-8 mb-3;
+		font-size: 1.25rem;
+		font-weight: 600;
+		margin-top: 2rem;
+		margin-bottom: 0.75rem;
+		color: var(--color-textPrimary);
 	}
 
 	:global(.prose p) {
-		@apply text-neutral-700 dark:text-neutral-300 mb-4 leading-relaxed;
+		margin-bottom: 1rem;
+		line-height: 1.625;
+		color: var(--color-textSecondary);
 	}
 
 	:global(.prose ul) {
-		@apply list-disc pl-6 mb-4 text-neutral-700 dark:text-neutral-300;
+		list-style-type: disc;
+		padding-left: 1.5rem;
+		margin-bottom: 1rem;
+		color: var(--color-textSecondary);
 	}
 
 	:global(.prose li) {
-		@apply mb-2;
+		margin-bottom: 0.5rem;
 	}
 
 	:global(.prose a) {
-		@apply text-brand-600 dark:text-brand-400 hover:underline;
+		color: var(--color-brand-600, #00a594);
+		text-decoration: underline;
+	}
+
+	:global(.prose a:hover) {
+		text-decoration-style: solid;
+	}
+
+	:global(.dark .prose a) {
+		color: var(--color-brand-400, #1ad3c0);
 	}
 
 	:global(.prose table) {
-		@apply w-full my-6 text-sm;
+		width: 100%;
+		margin-top: 1.5rem;
+		margin-bottom: 1.5rem;
+		font-size: 0.875rem;
 	}
 
 	:global(.prose th) {
-		@apply font-semibold;
+		font-weight: 600;
 	}
 
 	:global(.prose code) {
-		@apply bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded text-sm font-mono;
+		background-color: var(--color-neutral-100, #f1f4f5);
+		padding: 0.25rem 0.5rem;
+		border-radius: 0.25rem;
+		font-size: 0.875rem;
+		font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+	}
+
+	:global(.dark .prose code) {
+		background-color: var(--color-neutral-800, #2a3b40);
 	}
 </style>

@@ -36,6 +36,7 @@ class OAuthCallbackRequest(BaseModel):
 
     code: str  # Authorization code from OAuth provider
     redirect_uri: str  # Redirect URI used in OAuth flow (must match)
+    code_verifier: str  # PKCE code verifier for secure code exchange
 
 
 class OAuthCallbackResponse(BaseModel):
@@ -77,50 +78,78 @@ async def google_oauth_callback(request: OAuthCallbackRequest) -> OAuthCallbackR
     Raises:
         HTTPException: 400 if code is invalid, 500 if OAuth provider error
     """
-    if not GOOGLE_OAUTH_CLIENT_ID or not GOOGLE_OAUTH_CLIENT_SECRET:
-        logger.error("Google OAuth credentials not configured")
-        raise HTTPException(
-            status_code=500,
-            detail="Google OAuth not configured. Please contact support.",
-        )
+    # Note: We call GoTrue's token endpoint directly instead of using Supabase client
+    # because we need to pass the PKCE code_verifier
 
     try:
-        # Import supabase client
-        try:
-            from supabase import create_client
-        except ImportError as e:
-            logger.error("supabase-py not installed - required for OAuth")
-            raise HTTPException(
-                status_code=500,
-                detail="Authentication system not configured",
-            ) from e
+        import httpx
 
-        # Create Supabase client
-        supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-
-        # Exchange authorization code for tokens via Supabase GoTrue
-        # This validates the code with Google and returns user data
+        # Exchange authorization code for tokens via Supabase GoTrue with PKCE
+        # PKCE (Proof Key for Code Exchange) ensures secure code exchange
         logger.info(
-            f"Exchanging authorization code for tokens (redirect_uri: {request.redirect_uri})"
+            f"Exchanging authorization code for tokens with PKCE (redirect_uri: {request.redirect_uri})"
         )
 
-        # Use Supabase's OAuth token exchange
-        # Note: Supabase GoTrue handles the Google OAuth flow internally
-        auth_response = supabase.auth.exchange_code_for_session(
-            {
-                "auth_code": request.code,
-            }
-        )
+        # Exchange code for session using PKCE verifier
+        # Call GoTrue's token endpoint directly with the code_verifier
 
-        if not auth_response or not auth_response.session:
+        token_url = f"{SUPABASE_URL}/token?grant_type=pkce"
+        token_data = {
+            "auth_code": request.code,
+            "code_verifier": request.code_verifier,
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+        }
+
+        # Add apikey header if available (not required for self-hosted GoTrue)
+        if SUPABASE_ANON_KEY and SUPABASE_ANON_KEY != "your_supabase_anon_key_here":
+            headers["apikey"] = SUPABASE_ANON_KEY
+
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                token_url,
+                json=token_data,
+                headers=headers,
+            )
+
+            if token_response.status_code != 200:
+                logger.error(
+                    f"Token exchange failed: {token_response.status_code} - {token_response.text}"
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid or expired authorization code",
+                )
+
+            token_data_response = token_response.json()
+
+        # Extract session and user data from response
+        if not token_data_response or "access_token" not in token_data_response:
             logger.error("Failed to exchange code for session")
             raise HTTPException(
                 status_code=400,
                 detail="Invalid or expired authorization code",
             )
 
-        session = auth_response.session
-        user = auth_response.user
+        # Create session object manually from token response
+        class Session:
+            def __init__(self, data: dict[str, Any]) -> None:
+                self.access_token = data.get("access_token", "")
+                self.refresh_token = data.get("refresh_token")
+                self.expires_in = data.get("expires_in", 3600)
+                self.user_data = data.get("user", {})
+
+        class User:
+            def __init__(self, data: dict[str, Any]) -> None:
+                self.id = data.get("id", "")
+                self.email = data.get("email", "")
+                self.user_metadata = data.get("user_metadata", {})
+                self.app_metadata = data.get("app_metadata", {})
+
+        session = Session(token_data_response)
+        user = User(token_data_response.get("user", {}))
 
         if not user or not user.id or not user.email:
             logger.error("OAuth response missing user data")
@@ -151,7 +180,7 @@ async def google_oauth_callback(request: OAuthCallbackRequest) -> OAuthCallbackR
             logger.info(f"User {user_email} found in beta whitelist - access granted")
 
         # Create or update user in database
-        await _ensure_user_exists(
+        _ensure_user_exists(
             user_id=user.id,
             email=user.email,
             auth_provider="google",
@@ -263,7 +292,7 @@ async def signout(access_token: str) -> dict[str, str]:
         ) from e
 
 
-async def _ensure_user_exists(user_id: str, email: str, auth_provider: str) -> None:
+def _ensure_user_exists(user_id: str, email: str, auth_provider: str) -> None:
     """Create user in database if not exists, or update if exists.
 
     Links user to free trial tier on first sign-in.
@@ -273,56 +302,49 @@ async def _ensure_user_exists(user_id: str, email: str, auth_provider: str) -> N
         email: User email
         auth_provider: OAuth provider (google, linkedin, github)
     """
-    from sqlalchemy import text
-
-    from bo1.state.postgres_manager import get_database_session
+    from bo1.state.postgres_manager import get_connection
 
     try:
-        async with get_database_session() as session:
-            # Check if user exists
-            result = await session.execute(
-                text("SELECT id FROM users WHERE id = :user_id"),
-                {"user_id": user_id},
-            )
-            existing_user = result.fetchone()
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                # Set search path to public schema
+                cur.execute("SET search_path TO public")
 
-            if existing_user:
-                logger.info(f"User {email} already exists, updating last login")
-                # Update user (updated_at timestamp auto-updated by trigger)
-                await session.execute(
-                    text(
-                        """
-                        UPDATE users
-                        SET email = :email,
-                            auth_provider = :auth_provider
-                        WHERE id = :user_id
-                        """
-                    ),
-                    {
-                        "user_id": user_id,
-                        "email": email,
-                        "auth_provider": auth_provider,
-                    },
+                # Check if user exists
+                cur.execute(
+                    "SELECT id FROM public.users WHERE id = %s",
+                    (user_id,),
                 )
-            else:
-                logger.info(f"Creating new user: {email} (tier: free)")
-                # Create user with free tier
-                await session.execute(
-                    text(
-                        """
-                        INSERT INTO users (id, email, auth_provider, subscription_tier)
-                        VALUES (:user_id, :email, :auth_provider, 'free')
-                        """
-                    ),
-                    {
-                        "user_id": user_id,
-                        "email": email,
-                        "auth_provider": auth_provider,
-                    },
-                )
+                existing_user = cur.fetchone()
 
-            await session.commit()
-            logger.info(f"User {email} ensured in database")
+                if existing_user:
+                    logger.info(f"User {email} already exists, updating last login")
+                    # Update user (updated_at timestamp auto-updated by trigger)
+                    cur.execute(
+                        """
+                        UPDATE public.users
+                        SET email = %s,
+                            auth_provider = %s
+                        WHERE id = %s
+                        """,
+                        (email, auth_provider, user_id),
+                    )
+                else:
+                    logger.info(f"Creating new user: {email} (tier: free)")
+                    # Create user with free tier
+                    cur.execute(
+                        """
+                        INSERT INTO public.users (id, email, auth_provider, subscription_tier)
+                        VALUES (%s, %s, %s, 'free')
+                        """,
+                        (user_id, email, auth_provider),
+                    )
+
+                conn.commit()
+                logger.info(f"User {email} ensured in database")
+        finally:
+            conn.close()
 
     except Exception as e:
         logger.error(f"Failed to ensure user exists: {e}", exc_info=True)

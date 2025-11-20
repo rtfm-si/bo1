@@ -8,7 +8,7 @@ services:
   # PostgreSQL: Shared database for both blue and green
   # ---------------------------------------------------------------------------
   postgres:
-    image: pgvector/pgvector:pg15
+    image: pgvector/pgvector:0.8.1-pg16
     environment:
       - POSTGRES_DB=boardofone
       - POSTGRES_USER=bo1
@@ -31,7 +31,7 @@ services:
   # Redis: Shared cache for both blue and green
   # ---------------------------------------------------------------------------
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.5-alpine3.21
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
@@ -56,13 +56,14 @@ services:
   # Supabase GoTrue: Shared auth server for both blue and green
   # ---------------------------------------------------------------------------
   supabase-auth:
-    image: supabase/gotrue:v2.158.1
+    image: supabase/gotrue:v2.181.0
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       - GOTRUE_DB_DRIVER=postgres
       - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/boardofone
+      - GOTRUE_DB_SCHEMA=auth
       - GOTRUE_SITE_URL=${SITE_URL}
       - GOTRUE_URI_ALLOW_LIST=${SITE_URL}
       - GOTRUE_JWT_SECRET=${SUPABASE_JWT_SECRET}
@@ -74,17 +75,17 @@ services:
       - GOTRUE_EXTERNAL_GOOGLE_ENABLED=${GOOGLE_OAUTH_ENABLED:-false}
       - GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
       - GOTRUE_EXTERNAL_GOOGLE_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=${SUPABASE_URL}/callback
+      - GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=${SITE_URL}/auth/v1/callback
       - GOTRUE_EXTERNAL_GITHUB_ENABLED=${GITHUB_OAUTH_ENABLED:-false}
       - GOTRUE_EXTERNAL_GITHUB_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID:-}
       - GOTRUE_EXTERNAL_GITHUB_SECRET=${GITHUB_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI=${SUPABASE_URL}/callback
+      - GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI=${SITE_URL}/auth/v1/callback
       - GOTRUE_EXTERNAL_LINKEDIN_ENABLED=${LINKEDIN_OAUTH_ENABLED:-false}
       - GOTRUE_EXTERNAL_LINKEDIN_CLIENT_ID=${LINKEDIN_OAUTH_CLIENT_ID:-}
       - GOTRUE_EXTERNAL_LINKEDIN_SECRET=${LINKEDIN_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_LINKEDIN_REDIRECT_URI=${SUPABASE_URL}/callback
+      - GOTRUE_EXTERNAL_LINKEDIN_REDIRECT_URI=${SITE_URL}/auth/v1/callback
     ports:
-      - "127.0.0.1:9999:9999"
+      - "127.0.0.1:9999:8081"
     networks:
       - bo1-network
     restart: unless-stopped

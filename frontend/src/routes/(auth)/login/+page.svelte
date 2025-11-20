@@ -3,10 +3,11 @@
 	import { goto } from '$app/navigation';
 	import { isAuthenticated } from '$lib/stores/auth';
 
+	import { browser } from '$app/environment';
+
 	// OAuth configuration
 	const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:9999';
-	const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID || '';
-	const REDIRECT_URI = `${window.location.origin}/callback`;
+	const REDIRECT_URI = browser ? `${window.location.origin}/callback` : '';
 
 	let isLoading = false;
 	let error: string | null = null;
@@ -23,32 +24,80 @@
 	});
 
 	/**
-	 * Initiate Google OAuth flow.
-	 * Redirects user to Google OAuth consent screen.
+	 * Generate a random string for PKCE code verifier.
 	 */
-	function handleGoogleSignIn() {
-		if (!GOOGLE_CLIENT_ID) {
-			error = 'Google OAuth is not configured. Please contact support.';
+	function generateRandomString(length: number): string {
+		const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+		const randomValues = new Uint8Array(length);
+		crypto.getRandomValues(randomValues);
+		return Array.from(randomValues)
+			.map(v => charset[v % charset.length])
+			.join('');
+	}
+
+	/**
+	 * Generate SHA-256 hash of the code verifier.
+	 */
+	async function sha256(plain: string): Promise<ArrayBuffer> {
+		const encoder = new TextEncoder();
+		const data = encoder.encode(plain);
+		return await crypto.subtle.digest('SHA-256', data);
+	}
+
+	/**
+	 * Base64-URL encode the hash.
+	 */
+	function base64UrlEncode(buffer: ArrayBuffer): string {
+		const bytes = new Uint8Array(buffer);
+		const binary = String.fromCharCode(...bytes);
+		const base64 = btoa(binary);
+		return base64
+			.replace(/\+/g, '-')
+			.replace(/\//g, '_')
+			.replace(/=/g, '');
+	}
+
+	/**
+	 * Initiate Google OAuth flow via Supabase GoTrue with PKCE.
+	 * PKCE (Proof Key for Code Exchange) ensures secure authorization code flow.
+	 */
+	async function handleGoogleSignIn() {
+		if (!SUPABASE_URL) {
+			error = 'Authentication is not configured. Please contact support.';
 			return;
 		}
 
 		isLoading = true;
 		error = null;
 
-		// Build Google OAuth URL
-		const params = new URLSearchParams({
-			client_id: GOOGLE_CLIENT_ID,
-			redirect_uri: REDIRECT_URI,
-			response_type: 'code',
-			scope: 'openid email profile',
-			access_type: 'offline', // Get refresh token
-			prompt: 'consent' // Force consent screen to get refresh token
-		});
+		try {
+			// Generate PKCE code verifier (random string 43-128 chars)
+			const codeVerifier = generateRandomString(128);
 
-		const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+			// Generate code challenge (SHA-256 hash of verifier, base64-url encoded)
+			const hashed = await sha256(codeVerifier);
+			const codeChallenge = base64UrlEncode(hashed);
 
-		// Redirect to Google OAuth
-		window.location.href = googleAuthUrl;
+			// Store code verifier in sessionStorage for callback page
+			sessionStorage.setItem('pkce_code_verifier', codeVerifier);
+
+			// Build Supabase OAuth URL for Google provider with PKCE parameters
+			const params = new URLSearchParams({
+				provider: 'google',
+				redirect_to: REDIRECT_URI,
+				code_challenge: codeChallenge,
+				code_challenge_method: 'S256'
+			});
+
+			const supabaseAuthUrl = `${SUPABASE_URL}/authorize?${params.toString()}`;
+
+			// Redirect to Supabase GoTrue (which redirects to Google)
+			window.location.href = supabaseAuthUrl;
+		} catch (err) {
+			console.error('Failed to initiate OAuth:', err);
+			isLoading = false;
+			error = 'Failed to initiate sign-in. Please try again.';
+		}
 	}
 </script>
 

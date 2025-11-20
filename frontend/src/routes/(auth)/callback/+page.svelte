@@ -10,24 +10,33 @@
 
 	onMount(async () => {
 		try {
-			// Get authorization code from URL query params
-			const code = $page.url.searchParams.get('code');
-			const errorParam = $page.url.searchParams.get('error');
-
 			// Check for OAuth errors
+			const errorParam = $page.url.searchParams.get('error');
 			if (errorParam) {
-				throw new Error(`OAuth error: ${errorParam}`);
+				const errorDescription = $page.url.searchParams.get('error_description');
+				throw new Error(`OAuth error: ${errorDescription || errorParam}`);
 			}
 
+			// Get authorization code from query params (PKCE flow)
+			const code = $page.url.searchParams.get('code');
 			if (!code) {
-				throw new Error('Missing authorization code');
+				throw new Error('Missing authorization code from OAuth provider');
 			}
 
-			// Exchange code for tokens
-			statusMessage = 'Verifying with Google...';
+			// Retrieve PKCE code verifier from sessionStorage
+			const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
+			if (!codeVerifier) {
+				throw new Error('PKCE code verifier not found. Please try signing in again.');
+			}
+
+			// Clear the code verifier from storage (one-time use)
+			sessionStorage.removeItem('pkce_code_verifier');
+
+			// Exchange code for session via backend (with PKCE verifier)
+			statusMessage = 'Verifying with server...';
 			const redirectUri = `${window.location.origin}/callback`;
 
-			await handleOAuthCallback(code, redirectUri);
+			await handleOAuthCallback(code, redirectUri, codeVerifier);
 
 			// Success - redirect to dashboard
 			statusMessage = 'Sign-in successful! Redirecting...';
@@ -41,6 +50,8 @@
 
 			if (err instanceof Error) {
 				error = err.message;
+				// Log full error details for debugging
+				console.error('Full error:', err);
 			} else {
 				error = 'Failed to complete sign-in. Please try again.';
 			}

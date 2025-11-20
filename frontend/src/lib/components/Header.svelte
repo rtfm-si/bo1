@@ -3,6 +3,7 @@
 	 * Header Component - Reusable navigation header with logo and auth
 	 */
 	import Button from '$lib/components/ui/Button.svelte';
+	import { isAuthenticated, user, signOut } from '$lib/stores/auth';
 
 	// Props
 	let {
@@ -13,18 +14,18 @@
 		showCTA?: boolean;
 	} = $props();
 
-	// Mock auth state - replace with actual Supabase auth
-	let isAuthenticated = $state(false);
-
-	// Navigation handler
+	// Navigation handlers
 	function handleSignIn() {
-		// TODO: Implement Supabase auth redirect
-		window.location.href = '/auth/login';
+		window.location.href = '/login';
 	}
 
 	function handleGetStarted() {
-		// TODO: Check whitelist, redirect to waitlist or dashboard
-		window.location.href = '/auth/signup';
+		window.location.href = '/waitlist';
+	}
+
+	async function handleSignOut() {
+		await signOut();
+		window.location.href = '/';
 	}
 
 	const headerClasses = $derived(
@@ -53,18 +54,12 @@
 
 			<!-- Desktop Navigation -->
 			<div class="hidden md:flex items-center gap-6">
-				{#if isAuthenticated}
+				{#if $isAuthenticated}
 					<a
 						href="/dashboard"
 						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
 					>
 						Dashboard
-					</a>
-					<a
-						href="/personas"
-						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-					>
-						Personas
 					</a>
 					<a
 						href="/settings"
@@ -91,9 +86,15 @@
 			<!-- CTA Buttons -->
 			{#if showCTA}
 				<div class="flex items-center gap-3">
-					{#if isAuthenticated}
-						<Button variant="brand" onclick={() => (window.location.href = '/sessions/new')}>
-							New Deliberation
+					{#if $isAuthenticated}
+						<span class="text-sm text-neutral-600 dark:text-neutral-400 mr-2">
+							{$user?.email}
+						</span>
+						<Button variant="ghost" size="sm" onclick={handleSignOut}>
+							Sign Out
+						</Button>
+						<Button variant="brand" size="sm" onclick={() => (window.location.href = '/meeting/new')}>
+							New Meeting
 						</Button>
 					{:else}
 						<Button variant="ghost" size="sm" onclick={handleSignIn}> Sign In </Button>

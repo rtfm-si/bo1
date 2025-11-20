@@ -34,14 +34,10 @@
 				</div>
 			</div>
 
-			<div class="mt-6 grid grid-cols-3 gap-4 text-sm">
+			<div class="mt-6 grid grid-cols-2 gap-4 text-sm">
 				<div class="bg-white dark:bg-slate-800 p-4 rounded-lg border">
 					<p class="text-slate-600 dark:text-slate-400">Rounds</p>
 					<p class="text-2xl font-bold">{session.round_number}</p>
-				</div>
-				<div class="bg-white dark:bg-slate-800 p-4 rounded-lg border">
-					<p class="text-slate-600 dark:text-slate-400">Cost</p>
-					<p class="text-2xl font-bold">${session.total_cost.toFixed(2)}</p>
 				</div>
 				<div class="bg-white dark:bg-slate-800 p-4 rounded-lg border">
 					<p class="text-slate-600 dark:text-slate-400">Status</p>

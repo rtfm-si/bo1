@@ -10,7 +10,6 @@
 			links: [
 				{ label: 'How It Works', href: '/#how-it-works' },
 				{ label: 'Features', href: '/#features' },
-				{ label: 'Expert Personas', href: '/personas' },
 				{ label: 'Examples', href: '/examples' },
 			],
 		},

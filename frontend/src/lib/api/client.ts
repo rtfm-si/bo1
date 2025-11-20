@@ -43,7 +43,15 @@ export class ApiClient {
 	}
 
 	/**
-	 * Internal fetch wrapper with error handling
+	 * Get access token from localStorage
+	 */
+	private getAccessToken(): string | null {
+		if (typeof window === 'undefined') return null;
+		return localStorage.getItem('bo1_access_token');
+	}
+
+	/**
+	 * Internal fetch wrapper with error handling and authentication
 	 */
 	private async fetch<T>(
 		endpoint: string,
@@ -51,11 +59,19 @@ export class ApiClient {
 	): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
 
+		// Get access token and add to Authorization header
+		const accessToken = this.getAccessToken();
+		const authHeaders = accessToken
+			? { 'Authorization': `Bearer ${accessToken}` }
+			: {};
+
 		try {
 			const response = await fetch(url, {
 				...options,
+				credentials: 'include', // Send cookies
 				headers: {
 					'Content-Type': 'application/json',
+					...authHeaders,
 					...options?.headers
 				}
 			});

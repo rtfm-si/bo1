@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from backend.api import admin, context, control, health, sessions, streaming, waitlist
+from backend.api import admin, auth, context, control, health, sessions, streaming, waitlist
 from backend.api.middleware.auth import require_admin
 from bo1.config import get_settings
 
@@ -88,6 +88,10 @@ app = FastAPI(
             "description": "Health check endpoints for monitoring system status",
         },
         {
+            "name": "authentication",
+            "description": "OAuth authentication (Google OAuth for closed beta)",
+        },
+        {
             "name": "sessions",
             "description": "Session management (create, list, get details)",
         },
@@ -152,6 +156,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health.router, prefix="/api", tags=["health"])
+app.include_router(auth.router, prefix="/api", tags=["authentication"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(streaming.router, prefix="/api", tags=["streaming"])
 app.include_router(context.router, prefix="/api", tags=["context"])

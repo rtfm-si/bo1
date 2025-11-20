@@ -14,6 +14,7 @@
 		disabled = false,
 		required = false,
 		id,
+		ariaLabel,
 		oninput,
 		onchange,
 		onblur,
@@ -28,6 +29,7 @@
 		disabled?: boolean;
 		required?: boolean;
 		id?: string;
+		ariaLabel?: string;
 		oninput?: (event: Event) => void;
 		onchange?: (event: Event) => void;
 		onblur?: (event: FocusEvent) => void;
@@ -76,6 +78,7 @@
 		id={inputId}
 		bind:value
 		class={inputClasses}
+		aria-label={ariaLabel}
 		aria-invalid={error ? 'true' : 'false'}
 		aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
 		oninput={oninput}

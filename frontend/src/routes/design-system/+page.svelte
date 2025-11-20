@@ -145,9 +145,9 @@
 						<div class="grid grid-cols-3 gap-4">
 							{#each coreShades as shade}
 								<ColorSwatch
-									color={colors[scale.key][shade]}
+									color={colors[scale.key][String(shade) as unknown as keyof typeof colors.brand]}
 									shade={shade}
-									label={colors[scale.key][shade]}
+									label={colors[scale.key][String(shade) as unknown as keyof typeof colors.brand]}
 								/>
 							{/each}
 						</div>
@@ -181,7 +181,7 @@
 								<div class="grid grid-cols-11 gap-2">
 									{#each allShades as shade}
 										<ColorSwatch
-											color={colors[scale.key][shade]}
+											color={colors[scale.key][String(shade) as unknown as keyof typeof colors.brand]}
 											shade={shade}
 											size="sm"
 										/>

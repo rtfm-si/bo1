@@ -159,7 +159,7 @@
 			<Toast
 				type={toast.type}
 				message={toast.message}
-				on:dismiss={() => removeToast(toast.id)}
+				ondismiss={() => removeToast(toast.id)}
 			/>
 		{/each}
 	</div>
@@ -292,7 +292,7 @@
 								<span class="text-sm text-neutral-600 dark:text-neutral-400">
 									Brand variant
 								</span>
-								<Button size="sm" variant="ghost" on:click={startProgressDemo}>
+								<Button size="sm" variant="ghost" onclick={startProgressDemo}>
 									Animate
 								</Button>
 							</div>
@@ -381,7 +381,7 @@
 							<InsightFlag
 								type={insight.type}
 								message={insight.message}
-								on:dismiss={() => removeInsight(insight.id)}
+								ondismiss={() => removeInsight(insight.id)}
 							/>
 						{/each}
 						<InsightFlag
@@ -410,10 +410,12 @@
 							timestamp={sampleTimestamp}
 							confidence="high"
 						>
-							<div slot="actions" class="flex gap-2">
-								<Button size="sm" variant="ghost">View Analysis</Button>
-								<Button size="sm" variant="ghost">Ask Follow-up</Button>
-							</div>
+							{#snippet actions()}
+								<div class="flex gap-2">
+									<Button size="sm" variant="ghost">View Analysis</Button>
+									<Button size="sm" variant="ghost">Ask Follow-up</Button>
+								</div>
+							{/snippet}
 						</ContributionCard>
 					</div>
 				</div>
@@ -432,7 +434,7 @@
 					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
 						Modal
 					</h3>
-					<Button on:click={() => (showModal = true)}>Open Modal</Button>
+					<Button onclick={() => (showModal = true)}>Open Modal</Button>
 
 					<Modal bind:open={showModal} title="Session Details" size="md">
 						<div class="space-y-4">
@@ -458,14 +460,16 @@
 							</div>
 						</div>
 
-						<div slot="footer" class="flex justify-end gap-2">
-							<Button variant="ghost" on:click={() => (showModal = false)}>
-								Cancel
-							</Button>
-							<Button variant="brand" on:click={() => (showModal = false)}>
-								Confirm
-							</Button>
-						</div>
+						{#snippet footer()}
+							<div class="flex justify-end gap-2">
+								<Button variant="ghost" onclick={() => (showModal = false)}>
+									Cancel
+								</Button>
+								<Button variant="brand" onclick={() => (showModal = false)}>
+									Confirm
+								</Button>
+							</div>
+						{/snippet}
 					</Modal>
 				</div>
 
@@ -480,7 +484,7 @@
 							bind:value={selectedTheme}
 							placeholder="Select theme..."
 							searchable
-							on:select={(e) => console.log('Selected:', e.detail)}
+							onselect={(value) => console.log('Selected:', value)}
 						/>
 					</div>
 				</div>
@@ -490,8 +494,9 @@
 					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
 						Tabs
 					</h3>
-					<Tabs {tabs} bind:activeTab on:change={(e) => console.log('Tab changed:', e.detail)} let:activeTab>
-						{#if activeTab === 'overview'}
+					<Tabs {tabs} bind:activeTab onchange={(tabId) => console.log('Tab changed:', tabId)}>
+						{#snippet children({ activeTab })}
+							{#if activeTab === 'overview'}
 							<Card>
 								<h4 class="text-lg font-semibold mb-2 text-neutral-900 dark:text-neutral-100">
 									Overview Content
@@ -519,7 +524,8 @@
 									Final synthesis and recommendations would appear in this section.
 								</p>
 							</Card>
-						{/if}
+							{/if}
+						{/snippet}
 					</Tabs>
 				</div>
 
@@ -532,14 +538,14 @@
 						<Button
 							size="sm"
 							variant="brand"
-							on:click={() => showToast('success', 'Session started successfully!')}
+							onclick={() => showToast('success', 'Session started successfully!')}
 						>
 							Show Success
 						</Button>
 						<Button
 							size="sm"
 							variant="accent"
-							on:click={() =>
+							onclick={() =>
 								showToast('error', 'Failed to connect to API. Please try again.')}
 						>
 							Show Error
@@ -547,7 +553,7 @@
 						<Button
 							size="sm"
 							variant="secondary"
-							on:click={() =>
+							onclick={() =>
 								showToast('warning', 'Session will timeout in 5 minutes.')}
 						>
 							Show Warning
@@ -555,7 +561,7 @@
 						<Button
 							size="sm"
 							variant="ghost"
-							on:click={() =>
+							onclick={() =>
 								showToast('info', 'New deliberation features are now available!')}
 						>
 							Show Info
@@ -574,14 +580,14 @@
 						variant="success"
 						title="Success!"
 						dismissable
-						on:dismiss={() => (showSuccessAlert = false)}
+						ondismiss={() => (showSuccessAlert = false)}
 					>
 						Your deliberation has been created successfully.
 					</Alert>
 				{/if}
 
 				{#if showWarningAlert}
-					<Alert variant="warning" dismissable on:dismiss={() => (showWarningAlert = false)}>
+					<Alert variant="warning" dismissable ondismiss={() => (showWarningAlert = false)}>
 						This action cannot be undone. Please proceed with caution.
 					</Alert>
 				{/if}
@@ -604,11 +610,11 @@
 						Variants
 					</h3>
 					<div class="flex flex-wrap gap-3">
-						<Button variant="brand" on:click={handleButtonClick}>Brand</Button>
-						<Button variant="accent" on:click={handleButtonClick}>Accent</Button>
-						<Button variant="secondary" on:click={handleButtonClick}>Secondary</Button>
-						<Button variant="ghost" on:click={handleButtonClick}>Ghost</Button>
-						<Button variant="danger" on:click={handleButtonClick}>Danger</Button>
+						<Button variant="brand" onclick={handleButtonClick}>Brand</Button>
+						<Button variant="accent" onclick={handleButtonClick}>Accent</Button>
+						<Button variant="secondary" onclick={handleButtonClick}>Secondary</Button>
+						<Button variant="ghost" onclick={handleButtonClick}>Ghost</Button>
+						<Button variant="danger" onclick={handleButtonClick}>Danger</Button>
 					</div>
 				</div>
 
@@ -628,7 +634,7 @@
 						States
 					</h3>
 					<div class="flex flex-wrap gap-3">
-						<Button variant="brand" {loading} on:click={handleLoadingButton}>
+						<Button variant="brand" {loading} onclick={handleLoadingButton}>
 							{loading ? 'Loading...' : 'Click to Load'}
 						</Button>
 						<Button disabled>Disabled</Button>
@@ -682,7 +688,7 @@
 					placeholder="your@email.com"
 					bind:value={emailValue}
 					error={errorMessage}
-					on:blur={validateForm}
+					onblur={validateForm}
 					required
 				/>
 

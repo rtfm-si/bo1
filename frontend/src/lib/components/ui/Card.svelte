@@ -10,6 +10,7 @@
 	interface Props {
 		variant?: 'default' | 'bordered' | 'elevated';
 		padding?: 'none' | 'sm' | 'md' | 'lg';
+		class?: string;
 		children?: Snippet;
 		header?: Snippet;
 		footer?: Snippet;
@@ -18,6 +19,7 @@
 	let {
 		variant = 'default',
 		padding = 'md',
+		class: customClass,
 		children,
 		header,
 		footer
@@ -31,7 +33,12 @@
 	};
 
 	// Compute classes using design token utilities
-	const classes = $derived(['rounded-lg', variants[variant], paddingClasses(padding)].join(' '));
+	const classes = $derived([
+		'rounded-lg',
+		variants[variant],
+		paddingClasses(padding),
+		customClass
+	].filter(Boolean).join(' '));
 </script>
 
 <div

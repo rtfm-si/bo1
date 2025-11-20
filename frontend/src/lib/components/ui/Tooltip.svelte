@@ -23,8 +23,8 @@
 
 	// State
 	let visible = $state(false);
-	let tooltipElement: HTMLDivElement;
-	let triggerElement: HTMLDivElement;
+	let tooltipElement = $state<HTMLDivElement>();
+	let triggerElement = $state<HTMLDivElement>();
 
 	// Variant styles
 	const variants = {

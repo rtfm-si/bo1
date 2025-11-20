@@ -1,4 +1,4 @@
-<script context="module" lang="ts">
+<script module lang="ts">
 	// Types
 	export interface Tab {
 		id: string;
@@ -19,7 +19,7 @@
 	interface Props {
 		tabs: Tab[];
 		activeTab?: string;
-		children?: Snippet<[{ activeTab: string }]>;
+		children?: Snippet<[{ activeTab: string | undefined }]>;
 		onchange?: (tabId: string) => void;
 	}
 

@@ -20,7 +20,7 @@
 	}
 
 	let {
-		open = false,
+		open = $bindable(false),
 		title,
 		size = 'md',
 		closable = true,

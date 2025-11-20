@@ -29,14 +29,17 @@ Problem → Decomposition (1-5 sub-problems) → Persona Selection (3-5 experts)
 # Setup (one-time)
 make setup           # Creates .env, directories
 make build           # Build Docker images
-make up              # Start all services (Redis + PostgreSQL + API + Supabase Auth + app)
+make up              # Start all services (Redis + PostgreSQL + API + Supabase Auth + Frontend + app)
 
 # Development
 make run             # Run deliberation (interactive)
 make demo            # Run full pipeline demo
 make shell           # Bash in container
+make shell-frontend  # Shell in frontend container
 make logs            # View all container logs
 make logs-app        # View app logs only
+make logs-api        # View API logs only
+make logs-frontend   # View frontend logs only
 
 # Testing
 make test            # All tests in container
@@ -62,7 +65,8 @@ make status          # Show container status
 make stats           # Show resource usage
 make inspect         # View container configuration
 
-# API (Web Interface)
+# Web Interface
+# Frontend runs automatically with `make up` on http://localhost:5173
 # API runs automatically with `make up` on http://localhost:8000
 # Access admin docs: http://localhost:8000/admin/docs (requires admin auth)
 # Supabase Auth: http://localhost:9999

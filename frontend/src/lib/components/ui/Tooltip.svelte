@@ -4,15 +4,25 @@
 	 * Used for explaining advisor expertise, truncated text, etc.
 	 */
 
-	import { onMount } from 'svelte';
+	import type { Snippet } from 'svelte';
 
 	// Props
-	export let text: string;
-	export let position: 'top' | 'bottom' | 'left' | 'right' = 'top';
-	export let variant: 'dark' | 'light' = 'dark';
+	interface Props {
+		text: string;
+		position?: 'top' | 'bottom' | 'left' | 'right';
+		variant?: 'dark' | 'light';
+		children?: Snippet;
+	}
+
+	let {
+		text,
+		position = 'top',
+		variant = 'dark',
+		children
+	}: Props = $props();
 
 	// State
-	let visible = false;
+	let visible = $state(false);
 	let tooltipElement: HTMLDivElement;
 	let triggerElement: HTMLDivElement;
 
@@ -62,36 +72,36 @@
 	}
 
 	// Compute classes
-	$: tooltipClasses = [
+	const tooltipClasses = $derived([
 		'absolute z-tooltip px-2 py-1 text-xs rounded shadow-lg',
 		'whitespace-nowrap pointer-events-none',
 		'transition-opacity duration-150',
 		visible ? 'opacity-100' : 'opacity-0',
 		variants[variant],
 		positions[position],
-	].join(' ');
+	].join(' '));
 
-	$: arrowClasses = [
+	const arrowClasses = $derived([
 		'absolute w-2 h-2',
 		variants[variant],
 		arrowPositions[position],
 		arrowRotations[position],
-	].join(' ');
+	].join(' '));
 </script>
 
 <div
 	class="relative inline-block"
 	bind:this={triggerElement}
-	on:mouseenter={show}
-	on:mouseleave={hide}
-	on:focus={show}
-	on:blur={hide}
-	on:keydown={handleKeydown}
+	onmouseenter={show}
+	onmouseleave={hide}
+	onfocus={show}
+	onblur={hide}
+	onkeydown={handleKeydown}
 	role="button"
 	tabindex="0"
 >
 	<!-- Trigger (slot) -->
-	<slot />
+	{@render children?.()}
 
 	<!-- Tooltip -->
 	{#if visible}

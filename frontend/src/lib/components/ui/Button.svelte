@@ -4,12 +4,27 @@
 	 */
 
 	// Props
-	export let variant: 'brand' | 'accent' | 'secondary' | 'ghost' | 'danger' = 'brand';
-	export let size: 'sm' | 'md' | 'lg' = 'md';
-	export let type: 'button' | 'submit' | 'reset' = 'button';
-	export let disabled = false;
-	export let loading = false;
-	export let ariaLabel: string | undefined = undefined;
+	let {
+		variant = 'brand',
+		size = 'md',
+		type = 'button',
+		disabled = false,
+		loading = false,
+		ariaLabel,
+		onclick,
+		class: className = '',
+		children,
+	}: {
+		variant?: 'brand' | 'accent' | 'secondary' | 'outline' | 'ghost' | 'danger';
+		size?: 'sm' | 'md' | 'lg';
+		type?: 'button' | 'submit' | 'reset';
+		disabled?: boolean;
+		loading?: boolean;
+		ariaLabel?: string;
+		onclick?: (event: MouseEvent) => void;
+		class?: string;
+		children?: import('svelte').Snippet;
+	} = $props();
 
 	// Variant styles
 	const variants = {
@@ -19,6 +34,8 @@
 			'bg-accent-600 text-white hover:bg-accent-700 focus:ring-accent-500 dark:bg-accent-500 dark:hover:bg-accent-600',
 		secondary:
 			'bg-neutral-200 text-neutral-900 hover:bg-neutral-300 focus:ring-neutral-500 dark:bg-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-600',
+		outline:
+			'bg-transparent text-brand-600 border-2 border-brand-600 hover:bg-brand-50 focus:ring-brand-500 dark:text-brand-400 dark:border-brand-400 dark:hover:bg-brand-900/20',
 		ghost:
 			'bg-transparent text-neutral-700 hover:bg-neutral-100 focus:ring-neutral-500 dark:text-neutral-300 dark:hover:bg-neutral-800',
 		danger:
@@ -33,15 +50,20 @@
 	};
 
 	// Compute classes
-	$: classes = [
-		'inline-flex items-center justify-center gap-2',
-		'font-medium rounded-md',
-		'transition-colors duration-200',
-		'focus:outline-none focus:ring-2 focus:ring-offset-2',
-		'disabled:opacity-50 disabled:cursor-not-allowed',
-		variants[variant],
-		sizes[size],
-	].join(' ');
+	const classes = $derived(
+		[
+			'inline-flex items-center justify-center gap-2',
+			'font-medium rounded-md',
+			'transition-colors duration-200',
+			'focus:outline-none focus:ring-2 focus:ring-offset-2',
+			'disabled:opacity-50 disabled:cursor-not-allowed',
+			variants[variant],
+			sizes[size],
+			className,
+		]
+			.filter(Boolean)
+			.join(' ')
+	);
 </script>
 
 <button
@@ -49,7 +71,7 @@
 	disabled={disabled || loading}
 	class={classes}
 	aria-label={ariaLabel}
-	on:click
+	onclick={onclick}
 >
 	{#if loading}
 		<svg
@@ -73,5 +95,5 @@
 			/>
 		</svg>
 	{/if}
-	<slot />
+	{@render children?.()}
 </button>

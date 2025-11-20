@@ -3,14 +3,24 @@
 	 * Alert Component - Informational message box
 	 */
 
-	import { createEventDispatcher } from 'svelte';
+	import type { Snippet } from 'svelte';
 
 	// Props
-	export let variant: 'success' | 'warning' | 'error' | 'info' = 'info';
-	export let dismissable = false;
-	export let title: string | undefined = undefined;
+	interface Props {
+		variant?: 'success' | 'warning' | 'error' | 'info';
+		dismissable?: boolean;
+		title?: string;
+		children?: Snippet;
+		ondismiss?: () => void;
+	}
 
-	const dispatch = createEventDispatcher();
+	let {
+		variant = 'info',
+		dismissable = false,
+		title,
+		children,
+		ondismiss
+	}: Props = $props();
 
 	// Variant styles
 	const variants = {
@@ -33,7 +43,7 @@
 	};
 
 	function handleDismiss() {
-		dispatch('dismiss');
+		ondismiss?.();
 	}
 </script>
 
@@ -61,7 +71,7 @@
 				<h3 class="font-semibold mb-1">{title}</h3>
 			{/if}
 			<div class="text-sm">
-				<slot />
+				{@render children?.()}
 			</div>
 		</div>
 
@@ -70,7 +80,7 @@
 			<button
 				type="button"
 				class="flex-shrink-0 p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-				on:click={handleDismiss}
+				onclick={handleDismiss}
 				aria-label="Dismiss alert"
 			>
 				<svg

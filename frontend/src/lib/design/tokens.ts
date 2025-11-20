@@ -22,75 +22,75 @@ export const colors = {
 		900: '#003d37', // Deepest teal
 		950: '#002621', // Almost black teal
 	},
-	// Accent colors (warm coral - complementary to teal)
+	// Accent colors (subtle warm tones - complementary to teal, not jarring)
 	accent: {
-		50: '#fff5f3', // Very light coral
-		100: '#ffe4de', // Light coral
-		200: '#ffcdc2', // Lighter coral
-		300: '#ffab99', // Light-medium coral
-		400: '#ff8a70', // Medium coral
-		500: '#ff6b47', // Main accent color (warm coral)
-		600: '#f04e2a', // Darker coral
-		700: '#d13818', // Dark coral-red
-		800: '#a82d14', // Very dark coral
-		900: '#7f2312', // Deepest coral
-		950: '#4a1409', // Almost black coral
+		50: '#fef8f3', // Very light warm gray
+		100: '#fceee3', // Light warm beige
+		200: '#f8dcc7', // Lighter warm tone
+		300: '#f0c09b', // Soft warm sand
+		400: '#e59f6d', // Muted warm tone
+		500: '#d4844f', // Main accent (subdued warm)
+		600: '#b86d3e', // Darker warm
+		700: '#995636', // Deep warm brown
+		800: '#7a4530', // Very dark warm
+		900: '#5c3528', // Deepest warm
+		950: '#331d16', // Almost black warm
 	},
-	// Success (green tones aligned with teal)
+	// Success (teal-green - harmonizes with brand)
 	success: {
-		50: '#edfcf2', // Very light green
-		100: '#d3f8df', // Light green
-		200: '#aaf0c4', // Lighter green
-		300: '#73e2a3', // Light-medium green
-		400: '#3dd87e', // Medium green
-		500: '#10b05e', // Main success color
-		600: '#059a4f', // Darker green
-		700: '#047a3f', // Dark green
-		800: '#056132', // Very dark green
-		900: '#04502a', // Deepest green
-		950: '#022d17', // Almost black green
+		50: '#edfcf7', // Very light teal-green
+		100: '#d4f6ea', // Light teal-green
+		200: '#a9edd5', // Lighter teal-green
+		300: '#6eddb8', // Light-medium teal-green
+		400: '#3cc69b', // Medium teal-green
+		500: '#1aaa7e', // Main success (teal-green)
+		600: '#158a67', // Darker teal-green
+		700: '#116b51', // Dark teal-green
+		800: '#0d503d', // Very dark teal-green
+		900: '#093a2d', // Deepest teal-green
+		950: '#05211a', // Almost black teal-green
 	},
-	// Warning (amber tones)
+	// Warning (muted amber - less vibrant)
 	warning: {
-		50: '#fffbeb', // Very light amber
-		100: '#fef3c7', // Light amber
-		200: '#fde68a', // Lighter amber
-		300: '#fcd34d', // Light-medium amber
-		400: '#fbbf24', // Medium amber
-		500: '#f59e0b', // Main warning color
-		600: '#d97706', // Darker amber
-		700: '#b45309', // Dark amber
-		800: '#92400e', // Very dark amber
-		900: '#78350f', // Deepest amber
-		950: '#451a03', // Almost black amber
+		50: '#fefaf3', // Very light warm amber
+		100: '#fdf2e3', // Light amber
+		200: '#fbe3c7', // Lighter amber
+		300: '#f7cd9b', // Light-medium amber
+		400: '#f0b06d', // Medium amber
+		500: '#e08f3e', // Main warning (subdued amber)
+		600: '#c47330', // Darker amber
+		700: '#a15b26', // Dark amber
+		800: '#7d461f', // Very dark amber
+		900: '#5c3419', // Deepest amber
+		950: '#331d0e', // Almost black amber
 	},
-	// Error (red-orange to harmonize with coral accent)
+	// Error (muted red - not alarming but clear)
 	error: {
-		50: '#fef2f2', // Very light red
-		100: '#fee2e2', // Light red
-		200: '#fecaca', // Lighter red
-		300: '#fca5a5', // Light-medium red
-		400: '#f87171', // Medium red
-		500: '#ef4444', // Main error color
-		600: '#dc2626', // Darker red
-		700: '#b91c1c', // Dark red
-		800: '#991b1b', // Very dark red
-		900: '#7f1d1d', // Deepest red
-		950: '#450a0a', // Almost black red
+		50: '#fef5f5', // Very light red
+		100: '#fde8e8', // Light red
+		200: '#fbd0d0', // Lighter red
+		300: '#f7a9a9', // Light-medium red
+		400: '#f07f7f', // Medium red
+		500: '#e05555', // Main error (muted red)
+		600: '#c73d3d', // Darker red
+		700: '#a12e2e', // Dark red
+		800: '#7d2424', // Very dark red
+		900: '#5c1b1b', // Deepest red
+		950: '#330f0f', // Almost black red
 	},
-	// Info (lighter teal/cyan for informational messages)
+	// Info (soft blue-teal - harmonizes with brand)
 	info: {
-		50: '#ecfeff', // Very light cyan
-		100: '#cffafe', // Light cyan
-		200: '#a5f3fc', // Lighter cyan
-		300: '#67e8f9', // Light-medium cyan
-		400: '#22d3ee', // Medium cyan
-		500: '#06b6d4', // Main info color (cyan)
-		600: '#0891b2', // Darker cyan
-		700: '#0e7490', // Dark cyan
-		800: '#155e75', // Very dark cyan
-		900: '#164e63', // Deepest cyan
-		950: '#083344', // Almost black cyan
+		50: '#f0f9fc', // Very light blue-teal
+		100: '#dbf0f7', // Light blue-teal
+		200: '#b7e1ef', // Lighter blue-teal
+		300: '#85cce3', // Light-medium blue-teal
+		400: '#54b3d4', // Medium blue-teal
+		500: '#3299bf', // Main info (blue-teal)
+		600: '#277ba0', // Darker blue-teal
+		700: '#1f6182', // Dark blue-teal
+		800: '#194d66', // Very dark blue-teal
+		900: '#133a4d', // Deepest blue-teal
+		950: '#0b212c', // Almost black blue-teal
 	},
 	// Neutral (cool grays with subtle teal tint for consistency)
 	neutral: {

@@ -206,7 +206,7 @@ services:
       - API_HOST=0.0.0.0
       - API_PORT=8000
       - API_RELOAD=true
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
 
       # Application Configuration
@@ -218,6 +218,29 @@ services:
       # Mount source code for hot reload
       - ./backend:/app/backend
       - ./bo1:/app/bo1
+    networks:
+      - bo1-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Frontend: SvelteKit Web UI (Development)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bo1-frontend
+    depends_on:
+      - api
+    environment:
+      - NODE_ENV=development
+      - PUBLIC_API_URL=http://localhost:8000
+    ports:
+      - "5173:5173"  # Vite dev server
+    volumes:
+      # Mount source code for hot reload
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules  # Use named volume for node_modules
     networks:
       - bo1-network
     restart: unless-stopped
@@ -244,6 +267,8 @@ volumes:
   redis-data:
     driver: local
   postgres-data:
+    driver: local
+  frontend-node-modules:
     driver: local
 
 networks:

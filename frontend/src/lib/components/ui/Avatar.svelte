@@ -5,10 +5,19 @@
 	 */
 
 	// Props
-	export let name: string;
-	export let src: string | undefined = undefined;
-	export let size: 'xs' | 'sm' | 'md' | 'lg' | 'xl' = 'md';
-	export let status: 'online' | 'offline' | 'typing' | undefined = undefined;
+	interface Props {
+		name: string;
+		src?: string;
+		size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+		status?: 'online' | 'offline' | 'typing';
+	}
+
+	let {
+		name,
+		src,
+		size = 'md',
+		status
+	}: Props = $props();
 
 	// Generate initials from name
 	function getInitials(fullName: string): string {
@@ -45,15 +54,15 @@
 	};
 
 	// Compute classes
-	$: avatarClasses = [
+	const avatarClasses = $derived([
 		'relative inline-flex items-center justify-center rounded-full',
 		'bg-brand-100 dark:bg-brand-900',
 		'text-brand-700 dark:text-brand-300',
 		'font-semibold select-none',
 		sizes[size],
-	].join(' ');
+	].join(' '));
 
-	$: initials = getInitials(name);
+	const initials = $derived(getInitials(name));
 </script>
 
 <div class="relative inline-block">

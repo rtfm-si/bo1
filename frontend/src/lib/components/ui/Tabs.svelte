@@ -13,18 +13,27 @@
 	 * Used for session views (overview/contributions/synthesis)
 	 */
 
-	import { createEventDispatcher } from 'svelte';
+	import type { Snippet } from 'svelte';
 
 	// Props
-	export let tabs: Tab[];
-	export let activeTab: string;
+	interface Props {
+		tabs: Tab[];
+		activeTab?: string;
+		children?: Snippet<[{ activeTab: string }]>;
+		onchange?: (tabId: string) => void;
+	}
 
-	const dispatch = createEventDispatcher<{ change: string }>();
+	let {
+		tabs,
+		activeTab = $bindable(),
+		children,
+		onchange
+	}: Props = $props();
 
 	// Handlers
 	function selectTab(tabId: string) {
 		activeTab = tabId;
-		dispatch('change', tabId);
+		onchange?.(tabId);
 	}
 
 	function handleKeydown(e: KeyboardEvent, tabId: string) {
@@ -78,8 +87,8 @@
 				aria-selected={activeTab === tab.id}
 				aria-controls={`tabpanel-${tab.id}`}
 				id={`tab-${tab.id}`}
-				on:click={() => selectTab(tab.id)}
-				on:keydown={(e) => handleKeydown(e, tab.id)}
+				onclick={() => selectTab(tab.id)}
+				onkeydown={(e) => handleKeydown(e, tab.id)}
 			>
 				{#if tab.icon}
 					<span>{tab.icon}</span>
@@ -91,6 +100,6 @@
 
 	<!-- Tab panel (single slot, consumer manages visibility) -->
 	<div class="mt-4">
-		<slot {activeTab} />
+		{@render children?.({ activeTab })}
 	</div>
 </div>

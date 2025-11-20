@@ -53,13 +53,13 @@ export const lightTheme: Theme = {
 		// Borders
 		border: colors.neutral[200],
 		borderFocus: colors.brand[500],
-		// Semantic (use design tokens)
+		// Semantic (use design tokens - subdued)
 		brand: colors.brand[600],
-		accent: colors.accent[600],
-		success: colors.success[600],
+		accent: colors.accent[500],
+		success: colors.success[500],
 		warning: colors.warning[500],
-		error: colors.error[600],
-		info: colors.info[600],
+		error: colors.error[500],
+		info: colors.info[500],
 	},
 };
 
@@ -78,9 +78,9 @@ export const darkTheme: Theme = {
 		// Borders
 		border: colors.neutral[700],
 		borderFocus: colors.brand[400],
-		// Semantic (brighter in dark mode)
+		// Semantic (slightly brighter in dark mode, but still muted)
 		brand: colors.brand[400],
-		accent: colors.accent[400],
+		accent: colors.accent[300],
 		success: colors.success[400],
 		warning: colors.warning[400],
 		error: colors.error[400],

@@ -122,3 +122,6 @@ ab_test_results/
 # Project working directories (exclude from git - notes, drafts, planning)
 zzz_important/
 zzz_project/
+
+# Playwright MCP screenshots (temporary inspection files)
+.playwright-mcp/

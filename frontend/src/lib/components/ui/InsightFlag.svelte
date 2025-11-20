@@ -4,15 +4,22 @@
 	 * Used for risk/opportunity/tension/alignment notifications
 	 */
 
-	import { createEventDispatcher } from 'svelte';
-
 	// Props
-	export let type: 'risk' | 'opportunity' | 'tension' | 'alignment';
-	export let message: string;
-	export let dismissable = true;
-	export let pulse = false;
+	interface Props {
+		type: 'risk' | 'opportunity' | 'tension' | 'alignment';
+		message: string;
+		dismissable?: boolean;
+		pulse?: boolean;
+		ondismiss?: () => void;
+	}
 
-	const dispatch = createEventDispatcher();
+	let {
+		type,
+		message,
+		dismissable = true,
+		pulse = false,
+		ondismiss
+	}: Props = $props();
 
 	// Type configurations
 	const typeConfig = {
@@ -47,18 +54,18 @@
 	};
 
 	function dismiss() {
-		dispatch('dismiss');
+		ondismiss?.();
 	}
 
-	$: config = typeConfig[type];
-	$: containerClasses = [
+	const config = $derived(typeConfig[type]);
+	const containerClasses = $derived([
 		'flex items-start gap-3 p-3 rounded-lg border-l-4 shadow-md',
 		'transform transition-all duration-400 ease-smooth',
 		'animate-slideInFromLeft',
 		pulse ? 'animate-pulse' : '',
 		config.bg,
 		config.border,
-	].join(' ');
+	].join(' '));
 </script>
 
 <div class={containerClasses} role="status" aria-live="polite">
@@ -85,7 +92,7 @@
 		<button
 			type="button"
 			class={['text-lg leading-none hover:opacity-70 transition-opacity', config.text].join(' ')}
-			on:click={dismiss}
+			onclick={dismiss}
 			aria-label="Dismiss insight"
 		>
 			×

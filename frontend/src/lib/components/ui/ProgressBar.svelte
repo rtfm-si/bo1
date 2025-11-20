@@ -5,16 +5,28 @@
 	 */
 
 	// Props
-	export let value: number = 0; // 0-100
-	export let variant: 'brand' | 'accent' | 'success' = 'brand';
-	export let size: 'sm' | 'md' | 'lg' = 'md';
-	export let animated = true;
-	export let indeterminate = false;
-	export let showLabel = false;
-	export let ariaLabel: string | undefined = undefined;
+	interface Props {
+		value?: number; // 0-100
+		variant?: 'brand' | 'accent' | 'success';
+		size?: 'sm' | 'md' | 'lg';
+		animated?: boolean;
+		indeterminate?: boolean;
+		showLabel?: boolean;
+		ariaLabel?: string;
+	}
+
+	let {
+		value = 0,
+		variant = 'brand',
+		size = 'md',
+		animated = true,
+		indeterminate = false,
+		showLabel = false,
+		ariaLabel
+	}: Props = $props();
 
 	// Clamp value between 0-100
-	$: clampedValue = Math.min(100, Math.max(0, value));
+	const clampedValue = $derived(Math.min(100, Math.max(0, value)));
 
 	// Variant styles for the filled portion
 	const variants = {
@@ -34,18 +46,18 @@
 	};
 
 	// Container classes
-	$: containerClasses = [
+	const containerClasses = $derived([
 		'w-full bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden',
 		sizes[size],
-	].join(' ');
+	].join(' '));
 
 	// Bar classes
-	$: barClasses = [
+	const barClasses = $derived([
 		'h-full rounded-full',
 		variants[variant],
 		animated ? 'transition-all duration-300 ease-smooth' : '',
 		indeterminate ? 'animate-pulse' : '',
-	].join(' ');
+	].join(' '));
 </script>
 
 <div class="w-full">

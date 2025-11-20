@@ -13,30 +13,39 @@
 	 * Used for theme switcher, advisor filtering, etc.
 	 */
 
-	import { createEventDispatcher } from 'svelte';
 	import { clickOutside } from '$lib/utils/clickOutside';
 
 	// Props
-	export let items: DropdownItem[];
-	export let value: string | undefined = undefined;
-	export let placeholder = 'Select...';
-	export let disabled = false;
-	export let searchable = false;
+	interface Props {
+		items: DropdownItem[];
+		value?: string;
+		placeholder?: string;
+		disabled?: boolean;
+		searchable?: boolean;
+		onselect?: (value: string) => void;
+	}
 
-	const dispatch = createEventDispatcher<{ select: string }>();
+	let {
+		items,
+		value = $bindable(),
+		placeholder = 'Select...',
+		disabled = false,
+		searchable = false,
+		onselect
+	}: Props = $props();
 
 	// State
-	let isOpen = false;
-	let searchQuery = '';
-	let highlightedIndex = 0;
+	let isOpen = $state(false);
+	let searchQuery = $state('');
+	let highlightedIndex = $state(0);
 
 	// Computed
-	$: selectedItem = items.find((item) => item.value === value);
-	$: filteredItems = searchable && searchQuery
+	const selectedItem = $derived(items.find((item) => item.value === value));
+	const filteredItems = $derived(searchable && searchQuery
 		? items.filter((item) =>
 				item.label.toLowerCase().includes(searchQuery.toLowerCase())
 		  )
-		: items;
+		: items);
 
 	// Handlers
 	function toggle() {
@@ -51,7 +60,7 @@
 
 	function select(item: DropdownItem) {
 		value = item.value;
-		dispatch('select', item.value);
+		onselect?.(item.value);
 		isOpen = false;
 		searchQuery = '';
 	}
@@ -115,8 +124,8 @@
 				: 'hover:border-neutral-300 dark:hover:border-neutral-600',
 		].join(' ')}
 		{disabled}
-		on:click={toggle}
-		on:keydown={handleKeydown}
+		onclick={toggle}
+		onkeydown={handleKeydown}
 		aria-haspopup="listbox"
 		aria-expanded={isOpen}
 	>
@@ -170,8 +179,8 @@
 					].join(' ')}
 					role="option"
 					aria-selected={item.value === value}
-					on:click={() => select(item)}
-					on:mouseenter={() => (highlightedIndex = index)}
+					onclick={() => select(item)}
+					onmouseenter={() => (highlightedIndex = index)}
 				>
 					{#if item.icon}
 						<span>{item.icon}</span>

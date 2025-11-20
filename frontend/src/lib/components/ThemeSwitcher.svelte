@@ -7,8 +7,8 @@
 	import { themeStore } from '$lib/stores/theme';
 	import { themes, type ThemeName } from '$lib/design/themes';
 
-	let isOpen = false;
-	let currentTheme: ThemeName;
+	let isOpen = $state(false);
+	let currentTheme = $state<ThemeName>('light');
 
 	// Subscribe to theme store
 	themeStore.subscribe((theme) => {
@@ -54,7 +54,7 @@
 	<button
 		type="button"
 		class="p-2 rounded-md bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-		on:click={toggleDropdown}
+		onclick={toggleDropdown}
 		aria-label="Select theme"
 		aria-expanded={isOpen}
 		aria-haspopup="true"
@@ -91,7 +91,7 @@
 							? 'bg-neutral-50 dark:bg-neutral-900'
 							: ''}"
 						role="menuitem"
-						on:click={() => selectTheme(name as ThemeName)}
+						onclick={() => selectTheme(name as ThemeName)}
 					>
 						<!-- Theme icon -->
 						<svg

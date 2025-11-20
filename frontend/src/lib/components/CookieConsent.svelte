@@ -7,7 +7,7 @@
 	import Cookies from 'js-cookie';
 	import { Button } from '$lib/components/ui';
 
-	let showBanner = false;
+	let showBanner = $state(false);
 	const CONSENT_COOKIE = 'bo1_cookie_consent';
 
 	onMount(() => {
@@ -76,10 +76,10 @@
 			</div>
 
 			<div class="flex flex-col sm:flex-row gap-3">
-				<Button variant="ghost" size="md" on:click={acceptEssential}>
+				<Button variant="ghost" size="md" onclick={acceptEssential}>
 					Essential Only
 				</Button>
-				<Button variant="brand" size="md" on:click={acceptAll}>
+				<Button variant="brand" size="md" onclick={acceptAll}>
 					Accept All
 				</Button>
 			</div>

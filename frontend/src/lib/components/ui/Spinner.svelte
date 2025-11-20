@@ -5,9 +5,17 @@
 	 */
 
 	// Props
-	export let size: 'xs' | 'sm' | 'md' | 'lg' | 'xl' = 'md';
-	export let variant: 'brand' | 'accent' | 'neutral' = 'brand';
-	export let ariaLabel = 'Loading';
+	interface Props {
+		size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+		variant?: 'brand' | 'accent' | 'neutral';
+		ariaLabel?: string;
+	}
+
+	let {
+		size = 'md',
+		variant = 'brand',
+		ariaLabel = 'Loading'
+	}: Props = $props();
 
 	// Variant styles
 	const variants = {
@@ -26,11 +34,11 @@
 	};
 
 	// Compute classes
-	$: classes = [
+	const classes = $derived([
 		'animate-spin',
 		variants[variant],
 		sizes[size],
-	].join(' ');
+	].join(' '));
 </script>
 
 <svg

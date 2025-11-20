@@ -3,12 +3,25 @@
 	 * Badge Component - Small status indicator
 	 */
 
+	import type { Snippet } from 'svelte';
+
 	// Props
-	export let variant: 'success' | 'warning' | 'error' | 'info' | 'neutral' = 'neutral';
-	export let size: 'sm' | 'md' | 'lg' = 'md';
+	interface Props {
+		variant?: 'brand' | 'success' | 'warning' | 'error' | 'info' | 'neutral';
+		size?: 'sm' | 'md' | 'lg';
+		children?: Snippet;
+	}
+
+	let {
+		variant = 'neutral',
+		size = 'md',
+		children
+	}: Props = $props();
 
 	// Variant styles
 	const variants = {
+		brand:
+			'bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200',
 		success:
 			'bg-success-100 text-success-800 dark:bg-success-900 dark:text-success-200',
 		warning:
@@ -27,14 +40,14 @@
 	};
 
 	// Compute classes
-	$: classes = [
+	const classes = $derived([
 		'inline-flex items-center gap-1',
 		'font-medium rounded-full',
 		variants[variant],
 		sizes[size],
-	].join(' ');
+	].join(' '));
 </script>
 
 <span class={classes}>
-	<slot />
+	{@render children?.()}
 </span>

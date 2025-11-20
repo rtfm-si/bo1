@@ -15,12 +15,24 @@
 
 	import Avatar from './Avatar.svelte';
 	import Badge from './Badge.svelte';
+	import type { Snippet } from 'svelte';
 
 	// Props
-	export let persona: Persona;
-	export let content: string;
-	export let timestamp: Date;
-	export let confidence: 'high' | 'medium' | 'low' = 'medium';
+	interface Props {
+		persona: Persona;
+		content: string;
+		timestamp: Date;
+		confidence?: 'high' | 'medium' | 'low';
+		actions?: Snippet;
+	}
+
+	let {
+		persona,
+		content,
+		timestamp,
+		confidence = 'medium',
+		actions
+	}: Props = $props();
 
 	// Confidence badge config
 	const confidenceConfig = {
@@ -49,8 +61,8 @@
 		});
 	}
 
-	$: formattedTime = formatTimestamp(timestamp);
-	$: confidenceBadge = confidenceConfig[confidence];
+	const formattedTime = $derived(formatTimestamp(timestamp));
+	const confidenceBadge = $derived(confidenceConfig[confidence]);
 </script>
 
 <article
@@ -94,9 +106,9 @@
 	</div>
 
 	<!-- Actions (optional slot) -->
-	{#if $$slots.actions}
+	{#if actions}
 		<div class="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-700">
-			<slot name="actions" />
+			{@render actions()}
 		</div>
 	{/if}
 </article>

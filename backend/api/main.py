@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from backend.api import admin, context, control, health, sessions, streaming
+from backend.api import admin, context, control, health, sessions, streaming, waitlist
 from backend.api.middleware.auth import require_admin
 from bo1.config import get_settings
 
@@ -107,6 +107,10 @@ app = FastAPI(
             "name": "admin",
             "description": "Admin endpoints (requires X-Admin-Key header)",
         },
+        {
+            "name": "waitlist",
+            "description": "Waitlist management for closed beta access",
+        },
     ],
 )
 
@@ -152,6 +156,7 @@ app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(streaming.router, prefix="/api", tags=["streaming"])
 app.include_router(context.router, prefix="/api", tags=["context"])
 app.include_router(control.router, prefix="/api", tags=["deliberation-control"])
+app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
 
 

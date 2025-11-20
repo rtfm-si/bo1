@@ -3,9 +3,25 @@
 	 * Card Component - Container for content with variants
 	 */
 
+	import type { Snippet } from 'svelte';
+	import { paddingClasses } from './utils';
+
 	// Props
-	export let variant: 'default' | 'bordered' | 'elevated' = 'default';
-	export let padding: 'none' | 'sm' | 'md' | 'lg' = 'md';
+	interface Props {
+		variant?: 'default' | 'bordered' | 'elevated';
+		padding?: 'none' | 'sm' | 'md' | 'lg';
+		children?: Snippet;
+		header?: Snippet;
+		footer?: Snippet;
+	}
+
+	let {
+		variant = 'default',
+		padding = 'md',
+		children,
+		header,
+		footer
+	}: Props = $props();
 
 	// Variant styles (use CSS variables for theme support)
 	const variants = {
@@ -14,33 +30,25 @@
 		elevated: 'shadow-lg',
 	};
 
-	// Padding styles
-	const paddings = {
-		none: '',
-		sm: 'p-4',
-		md: 'p-6',
-		lg: 'p-8',
-	};
-
-	// Compute classes
-	$: classes = ['rounded-lg', variants[variant], paddings[padding]].join(' ');
+	// Compute classes using design token utilities
+	const classes = $derived(['rounded-lg', variants[variant], paddingClasses(padding)].join(' '));
 </script>
 
 <div
 	class={classes}
 	style="background-color: var(--color-surface); border-color: var(--color-border);"
 >
-	{#if $$slots.header}
+	{#if header}
 		<div class="mb-4">
-			<slot name="header" />
+			{@render header()}
 		</div>
 	{/if}
 
-	<slot />
+	{@render children?.()}
 
-	{#if $$slots.footer}
+	{#if footer}
 		<div class="mt-4">
-			<slot name="footer" />
+			{@render footer()}
 		</div>
 	{/if}
 </div>

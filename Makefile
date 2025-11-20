@@ -36,9 +36,21 @@ logs: ## Show logs from all containers
 logs-app: ## Show logs from bo1 app only
 	docker-compose logs -f bo1
 
+.PHONY: logs-api
+logs-api: ## Show logs from API only
+	docker-compose logs -f api
+
+.PHONY: logs-frontend
+logs-frontend: ## Show logs from frontend only
+	docker-compose logs -f frontend
+
 .PHONY: shell
 shell: ## Open interactive shell in bo1 container
 	docker-compose exec bo1 /bin/bash
+
+.PHONY: shell-frontend
+shell-frontend: ## Open interactive shell in frontend container
+	docker-compose exec frontend /bin/sh
 
 .PHONY: run
 run: ## Run deliberation in container (interactive)

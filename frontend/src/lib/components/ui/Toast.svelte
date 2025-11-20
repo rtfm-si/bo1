@@ -5,18 +5,26 @@
 	 */
 
 	import { onMount } from 'svelte';
-	import { createEventDispatcher } from 'svelte';
 
 	// Props
-	export let type: 'success' | 'error' | 'warning' | 'info' = 'info';
-	export let message: string;
-	export let duration = 5000; // ms (0 = no auto-dismiss)
-	export let dismissable = true;
+	interface Props {
+		type?: 'success' | 'error' | 'warning' | 'info';
+		message: string;
+		duration?: number; // ms (0 = no auto-dismiss)
+		dismissable?: boolean;
+		ondismiss?: () => void;
+	}
 
-	const dispatch = createEventDispatcher();
+	let {
+		type = 'info',
+		message,
+		duration = 5000,
+		dismissable = true,
+		ondismiss
+	}: Props = $props();
 
 	// State
-	let visible = false;
+	let visible = $state(false);
 	let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
 	// Type styles
@@ -48,7 +56,7 @@
 		visible = false;
 		if (timeoutId) clearTimeout(timeoutId);
 		setTimeout(() => {
-			dispatch('dismiss');
+			ondismiss?.();
 		}, 300); // Wait for exit animation
 	}
 
@@ -64,13 +72,13 @@
 		};
 	});
 
-	$: style = typeStyles[type];
-	$: containerClasses = [
+	const style = $derived(typeStyles[type]);
+	const containerClasses = $derived([
 		'flex items-start gap-3 p-4 rounded-lg border shadow-lg',
 		'transform transition-all duration-300 ease-smooth',
 		visible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0',
 		style.bg,
-	].join(' ');
+	].join(' '));
 </script>
 
 <div class={containerClasses} role="alert">
@@ -89,7 +97,7 @@
 		<button
 			type="button"
 			class={['text-lg leading-none hover:opacity-70 transition-opacity', style.text].join(' ')}
-			on:click={dismiss}
+			onclick={dismiss}
 			aria-label="Dismiss"
 		>
 			×

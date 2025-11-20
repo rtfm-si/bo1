@@ -196,7 +196,10 @@ services:
   # SuperTokens: Lightweight auth server built for BFF pattern (~100MB RAM)
   # ---------------------------------------------------------------------------
   supertokens:
-    image: registry.supertokens.io/supertokens/supertokens-postgresql:9.2.2
+    build:
+      context: .
+      dockerfile: supertokens.Dockerfile
+    image: bo1-supertokens:latest
     container_name: bo1-supertokens
     depends_on:
       postgres:

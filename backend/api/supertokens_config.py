@@ -19,6 +19,7 @@ from fastapi import FastAPI
 from supertokens_python import InputAppInfo, SupertokensConfig, init
 from supertokens_python.framework.fastapi import get_middleware
 from supertokens_python.recipe import session, thirdparty
+from supertokens_python.recipe.thirdparty.interfaces import RecipeInterface
 from supertokens_python.recipe.thirdparty.provider import ProviderInput
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 
@@ -86,12 +87,12 @@ def get_oauth_providers() -> list[ProviderInput]:
 
 
 async def override_thirdparty_functions(
-    original_implementation: thirdparty.RecipeInterface,
-) -> thirdparty.RecipeInterface:
+    original_implementation: RecipeInterface,
+) -> RecipeInterface:
     """Override ThirdParty functions to add custom logic (whitelist validation)."""
     original_sign_in_up = original_implementation.sign_in_up
 
-    async def sign_in_up(
+    async def sign_in_up(  # type: ignore[no-untyped-def]
         third_party_id: str,
         third_party_user_id: str,
         email: str,
@@ -143,7 +144,7 @@ async def override_thirdparty_functions(
     return original_implementation
 
 
-def init_supertokens():
+def init_supertokens() -> None:
     """Initialize SuperTokens with all recipes and configurations.
 
     Recipes:
@@ -187,7 +188,7 @@ def init_supertokens():
     )
 
 
-def add_supertokens_middleware(app: FastAPI):
+def add_supertokens_middleware(app: FastAPI) -> None:
     """Add SuperTokens middleware to FastAPI app.
 
     This middleware:

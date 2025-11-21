@@ -113,7 +113,10 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         ]
 
         problem = Problem(
+            title="AI Automation Investment Decision",
+            description="Should we invest $500K in AI automation?",
             statement="Should we invest $500K in AI automation?",
+            context="Strategic decision for our growing SaaS company with $50K monthly runway",
             sub_problems=sub_problems,
         )
 
@@ -147,11 +150,11 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         ]
 
         persona_output = {
-            "selected_personas": personas,
-            "rationales": {
-                "CFO": "Financial expertise needed",
-                "CTO": "Technical evaluation required",
-            },
+            "personas": personas,
+            "persona_recommendations": [
+                {"persona_code": "CFO", "rationale": "Financial expertise needed"},
+                {"persona_code": "CTO", "rationale": "Technical evaluation required"},
+            ],
         }
 
         await event_collector._handle_persona_selection(session_id, persona_output)
@@ -171,6 +174,7 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         # Phase 3: Initial Round
         # ===================================================================
         initial_round_output = {
+            "personas": personas,  # Add personas list for experts extraction
             "round_number": 1,
             "contributions": [
                 {
@@ -194,7 +198,7 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         events = capture.get_events(count=3)  # round_started + 2 contributions
         assert len(events) == 3
         assert events[0]["event_type"] == "initial_round_started"
-        assert events[0]["data"]["round_number"] == 1
+        assert "experts" in events[0]["data"]  # Check experts list exists
         assert events[1]["event_type"] == "contribution"
         assert events[1]["data"]["persona_code"] == "CFO"
         assert events[2]["event_type"] == "contribution"
@@ -204,10 +208,12 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         # Phase 4: Facilitator Decision
         # ===================================================================
         facilitator_output = {
-            "action": "continue",
-            "reasoning": "CTO raised valid concerns that need addressing",
-            "next_speaker": "CFO",
-            "round": 2,
+            "facilitator_decision": {
+                "action": "continue",
+                "reasoning": "CTO raised valid concerns that need addressing",
+                "next_speaker": "CFO",
+            },
+            "round_number": 2,
         }
 
         await event_collector._handle_facilitator_decision(session_id, facilitator_output)
@@ -223,13 +229,11 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         # Phase 5: Convergence Check
         # ===================================================================
         convergence_output = {
-            "converged": False,
-            "score": 0.73,
-            "threshold": 0.85,
             "should_stop": False,
             "stop_reason": None,
-            "round": 2,
+            "round_number": 2,
             "max_rounds": 10,
+            "metrics": {"convergence_score": 0.73},
         }
 
         await event_collector._handle_convergence(session_id, convergence_output)
@@ -245,7 +249,8 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         # Phase 6: Voting
         # ===================================================================
         voting_output = {
-            "recommendations": [
+            "personas": personas,  # Add personas for experts list
+            "votes": [
                 {
                     "persona_code": "CFO",
                     "persona_name": "Zara Kim",
@@ -263,7 +268,6 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
                     "conditions": ["Hire additional staff", "Conduct pilot"],
                 },
             ],
-            "consensus_level": "strong",
         }
 
         await event_collector._handle_voting(session_id, voting_output)
@@ -284,7 +288,6 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         # ===================================================================
         synthesis_output = {
             "synthesis": "# Final Recommendation\n\nAfter thorough deliberation...",
-            "word_count": 1250,
         }
 
         await event_collector._handle_synthesis(session_id, synthesis_output)
@@ -294,7 +297,7 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         assert len(events) == 2
         assert events[0]["event_type"] == "synthesis_started"
         assert events[1]["event_type"] == "synthesis_complete"
-        assert events[1]["data"]["word_count"] == 1250
+        assert events[1]["data"]["word_count"] == 6  # Actual word count from synthesis text
         assert "Final Recommendation" in events[1]["data"]["synthesis"]
 
         # ===================================================================
@@ -353,10 +356,14 @@ async def test_moderator_intervention_event(redis_manager, event_collector):
 
     try:
         moderator_output = {
-            "moderator_type": "contrarian",
-            "content": "What about the risks of NOT implementing AI?",
-            "trigger_reason": "Discussion lacks balance",
-            "round": 3,
+            "contributions": [
+                {
+                    "persona_code": "contrarian",
+                    "persona_name": "Contrarian Moderator",
+                    "content": "What about the risks of NOT implementing AI?",
+                }
+            ],
+            "round_number": 3,
         }
 
         await event_collector._handle_moderator(session_id, moderator_output)
@@ -384,12 +391,18 @@ async def test_subproblem_complete_event(redis_manager, event_collector):
     try:
         subproblem_output = {
             "sub_problem_index": 0,
-            "sub_problem_id": "sp1",
-            "goal": "Assess ROI",
-            "cost": 0.0452,
-            "duration_seconds": 180.5,
-            "expert_panel": ["CFO", "CTO"],
-            "contribution_count": 12,
+            "current_sub_problem": {
+                "id": "sp1",
+                "goal": "Assess ROI",
+                "context": "Financial analysis for AI investment",
+                "complexity_score": 7,
+            },
+            "metrics": {"total_cost": 0.0452},
+            "personas": [
+                {"code": "CFO", "name": "Zara Kim"},
+                {"code": "CTO", "name": "Alex Rivera"},
+            ],
+            "contributions": [{"content": f"Contribution {i}"} for i in range(12)],
         }
 
         await event_collector._handle_subproblem_complete(session_id, subproblem_output)
@@ -415,31 +428,27 @@ async def test_meta_synthesis_events(redis_manager, event_collector):
     capture.start()
 
     try:
-        # Meta-synthesis started
-        meta_start_output = {
-            "sub_problem_count": 2,
-            "total_contributions": 24,
-            "total_cost": 0.0904,
-        }
-
-        await event_collector._handle_meta_synthesis(session_id, meta_start_output, started=True)
-
-        # Meta-synthesis complete
-        meta_complete_output = {
+        # Meta-synthesis - single call publishes both started and complete events
+        meta_output = {
+            "sub_problem_results": [
+                {"sub_problem_id": "sp1", "synthesis": "First sub-problem synthesis"},
+                {"sub_problem_id": "sp2", "synthesis": "Second sub-problem synthesis"},
+            ],
+            "contributions": [{"content": f"Contribution {i}"} for i in range(24)],
+            "metrics": {"total_cost": 0.0904},
             "synthesis": "# Meta-Synthesis\n\nIntegrating insights...",
-            "word_count": 2100,
         }
 
-        await event_collector._handle_meta_synthesis(
-            session_id, meta_complete_output, started=False
-        )
+        await event_collector._handle_meta_synthesis(session_id, meta_output)
 
         events = capture.get_events(count=2)
         assert len(events) == 2
         assert events[0]["event_type"] == "meta_synthesis_started"
         assert events[0]["data"]["sub_problem_count"] == 2
         assert events[1]["event_type"] == "meta_synthesis_complete"
-        assert events[1]["data"]["word_count"] == 2100
+        assert (
+            events[1]["data"]["word_count"] == 4
+        )  # "# Meta-Synthesis\n\nIntegrating insights..." = 4 words
 
     finally:
         capture.stop()

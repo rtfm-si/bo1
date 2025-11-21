@@ -1,5 +1,5 @@
 # =============================================================================
-# Docker Compose - Shared Infrastructure (Postgres, Redis, Supabase Auth)
+# Docker Compose - Shared Infrastructure (Postgres, Redis, SuperTokens)
 # For Blue-Green Deployment
 # =============================================================================
 
@@ -53,39 +53,30 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # Supabase GoTrue: Shared auth server for both blue and green
+  # SuperTokens Core: Shared auth server for both blue and green
   # ---------------------------------------------------------------------------
-  supabase-auth:
-    image: supabase/gotrue:v2.181.0
+  supertokens:
+    build:
+      context: .
+      dockerfile: supertokens.Dockerfile
+    image: bo1-supertokens:latest
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      - GOTRUE_DB_DRIVER=postgres
-      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/boardofone
-      - GOTRUE_DB_SCHEMA=auth
-      - GOTRUE_SITE_URL=${SITE_URL}
-      - GOTRUE_URI_ALLOW_LIST=${SITE_URL}
-      - GOTRUE_JWT_SECRET=${SUPABASE_JWT_SECRET}
-      - GOTRUE_JWT_EXP=3600
-      - GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated
-      - GOTRUE_DISABLE_SIGNUP=false
-      - GOTRUE_MAILER_AUTOCONFIRM=true
-      - API_EXTERNAL_URL=http://supabase-auth:9999
-      - GOTRUE_EXTERNAL_GOOGLE_ENABLED=${GOOGLE_OAUTH_ENABLED:-false}
-      - GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
-      - GOTRUE_EXTERNAL_GOOGLE_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=${SITE_URL}/auth/v1/callback
-      - GOTRUE_EXTERNAL_GITHUB_ENABLED=${GITHUB_OAUTH_ENABLED:-false}
-      - GOTRUE_EXTERNAL_GITHUB_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID:-}
-      - GOTRUE_EXTERNAL_GITHUB_SECRET=${GITHUB_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI=${SITE_URL}/auth/v1/callback
-      - GOTRUE_EXTERNAL_LINKEDIN_ENABLED=${LINKEDIN_OAUTH_ENABLED:-false}
-      - GOTRUE_EXTERNAL_LINKEDIN_CLIENT_ID=${LINKEDIN_OAUTH_CLIENT_ID:-}
-      - GOTRUE_EXTERNAL_LINKEDIN_SECRET=${LINKEDIN_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_LINKEDIN_REDIRECT_URI=${SITE_URL}/auth/v1/callback
+      # Database Configuration
+      - POSTGRESQL_CONNECTION_URI=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/boardofone
+      - POSTGRESQL_TABLE_SCHEMA=supertokens
+      # SuperTokens Configuration
+      - API_KEYS=${SUPERTOKENS_API_KEY}
     ports:
-      - "127.0.0.1:9999:8081"
+      - "127.0.0.1:3567:3567"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3567/hello"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - bo1-network
     restart: unless-stopped

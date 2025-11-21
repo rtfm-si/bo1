@@ -69,56 +69,28 @@ services:
           memory: 256M
 
   # ---------------------------------------------------------------------------
-  # Supabase GoTrue: Self-hosted OAuth authentication server
+  # SuperTokens Core: Self-hosted OAuth authentication server
   # ---------------------------------------------------------------------------
-  supabase-auth:
-    image: supabase/gotrue:v2.181.0
+  supertokens:
+    build:
+      context: .
+      dockerfile: supertokens.Dockerfile
+    image: bo1-supertokens:latest
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      # Database
-      - GOTRUE_DB_DRIVER=postgres
-      - DATABASE_URL=${DATABASE_URL}
-      - GOTRUE_DB_SCHEMA=auth
-
-      # Site Configuration
-      - GOTRUE_SITE_URL=${SITE_URL}
-      - GOTRUE_URI_ALLOW_LIST=${SITE_URL}
-
-      # JWT Configuration
-      - GOTRUE_JWT_SECRET=${SUPABASE_JWT_SECRET}
-      - GOTRUE_JWT_EXP=3600
-      - GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated
-
-      # Auth Configuration
-      - GOTRUE_DISABLE_SIGNUP=false
-      - GOTRUE_MAILER_AUTOCONFIRM=true
-      - API_EXTERNAL_URL=http://supabase-auth:9999
-
-      # Google OAuth
-      - GOTRUE_EXTERNAL_GOOGLE_ENABLED=${GOOGLE_OAUTH_ENABLED:-false}
-      - GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
-      - GOTRUE_EXTERNAL_GOOGLE_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=${SITE_URL}/auth/v1/callback
-
-      # GitHub OAuth
-      - GOTRUE_EXTERNAL_GITHUB_ENABLED=${GITHUB_OAUTH_ENABLED:-false}
-      - GOTRUE_EXTERNAL_GITHUB_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID:-}
-      - GOTRUE_EXTERNAL_GITHUB_SECRET=${GITHUB_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI=${SITE_URL}/auth/v1/callback
-
-      # LinkedIn OAuth
-      - GOTRUE_EXTERNAL_LINKEDIN_ENABLED=${LINKEDIN_OAUTH_ENABLED:-false}
-      - GOTRUE_EXTERNAL_LINKEDIN_CLIENT_ID=${LINKEDIN_OAUTH_CLIENT_ID:-}
-      - GOTRUE_EXTERNAL_LINKEDIN_SECRET=${LINKEDIN_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_LINKEDIN_REDIRECT_URI=${SITE_URL}/auth/v1/callback
+      # Database Configuration
+      - POSTGRESQL_CONNECTION_URI=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/boardofone
+      - POSTGRESQL_TABLE_SCHEMA=supertokens
+      # SuperTokens Configuration
+      - API_KEYS=${SUPERTOKENS_API_KEY}
     ports:
-      - "127.0.0.1:9999:8081"  # Only localhost access
+      - "127.0.0.1:3567:3567"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
-      interval: 5s
-      timeout: 3s
+      test: ["CMD", "curl", "-f", "http://localhost:3567/hello"]
+      interval: 10s
+      timeout: 5s
       retries: 5
       start_period: 10s
     networks:
@@ -128,10 +100,10 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 512M
+          memory: 256M
         reservations:
           cpus: '0.25'
-          memory: 256M
+          memory: 128M
 
   # ---------------------------------------------------------------------------
   # FastAPI: Web API for deliberation endpoints
@@ -146,7 +118,7 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      supabase-auth:
+      supertokens:
         condition: service_healthy
     environment:
       # Redis Configuration
@@ -172,12 +144,22 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
 
-      # Supabase Auth Configuration
-      - ENABLE_SUPABASE_AUTH=${ENABLE_SUPABASE_AUTH:-true}
+      # SuperTokens Configuration
+      - SUPERTOKENS_CONNECTION_URI=http://supertokens:3567
+      - SUPERTOKENS_API_KEY=${SUPERTOKENS_API_KEY}
+      - SUPERTOKENS_API_DOMAIN=${SUPERTOKENS_API_DOMAIN}
+      - SUPERTOKENS_WEBSITE_DOMAIN=${SUPERTOKENS_WEBSITE_DOMAIN}
+      - COOKIE_SECURE=${COOKIE_SECURE:-true}
+      - COOKIE_DOMAIN=${COOKIE_DOMAIN}
+
+      # OAuth Configuration
+      - GOOGLE_OAUTH_ENABLED=${GOOGLE_OAUTH_ENABLED:-true}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+
+      # Closed Beta Configuration
       - CLOSED_BETA_MODE=${CLOSED_BETA_MODE:-true}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - BETA_WHITELIST=${BETA_WHITELIST}
 
       # Application Configuration
       - DEBUG=false
@@ -205,12 +187,11 @@ services:
       dockerfile: Dockerfile.prod
       args:
         - VITE_API_BASE_URL=https://boardof.one
-        - VITE_SUPABASE_URL=https://boardof.one/auth/v1
         - VITE_GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
     depends_on:
       api:
         condition: service_started
-      supabase-auth:
+      supertokens:
         condition: service_healthy
     environment:
       - NODE_ENV=production

@@ -157,7 +157,7 @@ These scripts are safe for MVP use but follow the guidelines above for productio
 
 ### Authentication
 - `setup-github-ssh-keys.sh` - SSH key generation for GitHub Actions
-- `generate-supabase-keys.js` - Supabase JWT key generation
+- ~~`generate-supabase-keys.js`~~ - REMOVED (replaced with `openssl rand -base64 32` for SuperTokens)
 
 ## Security Review Frequency
 

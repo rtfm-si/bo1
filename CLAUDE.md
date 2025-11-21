@@ -29,7 +29,7 @@ Problem → Decomposition (1-5 sub-problems) → Persona Selection (3-5 experts)
 # Setup (one-time)
 make setup           # Creates .env, directories
 make build           # Build Docker images
-make up              # Start all services (Redis + PostgreSQL + API + Supabase Auth + Frontend + app)
+make up              # Start all services (Redis + PostgreSQL + API + SuperTokens + Frontend + app)
 
 # Development
 make run             # Run deliberation (interactive)
@@ -69,7 +69,7 @@ make inspect         # View container configuration
 # Frontend runs automatically with `make up` on http://localhost:5173
 # API runs automatically with `make up` on http://localhost:8000
 # Access admin docs: http://localhost:8000/admin/docs (requires admin auth)
-# Supabase Auth: http://localhost:9999
+# SuperTokens Core: http://localhost:3567
 
 # Production Deployment (Blue-Green)
 # See docs/PRODUCTION_DEPLOYMENT_QUICKSTART.md for complete setup guide
@@ -279,7 +279,7 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - `bo1/interfaces/console.py` - Console adapter with pause/resume support
 - `backend/api/main.py` - FastAPI application entry point
 - `backend/api/streaming.py` - SSE streaming endpoints for real-time updates
-- `backend/api/middleware/auth.py` - Supabase JWT authentication middleware
+- `backend/api/middleware/auth.py` - SuperTokens session verification middleware
 - `backend/api/admin.py` - Admin-only endpoints (session monitoring, metrics)
 - `docker-compose.prod.yml` - Production deployment configuration
 - `MVP_IMPLEMENTATION_ROADMAP.md` - 14-week roadmap (101 days)
@@ -307,10 +307,10 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 
 **Web API (v2 - deployed)**:
 - FastAPI with SSE streaming (`backend/api/`)
-- Supabase GoTrue auth (JWT-based, OAuth support for Google/GitHub/LinkedIn)
+- SuperTokens auth (BFF pattern, httpOnly cookies, OAuth support for Google/GitHub/LinkedIn)
 - Admin-only API docs (`/admin/docs` requires X-Admin-Key or admin JWT)
 - Public landing page at root (`/`)
-- Endpoints: health, sessions, streaming, context, control, admin
+- Endpoints: health, sessions, streaming, context, control, admin, auth
 - Production compose file: `docker-compose.prod.yml`
 
 **Cost targets**:
@@ -335,8 +335,8 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - Docker network hostnames for inter-container communication:
   - DATABASE_URL uses `postgres` hostname (not `localhost`)
   - REDIS_URL uses `redis` hostname (not `localhost`)
-  - Supabase auth uses `postgres` hostname for DATABASE_URL
-- Infrastructure components (postgres, redis, supabase-auth) shared between blue/green
+  - SuperTokens uses `postgres` hostname for POSTGRESQL_CONNECTION_URI
+- Infrastructure components (postgres, redis, supertokens) shared between blue/green
 - Application containers (api, frontend) deployed to separate blue/green environments
 
 ---

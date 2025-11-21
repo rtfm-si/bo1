@@ -1,20 +1,20 @@
 # Closed Beta Deployment Guide
 
-Complete guide for deploying Board of One to Digital Ocean with Supabase OAuth and email whitelist access control for ~10 beta testers.
+Complete guide for deploying Board of One to Digital Ocean with SuperTokens OAuth and email whitelist access control for ~10 beta testers.
 
 ---
 
 ## Overview
 
 This guide configures:
-- **Supabase OAuth** - Social login (Google, GitHub, LinkedIn)
+- **SuperTokens OAuth** - Social login (Google, GitHub, LinkedIn)
 - **Email Whitelist** - Only approved emails can access the platform
 - **Digital Ocean Droplet** - Cloud hosting
 - **PostgreSQL + Redis** - Database and session management
 
 **User Experience:**
 1. User clicks "Sign in with Google"
-2. Supabase handles OAuth flow
+2. SuperTokens handles OAuth flow
 3. Backend checks: Is email whitelisted?
    - ✅ Yes → Grant access
    - ❌ No → Show "Join waitlist" message
@@ -25,17 +25,16 @@ This guide configures:
 ## Prerequisites
 
 - Digital Ocean account
-- Supabase account (free tier works)
 - Domain name (optional but recommended)
 - Google OAuth credentials (for Google sign-in)
 
 ---
 
-## Part 1: Self-Hosted Supabase Setup
+## Part 1: SuperTokens OAuth Setup
 
-Board of One uses **self-hosted Supabase (GoTrue)** for authentication - no vendor lock-in, full control!
+Board of One uses **self-hosted SuperTokens** for authentication - no vendor lock-in, full control!
 
-### 1.1 Generate JWT Secret
+### 1.1 Generate SuperTokens API Key
 
 On your local machine or server:
 
@@ -43,7 +42,7 @@ On your local machine or server:
 openssl rand -base64 32
 ```
 
-Copy this output - you'll use it as `SUPABASE_JWT_SECRET`.
+Copy this output - you'll use it as `SUPERTOKENS_API_KEY`.
 
 ### 1.2 Configure OAuth Providers
 
@@ -51,21 +50,20 @@ Copy this output - you'll use it as `SUPABASE_JWT_SECRET`.
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
 2. Create a new project or select existing
-3. Enable **Google+ API**
-4. Go to **Credentials → Create Credentials → OAuth 2.0 Client ID**
-5. Fill in:
+3. Go to **Credentials → Create Credentials → OAuth 2.0 Client ID**
+4. Fill in:
    - **Application type:** Web application
+   - **Authorized JavaScript origins:**
+     ```
+     https://boardof.one
+     https://api.boardof.one
+     ```
    - **Authorized redirect URIs:**
      ```
-     https://your-project-id.supabase.co/auth/v1/callback
+     https://api.boardof.one/api/auth/callback/google
      ```
-6. Copy **Client ID** and **Client Secret**
-
-7. In Supabase Dashboard:
-   - Go to **Authentication → Providers**
-   - Enable **Google**
-   - Paste your **Client ID** and **Client Secret**
-   - Click **Save**
+5. Copy **Client ID** and **Client Secret**
+6. Save these for your `.env` file (see Part 3)
 
 #### GitHub OAuth (Optional)
 
@@ -73,18 +71,24 @@ Copy this output - you'll use it as `SUPABASE_JWT_SECRET`.
 2. Click **"New OAuth App"**
 3. Fill in:
    - **Application name:** Board of One Beta
-   - **Homepage URL:** `https://yourdomain.com`
+   - **Homepage URL:** `https://boardof.one`
    - **Authorization callback URL:**
      ```
-     https://your-project-id.supabase.co/auth/v1/callback
+     https://api.boardof.one/api/auth/callback/github
      ```
 4. Copy **Client ID** and generate **Client Secret**
+5. Save these for your `.env` file (see Part 3)
 
-5. In Supabase Dashboard:
-   - Go to **Authentication → Providers**
-   - Enable **GitHub**
-   - Paste your **Client ID** and **Client Secret**
-   - Click **Save**
+#### LinkedIn OAuth (Optional)
+
+1. Go to **LinkedIn Developers** (developer.linkedin.com)
+2. Create a new app
+3. Add redirect URL:
+   ```
+   https://api.boardof.one/api/auth/callback/linkedin
+   ```
+4. Copy **Client ID** and **Client Secret**
+5. Save these for your `.env` file (see Part 3)
 
 ---
 
@@ -162,16 +166,18 @@ ANTHROPIC_API_KEY=your_anthropic_api_key_here
 VOYAGE_API_KEY=your_voyage_api_key_here
 
 # =============================================================================
-# PostgreSQL (Use Supabase database)
+# PostgreSQL (Self-hosted in Docker)
 # =============================================================================
-DATABASE_URL=postgresql://postgres.your-project-id:your-db-password@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+POSTGRES_PASSWORD=your_strong_password_here
+DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/boardofone
 
 # =============================================================================
-# Redis (Local)
+# Redis (Self-hosted in Docker)
 # =============================================================================
+REDIS_PASSWORD=your_strong_redis_password_here
 REDIS_HOST=redis
 REDIS_PORT=6379
-REDIS_URL=redis://redis:6379/0
+REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
 
 # =============================================================================
 # Admin API
@@ -179,22 +185,29 @@ REDIS_URL=redis://redis:6379/0
 ADMIN_API_KEY=your_random_secure_admin_key_here  # Generate: openssl rand -hex 32
 
 # =============================================================================
-# Supabase Auth (CRITICAL FOR BETA)
+# SuperTokens Auth (CRITICAL FOR BETA)
 # =============================================================================
-ENABLE_SUPABASE_AUTH=true  # Enable authentication
+SUPERTOKENS_API_KEY=your_supertokens_api_key_from_part1  # 32+ char random string
+SUPERTOKENS_CONNECTION_URI=http://supertokens:3567
+SUPERTOKENS_API_DOMAIN=https://api.boardof.one
+SUPERTOKENS_WEBSITE_DOMAIN=https://boardof.one
+COOKIE_SECURE=true
+COOKIE_DOMAIN=.boardof.one
 
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_ANON_KEY=your_anon_key_from_supabase
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_from_supabase
-SUPABASE_JWT_SECRET=your_jwt_secret_from_supabase
-
-# Google OAuth (from Part 1.3)
+# Google OAuth (from Part 1.2)
+GOOGLE_OAUTH_ENABLED=true
 GOOGLE_OAUTH_CLIENT_ID=your_google_client_id_here
 GOOGLE_OAUTH_CLIENT_SECRET=your_google_client_secret_here
 
 # GitHub OAuth (optional)
+GITHUB_OAUTH_ENABLED=false
 GITHUB_OAUTH_CLIENT_ID=your_github_client_id_here
 GITHUB_OAUTH_CLIENT_SECRET=your_github_client_secret_here
+
+# LinkedIn OAuth (optional)
+LINKEDIN_OAUTH_ENABLED=false
+LINKEDIN_OAUTH_CLIENT_ID=your_linkedin_client_id_here
+LINKEDIN_OAUTH_CLIENT_SECRET=your_linkedin_client_secret_here
 
 # =============================================================================
 # CLOSED BETA WHITELIST (THIS IS KEY!)
@@ -301,19 +314,12 @@ curl -X DELETE http://localhost:8000/api/admin/beta-whitelist/olduser@example.co
 
 ## Part 7: Frontend Integration
 
-### 7.1 Update Frontend URLs
+### 7.1 Frontend Configuration
 
-In your SvelteKit frontend (`frontend/.env`):
+Frontend is deployed with the API and automatically configured via docker-compose.
 
-```bash
-PUBLIC_API_URL=http://your-droplet-ip:8000
-PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-PUBLIC_SUPABASE_ANON_KEY=your_anon_key_from_supabase
-```
-
-### 7.2 Deploy Frontend
-
-Deploy to Vercel/Netlify with environment variables above.
+The frontend communicates with SuperTokens through the API backend (BFF pattern).
+No frontend environment variables needed for auth - everything is handled server-side.
 
 ---
 
@@ -444,13 +450,15 @@ make backup-redis
 
 ## Troubleshooting
 
-### Issue: Users get "Invalid or expired token" error
+### Issue: Users get "Invalid or expired session" error
 
-**Solution:** Check Supabase JWT secret matches `.env`
+**Solution:** Check SuperTokens is running and API key matches
 
 ```bash
-# In Supabase: Settings → API → JWT Secret
-# In .env: SUPABASE_JWT_SECRET should match exactly
+# Check SuperTokens is healthy
+curl http://localhost:3567/hello
+
+# Verify SUPERTOKENS_API_KEY matches in both .env and docker-compose
 ```
 
 ### Issue: Whitelist not working

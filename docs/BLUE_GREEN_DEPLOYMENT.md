@@ -594,7 +594,7 @@ From Docker Compose source code analysis:
 **Separate compose files** solve all issues:
 
 1. **Infrastructure file** (`docker-compose.infrastructure.yml`):
-   - Defines postgres, redis, supabase-auth
+   - Defines postgres, redis, supertokens
    - Creates `bo1-network`
    - No application services referenced
 
@@ -620,7 +620,7 @@ From Docker Compose source code analysis:
 **Finding**: "Create two completely separate stacks, one for blue and the other for green, moving any common services outside of that into a third common stack" (thomasbandt.com)
 
 **Our Implementation**:
-- Stack 1 (Infrastructure): postgres, redis, supabase-auth
+- Stack 1 (Infrastructure): postgres, redis, supertokens
 - Stack 2 (Blue): api, frontend on ports 8000/3000
 - Stack 3 (Green): api, frontend on ports 8001/3001
 

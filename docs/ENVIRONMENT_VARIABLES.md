@@ -214,25 +214,42 @@ ENABLE_EARLY_STOPPING=true
 
 ---
 
-## Authentication (Week 7+)
+## Authentication (SuperTokens)
 
-Not required for Week 3.5. Uncomment when implementing Supabase Auth in Week 7.
+SuperTokens authentication with BFF pattern (httpOnly cookies, OAuth support).
 
 | Variable | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `SUPABASE_URL` | String | No (Week 7+) | - | Supabase project URL |
-| `SUPABASE_ANON_KEY` | String | No (Week 7+) | - | Supabase anonymous key |
-| `SUPABASE_SERVICE_ROLE_KEY` | String | No (Week 7+) | - | Supabase service role key (admin operations) |
-| `JWT_SECRET` | String | No (Week 7+) | - | JWT signing secret |
-| `JWT_ALGORITHM` | String | No (Week 7+) | `HS256` | JWT algorithm |
-| `JWT_EXPIRE_MINUTES` | Integer | No (Week 7+) | `1440` | JWT expiration (24 hours) |
+| `SUPERTOKENS_CONNECTION_URI` | String | Yes | `http://supertokens:3567` | SuperTokens Core connection URI |
+| `SUPERTOKENS_API_KEY` | String | Yes | - | SuperTokens API key (32+ char random string) |
+| `SUPERTOKENS_API_DOMAIN` | String | Yes | - | API domain for auth callbacks (e.g., https://api.boardof.one) |
+| `SUPERTOKENS_WEBSITE_DOMAIN` | String | Yes | - | Frontend domain (e.g., https://boardof.one) |
+| `COOKIE_SECURE` | Boolean | No | `false` | Enable secure cookies (HTTPS only) - set true in production |
+| `COOKIE_DOMAIN` | String | No | `localhost` | Cookie domain (e.g., .boardof.one) |
+| `GOOGLE_OAUTH_ENABLED` | Boolean | No | `true` | Enable Google OAuth |
+| `GOOGLE_OAUTH_CLIENT_ID` | String | No | - | Google OAuth client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | String | No | - | Google OAuth client secret |
+| `CLOSED_BETA_MODE` | Boolean | No | `false` | Enable closed beta whitelist validation |
+| `BETA_WHITELIST` | String | No | - | Comma-separated list of whitelisted emails |
 
-**Example** (Week 7+):
+**Example**:
 ```bash
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=eyJhbGc...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
-JWT_SECRET=your_jwt_secret_here
+# SuperTokens Configuration
+SUPERTOKENS_CONNECTION_URI=http://supertokens:3567
+SUPERTOKENS_API_KEY=your_32_char_random_key_here
+SUPERTOKENS_API_DOMAIN=https://api.boardof.one
+SUPERTOKENS_WEBSITE_DOMAIN=https://boardof.one
+COOKIE_SECURE=true
+COOKIE_DOMAIN=.boardof.one
+
+# Google OAuth
+GOOGLE_OAUTH_ENABLED=true
+GOOGLE_OAUTH_CLIENT_ID=490598945509-xxx.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=GOCSPX-xxx
+
+# Closed Beta
+CLOSED_BETA_MODE=true
+BETA_WHITELIST=alice@example.com,bob@example.com
 ```
 
 ---

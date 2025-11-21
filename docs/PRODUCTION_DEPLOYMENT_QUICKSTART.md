@@ -204,11 +204,13 @@ DATABASE_URL=postgresql://bo1:<POSTGRES_PASSWORD>@postgres:5432/boardofone
 # Redis
 REDIS_PASSWORD=<strong_random_password>
 
-# Supabase Auth (generate with deployment-scripts/generate-supabase-keys.js)
-SUPABASE_JWT_SECRET=<64_char_secret>
-SUPABASE_ANON_KEY=<jwt_token>
-SUPABASE_SERVICE_ROLE_KEY=<jwt_token>
-SUPABASE_URL=http://supabase-auth:9999
+# SuperTokens Auth
+SUPERTOKENS_API_KEY=<strong_random_key>
+SUPERTOKENS_CONNECTION_URI=http://supertokens:3567
+SUPERTOKENS_API_DOMAIN=https://api.boardof.one
+SUPERTOKENS_WEBSITE_DOMAIN=https://boardof.one
+COOKIE_SECURE=true
+COOKIE_DOMAIN=.boardof.one
 
 # Admin API
 ADMIN_API_KEY=<strong_random_key>
@@ -217,22 +219,34 @@ ADMIN_API_KEY=<strong_random_key>
 SITE_URL=https://boardof.one
 CORS_ORIGINS=https://boardof.one
 
+# OAuth Configuration (Google OAuth)
+GOOGLE_OAUTH_ENABLED=true
+GOOGLE_OAUTH_CLIENT_ID=<from_google_cloud_console>
+GOOGLE_OAUTH_CLIENT_SECRET=<from_google_cloud_console>
+
 # Production Settings
 DEBUG=false
 LOG_LEVEL=INFO
-ENABLE_SUPABASE_AUTH=true
 CLOSED_BETA_MODE=true
+BETA_WHITELIST=<comma_separated_email_list>
 ```
 
-**Generate Supabase keys:**
+**Generate secure keys:**
 
 ```bash
-# On your local machine (requires Node.js)
-cd /path/to/bo1
-node deployment-scripts/generate-supabase-keys.js
+# Generate SUPERTOKENS_API_KEY (32+ character random string)
+openssl rand -base64 32
 
-# Copy the generated values to .env on server
+# Generate POSTGRES_PASSWORD, REDIS_PASSWORD, ADMIN_API_KEY
+openssl rand -base64 24
 ```
+
+**Configure Google OAuth:**
+1. Go to Google Cloud Console (console.cloud.google.com)
+2. Create OAuth 2.0 credentials
+3. Set authorized JavaScript origins: `https://boardof.one`, `https://api.boardof.one`
+4. Set authorized redirect URIs: `https://api.boardof.one/api/auth/callback/google`
+5. Copy Client ID and Client Secret to .env file
 
 ### 5.3 Save and Exit
 
@@ -305,7 +319,7 @@ docker ps
 # Expected output:
 # - bo1-postgres-prod
 # - bo1-redis-prod
-# - bo1-supabase-auth-prod
+# - bo1-supertokens-prod
 # - bo1-api-prod
 # - bo1-frontend-prod
 # - bo1-nginx-prod
@@ -499,7 +513,7 @@ After deployment, verify:
 - [ ] HTTPS enabled (Let's Encrypt certificate)
 - [ ] Admin API key is strong (not `admin123`)
 - [ ] Closed beta mode enabled (if not ready for public)
-- [ ] Supabase JWT secret is 64+ characters
+- [ ] SuperTokens API key is 32+ characters
 - [ ] Database not exposed to public (127.0.0.1 only)
 - [ ] Redis password protected
 

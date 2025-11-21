@@ -29,15 +29,15 @@ User accounts with authentication and subscription tracking.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
-| `id` | VARCHAR(255) | PRIMARY KEY | User ID (from Supabase Auth) |
+| `id` | VARCHAR(255) | PRIMARY KEY | User ID (from SuperTokens) |
 | `email` | VARCHAR(255) | NOT NULL, UNIQUE | User email address |
-| `auth_provider` | VARCHAR(50) | NOT NULL | Auth provider (supabase, google, linkedin, github) |
+| `auth_provider` | VARCHAR(50) | NOT NULL | Auth provider (google, linkedin, github) |
 | `subscription_tier` | VARCHAR(50) | NOT NULL, DEFAULT 'free' | Subscription tier (free, pro, enterprise) |
 | `gdpr_consent_at` | TIMESTAMP WITH TIME ZONE | NULL | GDPR consent timestamp |
 | `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL, DEFAULT NOW() | Account creation timestamp |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | NOT NULL, DEFAULT NOW() | Last update timestamp |
 
-**RLS**: No RLS (users managed by Supabase Auth)
+**RLS**: No RLS (users managed by SuperTokens)
 
 ---
 

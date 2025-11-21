@@ -117,36 +117,32 @@ bash /opt/boardofone/deployment-scripts/verify-server-setup.sh
 
 ---
 
-### 4. `generate-supabase-keys.js` 🔐
+### 4. ~~`generate-supabase-keys.js`~~ 🔐 (OBSOLETE)
 
-**Purpose:** Generate JWT tokens for Supabase authentication
+**Status:** DEPRECATED - Removed in SuperTokens migration
 
-**Run on:** Your local machine (requires Node.js)
+**Replacement:** Use `openssl` to generate SuperTokens API key
 
 **Usage:**
 ```bash
-# On your local machine
-node deployment-scripts/generate-supabase-keys.js
+# Generate SuperTokens API key (32+ character random string)
+openssl rand -base64 32
 ```
 
-**What it generates:**
-- `SUPABASE_JWT_SECRET` (64-character random string)
-- `SUPABASE_ANON_KEY` (JWT token for public access)
-- `SUPABASE_SERVICE_ROLE_KEY` (JWT token for admin access)
+**What you need for SuperTokens:**
+- `SUPERTOKENS_API_KEY` (32+ character random string)
+- `POSTGRES_PASSWORD` (strong random password)
+- `REDIS_PASSWORD` (strong random password)
+- `ADMIN_API_KEY` (strong random key)
 
-**Output:**
+**Example:**
 ```bash
-# Copy these to your .env file:
-SUPABASE_JWT_SECRET=abc123...
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+# Generate all required keys
+openssl rand -base64 32  # For SUPERTOKENS_API_KEY
+openssl rand -base64 24  # For POSTGRES_PASSWORD
+openssl rand -base64 24  # For REDIS_PASSWORD
+openssl rand -hex 32     # For ADMIN_API_KEY
 ```
-
-**Time:** ~1 minute
-
-**When to run:**
-- During initial .env setup
-- When rotating authentication secrets
 
 ---
 
@@ -171,8 +167,9 @@ chmod 600 /home/deploy/.ssh/authorized_keys
 # Go to GitHub → Settings → Secrets → Actions
 # Add: PRODUCTION_HOST, PRODUCTION_USER, PRODUCTION_SSH_KEY, PRODUCTION_SSH_PORT
 
-# Step 5: Generate Supabase keys (on local machine)
-node deployment-scripts/generate-supabase-keys.js
+# Step 5: Generate SuperTokens and other keys (on local machine)
+openssl rand -base64 32  # For SUPERTOKENS_API_KEY
+openssl rand -base64 24  # For POSTGRES_PASSWORD, REDIS_PASSWORD, ADMIN_API_KEY
 
 # Step 6: Create .env on server
 ssh deploy@YOUR_SERVER_IP
@@ -342,11 +339,22 @@ DATABASE_URL=postgresql://bo1:<POSTGRES_PASSWORD>@postgres:5432/boardofone
 # Redis
 REDIS_PASSWORD=<strong_random_password>
 
-# Supabase Auth (from generate-supabase-keys.js)
-SUPABASE_JWT_SECRET=<64_char_secret>
-SUPABASE_ANON_KEY=<jwt_token>
-SUPABASE_SERVICE_ROLE_KEY=<jwt_token>
-SUPABASE_URL=http://supabase-auth:9999
+# SuperTokens Auth
+SUPERTOKENS_API_KEY=<32_char_random_key>
+SUPERTOKENS_CONNECTION_URI=http://supertokens:3567
+SUPERTOKENS_API_DOMAIN=https://api.boardof.one
+SUPERTOKENS_WEBSITE_DOMAIN=https://boardof.one
+COOKIE_SECURE=true
+COOKIE_DOMAIN=.boardof.one
+
+# OAuth (Google)
+GOOGLE_OAUTH_ENABLED=true
+GOOGLE_OAUTH_CLIENT_ID=<from_google_cloud_console>
+GOOGLE_OAUTH_CLIENT_SECRET=<from_google_cloud_console>
+
+# Closed Beta
+CLOSED_BETA_MODE=true
+BETA_WHITELIST=<comma_separated_emails>
 
 # Admin
 ADMIN_API_KEY=<strong_random_key>

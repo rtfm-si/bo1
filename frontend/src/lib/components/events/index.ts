@@ -17,3 +17,5 @@ export { default as PhaseTable } from './PhaseTable.svelte';
 export { default as DeliberationComplete } from './DeliberationComplete.svelte';
 export { default as ErrorEvent } from './ErrorEvent.svelte';
 export { default as GenericEvent } from './GenericEvent.svelte';
+export { default as RoundGroup } from './RoundGroup.svelte';
+export { default as ActionableTasks } from './ActionableTasks.svelte';

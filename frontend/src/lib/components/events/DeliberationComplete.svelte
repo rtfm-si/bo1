@@ -3,6 +3,7 @@
 	 * DeliberationComplete Event Component
 	 * Displays completion summary with metrics
 	 */
+	import { fade } from 'svelte/transition';
 	import type { CompleteEvent } from '$lib/api/sse-events';
 	import Badge from '$lib/components/ui/Badge.svelte';
 
@@ -12,7 +13,20 @@
 
 	let { event }: Props = $props();
 
-	const formatDuration = (seconds: number): string => {
+	let showConfetti = $state(true);
+
+	// Auto-hide confetti after 3 seconds
+	$effect(() => {
+		const timer = setTimeout(() => {
+			showConfetti = false;
+		}, 3000);
+		return () => clearTimeout(timer);
+	});
+
+	const formatDuration = (seconds: number | undefined): string => {
+		if (seconds === undefined || isNaN(seconds)) {
+			return 'N/A';
+		}
 		const minutes = Math.floor(seconds / 60);
 		const remainingSeconds = Math.round(seconds % 60);
 		if (minutes >= 60) {
@@ -49,8 +63,22 @@
 
 <div class="space-y-4">
 	<div
-		class="bg-gradient-to-br from-success-50 via-brand-50 to-accent-50 dark:from-success-900/20 dark:via-brand-900/20 dark:to-accent-900/20 border-2 border-success-300 dark:border-success-600 rounded-xl p-6"
+		class="bg-gradient-to-br from-success-50 via-brand-50 to-accent-50 dark:from-success-900/20 dark:via-brand-900/20 dark:to-accent-900/20 border-2 border-success-300 dark:border-success-600 rounded-xl p-6 relative overflow-hidden"
 	>
+		<!-- Confetti Animation -->
+		{#if showConfetti}
+			<div
+				class="absolute inset-0 pointer-events-none overflow-hidden"
+				transition:fade={{ duration: 500 }}
+			>
+				<div class="confetti">🎉</div>
+				<div class="confetti" style="animation-delay: 0.2s">🎊</div>
+				<div class="confetti" style="animation-delay: 0.4s">✨</div>
+				<div class="confetti" style="animation-delay: 0.1s; left: 35%">🎉</div>
+				<div class="confetti" style="animation-delay: 0.3s; left: 65%">✨</div>
+			</div>
+		{/if}
+
 		<!-- Header -->
 		<div class="flex items-center justify-between mb-4">
 			<div class="flex items-center gap-3">
@@ -144,3 +172,35 @@
 		</div>
 	</div>
 </div>
+
+<style>
+	.confetti {
+		position: absolute;
+		top: -50px;
+		font-size: 2rem;
+		animation: fall 3s ease-out forwards;
+	}
+
+	.confetti:nth-child(1) {
+		left: 20%;
+	}
+	.confetti:nth-child(2) {
+		left: 50%;
+	}
+	.confetti:nth-child(3) {
+		left: 80%;
+	}
+	.confetti:nth-child(4) {
+		left: 35%;
+	}
+	.confetti:nth-child(5) {
+		left: 65%;
+	}
+
+	@keyframes fall {
+		to {
+			transform: translateY(600px) rotate(360deg);
+			opacity: 0;
+		}
+	}
+</style>

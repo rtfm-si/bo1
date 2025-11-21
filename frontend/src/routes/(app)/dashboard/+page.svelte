@@ -11,21 +11,19 @@
 	let error: string | null = $state(null);
 
 	onMount(() => {
-		console.log('[Dashboard] onMount - waiting for auth...');
+		console.log('[Dashboard] onMount - starting optimistic load');
 
-		// Wait for auth to be initialized before loading sessions
+		// Optimistic load: Start loading sessions immediately
+		// Don't wait for auth check to complete
+		loadSessions();
+
+		// Auth check runs in parallel
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
-			console.log('[Dashboard] isAuthenticated changed:', authenticated);
-
-			if (authenticated) {
-				// User is authenticated - load sessions
-				loadSessions();
-			} else if (authenticated === false) {
-				// User is NOT authenticated - redirect to login
+			if (authenticated === false) {
+				// Only redirect if explicitly NOT authenticated
 				console.log('[Dashboard] Not authenticated, redirecting to login...');
 				goto('/login');
 			}
-			// If undefined, auth is still loading - do nothing
 		});
 
 		return unsubscribe;

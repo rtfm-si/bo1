@@ -7,6 +7,7 @@ Provides:
 """
 
 import logging
+import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -25,6 +26,7 @@ from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.security import verify_session_ownership
 from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
+from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 
 logger = logging.getLogger(__name__)
 
@@ -471,4 +473,123 @@ async def delete_session(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to delete session: {str(e)}",
+        ) from e
+
+
+@router.post(
+    "/{session_id}/extract-tasks",
+    summary="Extract actionable tasks from synthesis",
+    description="Extract discrete, actionable tasks from session synthesis using AI.",
+    responses={
+        200: {"description": "Tasks extracted successfully"},
+        404: {"description": "Session or synthesis not found", "model": ErrorResponse},
+        500: {"description": "Task extraction failed", "model": ErrorResponse},
+    },
+)
+async def extract_tasks(
+    session_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Extract actionable tasks from session synthesis.
+
+    This endpoint:
+    1. Retrieves the synthesis from session metadata
+    2. Uses Claude to extract discrete, actionable tasks
+    3. Returns tasks with priorities, dates, and dependencies
+
+    Args:
+        session_id: Session ID
+        user: Authenticated user data
+
+    Returns:
+        Dict with extracted tasks and metadata
+
+    Raises:
+        HTTPException: If synthesis not found or extraction fails
+    """
+    try:
+        # Validate session ID format
+        if not validate_session_id(session_id):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid session ID format",
+            )
+
+        # Get Redis manager
+        redis_manager = get_redis_manager()
+        if not redis_manager.is_available:
+            raise HTTPException(
+                status_code=500,
+                detail="Redis unavailable",
+            )
+
+        # Verify session ownership
+        verify_session_ownership(session_id, user, redis_manager)
+
+        # Get session metadata
+        metadata = redis_manager.get_session_metadata(session_id)
+        if not metadata:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Session {session_id} not found",
+            )
+
+        # Check if synthesis exists
+        synthesis = metadata.get("synthesis")
+        if not synthesis:
+            # Try to get synthesis from events
+            events_key = f"session:{session_id}:events"
+            events = redis_manager.redis.lrange(events_key, 0, -1)
+
+            # Look for synthesis_complete or meta_synthesis_complete event
+            synthesis = None
+            for event_json in events:
+                import json
+
+                event = json.loads(event_json)
+                if event.get("event_type") in [
+                    "synthesis_complete",
+                    "meta_synthesis_complete",
+                ]:
+                    synthesis = event.get("data", {}).get("synthesis")
+                    if synthesis:
+                        break
+
+            if not synthesis:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No synthesis found for this session. Run the deliberation to completion first.",
+                )
+
+        # Extract tasks using AI
+        logger.info(f"Extracting tasks from synthesis for session {session_id}")
+
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="AI service not configured",
+            )
+
+        result = sync_extract_tasks_from_synthesis(
+            synthesis=synthesis,
+            session_id=session_id,
+            anthropic_api_key=api_key,
+        )
+
+        logger.info(
+            f"Extracted {result.total_tasks} tasks from session {session_id} "
+            f"(confidence: {result.extraction_confidence:.2f})"
+        )
+
+        # Return task extraction result
+        return result.model_dump()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to extract tasks for session {session_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Task extraction failed: {str(e)}",
         ) from e

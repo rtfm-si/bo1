@@ -220,6 +220,30 @@ export class ApiClient {
 			body: JSON.stringify({ answer })
 		});
 	}
+
+	/**
+	 * Task Extraction Endpoint
+	 */
+
+	async extractTasks(sessionId: string): Promise<{
+		tasks: Array<{
+			id: string;
+			description: string;
+			category: string;
+			priority: string;
+			suggested_completion_date: string | null;
+			dependencies: string[];
+			source_section: string;
+			confidence: number;
+		}>;
+		total_tasks: number;
+		extraction_confidence: number;
+		synthesis_sections_analyzed: string[];
+	}> {
+		return this.fetch(`/api/v1/sessions/${sessionId}/extract-tasks`, {
+			method: 'POST'
+		});
+	}
 }
 
 /**

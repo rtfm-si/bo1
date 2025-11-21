@@ -22,7 +22,6 @@
 		ContributionCard,
 	} from '$lib/components/ui';
 	import type { DropdownItem, Tab, Persona } from '$lib/components/ui';
-	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
 	import { colors } from '$lib/design/tokens';
 
 	// State
@@ -173,7 +172,7 @@
 				</h1>
 				<Badge variant="info">v2.0</Badge>
 			</div>
-			<ThemeSwitcher />
+			<!-- Theme switcher removed - now in Header component -->
 		</div>
 		<p class="text-neutral-600 dark:text-neutral-400">
 			Showcase of all design system components with teal brand color (#00C8B3), progressive

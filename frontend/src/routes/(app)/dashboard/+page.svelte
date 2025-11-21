@@ -4,34 +4,22 @@
 	import { user, isAuthenticated } from '$lib/stores/auth';
 	import Header from '$lib/components/Header.svelte';
 	import { apiClient } from '$lib/api/client';
+	import type { SessionResponse } from '$lib/api/types';
 
-	interface Session {
-		id: string;
-		problem_statement: string;
-		status: 'active' | 'paused' | 'completed' | 'failed' | 'killed';
-		phase: string | null;
-		created_at: string;
-		completed_at?: string;
-		round_number: number;
-	}
-
-	let sessions: Session[] = $state([]);
+	let sessions: SessionResponse[] = $state([]);
 	let isLoading = $state(true);
 	let error: string | null = $state(null);
 
-	onMount(async () => {
+	onMount(() => {
 		console.log('[Dashboard] onMount - waiting for auth...');
 
-		// Give auth store a moment to initialize
-		await new Promise(resolve => setTimeout(resolve, 100));
-
 		// Wait for auth to be initialized before loading sessions
-		const unsubscribe = isAuthenticated.subscribe(async (authenticated) => {
+		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
 			console.log('[Dashboard] isAuthenticated changed:', authenticated);
 
 			if (authenticated) {
 				// User is authenticated - load sessions
-				await loadSessions();
+				loadSessions();
 			} else if (authenticated === false) {
 				// User is NOT authenticated - redirect to login
 				console.log('[Dashboard] Not authenticated, redirecting to login...');
@@ -203,7 +191,7 @@
 									{#if session.status === 'active'}
 										<span class="flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">
 											<span class="inline-block w-2 h-2 bg-brand-600 dark:bg-brand-400 rounded-full animate-pulse"></span>
-											Round {session.round_number || 0}
+											Active
 										</span>
 									{/if}
 								</div>
@@ -223,7 +211,7 @@
 										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
 										</svg>
-										Round {session.round_number}
+										Cost: ${session.cost?.toFixed(4) || "N/A"}
 									</span>
 								</div>
 							</div>

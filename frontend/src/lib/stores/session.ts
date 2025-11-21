@@ -29,7 +29,7 @@ export interface Contribution {
  */
 export interface SessionState {
 	id: string | null;
-	status: 'active' | 'paused' | 'completed' | 'failed' | 'killed' | null;
+	status: 'active' | 'paused' | 'completed' | 'failed' | 'killed' | 'deleted' | 'created' | null;
 	phase: string | null;
 	created_at: string | null;
 	updated_at: string | null;

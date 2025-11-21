@@ -70,7 +70,7 @@ export const darkTheme: Theme = {
 		// Surfaces - lighter for better contrast
 		background: colors.neutral[900], // Was 950 - now lighter
 		surface: colors.neutral[800],     // Was 900 - now lighter
-		surfaceVariant: colors.neutral[750] || '#3a4246', // Was 800 - now lighter
+		surfaceVariant: '#3a4246', // Between 700 and 800 for better contrast
 		// Text - brighter for better readability
 		textPrimary: colors.neutral[100],  // Was 50 - now slightly less bright but still high contrast
 		textSecondary: colors.neutral[300], // Was 400 - now brighter

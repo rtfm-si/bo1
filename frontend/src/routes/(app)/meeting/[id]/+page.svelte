@@ -24,14 +24,14 @@
 		GenericEvent,
 	} from '$lib/components/events';
 
-	const sessionId = $page.params.id;
+	const sessionId: string = $page.params.id!; // SvelteKit guarantees this exists due to [id] route
 
 	interface SessionData {
 		id: string;
 		problem_statement: string;
 		status: string;
 		phase: string | null;
-		round_number: number;
+		round_number?: number; // Optional since it may not exist yet
 		created_at: string;
 	}
 
@@ -50,16 +50,19 @@
 		events = [...events, newEvent];
 	}
 
-	onMount(async () => {
+	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
 			if (!authenticated) {
 				goto('/login');
 			}
 		});
 
-		await loadSession();
-		await loadHistoricalEvents(); // Load history FIRST
-		startEventStream(); // THEN connect to stream
+		// Run async initialization
+		(async () => {
+			await loadSession();
+			await loadHistoricalEvents(); // Load history FIRST
+			startEventStream(); // THEN connect to stream
+		})();
 
 		return unsubscribe;
 	});

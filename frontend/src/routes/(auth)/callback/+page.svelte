@@ -2,23 +2,48 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { initSuperTokens } from '$lib/supertokens';
+	import { initAuth } from '$lib/stores/auth';
 	import ThirdParty from "supertokens-web-js/recipe/thirdparty";
 
 	let error: string | null = null;
 
 	onMount(async () => {
+		console.log('[Callback] Starting OAuth callback processing...');
+		console.log('[Callback] URL:', window.location.href);
+		console.log('[Callback] Search params:', window.location.search);
+
 		// Initialize SuperTokens
 		initSuperTokens();
 
 		try {
 			// Handle OAuth callback - SuperTokens exchanges code for tokens
 			// and creates session with httpOnly cookies
-			await ThirdParty.signInAndUp();
+			console.log('[Callback] Calling ThirdParty.signInAndUp()...');
+			const response = await ThirdParty.signInAndUp();
+			console.log('[Callback] signInAndUp response:', response);
 
-			// Success! Redirect to dashboard
-			goto('/dashboard');
+			// Check if sign-in was successful
+			if (response.status === 'OK') {
+				console.log('[Callback] Sign-in successful!');
+
+				// Wait a moment for cookies to be fully set
+				await new Promise(resolve => setTimeout(resolve, 100));
+
+				// Initialize auth store with the new session
+				console.log('[Callback] Initializing auth store...');
+				await initAuth();
+
+				console.log('[Callback] Redirecting to dashboard...');
+				// Success! Redirect to dashboard
+				goto('/dashboard');
+			} else {
+				console.error('[Callback] Sign-in failed with status:', response.status);
+				error = 'Authentication failed. Please try again.';
+				setTimeout(() => goto('/login'), 3000);
+			}
 		} catch (err: any) {
-			console.error("OAuth callback error:", err);
+			console.error('[Callback] OAuth callback error:', err);
+			console.error('[Callback] Error details:', JSON.stringify(err, null, 2));
 			error = err.message || "Authentication failed";
 
 			// Wait 3 seconds, then redirect to login

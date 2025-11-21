@@ -57,10 +57,16 @@
 		error = null;
 
 		try {
+			// Get API URL from environment
+			const apiUrl = import.meta.env.PUBLIC_API_URL || "http://localhost:8000";
+
 			// Get authorization URL from SuperTokens backend
 			const authUrl = await ThirdParty.getAuthorisationURLWithQueryParamsAndSetState({
 				thirdPartyId: "google",
-				frontendRedirectURI: `${window.location.origin}/auth/callback`,
+				// Both frontendRedirectURI and redirectURIOnProviderDashboard should be the frontend callback
+				// Google sends a GET request to the frontend, then frontend POSTs to backend /api/auth/signinup
+				frontendRedirectURI: `${window.location.origin}/callback`,
+				redirectURIOnProviderDashboard: `${window.location.origin}/callback`,
 			});
 
 			// Redirect browser to Google OAuth

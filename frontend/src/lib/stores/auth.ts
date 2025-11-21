@@ -60,20 +60,27 @@ export const isLoading = derived(authStore, ($auth) => $auth.isLoading);
 export async function initAuth(): Promise<void> {
 	if (!browser) return;
 
+	console.log('[Auth] Initializing auth...');
+
 	try {
 		authStore.update((state) => ({ ...state, isLoading: true, error: null }));
 
 		// Check if SuperTokens session exists (checks httpOnly cookie)
+		console.log('[Auth] Checking if session exists...');
 		const sessionExists = await Session.doesSessionExist();
+		console.log('[Auth] Session exists:', sessionExists);
 
 		if (sessionExists) {
 			// Get user info from backend
+			console.log('[Auth] Fetching user info from /api/auth/me...');
 			const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
 				credentials: 'include', // Send cookies
 			});
+			console.log('[Auth] /api/auth/me response status:', response.status);
 
 			if (response.ok) {
 				const userData = await response.json();
+				console.log('[Auth] User data:', userData);
 
 				// User is authenticated
 				authStore.set({
@@ -82,12 +89,17 @@ export async function initAuth(): Promise<void> {
 					isLoading: false,
 					error: null
 				});
+				console.log('[Auth] Authentication successful!');
 			} else {
 				// Session exists but /me failed - sign out
+				console.error('[Auth] /api/auth/me failed with status:', response.status);
+				const errorText = await response.text();
+				console.error('[Auth] Error response:', errorText);
 				await signOut();
 			}
 		} else {
 			// No session
+			console.log('[Auth] No session found, user not authenticated');
 			authStore.set({
 				user: null,
 				isAuthenticated: false,
@@ -96,7 +108,7 @@ export async function initAuth(): Promise<void> {
 			});
 		}
 	} catch (error) {
-		console.error('Failed to initialize auth:', error);
+		console.error('[Auth] Failed to initialize auth:', error);
 		authStore.set({
 			user: null,
 			isAuthenticated: false,

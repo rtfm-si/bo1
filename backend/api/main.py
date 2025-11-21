@@ -17,7 +17,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from backend.api import admin, auth, context, control, health, sessions, streaming, waitlist
+from backend.api import (
+    admin,
+    auth,
+    context,
+    control,
+    health,
+    sessions,
+    streaming,
+    supertokens_routes,
+    waitlist,
+)
 from backend.api.middleware.auth import require_admin
 from backend.api.supertokens_config import add_supertokens_middleware, init_supertokens
 from bo1.config import get_settings
@@ -119,7 +129,7 @@ app = FastAPI(
     ],
 )
 
-# Initialize SuperTokens (MUST be before CORS middleware)
+# Initialize SuperTokens (MUST be before CORS middleware and routes)
 init_supertokens()
 add_supertokens_middleware(app)
 
@@ -162,11 +172,17 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=ALLOWED_METHODS,
     allow_headers=ALLOWED_HEADERS,
+    expose_headers=["front-token"],  # SuperTokens uses front-token header for JWT payload
 )
 
 # Include routers
 app.include_router(health.router, prefix="/api", tags=["health"])
-app.include_router(auth.router, prefix="/api", tags=["authentication"])
+app.include_router(
+    supertokens_routes.router, prefix="/api/auth", tags=["authentication"]
+)  # SuperTokens OAuth routes
+app.include_router(
+    auth.router, prefix="/api/auth", tags=["authentication"]
+)  # Custom auth endpoints (e.g., /me)
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(streaming.router, prefix="/api", tags=["streaming"])
 app.include_router(context.router, prefix="/api", tags=["context"])

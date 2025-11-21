@@ -20,13 +20,21 @@
 	let error: string | null = $state(null);
 
 	onMount(async () => {
+		console.log('[Dashboard] onMount - waiting for auth...');
+
+		// Give auth store a moment to initialize
+		await new Promise(resolve => setTimeout(resolve, 100));
+
 		// Wait for auth to be initialized before loading sessions
 		const unsubscribe = isAuthenticated.subscribe(async (authenticated) => {
+			console.log('[Dashboard] isAuthenticated changed:', authenticated);
+
 			if (authenticated) {
 				// User is authenticated - load sessions
 				await loadSessions();
 			} else if (authenticated === false) {
 				// User is NOT authenticated - redirect to login
+				console.log('[Dashboard] Not authenticated, redirecting to login...');
 				goto('/login');
 			}
 			// If undefined, auth is still loading - do nothing

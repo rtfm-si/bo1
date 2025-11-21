@@ -96,9 +96,11 @@ def override_thirdparty_functions(
         third_party_id: str,
         third_party_user_id: str,
         email: str,
+        is_verified: bool,
         oauth_tokens: dict[str, Any],
         raw_user_info_from_provider: RawUserInfoFromProvider,
         session: Any | None,
+        should_try_linking_with_session_user: bool | None,
         tenant_id: str,
         user_context: dict[str, Any],
     ) -> Any:  # Return type matches SuperTokens RecipeInterface
@@ -127,16 +129,16 @@ def override_thirdparty_functions(
             third_party_id,
             third_party_user_id,
             email,
+            is_verified,
             oauth_tokens,
             raw_user_info_from_provider,
             session,
+            should_try_linking_with_session_user,
             tenant_id,
             user_context,
         )
 
-        logger.info(
-            f"User signed in: {email} (user_id: {result.user.user_id}, is_new: {result.recipe_user_id})"
-        )
+        logger.info(f"User signed in: {email} (user_id: {result.user.id})")
 
         return result
 

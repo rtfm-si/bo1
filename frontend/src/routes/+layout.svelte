@@ -4,8 +4,12 @@
 	import CookieConsent from '$lib/components/CookieConsent.svelte';
 	import { initAuth } from '$lib/stores/auth';
 	import { initializeTheme } from '$lib/design/themes';
+	import { initSuperTokens } from '$lib/supertokens';
 
 	onMount(() => {
+		// Initialize SuperTokens SDK first
+		initSuperTokens();
+
 		// Initialize theme system on app mount
 		initializeTheme();
 

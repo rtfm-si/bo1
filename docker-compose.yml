@@ -101,12 +101,7 @@ services:
       - ENABLE_DRIFT_DETECTION=${ENABLE_DRIFT_DETECTION:-true}
       - ENABLE_EARLY_STOPPING=${ENABLE_EARLY_STOPPING:-true}
 
-      # Authentication & Authorization
-      - ENABLE_SUPABASE_AUTH=${ENABLE_SUPABASE_AUTH:-true}
-      - SUPABASE_URL=${SUPABASE_URL:-http://localhost:9999}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      # Authentication & Authorization (SuperTokens)
       - CLOSED_BETA_MODE=${CLOSED_BETA_MODE:-false}
       - BETA_WHITELIST=${BETA_WHITELIST}
     volumes:
@@ -130,66 +125,6 @@ services:
       - bo1-network
     stdin_open: true  # Keep STDIN open for interactive console
     tty: true         # Allocate pseudo-TTY for Rich console
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
-  # Supabase GoTrue: Self-hosted OAuth authentication server
-  # ---------------------------------------------------------------------------
-  supabase-auth:
-    image: supabase/gotrue:v2.181.0
-    container_name: bo1-supabase-auth
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      # Database
-      - GOTRUE_DB_DRIVER=postgres
-      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/boardofone
-      - GOTRUE_DB_SCHEMA=auth
-
-      # Site Configuration
-      - GOTRUE_SITE_URL=${SITE_URL:-http://localhost:5173}
-      - GOTRUE_URI_ALLOW_LIST=${SITE_URL:-http://localhost:5173}
-
-      # JWT Configuration
-      - GOTRUE_JWT_SECRET=${SUPABASE_JWT_SECRET}
-      - GOTRUE_JWT_EXP=3600
-      - GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated
-
-      # Auth Configuration
-      - GOTRUE_DISABLE_SIGNUP=false
-      - GOTRUE_MAILER_AUTOCONFIRM=true
-      - API_EXTERNAL_URL=http://supabase-auth:8081
-      - GOTRUE_EXTERNAL_FLOW_STATE_EXPIRY_DURATION=300s
-      - GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL=0
-
-      # Google OAuth
-      - GOTRUE_EXTERNAL_GOOGLE_ENABLED=${GOOGLE_OAUTH_ENABLED:-false}
-      - GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
-      - GOTRUE_EXTERNAL_GOOGLE_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=http://localhost:9999/callback
-
-      # GitHub OAuth
-      - GOTRUE_EXTERNAL_GITHUB_ENABLED=${GITHUB_OAUTH_ENABLED:-false}
-      - GOTRUE_EXTERNAL_GITHUB_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID:-}
-      - GOTRUE_EXTERNAL_GITHUB_SECRET=${GITHUB_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI=http://localhost:9999/callback
-
-      # LinkedIn OAuth
-      - GOTRUE_EXTERNAL_LINKEDIN_ENABLED=${LINKEDIN_OAUTH_ENABLED:-false}
-      - GOTRUE_EXTERNAL_LINKEDIN_CLIENT_ID=${LINKEDIN_OAUTH_CLIENT_ID:-}
-      - GOTRUE_EXTERNAL_LINKEDIN_SECRET=${LINKEDIN_OAUTH_CLIENT_SECRET:-}
-      - GOTRUE_EXTERNAL_LINKEDIN_REDIRECT_URI=http://localhost:9999/callback
-    ports:
-      - "9999:8081"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-    networks:
-      - bo1-network
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -240,7 +175,7 @@ services:
       postgres:
         condition: service_healthy
       supertokens:
-        condition: service_healthy
+        condition: service_started
     environment:
       # Redis Configuration
       - REDIS_HOST=redis
@@ -261,11 +196,6 @@ services:
       - API_RELOAD=true
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
-
-      # Supabase Auth Configuration
-      - SUPABASE_URL=http://supabase-auth:8081  # Internal API calls
-      - SUPABASE_BROWSER_URL=http://localhost:9999  # Browser redirects
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
 
       # Application Configuration
       - DEBUG=${DEBUG:-true}
@@ -291,8 +221,6 @@ services:
     depends_on:
       api:
         condition: service_started
-      supabase-auth:
-        condition: service_healthy
     environment:
       - NODE_ENV=development
       - PUBLIC_API_URL=http://localhost:8000

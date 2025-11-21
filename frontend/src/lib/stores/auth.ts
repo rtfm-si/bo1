@@ -1,21 +1,22 @@
 /**
- * Authentication store for Board of One frontend - BFF Pattern.
+ * Authentication store for Board of One frontend - SuperTokens BFF Pattern.
  *
  * Manages:
  * - User authentication state (logged in/out)
  * - User profile data
- * - Session management via httpOnly cookies
+ * - Session management via httpOnly cookies (SuperTokens)
  *
  * Security:
  * - NO token storage in localStorage/sessionStorage
- * - Tokens stored in Redis (backend only)
- * - httpOnly cookies prevent XSS attacks
- * - All auth flows handled by backend
+ * - Tokens stored as httpOnly cookies (XSS-proof)
+ * - Session management handled by SuperTokens SDK
+ * - All auth flows handled server-side (BFF pattern)
  */
 
 import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
+import Session from "supertokens-web-js/recipe/session";
 
 const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -50,11 +51,11 @@ export const isAuthenticated = derived(authStore, ($auth) => $auth.isAuthenticat
 export const isLoading = derived(authStore, ($auth) => $auth.isLoading);
 
 /**
- * Initialize auth store - check if user is already authenticated.
- * Called on app mount.
+ * Initialize auth store - check if user has valid SuperTokens session.
+ * Called on app mount in +layout.svelte.
  *
- * Checks session cookie by calling /api/auth/me endpoint.
- * Backend validates session and returns user data if valid.
+ * SuperTokens automatically checks httpOnly session cookie.
+ * If valid, fetches user data from backend /api/auth/me.
  */
 export async function initAuth(): Promise<void> {
 	if (!browser) return;
@@ -62,28 +63,31 @@ export async function initAuth(): Promise<void> {
 	try {
 		authStore.update((state) => ({ ...state, isLoading: true, error: null }));
 
-		// Call backend to check session
-		// Backend checks httpOnly cookie, validates session in Redis
-		const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-			method: 'GET',
-			credentials: 'include', // Send cookies
-			headers: {
-				'Content-Type': 'application/json'
-			}
-		});
+		// Check if SuperTokens session exists (checks httpOnly cookie)
+		const sessionExists = await Session.doesSessionExist();
 
-		if (response.ok) {
-			const userData = await response.json();
-
-			// User is authenticated
-			authStore.set({
-				user: userData,
-				isAuthenticated: true,
-				isLoading: false,
-				error: null
+		if (sessionExists) {
+			// Get user info from backend
+			const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+				credentials: 'include', // Send cookies
 			});
+
+			if (response.ok) {
+				const userData = await response.json();
+
+				// User is authenticated
+				authStore.set({
+					user: userData,
+					isAuthenticated: true,
+					isLoading: false,
+					error: null
+				});
+			} else {
+				// Session exists but /me failed - sign out
+				await signOut();
+			}
 		} else {
-			// Not authenticated or session expired
+			// No session
 			authStore.set({
 				user: null,
 				isAuthenticated: false,
@@ -103,23 +107,16 @@ export async function initAuth(): Promise<void> {
 }
 
 /**
- * Sign out user - clear session and redirect to login.
+ * Sign out user - clear SuperTokens session and redirect to login.
  *
- * Calls backend /api/auth/logout to invalidate session in Redis.
- * Backend also clears the httpOnly cookie.
+ * SuperTokens SDK calls backend to invalidate session and clears httpOnly cookies.
  */
 export async function signOut(): Promise<void> {
 	try {
-		// Call backend logout endpoint
-		await fetch(`${API_BASE_URL}/api/auth/logout`, {
-			method: 'POST',
-			credentials: 'include', // Send cookies
-			headers: {
-				'Content-Type': 'application/json'
-			}
-		});
+		// Call SuperTokens signOut - clears session and httpOnly cookies
+		await Session.signOut();
 	} catch (error) {
-		console.error('Logout API call failed:', error);
+		console.error('Sign out failed:', error);
 		// Continue with local cleanup even if API call fails
 	}
 
@@ -138,33 +135,11 @@ export async function signOut(): Promise<void> {
 }
 
 /**
- * Refresh access token using refresh token from session.
- * Called automatically by interceptor when access token expires.
- *
- * Returns true if refresh succeeded, false otherwise.
+ * Check if session is still valid.
+ * SuperTokens automatically refreshes tokens when needed.
  */
-export async function refreshAccessToken(): Promise<boolean> {
-	try {
-		const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
-			method: 'POST',
-			credentials: 'include', // Send cookies
-			headers: {
-				'Content-Type': 'application/json'
-			}
-		});
-
-		if (!response.ok) {
-			throw new Error('Token refresh failed');
-		}
-
-		// Token refreshed successfully (session updated in Redis by backend)
-		return true;
-	} catch (error) {
-		console.error('Token refresh failed:', error);
-		// Sign out user if refresh fails
-		await signOut();
-		return false;
-	}
+export async function checkSession(): Promise<void> {
+	await initAuth();
 }
 
 // Export store

@@ -2,16 +2,18 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { isAuthenticated } from '$lib/stores/auth';
+	import { initSuperTokens } from '$lib/supertokens';
+	import ThirdParty from "supertokens-web-js/recipe/thirdparty";
 	import { browser } from '$app/environment';
-
-	// Backend URL for OAuth initiation
-	const BACKEND_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
 
 	let isLoading = false;
 	let error: string | null = null;
 
 	// Redirect if already authenticated
 	onMount(() => {
+		// Initialize SuperTokens
+		initSuperTokens();
+
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
 			if (authenticated) {
 				goto('/dashboard');
@@ -47,21 +49,27 @@
 	});
 
 	/**
-	 * Initiate Google OAuth flow via backend BFF pattern.
-	 * Simply redirects to backend /api/auth/google/login endpoint.
-	 * Backend handles all PKCE generation, state management, and OAuth flow.
+	 * Initiate Google OAuth flow via SuperTokens.
+	 * Gets authorization URL from backend and redirects browser.
 	 */
-	function handleGoogleSignIn() {
+	async function handleGoogleSignIn() {
 		isLoading = true;
 		error = null;
 
-		// Redirect to backend OAuth login endpoint
-		// Backend will:
-		// 1. Generate PKCE challenge
-		// 2. Store verifier in Redis
-		// 3. Set temporary cookie with state
-		// 4. Redirect to Supabase OAuth
-		window.location.href = `${BACKEND_URL}/api/auth/google/login`;
+		try {
+			// Get authorization URL from SuperTokens backend
+			const authUrl = await ThirdParty.getAuthorisationURLWithQueryParamsAndSetState({
+				thirdPartyId: "google",
+				frontendRedirectURI: `${window.location.origin}/auth/callback`,
+			});
+
+			// Redirect browser to Google OAuth
+			window.location.href = authUrl;
+		} catch (err: any) {
+			console.error("Failed to initiate Google sign-in:", err);
+			error = "Failed to initiate sign-in. Please try again.";
+			isLoading = false;
+		}
 	}
 </script>
 

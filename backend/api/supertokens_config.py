@@ -86,13 +86,13 @@ def get_oauth_providers() -> list[ProviderInput]:
     return providers
 
 
-async def override_thirdparty_functions(
+def override_thirdparty_functions(
     original_implementation: RecipeInterface,
 ) -> RecipeInterface:
     """Override ThirdParty functions to add custom logic (whitelist validation)."""
     original_sign_in_up = original_implementation.sign_in_up
 
-    async def sign_in_up(  # type: ignore[no-untyped-def]
+    async def sign_in_up(
         third_party_id: str,
         third_party_user_id: str,
         email: str,
@@ -101,7 +101,7 @@ async def override_thirdparty_functions(
         session: Any | None,
         tenant_id: str,
         user_context: dict[str, Any],
-    ):
+    ) -> Any:  # Return type matches SuperTokens RecipeInterface
         """Override sign in/up to add closed beta whitelist validation."""
         # Check if closed beta mode is enabled
         if os.getenv("CLOSED_BETA_MODE", "false").lower() == "true":

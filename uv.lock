@@ -346,7 +346,7 @@ requires-dist = [
     { name = "sse-starlette", specifier = ">=3.0.3,<4.0" },
     { name = "starlette", specifier = ">=0.50.0,<1.0" },
     { name = "supabase", specifier = ">=2.0.0,<3.0" },
-    { name = "supertokens-python", specifier = ">=0.30.0,<1.0" },
+    { name = "supertokens-python", specifier = ">=0.29.0,<0.30.0" },
     { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.0" },
     { name = "types-redis", marker = "extra == 'dev'", specifier = ">=4.6.0" },
     { name = "types-requests", marker = "extra == 'dev'", specifier = ">=2.31.0" },
@@ -2784,7 +2784,7 @@ wheels = [
 
 [[package]]
 name = "supertokens-python"
-version = "0.30.2"
+version = "0.29.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiosmtplib" },
@@ -2794,7 +2794,6 @@ dependencies = [
     { name = "phonenumbers" },
     { name = "pkce" },
     { name = "pycryptodome" },
-    { name = "pydantic" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "pyotp" },
     { name = "python-dateutil" },
@@ -2802,9 +2801,9 @@ dependencies = [
     { name = "twilio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8e/9a/994147c9b55b2d3d13d4a63e61d032c24ea660571d3041d377bebc6915e1/supertokens_python-0.30.2.tar.gz", hash = "sha256:9e252d0369a321a67b70a3fd43bc8bb58b87bef0dea5e7baf243f6008cf34e03", size = 448392, upload-time = "2025-08-22T12:25:43.952Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5b/af/a94e3a90302717306001f2551ced0199b0fbbcfa805de5cc4bcaf8fa9036/supertokens_python-0.29.2.tar.gz", hash = "sha256:c37caaf81c159c686cca0a7990ebeac272309a87078edea0bc0fc48ba1cccac1", size = 409211, upload-time = "2025-05-20T11:08:16.545Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2e/a2/6124b588d4c04d5807a782c8f9f7f4f5ecb46a533fa8e34a925367372c8b/supertokens_python-0.30.2-py3-none-any.whl", hash = "sha256:cad41f864b88c47ff9c2d066d1b3752c582aab6c0dec8cb4e35b8363b5d7d157", size = 803380, upload-time = "2025-08-22T12:25:42.49Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/27/b021b3fb52cd0332afa5394d887d940677f757e582d07f3fd178c30d431e/supertokens_python-0.29.2-py3-none-any.whl", hash = "sha256:9886c1257432403dfb7a862a914b2308f84f15992b5616c7797a32feae163e80", size = 737107, upload-time = "2025-05-20T11:08:14.582Z" },
 ]
 
 [[package]]
@@ -2827,7 +2826,7 @@ wheels = [
 
 [[package]]
 name = "tldextract"
-version = "5.3.0"
+version = "5.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
@@ -2835,9 +2834,9 @@ dependencies = [
     { name = "requests" },
     { name = "requests-file" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/97/78/182641ea38e3cfd56e9c7b3c0d48a53d432eea755003aa544af96403d4ac/tldextract-5.3.0.tar.gz", hash = "sha256:b3d2b70a1594a0ecfa6967d57251527d58e00bb5a91a74387baa0d87a0678609", size = 128502, upload-time = "2025-04-22T06:19:37.491Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/db/ed/c92a5d6edaafec52f388c2d2946b4664294299cebf52bb1ef9cbc44ae739/tldextract-5.1.2.tar.gz", hash = "sha256:c9e17f756f05afb5abac04fe8f766e7e70f9fe387adb1859f0f52408ee060200", size = 116825, upload-time = "2024-03-19T04:08:10.962Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/67/7c/ea488ef48f2f544566947ced88541bc45fae9e0e422b2edbf165ee07da99/tldextract-5.3.0-py3-none-any.whl", hash = "sha256:f70f31d10b55c83993f55e91ecb7c5d84532a8972f22ec578ecfbe5ea2292db2", size = 107384, upload-time = "2025-04-22T06:19:36.304Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/6d/8eaafb735b39c4ab3bb8fe4324ef8f0f0af27a7df9bb4cd503927bd5475d/tldextract-5.1.2-py3-none-any.whl", hash = "sha256:4dfc4c277b6b97fa053899fcdb892d2dc27295851ab5fac4e07797b6a21b2e46", size = 97560, upload-time = "2024-03-19T04:08:08.492Z" },
 ]
 
 [[package]]

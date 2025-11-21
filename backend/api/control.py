@@ -146,12 +146,9 @@ async def start_deliberation(
         # TODO(Week 7+): Load personas from session metadata or user selection
         all_personas = load_personas()  # Returns tuple of dicts
         # Select first 3 personas as default for MVP and convert to PersonaProfile objects
-        from bo1.models.personas import PersonaProfile
+        from bo1.models.persona import PersonaProfile
 
-        personas = [
-            PersonaProfile(code=p["code"], name=p["name"], system_prompt=p["system_prompt"])
-            for p in all_personas[:3]
-        ]
+        personas = [PersonaProfile(**p) for p in all_personas[:3]]
 
         # Create initial state
         state = create_initial_state(
@@ -164,9 +161,20 @@ async def start_deliberation(
         # Create graph
         graph = create_deliberation_graph()
 
-        # Create coroutine
-        config = {"configurable": {"thread_id": session_id}}
-        coro = graph.ainvoke(state, config=config)
+        # Create event collector for real-time streaming
+        from backend.api.dependencies import get_event_publisher
+        from backend.api.event_collector import EventCollector
+
+        event_collector = EventCollector(get_event_publisher())
+
+        # Create coroutine with event collection
+        from bo1.graph.safety.loop_prevention import DELIBERATION_RECURSION_LIMIT
+
+        config = {
+            "configurable": {"thread_id": session_id},
+            "recursion_limit": DELIBERATION_RECURSION_LIMIT,
+        }
+        coro = event_collector.collect_and_publish(session_id, graph, state, config)
 
         # Start background task
         await session_manager.start_session(session_id, user_id, coro)
@@ -318,9 +326,20 @@ async def resume_deliberation(
         # Create graph
         graph = create_deliberation_graph()
 
+        # Create event collector for real-time streaming
+        from backend.api.dependencies import get_event_publisher
+        from backend.api.event_collector import EventCollector
+
+        event_collector = EventCollector(get_event_publisher())
+
         # Resume from checkpoint (pass None as state to continue from checkpoint)
-        config = {"configurable": {"thread_id": session_id}}
-        coro = graph.ainvoke(None, config=config)
+        from bo1.graph.safety.loop_prevention import DELIBERATION_RECURSION_LIMIT
+
+        config = {
+            "configurable": {"thread_id": session_id},
+            "recursion_limit": DELIBERATION_RECURSION_LIMIT,
+        }
+        coro = event_collector.collect_and_publish(session_id, graph, None, config)
 
         # Start background task
         await session_manager.start_session(session_id, user_id, coro)

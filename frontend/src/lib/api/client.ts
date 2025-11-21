@@ -151,6 +151,16 @@ export class ApiClient {
 		return this.fetch<SessionDetailResponse>(`/api/v1/sessions/${sessionId}`);
 	}
 
+	async getSessionEvents(sessionId: string): Promise<{ session_id: string; events: any[]; count: number }> {
+		return this.fetch<{ session_id: string; events: any[]; count: number }>(`/api/v1/sessions/${sessionId}/events`);
+	}
+
+	async deleteSession(sessionId: string): Promise<SessionResponse> {
+		return this.fetch<SessionResponse>(`/api/v1/sessions/${sessionId}`, {
+			method: 'DELETE'
+		});
+	}
+
 	/**
 	 * Control Endpoints
 	 */

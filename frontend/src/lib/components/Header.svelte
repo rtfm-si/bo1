@@ -2,6 +2,7 @@
 	/**
 	 * Header Component - Reusable navigation header with logo and auth
 	 */
+	import { goto } from '$app/navigation';
 	import Button from '$lib/components/ui/Button.svelte';
 	import { isAuthenticated, user, signOut } from '$lib/stores/auth';
 
@@ -16,16 +17,20 @@
 
 	// Navigation handlers
 	function handleSignIn() {
-		window.location.href = '/login';
+		goto('/login');
 	}
 
 	function handleGetStarted() {
-		window.location.href = '/waitlist';
+		goto('/waitlist');
+	}
+
+	function handleNewMeeting() {
+		goto('/meeting/new');
 	}
 
 	async function handleSignOut() {
 		await signOut();
-		window.location.href = '/';
+		goto('/');
 	}
 
 	const headerClasses = $derived(
@@ -93,7 +98,7 @@
 						<Button variant="ghost" size="sm" onclick={handleSignOut}>
 							Sign Out
 						</Button>
-						<Button variant="brand" size="sm" onclick={() => (window.location.href = '/meeting/new')}>
+						<Button variant="brand" size="sm" onclick={handleNewMeeting}>
 							New Meeting
 						</Button>
 					{:else}

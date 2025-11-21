@@ -3,6 +3,7 @@
 Provides singleton instances of:
 - RedisManager: Redis connection management
 - SessionManager: Active session management with ownership tracking
+- EventPublisher: Event publishing for SSE streaming
 - PostgreSQL connection pool (via postgres_manager)
 
 All dependencies use @lru_cache for singleton pattern.
@@ -11,6 +12,7 @@ All dependencies use @lru_cache for singleton pattern.
 import os
 from functools import lru_cache
 
+from backend.api.event_publisher import EventPublisher
 from bo1.graph.execution import SessionManager
 from bo1.state.redis_manager import RedisManager
 
@@ -51,3 +53,21 @@ def get_session_manager() -> SessionManager:
     admin_user_ids = {user.strip() for user in admin_users_env.split(",") if user.strip()}
 
     return SessionManager(redis_manager, admin_user_ids=admin_user_ids)
+
+
+@lru_cache(maxsize=1)
+def get_event_publisher() -> EventPublisher:
+    """Get singleton event publisher instance.
+
+    The event publisher broadcasts deliberation events to Redis PubSub
+    channels for real-time SSE streaming to web clients.
+
+    Returns:
+        EventPublisher instance (cached)
+
+    Examples:
+        >>> publisher = get_event_publisher()
+        >>> publisher.publish_event(session_id, "decomposition_complete", {...})
+    """
+    redis_manager = get_redis_manager()
+    return EventPublisher(redis_manager.redis)

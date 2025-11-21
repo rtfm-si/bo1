@@ -132,6 +132,7 @@ class SessionResponse(BaseModel):
         phase: Current deliberation phase
         created_at: Session creation timestamp
         updated_at: Last update timestamp
+        last_activity_at: Last activity timestamp (state change, API call, etc.)
         problem_statement: Truncated problem statement
         cost: Total cost so far (if available)
     """
@@ -140,7 +141,7 @@ class SessionResponse(BaseModel):
     status: str = Field(
         ...,
         description="Current session status",
-        examples=["active", "completed", "failed", "paused"],
+        examples=["active", "completed", "failed", "paused", "created", "deleted"],
     )
     phase: str | None = Field(
         None,
@@ -149,6 +150,9 @@ class SessionResponse(BaseModel):
     )
     created_at: datetime = Field(..., description="Session creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
+    last_activity_at: datetime | None = Field(
+        None, description="Last activity timestamp (state change, API call, etc.)"
+    )
     problem_statement: str = Field(..., description="Problem statement (truncated for list view)")
     cost: float | None = Field(None, description="Total cost so far (USD)")
 

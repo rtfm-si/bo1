@@ -8,7 +8,7 @@ import logging
 import os
 from typing import Any
 
-from langgraph.checkpoint.redis import RedisSaver
+from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 from langgraph.graph import END, StateGraph
 
 from bo1.graph.nodes import (
@@ -63,8 +63,10 @@ def create_deliberation_graph(
         # This prevents Redis from growing indefinitely with old checkpoints
         ttl_seconds = int(os.getenv("CHECKPOINT_TTL_SECONDS", "604800"))
 
-        actual_checkpointer = RedisSaver(redis_url=redis_url)
-        logger.info(f"Created Redis checkpointer: {redis_url} (TTL: {ttl_seconds}s)")
+        # Create AsyncRedisSaver - let it create its own Redis client
+        # AsyncRedisSaver handles decode_responses internally
+        actual_checkpointer = AsyncRedisSaver(redis_url)
+        logger.info(f"Created Async Redis checkpointer: {redis_url} (TTL: {ttl_seconds}s)")
     elif checkpointer is False:
         # Explicitly disabled (for tests)
         actual_checkpointer = None

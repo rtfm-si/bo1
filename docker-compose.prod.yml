@@ -37,15 +37,16 @@ services:
 
   # ---------------------------------------------------------------------------
   # Redis: State management, LLM caching, session storage
+  # NOTE: Using RedisStack to support JSON commands (required by LangGraph AsyncRedisSaver)
   # ---------------------------------------------------------------------------
   redis:
-    image: redis:7-alpine  # Auto-updates to latest 7.x minor versions
+    image: redis/redis-stack-server:7.4.0-v1  # RedisStack includes RedisJSON module
     ports:
       - "127.0.0.1:6379:6379"  # Only localhost access
     volumes:
       - redis-data:/data
     command: >
-      redis-server
+      redis-stack-server
       --appendonly yes
       --maxmemory 512mb
       --maxmemory-policy allkeys-lru

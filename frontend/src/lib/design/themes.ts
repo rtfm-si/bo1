@@ -67,16 +67,16 @@ export const darkTheme: Theme = {
 	name: 'dark',
 	displayName: 'Dark',
 	colors: {
-		// Surfaces
-		background: colors.neutral[950],
-		surface: colors.neutral[900],
-		surfaceVariant: colors.neutral[800],
-		// Text
-		textPrimary: colors.neutral[50],
-		textSecondary: colors.neutral[400],
-		textTertiary: colors.neutral[500],
-		// Borders
-		border: colors.neutral[700],
+		// Surfaces - lighter for better contrast
+		background: colors.neutral[900], // Was 950 - now lighter
+		surface: colors.neutral[800],     // Was 900 - now lighter
+		surfaceVariant: colors.neutral[750] || '#3a4246', // Was 800 - now lighter
+		// Text - brighter for better readability
+		textPrimary: colors.neutral[100],  // Was 50 - now slightly less bright but still high contrast
+		textSecondary: colors.neutral[300], // Was 400 - now brighter
+		textTertiary: colors.neutral[400],  // Was 500 - now brighter
+		// Borders - more visible
+		border: colors.neutral[600],        // Was 700 - now lighter/more visible
 		borderFocus: colors.brand[400],
 		// Semantic (slightly brighter in dark mode, but still muted)
 		brand: colors.brand[400],
@@ -125,62 +125,103 @@ export const themes: Record<string, Theme> = {
 
 export type ThemeName = keyof typeof themes;
 
+// Theme mode includes 'auto' for system preference following
+export type ThemeMode = 'auto' | ThemeName;
+
 // ============================================================================
 // Theme Application Logic
 // ============================================================================
 
 /**
- * Apply theme to document by setting CSS custom properties
+ * Get system color scheme preference
  */
-export function applyTheme(themeName: ThemeName): void {
+function getSystemTheme(): ThemeName {
+	if (typeof window === 'undefined') return 'light';
+	return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+/**
+ * Apply theme to document by setting CSS custom properties and classes
+ * Uses .theme-{name} class pattern for better isolation
+ */
+export function applyTheme(themeName: ThemeName, preserveAuto: boolean = false): void {
 	const theme = themes[themeName];
 	if (!theme) {
 		console.warn(`Theme "${themeName}" not found. Using light theme.`);
-		applyTheme('light');
+		applyTheme('light', preserveAuto);
 		return;
 	}
 
 	const root = document.documentElement;
 
-	// Apply CSS custom properties
+	// Apply CSS custom properties (for components that use --color-* directly)
 	Object.entries(theme.colors).forEach(([key, value]) => {
 		root.style.setProperty(`--color-${key}`, value);
 	});
 
-	// Update dark mode class
-	if (themeName === 'dark' || themeName === 'ocean') {
-		root.classList.add('dark');
-	} else {
-		root.classList.remove('dark');
+	// Remove theme classes (but preserve theme-auto if requested)
+	root.classList.remove('theme-light', 'theme-dark', 'theme-ocean', 'dark');
+	if (!preserveAuto) {
+		root.classList.remove('theme-auto');
 	}
 
-	// Store theme preference
-	localStorage.setItem('theme', themeName);
+	// Add theme-specific class
+	root.classList.add(`theme-${themeName}`);
+
+	// Add dark class for dark/ocean themes (for backward compatibility)
+	if (themeName === 'dark' || themeName === 'ocean') {
+		root.classList.add('dark');
+	}
 }
 
 /**
- * Get current theme from localStorage or system preference
+ * Apply theme mode (handles 'auto' by detecting system preference)
  */
-export function getCurrentTheme(): ThemeName {
-	// Check localStorage first
-	const stored = localStorage.getItem('theme') as ThemeName | null;
-	if (stored && themes[stored]) {
-		return stored;
+export function applyThemeMode(mode: ThemeMode): void {
+	const root = document.documentElement;
+	let effectiveTheme: ThemeName;
+
+	if (mode === 'auto') {
+		effectiveTheme = getSystemTheme();
+		// Add auto-mode class BEFORE applying theme to preserve it
+		root.classList.add('theme-auto');
+		// Apply theme while preserving theme-auto class
+		applyTheme(effectiveTheme, true);
+	} else {
+		// Remove auto-mode class for explicit themes
+		root.classList.remove('theme-auto');
+		effectiveTheme = mode;
+		applyTheme(effectiveTheme, false);
 	}
 
-	// Fall back to system preference
-	if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-		return 'dark';
-	}
+	// Store mode preference (not effective theme)
+	localStorage.setItem('theme', mode);
+}
 
-	return 'light';
+/**
+ * Get current theme mode from localStorage or default to 'auto'
+ * SIMPLIFIED: Always returns 'auto' to follow system preference
+ */
+export function getCurrentThemeMode(): ThemeMode {
+	// Always use auto mode - follow system preference
+	return 'auto';
+}
+
+/**
+ * Get effective theme (resolves 'auto' to actual theme)
+ */
+export function getEffectiveTheme(mode: ThemeMode): ThemeName {
+	if (mode === 'auto') {
+		return getSystemTheme();
+	}
+	return mode;
 }
 
 /**
  * Initialize theme on app load
  */
-export function initializeTheme(): ThemeName {
-	const theme = getCurrentTheme();
-	applyTheme(theme);
-	return theme;
+export function initializeTheme(): ThemeMode {
+	const mode = getCurrentThemeMode();
+	applyThemeMode(mode);
+	return mode;
 }

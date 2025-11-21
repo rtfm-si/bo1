@@ -195,6 +195,37 @@ export class SSEClient {
 			}
 		};
 
+		// Register listeners for named event types
+		const eventTypes: SSEEventType[] = [
+			'node_start',
+			'node_end',
+			'contribution',
+			'facilitator_decision',
+			'convergence',
+			'complete',
+			'error',
+			'clarification_requested',
+			'clarification_answered'
+		];
+
+		eventTypes.forEach((type) => {
+			this.eventSource!.addEventListener(type, (event: Event) => {
+				try {
+					const messageEvent = event as MessageEvent;
+					const parsedData = JSON.parse(messageEvent.data);
+					const sseEvent: AnySSEEvent = {
+						type,
+						data: parsedData,
+						timestamp: parsedData.timestamp || new Date().toISOString()
+					};
+					console.log(`[SSE] Received ${type} event:`, parsedData);
+					this.handleEvent(sseEvent);
+				} catch (error) {
+					console.error(`[SSE] Failed to parse ${type} event:`, error);
+				}
+			});
+		});
+
 		// Handle errors
 		this.eventSource.onerror = (error: Event) => {
 			console.error('[SSE] Connection error:', error);

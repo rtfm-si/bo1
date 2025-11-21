@@ -166,6 +166,19 @@ class RedisManager:
             assert self.redis is not None  # Type guard: checked by is_available
             self.redis.setex(key, ttl_seconds, state_json)
 
+            # Update last_activity_at in metadata
+            try:
+                from datetime import UTC, datetime
+
+                metadata = self.load_metadata(session_id)
+                if metadata:
+                    metadata["last_activity_at"] = datetime.now(UTC).isoformat()
+                    metadata["updated_at"] = datetime.now(UTC).isoformat()
+                    self.save_metadata(session_id, metadata)
+            except Exception as e:
+                # Don't fail save_state if metadata update fails
+                logger.debug(f"Failed to update last_activity_at: {e}")
+
             logger.debug(f"💾 Saved state to Redis: {session_id}")
             return True
 

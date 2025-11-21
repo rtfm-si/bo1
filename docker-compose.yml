@@ -30,16 +30,17 @@ services:
 
   # ---------------------------------------------------------------------------
   # Redis: State management, LLM caching, session storage
+  # NOTE: Using RedisStack to support JSON commands (required by LangGraph AsyncRedisSaver)
   # ---------------------------------------------------------------------------
   redis:
-    image: redis:7-alpine  # Auto-updates to latest 7.x minor versions
+    image: redis/redis-stack-server:7.4.0-v1  # RedisStack includes RedisJSON module
     container_name: bo1-redis
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
     command: >
-      redis-server
+      redis-stack-server
       --appendonly yes
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
@@ -224,6 +225,7 @@ services:
     environment:
       - NODE_ENV=development
       - PUBLIC_API_URL=http://localhost:8000
+      - INTERNAL_API_URL=http://api:8000
       - VITE_API_BASE_URL=http://localhost:8000
     ports:
       - "5173:5173"  # Vite dev server

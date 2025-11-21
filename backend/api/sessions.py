@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.api.dependencies import get_redis_manager
+from backend.api.dependencies import get_redis_manager, get_session_manager
 from backend.api.middleware.auth import get_current_user
 from backend.api.models import (
     CreateSessionRequest,
@@ -195,6 +195,10 @@ async def list_sessions(
             if metadata.get("user_id") != user_id:
                 continue
 
+            # Skip soft-deleted sessions
+            if metadata.get("deleted_at"):
+                continue
+
             # Apply status filter
             if status and metadata.get("status") != status:
                 continue
@@ -203,6 +207,11 @@ async def list_sessions(
             try:
                 created_at = datetime.fromisoformat(metadata["created_at"])
                 updated_at = datetime.fromisoformat(metadata["updated_at"])
+                last_activity_at = (
+                    datetime.fromisoformat(metadata["last_activity_at"])
+                    if metadata.get("last_activity_at")
+                    else None
+                )
             except (KeyError, ValueError):
                 # Skip sessions with invalid timestamps
                 continue
@@ -214,6 +223,7 @@ async def list_sessions(
                 phase=metadata.get("phase"),
                 created_at=created_at,
                 updated_at=updated_at,
+                last_activity_at=last_activity_at,
                 problem_statement=truncate_text(
                     metadata.get("problem_statement", "Unknown problem")
                 ),
@@ -357,4 +367,108 @@ async def get_session(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get session: {str(e)}",
+        ) from e
+
+
+@router.delete(
+    "/{session_id}",
+    response_model=SessionResponse,
+    summary="Soft delete a session",
+    description="Soft delete a deliberation session. Automatically kills any active executions. Session data is retained but hidden from lists.",
+    responses={
+        200: {"description": "Session soft deleted successfully"},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+async def delete_session(
+    session_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> SessionResponse:
+    """Soft delete a session.
+
+    This endpoint:
+    1. Verifies user owns the session
+    2. Kills any active execution
+    3. Marks the session as soft deleted with deleted_at timestamp
+    4. Updates session status to "deleted"
+
+    Args:
+        session_id: Session identifier
+        user: Authenticated user data
+
+    Returns:
+        SessionResponse with deleted status
+
+    Raises:
+        HTTPException: If session not found or user doesn't own it
+    """
+    try:
+        # Validate session ID format
+        session_id = validate_session_id(session_id)
+
+        user_id = extract_user_id(user)
+        redis_manager = get_redis_manager()
+        session_manager = get_session_manager()
+
+        if not redis_manager.is_available:
+            raise HTTPException(
+                status_code=500,
+                detail="Redis unavailable - cannot delete session",
+            )
+
+        # Load metadata and verify ownership
+        metadata = redis_manager.load_metadata(session_id)
+        metadata = await verify_session_ownership(session_id, user_id, metadata)
+
+        # Check if already deleted
+        if metadata.get("deleted_at"):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Session already deleted: {session_id}",
+            )
+
+        # Kill any active execution
+        if session_id in session_manager.active_executions:
+            try:
+                await session_manager.kill_session(session_id, user_id, "User deleted session")
+                logger.info(f"Killed active execution for session {session_id}")
+            except Exception as e:
+                logger.warning(f"Failed to kill active execution: {e}")
+                # Continue with soft delete even if kill fails
+
+        # Update metadata with soft delete
+        now = datetime.now(UTC)
+        metadata["status"] = "deleted"
+        metadata["deleted_at"] = now.isoformat()
+        metadata["updated_at"] = now.isoformat()
+
+        # Save updated metadata
+        if not redis_manager.save_metadata(session_id, metadata):
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to update session metadata",
+            )
+
+        logger.info(f"Soft deleted session: {session_id}")
+
+        # Return session response
+        return SessionResponse(
+            id=session_id,
+            status="deleted",
+            phase=metadata.get("phase"),
+            created_at=datetime.fromisoformat(metadata["created_at"]),
+            updated_at=now,
+            problem_statement=truncate_text(metadata.get("problem_statement", "Unknown problem")),
+            cost=metadata.get("cost"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete session {session_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete session: {str(e)}",
         ) from e

@@ -4,6 +4,25 @@
 	import { goto } from '$app/navigation';
 	import { isAuthenticated } from '$lib/stores/auth';
 	import { apiClient } from '$lib/api/client';
+	import type { SSEEvent } from '$lib/api/sse-events';
+
+	// Import event components
+	import {
+		DecompositionComplete,
+		PersonaSelection,
+		PersonaContribution,
+		FacilitatorDecision,
+		ModeratorIntervention,
+		ConvergenceCheck,
+		VotingPhase,
+		PersonaVote,
+		SynthesisComplete,
+		SubProblemProgress,
+		PhaseTable,
+		DeliberationComplete,
+		ErrorEvent,
+		GenericEvent,
+	} from '$lib/components/events';
 
 	const sessionId = $page.params.id;
 
@@ -16,18 +35,20 @@
 		created_at: string;
 	}
 
-	interface StreamEvent {
-		type: string;
-		data: any;
-		timestamp: string;
-	}
-
 	let session = $state<SessionData | null>(null);
-	let events = $state<StreamEvent[]>([]);
+	let events = $state<SSEEvent[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let eventSource: EventSource | null = null;
 	let autoScroll = $state(true);
+	let retryCount = $state(0);
+	let maxRetries = 3;
+	let connectionStatus = $state<'connecting' | 'connected' | 'error' | 'retrying'>('connecting');
+
+	// Helper function to add events safely (avoids state mutation in reactive context)
+	function addEvent(newEvent: SSEEvent) {
+		events = [...events, newEvent];
+	}
 
 	onMount(async () => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
@@ -37,7 +58,8 @@
 		});
 
 		await loadSession();
-		startEventStream();
+		await loadHistoricalEvents(); // Load history FIRST
+		startEventStream(); // THEN connect to stream
 
 		return unsubscribe;
 	});
@@ -59,17 +81,69 @@
 		}
 	}
 
-	function startEventStream() {
-		eventSource = new EventSource(`/api/stream/deliberation/${sessionId}`);
+	async function loadHistoricalEvents() {
+		try {
+			console.log('[Events] Loading historical events...');
+			const response = await apiClient.getSessionEvents(sessionId);
 
-		eventSource.onmessage = (event) => {
+			console.log(`[Events] Loaded ${response.count} historical events`);
+
+			// Convert historical events to SSEEvent format
+			for (const event of response.events) {
+				const sseEvent: SSEEvent = {
+					event_type: event.event_type,
+					session_id: event.session_id,
+					timestamp: event.timestamp,
+					data: event.data
+				};
+				addEvent(sseEvent);
+			}
+
+			// Auto-scroll after loading history
+			if (autoScroll) {
+				setTimeout(() => {
+					const container = document.getElementById('events-container');
+					if (container) {
+						container.scrollTop = container.scrollHeight;
+					}
+				}, 100);
+			}
+		} catch (err) {
+			console.error('[Events] Failed to load historical events:', err);
+			// Don't set error state - this is non-fatal, stream will still work
+		}
+	}
+
+	function startEventStream() {
+		// Close existing connection if any
+		if (eventSource) {
+			eventSource.close();
+		}
+
+		// Connect through SvelteKit proxy to handle authentication cookies
+		eventSource = new EventSource(`/api/v1/sessions/${sessionId}/stream`);
+
+		eventSource.onopen = () => {
+			console.log('[SSE] Connection established');
+			retryCount = 0;
+			connectionStatus = 'connected';
+		};
+
+		// Helper to handle SSE events (converts SSE format to SSEEvent)
+		const handleSSEEvent = (eventType: string, event: MessageEvent) => {
 			try {
-				const data = JSON.parse(event.data);
-				events = [...events, {
-					type: data.type || 'message',
-					data: data,
-					timestamp: new Date().toISOString()
-				}];
+				// Parse the data payload
+				const payload = JSON.parse(event.data);
+
+				// Construct SSEEvent by adding event_type from SSE event name
+				const sseEvent: SSEEvent = {
+					event_type: eventType,
+					session_id: payload.session_id || sessionId,
+					timestamp: payload.timestamp || new Date().toISOString(),
+					data: payload
+				};
+
+				addEvent(sseEvent);
 
 				// Auto-scroll to bottom
 				if (autoScroll) {
@@ -81,55 +155,71 @@
 					}, 100);
 				}
 
-				// Update session data if present
-				if (data.session) {
-					session = { ...session, ...data.session };
+				// Update session status on complete
+				if (eventType === 'complete' && session) {
+					session.status = 'completed';
 				}
-
 			} catch (err) {
-				console.error('Failed to parse SSE event:', err);
+				console.error(`Failed to parse ${eventType} event:`, err);
 			}
 		};
 
-		eventSource.addEventListener('phase_change', (event: MessageEvent) => {
-			const data = JSON.parse(event.data);
-			events = [...events, {
-				type: 'phase_change',
-				data: data,
-				timestamp: new Date().toISOString()
-			}];
+		// Listen for specific event types (SSE named events)
+		// IMPORTANT: We only use addEventListener, NOT onmessage (to avoid duplicates)
+		const eventTypes = [
+			'node_start',
+			'node_end',
+			'session_started',
+			'decomposition_started',
+			'decomposition_complete',
+			'persona_selection_started',
+			'persona_selected',
+			'persona_selection_complete',
+			'subproblem_started',
+			'initial_round_started',
+			'contribution',
+			'facilitator_decision',
+			'moderator_intervention',
+			'convergence',
+			'round_started',
+			'voting_started',
+			'persona_vote',
+			'voting_complete',
+			'synthesis_started',
+			'synthesis_complete',
+			'subproblem_complete',
+			'meta_synthesis_started',
+			'meta_synthesis_complete',
+			'phase_cost_breakdown',
+			'complete',
+			'error',
+			'clarification_requested',
+		];
+
+		eventTypes.forEach((eventType) => {
+			eventSource?.addEventListener(eventType, (event: MessageEvent) => {
+				handleSSEEvent(eventType, event);
+			});
 		});
 
-		eventSource.addEventListener('persona_contribution', (event: MessageEvent) => {
-			const data = JSON.parse(event.data);
-			events = [...events, {
-				type: 'persona_contribution',
-				data: data,
-				timestamp: new Date().toISOString()
-			}];
-		});
-
-		eventSource.addEventListener('synthesis', (event: MessageEvent) => {
-			const data = JSON.parse(event.data);
-			events = [...events, {
-				type: 'synthesis',
-				data: data,
-				timestamp: new Date().toISOString()
-			}];
-		});
-
-		eventSource.addEventListener('complete', (event: MessageEvent) => {
-			events = [...events, {
-				type: 'complete',
-				data: JSON.parse(event.data),
-				timestamp: new Date().toISOString()
-			}];
+		eventSource.onerror = (event) => {
+			console.error('[SSE] Connection error, retry count:', retryCount);
 			eventSource?.close();
-		});
 
-		eventSource.onerror = () => {
-			console.error('SSE connection error');
-			eventSource?.close();
+			if (retryCount < maxRetries) {
+				retryCount++;
+				connectionStatus = 'retrying';
+				const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
+				console.log(`[SSE] Retrying in ${delay}ms...`);
+
+				setTimeout(() => {
+					startEventStream();
+				}, delay);
+			} else {
+				console.error('[SSE] Max retries reached, giving up');
+				connectionStatus = 'error';
+				error = 'Failed to connect to session stream. Please refresh the page.';
+			}
 		};
 	}
 
@@ -164,15 +254,34 @@
 	}
 
 	function getEventIcon(type: string): string {
-		const icons = {
-			phase_change: '🔄',
-			persona_contribution: '💭',
-			synthesis: '✨',
-			complete: '✅',
+		const icons: Record<string, string> = {
+			session_started: '🚀',
+			decomposition_started: '🔍',
+			decomposition_complete: '📋',
+			persona_selection_started: '👥',
+			persona_selected: '👤',
+			persona_selection_complete: '✅',
+			subproblem_started: '🎯',
+			initial_round_started: '💭',
+			contribution: '💬',
+			facilitator_decision: '⚖️',
+			moderator_intervention: '⚡',
+			convergence: '📊',
+			round_started: '🔄',
+			voting_started: '🗳️',
+			persona_vote: '✍️',
+			voting_complete: '📝',
+			synthesis_started: '⚙️',
+			synthesis_complete: '✨',
+			subproblem_complete: '✅',
+			meta_synthesis_started: '🔮',
+			meta_synthesis_complete: '🎉',
+			phase_cost_breakdown: '💰',
+			complete: '🎊',
 			error: '❌',
-			message: 'ℹ️'
+			clarification_requested: '❓',
 		};
-		return icons[type as keyof typeof icons] || 'ℹ️';
+		return icons[type] || 'ℹ️';
 	}
 
 	function formatTimestamp(timestamp: string): string {
@@ -247,9 +356,32 @@
 			<div class="lg:col-span-2">
 				<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
 					<div class="border-b border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between">
-						<h2 class="text-lg font-semibold text-slate-900 dark:text-white">
-							Deliberation Stream
-						</h2>
+						<div class="flex items-center gap-3">
+							<h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+								Deliberation Stream
+							</h2>
+							{#if connectionStatus === 'connecting'}
+								<span class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+									<span class="inline-block w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+									Connecting...
+								</span>
+							{:else if connectionStatus === 'connected'}
+								<span class="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+									<span class="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+									Connected
+								</span>
+							{:else if connectionStatus === 'retrying'}
+								<span class="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400">
+									<span class="inline-block w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+									Retrying... ({retryCount}/{maxRetries})
+								</span>
+							{:else if connectionStatus === 'error'}
+								<span class="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
+									<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span>
+									Connection Failed
+								</span>
+							{/if}
+						</div>
 						<label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
 							<input
 								type="checkbox"
@@ -276,41 +408,46 @@
 								<p>Waiting for deliberation to start...</p>
 							</div>
 						{:else}
-							{#each events as event (event.timestamp)}
+							{#each events as event (event.timestamp + event.event_type)}
 								<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
 									<div class="flex items-start gap-3">
-										<span class="text-2xl">{getEventIcon(event.type)}</span>
-										<div class="flex-1">
-											<div class="flex items-center justify-between mb-2">
-												<span class="text-sm font-semibold text-slate-900 dark:text-white">
-													{event.type.replace(/_/g, ' ').toUpperCase()}
-												</span>
+										<span class="text-2xl">{getEventIcon(event.event_type)}</span>
+										<div class="flex-1 min-w-0">
+											<div class="flex items-center justify-between mb-3">
 												<span class="text-xs text-slate-500 dark:text-slate-400">
 													{formatTimestamp(event.timestamp)}
 												</span>
 											</div>
 
-											{#if event.type === 'persona_contribution'}
-												<div class="mb-2">
-													<span class="inline-block px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-medium rounded">
-														{event.data.persona_name}
-													</span>
-												</div>
-												<p class="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-													{event.data.content}
-												</p>
-											{:else if event.type === 'synthesis'}
-												<p class="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-													{event.data.content}
-												</p>
-											{:else if event.type === 'phase_change'}
-												<p class="text-sm text-slate-700 dark:text-slate-300">
-													Moving to: <strong>{event.data.new_phase}</strong>
-												</p>
+											<!-- Render appropriate component based on event type -->
+											{#if event.event_type === 'decomposition_complete' && event.data.sub_problems}
+												<DecompositionComplete event={event as any} />
+											{:else if event.event_type === 'persona_selected' && event.data.persona}
+												<PersonaSelection event={event as any} />
+											{:else if event.event_type === 'contribution' && event.data.persona_code}
+												<PersonaContribution event={event as any} />
+											{:else if event.event_type === 'facilitator_decision' && event.data.action}
+												<FacilitatorDecision event={event as any} />
+											{:else if event.event_type === 'moderator_intervention' && event.data.moderator_type}
+												<ModeratorIntervention event={event as any} />
+											{:else if event.event_type === 'convergence'}
+												<ConvergenceCheck event={event as any} />
+											{:else if event.event_type === 'voting_started'}
+												<VotingPhase event={event as any} />
+											{:else if event.event_type === 'persona_vote' && event.data.persona_code}
+												<PersonaVote event={event as any} />
+											{:else if (event.event_type === 'synthesis_complete' || event.event_type === 'meta_synthesis_complete') && event.data.synthesis}
+												<SynthesisComplete event={event as any} />
+											{:else if event.event_type === 'subproblem_complete' && event.data.sub_problem_index !== undefined}
+												<SubProblemProgress event={event as any} />
+											{:else if event.event_type === 'phase_cost_breakdown' && event.data.phase_costs}
+												<PhaseTable event={event as any} />
+											{:else if event.event_type === 'complete' && event.data.total_cost !== undefined}
+												<DeliberationComplete event={event as any} />
+											{:else if event.event_type === 'error' && event.data.error}
+												<ErrorEvent event={event as any} />
 											{:else}
-												<pre class="text-xs text-slate-600 dark:text-slate-400 overflow-x-auto">
-													{JSON.stringify(event.data, null, 2)}
-												</pre>
+												<GenericEvent event={event} />
 											{/if}
 										</div>
 									</div>

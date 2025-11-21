@@ -10,6 +10,8 @@ Console-based AI system using multi-agent deliberation (Claude personas) to solv
 
 **Status**: v2 deployed to production (https://boardof.one)
 
+**Note on SSE Streaming**: Current web implementation uses polling-based event detection (2-second intervals). A comprehensive plan for full real-time streaming via LangGraph `astream_events()` + Redis PubSub is documented in `STREAMING_IMPLEMENTATION_PLAN.md` at project root.
+
 ---
 
 ## System Flow
@@ -278,10 +280,11 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - `bo1/llm/embeddings.py` - Voyage AI voyage-3 embedding generation (Week 6)
 - `bo1/interfaces/console.py` - Console adapter with pause/resume support
 - `backend/api/main.py` - FastAPI application entry point
-- `backend/api/streaming.py` - SSE streaming endpoints for real-time updates
+- `backend/api/streaming.py` - SSE streaming endpoints (polling-based, see STREAMING_IMPLEMENTATION_PLAN.md)
 - `backend/api/middleware/auth.py` - SuperTokens session verification middleware
 - `backend/api/admin.py` - Admin-only endpoints (session monitoring, metrics)
 - `docker-compose.prod.yml` - Production deployment configuration
+- `STREAMING_IMPLEMENTATION_PLAN.md` - Complete plan for real-time event streaming (6-day implementation)
 - `MVP_IMPLEMENTATION_ROADMAP.md` - 14-week roadmap (101 days)
 - `docs/QUICKSTART.md` - Getting started guide
 - `docs/DEMO.md` - Demo and validation guide
@@ -306,7 +309,7 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - Console UI with Rich formatting and phase cost tables
 
 **Web API (v2 - deployed)**:
-- FastAPI with SSE streaming (`backend/api/`)
+- FastAPI with SSE streaming (`backend/api/`) - currently polling-based, see STREAMING_IMPLEMENTATION_PLAN.md
 - SuperTokens auth (BFF pattern, httpOnly cookies, OAuth support for Google/GitHub/LinkedIn)
 - Admin-only API docs (`/admin/docs` requires X-Admin-Key or admin JWT)
 - Public landing page at root (`/`)

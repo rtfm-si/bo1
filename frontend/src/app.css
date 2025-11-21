@@ -250,51 +250,91 @@ body {
    Note: These override Tailwind's default colors to use our theme system
    ============================================================================ */
 
-/* Text color overrides - Light mode defaults */
-.text-neutral-900 {
-	color: #171717;
+/* ============================================================================
+   Theme-aware Color System - No hardcoded values, uses design tokens
+   Supports: auto (system), light, dark, ocean modes
+   ============================================================================ */
+
+/* Light mode (default) - uses CSS variables from design tokens */
+:root,
+.theme-light {
+	--text-primary: var(--color-neutral-900);
+	--text-secondary: var(--color-neutral-600);
+	--text-tertiary: var(--color-neutral-500);
+	--border-primary: var(--color-neutral-200);
+	--bg-gradient-start: var(--color-brand-50);
+	--bg-gradient-mid: #ffffff;
+	--bg-gradient-end: var(--color-neutral-50);
+	--card-gradient-start: var(--color-brand-50);
+	--card-gradient-mid: #ffffff;
+	--card-gradient-end: var(--color-success-50);
 }
 
-.text-neutral-600 {
-	color: #525252;
+/* Auto mode with dark system preference - IMPROVED CONTRAST */
+@media (prefers-color-scheme: dark) {
+	.theme-auto {
+		--text-primary: var(--color-neutral-100);  /* Brighter for readability */
+		--text-secondary: var(--color-neutral-300); /* More visible */
+		--text-tertiary: var(--color-neutral-400);  /* Better contrast */
+		--border-primary: var(--color-neutral-600); /* More visible borders */
+		--bg-gradient-start: var(--color-neutral-900); /* Lighter background */
+		--bg-gradient-mid: var(--color-neutral-900);
+		--bg-gradient-end: var(--color-neutral-800);
+		--card-gradient-start: var(--color-brand-900);
+		--card-gradient-mid: var(--color-neutral-800);
+		--card-gradient-end: var(--color-success-900);
+	}
 }
 
-.text-neutral-500 {
-	color: #737373;
+/* Explicit dark theme - IMPROVED CONTRAST */
+.theme-dark {
+	--text-primary: var(--color-neutral-100);  /* Brighter for readability */
+	--text-secondary: var(--color-neutral-300); /* More visible */
+	--text-tertiary: var(--color-neutral-400);  /* Better contrast */
+	--border-primary: var(--color-neutral-600); /* More visible borders */
+	--bg-gradient-start: var(--color-neutral-900); /* Lighter background */
+	--bg-gradient-mid: var(--color-neutral-900);
+	--bg-gradient-end: var(--color-neutral-800);
+	--card-gradient-start: var(--color-brand-900);
+	--card-gradient-mid: var(--color-neutral-800);
+	--card-gradient-end: var(--color-success-900);
 }
 
-/* Text color overrides - Dark mode */
-.dark .text-neutral-900 {
-	color: #fafafa;
+/* Ocean theme */
+.theme-ocean {
+	--text-primary: var(--color-brand-100);
+	--text-secondary: var(--color-brand-300);
+	--text-tertiary: var(--color-brand-400);
+	--border-primary: var(--color-brand-600);
+	--bg-gradient-start: #001a1f;
+	--bg-gradient-mid: #003d47;
+	--bg-gradient-end: #00565e;
+	--card-gradient-start: var(--color-brand-900);
+	--card-gradient-mid: #003d47;
+	--card-gradient-end: var(--color-success-900);
 }
 
-.dark .text-neutral-100 {
-	color: #fafafa;
-}
+/* Apply theme-aware colors to Tailwind classes */
+.text-neutral-900 { color: var(--text-primary); }
+.text-neutral-700 { color: var(--text-secondary); }
+.text-neutral-600 { color: var(--text-secondary); }
+.text-neutral-500 { color: var(--text-tertiary); }
+.text-neutral-400 { color: var(--text-tertiary); }
+.text-neutral-300 { color: var(--text-secondary); }
+.text-neutral-200 { color: var(--text-secondary); }
+.text-neutral-100 { color: var(--text-primary); }
 
-.dark .text-neutral-600 {
-	color: #a3a3a3;
-}
+.border-neutral-200 { border-color: var(--border-primary); }
+.border-neutral-700 { border-color: var(--border-primary); }
+.border-neutral-800 { border-color: var(--border-primary); }
 
-.dark .text-neutral-400 {
-	color: #a3a3a3;
-}
-
-.dark .text-neutral-200 {
-	color: #e5e5e5;
-}
-
-/* Border color overrides - Light mode defaults */
-.border-neutral-200 {
-	border-color: #e5e5e5;
-}
-
-/* Border color overrides - Dark mode */
-.dark .border-neutral-200,
-.dark .border-neutral-700,
-.dark .border-neutral-800 {
-	border-color: #404040;
-}
+/* Gradient overrides for theme-aware backgrounds */
+.from-brand-50 { --tw-gradient-from: var(--card-gradient-start) var(--tw-gradient-from-position); }
+.via-white { --tw-gradient-stops: var(--tw-gradient-from), var(--card-gradient-mid) var(--tw-gradient-via-position), var(--tw-gradient-to); }
+.to-success-50 { --tw-gradient-to: var(--card-gradient-end) var(--tw-gradient-to-position); }
+.from-neutral-100 { --tw-gradient-from: var(--bg-gradient-start) var(--tw-gradient-from-position); }
+.via-neutral-50 { --tw-gradient-stops: var(--tw-gradient-from), var(--bg-gradient-mid) var(--tw-gradient-via-position), var(--tw-gradient-to); }
+.to-neutral-100 { --tw-gradient-to: var(--bg-gradient-end) var(--tw-gradient-to-position); }
 
 /* ============================================================================
    Accessibility Enhancements

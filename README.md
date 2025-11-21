@@ -8,8 +8,8 @@ AI-powered decision-making system that helps solve complex problems through stru
 
 ### Current State
 - ✅ Console application (v1) - LangGraph-based multi-agent deliberation
-- ✅ Web API (v2) - FastAPI with SSE streaming
-- ✅ Supabase Auth - OAuth (Google/GitHub/LinkedIn)
+- ✅ Web API (v2) - FastAPI with SSE streaming (polling-based)
+- ✅ SuperTokens Auth - OAuth (Google/GitHub/LinkedIn)
 - ✅ Production deployment - Blue-green with automated SSL
 - ✅ PostgreSQL + pgvector - Persistent storage with embeddings
 - ✅ Redis checkpointing - Session state management
@@ -275,7 +275,7 @@ curl http://localhost:8000/api/v1/sessions/{session_id}
 The API has been tested for production readiness:
 - **Concurrent Sessions**: Handles 10+ simultaneous deliberations without conflicts
 - **Response Times**: Average <500ms for all endpoints
-- **SSE Streaming**: Supports 50+ concurrent clients with <100ms event latency
+- **SSE Streaming**: Currently polling-based (2s intervals); full real-time implementation planned (see STREAMING_IMPLEMENTATION_PLAN.md)
 - **Connection Stability**: >95% stable connections under load
 
 For detailed API documentation and performance benchmarks, see:

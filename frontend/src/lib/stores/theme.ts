@@ -1,53 +1,45 @@
 /**
  * Theme Store - Svelte store for theme state management
- * Handles theme switching and persistence
+ * SIMPLIFIED: Always follows system preference (auto mode only)
  */
 
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
-import type { ThemeName } from '$lib/design/themes';
-import { applyTheme, getCurrentTheme } from '$lib/design/themes';
+import type { ThemeMode } from '$lib/design/themes';
+import { applyThemeMode, getEffectiveTheme } from '$lib/design/themes';
 
 // ============================================================================
-// Theme Store
+// Theme Store (Auto-only)
 // ============================================================================
 
 function createThemeStore() {
-	// Initialize with current theme (only in browser)
-	const initialTheme: ThemeName = browser ? getCurrentTheme() : 'light';
-	const { subscribe, set } = writable<ThemeName>(initialTheme);
+	// Always use 'auto' mode - follow system preference
+	const { subscribe, set } = writable<ThemeMode>('auto');
 
 	return {
 		subscribe,
 		/**
-		 * Set theme and persist to localStorage
+		 * Get current effective theme (resolves 'auto' to 'light' or 'dark')
 		 */
-		setTheme: (theme: ThemeName) => {
-			if (!browser) return;
-
-			applyTheme(theme);
-			set(theme);
+		getEffective: (mode: ThemeMode) => {
+			return getEffectiveTheme(mode);
 		},
 		/**
 		 * Initialize theme on app mount
+		 * Sets up auto-switching based on system preference
 		 */
 		initialize: () => {
 			if (!browser) return;
 
-			const currentTheme = getCurrentTheme();
-			applyTheme(currentTheme);
-			set(currentTheme);
+			// Apply auto mode (follows system preference)
+			applyThemeMode('auto');
+			set('auto');
 
-			// Listen for system theme changes
+			// Listen for system theme changes and automatically switch
 			const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 			const handleChange = (e: MediaQueryListEvent) => {
-				// Only auto-switch if user hasn't set a preference
-				const storedTheme = localStorage.getItem('theme');
-				if (!storedTheme) {
-					const newTheme: ThemeName = e.matches ? 'dark' : 'light';
-					applyTheme(newTheme);
-					set(newTheme);
-				}
+				// Always re-apply to pick up system preference change
+				applyThemeMode('auto');
 			};
 
 			mediaQuery.addEventListener('change', handleChange);

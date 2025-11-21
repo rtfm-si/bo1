@@ -4,15 +4,15 @@
 	import '../app.css';
 	import CookieConsent from '$lib/components/CookieConsent.svelte';
 	import { initAuth } from '$lib/stores/auth';
-	import { initializeTheme } from '$lib/design/themes';
 	import { initSuperTokens } from '$lib/supertokens';
+	import { themeStore } from '$lib/stores/theme';
 
 	onMount(() => {
 		// Initialize SuperTokens SDK first
 		initSuperTokens();
 
-		// Initialize theme system on app mount
-		initializeTheme();
+		// Initialize theme system - auto-follows system preference
+		themeStore.initialize();
 
 		// Don't initialize auth on callback page - let callback complete OAuth first
 		// initAuth will be called after redirect to dashboard
@@ -21,6 +21,35 @@
 		}
 	});
 </script>
+
+<!-- SSR-safe theme initialization script - runs before hydration -->
+<svelte:head>
+	<script>
+		// Immediately apply theme before page renders to prevent FOUC
+		(function() {
+			if (typeof window === 'undefined') return;
+
+			const stored = localStorage.getItem('theme');
+			const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+			const mode = stored || 'auto';
+			const effectiveTheme = mode === 'auto' ? (systemDark ? 'dark' : 'light') : mode;
+
+			const root = document.documentElement;
+
+			// Add theme classes immediately
+			if (mode === 'auto') {
+				root.classList.add('theme-auto', `theme-${effectiveTheme}`);
+			} else {
+				root.classList.add(`theme-${effectiveTheme}`);
+			}
+
+			// Add dark class for dark/ocean themes
+			if (effectiveTheme === 'dark' || effectiveTheme === 'ocean') {
+				root.classList.add('dark');
+			}
+		})();
+	</script>
+</svelte:head>
 
 <slot />
 

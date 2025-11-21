@@ -79,8 +79,45 @@ class SessionManager:
             },
         )
 
+        # Wrap coroutine with error handling
+        async def wrapped_execution() -> Any:
+            try:
+                logger.info(f"[{session_id}] Starting graph execution...")
+                result = await coro
+                logger.info(f"[{session_id}] Graph execution completed successfully")
+
+                # Update metadata on successful completion
+                self._save_session_metadata(
+                    session_id,
+                    {
+                        "status": "completed",
+                        "completed_at": str(time.time()),
+                    },
+                )
+                return result
+            except asyncio.CancelledError:
+                logger.info(f"[{session_id}] Graph execution was cancelled")
+                raise
+            except Exception as e:
+                logger.error(f"[{session_id}] Graph execution failed: {e}", exc_info=True)
+
+                # Update metadata on failure
+                self._save_session_metadata(
+                    session_id,
+                    {
+                        "status": "failed",
+                        "failed_at": str(time.time()),
+                        "error": str(e),
+                    },
+                )
+                raise
+            finally:
+                # Remove from active executions
+                self.active_executions.pop(session_id, None)
+                logger.info(f"[{session_id}] Removed from active executions")
+
         # Create background task
-        task = asyncio.create_task(coro)
+        task = asyncio.create_task(wrapped_execution())
         self.active_executions[session_id] = task
 
         logger.info(f"Started session {session_id} for user {user_id}")

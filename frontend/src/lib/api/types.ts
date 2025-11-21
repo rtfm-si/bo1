@@ -11,11 +11,13 @@ export interface CreateSessionRequest {
 
 export interface SessionResponse {
 	id: string;
-	status: 'active' | 'paused' | 'completed' | 'failed' | 'killed';
-	phase: string;
+	status: 'active' | 'paused' | 'completed' | 'failed' | 'killed' | 'deleted' | 'created';
+	phase: string | null;
 	created_at: string;
 	updated_at: string;
+	last_activity_at?: string;
 	problem_statement: string;
+	cost?: number | null;
 }
 
 export interface SessionDetailResponse extends SessionResponse {

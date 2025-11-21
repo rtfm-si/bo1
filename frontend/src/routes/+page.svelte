@@ -279,19 +279,6 @@
 		}
 	}
 
-	/* Slow pulse for after card glow */
-	@keyframes pulse-slow {
-		0%, 100% {
-			opacity: 0.6;
-		}
-		50% {
-			opacity: 0.9;
-		}
-	}
-
-	.animate-pulse-slow {
-		animation: pulse-slow 3s ease-in-out infinite;
-	}
 
 	/* Fade in from bottom */
 	@keyframes fadeInUp {
@@ -480,6 +467,23 @@
 
 	.shake-stuck:hover {
 		animation: shake-no 0.5s ease-in-out;
+	}
+
+	/* Subtle "yes" nod animation for positive/clarity state */
+	@keyframes nod-yes {
+		0%, 100% {
+			transform: translateY(0);
+		}
+		15%, 45%, 75% {
+			transform: translateY(-3px);
+		}
+		30%, 60%, 90% {
+			transform: translateY(0px);
+		}
+	}
+
+	.nod-clarity:hover {
+		animation: nod-yes 0.6s ease-in-out;
 	}
 
 	/* Subtle emphasis animation for key words */
@@ -857,11 +861,12 @@
 				<span class="text-neutral-700 dark:text-neutral-300 font-normal">From <span class="italic font-bold">Fog</span> to</span> <span class="text-brand-600 dark:text-brand-400 italic font-extrabold emphasis-word">Focus</span>
 			</h2>
 			<div class="grid md:grid-cols-2 gap-12 items-center">
-				<!-- Before (unhappy path - more weight, heavier feel, subtle shake) -->
+				<!-- Before (unhappy path - clean, minimal) -->
 				<div class="relative shake-stuck">
-					<!-- Subtle red/warning glow behind -->
-					<div class="absolute -inset-0.5 bg-gradient-to-br from-error-300/20 to-warning-300/20 dark:from-error-600/10 dark:to-warning-600/10 rounded-xl blur-md"></div>
-					<div class="relative bg-gradient-to-br from-neutral-100 via-neutral-50 to-neutral-100 dark:from-neutral-800 dark:via-neutral-850 dark:to-neutral-800 rounded-xl p-8 border-2 border-neutral-300 dark:border-neutral-600 shadow-lg">
+					<!-- Very subtle warning glow -->
+					<div class="absolute -inset-0.5 bg-gradient-to-br from-error-300/10 to-warning-300/10 dark:from-error-500/10 dark:to-warning-500/10 rounded-xl blur-sm"></div>
+					<!-- Clean card with neutral colors -->
+					<div class="relative bg-white dark:bg-neutral-800 rounded-xl p-8 border-2 border-neutral-300 dark:border-neutral-600 hover:border-neutral-400 dark:hover:border-neutral-500 transition-all duration-300 shadow-md">
 						<div class="text-xs font-bold text-error-600 dark:text-error-400 mb-4 uppercase tracking-wider flex items-center gap-2">
 							<span class="inline-block w-2 h-2 bg-error-500 rounded-full opacity-50"></span>
 							Before
@@ -872,19 +877,21 @@
 					</div>
 				</div>
 
-				<!-- After (happy path - toned down 20%, less overwhelming) -->
-				<div class="relative after-card-wrapper">
-					<div class="absolute -inset-1 bg-gradient-to-br from-brand-500 via-success-500 to-brand-600 rounded-xl opacity-50 blur-lg animate-pulse-slow"></div>
-					<div class="relative bg-gradient-to-br from-brand-50 via-white to-success-50 dark:from-brand-900/30 dark:via-neutral-800 dark:to-success-900/30 rounded-xl p-8 border-2 border-brand-300 dark:border-brand-500 transform hover:scale-105 transition-all duration-500 shadow-md">
+				<!-- After (happy path - subtle, clean design) -->
+				<div class="relative after-card-wrapper nod-clarity">
+					<!-- Subtle glow - much less intense -->
+					<div class="absolute -inset-0.5 bg-gradient-to-br from-brand-400/15 to-success-400/10 dark:from-brand-500/20 dark:to-success-500/15 rounded-xl blur-sm"></div>
+					<!-- Clean card with minimal gradient -->
+					<div class="relative bg-white dark:bg-neutral-800 rounded-xl p-8 border-2 border-brand-200 dark:border-brand-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-300 shadow-md">
 						<div class="text-xs font-bold text-brand-600 dark:text-brand-400 mb-4 uppercase tracking-wider flex items-center gap-2">
-							<span class="inline-block w-2 h-2 bg-success-500 rounded-full animate-pulse"></span>
+							<span class="inline-block w-2 h-2 bg-success-500 rounded-full"></span>
 							After
 						</div>
 						<div class="space-y-4">
 							<p class="text-neutral-900 dark:text-neutral-100 leading-relaxed font-semibold text-lg">
 								A clear recommendation with reasoning you can defend.
 							</p>
-							<p class="text-neutral-700 dark:text-neutral-200 leading-relaxed text-base">
+							<p class="text-neutral-700 dark:text-neutral-300 leading-relaxed text-base">
 								The key trade-offs mapped out. Blind spots surfaced. Concrete next steps. Decision made.
 							</p>
 							<div class="pt-2 text-sm font-medium text-brand-600 dark:text-brand-400">

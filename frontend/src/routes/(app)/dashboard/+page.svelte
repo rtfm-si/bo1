@@ -94,6 +94,24 @@
 		if (problem.length <= maxLength) return problem;
 		return problem.substring(0, maxLength) + '...';
 	}
+
+	async function handleDelete(sessionId: string, event: MouseEvent) {
+		event.preventDefault(); // Prevent navigation
+		event.stopPropagation(); // Stop event bubbling
+
+		if (!confirm('Are you sure you want to delete this meeting? This cannot be undone.')) {
+			return;
+		}
+
+		try {
+			await apiClient.deleteSession(sessionId);
+			// Remove from local list
+			sessions = sessions.filter(s => s.id !== sessionId);
+		} catch (err) {
+			console.error('Failed to delete session:', err);
+			error = err instanceof Error ? err.message : 'Failed to delete session';
+		}
+	}
 </script>
 
 <svelte:head>
@@ -173,13 +191,19 @@
 									<span class="px-2.5 py-1 text-xs font-medium rounded-full {getStatusColor(session.status)}">
 										{session.status}
 									</span>
-									<span class="text-xs text-neutral-500 dark:text-neutral-400">
-										{formatDate(session.created_at)}
+									<span class="text-xs text-neutral-500 dark:text-neutral-400" title="Created">
+										Created {formatDate(session.created_at)}
 									</span>
+									{#if session.last_activity_at}
+										<span class="text-xs text-neutral-500 dark:text-neutral-400" title="Last activity">
+											<span class="inline-block w-1.5 h-1.5 bg-neutral-400 dark:bg-neutral-500 rounded-full mr-1"></span>
+											Activity {formatDate(session.last_activity_at)}
+										</span>
+									{/if}
 									{#if session.status === 'active'}
 										<span class="flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">
 											<span class="inline-block w-2 h-2 bg-brand-600 dark:bg-brand-400 rounded-full animate-pulse"></span>
-											Round {session.round_number}
+											Round {session.round_number || 0}
 										</span>
 									{/if}
 								</div>
@@ -204,9 +228,22 @@
 								</div>
 							</div>
 
-							<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-							</svg>
+							<div class="flex items-center gap-2 flex-shrink-0">
+								<button
+									onclick={(e) => handleDelete(session.id, e)}
+									class="p-2 hover:bg-error-50 dark:hover:bg-error-900/20 rounded-lg transition-colors duration-200 group"
+									title="Delete meeting"
+									aria-label="Delete meeting"
+								>
+									<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 group-hover:text-error-600 dark:group-hover:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+									</svg>
+								</button>
+
+								<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+								</svg>
+							</div>
 						</div>
 					</a>
 				{/each}

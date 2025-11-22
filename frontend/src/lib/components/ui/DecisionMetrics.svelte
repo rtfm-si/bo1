@@ -21,12 +21,16 @@
 	const latestConvergence = $derived(
 		convergenceEvents.length > 0 ? convergenceEvents[convergenceEvents.length - 1] : null
 	);
-	const consensusScore = $derived(
-		latestConvergence?.data?.consensus_score ?? null
-	);
-	const noveltyScore = $derived(
-		latestConvergence?.data?.novelty_score ?? null
-	);
+	const consensusScore = $derived.by(() => {
+		if (!latestConvergence) return null;
+		const data = latestConvergence.data as any;
+		return typeof data.consensus_score === 'number' ? data.consensus_score : null;
+	});
+	const noveltyScore = $derived.by(() => {
+		if (!latestConvergence) return null;
+		const data = latestConvergence.data as any;
+		return typeof data.novelty_score === 'number' ? data.novelty_score : null;
+	});
 
 	// Expert contributions
 	const contributions = $derived(
@@ -35,7 +39,8 @@
 	const contributionsByExpert = $derived.by(() => {
 		const byExpert = new Map<string, number>();
 		contributions.forEach(c => {
-			const name = c.data.persona_name || c.data.persona_code || 'Unknown';
+			const data = c.data as any;
+			const name = data.persona_name || data.persona_code || 'Unknown';
 			byExpert.set(name, (byExpert.get(name) || 0) + 1);
 		});
 		return Array.from(byExpert.entries())
@@ -49,10 +54,13 @@
 	);
 	const confidenceLevels = $derived.by(() => {
 		return votes
-			.map(v => ({
-				expert: v.data.persona_name || v.data.persona_code || 'Unknown',
-				confidence: v.data.confidence || 0,
-			}))
+			.map(v => {
+				const data = v.data as any;
+				return {
+					expert: data.persona_name || data.persona_code || 'Unknown',
+					confidence: typeof data.confidence === 'number' ? data.confidence : 0,
+				};
+			})
 			.sort((a, b) => b.confidence - a.confidence);
 	});
 	const avgConfidence = $derived(
@@ -90,6 +98,7 @@
 <div class="space-y-4">
 	<!-- Consensus Metrics -->
 	{#if consensusScore !== null}
+		{@const score = consensusScore}
 		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4" transition:fade>
 			<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -101,36 +110,37 @@
 				<div>
 					<div class="flex items-center justify-between mb-1">
 						<span class="text-xs text-slate-600 dark:text-slate-400">Agreement</span>
-						<span class="text-xs font-medium {getConsensusColor(consensusScore)}">
-							{getConsensusLabel(consensusScore)}
+						<span class="text-xs font-medium {getConsensusColor(score)}">
+							{getConsensusLabel(score)}
 						</span>
 					</div>
 					<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
 						<div
 							class="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500"
-							style="width: {consensusScore * 100}%"
+							style="width: {score * 100}%"
 						></div>
 					</div>
 					<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-						{(consensusScore * 100).toFixed(0)}% alignment
+						{(score * 100).toFixed(0)}% alignment
 					</p>
 				</div>
 				{#if noveltyScore !== null}
+					{@const nScore = noveltyScore}
 					<div>
 						<div class="flex items-center justify-between mb-1">
 							<span class="text-xs text-slate-600 dark:text-slate-400">New Ideas</span>
 							<span class="text-xs font-medium text-purple-600 dark:text-purple-400">
-								{noveltyScore < 0.3 ? 'Converging' : 'Exploring'}
+								{nScore < 0.3 ? 'Converging' : 'Exploring'}
 							</span>
 						</div>
 						<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
 							<div
 								class="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full transition-all duration-500"
-								style="width: {noveltyScore * 100}%"
+								style="width: {nScore * 100}%"
 							></div>
 						</div>
 						<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-							{noveltyScore < 0.3 ? 'Experts aligning on solution' : 'Still exploring new ideas'}
+							{nScore < 0.3 ? 'Experts aligning on solution' : 'Still exploring new ideas'}
 						</p>
 					</div>
 				{/if}

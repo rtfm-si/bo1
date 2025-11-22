@@ -533,11 +533,11 @@
 										currentSubProblem={1}
 										totalSubProblems={1}
 										currentPhase={session.phase}
-										currentRound={session.round_number}
+										currentRound={session.round_number ?? null}
 										maxRounds={10}
 										contributionsReceived={events.filter(e =>
 											e.event_type === 'contribution' &&
-											e.data.round_number === session.round_number
+											session && e.data.round_number === session.round_number
 										).length}
 										expectedContributions={5}
 									/>
@@ -673,7 +673,7 @@
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
 											</svg>
 											<span class="text-blue-800 dark:text-blue-200">
-												Analyzed {votes.length || contributions.length} expert perspectives
+												Analyzed {events.filter(e => e.event_type === 'persona_vote').length || events.filter(e => e.event_type === 'contribution').length} expert perspectives
 											</span>
 										</div>
 										<div class="flex items-center gap-3 text-sm {elapsedSeconds > 15 ? 'opacity-100' : 'opacity-50'}">
@@ -817,7 +817,7 @@
 					<DecisionMetrics
 						events={events}
 						currentPhase={session.phase}
-						currentRound={session.round_number}
+						currentRound={session.round_number ?? null}
 					/>
 
 					<!-- Actions -->

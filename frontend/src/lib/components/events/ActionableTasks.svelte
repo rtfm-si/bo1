@@ -10,8 +10,8 @@
 	interface Task {
 		id: string;
 		description: string;
-		category: 'implementation' | 'research' | 'decision' | 'communication';
-		priority: 'high' | 'medium' | 'low';
+		category: string;
+		priority: string;
 		suggested_completion_date: string | null;
 		dependencies: string[];
 		source_section: string;
@@ -200,8 +200,9 @@
 
 							<div class="flex items-center gap-4 mb-3">
 								<div class="flex items-center gap-2">
-									<label class="text-xs text-slate-600 dark:text-slate-400">Due date:</label>
+									<label for="task-date-{task.id}" class="text-xs text-slate-600 dark:text-slate-400">Due date:</label>
 									<input
+										id="task-date-{task.id}"
 										type="date"
 										value={customDates.get(task.id) || ''}
 										onchange={(e) => updateDate(task.id, e.currentTarget.value)}

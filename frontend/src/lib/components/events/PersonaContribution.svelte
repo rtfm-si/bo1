@@ -48,14 +48,11 @@
 				<h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
 					{event.data.persona_name}
 				</h3>
-				{#if event.data.persona_title}
-					<Badge variant="neutral" size="sm">{event.data.persona_title}</Badge>
-				{/if}
-				<Badge variant="brand" size="xs">Round {event.data.round}</Badge>
+				<Badge variant="brand" size="sm">Round {event.data.round}</Badge>
 				{#if event.data.contribution_type === 'initial'}
-					<Badge variant="success" size="xs">Initial</Badge>
+					<Badge variant="success" size="sm">Initial</Badge>
 				{:else}
-					<Badge variant="neutral" size="xs">Follow-up</Badge>
+					<Badge variant="neutral" size="sm">Follow-up</Badge>
 				{/if}
 			</div>
 

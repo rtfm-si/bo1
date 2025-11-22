@@ -623,7 +623,34 @@ make test-coverage  # Generates htmlcov/index.html
 **Issue: SuperTokens cookies rejected "invalid domain"**
 - Check: Browser console shows cookie domain mismatch
 - Common cause: `COOKIE_DOMAIN` env var mismatch or missing
-- Solution: Set `COOKIE_DOMAIN=boardof.one` in production `.env`
+- Solution: Set `COOKIE_DOMAIN=boardof.one` and `COOKIE_SECURE=true` in production `.env`
+
+**Issue: Google OAuth sign-in fails with "redirect_uri_mismatch"**
+- Check: Google Cloud Console → OAuth 2.0 Client → Authorized redirect URIs
+- Common cause: Missing or incorrect redirect URI for production domain
+- Solution: Add `https://boardof.one/callback` to authorized redirect URIs in Google Cloud Console
+- Note: Production uses different OAuth client ID than dev
+
+**Issue: OAuth succeeds but session not persisting (401 on /api/auth/me)**
+- Check: Browser console for cookie rejection warnings
+- Common cause: Missing `COOKIE_SECURE=true` or `COOKIE_DOMAIN=boardof.one`
+- Solution: Verify all SuperTokens env vars are set correctly:
+  ```bash
+  SUPERTOKENS_API_DOMAIN=https://boardof.one
+  SUPERTOKENS_WEBSITE_DOMAIN=https://boardof.one
+  COOKIE_SECURE=true
+  COOKIE_DOMAIN=boardof.one
+  ```
+
+**Issue: OAuth sign-in fails with "Email not whitelisted"**
+- Check: API logs show "Sign-in attempt rejected: {email} not whitelisted"
+- Common cause: `BETA_WHITELIST` env var missing or email not in list
+- Solution: Add email to `BETA_WHITELIST` in production `.env` (comma-separated)
+
+**Issue: OAuth configuration not loading (missing client ID/secret)**
+- Check: API logs show "Google OAuth enabled but credentials missing"
+- Common cause: `GOOGLE_OAUTH_CLIENT_ID` or `GOOGLE_OAUTH_CLIENT_SECRET` not passed to container
+- Solution: Verify env vars exist in `.env` and are listed in `docker-compose.app.yml`
 
 **Deployment Debugging:**
 ```bash

@@ -198,6 +198,7 @@ services:
     environment:
       - NODE_ENV=production
       - ORIGIN=https://boardof.one
+      - PUBLIC_API_URL=https://boardof.one
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"  # Blue: 3000, Green: 3001
     networks:

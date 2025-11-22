@@ -12,8 +12,9 @@ const config = {
 		adapter: adapter({
 			// Options passed to adapter
 			out: 'build',
-			precompress: false,
-			envPrefix: 'PUBLIC_' // Allow PUBLIC_ prefixed env vars to be available at runtime
+			precompress: false
+			// NOTE: Do NOT set envPrefix here - it conflicts with runtime env vars
+			// The kit.env.publicPrefix setting below is sufficient for $env/dynamic/public
 		}),
 
 		// API base URL from environment variable

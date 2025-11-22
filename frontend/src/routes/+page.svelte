@@ -39,7 +39,7 @@
 
 		const sections = [
 			{ id: 'value-blocks', setter: () => (valueBlocksVisible = true) },
-			{ id: 'features-section', setter: () => (featuresVisible = true) },
+			{ id: 'features', setter: () => (featuresVisible = true) },
 			{ id: 'metrics-section', setter: () => (metricsVisible = true) },
 			{ id: 'beta-invite-section', setter: () => (betaInviteVisible = true) },
 		];
@@ -699,7 +699,7 @@
 	</section>
 
 	<!-- How It Works -->
-	<section class="py-24 bg-white dark:bg-neutral-900 relative overflow-hidden border-y border-neutral-200 dark:border-neutral-800">
+	<section id="how-it-works" class="py-24 bg-white dark:bg-neutral-900 relative overflow-hidden border-y border-neutral-200 dark:border-neutral-800">
 		<!-- Background decoration -->
 		<div class="absolute top-0 right-0 w-96 h-96 bg-brand-400/5 dark:bg-brand-600/5 rounded-full blur-3xl animate-float"></div>
 
@@ -798,7 +798,7 @@
 	</section>
 
 	<!-- See It In Action -->
-	<section id="features-section" class="py-24 bg-neutral-50 dark:bg-neutral-800 relative overflow-hidden border-y border-neutral-200 dark:border-neutral-800">
+	<section id="features" class="py-24 bg-neutral-50 dark:bg-neutral-800 relative overflow-hidden border-y border-neutral-200 dark:border-neutral-800">
 		<div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 			<div class="text-center mb-16">
 				<h2 class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-neutral-100 mb-6 leading-tight">

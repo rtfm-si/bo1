@@ -313,7 +313,8 @@ jobs:
             echo "🏗️  Starting shared infrastructure..."
 
             # Start shared infrastructure using separate compose file
-            docker-compose -f docker-compose.infrastructure.yml -p infrastructure up -d --remove-orphans
+            # Use --no-recreate to prevent recreating existing containers (preserves data)
+            docker-compose -f docker-compose.infrastructure.yml -p infrastructure up -d --no-recreate
 
             # Wait for shared services to be healthy
             echo "⏳ Waiting for shared infrastructure to be healthy..."

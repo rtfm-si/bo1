@@ -59,6 +59,8 @@ services:
     build:
       context: .
       dockerfile: supertokens.Dockerfile
+      labels:
+        - "com.docker.compose.project=infrastructure"
     image: bo1-supertokens:latest
     depends_on:
       postgres:

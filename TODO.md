@@ -23,7 +23,7 @@ emojis for each advisor should be used
 
 need to be able to 'navigate' the sub problems - this would be better as breadcrumbs or some kind of navigation?
 
-'current step' should be a static entry - decomposing... selecting personas... meeting starting... facilitator intor.... maria thinking... maria speaking... etc...
+'current step' should be a single entry - the latest event : decomposing... selecting personas... meeting starting... facilitator intor.... maria thinking... maria speaking... etc...
 
 side panel - expert contributions in rows PER sub problem (and overall) in columns
 
@@ -40,3 +40,7 @@ Contributions: 0
 Experts: 0
 
 existing meetings disappeared from dashboard?
+
+more metrics and measures
+count of unique perspectives perspectives by expert?
+diverging...

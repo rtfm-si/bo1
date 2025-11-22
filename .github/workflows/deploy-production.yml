@@ -433,13 +433,31 @@ jobs:
             echo "✅ All ${TARGET_ENV} health checks passed"
 
             # =================================================================
-            # STEP 6: Run database migrations (on shared infrastructure)
+            # STEP 6: Extract static assets from frontend container
+            # =================================================================
+            echo "📦 Extracting static assets from frontend container..."
+
+            # Create static asset directory for this environment
+            STATIC_DIR="/var/www/boardofone/static-${TARGET_ENV}"
+            sudo mkdir -p "$STATIC_DIR"
+
+            # Copy static files from container to host filesystem
+            docker cp "${TARGET_PROJECT}-frontend-1:/app/build/client/." "$STATIC_DIR/"
+
+            # Set proper permissions
+            sudo chown -R www-data:www-data "$STATIC_DIR"
+            sudo chmod -R 755 "$STATIC_DIR"
+
+            echo "✅ Static assets extracted to $STATIC_DIR"
+
+            # =================================================================
+            # STEP 7: Run database migrations (on shared infrastructure)
             # =================================================================
             echo "🗄️  Running database migrations..."
             docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api uv run alembic upgrade head
 
             # =================================================================
-            # STEP 7: Switch nginx to target environment
+            # STEP 8: Switch nginx to target environment
             # =================================================================
             echo "🔀 Switching nginx to ${TARGET_ENV} environment..."
 
@@ -478,7 +496,7 @@ jobs:
             echo "✅ nginx reloaded with ${TARGET_ENV} configuration"
 
             # =================================================================
-            # STEP 8: Stop old environment (if not first deploy)
+            # STEP 9: Stop old environment (if not first deploy)
             # =================================================================
             if [ "$CURRENT_ENV" != "none" ]; then
               echo "🛑 Stopping ${CURRENT_ENV} environment..."
@@ -496,7 +514,7 @@ jobs:
             fi
 
             # =================================================================
-            # STEP 9: Cleanup
+            # STEP 10: Cleanup
             # =================================================================
             echo "🧹 Cleaning up old Docker images..."
             docker system prune -f --filter "until=72h"

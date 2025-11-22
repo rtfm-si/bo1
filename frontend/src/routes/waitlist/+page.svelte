@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { env } from '$env/dynamic/public';
 
 	let email = $state('');
 	let loading = $state(false);
@@ -20,7 +21,7 @@
 
 		try {
 			const API_BASE_URL = browser
-				? import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+				? env.PUBLIC_API_URL || 'http://localhost:8000'
 				: 'http://api:8000';
 
 			const response = await fetch(`${API_BASE_URL}/api/v1/waitlist`, {

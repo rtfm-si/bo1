@@ -9,6 +9,7 @@
 import SuperTokens from "supertokens-web-js";
 import Session from "supertokens-web-js/recipe/session";
 import ThirdParty from "supertokens-web-js/recipe/thirdparty";
+import { env } from '$env/dynamic/public';
 
 let isInitialized = false;
 
@@ -23,7 +24,7 @@ export function initSuperTokens() {
 
     SuperTokens.init({
         appInfo: {
-            apiDomain: import.meta.env.PUBLIC_API_URL || "http://localhost:8000",
+            apiDomain: env.PUBLIC_API_URL || "http://localhost:8000",
             apiBasePath: "/api/auth",
             appName: "Board of One",
         },

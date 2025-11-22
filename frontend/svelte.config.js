@@ -13,7 +13,7 @@ const config = {
 			// Options passed to adapter
 			out: 'build',
 			precompress: false,
-			envPrefix: ''
+			envPrefix: 'PUBLIC_' // Allow PUBLIC_ prefixed env vars to be available at runtime
 		}),
 
 		// API base URL from environment variable

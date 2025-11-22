@@ -17,8 +17,9 @@ import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import Session from "supertokens-web-js/recipe/session";
+import { env } from '$env/dynamic/public';
 
-const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = env.PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface User {
 	id: string;

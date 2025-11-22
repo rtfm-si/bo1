@@ -5,6 +5,7 @@
 	import { initSuperTokens } from '$lib/supertokens';
 	import ThirdParty from "supertokens-web-js/recipe/thirdparty";
 	import { browser } from '$app/environment';
+	import { env } from '$env/dynamic/public';
 
 	let isLoading = false;
 	let error: string | null = null;
@@ -57,8 +58,8 @@
 		error = null;
 
 		try {
-			// Get API URL from environment
-			const apiUrl = import.meta.env.PUBLIC_API_URL || "http://localhost:8000";
+			// Get API URL from environment (runtime resolution)
+			const apiUrl = env.PUBLIC_API_URL || "http://localhost:8000";
 
 			// Get authorization URL from SuperTokens backend
 			const authUrl = await ThirdParty.getAuthorisationURLWithQueryParamsAndSetState({

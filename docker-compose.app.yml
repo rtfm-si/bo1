@@ -47,6 +47,12 @@ services:
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
 
+      # SuperTokens Configuration
+      - SUPERTOKENS_CONNECTION_URI=${SUPERTOKENS_CONNECTION_URI:-http://supertokens:3567}
+      - SUPERTOKENS_API_KEY=${SUPERTOKENS_API_KEY}
+      - SUPERTOKENS_API_DOMAIN=${SUPERTOKENS_API_DOMAIN:-https://boardof.one}
+      - SUPERTOKENS_WEBSITE_DOMAIN=${SUPERTOKENS_WEBSITE_DOMAIN:-https://boardof.one}
+
       # Application Configuration
       - DEBUG=false
       - LOG_LEVEL=${LOG_LEVEL:-INFO}

@@ -3,12 +3,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Build arguments for Vite environment variables
+# Build arguments for SvelteKit environment variables
+ARG PUBLIC_API_URL
 ARG VITE_API_BASE_URL
 ARG VITE_SUPABASE_URL
 ARG VITE_GOOGLE_OAUTH_CLIENT_ID
 
 # Make them available as environment variables during build
+ENV PUBLIC_API_URL=$PUBLIC_API_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_GOOGLE_OAUTH_CLIENT_ID=$VITE_GOOGLE_OAUTH_CLIENT_ID

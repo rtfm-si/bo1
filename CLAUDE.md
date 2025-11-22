@@ -330,17 +330,100 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - Generic safety protocol in `reusable_prompts.py`
 
 **Production Deployment** (Blue-Green):
-- Automated via GitHub Actions workflow
-- Zero-downtime blue-green deployment
-- Automated Let's Encrypt SSL certificate management
-- Health checks before traffic switch
-- Automatic rollback on failure
-- Docker network hostnames for inter-container communication:
-  - DATABASE_URL uses `postgres` hostname (not `localhost`)
-  - REDIS_URL uses `redis` hostname (not `localhost`)
-  - SuperTokens uses `postgres` hostname for POSTGRESQL_CONNECTION_URI
-- Infrastructure components (postgres, redis, supertokens) shared between blue/green
-- Application containers (api, frontend) deployed to separate blue/green environments
+
+**Architecture Overview:**
+- **Host nginx** (traffic router) → Blue or Green environments
+- **Shared infrastructure** (postgres, redis, supertokens) via `docker-compose.infrastructure.yml`
+- **Blue/Green apps** (api, frontend) via `docker-compose.app.yml` with different project names
+- **Static assets** served directly by nginx from `/var/www/boardofone/static-{blue|green}/`
+
+**Container Projects:**
+- Infrastructure: `infrastructure` (postgres-1, redis-1, supertokens-1)
+- Blue app: `boardofone` (api-1, frontend-1)
+- Green app: `boardofone-green` (green-api-1, green-frontend-1)
+
+**Docker Network:**
+- External network: `bo1-network` (shared by all containers)
+- Inter-container communication via Docker hostnames:
+  - `DATABASE_URL=postgresql://bo1:password@postgres:5432/boardofone` (NOT localhost)
+  - `REDIS_URL=redis://:password@redis:6379/0` (NOT localhost)
+  - `SUPERTOKENS_CONNECTION_URI=http://supertokens:3567` (NOT localhost)
+
+**Static Asset Serving (Critical for Performance):**
+- SvelteKit builds to `build/client/` in container
+- Deployment script extracts via `docker cp` to `/var/www/boardofone/static-{env}/`
+- nginx serves directly from filesystem (NOT proxied through Node.js):
+  - `/_app/immutable/` → Static JS/CSS chunks (1-year cache, immutable)
+  - `/_app/version.json` → Version manifest (5-minute cache)
+  - `/logo.svg`, `/demo_meeting.jpg` → Root images (1-day cache)
+- Connection limit: 100 for static assets (vs 30 for dynamic routes)
+- Result: 50-100ms faster TTFB, ~30% reduced Node.js CPU usage
+
+**nginx Configuration:**
+- Two configs: `nginx-blue.conf` and `nginx-green.conf`
+- Active config copied to `/etc/nginx/sites-available/boardofone` during deployment
+- Upstream backends point to localhost ports:
+  - Blue: `127.0.0.1:8000` (API), `127.0.0.1:3000` (Frontend)
+  - Green: `127.0.0.1:8001` (API), `127.0.0.1:3001` (Frontend)
+- SSL via Let's Encrypt (auto-renewed via certbot.timer)
+
+**Deployment Flow:**
+1. GitHub Actions builds Docker images, pushes to registry
+2. SSH into server, detect current environment (blue/green)
+3. Deploy to opposite environment (green if blue is active)
+4. Extract static assets: `docker cp {project}-frontend-1:/app/build/client/. /var/www/boardofone/static-{env}/`
+5. Run health checks (API, database, Redis)
+6. Run database migrations (Alembic)
+7. Switch nginx config to new environment
+8. Reload nginx (zero downtime)
+9. Stop old environment (after 5s grace period)
+
+**Authentication (SuperTokens):**
+- Shared SuperTokens Core container (infrastructure layer)
+- Frontend uses SuperTokens Web SDK for session management
+- BFF pattern: httpOnly cookies (NOT localStorage tokens)
+- OAuth providers: Google (configured), GitHub/LinkedIn (ready)
+- Session cookies: `sAccessToken`, `sRefreshToken` (httpOnly, secure, sameSite)
+- Auth endpoints: `/api/auth/*` (proxied to FastAPI)
+
+**Environment Variables:**
+- **Build-time** (embedded in frontend bundle):
+  - `PUBLIC_API_URL` (via Docker build arg) - DEPRECATED, use runtime
+  - `VITE_GOOGLE_OAUTH_CLIENT_ID` (for OAuth button)
+- **Runtime** (available via $env/dynamic/public):
+  - `PUBLIC_API_URL` - Resolved at runtime in Node.js process
+  - `ORIGIN` - SvelteKit origin for CSRF protection
+- **IMPORTANT**: Frontend uses `$env/dynamic/public` for runtime resolution (NOT `import.meta.env`)
+
+**Local vs Production Differences:**
+- **Local** (docker-compose.yml):
+  - All services in one compose file
+  - Frontend on port 5173 (Vite dev server with HMR)
+  - API on port 8000
+  - No nginx (direct container access)
+  - SQLite for local dev (optional)
+
+- **Production** (docker-compose.infrastructure.yml + docker-compose.app.yml):
+  - Split compose files (infrastructure vs app)
+  - Frontend on port 3000/3001 (Node.js adapter, no HMR)
+  - API on port 8000/8001
+  - nginx on host (ports 80/443)
+  - PostgreSQL + pgvector required
+  - Static assets served by nginx (NOT container)
+
+**Health Checks:**
+- API: `/api/health`, `/api/health/db`, `/api/health/redis`
+- Frontend: `wget http://127.0.0.1:3000` (homepage)
+- Deployment blocks on failed health checks (automatic rollback)
+
+**Rollback Procedure:**
+- Automatic: Health checks fail → deployment aborts, keeps old environment
+- Manual: Switch nginx config back, reload nginx, restart old containers
+
+**Monitoring:**
+- nginx logs: `/var/log/nginx/boardofone-{blue|green}-{access|error}.log`
+- Container logs: `docker logs {project}-{service}-1`
+- Static assets: `access_log off` (performance optimization)
 
 ---
 
@@ -483,6 +566,7 @@ make test-coverage  # Generates htmlcov/index.html
 
 ## What NOT to Do
 
+**Code & Architecture:**
 - Don't create new personas (use existing 45 from `personas.json`)
 - Don't use binary voting (use recommendation system with `<recommendation>` tag)
 - Don't use `VoteDecision` enum (removed - use free-form recommendation strings)
@@ -491,3 +575,81 @@ make test-coverage  # Generates htmlcov/index.html
 - Don't let context grow quadratically (use hierarchical summarization)
 - Don't modify `check_convergence_node()` without handling `None` values for `convergence_score`
 - Don't call functions `collect_votes()` or `aggregate_votes_ai()` (use `collect_recommendations()` and `aggregate_recommendations_ai()`)
+
+**Frontend Environment Variables:**
+- Don't use `import.meta.env.PUBLIC_API_URL` (use `$env/dynamic/public` for runtime resolution)
+- Don't set `envPrefix` in `adapter()` config (causes conflicts with runtime env vars)
+- Don't use `VITE_API_BASE_URL` (deprecated - use `PUBLIC_API_URL`)
+
+**nginx Configuration:**
+- Don't use `limit_conn off;` (invalid syntax - use high number like `limit_conn conn_limit 100;`)
+- Don't proxy static assets through Node.js (serve directly from `/var/www/boardofone/static-*`)
+- Don't apply connection limits to static asset locations (HTTP/2 parallel loading needs 100+ connections)
+
+**Docker & Deployment:**
+- Don't use `localhost` for inter-container communication (use Docker service names: `postgres`, `redis`, `supertokens`)
+- Don't modify nginx configs on server directly (update in repo, deploy via GitHub Actions)
+- Don't skip static asset extraction step during deployment (causes 503 errors)
+- Don't restart containers during active user sessions (use blue-green deployment)
+
+---
+
+## Production Troubleshooting
+
+**Issue: Frontend shows 502 Bad Gateway**
+- Check: `docker logs boardofone-frontend-1` or `boardofone-green-frontend-1`
+- Common cause: Frontend container crash-looping
+- Solution: Check for env var conflicts, missing `PUBLIC_API_URL`, or build errors
+
+**Issue: Static assets return 503 errors**
+- Check: `/var/log/nginx/boardofone-*-error.log` for "limiting connections"
+- Common cause: Connection limit too low for HTTP/2 parallel loading
+- Solution: Ensure `limit_conn conn_limit 100;` in static asset location blocks
+
+**Issue: Static assets return HTML instead of JS (MIME type error)**
+- Check: `curl -I https://boardof.one/_app/immutable/chunks/*.js` → should be `application/javascript`
+- Common cause: nginx location blocks not matching, or static files not extracted
+- Solution: Verify `/var/www/boardofone/static-{env}/_app/` exists and has files
+
+**Issue: "localhost:8000" appears in production browser console**
+- Common cause: Using `import.meta.env.PUBLIC_API_URL` (build-time) instead of `$env/dynamic/public` (runtime)
+- Solution: Update all frontend files to use `import { env } from '$env/dynamic/public'`
+
+**Issue: Docker containers can't connect to postgres/redis**
+- Check: Container logs show "connection refused localhost:5432"
+- Common cause: Using `localhost` instead of Docker service names
+- Solution: Use `postgres:5432`, `redis:6379` in connection strings (NOT `localhost`)
+
+**Issue: SuperTokens cookies rejected "invalid domain"**
+- Check: Browser console shows cookie domain mismatch
+- Common cause: `COOKIE_DOMAIN` env var mismatch or missing
+- Solution: Set `COOKIE_DOMAIN=boardof.one` in production `.env`
+
+**Deployment Debugging:**
+```bash
+# SSH into server
+ssh root@139.59.201.65
+
+# Check which environment is active
+curl -sI https://boardof.one | grep X-Environment
+
+# View nginx error logs
+tail -100 /var/log/nginx/boardofone-*-error.log
+
+# Check container status
+docker ps --format 'table {{.Names}}\t{{.Status}}'
+
+# View container logs
+docker logs boardofone-frontend-1 --tail 50
+docker logs boardofone-api-1 --tail 50
+
+# Check static assets
+ls -la /var/www/boardofone/static-blue/_app/immutable/
+ls -la /var/www/boardofone/static-green/_app/immutable/
+
+# Test nginx config
+sudo nginx -t
+
+# Reload nginx
+sudo systemctl reload nginx
+```

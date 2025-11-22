@@ -53,6 +53,11 @@ services:
       - SUPERTOKENS_API_DOMAIN=${SUPERTOKENS_API_DOMAIN:-https://boardof.one}
       - SUPERTOKENS_WEBSITE_DOMAIN=${SUPERTOKENS_WEBSITE_DOMAIN:-https://boardof.one}
 
+      # OAuth Provider Credentials
+      - GOOGLE_OAUTH_ENABLED=${GOOGLE_OAUTH_ENABLED:-false}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+
       # Application Configuration
       - DEBUG=false
       - LOG_LEVEL=${LOG_LEVEL:-INFO}

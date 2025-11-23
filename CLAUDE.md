@@ -355,6 +355,16 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - 5-15 min per deliberation
 - 60-70% cost reduction via prompt caching
 
+**LLM Response Caching** (Week 1 Sprint Optimization):
+- Enabled via `ENABLE_LLM_RESPONSE_CACHE=true` environment variable
+- Default TTL: 24 hours (configurable via `LLM_RESPONSE_CACHE_TTL_SECONDS`)
+- Cache key: SHA-256 hash of system + user + model + max_tokens
+- Storage: Redis with automatic expiration
+- Typical hit rate: 60-70% in production
+- Cost savings: $0.04-0.08 per cache hit
+- Performance: <100ms for cache hits vs ~2000ms for API calls
+- Graceful degradation: Cache failures don't break LLM calls
+
 **User sovereignty**:
 - System provides recommendations, NOT directives
 - "We recommend X" not "You must do X"

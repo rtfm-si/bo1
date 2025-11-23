@@ -130,7 +130,7 @@ class PromptBroker:
         self.retry_policy = retry_policy or RetryPolicy()
 
     async def call(self, request: PromptRequest) -> LLMResponse:
-        """Execute an LLM call with retry/rate-limit handling.
+        """Execute an LLM call with retry/rate-limit handling and caching.
 
         Args:
             request: Structured prompt request
@@ -141,6 +141,18 @@ class PromptBroker:
         Raises:
             APIError: If all retries exhausted or non-retryable error
         """
+        # Check cache first (fast path)
+        from bo1.llm.cache import get_llm_cache
+
+        cache = get_llm_cache()
+        cached_response = await cache.get_cached_response(request)
+        if cached_response:
+            logger.info(
+                f"[{request.request_id}] Cache hit: "
+                f"model={cached_response.model}, phase={request.phase}"
+            )
+            return cached_response
+
         start_time = time.time()
         retry_count = 0
         last_error: Exception | None = None
@@ -182,6 +194,10 @@ class PromptBroker:
                 )
 
                 logger.info(f"[{request.request_id}] Success: {llm_response.summary()}")
+
+                # Cache the response for future use
+                await cache.cache_response(request, llm_response)
+
                 return llm_response
 
             except RateLimitError as e:

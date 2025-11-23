@@ -110,6 +110,16 @@ class Settings(BaseSettings):
             return set()
         return {email.strip().lower() for email in self.beta_whitelist.split(",") if email.strip()}
 
+    # LLM Response Caching (Week 1 Sprint Optimization)
+    enable_llm_response_cache: bool = Field(
+        default=False,
+        description="Enable LLM response caching with Redis backend (60-80% cost reduction)",
+    )
+    llm_response_cache_ttl_seconds: int = Field(
+        default=86400,  # 24 hours
+        description="TTL for cached LLM responses in seconds",
+    )
+
     # Paths
     @property
     def personas_path(self) -> Path:

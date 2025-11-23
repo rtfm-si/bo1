@@ -157,7 +157,8 @@
 	let maxRetries = 3;
 	let connectionStatus = $state<'connecting' | 'connected' | 'error' | 'retrying'>('connecting');
 
-	// Track seen events for deduplication
+	// Track seen events for deduplication (bounded to prevent memory leaks)
+	const MAX_SEEN_EVENTS = 500;
 	let seenEventKeys = $state(new Set<string>());
 
 	// Check URL for debug mode to show internal events
@@ -298,6 +299,14 @@
 		if (seenEventKeys.has(eventKey)) {
 			console.debug('[Events] Skipping duplicate event:', eventKey);
 			return;
+		}
+
+		// Enforce max size to prevent unbounded memory growth
+		if (seenEventKeys.size >= MAX_SEEN_EVENTS) {
+			// Prune: keep most recent MAX_SEEN_EVENTS entries
+			const keys = Array.from(seenEventKeys);
+			seenEventKeys = new Set(keys.slice(-MAX_SEEN_EVENTS));
+			console.debug(`[Events] Pruned deduplication set to ${MAX_SEEN_EVENTS} entries`);
 		}
 
 		seenEventKeys.add(eventKey);

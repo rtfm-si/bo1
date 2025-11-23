@@ -25,6 +25,7 @@ from bo1.config import get_settings
 from bo1.llm.base_cache import BaseCache
 from bo1.llm.broker import PromptRequest
 from bo1.llm.response import LLMResponse
+from bo1.utils.singleton import singleton
 
 logger = logging.getLogger(__name__)
 
@@ -181,12 +182,12 @@ class LLMResponseCache(BaseCache[PromptRequest, LLMResponse]):
         await self.set(request, response)
 
 
-# Global cache instance
-_cache_instance: LLMResponseCache | None = None
-
-
+@singleton
 def get_llm_cache() -> LLMResponseCache:
     """Get or create global LLM cache instance.
+
+    This function uses the @singleton decorator to ensure only one cache
+    instance exists across the application lifetime.
 
     Returns:
         Singleton LLMResponseCache instance
@@ -194,10 +195,11 @@ def get_llm_cache() -> LLMResponseCache:
     Examples:
         >>> cache = get_llm_cache()
         >>> stats = cache.get_stats()
-    """
-    global _cache_instance
-    if _cache_instance is None:
-        from bo1.state.redis_manager import RedisManager
 
-        _cache_instance = LLMResponseCache(RedisManager())
-    return _cache_instance
+        >>> # For testing: reset singleton
+        >>> get_llm_cache.reset()  # type: ignore
+        >>> new_cache = get_llm_cache()
+    """
+    from bo1.state.redis_manager import RedisManager
+
+    return LLMResponseCache(RedisManager())

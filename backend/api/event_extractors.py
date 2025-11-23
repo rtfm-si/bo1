@@ -14,6 +14,8 @@ Benefits:
 from collections.abc import Callable
 from typing import Any, TypedDict
 
+from bo1.utils.singleton import singleton
+
 
 class FieldExtractor(TypedDict, total=False):
     """Configuration for extracting a field from event output.
@@ -708,15 +710,12 @@ class EventExtractorRegistry:
         return event_type in self._extractors
 
 
-# Create global registry instance
-_registry: EventExtractorRegistry | None = None
-
-
+@singleton
 def get_event_registry() -> EventExtractorRegistry:
     """Get or create global event extractor registry.
 
-    This function lazily initializes the registry on first call and registers
-    all standard event extractors.
+    This function uses the @singleton decorator to lazily initialize the registry
+    on first call and register all standard event extractors.
 
     Returns:
         Singleton EventExtractorRegistry instance
@@ -724,22 +723,24 @@ def get_event_registry() -> EventExtractorRegistry:
     Examples:
         >>> registry = get_event_registry()
         >>> data = registry.extract("decomposition", output)
+
+        >>> # For testing: reset singleton
+        >>> get_event_registry.reset()  # type: ignore
+        >>> new_registry = get_event_registry()
     """
-    global _registry
-    if _registry is None:
-        _registry = EventExtractorRegistry()
+    registry = EventExtractorRegistry()
 
-        # Register all standard extractors
-        _registry.register("decomposition", DECOMPOSITION_EXTRACTORS)
-        _registry.register("persona_selection", PERSONA_SELECTION_EXTRACTORS)
-        _registry.register("facilitator_decision", _create_facilitator_decision_extractors)
-        _registry.register("moderator_intervention", _create_moderator_intervention_extractors)
-        _registry.register("convergence", CONVERGENCE_EXTRACTORS)
-        _registry.register("voting", _create_voting_extractors)
-        _registry.register("synthesis", SYNTHESIS_EXTRACTORS)
-        _registry.register("meta_synthesis", META_SYNTHESIS_EXTRACTORS)
-        _registry.register("subproblem_started", SUBPROBLEM_STARTED_EXTRACTORS)
-        _registry.register("subproblem_complete", _create_subproblem_complete_extractors)
-        _registry.register("completion", _create_completion_extractors)
+    # Register all standard extractors
+    registry.register("decomposition", DECOMPOSITION_EXTRACTORS)
+    registry.register("persona_selection", PERSONA_SELECTION_EXTRACTORS)
+    registry.register("facilitator_decision", _create_facilitator_decision_extractors)
+    registry.register("moderator_intervention", _create_moderator_intervention_extractors)
+    registry.register("convergence", CONVERGENCE_EXTRACTORS)
+    registry.register("voting", _create_voting_extractors)
+    registry.register("synthesis", SYNTHESIS_EXTRACTORS)
+    registry.register("meta_synthesis", META_SYNTHESIS_EXTRACTORS)
+    registry.register("subproblem_started", SUBPROBLEM_STARTED_EXTRACTORS)
+    registry.register("subproblem_complete", _create_subproblem_complete_extractors)
+    registry.register("completion", _create_completion_extractors)
 
-    return _registry
+    return registry

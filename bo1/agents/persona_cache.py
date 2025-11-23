@@ -27,6 +27,7 @@ from bo1.llm.base_cache import BaseCache
 from bo1.llm.embeddings import cosine_similarity, generate_embedding
 from bo1.models.persona import PersonaProfile
 from bo1.models.problem import SubProblem
+from bo1.utils.singleton import singleton
 
 logger = logging.getLogger(__name__)
 
@@ -209,12 +210,12 @@ class PersonaSelectionCache(BaseCache[SubProblem, list[PersonaProfile]]):
         await self.set(problem, personas)
 
 
-# Global cache instance
-_persona_cache: PersonaSelectionCache | None = None
-
-
+@singleton
 def get_persona_cache() -> PersonaSelectionCache:
     """Get or create persona cache instance.
+
+    This function uses the @singleton decorator to ensure only one cache
+    instance exists across the application lifetime.
 
     Returns:
         PersonaSelectionCache singleton instance
@@ -222,10 +223,11 @@ def get_persona_cache() -> PersonaSelectionCache:
     Examples:
         >>> cache = get_persona_cache()
         >>> print(cache.get_stats())
-    """
-    global _persona_cache
-    if _persona_cache is None:
-        from bo1.state.redis_manager import RedisManager
 
-        _persona_cache = PersonaSelectionCache(RedisManager())
-    return _persona_cache
+        >>> # For testing: reset singleton
+        >>> get_persona_cache.reset()  # type: ignore
+        >>> new_cache = get_persona_cache()
+    """
+    from bo1.state.redis_manager import RedisManager
+
+    return PersonaSelectionCache(RedisManager())

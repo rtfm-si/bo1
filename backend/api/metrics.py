@@ -11,7 +11,6 @@ Example:
 """
 
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -28,8 +27,8 @@ class MetricsCollector:
         histograms: Histogram metrics (durations, token counts, etc.)
     """
 
-    counters: dict[str, int] = field(default_factory=lambda: defaultdict(int))
-    histograms: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
+    counters: dict[str, int] = field(default_factory=dict)
+    histograms: dict[str, list[float]] = field(default_factory=dict)
 
     def increment(self, name: str, value: int = 1) -> None:
         """Increment a counter metric.
@@ -38,7 +37,7 @@ class MetricsCollector:
             name: Metric name (e.g., 'api.sessions.get.success')
             value: Amount to increment (default: 1)
         """
-        self.counters[name] += value
+        self.counters[name] = self.counters.get(name, 0) + value
 
     def observe(self, name: str, value: float) -> None:
         """Record a histogram observation.
@@ -47,6 +46,8 @@ class MetricsCollector:
             name: Metric name (e.g., 'api.sessions.get.duration')
             value: Observed value (e.g., request duration in seconds)
         """
+        if name not in self.histograms:
+            self.histograms[name] = []
         self.histograms[name].append(value)
 
     def get_stats(self) -> dict[str, Any]:

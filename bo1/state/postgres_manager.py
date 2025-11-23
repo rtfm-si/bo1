@@ -64,19 +64,25 @@ def get_connection_pool() -> pool.ThreadedConnectionPool:
 
 
 @contextmanager
-def db_session() -> Any:
+def db_session() -> (
+    Any
+):  # Generator[connection, None, None] would be ideal but psycopg2 typing is complex
     """Context manager for database transactions.
 
     Provides automatic connection pooling, commit/rollback, and cleanup.
 
     Yields:
-        Database connection from pool
+        psycopg2.extensions.connection: PostgreSQL connection from pool
 
     Examples:
         >>> with db_session() as conn:
         ...     with conn.cursor() as cur:
         ...         cur.execute("SELECT * FROM user_context WHERE user_id = %s", (user_id,))
         ...         result = cur.fetchone()
+
+    Note:
+        Return type is Any due to psycopg2's complex typing. The actual type is
+        psycopg2.extensions.connection, but avoiding the import for simplicity.
     """
     pool_instance = get_connection_pool()
     conn = pool_instance.getconn()

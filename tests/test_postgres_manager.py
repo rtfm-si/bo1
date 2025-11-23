@@ -5,9 +5,9 @@ from collections.abc import Generator
 import pytest
 
 from bo1.state.postgres_manager import (
+    db_session,
     delete_user_context,
     find_cached_research,
-    get_connection,
     get_session_clarifications,
     load_user_context,
     save_clarification,
@@ -41,8 +41,8 @@ def sample_context() -> dict[str, str]:
 @pytest.fixture
 def setup_test_user(test_user_id: str) -> Generator[str, None, None]:
     """Create test user in database for testing."""
-    conn = get_connection()
-    try:
+    # Setup: Create test user
+    with db_session() as conn:
         with conn.cursor() as cur:
             # Delete test user if exists
             cur.execute("DELETE FROM users WHERE id = %s", (test_user_id,))
@@ -55,14 +55,13 @@ def setup_test_user(test_user_id: str) -> Generator[str, None, None]:
                 """,
                 (test_user_id, f"{test_user_id}@test.com", "test", "free"),
             )
-            conn.commit()
-        yield test_user_id
-        # Cleanup after test
+
+    yield test_user_id
+
+    # Cleanup: Delete test user
+    with db_session() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM users WHERE id = %s", (test_user_id,))
-            conn.commit()
-    finally:
-        conn.close()
 
 
 def test_user_context_crud(
@@ -116,10 +115,11 @@ def test_user_context_crud(
 @pytest.fixture
 def setup_test_session(setup_test_user: str) -> Generator[str, None, None]:
     """Create test session in database for testing clarifications."""
-    conn = get_connection()
     session_id = "test-session-456"
     user_id = setup_test_user
-    try:
+
+    # Setup: Create test session
+    with db_session() as conn:
         with conn.cursor() as cur:
             # Delete test session if exists
             cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
@@ -132,14 +132,13 @@ def setup_test_session(setup_test_user: str) -> Generator[str, None, None]:
                 """,
                 (session_id, user_id, "Test problem", "active", "decompose"),
             )
-            conn.commit()
-        yield session_id
-        # Cleanup after test
+
+    yield session_id
+
+    # Cleanup: Delete test session
+    with db_session() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
-            conn.commit()
-    finally:
-        conn.close()
 
 
 def test_clarifications_crud(setup_test_session: str) -> None:

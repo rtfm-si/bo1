@@ -8,6 +8,9 @@ from abc import ABC, abstractmethod
 
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
+from bo1.utils.logging import get_logger, log_error_with_context
+
+logger = get_logger(__name__)
 
 
 class BaseAgent(ABC):
@@ -17,8 +20,16 @@ class BaseAgent(ABC):
     - Broker initialization with dependency injection
     - Model selection via abstract method
     - Standardized LLM call pattern
+    - Cost tracking across all calls
+    - Structured error logging
 
     Subclasses must implement get_default_model() to specify their default model.
+
+    Attributes:
+        broker: LLM broker for API calls
+        model: Model name (alias or full ID)
+        total_cost: Cumulative cost of all LLM calls made by this agent instance
+        call_count: Number of LLM calls made by this agent instance
     """
 
     def __init__(
@@ -34,6 +45,8 @@ class BaseAgent(ABC):
         """
         self.broker = broker or PromptBroker()
         self.model = model or self.get_default_model()
+        self.total_cost = 0.0
+        self.call_count = 0
 
     @abstractmethod
     def get_default_model(self) -> str:
@@ -45,7 +58,7 @@ class BaseAgent(ABC):
         pass
 
     async def _call_llm(self, request: PromptRequest) -> LLMResponse:
-        """Call LLM via broker with standardized error handling.
+        """Call LLM via broker with standardized error handling and cost tracking.
 
         Args:
             request: PromptRequest to execute
@@ -54,9 +67,26 @@ class BaseAgent(ABC):
             LLMResponse from the model
 
         Raises:
-            Any exceptions from the broker.call() method
+            Any exceptions from the broker.call() method, logged with context
         """
-        return await self.broker.call(request)
+        try:
+            response = await self.broker.call(request)
+            # Track costs and call count
+            self.total_cost += response.cost_total
+            self.call_count += 1
+            return response
+        except Exception as e:
+            # Log error with structured context
+            log_error_with_context(
+                logger,
+                e,
+                "LLM call failed in agent",
+                agent=self.__class__.__name__,
+                model=self.model,
+                phase=request.phase or "unknown",
+                request_id=request.request_id,
+            )
+            raise
 
     async def _create_and_call_prompt(
         self,
@@ -106,4 +136,39 @@ class BaseAgent(ABC):
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        return await self.broker.call(request)
+        # Use _call_llm for consistent error handling and cost tracking
+        return await self._call_llm(request)
+
+    def get_cost_stats(self) -> dict[str, float | int]:
+        """Get cost statistics for this agent instance.
+
+        Returns:
+            Dictionary with total_cost, call_count, and avg_cost_per_call
+
+        Examples:
+            >>> agent = DecomposerAgent()
+            >>> # ... make some LLM calls ...
+            >>> stats = agent.get_cost_stats()
+            >>> print(f"Total cost: ${stats['total_cost']:.4f}")
+            >>> print(f"Average: ${stats['avg_cost_per_call']:.4f}")
+        """
+        avg_cost = self.total_cost / self.call_count if self.call_count > 0 else 0.0
+        return {
+            "total_cost": self.total_cost,
+            "call_count": self.call_count,
+            "avg_cost_per_call": avg_cost,
+        }
+
+    def reset_cost_tracking(self) -> None:
+        """Reset cost and call count trackers.
+
+        Useful when reusing an agent instance across multiple sessions.
+
+        Examples:
+            >>> agent = DecomposerAgent()
+            >>> # ... use agent for session 1 ...
+            >>> agent.reset_cost_tracking()
+            >>> # ... use agent for session 2 ...
+        """
+        self.total_cost = 0.0
+        self.call_count = 0

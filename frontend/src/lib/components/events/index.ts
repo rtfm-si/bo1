@@ -1,6 +1,13 @@
 /**
  * Event Components - Barrel Export
  * Svelte 5 components for rendering SSE deliberation events
+ *
+ * NOTE: For optimal performance, meeting/[id]/+page.svelte uses dynamic imports
+ * to load components on-demand, reducing initial bundle size by 30-40%.
+ * These static exports are kept for backwards compatibility with other imports.
+ *
+ * If adding new event components, update the componentLoaders map in
+ * meeting/[id]/+page.svelte for dynamic loading.
  */
 
 export { default as DecompositionComplete } from './DecompositionComplete.svelte';

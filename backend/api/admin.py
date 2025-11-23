@@ -731,9 +731,9 @@ async def list_beta_whitelist(
         HTTPException: If retrieval fails
     """
     try:
-        from bo1.state.postgres_manager import get_connection
+        from bo1.state.postgres_manager import db_session
 
-        with get_connection() as conn:
+        with db_session() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -800,7 +800,7 @@ async def add_to_beta_whitelist(
         HTTPException: If email is invalid or already exists
     """
     try:
-        from bo1.state.postgres_manager import get_connection
+        from bo1.state.postgres_manager import db_session
 
         # Normalize email
         email = request.email.strip().lower()
@@ -812,7 +812,7 @@ async def add_to_beta_whitelist(
                 detail=f"Invalid email address: {email}",
             )
 
-        with get_connection() as conn:
+        with db_session() as conn:
             with conn.cursor() as cur:
                 # Check if email already exists
                 cur.execute("SELECT id FROM beta_whitelist WHERE email = %s", (email,))
@@ -832,7 +832,6 @@ async def add_to_beta_whitelist(
                     (email, "admin", request.notes),
                 )
                 row = cur.fetchone()
-                conn.commit()
 
         entry = BetaWhitelistEntry(
             id=str(row[0]),
@@ -886,12 +885,12 @@ async def remove_from_beta_whitelist(
         HTTPException: If email not found or removal fails
     """
     try:
-        from bo1.state.postgres_manager import get_connection
+        from bo1.state.postgres_manager import db_session
 
         # Normalize email
         email = email.strip().lower()
 
-        with get_connection() as conn:
+        with db_session() as conn:
             with conn.cursor() as cur:
                 # Delete email
                 cur.execute("DELETE FROM beta_whitelist WHERE email = %s RETURNING id", (email,))
@@ -902,8 +901,6 @@ async def remove_from_beta_whitelist(
                         status_code=404,
                         detail=f"Email not found in whitelist: {email}",
                     )
-
-                conn.commit()
 
         logger.info(f"Admin: Removed {email} from beta whitelist")
 

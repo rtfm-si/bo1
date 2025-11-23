@@ -121,8 +121,7 @@ def load_user_context(user_id: str) -> dict[str, Any] | None:
     Returns:
         Dictionary with context fields or None if not found
     """
-    conn = get_connection()
-    try:
+    with db_session() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -136,8 +135,6 @@ def load_user_context(user_id: str) -> dict[str, Any] | None:
             )
             row = cur.fetchone()
             return dict(row) if row else None
-    finally:
-        conn.close()
 
 
 def save_user_context(user_id: str, context: dict[str, Any]) -> dict[str, Any]:
@@ -150,8 +147,7 @@ def save_user_context(user_id: str, context: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Saved context with timestamps
     """
-    conn = get_connection()
-    try:
+    with db_session() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -187,10 +183,7 @@ def save_user_context(user_id: str, context: dict[str, Any]) -> dict[str, Any]:
                 ),
             )
             result = cur.fetchone()
-            conn.commit()
             return dict(result) if result else {}
-    finally:
-        conn.close()
 
 
 def delete_user_context(user_id: str) -> bool:
@@ -202,18 +195,14 @@ def delete_user_context(user_id: str) -> bool:
     Returns:
         True if context was deleted, False if not found
     """
-    conn = get_connection()
-    try:
+    with db_session() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "DELETE FROM user_context WHERE user_id = %s",
                 (user_id,),
             )
             deleted: bool = cur.rowcount > 0
-            conn.commit()
             return deleted
-    finally:
-        conn.close()
 
 
 # =============================================================================
@@ -246,8 +235,7 @@ def save_clarification(
     Returns:
         Saved clarification record
     """
-    conn = get_connection()
-    try:
+    with db_session() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -271,10 +259,7 @@ def save_clarification(
                 ),
             )
             result = cur.fetchone()
-            conn.commit()
             return dict(result) if result else {}
-    finally:
-        conn.close()
 
 
 def get_session_clarifications(session_id: str) -> list[dict[str, Any]]:
@@ -286,8 +271,7 @@ def get_session_clarifications(session_id: str) -> list[dict[str, Any]]:
     Returns:
         List of clarification records
     """
-    conn = get_connection()
-    try:
+    with db_session() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -301,8 +285,6 @@ def get_session_clarifications(session_id: str) -> list[dict[str, Any]]:
             )
             rows = cur.fetchall()
             return [dict(row) for row in rows]
-    finally:
-        conn.close()
 
 
 # =============================================================================
@@ -336,8 +318,7 @@ def find_cached_research(
         if max_age_days < 0:
             raise ValueError(f"days must be non-negative, got {max_age_days}")
 
-    conn = get_connection()
-    try:
+    with db_session() as conn:
         with conn.cursor() as cur:
             # For now, we'll use a simple approach without vector similarity
             # because pgvector requires proper setup. We'll use category/industry filters
@@ -380,8 +361,6 @@ def find_cached_research(
             cur.execute(query, params)
             row = cur.fetchone()
             return dict(row) if row else None
-    finally:
-        conn.close()
 
 
 def save_research_result(
@@ -413,8 +392,7 @@ def save_research_result(
     Returns:
         Saved research record
     """
-    conn = get_connection()
-    try:
+    with db_session() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -444,10 +422,7 @@ def save_research_result(
                 ),
             )
             result = cur.fetchone()
-            conn.commit()
             return dict(result) if result else {}
-    finally:
-        conn.close()
 
 
 def update_research_access(cache_id: str) -> None:
@@ -456,8 +431,7 @@ def update_research_access(cache_id: str) -> None:
     Args:
         cache_id: Research cache record ID (string representation of UUID)
     """
-    conn = get_connection()
-    try:
+    with db_session() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -468,9 +442,6 @@ def update_research_access(cache_id: str) -> None:
                 """,
                 (cache_id,),
             )
-            conn.commit()
-    finally:
-        conn.close()
 
 
 def get_research_cache_stats() -> dict[str, Any]:
@@ -493,8 +464,7 @@ def get_research_cache_stats() -> dict[str, Any]:
             ]
         }
     """
-    conn = get_connection()
-    try:
+    with db_session() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Total cached results
             cur.execute("SELECT COUNT(*) as total FROM research_cache")
@@ -549,8 +519,6 @@ def get_research_cache_stats() -> dict[str, Any]:
                 "cost_savings_30d": round(cost_savings_30d, 2),
                 "top_cached_questions": top_questions,
             }
-    finally:
-        conn.close()
 
 
 def delete_research_cache_entry(cache_id: str) -> bool:
@@ -562,8 +530,7 @@ def delete_research_cache_entry(cache_id: str) -> bool:
     Returns:
         True if deleted, False if not found
     """
-    conn = get_connection()
-    try:
+    with db_session() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -572,12 +539,9 @@ def delete_research_cache_entry(cache_id: str) -> bool:
                 """,
                 (cache_id,),
             )
-            conn.commit()
             # Cast to int to satisfy mypy
             rowcount: int = cur.rowcount if cur.rowcount is not None else 0
             return rowcount > 0
-    finally:
-        conn.close()
 
 
 def get_stale_research_cache_entries(days_old: int = 90) -> list[dict[str, Any]]:
@@ -598,8 +562,7 @@ def get_stale_research_cache_entries(days_old: int = 90) -> list[dict[str, Any]]
     # Use SafeQueryBuilder to prevent SQL injection
     from bo1.utils.sql_safety import SafeQueryBuilder
 
-    conn = get_connection()
-    try:
+    with db_session() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Build safe query with parameterized interval
             builder = SafeQueryBuilder(
@@ -629,5 +592,3 @@ def get_stale_research_cache_entries(days_old: int = 90) -> list[dict[str, Any]]
                     entry["research_date"] = entry["research_date"].isoformat()
 
             return entries
-    finally:
-        conn.close()

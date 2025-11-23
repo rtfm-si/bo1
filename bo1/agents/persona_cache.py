@@ -23,6 +23,7 @@ import logging
 from typing import Any
 
 from bo1.config import get_settings
+from bo1.llm.base_cache import BaseCache
 from bo1.llm.embeddings import cosine_similarity, generate_embedding
 from bo1.models.persona import PersonaProfile
 from bo1.models.problem import SubProblem
@@ -30,7 +31,7 @@ from bo1.models.problem import SubProblem
 logger = logging.getLogger(__name__)
 
 
-class PersonaSelectionCache:
+class PersonaSelectionCache(BaseCache[SubProblem, list[PersonaProfile]]):
     """Semantic similarity-based persona selection cache with Redis backend.
 
     This cache stores persona selections using embeddings of problem goals.
@@ -41,13 +42,13 @@ class PersonaSelectionCache:
         >>> from bo1.state.redis_manager import get_redis_manager
         >>> cache = PersonaSelectionCache(get_redis_manager())
         >>> problem = SubProblem(goal="Should we expand to EU?", ...)
-        >>> cached = await cache.get_cached_personas(problem)
+        >>> cached = await cache.get(problem)
         >>> if cached:
         ...     print(f"Cache hit! {len(cached)} personas")
         >>> else:
         ...     # Perform LLM selection
         ...     personas = await selector.recommend_personas(problem)
-        ...     await cache.cache_persona_selection(problem, personas)
+        ...     await cache.set(problem, personas)
     """
 
     def __init__(self, redis_manager: Any) -> None:
@@ -56,18 +57,16 @@ class PersonaSelectionCache:
         Args:
             redis_manager: RedisManager instance for cache storage
         """
-        self.redis = redis_manager.redis
-        self.enabled = get_settings().enable_persona_selection_cache
+        settings = get_settings()
+        super().__init__(
+            redis_manager=redis_manager,
+            enabled=settings.enable_persona_selection_cache,
+            ttl_seconds=7 * 24 * 60 * 60,  # 7 days
+        )
         self.similarity_threshold = 0.90  # Higher than research cache (0.85) for accuracy
-        self.ttl_seconds = 7 * 24 * 60 * 60  # 7 days (longer than research cache)
-        self._hits = 0
-        self._misses = 0
 
-    async def get_cached_personas(
-        self,
-        problem: SubProblem,
-    ) -> list[PersonaProfile] | None:
-        """Get cached persona selection if similar problem exists.
+    async def get(self, problem: SubProblem) -> list[PersonaProfile] | None:
+        """Get cached persona selection (implements BaseCache.get).
 
         Args:
             problem: SubProblem to get personas for
@@ -115,7 +114,7 @@ class PersonaSelectionCache:
                     best_match_personas = cached_data.get("personas")
 
             if best_match_personas:
-                self._hits += 1
+                self._record_hit()
                 logger.info(
                     f"✓ Persona cache hit (similarity={best_similarity:.3f}, "
                     f"threshold={self.similarity_threshold})"
@@ -125,7 +124,7 @@ class PersonaSelectionCache:
                 return [PersonaProfile(**p) for p in best_match_personas]
 
             # No similar problem found
-            self._misses += 1
+            self._record_miss()
             logger.debug(
                 f"Persona cache miss (best similarity: {best_similarity:.3f}, "
                 f"threshold: {self.similarity_threshold})"
@@ -134,15 +133,11 @@ class PersonaSelectionCache:
 
         except Exception as e:
             logger.error(f"Persona cache read error: {e}", exc_info=True)
-            self._misses += 1
+            self._record_miss()
             return None
 
-    async def cache_persona_selection(
-        self,
-        problem: SubProblem,
-        personas: list[PersonaProfile],
-    ) -> None:
-        """Cache persona selection for problem.
+    async def set(self, problem: SubProblem, personas: list[PersonaProfile]) -> None:
+        """Cache persona selection (implements BaseCache.set).
 
         Args:
             problem: SubProblem personas were selected for
@@ -184,31 +179,33 @@ class PersonaSelectionCache:
         except Exception as e:
             logger.error(f"Persona cache write error: {e}", exc_info=True)
 
-    @property
-    def hit_rate(self) -> float:
-        """Calculate cache hit rate.
-
-        Returns:
-            Hit rate as decimal (0.0-1.0), or 0.0 if no requests yet
-        """
-        total = self._hits + self._misses
-        return self._hits / total if total > 0 else 0.0
-
     def get_stats(self) -> dict[str, Any]:
-        """Get cache statistics.
+        """Get cache statistics (extends BaseCache.get_stats).
 
         Returns:
-            Dictionary with cache performance metrics
+            Dictionary with cache performance metrics including similarity_threshold
         """
-        return {
-            "enabled": self.enabled,
-            "hits": self._hits,
-            "misses": self._misses,
-            "hit_rate": self.hit_rate,
-            "similarity_threshold": self.similarity_threshold,
-            "ttl_seconds": self.ttl_seconds,
-            "ttl_days": self.ttl_seconds / (24 * 60 * 60),
-        }
+        base_stats = super().get_stats()
+        base_stats["similarity_threshold"] = self.similarity_threshold
+        base_stats["ttl_days"] = self.ttl_seconds / (24 * 60 * 60)
+        return base_stats
+
+    # Backward compatibility methods
+    async def get_cached_personas(self, problem: SubProblem) -> list[PersonaProfile] | None:
+        """Get cached persona selection (backward compatibility alias).
+
+        Deprecated: Use get() instead.
+        """
+        return await self.get(problem)
+
+    async def cache_persona_selection(
+        self, problem: SubProblem, personas: list[PersonaProfile]
+    ) -> None:
+        """Cache persona selection (backward compatibility alias).
+
+        Deprecated: Use set() instead.
+        """
+        await self.set(problem, personas)
 
 
 # Global cache instance

@@ -22,6 +22,7 @@ import logging
 from typing import Any
 
 from bo1.config import get_settings
+from bo1.llm.base_cache import BaseCache
 from bo1.llm.broker import PromptRequest
 from bo1.llm.response import LLMResponse
 
@@ -72,7 +73,7 @@ def generate_cache_key(
     return cache_key
 
 
-class LLMResponseCache:
+class LLMResponseCache(BaseCache[PromptRequest, LLMResponse]):
     """Redis-backed LLM response cache with statistics tracking.
 
     This cache stores LLM responses using deterministic keys based on
@@ -83,8 +84,8 @@ class LLMResponseCache:
         >>> cache = LLMResponseCache(get_redis_manager())
         >>> request = PromptRequest(system="test", user_message="hello")
         >>> response = LLMResponse(content="hi", ...)
-        >>> await cache.cache_response(request, response)
-        >>> cached = await cache.get_cached_response(request)
+        >>> await cache.set(request, response)
+        >>> cached = await cache.get(request)
         >>> print(cache.get_stats())
     """
 
@@ -94,26 +95,21 @@ class LLMResponseCache:
         Args:
             redis_manager: RedisManager instance for cache storage
         """
-        self.redis = redis_manager.redis
-        self.enabled = get_settings().enable_llm_response_cache
-        self.ttl_seconds = get_settings().llm_response_cache_ttl_seconds
-        self._hits = 0
-        self._misses = 0
+        settings = get_settings()
+        super().__init__(
+            redis_manager=redis_manager,
+            enabled=settings.enable_llm_response_cache,
+            ttl_seconds=settings.llm_response_cache_ttl_seconds,
+        )
 
-    async def get_cached_response(
-        self,
-        request: PromptRequest,
-    ) -> LLMResponse | None:
-        """Get cached LLM response if exists.
+    async def get(self, request: PromptRequest) -> LLMResponse | None:
+        """Get cached LLM response (implements BaseCache.get).
 
         Args:
             request: Prompt request to look up
 
         Returns:
             Cached LLMResponse if found, None otherwise
-
-        Note:
-            Increments hit/miss counters for statistics tracking.
         """
         if not self.enabled:
             return None
@@ -128,21 +124,17 @@ class LLMResponseCache:
         try:
             cached_json = self.redis.get(cache_key)
             if cached_json:
-                self._hits += 1
+                self._record_hit()
                 logger.info(f"LLM cache hit: {cache_key} (hit_rate={self.hit_rate:.1%})")
                 return LLMResponse.model_validate_json(cached_json)
         except Exception as e:
             logger.error(f"LLM cache read error: {e}")
 
-        self._misses += 1
+        self._record_miss()
         return None
 
-    async def cache_response(
-        self,
-        request: PromptRequest,
-        response: LLMResponse,
-    ) -> None:
-        """Cache LLM response.
+    async def set(self, request: PromptRequest, response: LLMResponse) -> None:
+        """Cache LLM response (implements BaseCache.set).
 
         Args:
             request: Original prompt request
@@ -172,41 +164,20 @@ class LLMResponseCache:
         except Exception as e:
             logger.error(f"LLM cache write error: {e}")
 
-    @property
-    def hit_rate(self) -> float:
-        """Calculate cache hit rate.
+    # Backward compatibility methods
+    async def get_cached_response(self, request: PromptRequest) -> LLMResponse | None:
+        """Get cached LLM response (backward compatibility alias).
 
-        Returns:
-            Hit rate as a decimal (0.0-1.0)
-
-        Examples:
-            >>> cache.get_stats()["hit_rate"]  # 0.65 = 65% hit rate
+        Deprecated: Use get() instead.
         """
-        total = self._hits + self._misses
-        return self._hits / total if total > 0 else 0.0
+        return await self.get(request)
 
-    def get_stats(self) -> dict[str, Any]:
-        """Get cache statistics.
+    async def cache_response(self, request: PromptRequest, response: LLMResponse) -> None:
+        """Cache LLM response (backward compatibility alias).
 
-        Returns:
-            Dictionary with cache metrics:
-            - enabled: Whether caching is enabled
-            - hits: Number of cache hits
-            - misses: Number of cache misses
-            - hit_rate: Cache hit rate (0.0-1.0)
-            - ttl_seconds: Cache entry TTL
-
-        Examples:
-            >>> stats = cache.get_stats()
-            >>> print(f"Hit rate: {stats['hit_rate']:.1%}")
+        Deprecated: Use set() instead.
         """
-        return {
-            "enabled": self.enabled,
-            "hits": self._hits,
-            "misses": self._misses,
-            "hit_rate": self.hit_rate,
-            "ttl_seconds": self.ttl_seconds,
-        }
+        await self.set(request, response)
 
 
 # Global cache instance

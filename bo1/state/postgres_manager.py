@@ -309,39 +309,42 @@ def find_cached_research(
             # and return the most recent match.
             # TODO: Implement proper vector similarity search with pgvector
 
-            query = """
+            # Use SafeQueryBuilder for all query construction (prevents SQL injection)
+            from bo1.utils.sql_safety import SafeQueryBuilder
+
+            builder = SafeQueryBuilder(
+                """
                 SELECT id, question, answer_summary, confidence, sources,
                        source_count, category, industry, research_date,
                        access_count, last_accessed_at, freshness_days,
                        tokens_used, research_cost_usd
                 FROM research_cache
                 WHERE 1=1
-            """
-            params: list[Any] = []
+                """
+            )
 
             if category:
-                query += " AND category = %s"
-                params.append(category)
+                builder.add_condition("category")
+                builder.add_param(category)
 
             if industry:
-                query += " AND industry = %s"
-                params.append(industry)
+                builder.add_condition("industry")
+                builder.add_param(industry)
 
             if max_age_days:
-                # Use SafeQueryBuilder for interval filter (prevents SQL injection)
-                from bo1.utils.sql_safety import SafeQueryBuilder
-
-                # Create builder from existing query
-                builder = SafeQueryBuilder.__new__(SafeQueryBuilder)
-                builder.query = query
-                builder.params = params
+                # Add interval filter with max_age_days
                 builder.add_interval_filter("research_date", max_age_days)
-                query, params = builder.build()
             else:
-                query += " AND research_date >= NOW() - (freshness_days || ' days')::interval"
+                # Use database column value for freshness
+                # Note: This is safe because it references a column, not user input
+                builder.query += (
+                    " AND research_date >= NOW() - (freshness_days || ' days')::interval"
+                )
 
-            query += " ORDER BY research_date DESC LIMIT 1"
+            builder.add_order_by("research_date", "DESC")
+            builder.add_limit(1)
 
+            query, params = builder.build()
             cur.execute(query, params)
             row = cur.fetchone()
             return dict(row) if row else None

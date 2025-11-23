@@ -13,11 +13,12 @@ All caches share:
 - get_stats() method
 """
 
-import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from bo1.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class BaseCache[K, V](ABC):

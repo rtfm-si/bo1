@@ -6,7 +6,6 @@ Provides:
 - GET /api/v1/sessions/{session_id} - Get session details
 """
 
-import logging
 import os
 from datetime import UTC, datetime
 from typing import Any
@@ -34,8 +33,9 @@ from backend.api.utils.validation import validate_session_id
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
 from bo1.state.redis_manager import RedisManager
+from bo1.utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
 

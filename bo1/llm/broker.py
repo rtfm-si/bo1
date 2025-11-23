@@ -9,7 +9,6 @@ This module provides a unified interface for all LLM calls with:
 """
 
 import asyncio
-import logging
 import random
 import time
 import uuid
@@ -21,6 +20,7 @@ from pydantic import BaseModel, Field
 from bo1.config import resolve_model_alias
 from bo1.llm.client import ClaudeClient
 from bo1.llm.response import LLMResponse
+from bo1.utils.logging import get_logger, log_llm_call
 
 # Import metrics for tracking LLM calls
 try:
@@ -29,7 +29,7 @@ except ImportError:
     # Metrics may not be available in all contexts (e.g., console-only mode)
     metrics = None  # type: ignore[assignment]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class RetryPolicy(BaseModel):
@@ -207,7 +207,19 @@ class PromptBroker:
                     agent_type=request.agent_type,
                 )
 
-                logger.info(f"[{request.request_id}] Success: {llm_response.summary()}")
+                # Log structured metrics
+                log_llm_call(
+                    logger,
+                    model=model_id,
+                    prompt_tokens=token_usage.input_tokens,
+                    completion_tokens=token_usage.output_tokens,
+                    cost=llm_response.cost_total,
+                    duration_ms=duration_ms,
+                    phase=request.phase or "unknown",
+                    agent=request.agent_type or "unknown",
+                    request_id=request.request_id,
+                    retry_count=retry_count,
+                )
 
                 # Track metrics
                 if metrics:

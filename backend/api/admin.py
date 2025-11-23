@@ -10,7 +10,6 @@ Provides:
 - DELETE /api/admin/beta-whitelist/{email} - Remove email from whitelist
 """
 
-import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -22,8 +21,9 @@ from backend.api.metrics import metrics
 from backend.api.middleware.admin import require_admin
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.validation import validate_session_id
+from bo1.utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 

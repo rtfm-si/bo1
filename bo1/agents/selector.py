@@ -7,7 +7,6 @@ Includes semantic caching to reduce LLM API costs by 40-60%.
 """
 
 import json
-import logging
 from typing import Any
 
 from bo1.agents.base import BaseAgent
@@ -16,8 +15,9 @@ from bo1.config import MODEL_BY_ROLE
 from bo1.data import get_active_personas, get_persona_by_code
 from bo1.llm.response import LLMResponse
 from bo1.models.problem import SubProblem
+from bo1.utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # System prompt for persona selection

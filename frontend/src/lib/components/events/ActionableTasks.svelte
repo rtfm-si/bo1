@@ -3,6 +3,7 @@
 	 * ActionableTasks Component
 	 * Displays extracted tasks from synthesis with accept/reject functionality
 	 */
+	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import { fade, slide } from 'svelte/transition';
@@ -32,7 +33,8 @@
 	let isExporting = $state(false);
 	let error = $state<string | null>(null);
 
-	$effect(() => {
+	// Load tasks only once on component mount, not on every reactive update
+	onMount(() => {
 		loadTasks();
 	});
 

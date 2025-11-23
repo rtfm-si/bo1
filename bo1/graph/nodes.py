@@ -181,6 +181,7 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
         "phase": DeliberationPhase.SELECTION,
         "metrics": metrics,
         "current_node": "select_personas",
+        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
     }
 
 
@@ -218,13 +219,15 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         f"(cost: ${round_cost:.4f})"
     )
 
-    # Return state updates
+    # Return state updates (include personas for event collection)
     return {
         "contributions": contributions,
         "phase": DeliberationPhase.DISCUSSION,
         "round_number": 1,
         "metrics": metrics,
         "current_node": "initial_round",
+        "personas": state.get("personas", []),  # Include for event publishing
+        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
     }
 
 
@@ -279,6 +282,7 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         "phase": DeliberationPhase.DISCUSSION,
         "metrics": metrics,
         "current_node": "facilitator_decide",
+        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
     }
 
 
@@ -388,6 +392,7 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
         "round_number": next_round,
         "metrics": metrics,
         "current_node": "persona_contribute",
+        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
     }
 
 
@@ -485,6 +490,7 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
         "contributions": contributions,
         "metrics": metrics,
         "current_node": "moderator_intervene",
+        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
     }
 
 
@@ -546,6 +552,7 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
         "phase": DeliberationPhase.VOTING,
         "metrics": metrics,
         "current_node": "vote",
+        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
     }
 
 
@@ -647,6 +654,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         "phase": DeliberationPhase.SYNTHESIS,  # Don't set COMPLETE yet - may have more sub-problems
         "metrics": metrics,
         "current_node": "synthesize",
+        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
     }
 
 
@@ -800,21 +808,21 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
 
 
 async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
-    """Create cross-sub-problem meta-synthesis.
+    """Create cross-sub-problem meta-synthesis with structured action plan.
 
     This node integrates insights from ALL sub-problem deliberations into
-    a unified, actionable recommendation.
+    a unified, actionable recommendation in JSON format.
 
     Args:
         state: Current graph state (must have sub_problem_results)
 
     Returns:
-        Dictionary with state updates (meta-synthesis report, phase=COMPLETE)
+        Dictionary with state updates (meta-synthesis JSON action plan, phase=COMPLETE)
     """
     from bo1.llm.broker import PromptBroker, PromptRequest
-    from bo1.prompts.reusable_prompts import META_SYNTHESIS_PROMPT_TEMPLATE
+    from bo1.prompts.reusable_prompts import META_SYNTHESIS_ACTION_PLAN_PROMPT
 
-    logger.info("meta_synthesize_node: Starting meta-synthesis")
+    logger.info("meta_synthesize_node: Starting meta-synthesis (structured JSON)")
 
     # Get problem and sub-problem results
     problem = state.get("problem")
@@ -845,7 +853,7 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
             )
 
         formatted_results.append(
-            f"""## Sub-Problem {i}: {sp_goal}
+            f"""## Sub-Problem {i} ({result.sub_problem_id}): {sp_goal}
 
 **Synthesis:**
 {result.synthesis}
@@ -862,10 +870,10 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         total_cost += result.cost
         total_duration += result.duration_seconds
 
-    # Create meta-synthesis prompt
-    meta_prompt = META_SYNTHESIS_PROMPT_TEMPLATE.format(
+    # Create meta-synthesis prompt (structured JSON)
+    meta_prompt = META_SYNTHESIS_ACTION_PLAN_PROMPT.format(
         original_problem=problem.description,
-        problem_context=problem.context,
+        problem_context=problem.context or "No additional context provided",
         sub_problem_count=len(sub_problem_results),
         all_sub_problem_syntheses="\n\n---\n\n".join(formatted_results),
     )
@@ -874,8 +882,8 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     broker = PromptBroker()
     request = PromptRequest(
         system=meta_prompt,
-        user_message="Generate the comprehensive meta-synthesis now.",
-        prefill="<thinking>",
+        user_message="Generate the JSON action plan now (pure JSON, no markdown):",
+        prefill="<action_plan>\n{",  # Force JSON output with proper XML wrapping
         model="sonnet",  # Use Sonnet for high-quality meta-synthesis
         temperature=0.7,
         max_tokens=4000,
@@ -886,8 +894,50 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Call LLM
     response = await broker.call(request)
 
-    # Prepend prefill for complete content
-    meta_synthesis = "<thinking>" + response.content
+    # Prepend prefill to get complete JSON (including opening brace)
+    json_content = "{" + response.content
+
+    # Parse and validate JSON
+    try:
+        import json
+
+        action_plan = json.loads(json_content)
+        logger.info("meta_synthesize_node: Successfully parsed JSON action plan")
+    except json.JSONDecodeError as e:
+        logger.warning(f"meta_synthesize_node: Failed to parse JSON, using fallback: {e}")
+        # Fallback to plain text if JSON parsing fails
+        action_plan = None
+        json_content = response.content
+
+    # Store both JSON and formatted output
+    if action_plan:
+        # Create readable markdown from JSON for backwards compatibility
+        meta_synthesis = f"""# Action Plan
+
+{action_plan.get("synthesis_summary", "")}
+
+## Recommended Actions
+
+"""
+        for i, action in enumerate(action_plan.get("recommended_actions", []), 1):
+            meta_synthesis += f"""### {i}. {action.get("action", "N/A")} [{action.get("priority", "medium").upper()}]
+
+**Timeline:** {action.get("timeline", "TBD")}
+
+**Rationale:** {action.get("rationale", "N/A")}
+
+**Success Metrics:**
+{chr(10).join(f"- {m}" for m in action.get("success_metrics", []))}
+
+**Risks:**
+{chr(10).join(f"- {r}" for r in action.get("risks", []))}
+
+---
+
+"""
+    else:
+        # Fallback to plain content
+        meta_synthesis = json_content
 
     # Add deliberation summary footer
     footer = f"""
@@ -906,7 +956,13 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 ⚠️ This content is AI-generated for learning and knowledge purposes only, not professional advisory.
 Always verify recommendations using licensed legal/financial professionals for your location.
 """
-    meta_synthesis_with_footer = meta_synthesis + footer
+
+    # Store JSON in synthesis field for frontend parsing
+    if action_plan:
+        # Frontend will parse this JSON
+        meta_synthesis_final = json_content + footer
+    else:
+        meta_synthesis_final = meta_synthesis + footer
 
     # Track cost in metrics
     metrics = ensure_metrics(state)
@@ -919,7 +975,7 @@ Always verify recommendations using licensed legal/financial professionals for y
 
     # Return state updates
     return {
-        "synthesis": meta_synthesis_with_footer,
+        "synthesis": meta_synthesis_final,
         "phase": DeliberationPhase.COMPLETE,
         "metrics": metrics,
         "current_node": "meta_synthesis",

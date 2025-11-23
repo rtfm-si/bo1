@@ -38,7 +38,7 @@
 		expectedContributions > 0 ? Math.min((contributionsReceived / expectedContributions) * 100, 100) : 0
 	);
 
-	const overallProgress = $derived(() => {
+	const overallProgress = $derived.by(() => {
 		if (!currentPhase) return 0;
 
 		// Phase-based progress
@@ -77,7 +77,7 @@
 	<div>
 		<div class="flex items-center justify-between mb-1">
 			<span class="text-sm font-medium text-slate-700 dark:text-slate-300">
-				{#if totalSubProblems > 1}
+				{#if totalSubProblems > 1 && currentSubProblem > 0}
 					Sub-problem {currentSubProblem} of {totalSubProblems}
 				{:else}
 					Meeting Progress
@@ -90,12 +90,12 @@
 		<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
 			<div
 				class="bg-gradient-to-r from-blue-500 to-blue-600 h-2.5 rounded-full transition-all duration-500 ease-out"
-				style="width: {overallProgress()}%"
+				style="width: {overallProgress}%"
 			></div>
 		</div>
 		<div class="flex items-center justify-between mt-1">
 			<span class="text-xs text-slate-500 dark:text-slate-400">
-				{overallProgress().toFixed(0)}% complete
+				{overallProgress.toFixed(0)}% complete
 			</span>
 		</div>
 	</div>

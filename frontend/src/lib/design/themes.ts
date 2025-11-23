@@ -24,9 +24,8 @@ export interface Theme {
 		// Border colors
 		border: string;
 		borderFocus: string;
-		// Semantic colors (use token colors)
+		// Semantic colors (minimal - using new 3-context system)
 		brand: string;
-		accent: string;
 		success: string;
 		warning: string;
 		error: string;
@@ -53,13 +52,12 @@ export const lightTheme: Theme = {
 		// Borders
 		border: colors.neutral[200],
 		borderFocus: colors.brand[500],
-		// Semantic (use design tokens - subdued)
+		// Semantic (using new 3-context system)
 		brand: colors.brand[600],
-		accent: colors.accent[500],
-		success: colors.success[500],
-		warning: colors.warning[500],
-		error: colors.error[500],
-		info: colors.info[500],
+		success: colors.semantic.success,
+		warning: colors.semantic.warning,
+		error: colors.semantic.error,
+		info: colors.semantic.info,
 	},
 };
 
@@ -68,23 +66,22 @@ export const darkTheme: Theme = {
 	displayName: 'Dark',
 	colors: {
 		// Surfaces - lighter for better contrast
-		background: colors.neutral[900], // Was 950 - now lighter
-		surface: colors.neutral[800],     // Was 900 - now lighter
-		surfaceVariant: '#3a4246', // Between 700 and 800 for better contrast
+		background: colors.neutral[900],
+		surface: colors.neutral[800],
+		surfaceVariant: colors.neutral[700],
 		// Text - brighter for better readability
-		textPrimary: colors.neutral[100],  // Was 50 - now slightly less bright but still high contrast
-		textSecondary: colors.neutral[300], // Was 400 - now brighter
-		textTertiary: colors.neutral[400],  // Was 500 - now brighter
+		textPrimary: colors.neutral[100],
+		textSecondary: colors.neutral[300],
+		textTertiary: colors.neutral[400],
 		// Borders - more visible
-		border: colors.neutral[600],        // Was 700 - now lighter/more visible
+		border: colors.neutral[600],
 		borderFocus: colors.brand[400],
-		// Semantic (slightly brighter in dark mode, but still muted)
+		// Semantic (using new 3-context system)
 		brand: colors.brand[400],
-		accent: colors.accent[300],
-		success: colors.success[400],
-		warning: colors.warning[400],
-		error: colors.error[400],
-		info: colors.info[400],
+		success: colors.semantic.success,
+		warning: colors.semantic.warning,
+		error: colors.semantic.error,
+		info: colors.semantic.info,
 	},
 };
 
@@ -93,19 +90,18 @@ export const oceanTheme: Theme = {
 	displayName: 'Ocean',
 	colors: {
 		// Surfaces (rich teal-blue ocean depths)
-		background: '#001a1f', // Deep ocean blue-teal
-		surface: '#003d47', // Dark ocean teal
-		surfaceVariant: '#00565e', // Medium ocean teal
+		background: '#001a1f',
+		surface: '#003d47',
+		surfaceVariant: '#00565e',
 		// Text (bright aqua and teal)
-		textPrimary: '#b3f0ea', // Bright aqua (brand 100)
-		textSecondary: '#4dddce', // Vibrant teal (brand 300)
-		textTertiary: '#1ad3c0', // Medium teal (brand 400)
-		// Borders (teal-cyan with glow)
-		border: '#00a594', // Teal border (brand 600)
-		borderFocus: '#1ad3c0', // Bright teal focus (brand 400)
-		// Semantic (ocean-themed - brighter for contrast on dark teal bg)
-		brand: colors.brand[300], // Brighter teal
-		accent: '#ff8a6b', // Warmer coral for strong contrast
+		textPrimary: colors.brand[100],
+		textSecondary: colors.brand[300],
+		textTertiary: colors.brand[400],
+		// Borders (teal-cyan)
+		border: colors.brand[600],
+		borderFocus: colors.brand[400],
+		// Semantic (ocean-themed - using new 3-context system)
+		brand: colors.brand[300],
 		success: '#4ade80', // Bright sea green
 		warning: '#fbbf24', // Bright amber
 		error: '#fb7185', // Bright coral-pink

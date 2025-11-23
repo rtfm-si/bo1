@@ -421,6 +421,143 @@ class RedisManager:
             logger.error(f"Failed to load metadata: {e}")
             return None
 
+    def add_session_to_user_index(self, user_id: str, session_id: str) -> bool:
+        """Add session to user's session index.
+
+        Args:
+            user_id: User identifier
+            session_id: Session identifier
+
+        Returns:
+            True if successful, False otherwise
+
+        Examples:
+            >>> manager = RedisManager()
+            >>> manager.add_session_to_user_index("user123", "bo1_abc")
+            True
+        """
+        if not self.is_available:
+            return False
+
+        try:
+            key = f"user_sessions:{user_id}"
+            assert self.redis is not None
+            self.redis.sadd(key, session_id)
+            # Set TTL to match session TTL (24 hours default)
+            self.redis.expire(key, self.ttl_seconds)
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to add session to user index: {e}")
+            return False
+
+    def remove_session_from_user_index(self, user_id: str, session_id: str) -> bool:
+        """Remove session from user's session index.
+
+        Args:
+            user_id: User identifier
+            session_id: Session identifier
+
+        Returns:
+            True if successful, False otherwise
+
+        Examples:
+            >>> manager = RedisManager()
+            >>> manager.remove_session_from_user_index("user123", "bo1_abc")
+            True
+        """
+        if not self.is_available:
+            return False
+
+        try:
+            key = f"user_sessions:{user_id}"
+            assert self.redis is not None
+            self.redis.srem(key, session_id)
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to remove session from user index: {e}")
+            return False
+
+    def list_user_sessions(self, user_id: str) -> list[str]:
+        """List all session IDs for a specific user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            List of session IDs owned by the user
+
+        Examples:
+            >>> manager = RedisManager()
+            >>> sessions = manager.list_user_sessions("user123")
+            >>> print(f"User has {len(sessions)} sessions")
+        """
+        if not self.is_available:
+            return []
+
+        try:
+            key = f"user_sessions:{user_id}"
+            assert self.redis is not None
+            session_ids = self.redis.smembers(key)
+
+            if not session_ids:
+                return []
+
+            # Convert set to list (Redis returns set of strings)
+            return list(session_ids)
+
+        except Exception as e:
+            logger.error(f"Failed to list user sessions: {e}")
+            return []
+
+    def batch_load_metadata(self, session_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Batch load metadata for multiple sessions using Redis pipeline.
+
+        Args:
+            session_ids: List of session identifiers
+
+        Returns:
+            Dictionary mapping session_id to metadata (only for sessions that exist)
+
+        Examples:
+            >>> manager = RedisManager()
+            >>> session_ids = ["bo1_abc", "bo1_def"]
+            >>> metadata_dict = manager.batch_load_metadata(session_ids)
+            >>> print(f"Loaded metadata for {len(metadata_dict)} sessions")
+        """
+        if not self.is_available or not session_ids:
+            return {}
+
+        try:
+            assert self.redis is not None
+
+            # Use pipeline to batch all GET requests
+            pipe = self.redis.pipeline()
+            for session_id in session_ids:
+                key = f"metadata:{session_id}"
+                pipe.get(key)
+
+            # Execute all requests in one roundtrip
+            results = pipe.execute()
+
+            # Parse results
+            metadata_dict: dict[str, dict[str, Any]] = {}
+            for session_id, metadata_json in zip(session_ids, results, strict=True):
+                if metadata_json:
+                    try:
+                        metadata = json.loads(str(metadata_json))
+                        metadata_dict[session_id] = metadata
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to parse metadata for {session_id}")
+                        continue
+
+            return metadata_dict
+
+        except Exception as e:
+            logger.error(f"Failed to batch load metadata: {e}")
+            return {}
+
     def close(self) -> None:
         """Close Redis connection pool.
 

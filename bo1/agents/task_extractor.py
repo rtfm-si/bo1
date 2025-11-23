@@ -8,6 +8,8 @@ import json
 from anthropic import Anthropic
 from pydantic import BaseModel, Field
 
+from bo1.config import get_model_for_role
+
 
 class ExtractedTask(BaseModel):
     """Represents a discrete, actionable task from synthesis."""
@@ -121,8 +123,11 @@ async def extract_tasks_from_synthesis(
 
     prompt = TASK_EXTRACTION_PROMPT.format(synthesis=synthesis)
 
+    # Use haiku for fast, cheap structured extraction (like summarizer)
+    model = get_model_for_role("SUMMARIZER")
+
     response = await client.messages.create(
-        model="claude-haiku-4.5-20250924",  # Fast + cheap for extraction
+        model=model,
         max_tokens=4000,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,  # Deterministic extraction
@@ -161,8 +166,11 @@ def sync_extract_tasks_from_synthesis(
 
     prompt = TASK_EXTRACTION_PROMPT.format(synthesis=synthesis)
 
+    # Use haiku for fast, cheap structured extraction (like summarizer)
+    model = get_model_for_role("SUMMARIZER")
+
     response = client.messages.create(
-        model="claude-haiku-4.5-20250924",
+        model=model,
         max_tokens=4000,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,

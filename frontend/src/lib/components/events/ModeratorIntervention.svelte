@@ -5,6 +5,8 @@
 	 */
 	import type { ModeratorInterventionEvent } from '$lib/api/sse-events';
 	import Badge from '$lib/components/ui/Badge.svelte';
+	import { AlertCircle, Target } from 'lucide-svelte';
+	import type { ComponentType } from 'svelte';
 
 	interface Props {
 		event: ModeratorInterventionEvent;
@@ -18,10 +20,10 @@
 		focus: 'Refocus Discussion',
 	};
 
-	const moderatorIcons = {
-		contrarian: '⚡',
-		balance: '⚖️',
-		focus: '🎯',
+	const moderatorIcons: Record<string, ComponentType> = {
+		contrarian: AlertCircle,
+		balance: AlertCircle,
+		focus: Target,
 	};
 </script>
 
@@ -30,7 +32,11 @@
 		class="border-l-4 border-warning-500 bg-warning-50 dark:bg-warning-900/20 rounded-lg p-4"
 	>
 		<div class="flex items-start gap-3">
-			<div class="text-2xl">{moderatorIcons[event.data.moderator_type]}</div>
+			{#if event.data.moderator_type === 'focus'}
+				<Target size={20} class="text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" />
+			{:else}
+				<AlertCircle size={20} class="text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" />
+			{/if}
 			<div class="flex-1 min-w-0">
 				<div class="flex items-center gap-2 mb-2">
 					<h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">

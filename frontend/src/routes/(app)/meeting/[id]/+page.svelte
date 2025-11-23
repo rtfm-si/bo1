@@ -7,6 +7,8 @@
 	import type { SSEEvent } from '$lib/api/sse-events';
 	import { fade, scale } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
+	import { SSEClient } from '$lib/utils/sse';
+	import { CheckCircle, AlertCircle, Clock, Pause, Play, Square } from 'lucide-svelte';
 
 	// Import event components
 	import {
@@ -25,10 +27,28 @@
 		ErrorEvent,
 		GenericEvent,
 		RoundGroup,
+		ExpertPerspectiveCard,
+		VotingResults,
+		ExpertPanel,
+		ActionPlan,
 	} from '$lib/components/events';
 
+	// Import metrics components
+	import {
+		CostBreakdown,
+		ConvergenceChart,
+		ProgressIndicator,
+	} from '$lib/components/metrics';
+
 	// Import UI components
-	import { PhaseTimeline, RelativeTimestamp, DualProgress, DecisionMetrics } from '$lib/components/ui';
+	import {
+		RelativeTimestamp,
+		DecisionMetrics,
+		MeetingStatusBar,
+		Tabs,
+		SubProblemMetrics,
+	} from '$lib/components/ui';
+	import type { Tab } from '$lib/components/ui';
 
 	// Import utilities
 	import { getEventPriority, type EventPriority } from '$lib/utils/event-humanization';
@@ -47,11 +67,24 @@
 	// Constants for internal event filtering
 	const INTERNAL_EVENTS = ['node_start', 'node_end'];
 
+	// Status noise events to hide (UX redesign - these don't provide actionable info)
+	const STATUS_NOISE_EVENTS = [
+		'decomposition_started',
+		'persona_selection_started',
+		'persona_selection_complete', // Just shows "experts selected" - panel shows the actual experts
+		'initial_round_started',
+		'voting_started',
+		'voting_complete', // Individual results shown in VotingResults component
+		'synthesis_started',
+		'meta_synthesis_started',
+		'persona_vote', // Individual votes now aggregated in voting_complete
+	];
+
 	let session = $state<SessionData | null>(null);
 	let events = $state<SSEEvent[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
-	let eventSource: EventSource | null = null;
+	let sseClient: SSEClient | null = null;
 	let autoScroll = $state(true);
 	let retryCount = $state(0);
 	let maxRetries = 3;
@@ -76,6 +109,36 @@
 		events[events.length - 1].event_type === 'voting_started' &&
 		!events.some(e => e.event_type === 'voting_complete')
 	);
+
+	// Track sub-problem progress from events
+	const subProblemProgress = $derived.by(() => {
+		const startedEvents = events.filter(e => e.event_type === 'subproblem_started');
+		const completedEvents = events.filter(e => e.event_type === 'subproblem_complete');
+
+		if (startedEvents.length === 0) {
+			return { current: 0, total: 1 };
+		}
+
+		const totalSubProblems = (startedEvents[0].data.total_sub_problems as number) ?? 1;
+
+		// If we have completed events, use that count
+		if (completedEvents.length > 0) {
+			return {
+				current: completedEvents.length,
+				total: totalSubProblems
+			};
+		}
+
+		// Otherwise, count unique started sub-problems
+		const uniqueStartedIndices = new Set(
+			startedEvents.map(e => (e.data.sub_problem_index as number))
+		);
+
+		return {
+			current: uniqueStartedIndices.size,
+			total: totalSubProblems
+		};
+	});
 
 	// Heartbeat tracking for long operations
 	let synthesisStartTime = $state<number | null>(null);
@@ -116,9 +179,10 @@
 		}
 	});
 
-	// Filter function to hide internal events (unless debug mode)
+	// Filter function to hide internal events and status noise (unless debug mode)
 	function shouldShowEvent(eventType: string): boolean {
-		return !INTERNAL_EVENTS.includes(eventType) || debugMode;
+		if (debugMode) return !INTERNAL_EVENTS.includes(eventType);
+		return !INTERNAL_EVENTS.includes(eventType) && !STATUS_NOISE_EVENTS.includes(eventType);
 	}
 
 	// Helper function to add events safely with deduplication
@@ -142,19 +206,7 @@
 	}
 
 	// Helper functions for phase display
-	function getPhaseEmoji(phase: string | null): string {
-		if (!phase) return '⏳';
-		const emojis: Record<string, string> = {
-			decomposition: '🔍',
-			persona_selection: '👥',
-			initial_round: '💭',
-			discussion: '💬',
-			voting: '🗳️',
-			synthesis: '⚙️',
-			complete: '✅',
-		};
-		return emojis[phase] || '⏳';
-	}
+	// Removed emoji function - now using lucide icons
 
 	function formatPhase(phase: string | null): string {
 		if (!phase) return 'Initializing';
@@ -181,11 +233,7 @@
 		return unsubscribe;
 	});
 
-	onDestroy(() => {
-		if (eventSource) {
-			eventSource.close();
-		}
-	});
+	// onDestroy moved below for cleanup consolidation
 
 	async function loadSession() {
 		try {
@@ -217,27 +265,18 @@
 			}
 
 			// Auto-scroll after loading history
-			scrollToLatestEvent(false); // No smooth scroll for initial load
+			scrollToLatestEventDebounced(false); // No smooth scroll for initial load
 		} catch (err) {
 			console.error('[Events] Failed to load historical events:', err);
 			// Don't set error state - this is non-fatal, stream will still work
 		}
 	}
 
-	function startEventStream() {
+	async function startEventStream() {
 		// Close existing connection if any
-		if (eventSource) {
-			eventSource.close();
+		if (sseClient) {
+			sseClient.close();
 		}
-
-		// Connect through SvelteKit proxy to handle authentication cookies
-		eventSource = new EventSource(`/api/v1/sessions/${sessionId}/stream`);
-
-		eventSource.onopen = () => {
-			console.log('[SSE] Connection established');
-			retryCount = 0;
-			connectionStatus = 'connected';
-		};
 
 		// Helper to handle SSE events (converts SSE format to SSEEvent)
 		const handleSSEEvent = (eventType: string, event: MessageEvent) => {
@@ -255,20 +294,37 @@
 
 				addEvent(sseEvent);
 
-				// Auto-scroll to bottom with smooth animation
-				scrollToLatestEvent(true);
+				// Auto-scroll to bottom with smooth animation (debounced)
+				scrollToLatestEventDebounced(true);
 
-				// Update session status on complete
-				if (eventType === 'complete' && session) {
-					session.status = 'completed';
+				// Update session phase and round based on events
+				if (session) {
+					// Phase transitions
+					if (eventType === 'decomposition_complete') {
+						session.phase = 'persona_selection';
+					} else if (eventType === 'persona_selection_complete') {
+						session.phase = 'initial_round';
+					} else if (eventType === 'initial_round_started') {
+						session.phase = 'initial_round';
+						session.round_number = 1;
+					} else if (eventType === 'round_started') {
+						session.phase = 'discussion';
+						session.round_number = payload.round_number || session.round_number;
+					} else if (eventType === 'voting_started') {
+						session.phase = 'voting';
+					} else if (eventType === 'synthesis_started') {
+						session.phase = 'synthesis';
+					} else if (eventType === 'complete') {
+						session.status = 'completed';
+						session.phase = 'complete';
+					}
 				}
 			} catch (err) {
 				console.error(`Failed to parse ${eventType} event:`, err);
 			}
 		};
 
-		// Listen for specific event types (SSE named events)
-		// IMPORTANT: We only use addEventListener, NOT onmessage (to avoid duplicates)
+		// Event types to listen for
 		const eventTypes = [
 			'node_start',
 			'node_end',
@@ -299,35 +355,49 @@
 			'clarification_requested',
 		];
 
-		eventTypes.forEach((eventType) => {
-			eventSource?.addEventListener(eventType, (event: MessageEvent) => {
-				handleSSEEvent(eventType, event);
-			});
+		// Build event handlers map
+		const eventHandlers: Record<string, (event: MessageEvent) => void> = {};
+		for (const eventType of eventTypes) {
+			eventHandlers[eventType] = (event: MessageEvent) => handleSSEEvent(eventType, event);
+		}
+
+		// Create new SSE client with credentials support
+		sseClient = new SSEClient(`/api/v1/sessions/${sessionId}/stream`, {
+			onOpen: () => {
+				console.log('[SSE] Connection established');
+				retryCount = 0;
+				connectionStatus = 'connected';
+			},
+			onError: (err) => {
+				console.error('[SSE] Connection error:', err, 'retry count:', retryCount);
+
+				// Close existing connection
+				sseClient?.close();
+
+				if (retryCount < maxRetries) {
+					retryCount++;
+					connectionStatus = 'retrying';
+					const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
+					console.log(`[SSE] Retrying in ${delay}ms...`);
+
+					setTimeout(() => {
+						startEventStream();
+					}, delay);
+				} else {
+					console.error('[SSE] Max retries reached');
+					connectionStatus = 'error';
+					error = 'Failed to connect to session stream. Please refresh the page.';
+				}
+			},
+			eventHandlers,
 		});
 
-		eventSource.onerror = (event) => {
-			console.error('[SSE] Connection error, retry count:', retryCount);
-
-			// Close existing connection
-			eventSource?.close();
-
-			// Don't try to parse event.data - SSE error events don't have data
-
-			if (retryCount < maxRetries) {
-				retryCount++;
-				connectionStatus = 'retrying';
-				const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
-				console.log(`[SSE] Retrying in ${delay}ms...`);
-
-				setTimeout(() => {
-					startEventStream();
-				}, delay);
-			} else {
-				console.error('[SSE] Max retries reached');
-				connectionStatus = 'error';
-				error = 'Failed to connect to session stream. Please refresh the page.';
-			}
-		};
+		// Start the connection
+		try {
+			await sseClient.connect();
+		} catch (err) {
+			console.error('[SSE] Failed to start connection:', err);
+		}
 	}
 
 	async function handlePause() {
@@ -354,69 +424,26 @@
 
 		try {
 			await apiClient.killDeliberation(sessionId);
-			eventSource?.close();
+			sseClient?.close();
 		} catch (err) {
 			console.error('Failed to kill session:', err);
 		}
 	}
 
-	function getEventIcon(type: string): string {
-		const icons: Record<string, string> = {
-			session_started: '🚀',
-			decomposition_started: '🔍',
-			decomposition_complete: '📋',
-			persona_selection_started: '👥',
-			persona_selected: '👤',
-			persona_selection_complete: '✅',
-			subproblem_started: '🎯',
-			initial_round_started: '💭',
-			contribution: '💬',
-			facilitator_decision: '⚖️',
-			moderator_intervention: '⚡',
-			convergence: '📊',
-			round_started: '🔄',
-			voting_started: '🗳️',
-			persona_vote: '✍️',
-			voting_complete: '📝',
-			synthesis_started: '⚙️',
-			synthesis_complete: '✨',
-			subproblem_complete: '✅',
-			meta_synthesis_started: '🔮',
-			meta_synthesis_complete: '🎉',
-			phase_cost_breakdown: '💰',
-			complete: '🎊',
-			error: '❌',
-			clarification_requested: '❓',
-		};
-		return icons[type] || 'ℹ️';
-	}
+	// Event icon function removed - using lucide icon components directly
 
 	function formatTimestamp(timestamp: string): string {
 		const date = new Date(timestamp);
 		return date.toLocaleTimeString();
 	}
 
-	// Improved auto-scroll function
-	function scrollToLatestEvent(smooth = true) {
-		if (!autoScroll) return;
-
-		setTimeout(() => {
-			const container = document.getElementById('events-container');
-			if (container) {
-				container.scrollTo({
-					top: container.scrollHeight,
-					behavior: smooth ? 'smooth' : 'auto',
-				});
-			}
-		}, 100);
-	}
-
-	// Event grouping: Group contributions by round
+	// Event grouping: Group contributions by round AND persona_selected events
 	interface EventGroup {
-		type: 'single' | 'round';
+		type: 'single' | 'round' | 'expert_panel';
 		event?: SSEEvent;
 		events?: SSEEvent[];
 		roundNumber?: number;
+		subProblemGoal?: string;
 	}
 
 	const groupedEvents = $derived.by(() => {
@@ -424,40 +451,76 @@
 		const groups: EventGroup[] = [];
 		let currentRound: SSEEvent[] = [];
 		let currentRoundNumber = 1;
-		let lastRoundEvent: SSEEvent | null = null;
+		let currentExpertPanel: SSEEvent[] = [];
+		let currentSubProblemGoal: string | undefined = undefined;
 
 		for (const event of filtered) {
 			// Track round_started events to get round numbers
 			if (event.event_type === 'round_started' || event.event_type === 'initial_round_started') {
-				lastRoundEvent = event;
 				if (event.data.round_number) {
 					currentRoundNumber = event.data.round_number as number;
 				}
 			}
 
-			if (event.event_type === 'contribution') {
+			// Track subproblem_started for context
+			if (event.event_type === 'subproblem_started') {
+				currentSubProblemGoal = event.data.goal as string;
+			}
+
+			// Group persona_selected events
+			if (event.event_type === 'persona_selected') {
+				currentExpertPanel.push(event);
+			} else if (event.event_type === 'contribution') {
+				// Flush expert panel if any
+				if (currentExpertPanel.length > 0) {
+					groups.push({
+						type: 'expert_panel',
+						events: currentExpertPanel,
+						subProblemGoal: currentSubProblemGoal,
+					});
+					currentExpertPanel = [];
+				}
+				// Add contribution to round
 				currentRound.push(event);
 			} else {
-				// Push accumulated contributions as a group
+				// Flush expert panel if any
+				if (currentExpertPanel.length > 0) {
+					groups.push({
+						type: 'expert_panel',
+						events: currentExpertPanel,
+						subProblemGoal: currentSubProblemGoal,
+					});
+					currentExpertPanel = [];
+				}
+				// Flush contributions if any
 				if (currentRound.length > 0) {
 					groups.push({
 						type: 'round',
 						events: currentRound,
-						roundNumber: currentRoundNumber
+						roundNumber: currentRoundNumber,
 					});
 					currentRound = [];
 				}
-				// Add non-contribution event as single
+				// Add non-contribution/non-expert event as single
 				groups.push({ type: 'single', event });
 			}
 		}
 
-		// Push remaining contributions
+		// Flush remaining expert panel
+		if (currentExpertPanel.length > 0) {
+			groups.push({
+				type: 'expert_panel',
+				events: currentExpertPanel,
+				subProblemGoal: currentSubProblemGoal,
+			});
+		}
+
+		// Flush remaining contributions
 		if (currentRound.length > 0) {
 			groups.push({
 				type: 'round',
 				events: currentRound,
-				roundNumber: currentRoundNumber
+				roundNumber: currentRoundNumber,
 			});
 		}
 
@@ -490,15 +553,203 @@
 		return baseProgress;
 	}
 
-	// Visual hierarchy: Get CSS classes based on event priority
+	// Sub-problem tabs organization
+	interface SubProblemTab {
+		id: string;
+		label: string;
+		goal: string;
+		status: 'pending' | 'active' | 'voting' | 'synthesis' | 'complete' | 'blocked';
+		metrics: {
+			expertCount: number;
+			convergencePercent: number;
+			currentRound: number;
+			maxRounds: number;
+			duration: string;
+		};
+		events: SSEEvent[];
+	}
+
+	/**
+	 * Priority 1 Optimization: Use indexed events for tab computation
+	 * Previously: O(n*m) where n=events, m=sub-problems
+	 * Now: O(n) single pass with Map lookup
+	 */
+	const subProblemTabs = $derived.by(() => {
+		// Check for decomposition_complete event first to create tabs immediately
+		const decompositionEvent = events.find(e => e.event_type === 'decomposition_complete');
+
+		if (!decompositionEvent) {
+			return [];
+		}
+
+		const subProblems = decompositionEvent.data.sub_problems as Array<{
+			goal: string;
+			complexity: number;
+			dependencies?: number[];
+		}>;
+
+		if (!subProblems || subProblems.length <= 1) {
+			return [];
+		}
+
+		const tabs: SubProblemTab[] = [];
+
+		for (let index = 0; index < subProblems.length; index++) {
+			const subProblem = subProblems[index];
+
+			// Use indexed lookup instead of filtering (5-10x faster)
+			const subEvents = eventsBySubProblem.get(index) || [];
+
+			// Calculate metrics
+			const expertEvents = subEvents.filter(e => e.event_type === 'persona_selected');
+			const convergenceEvents = subEvents.filter(e => e.event_type === 'convergence');
+			const roundEvents = subEvents.filter(e =>
+				e.event_type === 'round_started' || e.event_type === 'initial_round_started'
+			);
+
+			let convergencePercent = 0;
+			if (convergenceEvents.length > 0) {
+				const latest = convergenceEvents[convergenceEvents.length - 1];
+				const score = latest.data.score as number;
+				const threshold = latest.data.threshold as number;
+				convergencePercent = Math.round((score / threshold) * 100);
+			}
+
+			// Determine status
+			let status: SubProblemTab['status'] = 'pending';
+			if (subEvents.some(e => e.event_type === 'subproblem_complete')) {
+				status = 'complete';
+			} else if (subEvents.some(e => e.event_type === 'synthesis_started')) {
+				status = 'synthesis';
+			} else if (subEvents.some(e => e.event_type === 'voting_started')) {
+				status = 'voting';
+			} else if (subEvents.some(e => e.event_type === 'subproblem_started')) {
+				status = 'active';
+			}
+
+			// Calculate duration
+			let duration = '0s';
+			if (subEvents.length > 1) {
+				const firstTime = new Date(subEvents[0].timestamp);
+				const lastTime = new Date(subEvents[subEvents.length - 1].timestamp);
+				const diffMs = lastTime.getTime() - firstTime.getTime();
+				const diffMin = Math.floor(diffMs / 60000);
+				const diffSec = Math.floor((diffMs % 60000) / 1000);
+				duration = diffMin > 0 ? `${diffMin}m ${diffSec}s` : `${diffSec}s`;
+			}
+
+			tabs.push({
+				id: `subproblem-${index}`,
+				label: `Sub-problem ${index + 1}`,
+				goal: subProblem.goal,
+				status,
+				metrics: {
+					expertCount: expertEvents.length,
+					convergencePercent,
+					currentRound: roundEvents.length || 1,
+					maxRounds: 10,
+					duration,
+				},
+				events: subEvents,
+			});
+		}
+
+		return tabs;
+	});
+
+	// Active tab state
+	let activeSubProblemTab = $state<string | undefined>(undefined);
+
+	// Set initial active tab when tabs are created
+	$effect(() => {
+		if (subProblemTabs.length > 0 && !activeSubProblemTab) {
+			activeSubProblemTab = subProblemTabs[0].id;
+		}
+	});
+
+	/**
+	 * Priority 1 Optimization: Memoize active tab events
+	 * Caches filtered events for the active tab to avoid re-filtering on every render
+	 */
+	const activeTabEvents = $derived.by(() => {
+		if (!activeSubProblemTab) return [];
+
+		const tabIndex = parseInt(activeSubProblemTab.replace('subproblem-', ''));
+		return eventsBySubProblem.get(tabIndex) || [];
+	});
+
+	// Hide decomposition_complete when tabs are visible (it's redundant - we already see the tabs)
+	const shouldHideDecomposition = $derived(subProblemTabs.length > 1);
+
+	// ============================================================================
+	// PERFORMANCE OPTIMIZATIONS (continued)
+	// ============================================================================
+
+	/**
+	 * Priority 1 Optimization: Index events by sub_problem_index
+	 * Creates a Map-based index to avoid O(n) filtering on every tab render
+	 * Note: Using plain Map (not SvelteMap) inside $derived is safe - it's recreated on each recalc
+	 */
+	const eventsBySubProblem = $derived.by(() => {
+		const index = new Map<number, SSEEvent[]>();
+
+		for (const event of events) {
+			const subIndex = event.data.sub_problem_index as number | undefined;
+			if (subIndex !== undefined) {
+				const existing = index.get(subIndex) || [];
+				existing.push(event);
+				index.set(subIndex, existing);
+			}
+		}
+
+		return index;
+	});
+
+	/**
+	 * Priority 1 Optimization: Debounced auto-scroll
+	 * Prevents scroll thrashing on rapid event arrivals (100ms debounce)
+	 */
+	let scrollTimeoutId: number | undefined;
+
+	function scrollToLatestEventDebounced(smooth = true) {
+		if (!autoScroll) return;
+
+		// Clear existing timeout
+		if (scrollTimeoutId !== undefined) {
+			clearTimeout(scrollTimeoutId);
+		}
+
+		// Schedule new scroll
+		scrollTimeoutId = setTimeout(() => {
+			const container = document.getElementById('events-container');
+			if (container) {
+				container.scrollTo({
+					top: container.scrollHeight,
+					behavior: smooth ? 'smooth' : 'auto',
+				});
+			}
+		}, 100) as unknown as number;
+	}
+
+	// Clean up timeout on component destroy
+	onDestroy(() => {
+		if (scrollTimeoutId !== undefined) {
+			clearTimeout(scrollTimeoutId);
+		}
+		if (sseClient) {
+			sseClient.close();
+		}
+	});
+
+	// Visual hierarchy: Get CSS classes based on event priority (MINIMAL COLORS)
 	function getEventCardClasses(priority: EventPriority): string {
 		if (priority === 'major') {
-			return 'bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border-2 border-blue-300 dark:border-blue-700 shadow-lg';
+			return 'bg-neutral-50 dark:bg-neutral-900/50 border-2 border-neutral-300 dark:border-neutral-700';
 		}
 		if (priority === 'meta') {
-			return 'bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700';
+			return 'bg-neutral-50/50 dark:bg-neutral-900/30 border border-neutral-200 dark:border-neutral-700';
 		}
-		return 'bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700';
+		return 'bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-700';
 	}
 </script>
 
@@ -506,43 +757,37 @@
 	<title>Meeting {sessionId} - Board of One</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+<div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
+	<!-- Meeting Status Bar (Sticky) -->
+	{#if session}
+		<MeetingStatusBar
+			currentPhase={session.phase}
+			currentRound={session.round_number ?? null}
+			maxRounds={10}
+			subProblemProgress={subProblemProgress}
+		/>
+	{/if}
+
 	<!-- Header -->
-	<header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
+	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center gap-4">
 					<a
 						href="/dashboard"
-						class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors duration-200"
+						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
 						aria-label="Back to dashboard"
 					>
-						<svg class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
 						</svg>
 					</a>
 					<div class="flex-1">
-						<h1 class="text-xl font-bold text-slate-900 dark:text-white">
+						<h1 class="text-[1.875rem] font-semibold leading-tight text-neutral-900 dark:text-white">
 							Meeting in Progress
 						</h1>
 						{#if session}
-							<!-- Dual Progress Indicators -->
-							{#if session.status !== 'completed'}
-								<div class="mt-2 w-full max-w-2xl">
-									<DualProgress
-										currentSubProblem={1}
-										totalSubProblems={1}
-										currentPhase={session.phase}
-										currentRound={session.round_number ?? null}
-										maxRounds={10}
-										contributionsReceived={events.filter(e =>
-											e.event_type === 'contribution' &&
-											session && e.data.round_number === session.round_number
-										).length}
-										expectedContributions={5}
-									/>
-								</div>
-							{/if}
+							<!-- Progress info moved to MeetingStatusBar (no redundant progress indicators) -->
 						{/if}
 					</div>
 				</div>
@@ -551,24 +796,27 @@
 					{#if session?.status === 'active'}
 						<button
 							onclick={handlePause}
-							class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
+							class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
 						>
-							⏸ Pause
+							<Pause size={16} />
+							<span>Pause</span>
 						</button>
 					{:else if session?.status === 'paused'}
 						<button
 							onclick={handleResume}
-							class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
+							class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
 						>
-							▶ Resume
+							<Play size={16} />
+							<span>Resume</span>
 						</button>
 					{/if}
 
 					<button
 						onclick={handleKill}
-						class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
+						class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
 					>
-						⏹ Stop
+						<Square size={16} />
+						<span>Stop</span>
 					</button>
 				</div>
 			</div>
@@ -577,21 +825,20 @@
 
 	<!-- Main Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-		<!-- Phase Timeline -->
-		{#if session}
-			<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-6">
-				<PhaseTimeline currentPhase={session.phase} />
-			</div>
-		{/if}
+		<!-- Phase Timeline removed - info now in MeetingStatusBar -->
 
 		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-			<!-- Events Stream -->
+			<!-- Events Stream with Tab Navigation -->
 			<div class="lg:col-span-2">
 				<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
 					<div class="border-b border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between">
 						<div class="flex items-center gap-3">
 							<h2 class="text-lg font-semibold text-slate-900 dark:text-white">
-								Deliberation Stream
+								{#if subProblemTabs.length > 1}
+									Sub-Problem Analysis
+								{:else}
+									Deliberation Stream
+								{/if}
 							</h2>
 							{#if connectionStatus === 'connecting'}
 								<span class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
@@ -627,11 +874,11 @@
 
 					<div
 						id="events-container"
-						class="h-[600px] overflow-y-auto p-4 space-y-4"
+						class="h-[600px] overflow-y-auto"
 					>
 						{#if isLoading}
 							<!-- Skeleton Loading States -->
-							<div class="space-y-4">
+							<div class="space-y-4 p-4">
 								{#each Array(5) as _, i}
 									<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 animate-pulse">
 										<div class="flex items-start gap-3">
@@ -646,10 +893,150 @@
 								{/each}
 							</div>
 						{:else if events.length === 0}
-							<div class="flex items-center justify-center h-full text-slate-500 dark:text-slate-400">
+							<div class="flex items-center justify-center h-full text-slate-500 dark:text-slate-400 p-4">
 								<p>Waiting for deliberation to start...</p>
 							</div>
+						{:else if subProblemTabs.length > 1}
+							<!-- Tab-based navigation for multiple sub-problems -->
+							<div class="h-full flex flex-col">
+								<div class="border-b border-slate-200 dark:border-slate-700">
+									<div class="flex overflow-x-auto px-4 pt-3">
+										{#each subProblemTabs as tab}
+											{@const isActive = activeSubProblemTab === tab.id}
+											<button
+												type="button"
+												class={[
+													'flex-shrink-0 px-4 py-2 border-b-2 -mb-px transition-all text-sm font-medium',
+													isActive
+														? 'border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-400'
+														: 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600',
+												].join(' ')}
+												onclick={() => activeSubProblemTab = tab.id}
+											>
+												<div class="flex items-center gap-2">
+													<span>{tab.label}</span>
+													{#if tab.status === 'complete'}
+														<CheckCircle size={14} class="text-current" />
+													{/if}
+												</div>
+											</button>
+										{/each}
+									</div>
+								</div>
+
+								{#each subProblemTabs as tab}
+									{#if tab.id === activeSubProblemTab}
+										{@const tabIndex = parseInt(tab.id.replace('subproblem-', ''))}
+										{@const subGroupedEvents = groupedEvents.filter(group => {
+											if (group.type === 'single' && group.event) {
+												const eventSubIndex = group.event.data.sub_problem_index as number | undefined;
+												return eventSubIndex === tabIndex;
+											} else if (group.type === 'round' || group.type === 'expert_panel') {
+												if (group.events && group.events.length > 0) {
+													const eventSubIndex = group.events[0].data.sub_problem_index as number | undefined;
+													return eventSubIndex === tabIndex;
+												}
+											}
+											return false;
+										})}
+									<!-- Active tab content -->
+									<div class="flex-1 overflow-y-auto p-4 space-y-4">
+										<!-- Sub-problem header with metrics -->
+										<div class="bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+											<h3 class="text-base font-semibold text-slate-900 dark:text-white mb-3">
+												{tab.goal}
+											</h3>
+											<SubProblemMetrics
+												expertCount={tab.metrics.expertCount}
+												convergencePercent={tab.metrics.convergencePercent}
+												currentRound={tab.metrics.currentRound}
+												maxRounds={tab.metrics.maxRounds}
+												duration={tab.metrics.duration}
+												status={tab.status}
+											/>
+										</div>
+
+										{#each subGroupedEvents as group, index (index)}
+											{#if group.type === 'expert_panel' && group.events}
+												<div transition:fade={{ duration: 300, delay: 50 }}>
+													<ExpertPanel
+														experts={group.events.map((e) => ({
+															persona: e.data.persona as any,
+															rationale: e.data.rationale as string,
+															order: e.data.order as number,
+														}))}
+														subProblemGoal={group.subProblemGoal}
+													/>
+												</div>
+											{:else if group.type === 'round' && group.events}
+												<div transition:fade={{ duration: 300, delay: 50 }}>
+													<div class="space-y-3">
+														<h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+															<span>Round {group.roundNumber} Contributions</span>
+														</h3>
+														{#each group.events as contrib}
+															<ExpertPerspectiveCard event={contrib as any} />
+														{/each}
+													</div>
+												</div>
+											{:else if group.type === 'single' && group.event}
+												{@const event = group.event}
+												{@const priority = getEventPriority(event.event_type)}
+												<div
+													class="{getEventCardClasses(priority)} rounded-lg p-4"
+													in:fade|global={{ duration: 300, delay: 50 }}
+													out:fade|global={{ duration: 200 }}
+												>
+													<div class="flex items-start gap-3">
+														{#if event.event_type === 'synthesis_complete' || event.event_type === 'subproblem_complete' || event.event_type === 'meta_synthesis_complete' || event.event_type === 'complete'}
+															<CheckCircle size={20} class="text-semantic-success" />
+														{:else if event.event_type === 'error'}
+															<AlertCircle size={20} class="text-semantic-error" />
+														{/if}
+														<div class="flex-1 min-w-0">
+															<div class="flex items-center justify-between mb-3">
+																<RelativeTimestamp timestamp={event.timestamp} />
+															</div>
+
+															{#if event.event_type === 'decomposition_complete' && event.data.sub_problems && !shouldHideDecomposition}
+																<DecompositionComplete event={event as any} />
+															{:else if event.event_type === 'contribution' && event.data.persona_code}
+																<ExpertPerspectiveCard event={event as any} />
+															{:else if event.event_type === 'facilitator_decision' && event.data.action}
+																<FacilitatorDecision event={event as any} />
+															{:else if event.event_type === 'moderator_intervention' && event.data.moderator_type}
+																<ModeratorIntervention event={event as any} />
+															{:else if event.event_type === 'convergence'}
+																<ConvergenceCheck event={event as any} />
+															{:else if event.event_type === 'voting_complete' && event.data.votes}
+																<VotingResults event={event as any} />
+															{:else if event.event_type === 'meta_synthesis_complete' && event.data.synthesis}
+																<ActionPlan event={event as any} />
+															{:else if event.event_type === 'synthesis_complete' && event.data.synthesis}
+																<SynthesisComplete event={event as any} />
+															{:else if event.event_type === 'subproblem_complete' && event.data.sub_problem_index !== undefined}
+																<SubProblemProgress event={event as any} />
+															{:else if event.event_type === 'phase_cost_breakdown' && event.data.phase_costs}
+																<PhaseTable event={event as any} />
+															{:else if event.event_type === 'complete' && event.data.total_cost !== undefined}
+																<DeliberationComplete event={event as any} />
+															{:else if event.event_type === 'error' && event.data.error}
+																<ErrorEvent event={event as any} />
+															{:else}
+																<GenericEvent event={event} />
+															{/if}
+														</div>
+													</div>
+												</div>
+											{/if}
+										{/each}
+									</div>
+									{/if}
+								{/each}
+							</div>
 						{:else}
+							<!-- Single sub-problem or linear view -->
+							<div class="p-4 space-y-4">
 							{#if isSynthesizing}
 								<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800" transition:fade={{ duration: 300 }}>
 									<div class="flex items-center gap-3 mb-3">
@@ -732,14 +1119,29 @@
 							{/if}
 
 							{#each groupedEvents as group, index (index)}
-								{#if group.type === 'round' && group.events}
-									<!-- Render grouped contributions as RoundGroup -->
+								{#if group.type === 'expert_panel' && group.events}
+									<!-- Render grouped expert panel -->
 									<div transition:fade={{ duration: 300, delay: 50 }}>
-										<RoundGroup
-											roundNumber={group.roundNumber || 1}
-											contributions={group.events}
-											isCurrentRound={index === groupedEvents.length - 1 && session?.phase === 'discussion'}
+										<ExpertPanel
+											experts={group.events.map((e) => ({
+												persona: e.data.persona as any,
+												rationale: e.data.rationale as string,
+												order: e.data.order as number,
+											}))}
+											subProblemGoal={group.subProblemGoal}
 										/>
+									</div>
+								{:else if group.type === 'round' && group.events}
+									<!-- Render grouped contributions with new ExpertPerspectiveCard -->
+									<div transition:fade={{ duration: 300, delay: 50 }}>
+										<div class="space-y-3">
+											<h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+												<span>Round {group.roundNumber} Contributions</span>
+											</h3>
+											{#each group.events as contrib}
+												<ExpertPerspectiveCard event={contrib as any} />
+											{/each}
+										</div>
 									</div>
 								{:else if group.type === 'single' && group.event}
 									{@const event = group.event}
@@ -752,30 +1154,35 @@
 										out:fade|global={{ duration: 200 }}
 									>
 										<div class="flex items-start gap-3">
-											<span class="text-2xl">{getEventIcon(event.event_type)}</span>
+											{#if event.event_type === 'synthesis_complete' || event.event_type === 'subproblem_complete' || event.event_type === 'meta_synthesis_complete' || event.event_type === 'complete'}
+												<CheckCircle size={20} class="text-semantic-success" />
+											{:else if event.event_type === 'error'}
+												<AlertCircle size={20} class="text-semantic-error" />
+											{/if}
 											<div class="flex-1 min-w-0">
 												<div class="flex items-center justify-between mb-3">
 													<RelativeTimestamp timestamp={event.timestamp} />
 												</div>
 
 												<!-- Render appropriate component based on event type -->
-												{#if event.event_type === 'decomposition_complete' && event.data.sub_problems}
+												{#if event.event_type === 'decomposition_complete' && event.data.sub_problems && !shouldHideDecomposition}
 													<DecompositionComplete event={event as any} />
-												{:else if event.event_type === 'persona_selected' && event.data.persona}
-													<PersonaSelection event={event as any} />
 												{:else if event.event_type === 'contribution' && event.data.persona_code}
-													<PersonaContribution event={event as any} />
+													<!-- Individual contributions use new ExpertPerspectiveCard -->
+													<ExpertPerspectiveCard event={event as any} />
 												{:else if event.event_type === 'facilitator_decision' && event.data.action}
 													<FacilitatorDecision event={event as any} />
 												{:else if event.event_type === 'moderator_intervention' && event.data.moderator_type}
 													<ModeratorIntervention event={event as any} />
 												{:else if event.event_type === 'convergence'}
 													<ConvergenceCheck event={event as any} />
-												{:else if event.event_type === 'voting_started'}
-													<VotingPhase event={event as any} />
-												{:else if event.event_type === 'persona_vote' && event.data.persona_code}
-													<PersonaVote event={event as any} />
-												{:else if (event.event_type === 'synthesis_complete' || event.event_type === 'meta_synthesis_complete') && event.data.synthesis}
+												{:else if event.event_type === 'voting_complete' && event.data.votes}
+													<!-- Use new VotingResults component for aggregated votes -->
+													<VotingResults event={event as any} />
+												{:else if event.event_type === 'meta_synthesis_complete' && event.data.synthesis}
+													<!-- Use ActionPlan for structured meta-synthesis -->
+													<ActionPlan event={event as any} />
+												{:else if event.event_type === 'synthesis_complete' && event.data.synthesis}
 													<SynthesisComplete event={event as any} />
 												{:else if event.event_type === 'subproblem_complete' && event.data.sub_problem_index !== undefined}
 													<SubProblemProgress event={event as any} />
@@ -793,6 +1200,7 @@
 									</div>
 								{/if}
 							{/each}
+							</div>
 						{/if}
 					</div>
 				</div>
@@ -808,10 +1216,17 @@
 						</summary>
 						<div class="px-4 pb-4">
 							<p class="text-sm text-slate-700 dark:text-slate-300">
-								{session.problem_statement}
+								{session.problem_statement || 'Problem statement not available'}
 							</p>
 						</div>
 					</details>
+
+					<!-- Progress Indicator -->
+					<ProgressIndicator
+						events={events}
+						currentPhase={session.phase}
+						currentRound={session.round_number ?? null}
+					/>
 
 					<!-- Decision Metrics Dashboard -->
 					<DecisionMetrics
@@ -819,6 +1234,12 @@
 						currentPhase={session.phase}
 						currentRound={session.round_number ?? null}
 					/>
+
+					<!-- Convergence Chart -->
+					<ConvergenceChart events={events} />
+
+					<!-- Cost Breakdown -->
+					<CostBreakdown events={events} />
 
 					<!-- Actions -->
 					{#if session.status === 'completed'}

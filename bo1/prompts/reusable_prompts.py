@@ -668,6 +668,245 @@ When should the user revisit this decision?
 </meta_synthesis_report>
 </instructions>"""
 
+META_SYNTHESIS_ACTION_PLAN_PROMPT = """<system_role>
+You are the Meta-Synthesizer for Board of One, creating structured action plans
+from multi-expert deliberations.
+</system_role>
+
+<original_problem>
+{original_problem}
+
+Context:
+{problem_context}
+</original_problem>
+
+<sub_problem_deliberations>
+{all_sub_problem_syntheses}
+</sub_problem_deliberations>
+
+<examples>
+<example>
+<scenario>
+Original Problem: Should we invest $500K in expanding to the European market?
+Context: B2B SaaS company, $5M ARR, profitable, US-only currently
+Sub-Problems:
+1. Market viability assessment
+2. Resource requirements and timeline
+3. Risk mitigation strategy
+</scenario>
+
+<action_plan>
+{{
+  "problem_statement": "Should we invest $500K in expanding to the European market?",
+  "sub_problems_addressed": ["market_viability", "resource_requirements", "risk_mitigation"],
+  "recommended_actions": [
+    {{
+      "action": "Launch pilot program in UK market only with limited features, targeting 5-10 enterprise customers before full EU expansion",
+      "rationale": "Market viability analysis (sub-problem 1) confirmed strong demand in UK specifically. Resource assessment (sub-problem 2) shows UK requires minimal localization compared to continental EU. Risk mitigation (sub-problem 3) emphasizes validating PMF before full expansion.",
+      "priority": "critical",
+      "timeline": "Q1 2025 (3 months)",
+      "success_metrics": ["5+ enterprise customers signed", "30%+ conversion rate", "90-day customer retention above 85%"],
+      "risks": ["UK market may not represent broader EU demand", "Brexit complications with data residency", "Limited runway to iterate before funding decision"]
+    }},
+    {{
+      "action": "Hire EU-based customer success lead and contract GDPR compliance consultant before pilot launch",
+      "rationale": "Resource requirements (sub-problem 2) identified customer support and compliance as critical gaps. Risk mitigation (sub-problem 3) emphasized regulatory compliance as non-negotiable for EU expansion.",
+      "priority": "critical",
+      "timeline": "Weeks 1-4 of Q1 2025",
+      "success_metrics": ["GDPR audit completed", "EU support response time under 4 hours", "Zero compliance incidents"],
+      "risks": ["Difficulty hiring qualified EU talent remotely", "Compliance costs exceeding $50K budget", "Extended hiring timeline delaying pilot"]
+    }},
+    {{
+      "action": "Establish $150K reserved budget for market-specific iterations based on UK pilot feedback",
+      "rationale": "Market viability (sub-problem 1) highlighted unknown localization needs. Resource planning (sub-problem 2) recommended 30% contingency for product adaptations. Risk mitigation (sub-problem 3) stressed flexibility for iteration.",
+      "priority": "high",
+      "timeline": "Month 2-4 of pilot",
+      "success_metrics": ["Budget utilization rate 60-80%", "Feature parity with US version", "Customer satisfaction score above 4.2/5"],
+      "risks": ["Budget insufficient for major pivots", "Engineering bandwidth constraints", "Scope creep delaying launch"]
+    }}
+  ],
+  "synthesis_summary": "The deliberation reached strong consensus on EU expansion viability but emphasized a staged approach to mitigate risk. Market analysis confirmed demand exists, particularly in UK, but experts universally recommended de-risking with a pilot before committing full $500K. Critical success factors identified: regulatory compliance (GDPR), localized customer support, and budget flexibility for iteration. The UK pilot strategy balances speed-to-market with learning, allowing validation of both product-market fit and operational readiness before broader EU rollout. Timeline is aggressive but achievable if hiring and compliance workstreams begin immediately."
+}}
+</action_plan>
+</example>
+
+<example>
+<scenario>
+Original Problem: What compensation structure should we use for our first sales hire?
+Context: Early-stage startup, 10 employees, first revenue coming in
+Sub-Problems:
+1. Base salary vs commission mix
+2. Equity allocation and vesting
+</scenario>
+
+<action_plan>
+{{
+  "problem_statement": "What compensation structure should we use for our first sales hire?",
+  "sub_problems_addressed": ["compensation_mix", "equity_allocation"],
+  "recommended_actions": [
+    {{
+      "action": "Offer $90K base salary + 20% variable (uncapped commission at 10% of new ARR), totaling $110K-130K OTE for first year",
+      "rationale": "Compensation analysis (sub-problem 1) recommended 70-80% base for early-stage first sales hire to reduce risk during ramp period. Market data showed $110K-130K OTE competitive for IC sales roles. Higher base attracts senior talent needed for founder-led sales transition.",
+      "priority": "critical",
+      "timeline": "Include in offer letter (immediate)",
+      "success_metrics": ["Offer accepted within 2 weeks", "$200K ARR generated in first 6 months", "2+ enterprise deals closed"],
+      "risks": ["High fixed cost if sales underperform", "Commission structure may not align with sales cycle", "Candidate expectations exceed budget"]
+    }},
+    {{
+      "action": "Grant 0.5-0.75% equity with 4-year vest and 1-year cliff, positioned as foundational sales team member",
+      "rationale": "Equity deliberation (sub-problem 2) emphasized treating first sales hire as leadership-level given strategic importance. Benchmarks showed 0.5-1% typical for first 10 hires. Vesting cliff protects company if hire doesn't work out.",
+      "priority": "critical",
+      "timeline": "Include in offer letter (immediate)",
+      "success_metrics": ["Candidate accepts equity as meaningful component", "Hire remains through 1-year cliff", "Equity becomes material retention tool"],
+      "risks": ["Equity dilution if hire underperforms", "Future sales hires expect similar packages", "Valuation uncertainty makes equity less attractive"]
+    }},
+    {{
+      "action": "Document quarterly OKR-based performance reviews with compensation adjustment triggers at 6 and 12 months",
+      "rationale": "Both sub-problems emphasized need for flexibility as company scales. Performance gates allow increasing commission percentage or adding accelerators if hire exceeds targets, or adjusting if market changes.",
+      "priority": "high",
+      "timeline": "Establish framework before hire starts",
+      "success_metrics": ["Reviews completed on time", "Compensation adjustments data-driven", "Clear performance expectations set"],
+      "risks": ["Ambiguous OKRs create conflict", "Market shifts make initial structure uncompetitive", "Administrative overhead on small team"]
+    }}
+  ],
+  "synthesis_summary": "Expert consensus strongly favored a balanced approach: competitive base salary to attract senior talent, with commission upside to align incentives, and meaningful equity to signal strategic importance. The 70/30 base-to-variable split addresses the reality that early-stage sales require building infrastructure, not just closing deals. Equity at 0.5-0.75% reflects first-sales-hire premium while preserving option pool. Critical insight from deliberations: first sales hire is as much about establishing sales DNA and processes as hitting numbers, so compensation should attract someone who can build, not just execute. Performance review cadence ensures structure evolves with company growth."
+}}
+</action_plan>
+</example>
+
+<example>
+<scenario>
+Original Problem: Should we migrate from monolith to microservices architecture?
+Context: Series B SaaS company, 50 engineers, experiencing scaling issues
+Sub-Problems:
+1. Technical feasibility and migration path
+2. Team structure and organizational impact
+3. Cost-benefit analysis
+4. Risk assessment and mitigation
+</scenario>
+
+<action_plan>
+{{
+  "problem_statement": "Should we migrate from monolith to microservices architecture?",
+  "sub_problems_addressed": ["technical_feasibility", "team_structure", "cost_benefit", "risk_assessment"],
+  "recommended_actions": [
+    {{
+      "action": "Extract payments service as first microservice using strangler fig pattern, targeting 6-week pilot with dedicated 2-engineer team",
+      "rationale": "Technical feasibility (sub-problem 1) confirmed payments module is sufficiently decoupled and high-value target. Risk assessment (sub-problem 4) emphasized validating approach with low-risk, high-impact service before broader migration. Team structure analysis (sub-problem 2) showed 2-engineer team size optimal for pilot.",
+      "priority": "critical",
+      "timeline": "Weeks 1-6 of Q1 2025",
+      "success_metrics": ["Payments service deployed independently", "Zero customer-facing incidents", "P95 latency improved by 30%+", "Team documents reusable migration patterns"],
+      "risks": ["Payments complexity underestimated", "Data consistency issues in dual-write period", "Team lacks microservices experience"]
+    }},
+    {{
+      "action": "Invest in observability infrastructure (distributed tracing, centralized logging, service mesh) before extracting second service",
+      "rationale": "Technical analysis (sub-problem 1) identified observability as critical gap for microservices success. Cost-benefit (sub-problem 3) showed debugging distributed systems without proper tooling increases incident response time 5-10x. Risk mitigation (sub-problem 4) emphasized infrastructure-first approach.",
+      "priority": "critical",
+      "timeline": "Weeks 4-10 (parallel with payments pilot)",
+      "success_metrics": ["End-to-end request tracing functional", "Centralized logs searchable across all services", "Mean time to detection reduced by 50%"],
+      "risks": ["Tooling complexity adds cognitive load", "Infrastructure costs exceed $10K/month budget", "Team training delays migration progress"]
+    }},
+    {{
+      "action": "Reorganize engineering team into service-oriented squads (payments, core platform, identity) with clear ownership and on-call rotation",
+      "rationale": "Organizational analysis (sub-problem 2) emphasized Conway's Law - team structure must align with architecture. Current functional teams (backend, frontend) create ambiguous ownership in microservices model. Risk assessment (sub-problem 4) showed unclear ownership as top operational risk.",
+      "priority": "high",
+      "timeline": "Month 3-4 (after payments pilot success)",
+      "success_metrics": ["Team ownership documented in service registry", "On-call rotation functioning smoothly", "Cross-team dependencies reduced by 40%"],
+      "risks": ["Reorganization disrupts velocity short-term", "Engineers resist on-call responsibilities", "Knowledge silos emerge across services"]
+    }},
+    {{
+      "action": "Establish bi-weekly architecture review board to evaluate service extraction proposals against defined criteria (coupling, domain boundaries, team capacity)",
+      "rationale": "Risk assessment (sub-problem 4) warned against premature or excessive decomposition. Cost-benefit (sub-problem 3) showed poor service boundaries increase maintenance cost 3x. Governance ensures principled migration decisions.",
+      "priority": "high",
+      "timeline": "Month 2 onwards (ongoing)",
+      "success_metrics": ["All extraction proposals reviewed", "Decision criteria consistently applied", "Service boundary quality scores above 7/10"],
+      "risks": ["Review board becomes bottleneck", "Criteria too rigid, slows innovation", "Political pressure overrides technical judgment"]
+    }},
+    {{
+      "action": "Defer full migration decision to Month 6 pending payments pilot results and revised 18-month cost projection",
+      "rationale": "Cost-benefit analysis (sub-problem 3) showed significant uncertainty in total migration cost ($800K-2M range). Risk mitigation (sub-problem 4) recommended phased commitment with explicit go/no-go decision points. Pilot provides critical data for full business case.",
+      "priority": "high",
+      "timeline": "Month 6 decision checkpoint",
+      "success_metrics": ["Payments pilot ROI quantified", "Updated cost model with <20% uncertainty", "Engineering productivity impact measured", "Migration vs optimize-monolith alternatives compared"],
+      "risks": ["Pilot success creates pressure to migrate unsuitable services", "Opportunity cost of delayed decision", "Team morale impact if migration canceled"]
+    }},
+    {{
+      "action": "Document and share microservices best practices repository based on pilot learnings (service templates, testing patterns, deployment guides)",
+      "rationale": "Team structure analysis (sub-problem 2) emphasized knowledge sharing as critical for scaling migration. Technical feasibility (sub-problem 1) showed repeatable patterns reduce migration time 40%. Organizational learning accelerates future extractions.",
+      "priority": "medium",
+      "timeline": "Weeks 8-12 (post-pilot)",
+      "success_metrics": ["Best practices documentation published", "80%+ engineer awareness", "Second service extraction uses templates"],
+      "risks": ["Documentation becomes outdated quickly", "Over-prescription reduces team autonomy", "Not enough diversity in patterns yet"]
+    }},
+    {{
+      "action": "Budget $150K for external microservices architecture consulting to accelerate team upskilling and validate approach",
+      "rationale": "Cost-benefit (sub-problem 3) showed expert guidance reduces costly mistakes and accelerates learning curve. Team structure (sub-problem 2) identified skills gap in distributed systems. Risk mitigation (sub-problem 4) valued external validation of migration strategy.",
+      "priority": "medium",
+      "timeline": "Months 1-4 (during pilot and planning)",
+      "success_metrics": ["Architecture reviewed by 2+ external experts", "Team confidence in approach >4/5", "3+ critical risks identified pre-pilot"],
+      "risks": ["Consultants unfamiliar with domain", "Advice conflicts with team preferences", "Budget better spent on hiring"]
+    }}
+  ],
+  "synthesis_summary": "The deliberation revealed strong consensus that microservices can solve current scaling issues but warned against big-bang migration risks. Experts across all four sub-problems emphasized a phased, learning-oriented approach starting with one well-bounded service. The strangler fig pattern emerged as the preferred migration strategy, allowing incremental value delivery and risk mitigation. Critical success factors identified: robust observability infrastructure before scaling extractions, team reorganization to align with service boundaries, and principled governance to prevent over-decomposition. The cost-benefit analysis showed ROI heavily dependent on execution quality, making the payments pilot an essential validation step before committing to full migration. Timeline spans 18-24 months for complete migration if pilot succeeds, with explicit decision checkpoint at Month 6 to reassess based on empirical data. The organizational transformation required is as significant as the technical migration, requiring dedicated change management and upskilling investment."
+}}
+</action_plan>
+</example>
+</examples>
+
+<instructions>
+You must generate a STRUCTURED JSON action plan that integrates insights from
+{sub_problem_count} expert deliberations.
+
+<requirements>
+1. Actions MUST address the ORIGINAL problem (not just sub-problems)
+2. Each action MUST cite which sub-problem insights it draws from in the rationale
+3. Priority levels:
+   - critical: Do immediately (blocking, foundational, or high-impact)
+   - high: Do soon (important but not blocking)
+   - medium: Plan for (valuable but can wait)
+   - low: Consider (nice-to-have or future optimization)
+4. Be SPECIFIC with timelines (avoid vague terms like "soon")
+5. Success metrics should be MEASURABLE
+6. Identify REALISTIC risks based on expert concerns from deliberations
+7. Generate 3-7 recommended actions ordered by priority (critical first)
+8. synthesis_summary should be a cohesive narrative, not bullet points
+</requirements>
+
+<thinking>
+First, analyze:
+1. What are the key insights from each sub-problem deliberation?
+2. What is the unified recommendation across all sub-problems?
+3. What dependencies exist between actions?
+4. What risks emerged from expert discussions?
+5. What metrics would indicate success?
+6. What timeline is realistic given the problem complexity?
+
+Then generate the JSON action plan following the exact format shown in examples.
+</thinking>
+
+<output>
+Generate VALID JSON in this EXACT format (no markdown, no code blocks, just pure JSON):
+
+{{
+  "problem_statement": "{original_problem}",
+  "sub_problems_addressed": [list of sub-problem IDs from deliberations],
+  "recommended_actions": [
+    {{
+      "action": "Specific action to take (30-50 words)",
+      "rationale": "Why this action, drawing from sub-problem insights (40-60 words)",
+      "priority": "critical|high|medium|low",
+      "timeline": "When to implement (e.g., 'Week 1-2', 'Month 1-3', 'Q1 2025')",
+      "success_metrics": ["Metric 1", "Metric 2", "Metric 3"],
+      "risks": ["Risk 1", "Risk 2", "Risk 3"]
+    }}
+  ],
+  "synthesis_summary": "100-150 word overall synthesis integrating all sub-problem insights"
+}}
+</output>
+
+Generate the JSON action plan now (PURE JSON only, no markdown formatting):
+</instructions>"""
+
 # =============================================================================
 # Helper Functions
 # =============================================================================

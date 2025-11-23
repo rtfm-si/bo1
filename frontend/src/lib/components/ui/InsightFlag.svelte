@@ -3,6 +3,8 @@
 	 * InsightFlag Component - Live insight indicator during deliberation
 	 * Used for risk/opportunity/tension/alignment notifications
 	 */
+	import { AlertCircle, CheckCircle, Target, X } from 'lucide-svelte';
+	import type { ComponentType } from 'svelte';
 
 	// Props
 	interface Props {
@@ -22,30 +24,30 @@
 	}: Props = $props();
 
 	// Type configurations
-	const typeConfig = {
+	const typeConfig: Record<string, { icon: ComponentType; bg: string; border: string; text: string; accent: string }> = {
 		risk: {
-			icon: '⚠',
+			icon: AlertCircle,
 			bg: 'bg-error-50 dark:bg-error-900/20',
 			border: 'border-error-300 dark:border-error-700',
 			text: 'text-error-800 dark:text-error-200',
 			accent: 'bg-error-500',
 		},
 		opportunity: {
-			icon: '✦',
+			icon: CheckCircle,
 			bg: 'bg-success-50 dark:bg-success-900/20',
 			border: 'border-success-300 dark:border-success-700',
 			text: 'text-success-800 dark:text-success-200',
 			accent: 'bg-success-500',
 		},
 		tension: {
-			icon: '⚡',
+			icon: AlertCircle,
 			bg: 'bg-warning-50 dark:bg-warning-900/20',
 			border: 'border-warning-300 dark:border-warning-700',
 			text: 'text-warning-800 dark:text-warning-200',
 			accent: 'bg-warning-500',
 		},
 		alignment: {
-			icon: '◆',
+			icon: Target,
 			bg: 'bg-brand-50 dark:bg-brand-900/20',
 			border: 'border-brand-300 dark:border-brand-700',
 			text: 'text-brand-800 dark:text-brand-200',
@@ -73,8 +75,14 @@
 	<div class={['w-1 h-full rounded-full', config.accent].join(' ')}></div>
 
 	<!-- Icon -->
-	<div class={['text-2xl leading-none', config.text].join(' ')}>
-		{config.icon}
+	<div class={config.text}>
+		{#if type === 'risk' || type === 'tension'}
+			<AlertCircle size={20} />
+		{:else if type === 'opportunity'}
+			<CheckCircle size={20} />
+		{:else}
+			<Target size={20} />
+		{/if}
 	</div>
 
 	<!-- Content -->
@@ -91,11 +99,11 @@
 	{#if dismissable}
 		<button
 			type="button"
-			class={['text-lg leading-none hover:opacity-70 transition-opacity', config.text].join(' ')}
+			class={['hover:opacity-70 transition-opacity', config.text].join(' ')}
 			onclick={dismiss}
 			aria-label="Dismiss insight"
 		>
-			×
+			<X size={18} />
 		</button>
 	{/if}
 </div>

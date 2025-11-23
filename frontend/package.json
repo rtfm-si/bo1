@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "js-cookie": "^3.0.5",
+    "lucide-svelte": "^0.554.0",
     "supertokens-web-js": "^0.16.0"
   }
 }

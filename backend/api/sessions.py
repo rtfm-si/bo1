@@ -106,7 +106,10 @@ async def create_session(
                 detail="Failed to save session metadata",
             )
 
-        logger.info(f"Created session: {session_id}")
+        # Add session to user's session index for fast lookup
+        redis_manager.add_session_to_user_index(user_id, session_id)
+
+        logger.info(f"Created session: {session_id} for user: {user_id}")
 
         # Return session response
         return SessionResponse(
@@ -183,20 +186,23 @@ async def list_sessions(
                 offset=offset,
             )
 
-        # Get all session IDs
-        session_ids = redis_manager.list_sessions()
+        # Get session IDs for this user only (uses Redis SET - O(1) lookup)
+        session_ids = redis_manager.list_user_sessions(user_id)
 
-        # Load metadata for each session
+        if not session_ids:
+            return SessionListResponse(
+                sessions=[],
+                total=0,
+                limit=limit,
+                offset=offset,
+            )
+
+        # Batch load metadata for all user sessions (single Redis pipeline)
+        metadata_dict = redis_manager.batch_load_metadata(session_ids)
+
+        # Build session list from metadata
         sessions: list[SessionResponse] = []
-        for session_id in session_ids:
-            metadata = redis_manager.load_metadata(session_id)
-            if not metadata:
-                continue
-
-            # SECURITY: Only show sessions owned by the user
-            if metadata.get("user_id") != user_id:
-                continue
-
+        for session_id, metadata in metadata_dict.items():
             # Skip soft-deleted sessions
             if metadata.get("deleted_at"):
                 continue
@@ -216,6 +222,7 @@ async def list_sessions(
                 )
             except (KeyError, ValueError):
                 # Skip sessions with invalid timestamps
+                logger.warning(f"Invalid timestamps for session {session_id}")
                 continue
 
             # Create session response
@@ -453,7 +460,10 @@ async def delete_session(
                 detail="Failed to update session metadata",
             )
 
-        logger.info(f"Soft deleted session: {session_id}")
+        # Remove session from user's index for fast listing
+        redis_manager.remove_session_from_user_index(user_id, session_id)
+
+        logger.info(f"Soft deleted session: {session_id} for user: {user_id}")
 
         # Return session response
         return SessionResponse(
@@ -527,7 +537,7 @@ async def extract_tasks(
         verify_session_ownership(session_id, user, redis_manager)
 
         # Get session metadata
-        metadata = redis_manager.get_session_metadata(session_id)
+        metadata = redis_manager.load_metadata(session_id)
         if not metadata:
             raise HTTPException(
                 status_code=404,
@@ -538,7 +548,7 @@ async def extract_tasks(
         synthesis = metadata.get("synthesis")
         if not synthesis:
             # Try to get synthesis from events
-            events_key = f"session:{session_id}:events"
+            events_key = f"events_history:{session_id}"
             events = redis_manager.redis.lrange(events_key, 0, -1)
 
             # Look for synthesis_complete or meta_synthesis_complete event

@@ -4,10 +4,14 @@ Provides:
 - EventCollector: Wraps graph execution and publishes all events to Redis PubSub
 """
 
+import json
 import logging
 from typing import Any
 
+from anthropic import AsyncAnthropic
+
 from backend.api.event_publisher import EventPublisher
+from bo1.config import get_settings
 from bo1.models.problem import SubProblem
 
 logger = logging.getLogger(__name__)
@@ -39,6 +43,9 @@ class EventCollector:
             publisher: EventPublisher instance for publishing to Redis
         """
         self.publisher = publisher
+        # Initialize Anthropic client for AI summarization
+        settings = get_settings()
+        self.anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     async def collect_and_publish(
         self,
@@ -140,9 +147,6 @@ class EventCollector:
             session_id: Session identifier
             output: Node output state
         """
-        # Publish decomposition started event
-        self.publisher.publish_event(session_id, "decomposition_started", {})
-
         # Extract sub-problems from problem
         problem = output.get("problem")
         if problem and hasattr(problem, "sub_problems"):
@@ -181,12 +185,10 @@ class EventCollector:
             session_id: Session identifier
             output: Node output state
         """
-        # Publish persona selection started event
-        self.publisher.publish_event(session_id, "persona_selection_started", {})
-
         # Extract personas and recommendations
         personas = output.get("personas", [])
         persona_recommendations = output.get("persona_recommendations", [])
+        sub_problem_index = output.get("sub_problem_index", 0)
 
         # Publish individual persona selected events
         for i, persona in enumerate(personas):
@@ -221,6 +223,7 @@ class EventCollector:
                     "persona": persona_dict,
                     "rationale": rationale,
                     "order": i + 1,
+                    "sub_problem_index": sub_problem_index,
                 },
             )
 
@@ -229,7 +232,11 @@ class EventCollector:
         self.publisher.publish_event(
             session_id,
             "persona_selection_complete",
-            {"personas": persona_codes, "count": len(persona_codes)},
+            {
+                "personas": persona_codes,
+                "count": len(persona_codes),
+                "sub_problem_index": sub_problem_index,
+            },
         )
 
         # Check if this is a multi-sub-problem scenario and publish sub-problem context
@@ -239,6 +246,13 @@ class EventCollector:
 
         if problem and hasattr(problem, "sub_problems") and len(problem.sub_problems) > 1:
             if current_sub_problem:
+                # Store start timestamp for duration tracking
+                from datetime import UTC, datetime
+
+                subproblem_key = f"subproblem:{session_id}:{sub_problem_index}:start_time"
+                start_timestamp = datetime.now(UTC).isoformat()
+                self.publisher.redis.setex(subproblem_key, 86400, start_timestamp)  # 24-hour TTL
+
                 self.publisher.publish_event(
                     session_id,
                     "subproblem_started",
@@ -265,20 +279,15 @@ class EventCollector:
             session_id: Session identifier
             output: Node output state
         """
-        personas = output.get("personas", [])
-        persona_codes = [p.code if hasattr(p, "code") else p.get("code") for p in personas]
-
-        # Publish initial round started event
-        self.publisher.publish_event(
-            session_id,
-            "initial_round_started",
-            {"experts": persona_codes},
-        )
+        # Extract sub_problem_index for tab filtering
+        sub_problem_index = output.get("sub_problem_index", 0)
 
         # Publish individual contributions
         contributions = output.get("contributions", [])
         for contrib in contributions:
-            await self._publish_contribution(session_id, contrib, round_number=1)
+            await self._publish_contribution(
+                session_id, contrib, round_number=1, sub_problem_index=sub_problem_index
+            )
 
     async def _handle_facilitator_decision(self, session_id: str, output: dict) -> None:
         """Handle facilitator_decide node completion.
@@ -289,6 +298,7 @@ class EventCollector:
         """
         decision = output.get("facilitator_decision")
         round_number = output.get("round_number", 1)
+        sub_problem_index = output.get("sub_problem_index", 0)
 
         if decision:
             # Extract decision fields
@@ -298,11 +308,12 @@ class EventCollector:
             moderator_type = decision.get("moderator_type")
             research_query = decision.get("research_query")
 
-            # Publish facilitator decision event
+            # Publish facilitator decision event (full reasoning, not truncated)
             data = {
                 "action": action,
-                "reasoning": reasoning[:200] if len(reasoning) > 200 else reasoning,
+                "reasoning": reasoning,  # Full reasoning for better UX
                 "round": round_number,
+                "sub_problem_index": sub_problem_index,
             }
 
             if next_speaker:
@@ -323,10 +334,13 @@ class EventCollector:
         """
         contributions = output.get("contributions", [])
         round_number = output.get("round_number", 1)
+        sub_problem_index = output.get("sub_problem_index", 0)
 
         # Publish the newest contribution (last in list)
         if contributions:
-            await self._publish_contribution(session_id, contributions[-1], round_number)
+            await self._publish_contribution(
+                session_id, contributions[-1], round_number, sub_problem_index
+            )
 
     async def _handle_moderator(self, session_id: str, output: dict) -> None:
         """Handle moderator_intervene node completion.
@@ -337,6 +351,7 @@ class EventCollector:
         """
         contributions = output.get("contributions", [])
         round_number = output.get("round_number", 1)
+        sub_problem_index = output.get("sub_problem_index", 0)
 
         # Last contribution is the moderator intervention
         if contributions:
@@ -352,6 +367,7 @@ class EventCollector:
                     "content": content,
                     "trigger_reason": "Facilitator requested intervention",
                     "round": round_number,
+                    "sub_problem_index": sub_problem_index,
                 },
             )
 
@@ -366,6 +382,7 @@ class EventCollector:
         stop_reason = output.get("stop_reason")
         round_number = output.get("round_number", 1)
         max_rounds = output.get("max_rounds", 10)
+        sub_problem_index = output.get("sub_problem_index", 0)
 
         # Get convergence score from metrics
         metrics = output.get("metrics", {})
@@ -387,51 +404,35 @@ class EventCollector:
                 "stop_reason": stop_reason,
                 "round": round_number,
                 "max_rounds": max_rounds,
+                "sub_problem_index": sub_problem_index,
             },
         )
 
     async def _handle_voting(self, session_id: str, output: dict) -> None:
-        """Handle vote node completion.
+        """Handle vote node completion - aggregates all votes into single event.
 
         Args:
             session_id: Session identifier
             output: Node output state
         """
-        personas = output.get("personas", [])
-        persona_codes = [p.code if hasattr(p, "code") else p.get("code") for p in personas]
-
-        # Publish voting started event
-        self.publisher.publish_event(
-            session_id,
-            "voting_started",
-            {"experts": persona_codes},
-        )
-
-        # Publish individual votes/recommendations
+        # Extract votes and sub_problem_index
         votes = output.get("votes", [])
-        for vote in votes:
-            # Extract vote fields (using recommendation system)
-            persona_code = vote.get("persona_code", "")
-            persona_name = vote.get("persona_name", "")
-            recommendation = vote.get("recommendation", "")
-            confidence = vote.get("confidence", 0.0)
-            reasoning = vote.get("reasoning", "")
-            conditions = vote.get("conditions", [])
+        sub_problem_index = output.get("sub_problem_index", 0)
 
-            self.publisher.publish_event(
-                session_id,
-                "persona_vote",
+        # Format votes for compact display
+        formatted_votes = []
+        for vote in votes:
+            formatted_votes.append(
                 {
-                    "persona_code": persona_code,
-                    "persona_name": persona_name,
-                    "recommendation": recommendation,
-                    "confidence": confidence,
-                    "reasoning": reasoning[:150] if len(reasoning) > 150 else reasoning,
-                    "conditions": conditions,
-                },
+                    "persona_code": vote.get("persona_code", ""),
+                    "persona_name": vote.get("persona_name", ""),
+                    "recommendation": vote.get("recommendation", ""),
+                    "confidence": vote.get("confidence", 0.0),
+                    "reasoning": vote.get("reasoning", ""),  # Full reasoning for expandable UI
+                    "conditions": vote.get("conditions", []),
+                }
             )
 
-        # Publish voting complete event
         # Determine consensus level based on confidence scores
         if votes:
             avg_confidence = sum(v.get("confidence", 0.0) for v in votes) / len(votes)
@@ -444,12 +445,16 @@ class EventCollector:
         else:
             consensus_level = "unknown"
 
+        # Publish single aggregated voting_complete event (no voting_started, no individual votes)
         self.publisher.publish_event(
             session_id,
             "voting_complete",
             {
+                "votes": formatted_votes,  # All votes in one payload
                 "votes_count": len(votes),
                 "consensus_level": consensus_level,
+                "avg_confidence": avg_confidence if votes else 0.0,
+                "sub_problem_index": sub_problem_index,
             },
         )
 
@@ -460,12 +465,10 @@ class EventCollector:
             session_id: Session identifier
             output: Node output state
         """
-        # Publish synthesis started event
-        self.publisher.publish_event(session_id, "synthesis_started", {})
-
-        # Extract synthesis
+        # Extract synthesis and sub_problem_index
         synthesis = output.get("synthesis", "")
         word_count = len(synthesis.split()) if synthesis else 0
+        sub_problem_index = output.get("sub_problem_index", 0)
 
         # Publish synthesis complete event
         self.publisher.publish_event(
@@ -474,6 +477,7 @@ class EventCollector:
             {
                 "synthesis": synthesis,
                 "word_count": word_count,
+                "sub_problem_index": sub_problem_index,
             },
         )
 
@@ -484,48 +488,57 @@ class EventCollector:
             session_id: Session identifier
             output: Node output state
         """
-        # Extract sub-problem result info
-        sub_problem_index = output.get("sub_problem_index", 0)
-        current_sub_problem = output.get("current_sub_problem")
+        # The next_subproblem_node returns sub_problem_results with the COMPLETED sub-problem
+        # as the last item, and sub_problem_index has already been incremented to point
+        # to the next sub-problem
+        sub_problem_results = output.get("sub_problem_results", [])
 
-        if current_sub_problem:
-            # Get metrics for cost and duration
-            metrics = output.get("metrics", {})
-            if hasattr(metrics, "total_cost"):
-                total_cost = metrics.total_cost
+        if sub_problem_results:
+            # Get the most recently completed sub-problem result
+            result = sub_problem_results[-1]
+
+            # Extract result data
+            if hasattr(result, "sub_problem_id"):
+                sp_id = result.sub_problem_id
+                sp_goal = result.sub_problem_goal
+                cost = result.cost
+                duration_seconds = result.duration_seconds
+                expert_panel = result.expert_panel
+                contribution_count = result.contribution_count
             else:
-                total_cost = metrics.get("total_cost", 0.0) if isinstance(metrics, dict) else 0.0
+                sp_id = result.get("sub_problem_id", "")
+                sp_goal = result.get("sub_problem_goal", "")
+                cost = result.get("cost", 0.0)
+                duration_seconds = result.get("duration_seconds", 0.0)
+                expert_panel = result.get("expert_panel", [])
+                contribution_count = result.get("contribution_count", 0)
 
-            # Extract persona codes
-            personas = output.get("personas", [])
-            persona_codes = [p.code if hasattr(p, "code") else p.get("code") for p in personas]
+            # Calculate actual duration if we have start time
+            completed_index = len(sub_problem_results) - 1
+            subproblem_key = f"subproblem:{session_id}:{completed_index}:start_time"
+            start_time_str = self.publisher.redis.get(subproblem_key)
 
-            # Count contributions
-            contributions = output.get("contributions", [])
-            contribution_count = len(contributions)
+            if start_time_str and duration_seconds == 0.0:
+                # Calculate duration from stored start time
+                from datetime import UTC, datetime
 
-            # Extract sub-problem details
-            sp_id = (
-                current_sub_problem.id
-                if hasattr(current_sub_problem, "id")
-                else current_sub_problem.get("id", "")
-            )
-            sp_goal = (
-                current_sub_problem.goal
-                if hasattr(current_sub_problem, "goal")
-                else current_sub_problem.get("goal", "")
-            )
+                start_time = datetime.fromisoformat(start_time_str)
+                end_time = datetime.now(UTC)
+                duration_seconds = (end_time - start_time).total_seconds()
+
+                # Clean up the start time key
+                self.publisher.redis.delete(subproblem_key)
 
             self.publisher.publish_event(
                 session_id,
                 "subproblem_complete",
                 {
-                    "sub_problem_index": sub_problem_index,
+                    "sub_problem_index": completed_index,
                     "sub_problem_id": sp_id,
                     "goal": sp_goal,
-                    "cost": total_cost,
-                    "duration_seconds": 0.0,  # TODO: Track duration
-                    "expert_panel": persona_codes,
+                    "cost": cost,
+                    "duration_seconds": duration_seconds,
+                    "expert_panel": expert_panel,
                     "contribution_count": contribution_count,
                 },
             )
@@ -537,28 +550,6 @@ class EventCollector:
             session_id: Session identifier
             output: Node output state
         """
-        # Extract sub-problem results
-        sub_problem_results = output.get("sub_problem_results", [])
-        contributions = output.get("contributions", [])
-
-        # Get metrics for cost
-        metrics = output.get("metrics", {})
-        if hasattr(metrics, "total_cost"):
-            total_cost = metrics.total_cost
-        else:
-            total_cost = metrics.get("total_cost", 0.0) if isinstance(metrics, dict) else 0.0
-
-        # Publish meta-synthesis started event
-        self.publisher.publish_event(
-            session_id,
-            "meta_synthesis_started",
-            {
-                "sub_problem_count": len(sub_problem_results),
-                "total_contributions": len(contributions),
-                "total_cost": total_cost,
-            },
-        )
-
         # Extract synthesis
         synthesis = output.get("synthesis", "")
         word_count = len(synthesis.split()) if synthesis else 0
@@ -624,18 +615,148 @@ class EventCollector:
             },
         )
 
+    async def _summarize_contribution(self, content: str, persona_name: str) -> dict | None:
+        """Summarize expert contribution into structured insights using Haiku 4.5.
+
+        Uses Claude Haiku 4.5 for cost-effective summarization (~$0.001 per contribution).
+
+        Args:
+            content: Full expert contribution (200-500 words)
+            persona_name: Expert name for context
+
+        Returns:
+            Dict with looking_for, value_added, concerns, questions, or None if summarization fails
+        """
+        try:
+            prompt = f"""<system_role>
+You are a contribution summarizer for Board of One, creating structured summaries
+of expert contributions for compact UI display.
+</system_role>
+
+<contribution>
+EXPERT: {persona_name}
+
+{content}
+</contribution>
+
+<examples>
+<example>
+<contribution>
+EXPERT: Chief Technology Officer
+
+As CTO, I'm concerned about our current infrastructure's ability to scale. We're seeing database query times increase by 200% month-over-month, and our monolithic architecture makes it difficult to deploy updates without risking downtime. I recommend we evaluate a microservices migration starting with our payments module, which is relatively isolated. However, we need to invest in observability tools first - distributed tracing, centralized logging, and service mesh infrastructure. The team lacks microservices experience, so we should budget for training or consulting. My biggest concern is that we underestimate the organizational complexity - team structure must align with service boundaries, which means reorganizing engineering squads. What is our timeline for this decision? And do we have budget allocated for the infrastructure changes required?
+</contribution>
+
+<thinking>
+1. Expert is analyzing: Infrastructure scaling challenges and microservices migration feasibility
+2. Unique insight: Emphasizes organizational transformation (team structure) as critical as technical migration
+3. Main concerns: Database performance degradation, team skills gap, organizational complexity
+4. Key questions: Timeline and budget for infrastructure investment
+</thinking>
+
+<summary>
+{{
+  "looking_for": "Evaluating microservices migration feasibility, focusing on infrastructure scalability and team readiness",
+  "value_added": "Highlights that organizational transformation (team structure alignment) is as critical as technical architecture changes",
+  "concerns": ["Database query times increased 200% month-over-month", "Team lacks microservices experience and needs training", "Organizational complexity of reorganizing engineering squads"],
+  "questions": ["What is the decision timeline for migration?", "Is budget allocated for observability infrastructure?"]
+}}
+</summary>
+</example>
+
+<example>
+<contribution>
+EXPERT: Chief Financial Officer
+
+From a financial perspective, I need to see a clear ROI analysis before committing $500K to EU expansion. Our current burn rate is $200K/month, and we have 18 months of runway. Investing $500K means we're shortening our runway by 2.5 months, which is significant. I want to see a phased approach - perhaps a $100K pilot in UK market first to validate demand and unit economics. What are the expected customer acquisition costs in EU compared to US? What's the payback period? Are we confident we can achieve similar conversion rates? I'm also concerned about currency risk and the complexity of multi-currency billing. If we pursue this, we need clear go/no-go criteria at the 3-month mark to avoid throwing good money after bad.
+</contribution>
+
+<thinking>
+1. Expert is analyzing: Financial viability and ROI of EU expansion investment
+2. Unique insight: Emphasizes runway impact and phased validation approach to de-risk investment
+3. Main concerns: Runway reduction, uncertain unit economics, currency risk
+4. Key questions: CAC comparison, payback period, conversion rate confidence
+</thinking>
+
+<summary>
+{{
+  "looking_for": "Analyzing ROI and financial viability of $500K EU expansion against 18-month runway constraints",
+  "value_added": "Recommends phased $100K UK pilot first to validate unit economics before full EU commitment",
+  "concerns": ["Investment shortens runway by 2.5 months significantly", "Uncertain EU customer acquisition costs vs US baseline", "Currency risk and multi-currency billing complexity"],
+  "questions": ["What are expected CAC and payback period in EU?", "Are we confident in achieving similar conversion rates?"]
+}}
+</summary>
+</example>
+</examples>
+
+<instructions>
+Summarize the expert contribution into 4 concise structural elements for UI display.
+
+<requirements>
+1. looking_for: What is this expert analyzing or seeking? (15-25 words)
+2. value_added: What unique insight or perspective do they bring? (15-25 words)
+3. concerns: Array of 2-3 specific concerns mentioned (10-15 words each)
+4. questions: Array of 1-2 specific questions they raised (10-15 words each)
+</requirements>
+
+<thinking>
+Analyze the contribution:
+1. What problem or aspect is this expert focusing on?
+2. What unique perspective or framework do they bring?
+3. What specific concerns or risks did they identify?
+4. What questions or information gaps did they raise?
+
+Then generate the structured JSON summary.
+</thinking>
+
+<output>
+Generate VALID JSON in this EXACT format (no markdown, no code blocks, just pure JSON):
+
+{{
+  "looking_for": "string",
+  "value_added": "string",
+  "concerns": ["string", "string"],
+  "questions": ["string", "string"]
+}}
+</output>
+
+Be specific, extract concrete insights, avoid generic statements.
+</instructions>"""
+
+            response = await self.anthropic_client.messages.create(
+                model="claude-3-5-haiku-20241022",
+                max_tokens=500,
+                messages=[
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": "{"},  # Prefill to force JSON
+                ],
+            )
+
+            # Extract JSON from response - prepend opening brace from prefill
+            response_text = "{" + response.content[0].text
+            summary = json.loads(response_text)
+
+            logger.debug(f"Summarized contribution for {persona_name}")
+            return summary
+
+        except Exception as e:
+            logger.error(f"Failed to summarize contribution for {persona_name}: {e}")
+            return None
+
     async def _publish_contribution(
         self,
         session_id: str,
         contrib: dict,
         round_number: int,
+        sub_problem_index: int = 0,
     ) -> None:
-        """Publish a contribution event.
+        """Publish a contribution event with AI summary.
 
         Args:
             session_id: Session identifier
             contrib: Contribution dict/object
             round_number: Current round number
+            sub_problem_index: Sub-problem index for tab filtering
         """
         # Extract contribution fields
         if hasattr(contrib, "persona_code"):
@@ -647,14 +768,19 @@ class EventCollector:
             persona_name = contrib.get("persona_name", "")
             content = contrib.get("content", "")
 
+        # Generate AI summary for better UX
+        summary = await self._summarize_contribution(content, persona_name)
+
         self.publisher.publish_event(
             session_id,
             "contribution",
             {
                 "persona_code": persona_code,
                 "persona_name": persona_name,
-                "content": content,
+                "content": content,  # Keep full content for reference
+                "summary": summary,  # NEW: Structured summary for compact display
                 "round": round_number,
                 "contribution_type": "initial" if round_number == 1 else "sequential",
+                "sub_problem_index": sub_problem_index,  # For tab filtering
             },
         )

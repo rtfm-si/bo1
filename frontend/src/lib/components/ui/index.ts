@@ -27,6 +27,8 @@ export { default as PhaseTimeline } from './PhaseTimeline.svelte';
 export { default as RelativeTimestamp } from './RelativeTimestamp.svelte';
 export { default as DualProgress } from './DualProgress.svelte';
 export { default as DecisionMetrics } from './DecisionMetrics.svelte';
+export { default as MeetingStatusBar } from './MeetingStatusBar.svelte';
+export { default as SubProblemMetrics } from './SubProblemMetrics.svelte';
 
 // Type exports for TypeScript consumers
 export type { DropdownItem } from './Dropdown.svelte';

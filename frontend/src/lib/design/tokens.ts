@@ -4,107 +4,52 @@
  */
 
 // ============================================================================
-// Color Tokens - Semantic naming (NOT primary/secondary)
+// Color Tokens - Minimalist 3-Context System (Notion/Linear/Anthropic-inspired)
 // ============================================================================
 
 export const colors = {
-	// Brand colors (primary teal from logo #00C8B3)
-	brand: {
-		50: '#e6faf8', // Very light teal (backgrounds, hover states)
-		100: '#b3f0ea', // Light teal (subtle highlights)
-		200: '#80e7dc', // Lighter teal
-		300: '#4dddce', // Light-medium teal
-		400: '#1ad3c0', // Medium teal
-		500: '#00C8B3', // PRIMARY BRAND COLOR (from logo)
-		600: '#00a594', // Darker teal (text, buttons)
-		700: '#008275', // Dark teal (active states)
-		800: '#006056', // Very dark teal
-		900: '#003d37', // Deepest teal
-		950: '#002621', // Almost black teal
-	},
-	// Accent colors (subtle warm tones - complementary to teal, not jarring)
-	accent: {
-		50: '#fef8f3', // Very light warm gray
-		100: '#fceee3', // Light warm beige
-		200: '#f8dcc7', // Lighter warm tone
-		300: '#f0c09b', // Soft warm sand
-		400: '#e59f6d', // Muted warm tone
-		500: '#d4844f', // Main accent (subdued warm)
-		600: '#b86d3e', // Darker warm
-		700: '#995636', // Deep warm brown
-		800: '#7a4530', // Very dark warm
-		900: '#5c3528', // Deepest warm
-		950: '#331d16', // Almost black warm
-	},
-	// Success (teal-green - harmonizes with brand)
-	success: {
-		50: '#edfcf7', // Very light teal-green
-		100: '#d4f6ea', // Light teal-green
-		200: '#a9edd5', // Lighter teal-green
-		300: '#6eddb8', // Light-medium teal-green
-		400: '#3cc69b', // Medium teal-green
-		500: '#1aaa7e', // Main success (teal-green)
-		600: '#158a67', // Darker teal-green
-		700: '#116b51', // Dark teal-green
-		800: '#0d503d', // Very dark teal-green
-		900: '#093a2d', // Deepest teal-green
-		950: '#05211a', // Almost black teal-green
-	},
-	// Warning (muted amber - less vibrant)
-	warning: {
-		50: '#fefaf3', // Very light warm amber
-		100: '#fdf2e3', // Light amber
-		200: '#fbe3c7', // Lighter amber
-		300: '#f7cd9b', // Light-medium amber
-		400: '#f0b06d', // Medium amber
-		500: '#e08f3e', // Main warning (subdued amber)
-		600: '#c47330', // Darker amber
-		700: '#a15b26', // Dark amber
-		800: '#7d461f', // Very dark amber
-		900: '#5c3419', // Deepest amber
-		950: '#331d0e', // Almost black amber
-	},
-	// Error (muted red - not alarming but clear)
-	error: {
-		50: '#fef5f5', // Very light red
-		100: '#fde8e8', // Light red
-		200: '#fbd0d0', // Lighter red
-		300: '#f7a9a9', // Light-medium red
-		400: '#f07f7f', // Medium red
-		500: '#e05555', // Main error (muted red)
-		600: '#c73d3d', // Darker red
-		700: '#a12e2e', // Dark red
-		800: '#7d2424', // Very dark red
-		900: '#5c1b1b', // Deepest red
-		950: '#330f0f', // Almost black red
-	},
-	// Info (soft blue-teal - harmonizes with brand)
-	info: {
-		50: '#f0f9fc', // Very light blue-teal
-		100: '#dbf0f7', // Light blue-teal
-		200: '#b7e1ef', // Lighter blue-teal
-		300: '#85cce3', // Light-medium blue-teal
-		400: '#54b3d4', // Medium blue-teal
-		500: '#3299bf', // Main info (blue-teal)
-		600: '#277ba0', // Darker blue-teal
-		700: '#1f6182', // Dark blue-teal
-		800: '#194d66', // Very dark blue-teal
-		900: '#133a4d', // Deepest blue-teal
-		950: '#0b212c', // Almost black blue-teal
-	},
-	// Neutral (cool grays with subtle teal tint for consistency)
+	// NEUTRAL CONTEXT - Base colors for text, borders, backgrounds
+	// Used for: All non-interactive UI elements, card backgrounds, dividers
 	neutral: {
-		50: '#f8fafa', // Very light cool gray
-		100: '#f1f4f5', // Light cool gray
-		200: '#e3e8ea', // Lighter cool gray
-		300: '#d1d9dc', // Light-medium cool gray
-		400: '#a3b1b7', // Medium cool gray
-		500: '#738891', // Main neutral color
-		600: '#526b75', // Darker cool gray
-		700: '#3f5459', // Dark cool gray
-		800: '#2a3b40', // Very dark cool gray
-		900: '#1a2629', // Deepest cool gray
-		950: '#0d1416', // Almost black cool gray
+		50: 'hsl(210 10% 98%)',   // Lightest background (cards, modals)
+		100: 'hsl(210 10% 96%)',  // Card backgrounds
+		200: 'hsl(210 10% 90%)',  // Borders, dividers
+		300: 'hsl(210 8% 80%)',   // Muted borders
+		400: 'hsl(210 8% 65%)',   // Disabled text
+		500: 'hsl(210 8% 50%)',   // Secondary text (meta info)
+		600: 'hsl(210 10% 40%)',  // Secondary headings
+		700: 'hsl(210 12% 30%)',  // Primary text
+		800: 'hsl(210 15% 20%)',  // Emphasized text
+		900: 'hsl(210 20% 10%)',  // Headings, strong emphasis
+		950: 'hsl(210 20% 5%)',   // Maximum contrast
+	},
+
+	// BRAND CONTEXT - Primary brand color (teal #00C8B3)
+	// Used ONLY for: CTAs, active states, brand moments, primary actions
+	brand: {
+		50: 'hsl(174 70% 97%)',   // Lightest teal background
+		100: 'hsl(174 65% 90%)',  // Subtle hover backgrounds
+		200: 'hsl(174 60% 80%)',  // Light accents
+		300: 'hsl(174 60% 65%)',  // Medium accents
+		400: 'hsl(174 60% 55%)',  // Active states
+		500: 'hsl(174 100% 39%)', // PRIMARY BRAND (#00C8B3)
+		600: 'hsl(174 100% 33%)', // Hover states
+		700: 'hsl(174 100% 26%)', // Pressed states
+		800: 'hsl(174 100% 19%)', // Dark brand
+		900: 'hsl(174 100% 12%)', // Darkest brand
+	},
+
+	// SEMANTIC CONTEXT - Status indicators ONLY
+	// Used ONLY for: Success/warning/error states, status badges
+	semantic: {
+		success: 'hsl(142 76% 36%)',      // Green - success states
+		successLight: 'hsl(142 76% 95%)', // Success backgrounds
+		warning: 'hsl(38 92% 50%)',       // Amber - warnings
+		warningLight: 'hsl(38 92% 95%)',  // Warning backgrounds
+		error: 'hsl(0 84% 60%)',          // Red - errors
+		errorLight: 'hsl(0 84% 95%)',     // Error backgrounds
+		info: 'hsl(200 84% 60%)',         // Blue - informational
+		infoLight: 'hsl(200 84% 95%)',    // Info backgrounds
 	},
 } as const;
 
@@ -151,75 +96,69 @@ export const spacing = {
 } as const;
 
 // ============================================================================
-// Typography Tokens
+// Typography Tokens - 4-Level Hierarchy (Notion/Linear-inspired)
 // ============================================================================
 
 export const typography = {
+	// Font Families
 	fontFamily: {
 		sans: [
+			'Inter',
 			'-apple-system',
 			'BlinkMacSystemFont',
 			'"Segoe UI"',
-			'Roboto',
-			'Oxygen',
-			'Ubuntu',
-			'Cantarell',
-			'"Open Sans"',
-			'"Helvetica Neue"',
+			'system-ui',
 			'sans-serif',
 		],
 		mono: [
-			'ui-monospace',
-			'SFMono-Regular',
-			'"SF Mono"',
-			'Menlo',
+			'"JetBrains Mono"',
 			'Consolas',
-			'"Liberation Mono"',
+			'ui-monospace',
 			'monospace',
 		],
 	},
+
+	// Font Sizes - 4 LEVELS ONLY (H1, H2, H3, Body, Small)
 	fontSize: {
-		xs: ['0.75rem', { lineHeight: '1rem' }], // 12px
-		sm: ['0.875rem', { lineHeight: '1.25rem' }], // 14px
-		base: ['1rem', { lineHeight: '1.5rem' }], // 16px
-		lg: ['1.125rem', { lineHeight: '1.75rem' }], // 18px
-		xl: ['1.25rem', { lineHeight: '1.75rem' }], // 20px
-		'2xl': ['1.5rem', { lineHeight: '2rem' }], // 24px
-		'3xl': ['1.875rem', { lineHeight: '2.25rem' }], // 30px
-		'4xl': ['2.25rem', { lineHeight: '2.5rem' }], // 36px
-		'5xl': ['3rem', { lineHeight: '1' }], // 48px
-		'6xl': ['3.75rem', { lineHeight: '1' }], // 60px
-		'7xl': ['4.5rem', { lineHeight: '1' }], // 72px
-		'8xl': ['6rem', { lineHeight: '1' }], // 96px
-		'9xl': ['8rem', { lineHeight: '1' }], // 128px
+		h1: '1.875rem',    // 30px - Page title, problem statement
+		h2: '1.5rem',      // 24px - Section headers, major events
+		h3: '1.25rem',     // 20px - Card titles, expert names
+		body: '0.875rem',  // 14px - Body text (matches Linear/Notion)
+		small: '0.75rem',  // 12px - Metadata, timestamps, labels
 	},
+
+	// Font Weights - 3 ONLY (no bold, extrabold, black)
 	fontWeight: {
-		thin: '100',
-		extralight: '200',
-		light: '300',
-		normal: '400',
-		medium: '500',
-		semibold: '600',
-		bold: '700',
-		extrabold: '800',
-		black: '900',
+		normal: '400',   // Body text
+		medium: '500',   // Subtle emphasis, navigation
+		semibold: '600', // Headings, strong emphasis
 	},
+
+	// Line Heights - Optimized for readability
 	lineHeight: {
-		none: '1',
-		tight: '1.25',
-		snug: '1.375',
-		normal: '1.5',
-		relaxed: '1.625',
-		loose: '2',
+		tight: '1.2',     // H1, H2 headings
+		snug: '1.3',      // H3 headings
+		normal: '1.5',    // Body text (14px)
+		relaxed: '1.6',   // Long-form content (contributions, synthesis)
 	},
+
+	// Letter Spacing - Minimal use
 	letterSpacing: {
-		tighter: '-0.05em',
-		tight: '-0.025em',
-		normal: '0em',
-		wide: '0.025em',
-		wider: '0.05em',
-		widest: '0.1em',
+		tight: '-0.025em',  // Large headings only
+		normal: '0em',      // Default (most text)
+		wide: '0.025em',    // Small caps, labels (sparingly)
 	},
+} as const;
+
+// Pre-composed Text Styles - Apply these classes consistently
+export const textStyles = {
+	h1: 'text-[1.875rem] font-semibold leading-tight text-neutral-900 dark:text-white',
+	h2: 'text-[1.5rem] font-semibold leading-tight text-neutral-900 dark:text-white',
+	h3: 'text-[1.25rem] font-medium leading-snug text-neutral-800 dark:text-neutral-100',
+	body: 'text-[0.875rem] font-normal leading-normal text-neutral-700 dark:text-neutral-300',
+	bodyRelaxed: 'text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300',
+	small: 'text-[0.75rem] font-normal leading-normal text-neutral-500 dark:text-neutral-400',
+	label: 'text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400',
 } as const;
 
 // ============================================================================
@@ -307,16 +246,13 @@ export const zIndex = {
 } as const;
 
 // ============================================================================
-// Gradient Tokens - For progressive disclosure and visual appeal
+// Gradient Tokens - MINIMAL USE (functional only, not decorative)
 // ============================================================================
 
 export const gradients = {
-	brand: 'linear-gradient(135deg, #00C8B3 0%, #00a594 100%)',
-	brandSubtle: 'linear-gradient(135deg, #e6faf8 0%, #b3f0ea 100%)',
-	accent: 'linear-gradient(135deg, #ff6b47 0%, #f04e2a 100%)',
-	success: 'linear-gradient(135deg, #10b05e 0%, #059a4f 100%)',
+	// Functional gradients only (progress bars, loading states)
+	progress: 'linear-gradient(90deg, hsl(174 100% 39%) 0%, hsl(174 60% 55%) 50%, hsl(174 100% 39%) 100%)',
 	shimmer: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent)',
-	progress: 'linear-gradient(90deg, #00C8B3 0%, #1ad3c0 50%, #00C8B3 100%)',
 } as const;
 
 // ============================================================================
@@ -341,6 +277,153 @@ export const animations = {
 } as const;
 
 // ============================================================================
+// Semantic Component Tokens - Minimal color usage
+// ============================================================================
+
+export const eventTokens = {
+	// Event card priority (NEUTRAL - no colorful backgrounds)
+	priority: {
+		major: {
+			bg: 'bg-neutral-50 dark:bg-neutral-900/50',
+			border: 'border-neutral-300 dark:border-neutral-700',
+			text: 'text-neutral-900 dark:text-white',
+		},
+		supporting: {
+			bg: 'bg-neutral-50 dark:bg-neutral-900/50',
+			border: 'border-neutral-200 dark:border-neutral-700',
+			text: 'text-neutral-900 dark:text-white',
+		},
+		meta: {
+			bg: 'bg-neutral-50/50 dark:bg-neutral-900/30',
+			border: 'border-neutral-200 dark:border-neutral-700',
+			text: 'text-neutral-600 dark:text-neutral-400',
+		},
+	},
+
+	// Phase indicators (NO emojis - will use lucide icons)
+	phase: {
+		decomposition: { label: 'Analysis' },
+		persona_selection: { label: 'Expert Selection' },
+		initial_round: { label: 'Initial Discussion' },
+		discussion: { label: 'Discussion' },
+		voting: { label: 'Recommendations' },
+		synthesis: { label: 'Synthesis' },
+		complete: { label: 'Complete' },
+	},
+
+	// Consensus levels (semantic colors ONLY for status)
+	consensus: {
+		strong: {
+			bg: 'bg-[hsl(142,76%,95%)] dark:bg-[hsl(142,76%,20%)]',
+			text: 'text-[hsl(142,76%,36%)] dark:text-[hsl(142,76%,60%)]',
+			label: 'Strong',
+		},
+		moderate: {
+			bg: 'bg-[hsl(38,92%,95%)] dark:bg-[hsl(38,92%,20%)]',
+			text: 'text-[hsl(38,92%,50%)] dark:text-[hsl(38,92%,70%)]',
+			label: 'Moderate',
+		},
+		weak: {
+			bg: 'bg-neutral-100 dark:bg-neutral-800',
+			text: 'text-neutral-600 dark:text-neutral-400',
+			label: 'Weak',
+		},
+		unknown: {
+			bg: 'bg-neutral-100 dark:bg-neutral-800',
+			text: 'text-neutral-500 dark:text-neutral-500',
+			label: 'Unknown',
+		},
+	},
+
+	// Action priority (semantic colors for status ONLY)
+	actionPriority: {
+		critical: {
+			label: 'Critical',
+			bg: 'bg-[hsl(0,84%,95%)] dark:bg-[hsl(0,84%,20%)]',
+			border: 'border-[hsl(0,84%,60%)] dark:border-[hsl(0,84%,40%)]',
+			text: 'text-[hsl(0,84%,40%)] dark:text-[hsl(0,84%,70%)]',
+			badge: 'bg-[hsl(0,84%,95%)] text-[hsl(0,84%,40%)] dark:bg-[hsl(0,84%,20%)] dark:text-[hsl(0,84%,70%)]',
+		},
+		high: {
+			label: 'High',
+			bg: 'bg-[hsl(38,92%,95%)] dark:bg-[hsl(38,92%,20%)]',
+			border: 'border-[hsl(38,92%,50%)] dark:border-[hsl(38,92%,40%)]',
+			text: 'text-[hsl(38,92%,40%)] dark:text-[hsl(38,92%,70%)]',
+			badge: 'bg-[hsl(38,92%,95%)] text-[hsl(38,92%,40%)] dark:bg-[hsl(38,92%,20%)] dark:text-[hsl(38,92%,70%)]',
+		},
+		medium: {
+			label: 'Medium',
+			bg: 'bg-neutral-100 dark:bg-neutral-800',
+			border: 'border-neutral-300 dark:border-neutral-600',
+			text: 'text-neutral-700 dark:text-neutral-300',
+			badge: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
+		},
+		low: {
+			label: 'Low',
+			bg: 'bg-neutral-50 dark:bg-neutral-900/50',
+			border: 'border-neutral-200 dark:border-neutral-700',
+			text: 'text-neutral-600 dark:text-neutral-400',
+			badge: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+		},
+	},
+
+	// Insight sections (NO emojis - will use lucide icons)
+	insights: {
+		analyzing: { label: 'Analysis' },
+		insight: { label: 'Key Insight' },
+		concern: { label: 'Concerns' },
+		question: { label: 'Questions' },
+	},
+
+	// Chart colors (using new brand system)
+	charts: {
+		cost: {
+			primary: 'hsl(174 100% 39%)',    // brand-500
+			secondary: 'hsl(174 60% 55%)',   // brand-400
+			background: 'hsla(174 100% 39% / 0.1)',
+		},
+		convergence: {
+			line: 'hsl(200 84% 60%)',        // semantic.info
+			threshold: 'hsl(38 92% 50%)',    // semantic.warning
+			area: 'hsla(200 84% 60% / 0.2)',
+			grid: 'hsla(210 8% 50% / 0.2)',  // neutral-500
+		},
+		progress: {
+			complete: 'hsl(142 76% 36%)',    // semantic.success
+			current: 'hsl(174 100% 39%)',    // brand-500
+			pending: 'hsl(210 8% 50%)',      // neutral-500
+		},
+	},
+} as const;
+
+// ============================================================================
+// Component-Specific Spacing (for compact layouts)
+// ============================================================================
+
+export const componentSpacing = {
+	// Card spacing
+	card: {
+		padding: {
+			sm: 'p-3',
+			md: 'p-4',
+			lg: 'p-6',
+		},
+		gap: {
+			sm: 'gap-2',
+			md: 'gap-3',
+			lg: 'gap-4',
+		},
+	},
+	// Stack spacing
+	stack: {
+		tight: 'space-y-2',
+		normal: 'space-y-3',
+		relaxed: 'space-y-4',
+		loose: 'space-y-6',
+	},
+} as const;
+
+// ============================================================================
 // Export all tokens
 // ============================================================================
 
@@ -354,6 +437,8 @@ export const tokens = {
 	zIndex,
 	gradients,
 	animations,
+	eventTokens,
+	componentSpacing,
 } as const;
 
 export default tokens;

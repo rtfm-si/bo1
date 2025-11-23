@@ -19,3 +19,7 @@ export { default as ErrorEvent } from './ErrorEvent.svelte';
 export { default as GenericEvent } from './GenericEvent.svelte';
 export { default as RoundGroup } from './RoundGroup.svelte';
 export { default as ActionableTasks } from './ActionableTasks.svelte';
+export { default as ExpertPerspectiveCard } from './ExpertPerspectiveCard.svelte';
+export { default as VotingResults } from './VotingResults.svelte';
+export { default as ExpertPanel } from './ExpertPanel.svelte';
+export { default as ActionPlan } from './ActionPlan.svelte';

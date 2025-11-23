@@ -96,10 +96,11 @@ class LLMResponseCache(BaseCache[PromptRequest, LLMResponse]):
             redis_manager: RedisManager instance for cache storage
         """
         settings = get_settings()
+        cache_config = settings.cache
         super().__init__(
             redis_manager=redis_manager,
-            enabled=settings.enable_llm_response_cache,
-            ttl_seconds=settings.llm_response_cache_ttl_seconds,
+            enabled=cache_config.llm_cache_enabled,
+            ttl_seconds=cache_config.llm_cache_ttl_seconds,
         )
 
     async def get(self, request: PromptRequest) -> LLMResponse | None:

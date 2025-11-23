@@ -13,6 +13,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from bo1.config import get_settings
 from bo1.llm.embeddings import generate_embedding
 from bo1.state.postgres_manager import (
     find_cached_research,
@@ -209,20 +210,24 @@ class ResearcherAgent:
     def _get_freshness_days(self, category: str | None) -> int:
         """Get freshness period for category.
 
+        Uses centralized configuration from CacheConfig to determine
+        category-specific freshness policies.
+
         Args:
-            category: Research category
+            category: Research category (e.g., 'saas_metrics', 'pricing')
 
         Returns:
             Number of days before cache result is considered stale
         """
-        freshness_map = {
-            "saas_metrics": 90,
-            "pricing": 180,
-            "competitor_analysis": 30,
-            "market_trends": 60,
-            "regulations": 365,
-        }
-        return freshness_map.get(category, 90) if category else 90
+        settings = get_settings()
+        cache_config = settings.cache
+
+        if not category:
+            return cache_config.research_cache_default_freshness_days
+
+        return cache_config.research_cache_freshness_map.get(
+            category, cache_config.research_cache_default_freshness_days
+        )
 
     async def _perform_web_research(self, question: str) -> dict[str, Any]:
         """Perform actual web research (Brave Search + summarization).

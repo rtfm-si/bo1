@@ -58,12 +58,13 @@ class PersonaSelectionCache(BaseCache[SubProblem, list[PersonaProfile]]):
             redis_manager: RedisManager instance for cache storage
         """
         settings = get_settings()
+        cache_config = settings.cache
         super().__init__(
             redis_manager=redis_manager,
-            enabled=settings.enable_persona_selection_cache,
-            ttl_seconds=7 * 24 * 60 * 60,  # 7 days
+            enabled=cache_config.persona_cache_enabled,
+            ttl_seconds=cache_config.persona_cache_ttl_seconds,
         )
-        self.similarity_threshold = 0.90  # Higher than research cache (0.85) for accuracy
+        self.similarity_threshold = cache_config.persona_cache_similarity_threshold
 
     async def get(self, problem: SubProblem) -> list[PersonaProfile] | None:
         """Get cached persona selection (implements BaseCache.get).

@@ -4,6 +4,7 @@ Loads settings from environment variables and .env file.
 """
 
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "Settings",
     "get_settings",
+    "CacheConfig",
     "MODEL_ALIASES",
     "MODEL_BY_ROLE",
     "MODEL_PRICING",
@@ -22,6 +24,47 @@ __all__ = [
     "get_model_for_role",
     "calculate_cost",
 ]
+
+
+@dataclass
+class CacheConfig:
+    """Configuration for all cache implementations.
+
+    Centralizes cache settings to eliminate hardcoded values and provide
+    single source of truth for cache behavior across LLM, persona, and research caches.
+
+    Attributes:
+        llm_cache_enabled: Enable/disable LLM response caching
+        llm_cache_ttl_seconds: Time-to-live for LLM cache entries (default: 24 hours)
+        persona_cache_enabled: Enable/disable persona selection caching
+        persona_cache_similarity_threshold: Cosine similarity threshold for persona cache hits
+        persona_cache_ttl_seconds: Time-to-live for persona cache entries (default: 7 days)
+        research_cache_similarity_threshold: Cosine similarity threshold for research cache hits
+        research_cache_freshness_map: Category-specific freshness policies (days)
+        research_cache_default_freshness_days: Default freshness for uncategorized research
+    """
+
+    # LLM Response Cache
+    llm_cache_enabled: bool = True
+    llm_cache_ttl_seconds: int = 24 * 60 * 60  # 24 hours
+
+    # Persona Selection Cache
+    persona_cache_enabled: bool = True
+    persona_cache_similarity_threshold: float = 0.90  # Higher threshold for accuracy
+    persona_cache_ttl_seconds: int = 7 * 24 * 60 * 60  # 7 days
+
+    # Research Cache
+    research_cache_similarity_threshold: float = 0.85  # Lower threshold for flexibility
+    research_cache_freshness_map: dict[str, int] = field(
+        default_factory=lambda: {
+            "saas_metrics": 90,  # SaaS metrics updated quarterly
+            "pricing": 180,  # Pricing data stable for 6 months
+            "competitor_analysis": 30,  # Competitive landscape changes monthly
+            "market_trends": 60,  # Market trends updated bimonthly
+            "regulations": 365,  # Regulations change annually
+        }
+    )
+    research_cache_default_freshness_days: int = 90  # Default 90-day freshness
 
 
 class Settings(BaseSettings):
@@ -138,6 +181,31 @@ class Settings(BaseSettings):
         default=False,
         description="Enable real-time SSE streaming via LangGraph astream_events (vs polling). See STREAMING_IMPLEMENTATION_PLAN.md",
     )
+
+    # Cache Configuration (Centralized)
+    @property
+    def cache(self) -> CacheConfig:
+        """Get centralized cache configuration.
+
+        This property provides a single source of truth for all cache settings,
+        overriding individual cache configuration from environment variables where applicable.
+
+        Returns:
+            CacheConfig instance with all cache settings
+
+        Examples:
+            >>> settings = get_settings()
+            >>> settings.cache.llm_cache_ttl_seconds
+            86400
+            >>> settings.cache.persona_cache_similarity_threshold
+            0.90
+        """
+        # Create cache config, using env var overrides where available
+        return CacheConfig(
+            llm_cache_enabled=self.enable_llm_response_cache,
+            llm_cache_ttl_seconds=self.llm_response_cache_ttl_seconds,
+            persona_cache_enabled=self.enable_persona_selection_cache,
+        )
 
     # Paths
     @property

@@ -122,6 +122,12 @@ addopts = "-ra -q --strict-markers --cov=bo1 --cov-report=term-missing"
 testpaths = ["tests"]
 pythonpath = [".", "backend"]
 asyncio_mode = "auto"
+markers = [
+    "asyncio: mark test as async",
+    "unit: mark test as unit test",
+    "integration: mark test as integration test",
+    "requires_llm: mark test as requiring LLM API calls",
+]
 
 [tool.coverage.run]
 source = ["bo1"]

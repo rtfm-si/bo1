@@ -11,375 +11,87 @@ from typing import Any
 
 from anthropic import AsyncAnthropic
 
+from backend.api.event_extractors import (
+    COMPLETION_EXTRACTORS,
+    CONVERGENCE_EXTRACTORS,
+    DECOMPOSITION_EXTRACTORS,
+    FACILITATOR_DECISION_EXTRACTORS,
+    META_SYNTHESIS_EXTRACTORS,
+    MODERATOR_INTERVENTION_EXTRACTORS,
+    PERSONA_SELECTION_EXTRACTORS,
+    SUBPROBLEM_COMPLETE_EXTRACTORS,
+    SUBPROBLEM_STARTED_EXTRACTORS,
+    SYNTHESIS_EXTRACTORS,
+    VOTING_EXTRACTORS,
+    extract_with_root_transform,
+)
 from backend.api.event_publisher import EventPublisher
 from bo1.config import get_settings
-from bo1.models.problem import SubProblem
 
 logger = logging.getLogger(__name__)
 
 
 # ==============================================================================
-# Extractor Functions - Module-level functions for extracting event data
+# Extractor Functions - Wrappers that use the new framework
 # ==============================================================================
 
 
 def _extract_decomposition_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract decomposition event data from node output.
-
-    Args:
-        output: Node output state
-
-    Returns:
-        Dict with sub_problems and count fields
-    """
-    problem = output.get("problem")
-    sub_problems_dicts = []
-
-    if problem and hasattr(problem, "sub_problems"):
-        sub_problems = problem.sub_problems
-
-        for sp in sub_problems:
-            if isinstance(sp, SubProblem):
-                sub_problems_dicts.append(
-                    {
-                        "id": sp.id,
-                        "goal": sp.goal,
-                        "rationale": getattr(sp, "rationale", ""),
-                        "complexity_score": sp.complexity_score,
-                        "dependencies": sp.dependencies,
-                    }
-                )
-            elif isinstance(sp, dict):
-                sub_problems_dicts.append(sp)
-
-    return {
-        "sub_problems": sub_problems_dicts,
-        "count": len(sub_problems_dicts),
-    }
+    """Extract decomposition event data from node output."""
+    return extract_with_root_transform(output, DECOMPOSITION_EXTRACTORS)
 
 
 def _extract_persona_selection_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract persona selection event data from node output.
-
-    Args:
-        output: Node output state
-
-    Returns:
-        Dict with personas, count, and sub_problem_index fields
-    """
-    personas = output.get("personas", [])
-    sub_problem_index = output.get("sub_problem_index", 0)
-    persona_codes = [p.code if hasattr(p, "code") else p.get("code") for p in personas]
-
-    return {
-        "personas": persona_codes,
-        "count": len(persona_codes),
-        "sub_problem_index": sub_problem_index,
-    }
+    """Extract persona selection event data from node output."""
+    return extract_with_root_transform(output, PERSONA_SELECTION_EXTRACTORS)
 
 
 def _extract_facilitator_decision_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract facilitator decision event data from node output.
-
-    Args:
-        output: Node output state
-
-    Returns:
-        Dict with action, reasoning, round, and optional fields
-    """
-    decision = output.get("facilitator_decision")
-    round_number = output.get("round_number", 1)
-    sub_problem_index = output.get("sub_problem_index", 0)
-
-    if not decision:
-        return {}
-
-    data = {
-        "action": decision.get("action", ""),
-        "reasoning": decision.get("reasoning", ""),
-        "round": round_number,
-        "sub_problem_index": sub_problem_index,
-    }
-
-    # Add optional fields if present
-    if next_speaker := decision.get("next_speaker"):
-        data["next_speaker"] = next_speaker
-    if moderator_type := decision.get("moderator_type"):
-        data["moderator_type"] = moderator_type
-    if research_query := decision.get("research_query"):
-        data["research_query"] = research_query
-
-    return data
+    """Extract facilitator decision event data from node output."""
+    return extract_with_root_transform(output, FACILITATOR_DECISION_EXTRACTORS)
 
 
 def _extract_moderator_intervention_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract moderator intervention event data from node output.
-
-    Args:
-        output: Node output state
-
-    Returns:
-        Dict with moderator_type, content, trigger_reason, and round fields
-    """
-    contributions = output.get("contributions", [])
-    round_number = output.get("round_number", 1)
-    sub_problem_index = output.get("sub_problem_index", 0)
-
-    if not contributions:
-        return {}
-
-    contrib = contributions[-1]
-    moderator_type = contrib.get("persona_code", "moderator")
-    content = contrib.get("content", "")
-
-    return {
-        "moderator_type": moderator_type,
-        "content": content,
-        "trigger_reason": "Facilitator requested intervention",
-        "round": round_number,
-        "sub_problem_index": sub_problem_index,
-    }
+    """Extract moderator intervention event data from node output."""
+    return extract_with_root_transform(output, MODERATOR_INTERVENTION_EXTRACTORS)
 
 
 def _extract_convergence_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract convergence event data from node output.
-
-    Args:
-        output: Node output state
-
-    Returns:
-        Dict with convergence metrics and decision fields
-    """
-    should_stop = output.get("should_stop", False)
-    stop_reason = output.get("stop_reason")
-    round_number = output.get("round_number", 1)
-    max_rounds = output.get("max_rounds", 10)
-    sub_problem_index = output.get("sub_problem_index", 0)
-
-    # Get convergence score from metrics
-    metrics = output.get("metrics", {})
-    if hasattr(metrics, "convergence_score"):
-        convergence_score = metrics.convergence_score or 0.0
-    else:
-        convergence_score = (
-            metrics.get("convergence_score", 0.0) if isinstance(metrics, dict) else 0.0
-        )
-
-    return {
-        "converged": should_stop,
-        "score": convergence_score,
-        "threshold": 0.85,
-        "should_stop": should_stop,
-        "stop_reason": stop_reason,
-        "round": round_number,
-        "max_rounds": max_rounds,
-        "sub_problem_index": sub_problem_index,
-    }
+    """Extract convergence event data from node output."""
+    return extract_with_root_transform(output, CONVERGENCE_EXTRACTORS)
 
 
 def _extract_voting_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract voting event data from node output.
-
-    Args:
-        output: Node output state
-
-    Returns:
-        Dict with votes, consensus_level, and confidence metrics
-    """
-    votes = output.get("votes", [])
-    sub_problem_index = output.get("sub_problem_index", 0)
-
-    # Format votes for compact display
-    formatted_votes = []
-    for vote in votes:
-        formatted_votes.append(
-            {
-                "persona_code": vote.get("persona_code", ""),
-                "persona_name": vote.get("persona_name", ""),
-                "recommendation": vote.get("recommendation", ""),
-                "confidence": vote.get("confidence", 0.0),
-                "reasoning": vote.get("reasoning", ""),
-                "conditions": vote.get("conditions", []),
-            }
-        )
-
-    # Determine consensus level based on confidence scores
-    if votes:
-        avg_confidence = sum(v.get("confidence", 0.0) for v in votes) / len(votes)
-        if avg_confidence >= 0.8:
-            consensus_level = "strong"
-        elif avg_confidence >= 0.6:
-            consensus_level = "moderate"
-        else:
-            consensus_level = "weak"
-    else:
-        consensus_level = "unknown"
-        avg_confidence = 0.0
-
-    return {
-        "votes": formatted_votes,
-        "votes_count": len(votes),
-        "consensus_level": consensus_level,
-        "avg_confidence": avg_confidence,
-        "sub_problem_index": sub_problem_index,
-    }
+    """Extract voting event data from node output."""
+    return extract_with_root_transform(output, VOTING_EXTRACTORS)
 
 
 def _extract_synthesis_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract synthesis event data from node output.
-
-    Args:
-        output: Node output state
-
-    Returns:
-        Dict with synthesis text, word_count, and sub_problem_index
-    """
-    synthesis = output.get("synthesis", "")
-    word_count = len(synthesis.split()) if synthesis else 0
-    sub_problem_index = output.get("sub_problem_index", 0)
-
-    return {
-        "synthesis": synthesis,
-        "word_count": word_count,
-        "sub_problem_index": sub_problem_index,
-    }
+    """Extract synthesis event data from node output."""
+    return extract_with_root_transform(output, SYNTHESIS_EXTRACTORS)
 
 
 def _extract_meta_synthesis_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract meta-synthesis event data from node output.
-
-    Args:
-        output: Node output state
-
-    Returns:
-        Dict with synthesis text and word_count
-    """
-    synthesis = output.get("synthesis", "")
-    word_count = len(synthesis.split()) if synthesis else 0
-
-    return {
-        "synthesis": synthesis,
-        "word_count": word_count,
-    }
+    """Extract meta-synthesis event data from node output."""
+    return extract_with_root_transform(output, META_SYNTHESIS_EXTRACTORS)
 
 
 def _extract_subproblem_started_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract subproblem started event data from node output.
-
-    Args:
-        output: Node output state
-
-    Returns:
-        Dict with sub_problem info, or empty dict if not a multi-subproblem scenario
-    """
-    sub_problem_index = output.get("sub_problem_index", 0)
-    current_sub_problem = output.get("current_sub_problem")
-    problem = output.get("problem")
-
-    # Only publish if this is a multi-sub-problem scenario
-    if not (problem and hasattr(problem, "sub_problems") and len(problem.sub_problems) > 1):
-        return {}
-
-    if not current_sub_problem:
-        return {}
-
-    return {
-        "sub_problem_index": sub_problem_index,
-        "sub_problem_id": (
-            current_sub_problem.id
-            if hasattr(current_sub_problem, "id")
-            else current_sub_problem.get("id", "")
-        ),
-        "goal": (
-            current_sub_problem.goal
-            if hasattr(current_sub_problem, "goal")
-            else current_sub_problem.get("goal", "")
-        ),
-        "total_sub_problems": len(problem.sub_problems),
-    }
+    """Extract subproblem started event data from node output."""
+    return extract_with_root_transform(output, SUBPROBLEM_STARTED_EXTRACTORS)
 
 
 def _extract_subproblem_complete_data(output: dict[str, Any], redis_client: Any) -> dict[str, Any]:
     """Extract subproblem complete event data from node output.
 
-    Args:
-        output: Node output state
-        redis_client: Redis client for duration calculation
-
-    Returns:
-        Dict with completed sub-problem metrics, or empty dict if no results
+    Note: redis_client parameter kept for backward compatibility but not used.
     """
-    sub_problem_results = output.get("sub_problem_results", [])
-
-    if not sub_problem_results:
-        return {}
-
-    # Get the most recently completed sub-problem result
-    result = sub_problem_results[-1]
-
-    # Extract result data
-    if hasattr(result, "sub_problem_id"):
-        sp_id = result.sub_problem_id
-        sp_goal = result.sub_problem_goal
-        cost = result.cost
-        duration_seconds = result.duration_seconds
-        expert_panel = result.expert_panel
-        contribution_count = result.contribution_count
-    else:
-        sp_id = result.get("sub_problem_id", "")
-        sp_goal = result.get("sub_problem_goal", "")
-        cost = result.get("cost", 0.0)
-        duration_seconds = result.get("duration_seconds", 0.0)
-        expert_panel = result.get("expert_panel", [])
-        contribution_count = result.get("contribution_count", 0)
-
-    completed_index = len(sub_problem_results) - 1
-
-    return {
-        "sub_problem_index": completed_index,
-        "sub_problem_id": sp_id,
-        "goal": sp_goal,
-        "cost": cost,
-        "duration_seconds": duration_seconds,
-        "expert_panel": expert_panel,
-        "contribution_count": contribution_count,
-    }
+    return extract_with_root_transform(output, SUBPROBLEM_COMPLETE_EXTRACTORS)
 
 
 def _extract_completion_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract completion event data from final state.
-
-    Args:
-        output: Final graph state
-
-    Returns:
-        Dict with session summary and metrics
-    """
-    # Get metrics
-    metrics = output.get("metrics", {})
-    if hasattr(metrics, "total_cost"):
-        total_cost = metrics.total_cost
-        total_tokens = metrics.total_tokens
-    else:
-        total_cost = metrics.get("total_cost", 0.0) if isinstance(metrics, dict) else 0.0
-        total_tokens = metrics.get("total_tokens", 0) if isinstance(metrics, dict) else 0
-
-    round_number = output.get("round_number", 0)
-    stop_reason = output.get("stop_reason", "completed")
-    contributions = output.get("contributions", [])
-    synthesis = output.get("synthesis", "")
-    session_id = output.get("session_id", "")
-
-    return {
-        "session_id": session_id,
-        "final_output": synthesis or "Deliberation complete",
-        "total_cost": total_cost,
-        "total_rounds": round_number,
-        "total_contributions": len(contributions),
-        "total_tokens": total_tokens,
-        "duration_seconds": 0.0,  # TODO: Track duration
-        "stop_reason": stop_reason,
-    }
+    """Extract completion event data from final state."""
+    return extract_with_root_transform(output, COMPLETION_EXTRACTORS)
 
 
 class EventCollector:

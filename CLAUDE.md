@@ -95,6 +95,29 @@ bash deployment-scripts/verify-server-setup.sh          # Verify server configur
 
 **Hot Reload**: Edit code locally, changes immediately available in container (no rebuild).
 
+**Database Migrations (Alembic)**:
+```bash
+# Apply all pending migrations
+uv run alembic upgrade head
+
+# Rollback one migration
+uv run alembic downgrade -1
+
+# View migration history
+uv run alembic history
+
+# Create new migration
+uv run alembic revision -m "description"
+
+# Verify indexes
+python scripts/verify_indexes.py
+
+# Check query execution plans
+python scripts/explain_queries.py
+```
+
+**Database Indexes**: All critical tables have performance indexes for fast queries. Indexes provide 10-100x speedup on large datasets (>10K rows). See `migrations/README.md` for complete index documentation.
+
 **Local Development**: For running tests locally (outside Docker):
 ```bash
 # Requires: Redis + PostgreSQL running locally, .env configured, uv sync completed
@@ -284,7 +307,10 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - `bo1/agents/context_collector.py` - Business context + information gap collection
 - `bo1/agents/researcher.py` - External research with semantic cache (Week 6)
 - `bo1/llm/embeddings.py` - Voyage AI voyage-3 embedding generation (Week 6)
+- `bo1/state/postgres_manager.py` - PostgreSQL CRUD operations for context, research cache
 - `bo1/interfaces/console.py` - Console adapter with pause/resume support
+- `migrations/` - Alembic database migrations (schema versioning)
+- `migrations/README.md` - Database migration guide and index documentation
 - `backend/api/main.py` - FastAPI application entry point
 - `backend/api/streaming.py` - SSE streaming endpoints (polling-based, see STREAMING_IMPLEMENTATION_PLAN.md)
 - `backend/api/middleware/auth.py` - SuperTokens session verification middleware

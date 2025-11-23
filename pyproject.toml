@@ -95,6 +95,7 @@ ignore = [
 "bo1/ui/console.py" = ["ANN401"]
 "test*.py" = ["ANN"]
 "tests/*.py" = ["ANN"]
+"scripts/*.py" = ["ANN", "S608", "F841"]  # Scripts: type annotations optional, SQL injection false positives ok
 
 [tool.ruff.format]
 quote-style = "double"

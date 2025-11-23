@@ -348,7 +348,15 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - Endpoints: health, sessions, streaming, context, control, admin, auth
 - Production compose file: `docker-compose.prod.yml`
 - GZip compression middleware (60-80% bandwidth reduction, 2025-01-23)
-- Standardized error handling via `backend/api/utils.handle_api_errors` decorator (2025-01-23)
+- Standardized error handling via `@handle_api_errors` decorator (Week 1 Sprint Optimization)
+
+**API Error Handling Pattern**:
+- Use `@handle_api_errors("operation")` decorator on all endpoints
+- Use `raise_api_error(error_type)` for common error cases
+- Standard error types: redis_unavailable, session_not_found, unauthorized, forbidden, invalid_input, not_found
+- All errors logged with operation context
+- Consistent HTTP status codes across API (400, 401, 403, 404, 500)
+- No stack traces leaked to clients (graceful error messages)
 
 **Cost targets**:
 - $0.10-0.15 per sub-problem deliberation

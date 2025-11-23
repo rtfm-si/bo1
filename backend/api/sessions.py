@@ -27,6 +27,7 @@ from backend.api.models import (
     SessionResponse,
 )
 from backend.api.utils.auth_helpers import extract_user_id
+from backend.api.utils.errors import handle_api_errors, raise_api_error
 from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
@@ -56,6 +57,7 @@ router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
         },
     },
 )
+@handle_api_errors("create session")
 async def create_session(
     request: CreateSessionRequest,
     user: dict[str, Any] = Depends(get_current_user),
@@ -76,65 +78,49 @@ async def create_session(
     Raises:
         HTTPException: If session creation fails
     """
-    try:
-        # Create Redis manager
-        redis_manager = get_redis_manager()
+    # Create Redis manager
+    redis_manager = get_redis_manager()
 
-        if not redis_manager.is_available:
-            raise HTTPException(
-                status_code=500,
-                detail="Redis unavailable - cannot create session",
-            )
+    if not redis_manager.is_available:
+        raise_api_error("redis_unavailable")
 
-        # Extract user ID from authenticated user
-        user_id = extract_user_id(user)
+    # Extract user ID from authenticated user
+    user_id = extract_user_id(user)
 
-        # Generate session ID
-        session_id = redis_manager.create_session()
+    # Generate session ID
+    session_id = redis_manager.create_session()
 
-        # Create initial metadata
-        now = datetime.now(UTC)
-        metadata = {
-            "status": "created",
-            "phase": None,
-            "user_id": user_id,  # SECURITY: Track session ownership
-            "created_at": now.isoformat(),
-            "updated_at": now.isoformat(),
-            "problem_statement": request.problem_statement,
-            "problem_context": request.problem_context or {},
-        }
+    # Create initial metadata
+    now = datetime.now(UTC)
+    metadata = {
+        "status": "created",
+        "phase": None,
+        "user_id": user_id,  # SECURITY: Track session ownership
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+        "problem_statement": request.problem_statement,
+        "problem_context": request.problem_context or {},
+    }
 
-        # Save metadata to Redis
-        if not redis_manager.save_metadata(session_id, metadata):
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to save session metadata",
-            )
+    # Save metadata to Redis
+    if not redis_manager.save_metadata(session_id, metadata):
+        raise RuntimeError("Failed to save session metadata")
 
-        # Add session to user's session index for fast lookup
-        redis_manager.add_session_to_user_index(user_id, session_id)
+    # Add session to user's session index for fast lookup
+    redis_manager.add_session_to_user_index(user_id, session_id)
 
-        logger.info(f"Created session: {session_id} for user: {user_id}")
+    logger.info(f"Created session: {session_id} for user: {user_id}")
 
-        # Return session response
-        return SessionResponse(
-            id=session_id,
-            status="created",
-            phase=None,
-            created_at=now,
-            updated_at=now,
-            problem_statement=truncate_text(request.problem_statement),
-            cost=None,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to create session: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create session: {str(e)}",
-        ) from e
+    # Return session response
+    return SessionResponse(
+        id=session_id,
+        status="created",
+        phase=None,
+        created_at=now,
+        updated_at=now,
+        problem_statement=truncate_text(request.problem_statement),
+        cost=None,
+    )
 
 
 @router.get(

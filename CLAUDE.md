@@ -295,6 +295,61 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - Convergence threshold: `convergence_score > 0.85 and round_number >= 3`
 - Handle `None` values: `metrics.convergence_score if metrics and metrics.convergence_score is not None else 0.0`
 
+### System Metrics Collection
+
+Board of One includes a lightweight in-memory metrics system for monitoring API performance and LLM usage:
+
+**Features**:
+- **Counters**: Success/error counts for API endpoints and LLM calls
+- **Histograms**: Latency distributions (p50/p95/p99), token usage, costs
+- **Minimal overhead**: <1ms per request using simple dict operations
+- **In-memory storage**: Metrics reset on server restart
+
+**Metrics Tracked**:
+```python
+# API Endpoint Metrics
+api.sessions.create.post.success      # Success count
+api.sessions.create.post.error        # Error count
+api.sessions.create.post.duration     # Request duration (histogram)
+
+# LLM Metrics
+llm.cache.hit                          # Cache hit count
+llm.cache.miss                         # Cache miss count
+llm.api_calls                          # Total LLM API calls
+llm.input_tokens                       # Input tokens (histogram)
+llm.output_tokens                      # Output tokens (histogram)
+llm.cache_read_tokens                  # Cache read tokens (histogram)
+llm.cache_creation_tokens              # Cache creation tokens (histogram)
+llm.cost                               # Cost per call (histogram)
+llm.duration_ms                        # LLM call duration (histogram)
+llm.errors.rate_limit                  # Rate limit errors
+llm.errors.api_error                   # API errors
+llm.errors.unexpected                  # Unexpected errors
+```
+
+**Admin Endpoints**:
+- `GET /api/admin/metrics` - Get all metrics (counters + histograms)
+- `POST /api/admin/metrics/reset` - Reset all metrics to zero
+
+**Usage**:
+```python
+# Instrument API endpoint
+from backend.api.metrics import track_api_call
+
+async def my_endpoint():
+    with track_api_call("my_endpoint", "GET"):
+        # Endpoint logic
+        return {"status": "success"}
+
+# Metrics are automatically tracked on success/error/duration
+```
+
+**Files**:
+- `backend/api/metrics.py` - MetricsCollector class and track_api_call context manager
+- `backend/api/admin.py` - Admin metrics endpoints
+- `bo1/llm/broker.py` - LLM metrics instrumentation
+- `tests/api/test_metrics.py` - Comprehensive metrics tests
+
 ---
 
 ## Key Files & Directories

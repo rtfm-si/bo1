@@ -22,6 +22,13 @@ from bo1.config import resolve_model_alias
 from bo1.llm.client import ClaudeClient
 from bo1.llm.response import LLMResponse
 
+# Import metrics for tracking LLM calls
+try:
+    from backend.api.metrics import metrics
+except ImportError:
+    # Metrics may not be available in all contexts (e.g., console-only mode)
+    metrics = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 
 
@@ -151,7 +158,14 @@ class PromptBroker:
                 f"[{request.request_id}] Cache hit: "
                 f"model={cached_response.model}, phase={request.phase}"
             )
+            # Track cache hit
+            if metrics:
+                metrics.increment("llm.cache.hit")
             return cached_response
+
+        # Track cache miss
+        if metrics:
+            metrics.increment("llm.cache.miss")
 
         start_time = time.time()
         retry_count = 0
@@ -195,6 +209,16 @@ class PromptBroker:
 
                 logger.info(f"[{request.request_id}] Success: {llm_response.summary()}")
 
+                # Track metrics
+                if metrics:
+                    metrics.increment("llm.api_calls")
+                    metrics.observe("llm.input_tokens", token_usage.input_tokens)
+                    metrics.observe("llm.output_tokens", token_usage.output_tokens)
+                    metrics.observe("llm.cache_read_tokens", token_usage.cache_read_tokens)
+                    metrics.observe("llm.cache_creation_tokens", token_usage.cache_creation_tokens)
+                    metrics.observe("llm.cost", llm_response.cost_total)
+                    metrics.observe("llm.duration_ms", duration_ms)
+
                 # Cache the response for future use
                 await cache.cache_response(request, llm_response)
 
@@ -209,6 +233,8 @@ class PromptBroker:
                     logger.error(
                         f"[{request.request_id}] Rate limit exceeded, all retries exhausted: {e}"
                     )
+                    if metrics:
+                        metrics.increment("llm.errors.rate_limit")
                     raise
 
                 # Extract Retry-After header if present
@@ -246,15 +272,21 @@ class PromptBroker:
                 else:
                     # Non-retryable error or exhausted retries
                     logger.error(f"[{request.request_id}] API error (non-retryable): {e}")
+                    if metrics:
+                        metrics.increment("llm.errors.api_error")
                     raise
 
             except Exception as e:
                 # Unexpected error, don't retry
                 logger.error(f"[{request.request_id}] Unexpected error: {e}")
+                if metrics:
+                    metrics.increment("llm.errors.unexpected")
                 raise
 
         # Should never reach here, but just in case
         logger.error(f"[{request.request_id}] All retries exhausted")
+        if metrics:
+            metrics.increment("llm.errors.retries_exhausted")
         raise last_error or RuntimeError("All retries exhausted with no error captured")
 
     def _extract_retry_after(self, error: RateLimitError) -> float | None:

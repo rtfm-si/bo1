@@ -18,6 +18,7 @@ from backend.api.dependencies import (
     get_redis_manager,
     get_session_manager,
 )
+from backend.api.metrics import track_api_call
 from backend.api.middleware.auth import get_current_user
 from backend.api.models import (
     CreateSessionRequest,
@@ -78,49 +79,50 @@ async def create_session(
     Raises:
         HTTPException: If session creation fails
     """
-    # Create Redis manager
-    redis_manager = get_redis_manager()
+    with track_api_call("sessions.create", "POST"):
+        # Create Redis manager
+        redis_manager = get_redis_manager()
 
-    if not redis_manager.is_available:
-        raise_api_error("redis_unavailable")
+        if not redis_manager.is_available:
+            raise_api_error("redis_unavailable")
 
-    # Extract user ID from authenticated user
-    user_id = extract_user_id(user)
+        # Extract user ID from authenticated user
+        user_id = extract_user_id(user)
 
-    # Generate session ID
-    session_id = redis_manager.create_session()
+        # Generate session ID
+        session_id = redis_manager.create_session()
 
-    # Create initial metadata
-    now = datetime.now(UTC)
-    metadata = {
-        "status": "created",
-        "phase": None,
-        "user_id": user_id,  # SECURITY: Track session ownership
-        "created_at": now.isoformat(),
-        "updated_at": now.isoformat(),
-        "problem_statement": request.problem_statement,
-        "problem_context": request.problem_context or {},
-    }
+        # Create initial metadata
+        now = datetime.now(UTC)
+        metadata = {
+            "status": "created",
+            "phase": None,
+            "user_id": user_id,  # SECURITY: Track session ownership
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+            "problem_statement": request.problem_statement,
+            "problem_context": request.problem_context or {},
+        }
 
-    # Save metadata to Redis
-    if not redis_manager.save_metadata(session_id, metadata):
-        raise RuntimeError("Failed to save session metadata")
+        # Save metadata to Redis
+        if not redis_manager.save_metadata(session_id, metadata):
+            raise RuntimeError("Failed to save session metadata")
 
-    # Add session to user's session index for fast lookup
-    redis_manager.add_session_to_user_index(user_id, session_id)
+        # Add session to user's session index for fast lookup
+        redis_manager.add_session_to_user_index(user_id, session_id)
 
-    logger.info(f"Created session: {session_id} for user: {user_id}")
+        logger.info(f"Created session: {session_id} for user: {user_id}")
 
-    # Return session response
-    return SessionResponse(
-        id=session_id,
-        status="created",
-        phase=None,
-        created_at=now,
-        updated_at=now,
-        problem_statement=truncate_text(request.problem_statement),
-        cost=None,
-    )
+        # Return session response
+        return SessionResponse(
+            id=session_id,
+            status="created",
+            phase=None,
+            created_at=now,
+            updated_at=now,
+            problem_statement=truncate_text(request.problem_statement),
+            cost=None,
+        )
 
 
 @router.get(
@@ -161,96 +163,97 @@ async def list_sessions(
     Raises:
         HTTPException: If listing fails
     """
-    try:
-        # Extract user ID from authenticated user
-        user_id = extract_user_id(user)
+    with track_api_call("sessions.list", "GET"):
+        try:
+            # Extract user ID from authenticated user
+            user_id = extract_user_id(user)
 
-        # Create Redis manager
-        redis_manager = get_redis_manager()
+            # Create Redis manager
+            redis_manager = get_redis_manager()
 
-        if not redis_manager.is_available:
-            # Return empty list if Redis is unavailable
-            return SessionListResponse(
-                sessions=[],
-                total=0,
-                limit=limit,
-                offset=offset,
-            )
-
-        # Get session IDs for this user only (uses Redis SET - O(1) lookup)
-        session_ids = redis_manager.list_user_sessions(user_id)
-
-        if not session_ids:
-            return SessionListResponse(
-                sessions=[],
-                total=0,
-                limit=limit,
-                offset=offset,
-            )
-
-        # Batch load metadata for all user sessions (single Redis pipeline)
-        metadata_dict = redis_manager.batch_load_metadata(session_ids)
-
-        # Build session list from metadata
-        sessions: list[SessionResponse] = []
-        for session_id, metadata in metadata_dict.items():
-            # Skip soft-deleted sessions
-            if metadata.get("deleted_at"):
-                continue
-
-            # Apply status filter
-            if status and metadata.get("status") != status:
-                continue
-
-            # Parse timestamps
-            try:
-                created_at = datetime.fromisoformat(metadata["created_at"])
-                updated_at = datetime.fromisoformat(metadata["updated_at"])
-                last_activity_at = (
-                    datetime.fromisoformat(metadata["last_activity_at"])
-                    if metadata.get("last_activity_at")
-                    else None
+            if not redis_manager.is_available:
+                # Return empty list if Redis is unavailable
+                return SessionListResponse(
+                    sessions=[],
+                    total=0,
+                    limit=limit,
+                    offset=offset,
                 )
-            except (KeyError, ValueError):
-                # Skip sessions with invalid timestamps
-                logger.warning(f"Invalid timestamps for session {session_id}")
-                continue
 
-            # Create session response
-            session = SessionResponse(
-                id=session_id,
-                status=metadata.get("status", "unknown"),
-                phase=metadata.get("phase"),
-                created_at=created_at,
-                updated_at=updated_at,
-                last_activity_at=last_activity_at,
-                problem_statement=truncate_text(
-                    metadata.get("problem_statement", "Unknown problem")
-                ),
-                cost=metadata.get("cost"),
+            # Get session IDs for this user only (uses Redis SET - O(1) lookup)
+            session_ids = redis_manager.list_user_sessions(user_id)
+
+            if not session_ids:
+                return SessionListResponse(
+                    sessions=[],
+                    total=0,
+                    limit=limit,
+                    offset=offset,
+                )
+
+            # Batch load metadata for all user sessions (single Redis pipeline)
+            metadata_dict = redis_manager.batch_load_metadata(session_ids)
+
+            # Build session list from metadata
+            sessions: list[SessionResponse] = []
+            for session_id, metadata in metadata_dict.items():
+                # Skip soft-deleted sessions
+                if metadata.get("deleted_at"):
+                    continue
+
+                # Apply status filter
+                if status and metadata.get("status") != status:
+                    continue
+
+                # Parse timestamps
+                try:
+                    created_at = datetime.fromisoformat(metadata["created_at"])
+                    updated_at = datetime.fromisoformat(metadata["updated_at"])
+                    last_activity_at = (
+                        datetime.fromisoformat(metadata["last_activity_at"])
+                        if metadata.get("last_activity_at")
+                        else None
+                    )
+                except (KeyError, ValueError):
+                    # Skip sessions with invalid timestamps
+                    logger.warning(f"Invalid timestamps for session {session_id}")
+                    continue
+
+                # Create session response
+                session = SessionResponse(
+                    id=session_id,
+                    status=metadata.get("status", "unknown"),
+                    phase=metadata.get("phase"),
+                    created_at=created_at,
+                    updated_at=updated_at,
+                    last_activity_at=last_activity_at,
+                    problem_statement=truncate_text(
+                        metadata.get("problem_statement", "Unknown problem")
+                    ),
+                    cost=metadata.get("cost"),
+                )
+                sessions.append(session)
+
+            # Sort by updated_at descending (most recent first)
+            sessions.sort(key=lambda s: s.updated_at, reverse=True)
+
+            # Apply pagination
+            total = len(sessions)
+            paginated_sessions = sessions[offset : offset + limit]
+
+            return SessionListResponse(
+                sessions=paginated_sessions,
+                total=total,
+                limit=limit,
+                offset=offset,
             )
-            sessions.append(session)
 
-        # Sort by updated_at descending (most recent first)
-        sessions.sort(key=lambda s: s.updated_at, reverse=True)
-
-        # Apply pagination
-        total = len(sessions)
-        paginated_sessions = sessions[offset : offset + limit]
-
-        return SessionListResponse(
-            sessions=paginated_sessions,
-            total=total,
-            limit=limit,
-            offset=offset,
-        )
-
-    except Exception as e:
-        logger.error(f"Failed to list sessions: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list sessions: {str(e)}",
-        ) from e
+        except Exception as e:
+            logger.error(f"Failed to list sessions: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to list sessions: {str(e)}",
+            ) from e
 
 
 @router.get(
@@ -291,70 +294,71 @@ async def get_session(
     Raises:
         HTTPException: If session not found or retrieval fails
     """
-    try:
-        # Validate session ID format
-        session_id = validate_session_id(session_id)
-
-        # Unpack verified session data
-        user_id, metadata = session_data
-
-        # Load full state (if available)
-        state = redis_manager.load_state(session_id)
-
-        # Parse timestamps
+    with track_api_call("sessions.get", "GET"):
         try:
-            created_at = datetime.fromisoformat(metadata["created_at"])
-            updated_at = datetime.fromisoformat(metadata["updated_at"])
-        except (KeyError, ValueError) as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Invalid session metadata: {e}",
-            ) from e
+            # Validate session ID format
+            session_id = validate_session_id(session_id)
 
-        # Build problem details
-        problem_dict = {
-            "statement": metadata.get("problem_statement", ""),
-            "context": metadata.get("problem_context", {}),
-        }
+            # Unpack verified session data
+            user_id, metadata = session_data
 
-        # Convert state to dict if it's a DeliberationState
-        state_dict: dict[str, Any] | None = None
-        if state:
-            if isinstance(state, dict):
-                state_dict = state
-            else:
-                # Convert DeliberationState to dict
-                state_dict = state.model_dump() if hasattr(state, "model_dump") else None
+            # Load full state (if available)
+            state = redis_manager.load_state(session_id)
 
-        # Extract metrics from state if available
-        metrics = None
-        if state_dict:
-            metrics = {
-                "round_number": state_dict.get("round_number", 0),
-                "total_cost": state_dict.get("total_cost", 0.0),
-                "phase_costs": state_dict.get("phase_costs", {}),
-                "contributions_count": len(state_dict.get("contributions", [])),
+            # Parse timestamps
+            try:
+                created_at = datetime.fromisoformat(metadata["created_at"])
+                updated_at = datetime.fromisoformat(metadata["updated_at"])
+            except (KeyError, ValueError) as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Invalid session metadata: {e}",
+                ) from e
+
+            # Build problem details
+            problem_dict = {
+                "statement": metadata.get("problem_statement", ""),
+                "context": metadata.get("problem_context", {}),
             }
 
-        return SessionDetailResponse(
-            id=session_id,
-            status=metadata.get("status", "unknown"),
-            phase=metadata.get("phase"),
-            created_at=created_at,
-            updated_at=updated_at,
-            problem=problem_dict,
-            state=state_dict,
-            metrics=metrics,
-        )
+            # Convert state to dict if it's a DeliberationState
+            state_dict: dict[str, Any] | None = None
+            if state:
+                if isinstance(state, dict):
+                    state_dict = state
+                else:
+                    # Convert DeliberationState to dict
+                    state_dict = state.model_dump() if hasattr(state, "model_dump") else None
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to get session {session_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get session: {str(e)}",
-        ) from e
+            # Extract metrics from state if available
+            metrics = None
+            if state_dict:
+                metrics = {
+                    "round_number": state_dict.get("round_number", 0),
+                    "total_cost": state_dict.get("total_cost", 0.0),
+                    "phase_costs": state_dict.get("phase_costs", {}),
+                    "contributions_count": len(state_dict.get("contributions", [])),
+                }
+
+            return SessionDetailResponse(
+                id=session_id,
+                status=metadata.get("status", "unknown"),
+                phase=metadata.get("phase"),
+                created_at=created_at,
+                updated_at=updated_at,
+                problem=problem_dict,
+                state=state_dict,
+                metrics=metrics,
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get session {session_id}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to get session: {str(e)}",
+            ) from e
 
 
 @router.delete(
@@ -395,66 +399,69 @@ async def delete_session(
     Raises:
         HTTPException: If session not found or user doesn't own it
     """
-    try:
-        # Validate session ID format
-        session_id = validate_session_id(session_id)
+    with track_api_call("sessions.delete", "DELETE"):
+        try:
+            # Validate session ID format
+            session_id = validate_session_id(session_id)
 
-        # Unpack verified session data
-        user_id, metadata = session_data
+            # Unpack verified session data
+            user_id, metadata = session_data
 
-        # Check if already deleted
-        if metadata.get("deleted_at"):
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session already deleted: {session_id}",
+            # Check if already deleted
+            if metadata.get("deleted_at"):
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Session already deleted: {session_id}",
+                )
+
+            # Kill any active execution
+            if session_id in session_manager.active_executions:
+                try:
+                    await session_manager.kill_session(session_id, user_id, "User deleted session")
+                    logger.info(f"Killed active execution for session {session_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to kill active execution: {e}")
+                    # Continue with soft delete even if kill fails
+
+            # Update metadata with soft delete
+            now = datetime.now(UTC)
+            metadata["status"] = "deleted"
+            metadata["deleted_at"] = now.isoformat()
+            metadata["updated_at"] = now.isoformat()
+
+            # Save updated metadata
+            if not redis_manager.save_metadata(session_id, metadata):
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to update session metadata",
+                )
+
+            # Remove session from user's index for fast listing
+            redis_manager.remove_session_from_user_index(user_id, session_id)
+
+            logger.info(f"Soft deleted session: {session_id} for user: {user_id}")
+
+            # Return session response
+            return SessionResponse(
+                id=session_id,
+                status="deleted",
+                phase=metadata.get("phase"),
+                created_at=datetime.fromisoformat(metadata["created_at"]),
+                updated_at=now,
+                problem_statement=truncate_text(
+                    metadata.get("problem_statement", "Unknown problem")
+                ),
+                cost=metadata.get("cost"),
             )
 
-        # Kill any active execution
-        if session_id in session_manager.active_executions:
-            try:
-                await session_manager.kill_session(session_id, user_id, "User deleted session")
-                logger.info(f"Killed active execution for session {session_id}")
-            except Exception as e:
-                logger.warning(f"Failed to kill active execution: {e}")
-                # Continue with soft delete even if kill fails
-
-        # Update metadata with soft delete
-        now = datetime.now(UTC)
-        metadata["status"] = "deleted"
-        metadata["deleted_at"] = now.isoformat()
-        metadata["updated_at"] = now.isoformat()
-
-        # Save updated metadata
-        if not redis_manager.save_metadata(session_id, metadata):
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to delete session {session_id}: {e}")
             raise HTTPException(
                 status_code=500,
-                detail="Failed to update session metadata",
-            )
-
-        # Remove session from user's index for fast listing
-        redis_manager.remove_session_from_user_index(user_id, session_id)
-
-        logger.info(f"Soft deleted session: {session_id} for user: {user_id}")
-
-        # Return session response
-        return SessionResponse(
-            id=session_id,
-            status="deleted",
-            phase=metadata.get("phase"),
-            created_at=datetime.fromisoformat(metadata["created_at"]),
-            updated_at=now,
-            problem_statement=truncate_text(metadata.get("problem_statement", "Unknown problem")),
-            cost=metadata.get("cost"),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to delete session {session_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete session: {str(e)}",
-        ) from e
+                detail=f"Failed to delete session: {str(e)}",
+            ) from e
 
 
 @router.post(
@@ -490,73 +497,74 @@ async def extract_tasks(
     Raises:
         HTTPException: If synthesis not found or extraction fails
     """
-    try:
-        # Validate session ID format
-        if not validate_session_id(session_id):
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid session ID format",
-            )
-
-        # Unpack verified session data
-        user_id, metadata = session_data
-
-        # Check if synthesis exists
-        synthesis = metadata.get("synthesis")
-        if not synthesis:
-            # Try to get synthesis from events
-            events_key = f"events_history:{session_id}"
-            events = redis_manager.redis.lrange(events_key, 0, -1)
-
-            # Look for synthesis_complete or meta_synthesis_complete event
-            synthesis = None
-            for event_json in events:
-                import json
-
-                event = json.loads(event_json)
-                if event.get("event_type") in [
-                    "synthesis_complete",
-                    "meta_synthesis_complete",
-                ]:
-                    synthesis = event.get("data", {}).get("synthesis")
-                    if synthesis:
-                        break
-
-            if not synthesis:
+    with track_api_call("sessions.extract_tasks", "POST"):
+        try:
+            # Validate session ID format
+            if not validate_session_id(session_id):
                 raise HTTPException(
-                    status_code=404,
-                    detail="No synthesis found for this session. Run the deliberation to completion first.",
+                    status_code=400,
+                    detail="Invalid session ID format",
                 )
 
-        # Extract tasks using AI
-        logger.info(f"Extracting tasks from synthesis for session {session_id}")
+            # Unpack verified session data
+            user_id, metadata = session_data
 
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="AI service not configured",
+            # Check if synthesis exists
+            synthesis = metadata.get("synthesis")
+            if not synthesis:
+                # Try to get synthesis from events
+                events_key = f"events_history:{session_id}"
+                events = redis_manager.redis.lrange(events_key, 0, -1)
+
+                # Look for synthesis_complete or meta_synthesis_complete event
+                synthesis = None
+                for event_json in events:
+                    import json
+
+                    event = json.loads(event_json)
+                    if event.get("event_type") in [
+                        "synthesis_complete",
+                        "meta_synthesis_complete",
+                    ]:
+                        synthesis = event.get("data", {}).get("synthesis")
+                        if synthesis:
+                            break
+
+                if not synthesis:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="No synthesis found for this session. Run the deliberation to completion first.",
+                    )
+
+            # Extract tasks using AI
+            logger.info(f"Extracting tasks from synthesis for session {session_id}")
+
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise HTTPException(
+                    status_code=500,
+                    detail="AI service not configured",
+                )
+
+            result = sync_extract_tasks_from_synthesis(
+                synthesis=synthesis,
+                session_id=session_id,
+                anthropic_api_key=api_key,
             )
 
-        result = sync_extract_tasks_from_synthesis(
-            synthesis=synthesis,
-            session_id=session_id,
-            anthropic_api_key=api_key,
-        )
+            logger.info(
+                f"Extracted {result.total_tasks} tasks from session {session_id} "
+                f"(confidence: {result.extraction_confidence:.2f})"
+            )
 
-        logger.info(
-            f"Extracted {result.total_tasks} tasks from session {session_id} "
-            f"(confidence: {result.extraction_confidence:.2f})"
-        )
+            # Return task extraction result
+            return result.model_dump()
 
-        # Return task extraction result
-        return result.model_dump()
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to extract tasks for session {session_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Task extraction failed: {str(e)}",
-        ) from e
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to extract tasks for session {session_id}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Task extraction failed: {str(e)}",
+            ) from e

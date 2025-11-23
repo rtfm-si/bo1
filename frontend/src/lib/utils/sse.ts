@@ -126,14 +126,20 @@ export class SSEClient {
 
 	private cleanup(): void {
 		if (this.reader) {
-			this.reader.cancel().catch(() => {
-				// Ignore cancellation errors
+			this.reader.cancel().catch((error) => {
+				// Log but don't throw - cleanup should be resilient
+				console.warn('SSE reader cancellation failed:', error);
 			});
 			this.reader = null;
 		}
 
 		if (this.abortController) {
-			this.abortController.abort();
+			try {
+				this.abortController.abort();
+			} catch (error) {
+				// Log but don't throw - cleanup should be resilient
+				console.warn('SSE abort controller error:', error);
+			}
 			this.abortController = null;
 		}
 	}

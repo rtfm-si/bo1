@@ -13,7 +13,6 @@ from datetime import datetime
 from functools import lru_cache
 from typing import Any
 
-import psycopg2
 from psycopg2 import pool
 from psycopg2.extras import Json, RealDictCursor
 
@@ -90,21 +89,6 @@ def db_session() -> Any:
         raise
     finally:
         pool_instance.putconn(conn)
-
-
-def get_connection() -> psycopg2.extensions.connection:
-    """Get PostgreSQL database connection.
-
-    DEPRECATED: Use db_session() context manager instead for automatic cleanup.
-
-    Returns:
-        Database connection with RealDictCursor for dict-like rows
-    """
-    settings = _get_settings()
-    return psycopg2.connect(
-        settings.database_url,
-        cursor_factory=RealDictCursor,
-    )
 
 
 # =============================================================================

@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from bo1.state.postgres_manager import db_session
 
 
-def check_indexes():
+def check_indexes() -> None:
     """Check which indexes exist in the database."""
     # Query to list all indexes with detailed information
     query = """
@@ -43,7 +43,7 @@ def check_indexes():
         table_count = {}
 
         for row in indexes:
-            schema = row["schemaname"]
+            # schema = row["schemaname"]  # Not currently used
             table = row["tablename"]
             index_name = row["indexname"]
             index_def = row["indexdef"]
@@ -74,7 +74,7 @@ def check_indexes():
         sys.exit(1)
 
 
-def check_specific_indexes():
+def check_specific_indexes() -> None:
     """Check for specific indexes mentioned in the refactoring analysis."""
     # Expected indexes based on the task
     expected = {

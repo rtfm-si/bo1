@@ -1,9 +1,6 @@
 """Tests for standardized logging utilities."""
 
 import logging
-from io import StringIO
-
-import pytest
 
 from bo1.utils.logging import (
     get_logger,
@@ -12,18 +9,6 @@ from bo1.utils.logging import (
     log_llm_call,
     log_with_context,
 )
-
-
-@pytest.fixture
-def capture_logs():
-    """Capture log output to a string buffer."""
-    log_buffer = StringIO()
-    handler = logging.StreamHandler(log_buffer)
-    handler.setFormatter(logging.Formatter("%(levelname)s - %(name)s - %(message)s"))
-
-    yield log_buffer, handler
-
-    handler.close()
 
 
 def test_get_logger_creates_configured_logger():

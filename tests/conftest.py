@@ -280,3 +280,126 @@ def redis_manager_or_none(redis_manager) -> Any:
     DEPRECATED: Use redis_manager directly instead.
     """
     return redis_manager
+
+
+# Common test fixtures for LLM responses and requests
+
+
+@pytest.fixture
+def sample_llm_request():
+    """Create a sample PromptRequest for testing.
+
+    Returns:
+        PromptRequest with basic test data
+
+    Example:
+        def test_something(sample_llm_request):
+            request = sample_llm_request
+            # Modify or use as-is...
+    """
+    from bo1.llm.broker import PromptRequest
+
+    return PromptRequest(
+        system="test system prompt",
+        user_message="test user message",
+        model="test-model",
+        phase="test",
+        agent_type="TestAgent",
+    )
+
+
+@pytest.fixture
+def sample_llm_response():
+    """Create a sample LLMResponse for testing.
+
+    Returns:
+        LLMResponse with realistic token usage and cost
+
+    Example:
+        def test_something(sample_llm_response):
+            response = sample_llm_response
+            # response.cost_total is 0.003 (realistic for ~500 tokens)
+    """
+    from bo1.llm.response import LLMResponse, TokenUsage
+
+    return LLMResponse(
+        content="test response content",
+        model="claude-sonnet-4-5-20250929",
+        token_usage=TokenUsage(
+            input_tokens=300,
+            output_tokens=200,
+            cache_creation_tokens=0,
+            cache_read_tokens=0,
+        ),
+        duration_ms=1500,
+        retry_count=0,
+        request_id="test-request-id",
+        phase="test",
+        agent_type="TestAgent",
+    )
+
+
+@pytest.fixture
+def mock_broker(monkeypatch):
+    """Mock LLM broker for testing without API calls.
+
+    Returns a broker that returns sample LLM responses for all calls.
+    Uses monkeypatch to avoid actual API requests.
+
+    Example:
+        def test_agent(mock_broker):
+            agent = MyAgent(broker=mock_broker)
+            response = await agent.run()
+            # No actual API calls made
+    """
+    from bo1.llm.broker import PromptBroker, PromptRequest
+    from bo1.llm.response import LLMResponse, TokenUsage
+
+    async def mock_call(request: PromptRequest) -> LLMResponse:
+        # Return fake response with known cost
+        return LLMResponse(
+            content="mocked response",
+            model=request.model,
+            token_usage=TokenUsage(
+                input_tokens=100,
+                output_tokens=50,
+                cache_creation_tokens=0,
+                cache_read_tokens=0,
+            ),
+            duration_ms=1000,
+            retry_count=0,
+            request_id=request.request_id,
+            phase=request.phase or "unknown",
+            agent_type=request.agent_type or "Unknown",
+        )
+
+    broker = PromptBroker()
+    monkeypatch.setattr(broker, "call", mock_call)
+    return broker
+
+
+@pytest.fixture
+def capture_logs():
+    """Capture log output to a string buffer for testing.
+
+    Returns:
+        Tuple of (log_buffer, handler) - read logs from log_buffer.getvalue()
+
+    Example:
+        def test_logging(capture_logs):
+            log_buffer, handler = capture_logs
+            logger = logging.getLogger("test")
+            logger.addHandler(handler)
+            logger.info("test message")
+            assert "test message" in log_buffer.getvalue()
+    """
+    import logging
+    from io import StringIO
+
+    log_buffer = StringIO()
+    handler = logging.StreamHandler(log_buffer)
+    handler.setFormatter(logging.Formatter("%(levelname)s - %(name)s - %(message)s"))
+
+    yield log_buffer, handler
+
+    handler.close()

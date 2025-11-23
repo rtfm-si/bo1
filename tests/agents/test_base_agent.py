@@ -3,8 +3,8 @@
 import pytest
 
 from bo1.agents.base import BaseAgent
-from bo1.llm.broker import PromptBroker, PromptRequest
-from bo1.llm.response import LLMResponse, TokenUsage
+from bo1.llm.broker import PromptRequest
+from bo1.llm.response import LLMResponse
 
 
 class MockAgent(BaseAgent):
@@ -13,33 +13,6 @@ class MockAgent(BaseAgent):
     def get_default_model(self) -> str:
         """Return default model."""
         return "test-model"
-
-
-@pytest.fixture
-def mock_broker(monkeypatch):
-    """Mock broker that returns fake responses."""
-
-    async def mock_call(request: PromptRequest) -> LLMResponse:
-        # Return fake response with known cost
-        return LLMResponse(
-            content="test response",
-            model="test-model",
-            token_usage=TokenUsage(
-                input_tokens=100,
-                output_tokens=50,
-                cache_creation_tokens=0,
-                cache_read_tokens=0,
-            ),
-            duration_ms=1000,
-            retry_count=0,
-            request_id="test-request-id",
-            phase="test",
-            agent_type="MockAgent",
-        )
-
-    broker = PromptBroker()
-    monkeypatch.setattr(broker, "call", mock_call)
-    return broker
 
 
 @pytest.mark.asyncio

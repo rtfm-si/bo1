@@ -13,7 +13,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.api.dependencies import get_redis_manager, get_session_manager
+from backend.api.dependencies import (
+    VerifiedSession,
+    get_redis_manager,
+    get_session_manager,
+)
 from backend.api.middleware.auth import get_current_user
 from backend.api.models import (
     CreateSessionRequest,
@@ -23,10 +27,11 @@ from backend.api.models import (
     SessionResponse,
 )
 from backend.api.utils.auth_helpers import extract_user_id
-from backend.api.utils.security import verify_session_ownership
 from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
+from bo1.graph.execution import SessionManager
+from bo1.state.redis_manager import RedisManager
 
 logger = logging.getLogger(__name__)
 
@@ -281,7 +286,8 @@ async def list_sessions(
 )
 async def get_session(
     session_id: str,
-    user: dict[str, Any] = Depends(get_current_user),
+    session_data: VerifiedSession,
+    redis_manager: RedisManager = Depends(get_redis_manager),
 ) -> SessionDetailResponse:
     """Get detailed information about a session.
 
@@ -290,7 +296,8 @@ async def get_session(
 
     Args:
         session_id: Session identifier
-        user: Authenticated user data
+        session_data: Verified session (user_id, metadata) from dependency
+        redis_manager: Redis manager instance
 
     Returns:
         SessionDetailResponse with full session details
@@ -302,23 +309,8 @@ async def get_session(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        # Extract user ID from authenticated user
-        user_id = extract_user_id(user)
-
-        # Create Redis manager
-        redis_manager = get_redis_manager()
-
-        if not redis_manager.is_available:
-            raise HTTPException(
-                status_code=500,
-                detail="Redis unavailable - cannot retrieve session",
-            )
-
-        # Load metadata and verify ownership
-        metadata = redis_manager.load_metadata(session_id)
-
-        # SECURITY: Verify session ownership (returns 404 if not owned)
-        metadata = await verify_session_ownership(session_id, user_id, metadata)
+        # Unpack verified session data
+        user_id, metadata = session_data
 
         # Load full state (if available)
         state = redis_manager.load_state(session_id)
@@ -393,7 +385,9 @@ async def get_session(
 )
 async def delete_session(
     session_id: str,
-    user: dict[str, Any] = Depends(get_current_user),
+    session_data: VerifiedSession,
+    redis_manager: RedisManager = Depends(get_redis_manager),
+    session_manager: SessionManager = Depends(get_session_manager),
 ) -> SessionResponse:
     """Soft delete a session.
 
@@ -405,7 +399,9 @@ async def delete_session(
 
     Args:
         session_id: Session identifier
-        user: Authenticated user data
+        session_data: Verified session (user_id, metadata) from dependency
+        redis_manager: Redis manager instance
+        session_manager: Session manager instance
 
     Returns:
         SessionResponse with deleted status
@@ -417,19 +413,8 @@ async def delete_session(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        user_id = extract_user_id(user)
-        redis_manager = get_redis_manager()
-        session_manager = get_session_manager()
-
-        if not redis_manager.is_available:
-            raise HTTPException(
-                status_code=500,
-                detail="Redis unavailable - cannot delete session",
-            )
-
-        # Load metadata and verify ownership
-        metadata = redis_manager.load_metadata(session_id)
-        metadata = await verify_session_ownership(session_id, user_id, metadata)
+        # Unpack verified session data
+        user_id, metadata = session_data
 
         # Check if already deleted
         if metadata.get("deleted_at"):
@@ -498,7 +483,8 @@ async def delete_session(
 )
 async def extract_tasks(
     session_id: str,
-    user: dict[str, Any] = Depends(get_current_user),
+    session_data: VerifiedSession,
+    redis_manager: RedisManager = Depends(get_redis_manager),
 ) -> dict[str, Any]:
     """Extract actionable tasks from session synthesis.
 
@@ -509,7 +495,8 @@ async def extract_tasks(
 
     Args:
         session_id: Session ID
-        user: Authenticated user data
+        session_data: Verified session (user_id, metadata) from dependency
+        redis_manager: Redis manager instance
 
     Returns:
         Dict with extracted tasks and metadata
@@ -525,24 +512,8 @@ async def extract_tasks(
                 detail="Invalid session ID format",
             )
 
-        # Get Redis manager
-        redis_manager = get_redis_manager()
-        if not redis_manager.is_available:
-            raise HTTPException(
-                status_code=500,
-                detail="Redis unavailable",
-            )
-
-        # Verify session ownership
-        verify_session_ownership(session_id, user, redis_manager)
-
-        # Get session metadata
-        metadata = redis_manager.load_metadata(session_id)
-        if not metadata:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session {session_id} not found",
-            )
+        # Unpack verified session data
+        user_id, metadata = session_data
 
         # Check if synthesis exists
         synthesis = metadata.get("synthesis")

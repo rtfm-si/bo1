@@ -6,13 +6,22 @@ Provides singleton instances of:
 - EventPublisher: Event publishing for SSE streaming
 - PostgreSQL connection pool (via postgres_manager)
 
-All dependencies use @lru_cache for singleton pattern.
+Also provides reusable dependencies for:
+- Authentication + session verification (get_verified_session)
+
+All singletons use @lru_cache for caching.
 """
 
 import os
 from functools import lru_cache
+from typing import Annotated, Any
+
+from fastapi import Depends, HTTPException
 
 from backend.api.event_publisher import EventPublisher
+from backend.api.middleware.auth import get_current_user
+from backend.api.utils.auth_helpers import extract_user_id
+from backend.api.utils.security import verify_session_ownership
 from bo1.graph.execution import SessionManager
 from bo1.state.redis_manager import RedisManager
 
@@ -71,3 +80,60 @@ def get_event_publisher() -> EventPublisher:
     """
     redis_manager = get_redis_manager()
     return EventPublisher(redis_manager.redis)
+
+
+async def get_verified_session(
+    session_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    redis_manager: RedisManager = Depends(get_redis_manager),
+) -> tuple[str, dict[str, Any]]:
+    """Verify user owns the session and return (user_id, metadata).
+
+    This dependency combines:
+    1. User authentication (via get_current_user)
+    2. Redis availability check
+    3. Session metadata loading
+    4. Ownership verification
+
+    Use this dependency in authenticated endpoints that need to verify session
+    ownership. It consolidates the common pattern of extracting user_id,
+    checking Redis availability, loading metadata, and verifying ownership.
+
+    Args:
+        session_id: Session identifier from path parameter
+        user: Authenticated user from SuperTokens (injected)
+        redis_manager: Redis manager instance (injected)
+
+    Returns:
+        tuple: (user_id, verified_metadata)
+
+    Raises:
+        HTTPException: 500 if Redis unavailable
+        HTTPException: 404 if session not found
+        HTTPException: 403 if user doesn't own session (returned as 404 to prevent enumeration)
+
+    Examples:
+        >>> # In endpoint signature
+        >>> @router.get("/{session_id}")
+        >>> async def get_session(
+        ...     session_id: str,
+        ...     session_data: VerifiedSession,
+        ... ):
+        ...     user_id, metadata = session_data
+        ...     # ... endpoint logic
+    """
+    if not redis_manager.is_available:
+        raise HTTPException(
+            status_code=500,
+            detail="Redis unavailable - cannot access session",
+        )
+
+    user_id = extract_user_id(user)
+    metadata = redis_manager.load_metadata(session_id)
+    metadata = await verify_session_ownership(session_id, user_id, metadata)
+
+    return user_id, metadata
+
+
+# Type alias for cleaner endpoint signatures
+VerifiedSession = Annotated[tuple[str, dict[str, Any]], Depends(get_verified_session)]

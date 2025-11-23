@@ -15,17 +15,21 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.api.dependencies import get_redis_manager, get_session_manager
+from backend.api.dependencies import (
+    VerifiedSession,
+    get_redis_manager,
+    get_session_manager,
+)
 from backend.api.middleware.auth import get_current_user
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.auth_helpers import extract_user_id
-from backend.api.utils.security import verify_session_ownership
 from backend.api.utils.validation import validate_session_id
 from bo1.data import load_personas
 from bo1.graph.config import create_deliberation_graph
-from bo1.graph.execution import PermissionError
+from bo1.graph.execution import PermissionError, SessionManager
 from bo1.graph.state import create_initial_state
 from bo1.models.problem import Problem
+from bo1.state.redis_manager import RedisManager
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +82,10 @@ class KillRequest(BaseModel):
     },
 )
 async def start_deliberation(
-    session_id: str, user: dict[str, Any] = Depends(get_current_user)
+    session_id: str,
+    session_data: VerifiedSession,
+    session_manager: SessionManager = Depends(get_session_manager),
+    redis_manager: RedisManager = Depends(get_redis_manager),
 ) -> ControlResponse:
     """Start deliberation in background.
 
@@ -87,7 +94,9 @@ async def start_deliberation(
 
     Args:
         session_id: Session identifier
-        user: Authenticated user data
+        session_data: Verified session (user_id, metadata) from dependency
+        session_manager: Session manager instance
+        redis_manager: Redis manager instance
 
     Returns:
         ControlResponse with 202 Accepted
@@ -99,13 +108,8 @@ async def start_deliberation(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        user_id = extract_user_id(user)
-        session_manager = get_session_manager()
-        redis_manager = get_redis_manager()
-
-        # Check if session exists and verify ownership
-        metadata = redis_manager.load_metadata(session_id)
-        metadata = await verify_session_ownership(session_id, user_id, metadata)
+        # Unpack verified session data
+        user_id, metadata = session_data
 
         # Check if already running
         if session_id in session_manager.active_executions:
@@ -210,7 +214,9 @@ async def start_deliberation(
     },
 )
 async def pause_deliberation(
-    session_id: str, user: dict[str, Any] = Depends(get_current_user)
+    session_id: str,
+    session_data: VerifiedSession,
+    redis_manager: RedisManager = Depends(get_redis_manager),
 ) -> ControlResponse:
     """Pause a running deliberation.
 
@@ -219,7 +225,8 @@ async def pause_deliberation(
 
     Args:
         session_id: Session identifier
-        user: Authenticated user data
+        session_data: Verified session (user_id, metadata) from dependency
+        redis_manager: Redis manager instance
 
     Returns:
         ControlResponse with pause confirmation
@@ -231,13 +238,8 @@ async def pause_deliberation(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        # Extract user ID and verify ownership
-        user_id = extract_user_id(user)
-        redis_manager = get_redis_manager()
-
-        # Check if session exists and verify ownership
-        metadata = redis_manager.load_metadata(session_id)
-        metadata = await verify_session_ownership(session_id, user_id, metadata)
+        # Unpack verified session data
+        user_id, metadata = session_data
 
         # Update metadata to mark as paused
         now = datetime.now(UTC)
@@ -280,7 +282,10 @@ async def pause_deliberation(
     },
 )
 async def resume_deliberation(
-    session_id: str, user: dict[str, Any] = Depends(get_current_user)
+    session_id: str,
+    session_data: VerifiedSession,
+    session_manager: SessionManager = Depends(get_session_manager),
+    redis_manager: RedisManager = Depends(get_redis_manager),
 ) -> ControlResponse:
     """Resume a paused deliberation from checkpoint.
 
@@ -288,7 +293,9 @@ async def resume_deliberation(
 
     Args:
         session_id: Session identifier
-        user: Authenticated user data
+        session_data: Verified session (user_id, metadata) from dependency
+        session_manager: Session manager instance
+        redis_manager: Redis manager instance
 
     Returns:
         ControlResponse with resume confirmation
@@ -300,13 +307,8 @@ async def resume_deliberation(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        user_id = extract_user_id(user)
-        session_manager = get_session_manager()
-        redis_manager = get_redis_manager()
-
-        # Check if session exists and verify ownership
-        metadata = redis_manager.load_metadata(session_id)
-        metadata = await verify_session_ownership(session_id, user_id, metadata)
+        # Unpack verified session data
+        user_id, metadata = session_data
 
         # Validate session status
         status = metadata.get("status")
@@ -462,7 +464,8 @@ async def kill_deliberation(
 async def submit_clarification(
     session_id: str,
     request: ClarificationRequest,
-    user: dict[str, Any] = Depends(get_current_user),
+    session_data: VerifiedSession,
+    redis_manager: RedisManager = Depends(get_redis_manager),
 ) -> ControlResponse:
     """Submit clarification answer and resume deliberation.
 
@@ -475,7 +478,8 @@ async def submit_clarification(
     Args:
         session_id: Session identifier
         request: Clarification answer
-        user: Authenticated user data
+        session_data: Verified session (user_id, metadata) from dependency
+        redis_manager: Redis manager instance
 
     Returns:
         ControlResponse with resume confirmation
@@ -487,23 +491,8 @@ async def submit_clarification(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        user_id = extract_user_id(user)
-        redis_manager = get_redis_manager()
-
-        # Check if session exists
-        metadata = redis_manager.load_metadata(session_id)
-        if not metadata:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session not found: {session_id}",
-            )
-
-        # Check ownership
-        if metadata.get("user_id") != user_id:
-            raise HTTPException(
-                status_code=403,
-                detail=f"User {user_id} does not own session {session_id}",
-            )
+        # Unpack verified session data
+        user_id, metadata = session_data
 
         # Check for pending clarification
         pending_clarification = metadata.get("pending_clarification")

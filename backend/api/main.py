@@ -14,6 +14,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -173,6 +174,14 @@ app.add_middleware(
     allow_methods=ALLOWED_METHODS,
     allow_headers=ALLOWED_HEADERS,
     expose_headers=["front-token"],  # SuperTokens uses front-token header for JWT payload
+)
+
+# Add GZip compression middleware for responses (applies to responses >= 1KB)
+# Reduces bandwidth usage by ~60-80% for JSON/text responses
+# IMPORTANT: Add AFTER CORS middleware (middleware is executed in reverse order)
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=1000,  # Only compress responses >= 1KB (avoid overhead for tiny responses)
 )
 
 # Include routers

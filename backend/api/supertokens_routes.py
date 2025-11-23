@@ -12,11 +12,13 @@ We only add custom endpoints that are NOT handled by SuperTokens middleware.
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 from supertokens_python.recipe.thirdparty import asyncio as thirdparty_asyncio
+
+from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +26,13 @@ router = APIRouter()
 
 
 @router.get("/user")
-async def get_user_info(session: SessionContainer = Depends(verify_session())) -> JSONResponse:
+@limiter.limit(AUTH_RATE_LIMIT)
+async def get_user_info(
+    request: Request, session: SessionContainer = Depends(verify_session())
+) -> JSONResponse:
     """Get current user information.
+
+    Rate limit: 10 requests per minute per IP.
 
     Returns:
         User ID, email, and session info

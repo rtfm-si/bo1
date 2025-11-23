@@ -13,9 +13,11 @@ SuperTokens automatically exposes these endpoints under /api/auth:
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
+
+from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,10 @@ router = APIRouter()
 
 
 @router.get("/me")
-async def get_user_info(session: SessionContainer = Depends(verify_session())) -> dict:
+@limiter.limit(AUTH_RATE_LIMIT)
+async def get_user_info(
+    request: Request, session: SessionContainer = Depends(verify_session())
+) -> dict:
     """Get current authenticated user information.
 
     Returns:

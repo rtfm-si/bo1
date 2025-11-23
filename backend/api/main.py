@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
+from slowapi.errors import RateLimitExceeded
 
 from backend.api import (
     admin,
@@ -30,6 +31,7 @@ from backend.api import (
     waitlist,
 )
 from backend.api.middleware.auth import require_admin
+from backend.api.middleware.rate_limit import limiter
 from backend.api.supertokens_config import add_supertokens_middleware, init_supertokens
 from bo1.config import get_settings
 
@@ -133,6 +135,9 @@ app = FastAPI(
 # Initialize SuperTokens (MUST be before CORS middleware and routes)
 init_supertokens()
 add_supertokens_middleware(app)
+
+# Add SlowAPI state to app (required for rate limiting)
+app.state.limiter = limiter
 
 # Configure CORS with explicit allow lists (SECURITY: No wildcards in production)
 # Parse CORS origins from environment variable
@@ -255,6 +260,23 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
                 "type": "InternalError",
             },
         )
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Handle rate limit exceeded exceptions from SlowAPI.
+
+    Returns 429 Too Many Requests with Retry-After header.
+    """
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": "Rate limit exceeded",
+            "message": "Too many requests. Please try again later.",
+            "type": "RateLimitExceeded",
+        },
+        headers={"Retry-After": "60"},  # Suggest retry after 60 seconds
+    )
 
 
 @app.get("/")

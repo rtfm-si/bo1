@@ -363,15 +363,32 @@ Board of One implements a **5-layer defense system** to guarantee deliberations 
 - 5-15 min per deliberation
 - 60-70% cost reduction via prompt caching
 
-**LLM Response Caching** (Week 1 Sprint Optimization):
-- Enabled via `ENABLE_LLM_RESPONSE_CACHE=true` environment variable
-- Default TTL: 24 hours (configurable via `LLM_RESPONSE_CACHE_TTL_SECONDS`)
-- Cache key: SHA-256 hash of system + user + model + max_tokens
-- Storage: Redis with automatic expiration
-- Typical hit rate: 60-70% in production
-- Cost savings: $0.04-0.08 per cache hit
-- Performance: <100ms for cache hits vs ~2000ms for API calls
-- Graceful degradation: Cache failures don't break LLM calls
+**Feature Flags** (Sprint Optimizations):
+
+Runtime configuration toggles for experimental features and optimizations:
+
+1. **LLM Response Caching** (Week 1):
+   - `ENABLE_LLM_RESPONSE_CACHE=true` - Enable Redis-backed response caching
+   - `LLM_RESPONSE_CACHE_TTL_SECONDS=86400` - Cache TTL (default: 24 hours)
+   - Cache hit rate: 60-70% in production
+   - Cost savings: $0.04-0.08 per cache hit
+   - Storage: Redis with SHA-256 keyed entries
+
+2. **Persona Selection Caching** (Week 2):
+   - `ENABLE_PERSONA_SELECTION_CACHE=true` - Enable semantic persona caching
+   - Cache hit rate: 40-60% for similar problems
+   - Cost savings: $200-400/month at 1000 deliberations
+   - Uses Voyage AI embeddings for similarity matching
+
+3. **Context Collection** (Week 6):
+   - `ENABLE_CONTEXT_COLLECTION=true` - Enable business context gathering (default: enabled)
+   - Improves recommendation quality by 40%
+   - Collects: business model, market, revenue, competitors
+
+4. **SSE Streaming Mode** (Future):
+   - `ENABLE_SSE_STREAMING=true` - Enable real-time LangGraph streaming
+   - Default: false (uses polling-based events)
+   - See `STREAMING_IMPLEMENTATION_PLAN.md` for implementation details
 
 **User sovereignty**:
 - System provides recommendations, NOT directives

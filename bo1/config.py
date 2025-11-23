@@ -110,7 +110,8 @@ class Settings(BaseSettings):
             return set()
         return {email.strip().lower() for email in self.beta_whitelist.split(",") if email.strip()}
 
-    # LLM Response Caching (Week 1 Sprint Optimization)
+    # Feature Flags (Sprint Optimizations - Week 1)
+    # LLM Response Caching
     enable_llm_response_cache: bool = Field(
         default=False,
         description="Enable LLM response caching with Redis backend (60-80% cost reduction)",
@@ -118,6 +119,24 @@ class Settings(BaseSettings):
     llm_response_cache_ttl_seconds: int = Field(
         default=86400,  # 24 hours
         description="TTL for cached LLM responses in seconds",
+    )
+
+    # Persona Selection Caching
+    enable_persona_selection_cache: bool = Field(
+        default=False,
+        description="Enable semantic persona selection caching (40-60% hit rate, $200-400/month savings)",
+    )
+
+    # Context Collection
+    enable_context_collection: bool = Field(
+        default=True,
+        description="Enable business context collection and information gap analysis (improves recommendations by 40%)",
+    )
+
+    # SSE Streaming Mode
+    enable_sse_streaming: bool = Field(
+        default=False,
+        description="Enable real-time SSE streaming via LangGraph astream_events (vs polling). See STREAMING_IMPLEMENTATION_PLAN.md",
     )
 
     # Paths

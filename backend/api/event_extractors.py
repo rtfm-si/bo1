@@ -588,3 +588,158 @@ def extract_with_root_transform(
 
     # Fallback to regular extraction
     return extract_event_data(output, extractors)
+
+
+# ==============================================================================
+# Event Extractor Registry - Centralized registry for all event extractors
+# ==============================================================================
+
+
+class EventExtractorRegistry:
+    """Central registry for event data extractors.
+
+    Provides a single source of truth for all event type -> extractor mappings,
+    eliminating the need for scattered import statements and manual function
+    definitions in event_collector.py.
+
+    Benefits:
+    - Single registration point for all extractors
+    - Automatic extractor function generation
+    - Easy to add new event types (just call register())
+    - Type-safe extractor lookup
+    - Centralized documentation
+
+    Examples:
+        >>> registry = get_event_registry()
+        >>> data = registry.extract("decomposition", output)
+        >>> print(registry.get_event_types())
+        ['decomposition', 'persona_selection', ...]
+    """
+
+    def __init__(self) -> None:
+        """Initialize empty registry."""
+        self._extractors: dict[str, list[FieldExtractor]] = {}
+
+    def register(
+        self,
+        event_type: str,
+        extractors: list[FieldExtractor] | Callable[[], list[FieldExtractor]],
+    ) -> None:
+        """Register extractors for an event type.
+
+        Args:
+            event_type: Event type name (e.g., 'decomposition', 'persona_selection')
+            extractors: List of FieldExtractor configs, or factory function that returns them
+
+        Examples:
+            >>> registry = EventExtractorRegistry()
+            >>> registry.register("decomposition", DECOMPOSITION_EXTRACTORS)
+            >>> registry.register("facilitator_decision", _create_facilitator_decision_extractors)
+        """
+        if callable(extractors):
+            # Factory function - call it to get extractors
+            extractors = extractors()
+        self._extractors[event_type] = extractors
+
+    def get(self, event_type: str) -> list[FieldExtractor] | None:
+        """Get extractors for event type.
+
+        Args:
+            event_type: Event type name
+
+        Returns:
+            List of FieldExtractor configs, or None if not registered
+        """
+        return self._extractors.get(event_type)
+
+    def extract(self, event_type: str, output: dict[str, Any]) -> dict[str, Any]:
+        """Extract data for event type.
+
+        Args:
+            event_type: Event type name
+            output: Raw node output dictionary
+
+        Returns:
+            Extracted event data dictionary
+
+        Raises:
+            ValueError: If event type not registered
+
+        Examples:
+            >>> registry = get_event_registry()
+            >>> data = registry.extract("decomposition", {"problem": {...}})
+            >>> print(data["sub_problems"])
+        """
+        extractors = self.get(event_type)
+        if extractors is None:
+            raise ValueError(
+                f"Unknown event type: {event_type}. "
+                f"Registered types: {list(self._extractors.keys())}"
+            )
+
+        # Handle special __root__ extractors
+        if extractors and extractors[0].get("source_field") == "__root__":
+            return extract_with_root_transform(output, extractors)
+
+        return extract_event_data(output, extractors)
+
+    def get_event_types(self) -> list[str]:
+        """Get list of all registered event types.
+
+        Returns:
+            List of event type names
+
+        Examples:
+            >>> registry = get_event_registry()
+            >>> print(registry.get_event_types())
+            ['decomposition', 'persona_selection', 'facilitator_decision', ...]
+        """
+        return list(self._extractors.keys())
+
+    def is_registered(self, event_type: str) -> bool:
+        """Check if event type is registered.
+
+        Args:
+            event_type: Event type name
+
+        Returns:
+            True if registered, False otherwise
+        """
+        return event_type in self._extractors
+
+
+# Create global registry instance
+_registry: EventExtractorRegistry | None = None
+
+
+def get_event_registry() -> EventExtractorRegistry:
+    """Get or create global event extractor registry.
+
+    This function lazily initializes the registry on first call and registers
+    all standard event extractors.
+
+    Returns:
+        Singleton EventExtractorRegistry instance
+
+    Examples:
+        >>> registry = get_event_registry()
+        >>> data = registry.extract("decomposition", output)
+    """
+    global _registry
+    if _registry is None:
+        _registry = EventExtractorRegistry()
+
+        # Register all standard extractors
+        _registry.register("decomposition", DECOMPOSITION_EXTRACTORS)
+        _registry.register("persona_selection", PERSONA_SELECTION_EXTRACTORS)
+        _registry.register("facilitator_decision", _create_facilitator_decision_extractors)
+        _registry.register("moderator_intervention", _create_moderator_intervention_extractors)
+        _registry.register("convergence", CONVERGENCE_EXTRACTORS)
+        _registry.register("voting", _create_voting_extractors)
+        _registry.register("synthesis", SYNTHESIS_EXTRACTORS)
+        _registry.register("meta_synthesis", META_SYNTHESIS_EXTRACTORS)
+        _registry.register("subproblem_started", SUBPROBLEM_STARTED_EXTRACTORS)
+        _registry.register("subproblem_complete", _create_subproblem_complete_extractors)
+        _registry.register("completion", _create_completion_extractors)
+
+    return _registry

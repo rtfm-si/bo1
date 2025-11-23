@@ -6,92 +6,15 @@ Provides:
 
 import json
 import logging
-from collections.abc import Callable
 from typing import Any
 
 from anthropic import AsyncAnthropic
 
-from backend.api.event_extractors import (
-    COMPLETION_EXTRACTORS,
-    CONVERGENCE_EXTRACTORS,
-    DECOMPOSITION_EXTRACTORS,
-    FACILITATOR_DECISION_EXTRACTORS,
-    META_SYNTHESIS_EXTRACTORS,
-    MODERATOR_INTERVENTION_EXTRACTORS,
-    PERSONA_SELECTION_EXTRACTORS,
-    SUBPROBLEM_COMPLETE_EXTRACTORS,
-    SUBPROBLEM_STARTED_EXTRACTORS,
-    SYNTHESIS_EXTRACTORS,
-    VOTING_EXTRACTORS,
-    extract_with_root_transform,
-)
+from backend.api.event_extractors import get_event_registry
 from backend.api.event_publisher import EventPublisher
 from bo1.config import get_settings
 
 logger = logging.getLogger(__name__)
-
-
-# ==============================================================================
-# Extractor Functions - Wrappers that use the new framework
-# ==============================================================================
-
-
-def _extract_decomposition_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract decomposition event data from node output."""
-    return extract_with_root_transform(output, DECOMPOSITION_EXTRACTORS)
-
-
-def _extract_persona_selection_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract persona selection event data from node output."""
-    return extract_with_root_transform(output, PERSONA_SELECTION_EXTRACTORS)
-
-
-def _extract_facilitator_decision_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract facilitator decision event data from node output."""
-    return extract_with_root_transform(output, FACILITATOR_DECISION_EXTRACTORS)
-
-
-def _extract_moderator_intervention_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract moderator intervention event data from node output."""
-    return extract_with_root_transform(output, MODERATOR_INTERVENTION_EXTRACTORS)
-
-
-def _extract_convergence_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract convergence event data from node output."""
-    return extract_with_root_transform(output, CONVERGENCE_EXTRACTORS)
-
-
-def _extract_voting_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract voting event data from node output."""
-    return extract_with_root_transform(output, VOTING_EXTRACTORS)
-
-
-def _extract_synthesis_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract synthesis event data from node output."""
-    return extract_with_root_transform(output, SYNTHESIS_EXTRACTORS)
-
-
-def _extract_meta_synthesis_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract meta-synthesis event data from node output."""
-    return extract_with_root_transform(output, META_SYNTHESIS_EXTRACTORS)
-
-
-def _extract_subproblem_started_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract subproblem started event data from node output."""
-    return extract_with_root_transform(output, SUBPROBLEM_STARTED_EXTRACTORS)
-
-
-def _extract_subproblem_complete_data(output: dict[str, Any], redis_client: Any) -> dict[str, Any]:
-    """Extract subproblem complete event data from node output.
-
-    Note: redis_client parameter kept for backward compatibility but not used.
-    """
-    return extract_with_root_transform(output, SUBPROBLEM_COMPLETE_EXTRACTORS)
-
-
-def _extract_completion_data(output: dict[str, Any]) -> dict[str, Any]:
-    """Extract completion event data from final state."""
-    return extract_with_root_transform(output, COMPLETION_EXTRACTORS)
 
 
 class EventCollector:
@@ -129,18 +52,31 @@ class EventCollector:
         session_id: str,
         output: dict[str, Any],
         event_type: str,
-        extractor: Callable[[dict[str, Any]], dict[str, Any]],
+        registry_key: str | None = None,
     ) -> None:
-        """Generic event publisher with custom extraction logic.
+        """Generic event publisher using event extractor registry.
 
         Args:
             session_id: Session identifier
             output: Raw node output dictionary
-            event_type: Event type for SSE
-            extractor: Function to extract event data from output
+            event_type: Event type for SSE (e.g., 'decomposition_complete')
+            registry_key: Key to look up in event registry (defaults to event_type with suffixes removed)
+
+        Note:
+            This method uses the EventExtractorRegistry to look up the appropriate
+            extractor configuration. If registry_key is not provided, it derives the
+            key from event_type by removing common suffixes (_complete, _started, etc.)
         """
         try:
-            data = extractor(output)
+            # Derive registry key from event_type if not provided
+            if registry_key is None:
+                # Strip common suffixes to get base event type
+                registry_key = event_type.replace("_complete", "").replace("_started", "")
+
+            # Get registry and extract data
+            registry = get_event_registry()
+            data = registry.extract(registry_key, output)
+
             if data:  # Only publish if extractor returned data
                 self.publisher.publish_event(session_id, event_type, data)
         except Exception as e:
@@ -241,9 +177,7 @@ class EventCollector:
 
     async def _handle_decomposition(self, session_id: str, output: dict) -> None:
         """Handle decompose node completion."""
-        await self._publish_node_event(
-            session_id, output, "decomposition_complete", _extract_decomposition_data
-        )
+        await self._publish_node_event(session_id, output, "decomposition_complete")
 
     async def _handle_persona_selection(self, session_id: str, output: dict) -> None:
         """Handle select_personas node completion - publishes multiple events."""
@@ -289,12 +223,11 @@ class EventCollector:
             )
 
         # Publish persona selection complete event
-        await self._publish_node_event(
-            session_id, output, "persona_selection_complete", _extract_persona_selection_data
-        )
+        await self._publish_node_event(session_id, output, "persona_selection_complete")
 
         # Store start timestamp and publish subproblem_started if multi-subproblem scenario
-        subproblem_data = _extract_subproblem_started_data(output)
+        registry = get_event_registry()
+        subproblem_data = registry.extract("subproblem_started", output)
         if subproblem_data:
             from datetime import UTC, datetime
 
@@ -323,9 +256,7 @@ class EventCollector:
 
     async def _handle_facilitator_decision(self, session_id: str, output: dict) -> None:
         """Handle facilitator_decide node completion."""
-        await self._publish_node_event(
-            session_id, output, "facilitator_decision", _extract_facilitator_decision_data
-        )
+        await self._publish_node_event(session_id, output, "facilitator_decision")
 
     async def _handle_contribution(self, session_id: str, output: dict) -> None:
         """Handle persona_contribute node completion.
@@ -346,23 +277,19 @@ class EventCollector:
 
     async def _handle_moderator(self, session_id: str, output: dict) -> None:
         """Handle moderator_intervene node completion."""
-        await self._publish_node_event(
-            session_id, output, "moderator_intervention", _extract_moderator_intervention_data
-        )
+        await self._publish_node_event(session_id, output, "moderator_intervention")
 
     async def _handle_convergence(self, session_id: str, output: dict) -> None:
         """Handle check_convergence node completion."""
-        await self._publish_node_event(session_id, output, "convergence", _extract_convergence_data)
+        await self._publish_node_event(session_id, output, "convergence")
 
     async def _handle_voting(self, session_id: str, output: dict) -> None:
         """Handle vote node completion."""
-        await self._publish_node_event(session_id, output, "voting_complete", _extract_voting_data)
+        await self._publish_node_event(session_id, output, "voting_complete", registry_key="voting")
 
     async def _handle_synthesis(self, session_id: str, output: dict) -> None:
         """Handle synthesize node completion."""
-        await self._publish_node_event(
-            session_id, output, "synthesis_complete", _extract_synthesis_data
-        )
+        await self._publish_node_event(session_id, output, "synthesis_complete")
 
     async def _handle_subproblem_complete(self, session_id: str, output: dict) -> None:
         """Handle next_subproblem node completion - includes duration calculation."""
@@ -371,8 +298,9 @@ class EventCollector:
         if not sub_problem_results:
             return
 
-        # Extract data using extractor
-        data = _extract_subproblem_complete_data(output, self.publisher.redis)
+        # Extract data using registry
+        registry = get_event_registry()
+        data = registry.extract("subproblem_complete", output)
 
         # Calculate actual duration if we have start time
         completed_index = data["sub_problem_index"]
@@ -394,9 +322,7 @@ class EventCollector:
 
     async def _handle_meta_synthesis(self, session_id: str, output: dict) -> None:
         """Handle meta_synthesize node completion."""
-        await self._publish_node_event(
-            session_id, output, "meta_synthesis_complete", _extract_meta_synthesis_data
-        )
+        await self._publish_node_event(session_id, output, "meta_synthesis_complete")
 
     async def _handle_completion(self, session_id: str, final_state: dict) -> None:
         """Handle deliberation completion - publishes cost breakdown and completion events."""
@@ -421,7 +347,8 @@ class EventCollector:
             )
 
         # Publish completion event
-        completion_data = _extract_completion_data(final_state)
+        registry = get_event_registry()
+        completion_data = registry.extract("completion", final_state)
         completion_data["session_id"] = session_id  # Ensure session_id is present
         self.publisher.publish_event(session_id, "complete", completion_data)
 

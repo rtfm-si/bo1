@@ -49,17 +49,25 @@
 		'expert_panel': () => import('$lib/components/events/ExpertPanel.svelte'),
 	};
 
-	// Cache loaded components to avoid re-importing
+	// Cache loaded components to avoid re-importing (LRU with bounded size)
+	const MAX_CACHED_COMPONENTS = 20;
 	const componentCache = new Map<string, SvelteComponent>();
 
 	/**
 	 * Get component for event type with dynamic loading.
 	 * Returns GenericEvent as fallback for unknown types.
+	 *
+	 * Uses LRU (Least Recently Used) cache eviction strategy to prevent unbounded memory growth.
+	 * Cache is limited to MAX_CACHED_COMPONENTS (20) entries.
 	 */
 	async function getComponentForEvent(eventType: string): Promise<SvelteComponent> {
-		// Check cache first
+		// Check cache first (LRU: move to end)
 		if (componentCache.has(eventType)) {
-			return componentCache.get(eventType)!;
+			const component = componentCache.get(eventType)!;
+			// Move to end (most recently used) for LRU eviction
+			componentCache.delete(eventType);
+			componentCache.set(eventType, component);
+			return component;
 		}
 
 		// Load component
@@ -72,6 +80,15 @@
 		try {
 			const module = await loader();
 			const component = module.default;
+
+			// Enforce max size (evict oldest/least recently used)
+			if (componentCache.size >= MAX_CACHED_COMPONENTS) {
+				const firstKey = componentCache.keys().next().value;
+				if (firstKey) {
+					componentCache.delete(firstKey);
+					console.debug(`LRU cache eviction: removed ${firstKey} component`);
+				}
+			}
 
 			// Cache for future use
 			componentCache.set(eventType, component);

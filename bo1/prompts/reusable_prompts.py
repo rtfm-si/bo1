@@ -185,13 +185,15 @@ Current phase: {current_phase}
 {phase_objectives}
 </phase_objectives>
 
+{rotation_guidance}
+
 <thinking>
 Analyze the discussion:
 1. What key themes or insights have emerged?
 2. What disagreements or tensions exist?
 3. What critical aspects haven't been addressed yet?
 4. Is there sufficient depth for this phase, or do we need more discussion?
-5. If continuing: Who should speak next and why?
+5. If continuing: Who should speak next and why? (Consider rotation guidelines)
 6. If transitioning: What should we move to?
 </thinking>
 
@@ -1052,13 +1054,62 @@ You are {{persona_name}}, participating in this deliberation. Please provide you
 
 
 def compose_facilitator_prompt(
-    current_phase: str, discussion_history: str, phase_objectives: str
+    current_phase: str,
+    discussion_history: str,
+    phase_objectives: str,
+    contribution_counts: dict[str, int] | None = None,
+    last_speakers: list[str] | None = None,
 ) -> str:
-    """Compose facilitator decision prompt."""
+    """Compose facilitator decision prompt with rotation guidance.
+
+    Args:
+        current_phase: Current deliberation phase
+        discussion_history: Formatted discussion history
+        phase_objectives: Objectives for current phase
+        contribution_counts: Dictionary mapping persona_code to contribution count
+        last_speakers: List of last N speakers (most recent first)
+
+    Returns:
+        Complete facilitator prompt with rotation guidance
+    """
+    # Build rotation guidance if stats provided
+    rotation_guidance = ""
+    if contribution_counts:
+        # Build contribution summary
+        contrib_summary = "\n".join(
+            [
+                f"- {persona}: {count} contribution(s)"
+                for persona, count in sorted(
+                    contribution_counts.items(), key=lambda x: x[1], reverse=True
+                )
+            ]
+        )
+
+        last_speakers_text = ", ".join(last_speakers[-3:]) if last_speakers else "None"
+
+        rotation_guidance = f"""
+<rotation_guidance>
+IMPORTANT: Ensure diverse perspectives by rotating speakers.
+
+Current contribution counts:
+{contrib_summary}
+
+Last 3 speakers: {last_speakers_text}
+
+ROTATION GUIDELINES:
+- Strongly prefer personas who have spoken LESS (balance the panel)
+- Avoid selecting the same persona twice in a row
+- If someone has spoken 2+ more times than others, pick someone else
+- Exception: Only pick the same speaker if they're uniquely qualified AND addressing a critical gap
+- Goal: All personas should contribute at least once before anyone speaks twice
+</rotation_guidance>
+"""
+
     return FACILITATOR_SYSTEM_TEMPLATE.format(
         current_phase=current_phase,
         discussion_history=discussion_history,
         phase_objectives=phase_objectives,
+        rotation_guidance=rotation_guidance,
         security_protocol=SECURITY_PROTOCOL,
     )
 

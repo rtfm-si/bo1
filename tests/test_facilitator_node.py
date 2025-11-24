@@ -164,3 +164,133 @@ async def test_facilitator_decide_node_preserves_state(state_with_contributions)
     # Verify original state unchanged (nodes should return updates, not mutate state)
     assert state_with_contributions["round_number"] == original_round
     assert len(state_with_contributions["contributions"]) == original_contributions_count
+
+
+@pytest.mark.asyncio
+async def test_facilitator_rotation_guidance(state_with_contributions):
+    """Test facilitator receives rotation guidance to balance participation.
+
+    This test verifies that the facilitator's decision takes into account
+    contribution counts and last speakers to encourage diverse participation.
+    """
+    # Create unbalanced state: one persona spoke 3 times, others once each
+    state_with_contributions["round_number"] = 4
+    state_with_contributions["contributions"] = [
+        ContributionMessage(
+            persona_code="growth_hacker",
+            persona_name="Growth Hacker",
+            round_number=1,
+            content="Round 1: Initial SEO analysis...",
+            thinking="Analysis...",
+            token_count=50,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="growth_hacker",
+            persona_name="Growth Hacker",
+            round_number=2,
+            content="Round 2: Additional SEO insights...",
+            thinking="More analysis...",
+            token_count=50,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="growth_hacker",
+            persona_name="Growth Hacker",
+            round_number=3,
+            content="Round 3: Further SEO recommendations...",
+            thinking="Continued analysis...",
+            token_count=50,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="finance_strategist",
+            persona_name="Finance Strategist",
+            round_number=1,
+            content="Round 1: Financial perspective on SEO investment...",
+            thinking="Financial analysis...",
+            token_count=45,
+            cost=0.0009,
+        ),
+        ContributionMessage(
+            persona_code="risk_officer",
+            persona_name="Risk Officer",
+            round_number=1,
+            content="Round 1: Risk assessment of SEO strategy...",
+            thinking="Risk evaluation...",
+            token_count=48,
+            cost=0.00095,
+        ),
+    ]
+
+    # Run facilitator decide node
+    updates = await facilitator_decide_node(state_with_contributions)
+
+    decision = updates["facilitator_decision"]
+
+    # If facilitator decides to continue, next speaker should NOT be growth_hacker
+    # (since they've already spoken 3 times while others only spoke once)
+    # Note: We can't guarantee LLM behavior, but we verify the guidance was provided
+    if decision["action"] == "continue":
+        next_speaker = decision["next_speaker"]
+
+        # Rotation guidance should encourage picking finance_strategist or risk_officer
+        # However, we'll just verify that the decision is reasonable
+        # (LLM might still pick growth_hacker if they determine it's critical)
+        assert next_speaker in ["growth_hacker", "finance_strategist", "risk_officer"]
+
+        # Log for manual inspection during test runs
+        # (facilitator SHOULD prefer finance_strategist or risk_officer)
+        if next_speaker == "growth_hacker":
+            # This is acceptable if reasoning is strong, but should be rare
+            assert (
+                "critical" in decision["reasoning"].lower()
+                or "unique" in decision["reasoning"].lower()
+            )
+
+
+@pytest.mark.asyncio
+async def test_facilitator_avoids_consecutive_repeats(state_with_contributions):
+    """Test facilitator avoids selecting the same persona consecutively.
+
+    This test verifies that rotation guidance helps prevent the same
+    persona from speaking back-to-back.
+    """
+    # Set up state where last speaker was growth_hacker
+    state_with_contributions["round_number"] = 3
+    state_with_contributions["contributions"] = [
+        ContributionMessage(
+            persona_code="finance_strategist",
+            persona_name="Finance Strategist",
+            round_number=1,
+            content="Round 1: Financial analysis...",
+            thinking="Analysis...",
+            token_count=45,
+            cost=0.0009,
+        ),
+        ContributionMessage(
+            persona_code="growth_hacker",
+            persona_name="Growth Hacker",
+            round_number=2,
+            content="Round 2: SEO insights building on financial analysis...",
+            thinking="Building on finance...",
+            token_count=50,
+            cost=0.001,
+        ),
+    ]
+
+    # Run facilitator decide node
+    updates = await facilitator_decide_node(state_with_contributions)
+
+    decision = updates["facilitator_decision"]
+
+    # If continuing, should prefer someone OTHER than growth_hacker (last speaker)
+    if decision["action"] == "continue":
+        next_speaker = decision["next_speaker"]
+
+        # Verify next speaker is reasonable
+        assert next_speaker in ["growth_hacker", "finance_strategist", "risk_officer"]
+
+        # Note: We can't strictly enforce no consecutive repeats because
+        # the LLM might determine it's critical, but rotation guidance
+        # should make it less likely

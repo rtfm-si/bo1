@@ -177,11 +177,26 @@ class FacilitatorAgent(BaseAgent):
         # Build phase objectives
         phase_objectives = self._get_phase_objectives(state.phase, round_number, max_rounds)
 
-        # Compose facilitator prompt
+        # Compute contribution statistics for rotation guidance
+        contribution_counts: dict[str, int] = {}
+        last_speakers: list[str] = []
+
+        if state.contributions:
+            # Count contributions per persona
+            for contrib in state.contributions:
+                persona_code = contrib.persona_code
+                contribution_counts[persona_code] = contribution_counts.get(persona_code, 0) + 1
+
+            # Get last N speakers (most recent last)
+            last_speakers = [c.persona_code for c in state.contributions[-5:]]
+
+        # Compose facilitator prompt with rotation guidance
         system_prompt = compose_facilitator_prompt(
             current_phase=state.phase,
             discussion_history=discussion_history,
             phase_objectives=phase_objectives,
+            contribution_counts=contribution_counts if contribution_counts else None,
+            last_speakers=last_speakers if last_speakers else None,
         )
 
         # Build user message

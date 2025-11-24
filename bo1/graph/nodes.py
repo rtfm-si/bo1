@@ -10,7 +10,7 @@ from dataclasses import asdict
 from typing import Any
 
 from bo1.agents.decomposer import DecomposerAgent
-from bo1.agents.facilitator import FacilitatorAgent
+from bo1.agents.facilitator import FacilitatorAgent, FacilitatorDecision
 from bo1.agents.selector import PersonaSelectorAgent
 from bo1.graph.state import (
     DeliberationGraphState,
@@ -261,6 +261,42 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         round_number=round_number,
         max_rounds=max_rounds,
     )
+
+    # SAFETY CHECK: Prevent premature voting (Bug #3 fix)
+    # Override facilitator if trying to vote before minimum rounds
+    min_rounds_before_voting = 3
+    if decision.action == "vote" and round_number < min_rounds_before_voting:
+        logger.warning(
+            f"Facilitator attempted to vote at round {round_number} (min: {min_rounds_before_voting}). "
+            f"Overriding to 'continue' for deeper exploration."
+        )
+
+        # Override decision to continue
+        # Select a persona who hasn't spoken much
+        personas = state.get("personas", [])
+        contributions = state.get("contributions", [])
+
+        # Count contributions per persona
+        contribution_counts: dict[str, int] = {}
+        for contrib in contributions:
+            persona_code = contrib.persona_code
+            contribution_counts[persona_code] = contribution_counts.get(persona_code, 0) + 1
+
+        # Find persona with fewest contributions
+        min_contributions = min(contribution_counts.values()) if contribution_counts else 0
+        candidates = [
+            p.code for p in personas if contribution_counts.get(p.code, 0) == min_contributions
+        ]
+
+        next_speaker = candidates[0] if candidates else personas[0].code if personas else "unknown"
+
+        # Override decision
+        decision = FacilitatorDecision(
+            action="continue",
+            reasoning=f"Overridden: Minimum {min_rounds_before_voting} rounds required before voting. Need deeper exploration.",
+            next_speaker=next_speaker,
+            speaker_prompt="Build on the discussion so far and add depth to the analysis.",
+        )
 
     # Track cost in metrics (if LLM was called)
     metrics = ensure_metrics(state)
@@ -677,8 +713,6 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     from bo1.agents.summarizer import SummarizerAgent
     from bo1.models.state import SubProblemResult
 
-    logger.info("next_subproblem_node: Saving sub-problem result and moving to next")
-
     # Extract current sub-problem data
     current_sp = state.get("current_sub_problem")
     problem = state.get("problem")
@@ -688,6 +722,13 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     synthesis = state.get("synthesis", "")
     metrics = state.get("metrics")
     sub_problem_index = state.get("sub_problem_index", 0)
+
+    # Enhanced logging for sub-problem progression (Bug #3 fix)
+    total_sub_problems = len(problem.sub_problems) if problem else 0
+    logger.info(
+        f"next_subproblem_node: Saving result for sub-problem {sub_problem_index + 1}/{total_sub_problems}: "
+        f"{current_sp.goal if current_sp else 'unknown'}"
+    )
 
     if not current_sp:
         raise ValueError("next_subproblem_node called without current_sub_problem")

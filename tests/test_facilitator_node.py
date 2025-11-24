@@ -294,3 +294,92 @@ async def test_facilitator_avoids_consecutive_repeats(state_with_contributions):
         # Note: We can't strictly enforce no consecutive repeats because
         # the LLM might determine it's critical, but rotation guidance
         # should make it less likely
+
+
+@pytest.mark.asyncio
+async def test_facilitator_prevents_premature_voting(state_with_contributions):
+    """Test that facilitator is prevented from voting before minimum rounds.
+
+    This test verifies Bug #3 fix: preventing premature voting that
+    causes shallow deliberations and incomplete sub-problem coverage.
+    """
+    # Set up state at round 2 (before minimum of 3)
+    state_with_contributions["round_number"] = 2
+    state_with_contributions["max_rounds"] = 10
+
+    # Add contributions to make it look like discussion is converging
+    # (but still too early to vote)
+    state_with_contributions["contributions"] = [
+        ContributionMessage(
+            persona_code="growth_hacker",
+            persona_name="Growth Hacker",
+            round_number=1,
+            content="Round 1: SEO is the best approach...",
+            thinking="Analysis...",
+            token_count=50,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="finance_strategist",
+            persona_name="Finance Strategist",
+            round_number=2,
+            content="Round 2: I agree, SEO makes financial sense...",
+            thinking="Financial perspective...",
+            token_count=48,
+            cost=0.0009,
+        ),
+    ]
+
+    # Run facilitator decide node
+    updates = await facilitator_decide_node(state_with_contributions)
+
+    decision = updates["facilitator_decision"]
+
+    # Even if facilitator tried to vote, system should override to "continue"
+    # (minimum 3 rounds required before voting)
+    assert decision["action"] in ["continue", "moderator", "research"]
+
+    # If the decision was "continue", verify it's reasonable
+    if decision["action"] == "continue":
+        assert decision["next_speaker"] in ["growth_hacker", "finance_strategist", "risk_officer"]
+
+
+@pytest.mark.asyncio
+async def test_facilitator_allows_voting_after_minimum_rounds(state_with_contributions):
+    """Test that facilitator can vote after minimum rounds threshold."""
+    # Set up state at round 4 (after minimum of 3)
+    state_with_contributions["round_number"] = 4
+    state_with_contributions["max_rounds"] = 10
+
+    # Add substantial contributions showing depth
+    for i in range(1, 5):
+        state_with_contributions["contributions"].extend(
+            [
+                ContributionMessage(
+                    persona_code="growth_hacker",
+                    persona_name="Growth Hacker",
+                    round_number=i,
+                    content=f"Round {i}: SEO analysis point {i}...",
+                    thinking=f"Round {i} thinking...",
+                    token_count=50,
+                    cost=0.001,
+                ),
+                ContributionMessage(
+                    persona_code="finance_strategist",
+                    persona_name="Finance Strategist",
+                    round_number=i,
+                    content=f"Round {i}: Financial perspective {i}...",
+                    thinking=f"Round {i} financial analysis...",
+                    token_count=48,
+                    cost=0.0009,
+                ),
+            ]
+        )
+
+    # Run facilitator decide node
+    updates = await facilitator_decide_node(state_with_contributions)
+
+    decision = updates["facilitator_decision"]
+
+    # After round 4, facilitator can choose any action including voting
+    assert decision["action"] in ["continue", "vote", "moderator", "research"]

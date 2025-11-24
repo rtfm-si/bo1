@@ -205,10 +205,18 @@ OPTION A - Continue Discussion
 - Reason: [Why this persona should contribute now]
 - Prompt: [Specific question or focus for them]
 
-OPTION B - Transition to Next Phase
+OPTION B - Transition to Next Phase (Voting)
+CRITICAL: DO NOT select this option unless:
+1. At least 3 rounds have occurred (minimum depth requirement)
+2. All personas have had opportunity to contribute
+3. Key tensions or alternatives have been discussed
+4. Clear consensus or well-defined tradeoffs have emerged
+
+Early voting (rounds 1-2) produces shallow recommendations. Explore the problem space first.
+
 - Summary: [Key insights from current phase]
 - Reason: [Why we're ready to move on]
-- Next phase: [PHASE_NAME]
+- Next phase: voting
 
 OPTION C - Invoke Research Tool
 - Information needed: [What we need to know]

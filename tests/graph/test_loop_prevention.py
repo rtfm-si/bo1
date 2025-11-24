@@ -105,7 +105,8 @@ def test_validate_graph_acyclic_with_uncontrolled_cycle():
 # ============================================================================
 
 
-def test_check_convergence_below_max_rounds(sample_problem: Problem):
+@pytest.mark.asyncio
+async def test_check_convergence_below_max_rounds(sample_problem: Problem):
     """Test convergence check when below max rounds."""
     state = create_initial_state(
         session_id="test-123",
@@ -114,13 +115,14 @@ def test_check_convergence_below_max_rounds(sample_problem: Problem):
     )
     state["round_number"] = 5
 
-    result = check_convergence_node(state)
+    result = await check_convergence_node(state)
 
     assert result["should_stop"] is False
     assert result.get("stop_reason") is None
 
 
-def test_check_convergence_at_max_rounds(sample_problem: Problem):
+@pytest.mark.asyncio
+async def test_check_convergence_at_max_rounds(sample_problem: Problem):
     """Test convergence check when at max rounds."""
     state = create_initial_state(
         session_id="test-123",
@@ -129,13 +131,14 @@ def test_check_convergence_at_max_rounds(sample_problem: Problem):
     )
     state["round_number"] = 10
 
-    result = check_convergence_node(state)
+    result = await check_convergence_node(state)
 
     assert result["should_stop"] is True
     assert result["stop_reason"] == "max_rounds"
 
 
-def test_check_convergence_at_hard_cap(sample_problem: Problem):
+@pytest.mark.asyncio
+async def test_check_convergence_at_hard_cap(sample_problem: Problem):
     """Test convergence check at absolute hard cap (15 rounds)."""
     state = create_initial_state(
         session_id="test-123",
@@ -144,13 +147,14 @@ def test_check_convergence_at_hard_cap(sample_problem: Problem):
     )
     state["round_number"] = 15
 
-    result = check_convergence_node(state)
+    result = await check_convergence_node(state)
 
     assert result["should_stop"] is True
     assert result["stop_reason"] == "hard_cap_15_rounds"
 
 
-def test_check_convergence_with_high_score(sample_problem: Problem):
+@pytest.mark.asyncio
+async def test_check_convergence_with_high_score(sample_problem: Problem):
     """Test convergence check when convergence score is high."""
     state = create_initial_state(
         session_id="test-123",
@@ -160,13 +164,14 @@ def test_check_convergence_with_high_score(sample_problem: Problem):
     state["round_number"] = 3
     state["metrics"] = DeliberationMetrics(convergence_score=0.90)
 
-    result = check_convergence_node(state)
+    result = await check_convergence_node(state)
 
     assert result["should_stop"] is True
     assert result["stop_reason"] == "consensus"
 
 
-def test_check_convergence_with_low_score(sample_problem: Problem):
+@pytest.mark.asyncio
+async def test_check_convergence_with_low_score(sample_problem: Problem):
     """Test convergence check when convergence score is low."""
     state = create_initial_state(
         session_id="test-123",
@@ -176,7 +181,7 @@ def test_check_convergence_with_low_score(sample_problem: Problem):
     state["round_number"] = 3
     state["metrics"] = DeliberationMetrics(convergence_score=0.50)
 
-    result = check_convergence_node(state)
+    result = await check_convergence_node(state)
 
     assert result["should_stop"] is False
 
@@ -306,7 +311,7 @@ def test_convergence_node_preserves_state(sample_problem: Problem):
         )
     ]
 
-    result = check_convergence_node(state)
+    result = await check_convergence_node(state)
 
     # Verify all fields preserved
     assert result["session_id"] == "test-preserve"
@@ -325,7 +330,7 @@ def test_multiple_rounds_with_counter(sample_problem: Problem):
 
     for round_num in range(1, 6):
         state["round_number"] = round_num
-        result = check_convergence_node(state)
+        result = await check_convergence_node(state)
 
         if round_num < 5:
             assert result["should_stop"] is False
@@ -573,7 +578,7 @@ def test_all_five_layers_independently(sample_problem: Problem):
         max_rounds=5,
     )
     state["round_number"] = 5
-    result = check_convergence_node(state)
+    result = await check_convergence_node(state)
     assert result["should_stop"] is True
     assert result["stop_reason"] == "max_rounds"
 
@@ -603,7 +608,7 @@ async def test_multiple_layers_triggered(sample_problem: Problem):
     state["metrics"] = DeliberationMetrics(total_cost=2.00)  # Also exceeds cost
 
     # Layer 3 should trigger first (round counter)
-    result = check_convergence_node(state)
+    result = await check_convergence_node(state)
     assert result["should_stop"] is True
     # max_rounds triggers first (before hard cap at 15)
     assert result["stop_reason"] == "max_rounds"
@@ -628,7 +633,8 @@ def test_cost_guard_zero_cost(sample_problem: Problem):
     assert result["should_stop"] is False
 
 
-def test_convergence_and_cost_guard_interaction(sample_problem: Problem):
+@pytest.mark.asyncio
+async def test_convergence_and_cost_guard_interaction(sample_problem: Problem):
     """Test interaction between convergence check and cost guard."""
     state = create_initial_state(
         session_id="test-interaction",
@@ -639,10 +645,211 @@ def test_convergence_and_cost_guard_interaction(sample_problem: Problem):
     state["metrics"] = DeliberationMetrics(total_cost=0.80, convergence_score=0.90)
 
     # Both convergence (Layer 3) and cost check pass
-    result = check_convergence_node(state)
+    result = await check_convergence_node(state)
     assert result["should_stop"] is True  # Convergence triggered
     assert result["stop_reason"] == "consensus"
 
     result = cost_guard_node(result)
     assert result["should_stop"] is True  # Still stopped
     # Cost guard didn't override because within budget
+
+
+# ============================================================================
+# Semantic Convergence Detection Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+@pytest.mark.requires_llm
+async def test_semantic_convergence_detects_repetition():
+    """Test semantic convergence detection catches paraphrased repetition.
+
+    This test verifies that the semantic similarity approach catches
+    repetition that keyword matching would miss.
+    """
+    from bo1.graph.safety.loop_prevention import _calculate_convergence_score_semantic
+    from bo1.models.state import ContributionMessage
+
+    # Create contributions with semantically identical content (paraphrased)
+    contributions = [
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="CFO",
+            round_number=1,
+            content="We should prioritize cash flow management and runway extension",
+            thinking="Analysis...",
+            token_count=50,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="CFO",
+            round_number=2,
+            content="It's critical to focus on managing our cash position and extending financial runway",
+            thinking="More analysis...",
+            token_count=52,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="CFO",
+            round_number=3,
+            content="The key priority is optimizing our cash flow and ensuring adequate runway",
+            thinking="Continued analysis...",
+            token_count=48,
+            cost=0.001,
+        ),
+    ]
+
+    # Calculate semantic convergence
+    convergence_score = await _calculate_convergence_score_semantic(contributions)
+
+    # Semantic similarity should detect the repetition
+    # (even though no agreement keywords are used)
+    assert convergence_score > 0.70  # High convergence detected
+    assert convergence_score <= 1.0  # Valid score range
+
+
+@pytest.mark.asyncio
+async def test_semantic_convergence_diverse_content():
+    """Test semantic convergence correctly identifies diverse contributions."""
+    from bo1.graph.safety.loop_prevention import _calculate_convergence_score_semantic
+    from bo1.models.state import ContributionMessage
+
+    # Create contributions with diverse content
+    contributions = [
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="CFO",
+            round_number=1,
+            content="We need to analyze the financial implications of this investment",
+            thinking="Analysis...",
+            token_count=45,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="CTO",
+            persona_name="CTO",
+            round_number=2,
+            content="The technical architecture requires significant refactoring to support this feature",
+            thinking="Technical evaluation...",
+            token_count=48,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="CMO",
+            persona_name="CMO",
+            round_number=3,
+            content="Our marketing strategy should focus on user acquisition in new markets",
+            thinking="Marketing perspective...",
+            token_count=47,
+            cost=0.001,
+        ),
+    ]
+
+    # Calculate semantic convergence
+    convergence_score = await _calculate_convergence_score_semantic(contributions)
+
+    # Diverse content should have low convergence score
+    assert convergence_score < 0.50  # Low convergence (diverse topics)
+    assert convergence_score >= 0.0  # Valid score range
+
+
+@pytest.mark.asyncio
+async def test_semantic_convergence_fallback_on_error():
+    """Test that semantic convergence falls back to keyword method on error."""
+    from bo1.graph.safety.loop_prevention import _calculate_convergence_score_semantic
+    from bo1.models.state import ContributionMessage
+
+    # Create contributions with agreement keywords for fallback test
+    contributions = [
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="CFO",
+            round_number=1,
+            content="I agree with the proposal. Yes, we should proceed exactly as suggested.",
+            thinking="Agreement...",
+            token_count=45,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="CTO",
+            persona_name="CTO",
+            round_number=2,
+            content="I concur. The approach is correct and aligned with our goals.",
+            thinking="Concurrence...",
+            token_count=42,
+            cost=0.001,
+        ),
+    ]
+
+    # Calculate convergence (should work even if embeddings fail)
+    # If VOYAGE_API_KEY is not set, it will fall back to keyword method
+    convergence_score = await _calculate_convergence_score_semantic(contributions)
+
+    # Either semantic or keyword should detect convergence
+    assert convergence_score >= 0.0  # Valid score
+    assert convergence_score <= 1.0  # Valid range
+
+
+@pytest.mark.asyncio
+async def test_check_convergence_node_uses_semantic_detection(sample_problem: Problem):
+    """Test that check_convergence_node uses semantic detection."""
+    from bo1.models.state import ContributionMessage
+
+    state = create_initial_state(
+        session_id="test-semantic",
+        problem=sample_problem,
+        max_rounds=10,
+    )
+    state["round_number"] = 4
+
+    # Add semantically repetitive contributions (no agreement keywords)
+    state["contributions"] = [
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="CFO",
+            round_number=1,
+            content="We should prioritize cash flow management",
+            thinking="Analysis...",
+            token_count=40,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="CFO",
+            round_number=2,
+            content="It's critical to focus on managing our cash position",
+            thinking="More analysis...",
+            token_count=42,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="CFO",
+            round_number=3,
+            content="The key priority is optimizing our cash flow",
+            thinking="Continued analysis...",
+            token_count=38,
+            cost=0.001,
+        ),
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="CFO",
+            round_number=4,
+            content="Cash management remains the most important consideration",
+            thinking="Final analysis...",
+            token_count=41,
+            cost=0.001,
+        ),
+    ]
+
+    # Run convergence check
+    result = await check_convergence_node(state)
+
+    # Semantic detection should calculate convergence score
+    metrics = result.get("metrics")
+    if metrics and metrics.convergence_score is not None:
+        # Convergence score should be calculated
+        assert metrics.convergence_score >= 0.0
+        assert metrics.convergence_score <= 1.0

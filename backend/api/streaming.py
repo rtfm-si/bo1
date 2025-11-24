@@ -188,6 +188,10 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
             data.get("should_stop", False),
             data.get("stop_reason"),
             data.get("max_rounds", 10),
+            data.get("sub_problem_index", 0),
+            data.get("novelty_score"),
+            data.get("conflict_score"),
+            data.get("drift_events", 0),
         ),
         "round_started": lambda: events.round_started_event(
             session_id, data.get("round_number", 1)

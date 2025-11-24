@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { eventTokens } from '$lib/design/tokens';
 	import type { SSEEvent } from '$lib/api/sse-events';
+	import { Lightbulb, AlertTriangle, HelpCircle, Search } from 'lucide-svelte';
 
 	interface ExpertPerspectiveSummary {
 		looking_for: string;
@@ -14,6 +15,8 @@
 			data: {
 				persona_code: string;
 				persona_name: string;
+				archetype?: string;
+				domain_expertise?: string[];
 				content: string;
 				summary?: ExpertPerspectiveSummary;
 				round: number;
@@ -33,26 +36,15 @@
 <div class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors">
 	<!-- Expert Header -->
 	<div class="flex items-center justify-between mb-3">
-		<div class="flex items-center gap-3">
-			<!-- Contribution Type Badge (instead of redundant avatar) -->
-			<div class={[
-				"px-2.5 py-1 rounded-md text-xs font-medium",
-				event.data.contribution_type === 'research' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200' :
-				event.data.contribution_type === 'insight' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200' :
-				event.data.contribution_type === 'challenge' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200' :
-				event.data.contribution_type === 'synthesis' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200' :
-				'bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300'
-			].join(' ')}>
-				{event.data.contribution_type || 'Contribution'}
-			</div>
-			<div>
-				<h4 class="text-[1.25rem] font-medium leading-snug text-neutral-800 dark:text-neutral-100">
-					{event.data.persona_name}
-				</h4>
-				<p class="text-[0.75rem] font-normal leading-normal text-neutral-500 dark:text-neutral-400">
-					Round {event.data.round}
+		<div>
+			<h4 class="text-[1.25rem] font-medium leading-snug text-neutral-800 dark:text-neutral-100">
+				{event.data.persona_name}
+			</h4>
+			{#if event.data.archetype}
+				<p class="text-[0.8125rem] font-medium leading-normal text-neutral-700 dark:text-neutral-300">
+					{event.data.archetype}
 				</p>
-			</div>
+			{/if}
 		</div>
 
 		<!-- Expand toggle (only if summary exists) -->
@@ -72,7 +64,8 @@
 			<!-- Looking For -->
 			{#if event.data.summary.looking_for}
 				<div>
-					<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1">
+					<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1 flex items-center gap-1.5">
+						<Search size={14} class="text-blue-500 dark:text-blue-400" />
 						{eventTokens.insights.analyzing.label}
 					</p>
 					<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300">
@@ -84,7 +77,8 @@
 			<!-- Value Added -->
 			{#if event.data.summary.value_added}
 				<div>
-					<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1">
+					<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1 flex items-center gap-1.5">
+						<Lightbulb size={14} class="text-amber-500 dark:text-amber-400" />
 						{eventTokens.insights.insight.label}
 					</p>
 					<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300">
@@ -96,7 +90,8 @@
 			<!-- Concerns -->
 			{#if event.data.summary.concerns && event.data.summary.concerns.length > 0}
 				<div>
-					<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1">
+					<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1 flex items-center gap-1.5">
+						<AlertTriangle size={14} class="text-orange-500 dark:text-orange-400" />
 						{eventTokens.insights.concern.label}
 					</p>
 					<ul class="text-[0.875rem] text-neutral-700 dark:text-neutral-300 space-y-1">
@@ -113,7 +108,8 @@
 			<!-- Questions/Challenges -->
 			{#if event.data.summary.questions && event.data.summary.questions.length > 0}
 				<div>
-					<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1">
+					<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1 flex items-center gap-1.5">
+						<HelpCircle size={14} class="text-purple-500 dark:text-purple-400" />
 						{eventTokens.insights.question.label}
 					</p>
 					<ul class="text-[0.875rem] text-neutral-700 dark:text-neutral-300 space-y-1">

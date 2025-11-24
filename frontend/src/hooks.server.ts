@@ -28,6 +28,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 					: undefined,
 			});
 
+			console.log(`[SvelteKit Proxy] Response: ${response.status} ${response.statusText}`);
+
 			// Check if this is an SSE stream (text/event-stream)
 			const contentType = response.headers.get('content-type');
 			if (contentType && contentType.includes('text/event-stream')) {

@@ -190,6 +190,8 @@ app.add_middleware(
 )
 
 # Include routers
+# IMPORTANT: Register streaming router BEFORE sessions router to avoid
+# /{session_id} catch-all matching /{session_id}/stream
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(
     supertokens_routes.router, prefix="/api/auth", tags=["authentication"]
@@ -197,8 +199,8 @@ app.include_router(
 app.include_router(
     auth.router, prefix="/api/auth", tags=["authentication"]
 )  # Custom auth endpoints (e.g., /me)
-app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(streaming.router, prefix="/api", tags=["streaming"])
+app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(context.router, prefix="/api", tags=["context"])
 app.include_router(control.router, prefix="/api", tags=["deliberation-control"])
 app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])

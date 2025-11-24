@@ -7,7 +7,7 @@ and integrate them into the LangGraph execution model.
 import json
 import logging
 from dataclasses import asdict
-from typing import Any
+from typing import Any, Literal
 
 from bo1.agents.decomposer import DecomposerAgent
 from bo1.agents.facilitator import FacilitatorAgent, FacilitatorDecision
@@ -262,24 +262,16 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         max_rounds=max_rounds,
     )
 
-    # SAFETY CHECK: Prevent premature voting (Bug #3 fix) and fix research action
-    # Override facilitator if trying to vote before minimum rounds OR chose research (not implemented)
+    # SAFETY CHECK: Prevent premature voting (Bug #3 fix)
+    # Override facilitator if trying to vote before minimum rounds
+    # NOTE: Research action is now fully implemented and no longer overridden
     min_rounds_before_voting = 3
-    if (
-        decision.action == "vote" and round_number < min_rounds_before_voting
-    ) or decision.action == "research":
-        if decision.action == "vote":
-            logger.warning(
-                f"Facilitator attempted to vote at round {round_number} (min: {min_rounds_before_voting}). "
-                f"Overriding to 'continue' for deeper exploration."
-            )
-            override_reason = f"Overridden: Minimum {min_rounds_before_voting} rounds required before voting. Need deeper exploration."
-        else:  # research
-            logger.warning(
-                f"Facilitator requested research at round {round_number}. "
-                f"Research not implemented - overriding to 'continue' with next speaker."
-            )
-            override_reason = "Research requested but not yet implemented. Continuing deliberation with selected expert."
+    if decision.action == "vote" and round_number < min_rounds_before_voting:
+        logger.warning(
+            f"Facilitator attempted to vote at round {round_number} (min: {min_rounds_before_voting}). "
+            f"Overriding to 'continue' for deeper exploration."
+        )
+        override_reason = f"Overridden: Minimum {min_rounds_before_voting} rounds required before voting. Need deeper exploration."
 
         # Override decision to continue
         # Select a persona who hasn't spoken much
@@ -421,6 +413,19 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
     phase_key = f"round_{round_number}_deliberation"
     track_accumulated_cost(metrics, phase_key, llm_response)
 
+    # NEW: Drift detection
+    from bo1.graph.quality_metrics import detect_contribution_drift
+
+    contribution_text = contribution_msg.content
+    problem_statement = problem.description if problem else ""
+
+    if detect_contribution_drift(contribution_text, problem_statement):
+        # Increment drift counter
+        if not hasattr(metrics, "drift_events"):
+            metrics.drift_events = 0
+        metrics.drift_events += 1
+        logger.warning(f"Drift detected in contribution from {speaker_code}")
+
     # Add new contribution to state
     contributions.append(contribution_msg)
 
@@ -537,6 +542,96 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
         "metrics": metrics,
         "current_node": "moderator_intervene",
         "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
+    }
+
+
+async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Execute external research requested by facilitator.
+
+    Flow:
+    1. Extract research query from facilitator decision
+    2. Check semantic cache (PostgreSQL + Voyage embeddings)
+    3. If cache miss: Brave Search (default) or Tavily (premium) + summarization
+    4. Add research to deliberation context
+    5. Continue to next round with enriched context
+
+    Research Strategy:
+    - Default: Brave Search + Haiku (~$0.025/query) for facts/statistics
+    - Premium: Tavily ($0.001/query) for competitor/market/regulatory analysis
+
+    Args:
+        state: Current graph state
+
+    Returns:
+        State updates with research results
+    """
+    from bo1.agents.researcher import ResearcherAgent
+
+    # Extract research query from last facilitator decision
+    last_decision_reasoning = state.get("last_facilitator_reasoning", "")
+
+    # For now, use the facilitator's reasoning as the research query
+    # Future: Extract structured query from facilitator decision
+    research_query = f"Research needed: {last_decision_reasoning[:200]}"
+
+    if not last_decision_reasoning:
+        logger.warning("[RESEARCH] No facilitator reasoning found for research query")
+        return {"current_node": "research"}
+
+    logger.info(f"[RESEARCH] Query extracted: {research_query[:80]}...")
+
+    # Determine research depth based on keywords in reasoning
+    deep_keywords = ["competitor", "market", "landscape", "regulation", "policy", "analysis"]
+    research_depth: Literal["basic", "deep"] = (
+        "deep"
+        if any(keyword in last_decision_reasoning.lower() for keyword in deep_keywords)
+        else "basic"
+    )
+
+    logger.info(f"[RESEARCH] Depth: {research_depth}")
+
+    # Perform research (uses cache if available)
+    researcher = ResearcherAgent()
+    results = await researcher.research_questions(
+        questions=[
+            {
+                "question": research_query,
+                "priority": "CRITICAL",  # Facilitator-requested = always critical
+            }
+        ],
+        category="general",
+        research_depth=research_depth,
+    )
+
+    if not results:
+        logger.warning("[RESEARCH] No results returned")
+        return {"current_node": "research"}
+
+    result = results[0]
+
+    # Add to state context
+    research_results = state.get("research_results", [])
+    research_results.append(
+        {
+            "query": research_query,
+            "summary": result["summary"],
+            "sources": result.get("sources", []),
+            "cached": result.get("cached", False),
+            "cost": result.get("cost", 0.0),
+            "round": state.get("round_number", 0),
+            "depth": research_depth,
+        }
+    )
+
+    logger.info(
+        f"[RESEARCH] Complete - Cached: {result.get('cached', False)}, "
+        f"Depth: {research_depth}, Cost: ${result.get('cost', 0):.4f}"
+    )
+
+    return {
+        "research_results": research_results,
+        "current_node": "research",
+        "sub_problem_index": state.get("sub_problem_index", 0),
     }
 
 

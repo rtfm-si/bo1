@@ -190,6 +190,11 @@ export interface ConvergenceEvent extends SSEEvent {
 		stop_reason: string | null;
 		round: number;
 		max_rounds: number;
+		sub_problem_index: number;
+		// NEW: Quality metrics
+		novelty_score: number | null;
+		conflict_score: number | null;
+		drift_events: number;
 	};
 }
 

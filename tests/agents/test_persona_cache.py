@@ -199,8 +199,13 @@ async def test_persona_cache_disabled(redis_manager, monkeypatch):
     # Mock settings to disable cache
     from unittest.mock import Mock
 
+    mock_cache_config = Mock()
+    mock_cache_config.persona_cache_enabled = False
+    mock_cache_config.persona_cache_ttl_seconds = 604800  # 7 days
+    mock_cache_config.persona_cache_similarity_threshold = 0.90
+
     mock_settings = Mock()
-    mock_settings.enable_persona_selection_cache = False
+    mock_settings.cache = mock_cache_config
 
     monkeypatch.setattr("bo1.agents.persona_cache.get_settings", lambda: mock_settings)
 

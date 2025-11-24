@@ -302,6 +302,99 @@ current_round_contributions: list[dict]  # ~200 tokens each
 - **Problem drift detection**: #1 failure cause - check relevance every contribution
 - **Facilitator orchestration**: Sequential decisions (continue/vote/research/moderator/clarify)
 
+### Meeting Quality Assessment (NEW - January 2025)
+
+Board of One now includes **multi-dimensional quality metrics** to determine when to stop early vs. when to continue deliberation.
+
+**Core Metrics** (0-1 scale):
+- **Exploration Score (E_r)**: Coverage of 8 critical decision aspects
+  - 0.6+ required to end, 0.7+ = well explored
+  - Aspects: problem_clarity, objectives, options_alternatives, key_assumptions, risks_failure_modes, constraints, stakeholders_impact, dependencies_unknowns
+  - LLM-based Judge Agent classifies each aspect as: none (0.0), shallow (0.5), or deep (1.0)
+- **Convergence Score (C_r)**: Semantic agreement level (existing metric, enhanced)
+- **Focus Score (F_r)**: Continuous on-topic ratio (enhanced from binary drift detection)
+  - >0.80 = core focus, 0.60-0.80 = context, <0.60 = off-topic
+- **Meeting Completeness Index (M_r)**: Composite quality metric
+  - Formula: M_r = wE*E_r + wC*C_r + wF*F_r + wN*(1-N_r)
+  - 0.7+ = high quality (can recommend ending), <0.5 = needs more exploration
+
+**Multi-Criteria Stopping Rules**:
+1. **Cannot End Yet** (guardrails):
+   - Minimum rounds not met
+   - Exploration < 0.6 (missing critical aspects)
+   - Convergence < 0.6 (no agreement)
+   - Critical aspects (risks, objectives) not addressed
+2. **Recommend Ending** (quality threshold):
+   - M_r >= 0.7 (high completeness)
+   - Novelty low (repetition, nothing new)
+   - Sufficient exploration + convergence
+3. **Continue Targeted** (missing aspects):
+   - Premature consensus (high C_r, low E_r)
+   - Missing critical aspects → facilitator prompts
+   - Example: "We haven't discussed risks yet. What could go wrong?"
+
+**Meeting Types** (Tactical vs Strategic):
+- **Tactical** (bias to shorter, cheaper):
+  - Weights: 30% exploration, 40% convergence, 20% focus, 10% low-novelty
+  - Thresholds: E_min=0.5, C_min=0.65, M_target=0.65
+  - Max rounds: 7, for quick operational decisions
+- **Strategic** (bias to deeper exploration):
+  - Weights: 40% exploration, 30% convergence, 20% focus, 10% low-novelty
+  - Thresholds: E_min=0.65, C_min=0.55, M_target=0.72
+  - Max rounds: 10, for long-term strategic decisions
+- **Default** (balanced): 35/35/20/10 weights, M_target=0.70
+
+**Judge Agent** (LLM-based analyzer):
+- Uses Haiku 4.5 for cost efficiency (~$0.002-0.005 per call)
+- Analyzes contributions to assess aspect coverage depth
+- Prompt caching: 90% savings (problem statement + early rounds cached)
+- Fallback to keyword heuristics if LLM fails (70% accuracy)
+- Total overhead: ~$0.02-0.05 per 10-round deliberation
+
+**Cost Impact**:
+- Judge agent overhead: +$0.02-0.05 per deliberation
+- Offset by early stops: -$0.03-0.08 per deliberation (20-30% fewer rounds)
+- Net impact: Neutral to slightly cheaper
+- Expected: 20-30% reduction in average rounds for high-quality deliberations
+
+**Key Files**:
+- `bo1/models/state.py` - DeliberationMetrics with new quality fields
+- `bo1/graph/meeting_config.py` - Config system (tactical/strategic/default)
+- `bo1/agents/judge.py` - LLM-based Judge Agent
+- `bo1/graph/quality_metrics.py` - Exploration, focus, completeness calculations
+- `bo1/graph/safety/loop_prevention.py` - Enhanced convergence node with multi-criteria
+
+**Usage Example**:
+```python
+from bo1.graph.meeting_config import get_meeting_config
+from bo1.graph.quality_metrics import calculate_meeting_completeness_index
+
+# Get config based on problem type
+config = get_meeting_config(state)  # Auto-selects tactical vs strategic
+
+# Calculate meeting quality
+M_r = calculate_meeting_completeness_index(
+    exploration_score=0.68,
+    convergence_score=0.72,
+    focus_score=0.81,
+    novelty_score_recent=0.42,
+    weights=config.weights
+)
+
+if M_r >= 0.7:
+    print("Meeting quality high - ready to conclude")
+else:
+    print(f"Continue deliberation - quality at {M_r:.0%}")
+```
+
+**Facilitator Guidance**:
+When continuing with targeted focus, the system provides specific prompts:
+- "What are the top 3 risks if we proceed? What could go wrong?"
+- "Who will be affected by this decision? How will they be impacted?"
+- "What alternative approaches should we consider?"
+
+**Reference**: See `MEETING_CODIFICATION.md` for detailed framework and `MEETING_QUALITY_ENHANCEMENT.md` for implementation plan.
+
 ### Human-in-the-Loop Context Collection (Week 6)
 
 Board of One collects context at **3 strategic points** to improve deliberation quality:

@@ -123,13 +123,12 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         decomp_output = {"problem": problem}
         await event_collector._handle_decomposition(session_id, decomp_output)
 
-        # Verify decomposition events
-        events = capture.get_events(count=2)
-        assert len(events) == 2
-        assert events[0]["event_type"] == "decomposition_started"
-        assert events[1]["event_type"] == "decomposition_complete"
-        assert events[1]["data"]["count"] == 2
-        assert len(events[1]["data"]["sub_problems"]) == 2
+        # Verify decomposition event
+        events = capture.get_events(count=1)
+        assert len(events) == 1
+        assert events[0]["event_type"] == "decomposition_complete"
+        assert events[0]["data"]["count"] == 2
+        assert len(events[0]["data"]["sub_problems"]) == 2
 
         # ===================================================================
         # Phase 2: Persona Selection
@@ -160,15 +159,14 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         await event_collector._handle_persona_selection(session_id, persona_output)
 
         # Verify persona selection events
-        events = capture.get_events(count=4)  # started + 2 selected + complete
-        assert len(events) == 4
-        assert events[0]["event_type"] == "persona_selection_started"
+        events = capture.get_events(count=3)  # 2 selected + complete
+        assert len(events) == 3
+        assert events[0]["event_type"] == "persona_selected"
+        assert events[0]["data"]["persona"]["code"] == "CFO"
         assert events[1]["event_type"] == "persona_selected"
-        assert events[1]["data"]["persona"]["code"] == "CFO"
-        assert events[2]["event_type"] == "persona_selected"
-        assert events[2]["data"]["persona"]["code"] == "CTO"
-        assert events[3]["event_type"] == "persona_selection_complete"
-        assert events[3]["data"]["count"] == 2
+        assert events[1]["data"]["persona"]["code"] == "CTO"
+        assert events[2]["event_type"] == "persona_selection_complete"
+        assert events[2]["data"]["count"] == 2
 
         # ===================================================================
         # Phase 3: Initial Round
@@ -195,14 +193,12 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         await event_collector._handle_initial_round(session_id, initial_round_output)
 
         # Verify initial round events
-        events = capture.get_events(count=3)  # round_started + 2 contributions
-        assert len(events) == 3
-        assert events[0]["event_type"] == "initial_round_started"
-        assert "experts" in events[0]["data"]  # Check experts list exists
+        events = capture.get_events(count=2)  # 2 contributions
+        assert len(events) == 2
+        assert events[0]["event_type"] == "contribution"
+        assert events[0]["data"]["persona_code"] == "CFO"
         assert events[1]["event_type"] == "contribution"
-        assert events[1]["data"]["persona_code"] == "CFO"
-        assert events[2]["event_type"] == "contribution"
-        assert events[2]["data"]["persona_code"] == "CTO"
+        assert events[1]["data"]["persona_code"] == "CTO"
 
         # ===================================================================
         # Phase 4: Facilitator Decision
@@ -305,13 +301,10 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         # ===================================================================
         all_events = capture.events
         expected_event_types = [
-            "decomposition_started",
             "decomposition_complete",
-            "persona_selection_started",
             "persona_selected",
             "persona_selected",
             "persona_selection_complete",
-            "initial_round_started",
             "contribution",
             "contribution",
             "facilitator_decision",
@@ -391,6 +384,16 @@ async def test_subproblem_complete_event(redis_manager, event_collector):
     try:
         subproblem_output = {
             "sub_problem_index": 0,
+            "sub_problem_results": [
+                {
+                    "sub_problem_id": "sp1",
+                    "sub_problem_goal": "Assess ROI",
+                    "cost": 0.0452,
+                    "duration_seconds": 45.2,
+                    "expert_panel": ["CFO", "CTO"],
+                    "contribution_count": 12,
+                }
+            ],
             "current_sub_problem": {
                 "id": "sp1",
                 "goal": "Assess ROI",
@@ -441,13 +444,11 @@ async def test_meta_synthesis_events(redis_manager, event_collector):
 
         await event_collector._handle_meta_synthesis(session_id, meta_output)
 
-        events = capture.get_events(count=2)
-        assert len(events) == 2
-        assert events[0]["event_type"] == "meta_synthesis_started"
-        assert events[0]["data"]["sub_problem_count"] == 2
-        assert events[1]["event_type"] == "meta_synthesis_complete"
+        events = capture.get_events(count=1)
+        assert len(events) == 1
+        assert events[0]["event_type"] == "meta_synthesis_complete"
         assert (
-            events[1]["data"]["word_count"] == 4
+            events[0]["data"]["word_count"] == 4
         )  # "# Meta-Synthesis\n\nIntegrating insights..." = 4 words
 
     finally:

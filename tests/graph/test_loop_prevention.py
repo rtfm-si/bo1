@@ -290,7 +290,7 @@ def test_validate_round_counter_round_exceeds_max():
 # ============================================================================
 
 
-def test_convergence_node_preserves_state(sample_problem: Problem):
+async def test_convergence_node_preserves_state(sample_problem: Problem):
     """Test that convergence node preserves all state fields."""
     state = create_initial_state(
         session_id="test-preserve",
@@ -320,7 +320,7 @@ def test_convergence_node_preserves_state(sample_problem: Problem):
     assert result["round_number"] == 3
 
 
-def test_multiple_rounds_with_counter(sample_problem: Problem):
+async def test_multiple_rounds_with_counter(sample_problem: Problem):
     """Test multiple rounds with round counter incrementing."""
     state = create_initial_state(
         session_id="test-multi",
@@ -561,7 +561,7 @@ def test_route_cost_guard_exceeds_budget(sample_problem: Problem):
 # ============================================================================
 
 
-def test_all_five_layers_independently(sample_problem: Problem):
+async def test_all_five_layers_independently(sample_problem: Problem):
     """Test that all 5 layers can be activated independently."""
     # Layer 1: Recursion limit (constant check)
     assert DELIBERATION_RECURSION_LIMIT == 55

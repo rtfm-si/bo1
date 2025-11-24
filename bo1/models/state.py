@@ -14,6 +14,40 @@ from .problem import Problem, SubProblem
 from .types import OptionalScore
 
 
+class AspectCoverage(BaseModel):
+    """Coverage level for a critical decision aspect.
+
+    Used to track exploration depth across 8 critical aspects:
+    - problem_clarity, objectives, options_alternatives, key_assumptions
+    - risks_failure_modes, constraints, stakeholders_impact, dependencies_unknowns
+    """
+
+    name: str = Field(..., description="Aspect name (e.g., 'risks_failure_modes')")
+    level: str = Field(
+        ...,
+        description="Coverage level: 'none', 'shallow', or 'deep'",
+        pattern="^(none|shallow|deep)$",
+    )
+    notes: str = Field(default="", description="Explanation of coverage assessment")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "risks_failure_modes",
+                    "level": "deep",
+                    "notes": "Maria identified 3 major risks with mitigation strategies",
+                },
+                {
+                    "name": "stakeholders_impact",
+                    "level": "shallow",
+                    "notes": "Mentioned stakeholders but no detailed impact analysis",
+                },
+            ]
+        }
+    )
+
+
 class SubProblemResult(BaseModel):
     """Result of deliberating a single sub-problem."""
 
@@ -120,7 +154,13 @@ class ContributionMessage(BaseModel):
 
 
 class DeliberationMetrics(BaseModel):
-    """Metrics tracking for the deliberation."""
+    """Metrics tracking for the deliberation.
+
+    Includes both existing metrics (convergence, novelty, conflict) and new quality metrics:
+    - exploration_score: Coverage of 8 critical decision aspects (0-1)
+    - focus_score: Continuous on-topic ratio (0-1)
+    - meeting_completeness_index: Composite quality metric (0-1, 70%+ = high quality)
+    """
 
     total_cost: float = Field(default=0.0, description="Total cost in USD")
     total_tokens: int = Field(default=0, description="Total tokens used")
@@ -139,6 +179,24 @@ class DeliberationMetrics(BaseModel):
     )
     conflict_score: OptionalScore = Field(default=None, description="Level of disagreement (0-1)")
     drift_events: int = Field(default=0, description="Number of problem drift events detected")
+
+    # New quality metrics (Meeting Quality Enhancement)
+    exploration_score: OptionalScore = Field(
+        default=None,
+        description="Exploration coverage score (0-1). Measures depth of coverage across 8 critical aspects. 0.6+ required to end, 0.7+ = well explored",
+    )
+    focus_score: OptionalScore = Field(
+        default=None,
+        description="Focus score (0-1). Continuous on-topic ratio. >0.80 = core focus, 0.60-0.80 = context, <0.60 = drift",
+    )
+    meeting_completeness_index: OptionalScore = Field(
+        default=None,
+        description="Meeting completeness index (0-1). Composite quality metric: M_r = wE*E_r + wC*C_r + wF*F_r + wN*(1-N_r). 0.7+ = high quality, can recommend ending",
+    )
+    aspect_coverage: list[AspectCoverage] = Field(
+        default_factory=list,
+        description="Detailed coverage assessment for each of the 8 critical aspects",
+    )
 
 
 class DeliberationState(BaseModel):

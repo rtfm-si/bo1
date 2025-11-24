@@ -164,6 +164,10 @@ def convergence_event(
     should_stop: bool = False,
     stop_reason: str | None = None,
     max_rounds: int = 10,
+    sub_problem_index: int = 0,
+    novelty_score: float | None = None,
+    conflict_score: float | None = None,
+    drift_events: int = 0,
 ) -> str:
     """Create SSE event for convergence check result.
 
@@ -176,6 +180,10 @@ def convergence_event(
         should_stop: Whether deliberation should stop
         stop_reason: Optional reason for stopping
         max_rounds: Maximum number of rounds
+        sub_problem_index: Sub-problem index for tab filtering
+        novelty_score: Average novelty of recent contributions (0-1)
+        conflict_score: Level of disagreement between experts (0-1)
+        drift_events: Number of problem drift events detected
 
     Returns:
         SSE-formatted event string
@@ -191,6 +199,10 @@ def convergence_event(
             "should_stop": should_stop,
             "stop_reason": stop_reason,
             "max_rounds": max_rounds,
+            "sub_problem_index": sub_problem_index,
+            "novelty_score": novelty_score,
+            "conflict_score": conflict_score,
+            "drift_events": drift_events,
             "timestamp": datetime.now(UTC).isoformat(),
         },
     )
@@ -814,3 +826,57 @@ def phase_cost_breakdown_event(
             "timestamp": datetime.now(UTC).isoformat(),
         },
     )
+
+
+def quality_metrics_update_event(
+    session_id: str,
+    round_number: int,
+    exploration_score: float | None,
+    convergence_score: float | None,
+    focus_score: float | None,
+    novelty_score: float | None,
+    meeting_completeness_index: float | None,
+    missing_aspects: list[str] | None = None,
+    facilitator_guidance: str | None = None,
+) -> str:
+    """Create SSE event for meeting quality metrics update.
+
+    Args:
+        session_id: Session identifier
+        round_number: Current round number
+        exploration_score: Exploration coverage score (0-1)
+        convergence_score: Agreement/convergence score (0-1)
+        focus_score: On-topic ratio score (0-1)
+        novelty_score: Novelty/uniqueness score (0-1)
+        meeting_completeness_index: Composite quality metric (0-1)
+        missing_aspects: List of aspect names that are missing/shallow
+        facilitator_guidance: Guidance for next round (if any)
+
+    Returns:
+        SSE-formatted event string
+    """
+    data: dict[str, Any] = {
+        "session_id": session_id,
+        "round_number": round_number,
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
+
+    # Add scores (only if not None)
+    if exploration_score is not None:
+        data["exploration_score"] = round(exploration_score, 2)
+    if convergence_score is not None:
+        data["convergence_score"] = round(convergence_score, 2)
+    if focus_score is not None:
+        data["focus_score"] = round(focus_score, 2)
+    if novelty_score is not None:
+        data["novelty_score"] = round(novelty_score, 2)
+    if meeting_completeness_index is not None:
+        data["meeting_completeness_index"] = round(meeting_completeness_index, 2)
+
+    # Add missing aspects and guidance
+    if missing_aspects:
+        data["missing_aspects"] = missing_aspects
+    if facilitator_guidance:
+        data["facilitator_guidance"] = facilitator_guidance
+
+    return format_sse_event("quality_metrics_update", data)

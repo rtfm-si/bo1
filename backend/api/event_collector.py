@@ -84,7 +84,14 @@ class EventCollector:
                 sub_problem_index = output.get("sub_problem_index", 0)
                 data["sub_problem_index"] = sub_problem_index
 
+                logger.info(
+                    f"[EVENT DEBUG] Publishing {event_type} | data keys: {list(data.keys())}"
+                )
                 self.publisher.publish_event(session_id, event_type, data)
+            else:
+                logger.warning(
+                    f"[EVENT DEBUG] Extractor returned no data for {event_type} (registry_key={registry_key})"
+                )
         except Exception as e:
             logger.error(f"Failed to publish {event_type} for session {session_id}: {e}")
 
@@ -196,6 +203,11 @@ class EventCollector:
             persona_dict = {
                 "code": persona.code if hasattr(persona, "code") else persona.get("code"),
                 "name": persona.name if hasattr(persona, "name") else persona.get("name"),
+                "archetype": (
+                    persona.archetype
+                    if hasattr(persona, "archetype")
+                    else persona.get("archetype", "")
+                ),
                 "display_name": (
                     persona.display_name
                     if hasattr(persona, "display_name")
@@ -274,11 +286,12 @@ class EventCollector:
         contributions = output.get("contributions", [])
         round_number = output.get("round_number", 1)
         sub_problem_index = output.get("sub_problem_index", 0)
+        personas = output.get("personas", [])
 
         # Publish the newest contribution (last in list)
         if contributions:
             await self._publish_contribution(
-                session_id, contributions[-1], round_number, sub_problem_index
+                session_id, contributions[-1], round_number, sub_problem_index, personas
             )
 
     async def _handle_moderator(self, session_id: str, output: dict) -> None:
@@ -287,6 +300,12 @@ class EventCollector:
 
     async def _handle_convergence(self, session_id: str, output: dict) -> None:
         """Handle check_convergence node completion."""
+        logger.info(
+            f"[CONVERGENCE DEBUG] Handler called for session {session_id} | "
+            f"round={output.get('round_number')} | "
+            f"should_stop={output.get('should_stop')} | "
+            f"metrics={output.get('metrics')}"
+        )
         await self._publish_node_event(session_id, output, "convergence")
 
     async def _handle_voting(self, session_id: str, output: dict) -> None:
@@ -492,6 +511,7 @@ Be specific, extract concrete insights, avoid generic statements.
         contrib: dict,
         round_number: int,
         sub_problem_index: int = 0,
+        personas: list = None,
     ) -> None:
         """Publish a contribution event with AI summary.
 
@@ -500,6 +520,7 @@ Be specific, extract concrete insights, avoid generic statements.
             contrib: Contribution dict/object
             round_number: Current round number
             sub_problem_index: Sub-problem index for tab filtering
+            personas: List of personas for looking up domain expertise
         """
         # Extract contribution fields
         if hasattr(contrib, "persona_code"):
@@ -511,6 +532,25 @@ Be specific, extract concrete insights, avoid generic statements.
             persona_name = contrib.get("persona_name", "")
             content = contrib.get("content", "")
 
+        # Find matching persona to get domain_expertise and archetype (role)
+        domain_expertise = []
+        archetype = ""
+        if personas:
+            for persona in personas:
+                p_code = persona.code if hasattr(persona, "code") else persona.get("code")
+                if p_code == persona_code:
+                    domain_expertise = (
+                        persona.domain_expertise
+                        if hasattr(persona, "domain_expertise")
+                        else persona.get("domain_expertise", [])
+                    )
+                    archetype = (
+                        persona.archetype
+                        if hasattr(persona, "archetype")
+                        else persona.get("archetype", "")
+                    )
+                    break
+
         # Generate AI summary for better UX
         summary = await self._summarize_contribution(content, persona_name)
 
@@ -520,6 +560,8 @@ Be specific, extract concrete insights, avoid generic statements.
             {
                 "persona_code": persona_code,
                 "persona_name": persona_name,
+                "archetype": archetype,  # NEW: Expert's role/title (e.g., "Angel Investor")
+                "domain_expertise": domain_expertise,  # NEW: Expert's areas of expertise
                 "content": content,  # Keep full content for reference
                 "summary": summary,  # NEW: Structured summary for compact display
                 "round": round_number,

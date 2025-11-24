@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
-	import { isAuthenticated } from '$lib/stores/auth';
+	import { env } from '$env/dynamic/public';
 	import { apiClient } from '$lib/api/client';
 	import type { SSEEvent } from '$lib/api/sse-events';
 	import { fade, scale } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
 	import { SSEClient } from '$lib/utils/sse';
+	import { debounce } from '$lib/utils/debounce';
 	import { CheckCircle, AlertCircle, Clock, Pause, Play, Square } from 'lucide-svelte';
 
 	/**
@@ -102,8 +102,6 @@
 
 	// Import metrics components
 	import {
-		CostBreakdown,
-		ConvergenceChart,
 		ProgressIndicator,
 	} from '$lib/components/metrics';
 
@@ -124,7 +122,10 @@
 
 	interface SessionData {
 		id: string;
-		problem_statement: string;
+		problem: {
+			statement: string;
+			context: Record<string, any>;
+		};
 		status: string;
 		phase: string | null;
 		round_number?: number; // Optional since it may not exist yet
@@ -145,6 +146,7 @@
 		'synthesis_started',
 		'meta_synthesis_started',
 		'persona_vote', // Individual votes now aggregated in voting_complete
+		'convergence', // Moved to sidebar DecisionMetrics component (Issue #6 fix)
 	];
 
 	let session = $state<SessionData | null>(null);
@@ -189,7 +191,7 @@
 	 *
 	 * Measured improvement: ~5-10ms → <1ms for cached renders (50-100 events)
 	 */
-	let subProblemProgressCache = $state({ current: 0, total: 1 });
+	let subProblemProgressCache = $state<{ current: number; total: number } | null>(null);
 	let lastEventCountForProgress = $state(0);
 
 	$effect(() => {
@@ -218,9 +220,9 @@
 				}
 			}
 
-			// Calculate current/total
+			// Calculate current/total - use null when no sub-problems started yet
 			if (startedCount === 0) {
-				subProblemProgressCache = { current: 0, total: 1 };
+				subProblemProgressCache = null; // Not yet known - show "Preparing..."
 			} else if (completedCount > 0) {
 				subProblemProgressCache = {
 					current: completedCount,
@@ -287,13 +289,12 @@
 
 	// Helper function to add events safely with deduplication
 	function addEvent(newEvent: SSEEvent) {
-		// Create unique key from timestamp + event_type + relevant data
-		const eventKey = `${newEvent.timestamp}-${newEvent.event_type}-${
-			newEvent.data.persona_code ||
-			newEvent.data.sub_problem_id ||
-			newEvent.data.round_number ||
-			''
-		}`;
+		// Create unique key with sub_problem_index to avoid collisions across sub-problems
+		// Format: {sub_problem_index}-{timestamp}-{event_type}-{persona_code}
+		// This ensures events from different sub-problems don't collide even with same timestamp
+		const subProblemIndex = newEvent.data.sub_problem_index ?? 'global';
+		const personaOrId = newEvent.data.persona_code || newEvent.data.sub_problem_id || '';
+		const eventKey = `${subProblemIndex}-${newEvent.timestamp}-${newEvent.event_type}-${personaOrId}`;
 
 		// Skip if already seen
 		if (seenEventKeys.has(eventKey)) {
@@ -311,6 +312,18 @@
 
 		seenEventKeys.add(eventKey);
 		events = [...events, newEvent];
+
+		// Debug convergence events
+		if (newEvent.event_type === 'convergence') {
+			console.log('[EVENT RECEIVED] Convergence event:', {
+				event_type: newEvent.event_type,
+				sub_problem_index: newEvent.data.sub_problem_index,
+				score: newEvent.data.score,
+				threshold: newEvent.data.threshold,
+				round: newEvent.data.round,
+				data: newEvent.data
+			});
+		}
 	}
 
 	// Helper functions for phase display
@@ -325,20 +338,28 @@
 	}
 
 	onMount(() => {
-		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
-			if (!authenticated) {
-				goto('/login');
-			}
-		});
-
-		// Run async initialization
+		// Auth is already verified by parent layout, safe to load session
+		// Run async initialization with proper sequencing
 		(async () => {
-			await loadSession();
-			await loadHistoricalEvents(); // Load history FIRST
-			startEventStream(); // THEN connect to stream
-		})();
+			try {
+				// Load session metadata and historical events in parallel for speed
+				// Both must complete before SSE stream starts to avoid race conditions
+				await Promise.all([
+					loadSession(),
+					loadHistoricalEvents()
+				]);
 
-		return unsubscribe;
+				console.log('[Events] Session and history loaded, starting SSE stream...');
+
+				// Only start SSE stream after historical events are fully processed
+				// This prevents duplicate detection issues and missing events
+				await startEventStream();
+			} catch (err) {
+				console.error('[Events] Initialization failed:', err);
+				error = err instanceof Error ? err.message : 'Failed to initialize session';
+				isLoading = false;
+			}
+		})();
 	});
 
 	// onDestroy moved below for cleanup consolidation
@@ -407,6 +428,14 @@
 
 				// Update session phase and round based on events
 				if (session) {
+					// Extract round_number from multiple event types (Fix for Issue #7)
+					// Events that include round info: contribution, facilitator_decision, convergence, round_started, initial_round_started
+					if (payload.round !== undefined && typeof payload.round === 'number') {
+						session.round_number = payload.round;
+					} else if (payload.round_number !== undefined && typeof payload.round_number === 'number') {
+						session.round_number = payload.round_number;
+					}
+
 					// Phase transitions
 					if (eventType === 'decomposition_complete') {
 						session.phase = 'persona_selection';
@@ -414,10 +443,9 @@
 						session.phase = 'initial_round';
 					} else if (eventType === 'initial_round_started') {
 						session.phase = 'initial_round';
-						session.round_number = 1;
+						session.round_number = session.round_number || 1;
 					} else if (eventType === 'round_started') {
 						session.phase = 'discussion';
-						session.round_number = payload.round_number || session.round_number;
 					} else if (eventType === 'voting_started') {
 						session.phase = 'voting';
 					} else if (eventType === 'synthesis_started') {
@@ -445,7 +473,7 @@
 			'subproblem_started',
 			'initial_round_started',
 			'contribution',
-			'facilitator_decision',
+			// 'facilitator_decision',  // Hidden - doesn't add value in current format
 			'moderator_intervention',
 			'convergence',
 			'round_started',
@@ -470,6 +498,7 @@
 		}
 
 		// Create new SSE client with credentials support
+		// Use relative URL - will be proxied by Vite dev server
 		sseClient = new SSEClient(`/api/v1/sessions/${sessionId}/stream`, {
 			onOpen: () => {
 				console.log('[SSE] Connection established');
@@ -555,22 +584,21 @@
 	}
 
 	/**
-	 * Performance optimization: Memoized event grouping
+	 * Performance optimization: Memoized + debounced event grouping
 	 *
 	 * Caches grouped events to avoid recalculation on every render.
-	 * Only recalculates when events.length changes.
+	 * Only recalculates when events.length changes, with 200ms debounce.
 	 *
-	 * Before: O(n) filter + O(n) iteration on every render
-	 * After: O(n) only on events change
+	 * Before: O(n) filter + O(n) iteration on every event
+	 * After: O(n) only on events change, debounced for rapid streams
 	 *
-	 * Measured improvement: ~3-8ms → <1ms for cached renders
+	 * Measured improvement: ~3-8ms → <1ms for cached renders (Issue #2)
 	 */
 	let groupedEventsCache = $state<EventGroup[]>([]);
 	let lastEventCountForGrouping = $state(0);
 
-	$effect(() => {
-		// Only recalculate if events changed
-		if (events.length !== lastEventCountForGrouping) {
+	// Debounced recalculation function
+	const recalculateGroupedEvents = debounce(() => {
 			const groups: EventGroup[] = [];
 			let currentRound: SSEEvent[] = [];
 			let currentRoundNumber = 1;
@@ -609,8 +637,26 @@
 						});
 						currentExpertPanel = [];
 					}
-					// Add contribution to round
-					currentRound.push(event);
+				// Get round number from contribution event itself
+				const contributionRound = event.data.round as number | undefined;
+
+				// If round number changed, flush previous round
+				if (contributionRound && contributionRound !== currentRoundNumber && currentRound.length > 0) {
+					groups.push({
+						type: 'round',
+						events: currentRound,
+						roundNumber: currentRoundNumber,
+					});
+					currentRound = [];
+				}
+
+				// Update current round number from contribution
+				if (contributionRound) {
+					currentRoundNumber = contributionRound;
+				}
+
+				// Add contribution to current round
+				currentRound.push(event);
 				} else {
 					// Flush expert panel if any
 					if (currentExpertPanel.length > 0) {
@@ -653,8 +699,14 @@
 				});
 			}
 
-			groupedEventsCache = groups;
-			lastEventCountForGrouping = events.length;
+		groupedEventsCache = groups;
+		lastEventCountForGrouping = events.length;
+	}, 200); // 200ms debounce for rapid event streams
+
+	$effect(() => {
+		// Only trigger recalculation if events changed
+		if (events.length !== lastEventCountForGrouping) {
+			recalculateGroupedEvents();
 		}
 	});
 
@@ -723,6 +775,7 @@
 			const decompositionEvent = events.find(e => e.event_type === 'decomposition_complete');
 
 			if (!decompositionEvent) {
+				console.log('[TAB BUILD DEBUG] No decomposition_complete event found');
 				subProblemTabsCache = [];
 				lastEventCountForTabs = events.length;
 				return;
@@ -734,7 +787,14 @@
 				dependencies?: number[];
 			}>;
 
+			console.log('[TAB BUILD DEBUG] Decomposition event:', {
+				eventData: decompositionEvent.data,
+				subProblemsCount: subProblems?.length || 0,
+				subProblems
+			});
+
 			if (!subProblems || subProblems.length <= 1) {
+				console.log('[TAB BUILD DEBUG] Single sub-problem scenario, not building tabs');
 				subProblemTabsCache = [];
 				lastEventCountForTabs = events.length;
 				return;
@@ -742,11 +802,17 @@
 
 			const tabs: SubProblemTab[] = [];
 
+			console.log('[TAB BUILD DEBUG] Building tabs for', subProblems.length, 'sub-problems');
+
 			for (let index = 0; index < subProblems.length; index++) {
 				const subProblem = subProblems[index];
 
 				// Use indexed lookup (already optimized)
 				const subEvents = eventsBySubProblem.get(index) || [];
+				console.log(`[TAB BUILD DEBUG] Sub-problem ${index}:`, {
+					totalEvents: subEvents.length,
+					eventTypes: subEvents.map(e => e.event_type)
+				});
 
 				// Single iteration for all metrics (instead of multiple filters)
 				let expertCount = 0;
@@ -785,11 +851,37 @@
 					const score = latestConvergenceEvent.data.score as number;
 					const threshold = latestConvergenceEvent.data.threshold as number;
 					convergencePercent = Math.round((score / threshold) * 100);
+					console.log('[CONVERGENCE DEBUG]', {
+						subProblem: index,
+						score,
+						threshold,
+						convergencePercent,
+						eventData: latestConvergenceEvent.data
+					});
+				} else {
+					console.log('[CONVERGENCE DEBUG] No convergence event found for sub-problem', index, {
+						subEvents: subEvents.length,
+						eventTypes: subEvents.map(e => e.event_type)
+					});
 				}
 
-				// Calculate duration
+				// Calculate duration - prefer duration_seconds from subproblem_complete event
 				let duration = '0s';
-				if (subEvents.length > 1) {
+
+				// First, check if we have a subproblem_complete or synthesis_complete event with duration_seconds
+				const completionEvent = subEvents.find(
+					e => (e.event_type === 'subproblem_complete' || e.event_type === 'synthesis_complete') &&
+					     e.data?.duration_seconds !== undefined
+				);
+
+				if (completionEvent?.data?.duration_seconds) {
+					// Use backend-provided duration
+					const totalSeconds = Math.floor(completionEvent.data.duration_seconds);
+					const minutes = Math.floor(totalSeconds / 60);
+					const seconds = totalSeconds % 60;
+					duration = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+				} else if (subEvents.length > 1) {
+					// Fallback: calculate from timestamps
 					const firstTime = new Date(subEvents[0].timestamp);
 					const lastTime = new Date(subEvents[subEvents.length - 1].timestamp);
 					const diffMs = lastTime.getTime() - firstTime.getTime();
@@ -850,35 +942,53 @@
 	// ============================================================================
 
 	/**
-	 * Performance optimization: Memoized event indexing by sub-problem
+	 * Performance optimization: Memoized + debounced event indexing by sub-problem
 	 *
 	 * Caches Map-based index to avoid rebuilding on every render.
-	 * Only recalculates when events.length changes.
+	 * Only recalculates when events.length changes, with 200ms debounce.
 	 *
 	 * Before: O(n) on every render
-	 * After: O(n) only on events change
+	 * After: O(n) only on events change, debounced for rapid streams
 	 *
-	 * Measured improvement: ~2-5ms → <1ms for cached lookups
+	 * Measured improvement: ~2-5ms → <1ms for cached lookups (Issue #2)
 	 */
 	let eventsBySubProblemCache = $state(new Map<number, SSEEvent[]>());
 	let lastEventCountForIndex = $state(0);
 
-	$effect(() => {
-		// Only recalculate if events changed
-		if (events.length !== lastEventCountForIndex) {
+	// Debounced recalculation function
+	const recalculateEventIndex = debounce(() => {
 			const index = new Map<number, SSEEvent[]>();
+			let eventsWithSubIndex = 0;
+			let eventsWithoutSubIndex = 0;
 
 			for (const event of events) {
 				const subIndex = event.data.sub_problem_index as number | undefined;
 				if (subIndex !== undefined) {
+					eventsWithSubIndex++;
 					const existing = index.get(subIndex) || [];
 					existing.push(event);
 					index.set(subIndex, existing);
+				} else {
+					eventsWithoutSubIndex++;
 				}
 			}
 
-			eventsBySubProblemCache = index;
-			lastEventCountForIndex = events.length;
+			console.log('[EVENT INDEX DEBUG]', {
+				totalEvents: events.length,
+				eventsWithSubIndex,
+				eventsWithoutSubIndex,
+				indexedSubProblems: Array.from(index.keys()),
+				eventsPerSubProblem: Array.from(index.entries()).map(([key, val]) => ({ subProblem: key, count: val.length }))
+			});
+
+		eventsBySubProblemCache = index;
+		lastEventCountForIndex = events.length;
+	}, 200); // 200ms debounce for rapid event streams
+
+	$effect(() => {
+		// Only trigger recalculation if events changed
+		if (events.length !== lastEventCountForIndex) {
+			recalculateEventIndex();
 		}
 	});
 
@@ -886,35 +996,24 @@
 
 	/**
 	 * Priority 1 Optimization: Debounced auto-scroll
-	 * Prevents scroll thrashing on rapid event arrivals (100ms debounce)
+	 * Prevents scroll thrashing on rapid event arrivals (300ms debounce)
+	 *
+	 * Increased from 100ms to 300ms to better handle rapid SSE streams (Issue #2)
 	 */
-	let scrollTimeoutId: number | undefined;
-
-	function scrollToLatestEventDebounced(smooth = true) {
+	const scrollToLatestEventDebounced = debounce((smooth = true) => {
 		if (!autoScroll) return;
 
-		// Clear existing timeout
-		if (scrollTimeoutId !== undefined) {
-			clearTimeout(scrollTimeoutId);
+		const container = document.getElementById('events-container');
+		if (container) {
+			container.scrollTo({
+				top: container.scrollHeight,
+				behavior: smooth ? 'smooth' : 'auto',
+			});
 		}
+	}, 300); // Increased from 100ms for better performance
 
-		// Schedule new scroll
-		scrollTimeoutId = setTimeout(() => {
-			const container = document.getElementById('events-container');
-			if (container) {
-				container.scrollTo({
-					top: container.scrollHeight,
-					behavior: smooth ? 'smooth' : 'auto',
-				});
-			}
-		}, 100) as unknown as number;
-	}
-
-	// Clean up timeout on component destroy
+	// Clean up on component destroy
 	onDestroy(() => {
-		if (scrollTimeoutId !== undefined) {
-			clearTimeout(scrollTimeoutId);
-		}
 		if (sseClient) {
 			sseClient.close();
 		}
@@ -1400,7 +1499,7 @@
 						</summary>
 						<div class="px-4 pb-4">
 							<p class="text-sm text-slate-700 dark:text-slate-300">
-								{session.problem_statement || 'Problem statement not available'}
+								{session.problem?.statement || 'Problem statement not available'}
 							</p>
 						</div>
 					</details>
@@ -1419,11 +1518,7 @@
 						currentRound={session.round_number ?? null}
 					/>
 
-					<!-- Convergence Chart -->
-					<ConvergenceChart events={events} />
 
-					<!-- Cost Breakdown -->
-					<CostBreakdown events={events} />
 
 					<!-- Actions -->
 					{#if session.status === 'completed'}

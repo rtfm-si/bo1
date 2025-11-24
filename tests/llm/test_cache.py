@@ -66,11 +66,19 @@ class TestLLMResponseCache:
     @pytest.fixture
     def cache(self, mock_redis_manager: object) -> LLMResponseCache:
         """Create cache instance with mock Redis."""
-        from unittest.mock import patch
+        from unittest.mock import MagicMock, patch
 
         with patch("bo1.llm.cache.get_settings") as mock_settings:
-            mock_settings.return_value.enable_llm_response_cache = True
-            mock_settings.return_value.llm_response_cache_ttl_seconds = 3600
+            # Create mock cache config with proper attribute access
+            mock_cache_config = MagicMock()
+            mock_cache_config.llm_cache_enabled = True
+            mock_cache_config.llm_cache_ttl_seconds = 3600
+
+            # Set up settings mock to return the cache config
+            mock_settings_instance = MagicMock()
+            mock_settings_instance.cache = mock_cache_config
+            mock_settings.return_value = mock_settings_instance
+
             return LLMResponseCache(mock_redis_manager)
 
     @pytest.fixture
@@ -163,10 +171,19 @@ class TestLLMResponseCache:
         sample_request: PromptRequest,
     ) -> None:
         """Test cache is bypassed when disabled."""
-        from unittest.mock import patch
+        from unittest.mock import MagicMock, patch
 
         with patch("bo1.llm.cache.get_settings") as mock_settings:
-            mock_settings.return_value.enable_llm_response_cache = False
+            # Create mock cache config with cache disabled
+            mock_cache_config = MagicMock()
+            mock_cache_config.llm_cache_enabled = False
+            mock_cache_config.llm_cache_ttl_seconds = 3600
+
+            # Set up settings mock to return the cache config
+            mock_settings_instance = MagicMock()
+            mock_settings_instance.cache = mock_cache_config
+            mock_settings.return_value = mock_settings_instance
+
             cache = LLMResponseCache(mock_redis_manager)
 
             # Get should return None without checking Redis
@@ -244,10 +261,17 @@ class TestCacheSingleton:
         bo1.llm.cache._cache_instance = None
 
         mock_redis_manager = MagicMock()
-        with patch("bo1.llm.cache.RedisManager", return_value=mock_redis_manager):
+        with patch("bo1.state.redis_manager.RedisManager", return_value=mock_redis_manager):
             with patch("bo1.llm.cache.get_settings") as mock_settings:
-                mock_settings.return_value.enable_llm_response_cache = True
-                mock_settings.return_value.llm_response_cache_ttl_seconds = 3600
+                # Create mock cache config with proper attribute access
+                mock_cache_config = MagicMock()
+                mock_cache_config.llm_cache_enabled = True
+                mock_cache_config.llm_cache_ttl_seconds = 3600
+
+                # Set up settings mock to return the cache config
+                mock_settings_instance = MagicMock()
+                mock_settings_instance.cache = mock_cache_config
+                mock_settings.return_value = mock_settings_instance
 
                 cache1 = get_llm_cache()
                 cache2 = get_llm_cache()

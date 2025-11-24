@@ -5,13 +5,20 @@ Integrates:
 - PostgreSQL pgvector for similarity search
 - Freshness-based cache invalidation
 - Cost tracking (cache hit ~$0.00006 vs cache miss ~$0.05-0.10)
+- Brave Search API (default: cheap web+news layer)
+- Tavily AI (premium: deep competitor/market/regulatory research)
 
-Web search integration (Brave Search API / Tavily) will be implemented in Week 4 (Day 27).
+Research Strategy:
+- Default: Brave Search ($5/1000 queries = $0.005/query) + Haiku summarization
+- Premium: Tavily ($1/1000 = $0.001/query) for in-depth analysis requiring context
 """
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
+
+import httpx
+from anthropic import AsyncAnthropic
 
 from bo1.config import get_settings
 from bo1.llm.embeddings import generate_embedding
@@ -50,6 +57,7 @@ class ResearcherAgent:
         questions: list[dict[str, Any]],
         category: str | None = None,
         industry: str | None = None,
+        research_depth: Literal["basic", "deep"] = "basic",
     ) -> list[dict[str, Any]]:
         """Research external questions with semantic cache.
 
@@ -164,8 +172,8 @@ class ResearcherAgent:
                 )
 
             else:
-                # CACHE MISS - Perform research (stub for now)
-                research_result = await self._perform_web_research(question)
+                # CACHE MISS - Perform research (Brave or Tavily based on depth)
+                research_result = await self._perform_web_research(question, research_depth)
 
                 # Save to cache
                 try:
@@ -229,33 +237,35 @@ class ResearcherAgent:
             category, cache_config.research_cache_default_freshness_days
         )
 
-    async def _perform_web_research(self, question: str) -> dict[str, Any]:
-        """Perform actual web research (Brave Search + summarization).
+    async def _perform_web_research(
+        self, question: str, research_depth: Literal["basic", "deep"] = "basic"
+    ) -> dict[str, Any]:
+        """Perform web research using Brave Search (default) or Tavily (premium).
 
-        **STUB**: Week 4+ implementation - currently returns placeholder.
-
-        Future implementation:
-        1. Search web using Brave Search API / Tavily
-        2. Extract relevant information from top results
-        3. Summarize findings using Haiku (200-300 tokens)
-        4. Include source citations
-        5. Track costs (search API + LLM summarization)
+        Research Strategy:
+        - basic: Brave Search + Haiku summarization (~$0.025 per query)
+          Use for: quick facts, statistics, general info
+        - deep: Tavily AI (combined search + analysis) (~$0.001 per query, but richer)
+          Use for: competitor analysis, market landscape, regulatory research
 
         Args:
             question: Research question
+            research_depth: "basic" (Brave) or "deep" (Tavily)
 
         Returns:
             Dictionary with summary, sources, confidence, tokens_used, cost
+
+        Examples:
+            >>> agent = ResearcherAgent()
+            >>> result = await agent._perform_web_research("What is average SaaS churn?")
+            >>> result = await agent._perform_web_research(
+            ...     "Analyze competitor pricing strategies", research_depth="deep"
+            ... )
         """
-        # Placeholder - will integrate Brave Search API + Haiku summarization
-        logger.info(f"[STUB] Would perform web research for: {question[:50]}...")
-        return {
-            "summary": "[Research pending - Week 4 implementation]",
-            "sources": [],
-            "confidence": "stub",
-            "tokens_used": 0,
-            "cost": 0.0,
-        }
+        if research_depth == "deep":
+            return await self._tavily_search(question)
+        else:
+            return await self._brave_search_and_summarize(question)
 
     def format_research_context(self, research_results: list[dict[str, Any]]) -> str:
         """Format research results for inclusion in deliberation prompts.
@@ -299,3 +309,189 @@ class ResearcherAgent:
         lines.append("</external_research>")
 
         return "\n".join(lines)
+
+    async def _brave_search_and_summarize(self, question: str) -> dict[str, Any]:
+        """Perform web search using Brave Search API + Haiku summarization.
+
+        Cost: ~$0.025 per query ($0.005 search + $0.02 Haiku)
+
+        Args:
+            question: Research question
+
+        Returns:
+            Dictionary with summary, sources, confidence, tokens_used, cost
+        """
+        settings = get_settings()
+        brave_api_key = settings.brave_api_key
+
+        if not brave_api_key:
+            logger.warning("BRAVE_API_KEY not set - research unavailable")
+            return {
+                "summary": "[Brave Search API key not configured]",
+                "sources": [],
+                "confidence": "error",
+                "tokens_used": 0,
+                "cost": 0.0,
+            }
+
+        try:
+            # Step 1: Brave Search
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "https://api.search.brave.com/res/v1/web/search",
+                    headers={"X-Subscription-Token": brave_api_key},
+                    params={"q": question, "count": 5},
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                results_data = response.json()
+
+            search_results = [
+                {
+                    "title": result["title"],
+                    "url": result["url"],
+                    "snippet": result["description"],
+                }
+                for result in results_data.get("web", {}).get("results", [])
+            ]
+
+            if not search_results:
+                logger.warning(f"No search results for: {question[:50]}...")
+                return {
+                    "summary": "[No search results found]",
+                    "sources": [],
+                    "confidence": "low",
+                    "tokens_used": 0,
+                    "cost": 0.005,  # Brave search cost only
+                }
+
+            # Step 2: Summarize with Haiku
+            context = "\n\n".join(
+                [f"**{r['title']}**\n{r['snippet']}\nSource: {r['url']}" for r in search_results]
+            )
+
+            prompt = f"""You are a research assistant. Summarize the following search results to answer the question.
+
+Question: {question}
+
+Search Results:
+{context}
+
+Provide a concise 200-300 word summary with key facts and statistics. Be direct and factual. If the results don't contain sufficient information, state what's known and what's missing."""
+
+            anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+            response = await anthropic_client.messages.create(
+                model="claude-haiku-4.5-20250929",
+                max_tokens=500,
+                messages=[{"role": "user", "content": prompt}],
+            )
+
+            summary = response.content[0].text
+            tokens_used = response.usage.input_tokens + response.usage.output_tokens
+
+            # Calculate costs
+            search_cost = 0.005  # $5/1000 queries
+            # Haiku pricing: $1/M input tokens, $5/M output tokens
+            llm_cost = (
+                response.usage.input_tokens / 1_000_000 * 1.0
+                + response.usage.output_tokens / 1_000_000 * 5.0
+            )
+            total_cost = search_cost + llm_cost
+
+            logger.info(
+                f"[BRAVE] Researched '{question[:50]}...' - "
+                f"{len(search_results)} results, {tokens_used} tokens, ${total_cost:.4f}"
+            )
+
+            return {
+                "summary": summary,
+                "sources": [f"{r['title']} - {r['url']}" for r in search_results],
+                "confidence": "high" if len(search_results) >= 3 else "medium",
+                "tokens_used": tokens_used,
+                "cost": total_cost,
+            }
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Brave Search API error: {e.response.status_code} - {e.response.text}")
+            return {
+                "summary": f"[Search API error: {e.response.status_code}]",
+                "sources": [],
+                "confidence": "error",
+                "tokens_used": 0,
+                "cost": 0.0,
+            }
+        except Exception as e:
+            logger.error(f"Research failed: {e}")
+            return {
+                "summary": f"[Research error: {str(e)[:100]}]",
+                "sources": [],
+                "confidence": "error",
+                "tokens_used": 0,
+                "cost": 0.0,
+            }
+
+    async def _tavily_search(self, question: str) -> dict[str, Any]:
+        """Perform deep research using Tavily AI (premium option).
+
+        Tavily provides AI-powered search with built-in summarization and context.
+        Use for: competitor analysis, market landscape, regulatory research.
+
+        Cost: ~$0.001 per query (10x cheaper than Brave+Haiku, but different use case)
+
+        Args:
+            question: Research question requiring deep analysis
+
+        Returns:
+            Dictionary with summary, sources, confidence, tokens_used, cost
+        """
+        settings = get_settings()
+        tavily_api_key = settings.tavily_api_key
+
+        if not tavily_api_key:
+            logger.warning("TAVILY_API_KEY not set - falling back to Brave")
+            return await self._brave_search_and_summarize(question)
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.tavily.com/search",
+                    json={
+                        "api_key": tavily_api_key,
+                        "query": question,
+                        "search_depth": "advanced",  # Premium deep search
+                        "include_answer": True,  # Get AI-generated answer
+                        "include_raw_content": False,  # Don't need full HTML
+                        "max_results": 5,
+                    },
+                    timeout=15.0,  # Longer timeout for deep search
+                )
+                response.raise_for_status()
+                data = response.json()
+
+            summary = data.get("answer", "[No answer provided]")
+            results = data.get("results", [])
+
+            sources = [f"{r.get('title', 'Untitled')} - {r.get('url', '')}" for r in results]
+
+            cost = 0.001  # $1/1000 queries
+            tokens_used = len(summary.split())  # Approximate
+
+            logger.info(
+                f"[TAVILY] Deep research '{question[:50]}...' - {len(results)} sources, ${cost:.4f}"
+            )
+
+            return {
+                "summary": summary,
+                "sources": sources,
+                "confidence": "high" if len(results) >= 3 else "medium",
+                "tokens_used": tokens_used,
+                "cost": cost,
+            }
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Tavily API error: {e.response.status_code} - {e.response.text}")
+            logger.info("Falling back to Brave Search")
+            return await self._brave_search_and_summarize(question)
+        except Exception as e:
+            logger.error(f"Tavily research failed: {e}, falling back to Brave")
+            return await self._brave_search_and_summarize(question)

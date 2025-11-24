@@ -403,6 +403,46 @@ CONVERGENCE_EXTRACTORS: list[FieldExtractor] = [
         "transform": lambda m: extract_metrics_field(m, "convergence_score", 0.0),
         "default": 0.0,
     },
+    # Quality metrics (Meeting Quality Enhancement)
+    {
+        "source_field": "metrics",
+        "target_field": "exploration_score",
+        "transform": lambda m: extract_metrics_field(m, "exploration_score", None),
+        "default": None,
+    },
+    {
+        "source_field": "metrics",
+        "target_field": "focus_score",
+        "transform": lambda m: extract_metrics_field(m, "focus_score", None),
+        "default": None,
+    },
+    {
+        "source_field": "metrics",
+        "target_field": "novelty_score",
+        "transform": lambda m: extract_metrics_field(m, "novelty_score", None),
+        "default": None,
+    },
+    {
+        "source_field": "metrics",
+        "target_field": "meeting_completeness_index",
+        "transform": lambda m: extract_metrics_field(m, "meeting_completeness_index", None),
+        "default": None,
+    },
+    {
+        "source_field": "metrics",
+        "target_field": "aspect_coverage",
+        "transform": lambda m: (
+            [a.model_dump() if hasattr(a, "model_dump") else a for a in m.aspect_coverage]
+            if m and hasattr(m, "aspect_coverage") and m.aspect_coverage
+            else []
+        ),
+        "default": [],
+    },
+    {
+        "source_field": "facilitator_guidance",
+        "target_field": "facilitator_guidance",
+        "default": None,
+    },
     {
         "source_field": "round_number",
         "target_field": "round",
@@ -423,6 +463,25 @@ CONVERGENCE_EXTRACTORS: list[FieldExtractor] = [
         "target_field": "threshold",
         "transform": lambda _: 0.85,
         "default": 0.85,
+    },
+    # NEW: Quality metrics
+    {
+        "source_field": "metrics",
+        "target_field": "novelty_score",
+        "transform": lambda m: extract_metrics_field(m, "novelty_score", None),
+        "default": None,
+    },
+    {
+        "source_field": "metrics",
+        "target_field": "conflict_score",
+        "transform": lambda m: extract_metrics_field(m, "conflict_score", None),
+        "default": None,
+    },
+    {
+        "source_field": "metrics",
+        "target_field": "drift_events",
+        "transform": lambda m: extract_metrics_field(m, "drift_events", 0),
+        "default": 0,
     },
 ]
 

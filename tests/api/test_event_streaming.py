@@ -129,20 +129,13 @@ async def test_event_collector_decomposition_handler(redis_manager, event_collec
     # Call the handler
     await event_collector._handle_decomposition(session_id, output)
 
-    # Receive first event (decomposition_started)
-    msg1 = pubsub.get_message(timeout=2.0)
-    assert msg1 is not None
-    assert msg1["type"] == "message"
-    payload1 = json.loads(msg1["data"])
-    assert payload1["event_type"] == "decomposition_started"
-
-    # Receive second event (decomposition_complete)
-    msg2 = pubsub.get_message(timeout=2.0)
-    assert msg2 is not None
-    assert msg2["type"] == "message"
+    # Receive decomposition_complete event
+    msg = pubsub.get_message(timeout=2.0)
+    assert msg is not None
+    assert msg["type"] == "message"
 
     # Parse the completion event
-    payload = json.loads(msg2["data"])
+    payload = json.loads(msg["data"])
     assert payload["event_type"] == "decomposition_complete"
     assert payload["session_id"] == session_id
     assert payload["data"]["count"] == 2

@@ -19,6 +19,18 @@
 	const percentage = $derived(Math.round((score / threshold) * 100));
 	const progressWidth = $derived(Math.min(percentage, 100));
 
+	// Debug convergence rendering
+	console.log('[CONVERGENCE RENDER]', {
+		score,
+		threshold,
+		percentage,
+		novelty_score: event.data.novelty_score,
+		conflict_score: event.data.conflict_score,
+		drift_events: event.data.drift_events,
+		eventData: event.data,
+		round: event.data.round
+	});
+
 	// Color coding based on score
 	function getProgressColor(score: number, threshold: number): string {
 		const ratio = score / threshold;
@@ -48,6 +60,51 @@
 	const progressColor = $derived(getProgressColor(score, threshold));
 	const textColor = $derived(getProgressTextColor(score, threshold));
 	const statusMessage = $derived(getStatusMessage(score, threshold));
+
+	// Quality metrics helper functions
+	function formatScore(score: number | null): string {
+		return score !== null && score !== undefined ? Math.round(score * 100) + '%' : 'N/A';
+	}
+
+	function getNoveltyColor(score: number | null): string {
+		if (score === null || score === undefined) return 'text-neutral-400 dark:text-neutral-500';
+		if (score >= 0.7) return 'text-green-600 dark:text-green-400';
+		if (score >= 0.4) return 'text-yellow-600 dark:text-yellow-400';
+		return 'text-red-600 dark:text-red-400';
+	}
+
+	function getNoveltyLabel(score: number | null): string {
+		if (score === null || score === undefined) return 'Not calculated';
+		if (score >= 0.7) return 'Fresh ideas';
+		if (score >= 0.4) return 'Some novelty';
+		return 'Repetitive';
+	}
+
+	function getConflictColor(score: number | null): string {
+		if (score === null || score === undefined) return 'text-neutral-400 dark:text-neutral-500';
+		if (score >= 0.7) return 'text-orange-600 dark:text-orange-400';
+		if (score >= 0.4) return 'text-yellow-600 dark:text-yellow-400';
+		return 'text-green-600 dark:text-green-400';
+	}
+
+	function getConflictLabel(score: number | null): string {
+		if (score === null || score === undefined) return 'Not calculated';
+		if (score >= 0.7) return 'High debate';
+		if (score >= 0.4) return 'Moderate';
+		return 'Low conflict';
+	}
+
+	function getDriftColor(events: number): string {
+		if (events === 0) return 'text-green-600 dark:text-green-400';
+		if (events <= 2) return 'text-yellow-600 dark:text-yellow-400';
+		return 'text-red-600 dark:text-red-400';
+	}
+
+	function getDriftLabel(events: number): string {
+		if (events === 0) return 'On track';
+		if (events <= 2) return 'Minor drift';
+		return 'Needs focus';
+	}
 </script>
 
 <div class="space-y-3">
@@ -97,6 +154,42 @@
 					Converged
 				</span>
 			{/if}
+		</div>
+	</div>
+
+	<!-- NEW: Quality Metrics Grid -->
+	<div class="grid grid-cols-3 gap-4 mt-4">
+		<!-- Novelty Card -->
+		<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+			<div class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Novelty</div>
+			<div class="text-lg font-bold {getNoveltyColor(event.data.novelty_score)}">
+				{formatScore(event.data.novelty_score)}
+			</div>
+			<div class="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
+				{getNoveltyLabel(event.data.novelty_score)}
+			</div>
+		</div>
+
+		<!-- Conflict Card -->
+		<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+			<div class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Conflict</div>
+			<div class="text-lg font-bold {getConflictColor(event.data.conflict_score)}">
+				{formatScore(event.data.conflict_score)}
+			</div>
+			<div class="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
+				{getConflictLabel(event.data.conflict_score)}
+			</div>
+		</div>
+
+		<!-- Drift Card -->
+		<div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+			<div class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Drift Events</div>
+			<div class="text-lg font-bold {getDriftColor(event.data.drift_events)}">
+				{event.data.drift_events}
+			</div>
+			<div class="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
+				{getDriftLabel(event.data.drift_events)}
+			</div>
 		</div>
 	</div>
 

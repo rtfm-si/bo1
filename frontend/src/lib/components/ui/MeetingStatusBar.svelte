@@ -5,7 +5,7 @@
 		currentPhase: string | null;
 		currentRound: number | null;
 		maxRounds: number;
-		subProblemProgress: { current: number; total: number };
+		subProblemProgress: { current: number; total: number } | null;
 	}
 
 	let { currentPhase = null, currentRound = null, maxRounds = 10, subProblemProgress }: Props = $props();
@@ -77,8 +77,13 @@
 								<span class="inline-block w-1 h-1 bg-slate-400 rounded-full"></span>
 								<span>Round {currentRound}/{maxRounds}</span>
 							</span>
+						{:else if currentPhase === 'discussion' || currentPhase === 'initial_round'}
+							<span class="inline-flex items-center gap-1">
+								<span class="inline-block w-1 h-1 bg-slate-400 rounded-full"></span>
+								<span>Preparing deliberation...</span>
+							</span>
 						{/if}
-						{#if subProblemProgress.total > 1 && subProblemProgress.current > 0}
+						{#if subProblemProgress && subProblemProgress.total > 1 && subProblemProgress.current > 0}
 							<span class="inline-flex items-center gap-1">
 								<span class="inline-block w-1 h-1 bg-slate-400 rounded-full"></span>
 								<span>Sub-problem {subProblemProgress.current}/{subProblemProgress.total}</span>

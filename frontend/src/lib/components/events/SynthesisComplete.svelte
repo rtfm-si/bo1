@@ -43,10 +43,9 @@
 					</svg>
 				</div>
 				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-					{isMeta ? 'Meta-Synthesis' : 'Synthesis'} Complete
+					{isMeta ? 'Decision' : 'Meeting'} Complete
 				</h3>
 			</div>
-			<Badge variant="success">{event.data.word_count} words</Badge>
 		</div>
 
 		<!-- Parsed Synthesis Content -->
@@ -227,6 +226,8 @@
 		{/if}
 	</div>
 
-	<!-- Actionable Tasks Section -->
-	<ActionableTasks sessionId={event.session_id} />
+	<!-- Actionable Tasks Section (only show for meta synthesis, not sub-problem synthesis) -->
+	{#if isMeta}
+		<ActionableTasks sessionId={event.session_id} />
+	{/if}
 </div>

@@ -5,6 +5,7 @@
 		persona: {
 			code: string;
 			name: string;
+			archetype?: string;
 			display_name?: string;
 			domain_expertise?: string[];
 		};
@@ -36,39 +37,45 @@
 		</div>
 	{/if}
 
-	<!-- Expert Cards -->
-	<div class="space-y-2.5">
+	<!-- Expert List (no individual cards, just rows) -->
+	<div class="space-y-3">
 		{#each experts as expert}
-			<div class="flex items-start gap-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-				<!-- Order Badge (remove redundant avatar with first letter) -->
-				<div class="flex-shrink-0 w-8 h-8 bg-brand-100 dark:bg-brand-900/30 rounded-full flex items-center justify-center text-brand-700 dark:text-brand-300 font-semibold text-sm border border-brand-200 dark:border-brand-800">
-					{expert.order}
+			<div class="flex flex-col md:flex-row md:items-start gap-2 md:gap-3">
+				<!-- Left side: Order badge + Name + Expertise (fixed width for alignment on desktop) -->
+				<div class="flex items-start gap-3 md:w-44 md:flex-shrink-0">
+					<!-- Order Badge -->
+					<div class="flex-shrink-0 w-8 h-8 bg-brand-100 dark:bg-brand-900/30 rounded-full flex items-center justify-center text-brand-700 dark:text-brand-300 font-semibold text-sm border border-brand-200 dark:border-brand-800">
+						{expert.order}
+					</div>
+
+					<!-- Name + Role + Expertise stacked -->
+					<div class="flex flex-col min-w-0">
+						<h4 class="font-semibold text-slate-900 dark:text-white text-sm">
+							{expert.persona.name}
+						</h4>
+
+						{#if expert.persona.archetype}
+							<p class="text-xs font-medium text-slate-700 dark:text-slate-300">
+								{expert.persona.archetype}
+							</p>
+						{/if}
+
+						{#if expert.persona.domain_expertise && expert.persona.domain_expertise.length > 0}
+							<p class="text-xs text-slate-600 dark:text-slate-400">
+								{expert.persona.domain_expertise.slice(0, 2).join(', ')}
+							</p>
+						{/if}
+					</div>
 				</div>
 
-				<!-- Expert Info -->
-				<div class="flex-1 min-w-0">
-					<h4 class="font-semibold text-slate-900 dark:text-white text-sm">
-						{expert.persona.name}
-					</h4>
-
-					{#if expert.persona.domain_expertise && expert.persona.domain_expertise.length > 0}
-						<p class="text-xs text-slate-600 dark:text-slate-400 mb-2">
-							{expert.persona.domain_expertise.slice(0, 2).join(', ')}
+				<!-- Right side: Rationale in elevated card (stacks below on mobile, side-by-side on desktop) -->
+				{#if expert.rationale}
+					<div class="flex-1 p-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800 shadow-sm ml-11 md:ml-0">
+						<p class="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
+							{expert.rationale}
 						</p>
-					{/if}
-
-					<!-- WHY this expert for THIS sub-problem -->
-					{#if expert.rationale}
-						<div class="mt-2 p-2.5 bg-blue-50 dark:bg-blue-900/30 rounded-md border-l-3 border-blue-500">
-							<p class="text-xs font-medium text-blue-900 dark:text-blue-100 mb-0.5">
-								Why {expert.persona.name.split(' ')[0]}?
-							</p>
-							<p class="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
-								{expert.rationale}
-							</p>
-						</div>
-					{/if}
-				</div>
+					</div>
+				{/if}
 			</div>
 		{/each}
 	</div>

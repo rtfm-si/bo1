@@ -16,6 +16,7 @@ from bo1.graph.nodes import (
     context_collection_node,
     decompose_node,
     initial_round_node,
+    research_node,
     select_personas_node,
 )
 from bo1.graph.safety.loop_prevention import DELIBERATION_RECURSION_LIMIT
@@ -106,6 +107,7 @@ def create_deliberation_graph(
     workflow.add_node("facilitator_decide", facilitator_decide_node)  # Day 29
     workflow.add_node("persona_contribute", persona_contribute_node)  # Day 30
     workflow.add_node("moderator_intervene", moderator_intervene_node)  # Day 30
+    workflow.add_node("research", research_node)  # Week 6: External research
     workflow.add_node("check_convergence", check_convergence_node)  # Day 24
     workflow.add_node("vote", vote_node)  # Day 31
     workflow.add_node("synthesize", synthesize_node)  # Day 31
@@ -135,6 +137,7 @@ def create_deliberation_graph(
             "persona_contribute": "persona_contribute",
             "moderator_intervene": "moderator_intervene",
             "vote": "vote",  # Day 31: Route to vote node
+            "research": "research",  # Week 6: Route to research node
             "clarification": "clarification",  # Day 37: Route to clarification node
             "END": END,
         },
@@ -149,6 +152,9 @@ def create_deliberation_graph(
             "END": END,
         },
     )
+
+    # research -> persona_contribute (Week 6: Continue deliberation with enriched context)
+    workflow.add_edge("research", "persona_contribute")
 
     # persona_contribute -> check_convergence
     workflow.add_edge("persona_contribute", "check_convergence")

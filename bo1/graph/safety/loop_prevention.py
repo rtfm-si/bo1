@@ -23,6 +23,20 @@ from bo1.graph.state import DeliberationGraphState
 logger = logging.getLogger(__name__)
 
 # ============================================================================
+# Convergence Configuration
+# ============================================================================
+
+# Convergence threshold: Increased from 0.85 to 0.90 (Issue #3 fix)
+# Higher threshold = more strict convergence detection = fewer premature stops
+CONVERGENCE_THRESHOLD = 0.90
+
+# Minimum participation rate for convergence (70% of personas must contribute recently)
+MIN_PARTICIPATION_RATE = 0.70
+
+# Novelty threshold: If novelty still high, continue deliberation even with high convergence
+MIN_NOVELTY_THRESHOLD = 0.40
+
+# ============================================================================
 # Layer 4: Timeout Watchdog
 # ============================================================================
 
@@ -183,11 +197,66 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
             if metrics:
                 metrics.convergence_score = convergence_score
 
-    # Check if convergence threshold is met
-    if convergence_score > 0.85 and round_number >= 3:
+    # NEW: Calculate novelty, conflict, and drift metrics
+    contributions = state.get("contributions", [])
+    if len(contributions) >= 6 and metrics:
+        from bo1.graph.quality_metrics import (
+            calculate_conflict_score,
+            calculate_novelty_score_semantic,
+        )
+
+        # Convert contributions to dict format for quality metrics
+        contrib_dicts = []
+        for contrib in contributions:
+            if hasattr(contrib, "content"):
+                contrib_dicts.append({"content": contrib.content})
+            else:
+                contrib_dicts.append({"content": str(contrib)})
+
+        # Calculate novelty (semantic uniqueness)
+        novelty = calculate_novelty_score_semantic(contrib_dicts[-6:])
+        metrics.novelty_score = novelty
+
+        # Calculate conflict (disagreement vs agreement)
+        conflict = calculate_conflict_score(contrib_dicts[-6:])
+        metrics.conflict_score = conflict
+
+        logger.info(
+            f"Quality metrics - Novelty: {novelty:.2f}, Conflict: {conflict:.2f}, "
+            f"Drift events: {metrics.drift_events if hasattr(metrics, 'drift_events') else 0}"
+        )
+
+    # Check if convergence threshold is met (Issue #3 fix: increased threshold from 0.85 to 0.90)
+    if convergence_score > CONVERGENCE_THRESHOLD and round_number >= 3:
+        # Before stopping, check diversity metrics to prevent premature convergence
+
+        # Check 1: Recent participation rate (are all personas still contributing?)
+        recent_contributors = _get_recent_contributors(state, last_n_rounds=2)
+        all_personas = {p["code"] for p in state.get("personas", [])}
+        participation_rate = len(recent_contributors) / len(all_personas) if all_personas else 0
+
+        if participation_rate < MIN_PARTICIPATION_RATE:
+            logger.info(
+                f"Round {round_number}: Convergence high ({convergence_score:.2f}) but low participation "
+                f"({participation_rate:.0%} < {MIN_PARTICIPATION_RATE:.0%}) - continuing"
+            )
+            state["should_stop"] = False
+            return state
+
+        # Check 2: Novelty trend (are we still getting new ideas?)
+        if novelty > MIN_NOVELTY_THRESHOLD:
+            logger.info(
+                f"Round {round_number}: Convergence high ({convergence_score:.2f}) but novelty still present "
+                f"({novelty:.2f} > {MIN_NOVELTY_THRESHOLD:.2f}) - continuing"
+            )
+            state["should_stop"] = False
+            return state
+
+        # Both checks passed - safe to stop
         logger.info(
             f"Round {round_number}: Convergence detected "
-            f"(score: {convergence_score:.2f}, threshold: 0.85)"
+            f"(score: {convergence_score:.2f}, threshold: {CONVERGENCE_THRESHOLD:.2f}, "
+            f"participation: {participation_rate:.0%}, novelty: {novelty:.2f})"
         )
         state["should_stop"] = True
         state["stop_reason"] = "consensus"
@@ -195,13 +264,340 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
     else:
         logger.debug(
             f"Round {round_number}: Convergence score {convergence_score:.2f} "
-            f"(threshold: 0.85, min rounds: 3)"
+            f"(threshold: {CONVERGENCE_THRESHOLD:.2f}, min rounds: 3)"
         )
+
+    # NEW: Calculate enhanced quality metrics (exploration, focus, completeness)
+    # This enables multi-criteria stopping rules based on meeting quality
+    if len(contributions) >= 3 and metrics:
+        from bo1.graph.meeting_config import get_meeting_config
+        from bo1.graph.quality_metrics import (
+            calculate_exploration_score_llm,
+            calculate_focus_score,
+            calculate_meeting_completeness_index,
+        )
+
+        # Get meeting config (tactical vs strategic thresholds)
+        config = get_meeting_config(state)
+
+        # Get problem statement for context
+        problem = state.get("problem")
+        problem_statement = ""
+        if problem:
+            if hasattr(problem, "description"):
+                problem_statement = problem.description
+            elif isinstance(problem, dict):
+                problem_statement = problem.get("description", "")
+
+        # Calculate exploration score (coverage of 8 critical aspects)
+        try:
+            exploration_score, aspect_coverage = await calculate_exploration_score_llm(
+                contributions=contributions[-6:],  # Recent contributions
+                problem_statement=problem_statement,
+                round_number=round_number,
+            )
+            metrics.exploration_score = exploration_score
+            metrics.aspect_coverage = aspect_coverage
+        except Exception as e:
+            logger.warning(f"Exploration score calculation failed: {e}")
+            exploration_score = 0.5  # Fallback to neutral
+
+        # Calculate focus score (on-topic ratio)
+        try:
+            focus_score = await calculate_focus_score(
+                contributions=contributions[-6:],
+                problem_statement=problem_statement,
+            )
+            metrics.focus_score = focus_score
+        except Exception as e:
+            logger.warning(f"Focus score calculation failed: {e}")
+            focus_score = 0.8  # Fallback to assume on-topic
+
+        # Calculate meeting completeness index (composite metric)
+        try:
+            M_r = calculate_meeting_completeness_index(
+                exploration_score=exploration_score,
+                convergence_score=convergence_score,
+                focus_score=focus_score,
+                novelty_score_recent=novelty if "novelty" in locals() else 0.5,
+                weights=config.weights,
+            )
+            metrics.meeting_completeness_index = M_r
+        except Exception as e:
+            logger.warning(f"Completeness index calculation failed: {e}")
+            M_r = 0.5  # Fallback
+
+        # Apply multi-criteria stopping rules
+        can_end, blockers = should_allow_end(state, config)
+        should_recommend, rationale = should_recommend_end(state, config)
+        should_target, focus_prompts = should_continue_targeted(state, config)
+
+        if not can_end:
+            # Cannot end yet - guardrails violated
+            logger.info(f"Round {round_number}: Cannot end yet - Blockers: {blockers}")
+            state["should_stop"] = False
+            # Store facilitator guidance for next round
+            state["facilitator_guidance"] = {
+                "type": "must_continue",
+                "blockers": blockers,
+                "focus_prompts": focus_prompts[:3] if focus_prompts else [],
+            }
+            return state
+
+        if should_recommend:
+            # High quality threshold met - recommend ending
+            logger.info(
+                f"Round {round_number}: Recommend ending - Meeting quality high "
+                f"(M_r={M_r:.2f}, E={exploration_score:.2f}, C={convergence_score:.2f})"
+            )
+            state["should_stop"] = True
+            state["stop_reason"] = "quality_threshold_met"
+            return state
+
+        if should_target:
+            # Continue with targeted exploration
+            logger.info(
+                f"Round {round_number}: Continuing with targeted focus - "
+                f"Missing aspects or low exploration (E={exploration_score:.2f})"
+            )
+            state["should_stop"] = False
+            state["facilitator_guidance"] = {
+                "type": "targeted_exploration",
+                "focus_prompts": focus_prompts[:3] if focus_prompts else [],
+                "missing_aspects": [
+                    a.name for a in aspect_coverage if a.level in ["none", "shallow"]
+                ],
+            }
+            return state
 
     # Continue deliberation
     logger.debug(f"Round {round_number}/{max_rounds}: Convergence check passed, continuing")
     state["should_stop"] = False
     return state
+
+
+# ============================================================================
+# Multi-Criteria Stopping Rules (NEW)
+# ============================================================================
+
+
+def should_allow_end(state: DeliberationGraphState, config: Any) -> tuple[bool, list[str]]:
+    """Check if deliberation is ALLOWED to end (guardrails).
+
+    This enforces minimum quality standards before ending is permitted.
+
+    Args:
+        state: Current deliberation state
+        config: MeetingConfig with thresholds
+
+    Returns:
+        Tuple of (allowed: bool, blockers: list[str])
+        - allowed: True if minimum standards met
+        - blockers: List of reasons why ending is blocked
+
+    Example:
+        >>> can_end, blockers = should_allow_end(state, config)
+        >>> if not can_end:
+        ...     print(f"Blocked: {blockers}")
+    """
+    blockers = []
+    metrics = state.get("metrics")
+    if not metrics:
+        return False, ["No metrics available"]
+
+    round_number = state.get("round_number", 1)
+    min_rounds = config.round_limits["min_rounds"]
+
+    # Check 1: Minimum rounds
+    if round_number < min_rounds:
+        blockers.append(f"Only {round_number} rounds (need {min_rounds} minimum)")
+
+    # Check 2: Minimum exploration
+    E_r = (
+        metrics.exploration_score
+        if hasattr(metrics, "exploration_score") and metrics.exploration_score is not None
+        else 0.0
+    )
+    min_exploration = config.thresholds["exploration"]["min_to_allow_end"]
+    if E_r < min_exploration:
+        blockers.append(f"Exploration too low ({E_r:.2f} < {min_exploration:.2f})")
+
+    # Check 3: Minimum convergence
+    C_r = metrics.convergence_score if metrics.convergence_score is not None else 0.0
+    min_convergence = config.thresholds["convergence"]["min_to_allow_end"]
+    if C_r < min_convergence:
+        blockers.append(f"Convergence too low ({C_r:.2f} < {min_convergence:.2f})")
+
+    # Check 4: Minimum focus (not drifting)
+    F_r = (
+        metrics.focus_score
+        if hasattr(metrics, "focus_score") and metrics.focus_score is not None
+        else 0.8
+    )
+    min_focus = config.thresholds["focus"]["min_acceptable"]
+    if F_r < min_focus:
+        blockers.append(f"Focus too low - drifting off topic ({F_r:.2f} < {min_focus:.2f})")
+
+    # Check 5: Critical aspects must be at least shallow
+    if hasattr(metrics, "aspect_coverage") and metrics.aspect_coverage:
+        aspect_coverage = metrics.aspect_coverage
+        critical_missing = []
+        for aspect in aspect_coverage:
+            if aspect.name == "risks_failure_modes" and aspect.level == "none":
+                critical_missing.append("risks")
+            if aspect.name == "objectives" and aspect.level == "none":
+                critical_missing.append("objectives")
+
+        if critical_missing:
+            blockers.append(f"Critical aspects not addressed: {', '.join(critical_missing)}")
+
+    allowed = len(blockers) == 0
+    return allowed, blockers
+
+
+def should_recommend_end(state: DeliberationGraphState, config: Any) -> tuple[bool, str]:
+    """Check if deliberation should be RECOMMENDED to end (quality threshold).
+
+    This is the positive signal that quality is high enough to conclude.
+
+    Args:
+        state: Current deliberation state
+        config: MeetingConfig with thresholds
+
+    Returns:
+        Tuple of (recommend: bool, rationale: str)
+
+    Example:
+        >>> should_end, reason = should_recommend_end(state, config)
+        >>> if should_end:
+        ...     print(f"Recommend ending: {reason}")
+    """
+    metrics = state.get("metrics")
+    if not metrics:
+        return False, "No metrics available"
+
+    # Check meeting completeness index
+    M_r = (
+        metrics.meeting_completeness_index
+        if hasattr(metrics, "meeting_completeness_index")
+        and metrics.meeting_completeness_index is not None
+        else 0.0
+    )
+    threshold = config.thresholds["composite"]["min_index_to_recommend_end"]
+
+    if M_r < threshold:
+        return False, f"Meeting quality below threshold ({M_r:.2f} < {threshold:.2f})"
+
+    # Check low novelty (repetition = ready to end)
+    N_r = metrics.novelty_score if metrics.novelty_score is not None else 0.5
+    novelty_floor = config.thresholds["novelty"]["novelty_floor_recent"]
+
+    if N_r > novelty_floor:
+        return False, f"Still generating new ideas (novelty {N_r:.2f} > {novelty_floor:.2f})"
+
+    # All checks passed - recommend ending
+    rationale = (
+        f"Meeting quality high (M_r={M_r:.2f}), novelty low (N_r={N_r:.2f}), ready to conclude"
+    )
+    return True, rationale
+
+
+def should_continue_targeted(state: DeliberationGraphState, config: Any) -> tuple[bool, list[str]]:
+    """Check if deliberation should continue with TARGETED focus.
+
+    This identifies missing aspects or premature consensus scenarios.
+
+    Args:
+        state: Current deliberation state
+        config: MeetingConfig with thresholds
+
+    Returns:
+        Tuple of (targeted: bool, focus_prompts: list[str])
+
+    Example:
+        >>> should_target, prompts = should_continue_targeted(state, config)
+        >>> if should_target:
+        ...     print(f"Target these aspects: {prompts}")
+    """
+    metrics = state.get("metrics")
+    if not metrics:
+        return False, []
+
+    focus_prompts = []
+
+    # Check 1: Premature consensus (high C_r but low E_r)
+    E_r = (
+        metrics.exploration_score
+        if hasattr(metrics, "exploration_score") and metrics.exploration_score is not None
+        else 0.0
+    )
+    C_r = metrics.convergence_score if metrics.convergence_score is not None else 0.0
+    round_number = state.get("round_number", 1)
+
+    if "early_consensus_requires_extra_check" in config.rules:
+        rule = config.rules["early_consensus_requires_extra_check"]
+        if rule.get("enabled", False):
+            early_cutoff = rule["early_round_cutoff"]
+            if (
+                round_number <= early_cutoff
+                and C_r > rule["convergence_high"]
+                and E_r < rule["exploration_low"]
+            ):
+                focus_prompts.append(
+                    "We're converging quickly but haven't explored all aspects. "
+                    "Let's ensure we've considered risks, alternatives, and stakeholder impact."
+                )
+
+    # Check 2: Missing critical aspects
+    if hasattr(metrics, "aspect_coverage") and metrics.aspect_coverage:
+        missing_aspects = [a for a in metrics.aspect_coverage if a.level in ["none", "shallow"]]
+
+        for aspect in missing_aspects[:3]:  # Top 3 missing
+            prompt_templates = {
+                "risks_failure_modes": "What are the top 3 risks if we proceed? What could go wrong?",
+                "stakeholders_impact": "Who will be affected by this decision? How will they be impacted?",
+                "options_alternatives": "What alternative approaches should we consider? Have we compared options?",
+                "constraints": "What are the specific constraints (budget, time, resources)?",
+                "dependencies_unknowns": "What dependencies or unknowns could block this?",
+                "key_assumptions": "What key assumptions are we making? How can we validate them?",
+                "objectives": "What are our specific, measurable success criteria?",
+            }
+            if aspect.name in prompt_templates:
+                focus_prompts.append(prompt_templates[aspect.name])
+
+    # Check 3: High novelty = still generating ideas
+    N_r = metrics.novelty_score if metrics.novelty_score is not None else 0.5
+    if N_r > 0.6:
+        # Let it continue naturally, novelty is good
+        pass
+
+    targeted = len(focus_prompts) > 0
+    return targeted, focus_prompts
+
+
+def _get_recent_contributors(state: DeliberationGraphState, last_n_rounds: int = 2) -> set[str]:
+    """Get set of persona codes that contributed in the last N rounds.
+
+    Args:
+        state: Current deliberation state
+        last_n_rounds: Number of recent rounds to check
+
+    Returns:
+        Set of persona codes (e.g., {"CFO", "CMO", "CEO"})
+    """
+    current_round = state.get("round_number", 1)
+    min_round = max(1, current_round - last_n_rounds + 1)
+
+    contributors = set()
+    for contribution in state.get("contributions", []):
+        # Check if contribution is from recent rounds
+        contrib_round = getattr(contribution, "round_number", None)
+        if contrib_round is not None and contrib_round >= min_round:
+            persona_code = getattr(contribution, "persona_code", None)
+            if persona_code:
+                contributors.add(persona_code)
+
+    return contributors
 
 
 async def _calculate_convergence_score_semantic(contributions: list[Any]) -> float:

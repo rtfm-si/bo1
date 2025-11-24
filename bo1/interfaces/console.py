@@ -352,17 +352,39 @@ def _display_personas(console: Console, state: Any) -> None:
     )
 
     for persona in personas:
-        console.print(f"  • [bold]{persona.name}[/bold] ({persona.code})")
+        # Get rationale
+        rationale = rationale_map.get(persona.code, "")
 
-        # Display rationale if available
-        rationale = rationale_map.get(persona.code)
-        if rationale:
-            console.print(f"    [yellow]Why chosen:[/yellow] [dim]{rationale}[/dim]")
-
-        # Display domain expertise if available
+        # Build the left side (name + expertise)
+        left_lines = [f"  • [bold]{persona.name}[/bold]"]
         if persona.domain_expertise:
             expertise_str = ", ".join(persona.domain_expertise)
-            console.print(f"    [dim]Expertise: {expertise_str}[/dim]")
+            left_lines.append(f"    [dim]{expertise_str}[/dim]")
+
+        # If we have rationale, display it in a card to the right
+        if rationale:
+            from rich.columns import Columns
+            from rich.panel import Panel
+
+            # Create left column (name + expertise)
+            left_text = "\n".join(left_lines)
+
+            # Create right column (rationale in a subtle panel)
+            rationale_panel = Panel(
+                rationale,
+                border_style="dim cyan",
+                padding=(0, 1),
+                expand=False,
+            )
+
+            # Display side by side
+            columns = Columns([left_text, rationale_panel], padding=2, expand=False)
+            console.print(columns)
+        else:
+            # No rationale, just display name and expertise normally
+            for line in left_lines:
+                console.print(line)
+
         console.print()  # Add spacing between personas
 
     console.print()

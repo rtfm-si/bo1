@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { user, isAuthenticated } from '$lib/stores/auth';
+	import { user } from '$lib/stores/auth';
 	import Header from '$lib/components/Header.svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { SessionResponse } from '$lib/api/types';
@@ -11,22 +10,9 @@
 	let error: string | null = $state(null);
 
 	onMount(() => {
-		console.log('[Dashboard] onMount - starting optimistic load');
-
-		// Optimistic load: Start loading sessions immediately
-		// Don't wait for auth check to complete
+		console.log('[Dashboard] onMount - user is authenticated, loading sessions');
+		// Auth is already verified by parent layout, safe to load sessions
 		loadSessions();
-
-		// Auth check runs in parallel
-		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
-			if (authenticated === false) {
-				// Only redirect if explicitly NOT authenticated
-				console.log('[Dashboard] Not authenticated, redirecting to login...');
-				goto('/login');
-			}
-		});
-
-		return unsubscribe;
 	});
 
 	async function loadSessions() {
@@ -36,7 +22,6 @@
 
 			console.log('[Dashboard] Loading sessions...');
 			console.log('[Dashboard] User from auth store:', $user);
-			console.log('[Dashboard] Is authenticated:', $isAuthenticated);
 
 			const data = await apiClient.listSessions();
 			console.log('[Dashboard] Sessions loaded:', data);

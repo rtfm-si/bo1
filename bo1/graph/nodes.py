@@ -262,14 +262,24 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         max_rounds=max_rounds,
     )
 
-    # SAFETY CHECK: Prevent premature voting (Bug #3 fix)
-    # Override facilitator if trying to vote before minimum rounds
+    # SAFETY CHECK: Prevent premature voting (Bug #3 fix) and fix research action
+    # Override facilitator if trying to vote before minimum rounds OR chose research (not implemented)
     min_rounds_before_voting = 3
-    if decision.action == "vote" and round_number < min_rounds_before_voting:
-        logger.warning(
-            f"Facilitator attempted to vote at round {round_number} (min: {min_rounds_before_voting}). "
-            f"Overriding to 'continue' for deeper exploration."
-        )
+    if (
+        decision.action == "vote" and round_number < min_rounds_before_voting
+    ) or decision.action == "research":
+        if decision.action == "vote":
+            logger.warning(
+                f"Facilitator attempted to vote at round {round_number} (min: {min_rounds_before_voting}). "
+                f"Overriding to 'continue' for deeper exploration."
+            )
+            override_reason = f"Overridden: Minimum {min_rounds_before_voting} rounds required before voting. Need deeper exploration."
+        else:  # research
+            logger.warning(
+                f"Facilitator requested research at round {round_number}. "
+                f"Research not implemented - overriding to 'continue' with next speaker."
+            )
+            override_reason = "Research requested but not yet implemented. Continuing deliberation with selected expert."
 
         # Override decision to continue
         # Select a persona who hasn't spoken much
@@ -293,7 +303,7 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         # Override decision
         decision = FacilitatorDecision(
             action="continue",
-            reasoning=f"Overridden: Minimum {min_rounds_before_voting} rounds required before voting. Need deeper exploration.",
+            reasoning=override_reason,
             next_speaker=next_speaker,
             speaker_prompt="Build on the discussion so far and add depth to the analysis.",
         )

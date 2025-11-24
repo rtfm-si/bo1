@@ -85,12 +85,12 @@ def route_facilitator_decision(
         logger.info("route_facilitator_decision: Routing to clarification (Day 37)")
         return "clarification"
     elif action == "research":
-        # Research not implemented in Week 5 - transition to voting instead
+        # Research not implemented yet - continue deliberation instead of premature vote
         logger.warning(
-            "route_facilitator_decision: Research requested but not implemented in Week 5. "
-            "Routing to vote (research will be implemented in Week 6)."
+            "route_facilitator_decision: Research requested but not implemented. "
+            "Continuing deliberation instead of premature vote (research node will be added in Week 6)."
         )
-        return "vote"
+        return "persona_contribute"
     else:
         logger.warning(f"route_facilitator_decision: Unknown action {action}, routing to END")
         return "END"

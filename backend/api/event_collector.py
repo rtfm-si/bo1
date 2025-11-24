@@ -78,6 +78,12 @@ class EventCollector:
             data = registry.extract(registry_key, output)
 
             if data:  # Only publish if extractor returned data
+                # Add sub_problem_index from state to event data
+                # This is CRITICAL for frontend tab filtering (meeting page line 872)
+                # Without this field, events don't appear in sub-problem tabs
+                sub_problem_index = output.get("sub_problem_index", 0)
+                data["sub_problem_index"] = sub_problem_index
+
                 self.publisher.publish_event(session_id, event_type, data)
         except Exception as e:
             logger.error(f"Failed to publish {event_type} for session {session_id}: {e}")

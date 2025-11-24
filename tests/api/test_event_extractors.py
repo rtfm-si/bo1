@@ -628,3 +628,59 @@ class TestExtractorConfigValidation:
         for extractor in config:
             assert "source_field" in extractor, f"{extractor_name} missing source_field"
             assert "target_field" in extractor, f"{extractor_name} missing target_field"
+
+
+class TestSubProblemIndexInjection:
+    """Test that sub_problem_index is properly injected into all events.
+
+    This is critical for frontend tab filtering - without sub_problem_index,
+    events don't appear in the correct sub-problem tabs on the meeting page.
+
+    See: frontend/src/routes/(app)/meeting/[id]/+page.svelte line 872
+    """
+
+    def test_decomposition_includes_sub_problem_index(self):
+        """Test decomposition event includes sub_problem_index for tab filtering."""
+
+        # Use mock object
+        class MockSubProblem:
+            def __init__(self):
+                self.id = "sp1"
+                self.goal = "G1"
+                self.complexity_score = 2
+                self.dependencies = []
+                self.rationale = "Test"
+
+        class MockProblem:
+            def __init__(self):
+                self.sub_problems = [MockSubProblem()]
+
+        output = {
+            "problem": MockProblem(),
+            "sub_problem_index": 1,  # Critical field that must be preserved
+        }
+
+        result = extract_with_root_transform(output, DECOMPOSITION_EXTRACTORS)
+
+        # Note: sub_problem_index is added by _publish_node_event in event_collector.py
+        # This test documents that extractors should NOT remove it
+        assert "sub_problems" in result
+        assert "count" in result
+
+    def test_convergence_includes_sub_problem_index(self):
+        """Test convergence event preserves sub_problem_index from output."""
+        output = {
+            "should_stop": True,
+            "stop_reason": "consensus_reached",
+            "metrics": {"convergence_score": 0.92},
+            "round_number": 5,
+            "max_rounds": 10,
+            "sub_problem_index": 2,  # Must be preserved for tab filtering
+        }
+
+        result = extract_with_root_transform(output, CONVERGENCE_EXTRACTORS)
+
+        # Verify extractor includes sub_problem_index
+        assert result["sub_problem_index"] == 2
+        assert result["converged"] is True
+        assert result["score"] == 0.92

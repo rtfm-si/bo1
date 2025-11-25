@@ -642,19 +642,56 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     """
     from bo1.agents.researcher import ResearcherAgent
 
-    # Extract research query from last facilitator decision
-    last_decision_reasoning_obj = state.get("last_facilitator_reasoning", "")
-    last_decision_reasoning = (
-        str(last_decision_reasoning_obj) if last_decision_reasoning_obj else ""
-    )
+    # Extract research query from facilitator decision
+    facilitator_decision = state.get("facilitator_decision")
 
-    # For now, use the facilitator's reasoning as the research query
-    # Future: Extract structured query from facilitator decision
-    research_query = f"Research needed: {last_decision_reasoning[:200]}"
+    if not facilitator_decision:
+        logger.warning(
+            "[RESEARCH] No facilitator decision found - marking as completed to prevent loop"
+        )
+        # Even without a decision, mark a placeholder to prevent re-triggering
+        from bo1.llm.embeddings import generate_embedding
 
-    if not last_decision_reasoning:
-        logger.warning("[RESEARCH] No facilitator reasoning found for research query")
-        return {"current_node": "research"}
+        # Use recent contributions to create a generic query marker
+        recent_contributions = state.get("contributions", [])[-3:]
+        fallback_query = "Research pattern detected but no specific query provided"
+        if recent_contributions:
+            # Use last contribution content as query marker
+            fallback_query = f"Research needed based on: {recent_contributions[-1].content[:100]}"
+
+        # Generate embedding for this fallback
+        try:
+            fallback_embedding = generate_embedding(fallback_query, input_type="query")
+        except Exception as e:
+            logger.warning(f"Failed to generate embedding for fallback query: {e}")
+            fallback_embedding = []
+
+        # Mark as completed to prevent infinite loop
+        completed_queries_obj = state.get("completed_research_queries", [])
+        completed_queries = (
+            list(completed_queries_obj) if isinstance(completed_queries_obj, list) else []
+        )
+        completed_queries.append(
+            {
+                "query": fallback_query,
+                "embedding": fallback_embedding,
+            }
+        )
+
+        return {
+            "completed_research_queries": completed_queries,
+            "facilitator_decision": None,
+            "current_node": "research",
+        }
+
+    decision_reasoning = facilitator_decision.get("reasoning", "")
+
+    if not decision_reasoning:
+        logger.warning("[RESEARCH] Facilitator decision has no reasoning - using fallback")
+        decision_reasoning = "General research requested"
+
+    # Use the facilitator's reasoning as the research query
+    research_query = f"Research needed: {decision_reasoning[:200]}"
 
     logger.info(f"[RESEARCH] Query extracted: {research_query[:80]}...")
 
@@ -662,7 +699,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     deep_keywords = ["competitor", "market", "landscape", "regulation", "policy", "analysis"]
     research_depth: Literal["basic", "deep"] = (
         "deep"
-        if any(keyword in last_decision_reasoning.lower() for keyword in deep_keywords)
+        if any(keyword in decision_reasoning.lower() for keyword in deep_keywords)
         else "basic"
     )
 

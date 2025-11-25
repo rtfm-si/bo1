@@ -637,26 +637,27 @@
 						});
 						currentExpertPanel = [];
 					}
-				// Get round number from contribution event itself
-				const contributionRound = event.data.round as number | undefined;
 
-				// If round number changed, flush previous round
-				if (contributionRound && contributionRound !== currentRoundNumber && currentRound.length > 0) {
-					groups.push({
-						type: 'round',
-						events: currentRound,
-						roundNumber: currentRoundNumber,
-					});
-					currentRound = [];
-				}
+					// Get round number from contribution event itself
+					const contributionRound = event.data.round as number | undefined;
 
-				// Update current round number from contribution
-				if (contributionRound) {
-					currentRoundNumber = contributionRound;
-				}
+					// If round number changed, flush previous round
+					if (contributionRound && contributionRound !== currentRoundNumber && currentRound.length > 0) {
+						groups.push({
+							type: 'round',
+							events: currentRound,
+							roundNumber: currentRoundNumber,
+						});
+						currentRound = [];
+					}
 
-				// Add contribution to current round
-				currentRound.push(event);
+					// Update current round number from contribution
+					if (contributionRound) {
+						currentRoundNumber = contributionRound;
+					}
+
+					// Add contribution to current round
+					currentRound.push(event);
 				} else {
 					// Flush expert panel if any
 					if (currentExpertPanel.length > 0) {

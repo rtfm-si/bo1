@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 # System prompt for persona selection
 SELECTOR_SYSTEM_PROMPT = """You are a persona selection expert for the Board of One deliberation system.
 
-Your role is to recommend 3-5 expert personas for a given problem to ensure:
+Your role is to recommend 2-5 expert personas for a given problem to ensure:
 1. **Domain coverage**: The problem's key domains are represented
 2. **Perspective diversity**: Strategic, tactical, technical, and human perspectives
 3. **Appropriate expertise depth**: Match persona expertise to problem complexity
@@ -43,8 +43,9 @@ Your role is to recommend 3-5 expert personas for a given problem to ensure:
 
 ### Diversity Guidelines
 - **Balance perspectives**: Mix strategic + tactical + technical
-- **Avoid redundancy**: Don't select multiple personas with identical expertise
-- **Match complexity**: Simple problems (3 personas), Complex problems (5 personas)
+- **Avoid redundancy**: NEVER select multiple personas with identical or wholly overlapping expertise domains (e.g., don't select both a CFO and a Financial Strategist, or a Marketing Director and a Growth Hacker). Each persona must bring a UNIQUE contribution and perspective.
+- **Match complexity**: Simple problems (2-3 personas), Complex problems (4-5 personas)
+- **Quality over quantity**: Select the BEST 2-max cap personas with the most relevant expertise. Do NOT populate the board unnecessarily - only include experts who will add distinct, valuable perspectives.
 
 ## Problem Domains
 
@@ -257,15 +258,47 @@ Provide your recommendation as JSON following the format in your system prompt.
                 f"({response.summary()})"
             )
 
-            # Step 2: Cache the selection for future similar problems
+            # Step 2: Validate for domain overlap and filter duplicates
             # Convert persona codes to PersonaProfile objects
             from bo1.models.persona import PersonaProfile
 
             selected_personas = []
+            seen_domains: set[str] = set()
+
             for code in persona_codes:
                 persona_dict = get_persona_by_code(code)
                 if persona_dict:
-                    selected_personas.append(PersonaProfile.model_validate(persona_dict))
+                    persona = PersonaProfile.model_validate(persona_dict)
+
+                    # Check for domain overlap
+                    persona_domains = set(persona_dict.get("domain_expertise", []))
+
+                    # If there's significant overlap (>50% of domains), skip this persona
+                    if seen_domains:
+                        overlap = len(persona_domains & seen_domains)
+                        overlap_ratio = overlap / len(persona_domains) if persona_domains else 0
+
+                        if overlap_ratio > 0.5:
+                            logger.warning(
+                                f"Skipping {code} due to domain overlap: "
+                                f"{overlap}/{len(persona_domains)} domains already covered"
+                            )
+                            continue
+
+                    selected_personas.append(persona)
+                    seen_domains.update(persona_domains)
+
+            # Ensure we have at least 2 personas (in case filtering was too aggressive)
+            if len(selected_personas) < 2 and len(persona_codes) >= 2:
+                logger.warning(
+                    f"Domain overlap filtering reduced selection to {len(selected_personas)} personas. "
+                    f"Reverting to original selection."
+                )
+                selected_personas = []
+                for code in persona_codes:
+                    persona_dict = get_persona_by_code(code)
+                    if persona_dict:
+                        selected_personas.append(PersonaProfile.model_validate(persona_dict))
 
             # Store in cache (async, don't block on errors)
             try:

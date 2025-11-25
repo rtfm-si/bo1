@@ -38,17 +38,41 @@ class ResponseExtractor:
             >>> ResponseExtractor.extract_persona_code("I think maria_gomez should speak next", personas)
             'maria_gomez'
         """
+        if not personas:
+            if logger:
+                logger.error("No personas available for extraction")
+            return None
+
+        content_lower = content.lower()
+
+        # Try exact match first (case-insensitive)
         for persona in personas:
             code: str = persona.code
-            if code in content or code.replace("_", " ") in content.lower():
+            if code.lower() in content_lower:
                 return code
 
-        if logger and personas:
-            fallback_code: str = personas[0].code
-            logger.warning(f"Could not identify persona, defaulting to {fallback_code}")
-            return fallback_code
+        # Try with underscores replaced by spaces
+        for persona in personas:
+            code_str: str = persona.code
+            code_with_spaces = code_str.replace("_", " ").lower()
+            if code_with_spaces in content_lower:
+                return code_str
 
-        return None
+        # Try matching persona name if available
+        for persona in personas:
+            if hasattr(persona, "name") and persona.name:
+                name_lower = str(persona.name).lower()
+                if name_lower in content_lower:
+                    return str(persona.code)
+
+        # Fallback to first persona
+        fallback_code: str = personas[0].code
+        if logger:
+            logger.warning(
+                f"Could not identify persona in content, defaulting to {fallback_code}. "
+                f"Content preview: {content[:100]}..."
+            )
+        return fallback_code
 
     @staticmethod
     def extract_after_marker(

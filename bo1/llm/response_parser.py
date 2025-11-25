@@ -182,12 +182,20 @@ class ResponseParser:
                 content, state.selected_personas, logger=logger
             )
             # Fallback: If extraction failed, pick first available persona
-            if not next_speaker and state.selected_personas:
-                next_speaker = state.selected_personas[0].code
-                logger.warning(
-                    f"Failed to extract next_speaker from facilitator response, "
-                    f"defaulting to {next_speaker}"
-                )
+            if not next_speaker:
+                if state.selected_personas:
+                    next_speaker = state.selected_personas[0].code
+                    logger.warning(
+                        f"Failed to extract next_speaker from facilitator response, "
+                        f"defaulting to {next_speaker}"
+                    )
+                else:
+                    logger.error(
+                        "CRITICAL: Cannot determine next_speaker - no personas available in state"
+                    )
+                    raise ValueError(
+                        "Cannot determine next_speaker for 'continue' action: no personas in state"
+                    )
             result["next_speaker"] = next_speaker
             result["speaker_prompt"] = ResponseExtractor.extract_after_marker(
                 content, ["prompt:", "focus:", "question:"]

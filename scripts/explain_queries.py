@@ -15,7 +15,7 @@ from psycopg2.extras import RealDictCursor
 from bo1.state.postgres_manager import db_session
 
 
-def explain_query(query: str, params: tuple = None, description: str = ""):
+def explain_query(query: str, params: tuple = None, description: str = "") -> None:
     """Show query execution plan."""
     # Note: EXPLAIN ANALYZE actually executes the query, so use carefully
     # For non-existent data, use EXPLAIN (without ANALYZE) to avoid runtime errors
@@ -40,7 +40,7 @@ def explain_query(query: str, params: tuple = None, description: str = ""):
         print(f"  {plan_line}")
 
 
-def show_query_plans():
+def show_query_plans() -> None:
     """Show execution plans for key queries."""
     # Query 1: user_context by user_id
     explain_query(

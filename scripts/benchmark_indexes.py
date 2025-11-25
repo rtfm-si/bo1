@@ -52,15 +52,23 @@ def benchmark_query(query: str, params: tuple = None, iterations: int = 100) -> 
 
 
 def count_table_rows(table_name: str) -> int:
-    """Count total rows in a table."""
+    """Count total rows in a table.
+
+    Args:
+        table_name: Name of table from controlled list (not user input).
+
+    Returns:
+        Number of rows in the table.
+    """
+    # Table name comes from hardcoded list in run_benchmarks(), not user input
     with db_session() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(f"SELECT COUNT(*) as count FROM {table_name};")
+            cur.execute(f"SELECT COUNT(*) as count FROM {table_name};")  # noqa: S608
             result = cur.fetchone()
             return result["count"] if result else 0
 
 
-def run_benchmarks():
+def run_benchmarks() -> None:
     """Run query benchmarks."""
     print("Database Index Performance Benchmark")
     print("=" * 100)

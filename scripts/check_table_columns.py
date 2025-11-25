@@ -11,8 +11,15 @@ from psycopg2.extras import RealDictCursor
 from bo1.state.postgres_manager import db_session
 
 
-def get_table_columns(table_name: str):
-    """Get all columns for a table."""
+def get_table_columns(table_name: str) -> list[dict]:
+    """Get all columns for a table.
+
+    Args:
+        table_name: Name of the table to query.
+
+    Returns:
+        List of dictionaries containing column information.
+    """
     query = """
     SELECT column_name, data_type, is_nullable
     FROM information_schema.columns

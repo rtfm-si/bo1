@@ -388,32 +388,32 @@ class TestMeetingCompletenessIndex:
 
     def test_completeness_index_high_quality(self):
         """Test completeness index with high quality metrics."""
-        M_r = calculate_meeting_completeness_index(
+        meeting_completeness_index = calculate_meeting_completeness_index(
             exploration_score=0.75,
             convergence_score=0.80,
             focus_score=0.85,
             novelty_score_recent=0.25,  # Low novelty (good for ending)
         )
 
-        # High quality metrics should yield high M_r
-        assert M_r >= 0.7, f"Expected high completeness index, got {M_r:.2f}"
+        # High quality metrics should yield high meeting_completeness_index
+        assert meeting_completeness_index >= 0.7, f"Expected high completeness index, got {meeting_completeness_index:.2f}"
 
     def test_completeness_index_low_quality(self):
         """Test completeness index with low quality metrics."""
-        M_r = calculate_meeting_completeness_index(
+        meeting_completeness_index = calculate_meeting_completeness_index(
             exploration_score=0.40,
             convergence_score=0.35,
             focus_score=0.50,
             novelty_score_recent=0.80,  # High novelty (still exploring)
         )
 
-        # Low quality metrics should yield low M_r
-        assert M_r < 0.5, f"Expected low completeness index, got {M_r:.2f}"
+        # Low quality metrics should yield low meeting_completeness_index
+        assert meeting_completeness_index < 0.5, f"Expected low completeness index, got {meeting_completeness_index:.2f}"
 
     def test_completeness_index_custom_weights(self):
         """Test completeness index with custom weights."""
         # Tactical config: convergence weighted higher
-        M_r_tactical = calculate_meeting_completeness_index(
+        meeting_completeness_tactical = calculate_meeting_completeness_index(
             exploration_score=0.50,
             convergence_score=0.80,
             focus_score=0.70,
@@ -422,7 +422,7 @@ class TestMeetingCompletenessIndex:
         )
 
         # Strategic config: exploration weighted higher
-        M_r_strategic = calculate_meeting_completeness_index(
+        meeting_completeness_strategic = calculate_meeting_completeness_index(
             exploration_score=0.50,
             convergence_score=0.80,
             focus_score=0.70,
@@ -431,12 +431,12 @@ class TestMeetingCompletenessIndex:
         )
 
         # Tactical should value high convergence more
-        assert M_r_tactical > M_r_strategic, "Tactical config should value convergence more"
+        assert meeting_completeness_tactical > meeting_completeness_strategic, "Tactical config should value convergence more"
 
     def test_completeness_index_weight_normalization(self):
         """Test that weights are normalized if they don't sum to 1.0."""
         # Provide weights that don't sum to 1.0
-        M_r = calculate_meeting_completeness_index(
+        meeting_completeness_index = calculate_meeting_completeness_index(
             exploration_score=0.60,
             convergence_score=0.70,
             focus_score=0.75,
@@ -450,28 +450,28 @@ class TestMeetingCompletenessIndex:
         )
 
         # Should still return valid score in 0-1 range
-        assert 0.0 <= M_r <= 1.0, f"M_r should be in [0, 1], got {M_r:.2f}"
+        assert 0.0 <= meeting_completeness_index <= 1.0, f"meeting_completeness_index should be in [0, 1], got {meeting_completeness_index:.2f}"
 
     def test_completeness_index_bounds(self):
         """Test that completeness index is bounded to [0, 1]."""
         # Test extreme values
-        M_r_max = calculate_meeting_completeness_index(
+        meeting_completeness_max = calculate_meeting_completeness_index(
             exploration_score=1.0,
             convergence_score=1.0,
             focus_score=1.0,
             novelty_score_recent=0.0,  # No novelty = bonus
         )
 
-        M_r_min = calculate_meeting_completeness_index(
+        meeting_completeness_min = calculate_meeting_completeness_index(
             exploration_score=0.0,
             convergence_score=0.0,
             focus_score=0.0,
             novelty_score_recent=1.0,  # High novelty = penalty
         )
 
-        assert 0.0 <= M_r_min <= 1.0, f"M_r_min should be in [0, 1], got {M_r_min:.2f}"
-        assert 0.0 <= M_r_max <= 1.0, f"M_r_max should be in [0, 1], got {M_r_max:.2f}"
-        assert M_r_max > M_r_min, "Max metrics should yield higher M_r than min metrics"
+        assert 0.0 <= meeting_completeness_min <= 1.0, f"meeting_completeness_min should be in [0, 1], got {meeting_completeness_min:.2f}"
+        assert 0.0 <= meeting_completeness_max <= 1.0, f"meeting_completeness_max should be in [0, 1], got {meeting_completeness_max:.2f}"
+        assert meeting_completeness_max > meeting_completeness_min, "Max metrics should yield higher meeting_completeness_index than min metrics"
 
 
 class TestAspectCoverage:

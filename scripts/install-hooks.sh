@@ -31,9 +31,29 @@ echo ""
 EXIT_CODE=0
 
 # =============================================================================
-# 1. Type Checking (matches CI workflow line 48)
+# 1. Backend Linting (matches CI workflow)
 # =============================================================================
-echo "📝 Step 1/4: Type checking with mypy..."
+echo "📝 Step 1/6: Backend linting with ruff..."
+if command -v uv &> /dev/null; then
+    uv run ruff check . --quiet
+    LINT_EXIT=$?
+else
+    echo "⚠️  uv not found, skipping linting"
+    LINT_EXIT=0
+fi
+
+if [ $LINT_EXIT -ne 0 ]; then
+    echo "❌ Backend linting failed"
+    EXIT_CODE=1
+else
+    echo "✅ Backend linting passed"
+fi
+echo ""
+
+# =============================================================================
+# 2. Type Checking (matches CI workflow line 48)
+# =============================================================================
+echo "📝 Step 2/6: Type checking with mypy..."
 if command -v uv &> /dev/null; then
     uv run mypy bo1/ --install-types --non-interactive
 else
@@ -48,9 +68,30 @@ echo "✅ Type checking passed"
 echo ""
 
 # =============================================================================
-# 2. Docker Build File Validation (NEW - catches missing files)
+# 3. Frontend package-lock.json sync check (matches CI workflow)
 # =============================================================================
-echo "🐋 Step 2/4: Validating Docker build dependencies..."
+echo "📦 Step 3/6: Checking frontend package-lock.json sync..."
+if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+    cd frontend
+    if npm ci --dry-run >/dev/null 2>&1; then
+        echo "✅ package-lock.json in sync"
+    else
+        echo "❌ package-lock.json out of sync!"
+        echo ""
+        echo "Run: cd frontend && npm install"
+        echo ""
+        EXIT_CODE=1
+    fi
+    cd ..
+else
+    echo "⚠️  frontend directory not found, skipping"
+fi
+echo ""
+
+# =============================================================================
+# 4. Docker Build File Validation (NEW - catches missing files)
+# =============================================================================
+echo "🐋 Step 4/6: Validating Docker build dependencies..."
 
 # Check if critical files for Docker builds are tracked by git
 MISSING_FILES=()
@@ -82,9 +123,9 @@ fi
 echo ""
 
 # =============================================================================
-# 3. Quick Test Suite (non-LLM tests only)
+# 5. Quick Test Suite (non-LLM tests only)
 # =============================================================================
-echo "🧪 Step 3/4: Running quick test suite (non-LLM tests)..."
+echo "🧪 Step 5/6: Running quick test suite (non-LLM tests)..."
 if command -v uv &> /dev/null; then
     # Run only fast tests (skip LLM calls)
     uv run pytest -m "not requires_llm" -q --tb=line --maxfail=3 2>&1 | tail -20
@@ -103,22 +144,24 @@ fi
 echo ""
 
 # =============================================================================
-# 4. Linting (ruff check)
+# 6. Frontend type checking
 # =============================================================================
-echo "🔍 Step 4/4: Linting with ruff..."
-if command -v uv &> /dev/null; then
-    uv run ruff check . --quiet
-    LINT_EXIT=$?
+echo "📝 Step 6/6: Frontend type checking..."
+if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+    cd frontend
+    if [ -d "node_modules" ]; then
+        if npm run check >/dev/null 2>&1; then
+            echo "✅ Frontend type checking passed"
+        else
+            echo "❌ Frontend type checking failed"
+            EXIT_CODE=1
+        fi
+    else
+        echo "⚠️  node_modules not found, run: cd frontend && npm ci"
+    fi
+    cd ..
 else
-    echo "⚠️  uv not found, skipping linting"
-    LINT_EXIT=0
-fi
-
-if [ $LINT_EXIT -ne 0 ]; then
-    echo "❌ Linting failed"
-    EXIT_CODE=1
-else
-    echo "✅ Linting passed"
+    echo "⚠️  frontend directory not found, skipping"
 fi
 echo ""
 

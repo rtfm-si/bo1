@@ -11,7 +11,7 @@ from psycopg2.extras import RealDictCursor
 from bo1.state.postgres_manager import db_session
 
 
-def check_migration_history():
+def check_migration_history() -> str | None:
     """Check which migrations have been applied."""
     # Check if alembic_version table exists
     check_table_query = """
@@ -64,8 +64,12 @@ def check_table_exists(table_name: str) -> bool:
             return result["exists"] if result else False
 
 
-def list_all_tables():
-    """List all tables in the database."""
+def list_all_tables() -> list[str]:
+    """List all tables in the database.
+
+    Returns:
+        List of table names in the public schema.
+    """
     query = """
     SELECT table_name
     FROM information_schema.tables

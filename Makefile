@@ -143,17 +143,26 @@ check: lint format-check typecheck ## Run all code quality checks
 pre-commit: ## Run pre-commit checks (lint + format + typecheck) - MATCHES CI EXACTLY
 	@echo "🔍 Running pre-commit checks (matching CI)..."
 	@echo ""
-	@echo "1/3 Linting..."
+	@echo "Backend checks:"
+	@echo "1/5 Linting backend..."
 	@docker-compose run --rm bo1 ruff check .
-	@echo "✓ Linting passed"
+	@echo "✓ Backend linting passed"
 	@echo ""
-	@echo "2/3 Formatting..."
+	@echo "2/5 Checking backend formatting..."
 	@docker-compose run --rm bo1 ruff format --check .
-	@echo "✓ Formatting passed"
+	@echo "✓ Backend formatting passed"
 	@echo ""
-	@echo "3/3 Type checking (full bo1/ directory)..."
+	@echo "3/5 Type checking backend (full bo1/ directory)..."
 	@docker-compose run --rm bo1 mypy bo1/ --install-types --non-interactive
-	@echo "✓ Type checking passed"
+	@echo "✓ Backend type checking passed"
+	@echo ""
+	@echo "Frontend checks:"
+	@echo "4/5 Checking frontend package-lock.json sync..."
+	@cd frontend && npm ci --dry-run >/dev/null 2>&1 && echo "✓ package-lock.json in sync" || (echo "❌ package-lock.json out of sync! Run: cd frontend && npm install" && exit 1)
+	@echo ""
+	@echo "5/5 Type checking frontend..."
+	@cd frontend && npm run check
+	@echo "✓ Frontend type checking passed"
 	@echo ""
 	@echo "✅ All pre-commit checks passed! Safe to commit and push."
 

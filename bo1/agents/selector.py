@@ -271,17 +271,25 @@ Provide your recommendation as JSON following the format in your system prompt.
                     persona = PersonaProfile.model_validate(persona_dict)
 
                     # Check for domain overlap
-                    persona_domains = set(persona_dict.get("domain_expertise", []))
+                    # Parse domain_expertise (PostgreSQL array format: "{domain1,domain2}")
+                    domain_str = persona_dict.get("domain_expertise", "")
+                    if isinstance(domain_str, str):
+                        # Remove curly braces and split by comma
+                        domain_str = domain_str.strip("{}")
+                        persona_domains = {d.strip() for d in domain_str.split(",") if d.strip()}
+                    else:
+                        persona_domains = set()
 
                     # If there's significant overlap (>50% of domains), skip this persona
-                    if seen_domains:
+                    if seen_domains and persona_domains:
                         overlap = len(persona_domains & seen_domains)
                         overlap_ratio = overlap / len(persona_domains) if persona_domains else 0
 
                         if overlap_ratio > 0.5:
                             logger.warning(
-                                f"Skipping {code} due to domain overlap: "
-                                f"{overlap}/{len(persona_domains)} domains already covered"
+                                f"Skipping {code} ({persona_dict.get('name')}) due to domain overlap: "
+                                f"{overlap}/{len(persona_domains)} domains already covered. "
+                                f"Domains: {persona_domains}, Seen: {seen_domains}"
                             )
                             continue
 

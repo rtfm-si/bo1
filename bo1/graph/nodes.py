@@ -568,7 +568,10 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     from bo1.agents.researcher import ResearcherAgent
 
     # Extract research query from last facilitator decision
-    last_decision_reasoning = state.get("last_facilitator_reasoning", "")
+    last_decision_reasoning_obj = state.get("last_facilitator_reasoning", "")
+    last_decision_reasoning = (
+        str(last_decision_reasoning_obj) if last_decision_reasoning_obj else ""
+    )
 
     # For now, use the facilitator's reasoning as the research query
     # Future: Extract structured query from facilitator decision
@@ -610,7 +613,13 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     result = results[0]
 
     # Add to state context
-    research_results = state.get("research_results", [])
+    research_results_obj = state.get("research_results", [])
+    # Ensure it's a list before appending
+    if isinstance(research_results_obj, list):
+        research_results = research_results_obj
+    else:
+        research_results = []
+
     research_results.append(
         {
             "query": research_query,

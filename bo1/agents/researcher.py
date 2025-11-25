@@ -381,21 +381,23 @@ Search Results:
 Provide a concise 200-300 word summary with key facts and statistics. Be direct and factual. If the results don't contain sufficient information, state what's known and what's missing."""
 
             anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-            response = await anthropic_client.messages.create(
+            message = await anthropic_client.messages.create(
                 model="claude-haiku-4.5-20250929",
                 max_tokens=500,
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            summary = response.content[0].text
-            tokens_used = response.usage.input_tokens + response.usage.output_tokens
+            # Extract text from first content block (guaranteed to be TextBlock for text responses)
+            first_block = message.content[0]
+            summary = first_block.text if hasattr(first_block, "text") else str(first_block)
+            tokens_used = message.usage.input_tokens + message.usage.output_tokens
 
             # Calculate costs
             search_cost = 0.005  # $5/1000 queries
             # Haiku pricing: $1/M input tokens, $5/M output tokens
             llm_cost = (
-                response.usage.input_tokens / 1_000_000 * 1.0
-                + response.usage.output_tokens / 1_000_000 * 5.0
+                message.usage.input_tokens / 1_000_000 * 1.0
+                + message.usage.output_tokens / 1_000_000 * 5.0
             )
             total_cost = search_cost + llm_cost
 

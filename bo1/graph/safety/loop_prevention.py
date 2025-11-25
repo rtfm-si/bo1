@@ -232,7 +232,12 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
 
         # Check 1: Recent participation rate (are all personas still contributing?)
         recent_contributors = _get_recent_contributors(state, last_n_rounds=2)
-        all_personas = {p["code"] for p in state.get("personas", [])}
+        personas = state.get("personas", [])
+        # Handle both PersonaProfile objects and dicts (for tests)
+        all_personas = {
+            p.code if hasattr(p, "code") else p["code"]  # type: ignore[index]
+            for p in personas
+        }
         participation_rate = len(recent_contributors) / len(all_personas) if all_personas else 0
 
         if participation_rate < MIN_PARTICIPATION_RATE:
@@ -278,7 +283,8 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
         )
 
         # Get meeting config (tactical vs strategic thresholds)
-        config = get_meeting_config(state)
+        # TypedDict is compatible with dict[str, Any]
+        config = get_meeting_config(dict(state))
 
         # Get problem statement for context
         problem = state.get("problem")

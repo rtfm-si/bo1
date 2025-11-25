@@ -79,6 +79,9 @@ class DeliberationGraphState(TypedDict, total=False):
     pending_clarification: dict[str, Any] | None  # Clarification question waiting for answer
     phase_costs: dict[str, float]  # Cost tracking by phase
 
+    # Meeting quality guidance
+    facilitator_guidance: dict[str, Any] | None  # Guidance for facilitator on next steps
+
 
 def create_initial_state(
     session_id: str,

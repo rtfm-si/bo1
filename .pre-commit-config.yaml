@@ -1,70 +1,40 @@
-# Pre-commit hooks for Board of One
-# Install: pre-commit install
-# Run manually: pre-commit run --all-files
-
 repos:
-  # Ruff - Fast Python linter and formatter
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.5
+  - repo: local
     hooks:
-      # Linter (check mode - will fail on unfixable issues like N806)
-      - id: ruff
-        name: ruff-check
-        args: []
-      # Linter (fix mode - auto-fix safe issues)
-      - id: ruff
-        name: ruff-fix
-        args: [--fix, --exit-non-zero-on-fix]
-      # Formatter
+      # Backend linting
+      - id: ruff-check
+        name: Backend linting (ruff check)
+        entry: docker-compose run --rm bo1 uv run ruff check . --fix
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: ruff-format
+        name: Backend formatting (ruff format)
+        entry: docker-compose run --rm bo1 uv run ruff format .
+        language: system
+        pass_filenames: false
+        always_run: true
 
-  # mypy - Static type checking
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.18.2
-    hooks:
-      - id: mypy
-        name: mypy-bo1
-        additional_dependencies:
-          - pydantic>=2.0.0
-          - pydantic-settings>=2.0.0
-          - types-redis>=4.6.0
-          - types-PyYAML>=6.0.0
-          - types-requests>=2.31.0
-          - anthropic>=0.39.0
-          - langchain-anthropic>=0.1.0
-          - langgraph>=0.2.0
-          - langgraph-checkpoint-redis>=0.1.2
-          - voyageai>=0.3.0
-        files: ^bo1/
-        exclude: ^(tests/|scripts/|examples/)
-        args: [--install-types, --non-interactive, --show-error-codes]
-      # Disabled mypy-tests: test files don't require strict type checking
-      # - id: mypy
-      #   name: mypy-tests
-      #   additional_dependencies:
-      #     - pydantic>=2.0.0
-      #     - pydantic-settings>=2.0.0
-      #     - types-redis>=4.6.0
-      #     - types-PyYAML>=6.0.0
-      #     - types-requests>=2.31.0
-      #     - anthropic>=0.39.0
-      #     - langchain-anthropic>=0.1.0
-      #     - langgraph>=0.2.0
-      #     - langgraph-checkpoint-redis>=0.1.2
-      #     - voyageai>=0.3.0
-      #     - pytest>=7.0.0
-      #   files: ^tests/
-      #   args: [--install-types, --non-interactive, --show-error-codes]
+      - id: mypy-bo1
+        name: Backend type checking (mypy)
+        entry: docker-compose run --rm bo1 uv run mypy bo1/
+        language: system
+        pass_filenames: false
+        always_run: true
 
-  # General file checks
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-added-large-files
-        args: [--maxkb=1000]
-      - id: check-merge-conflict
-      - id: detect-private-key
-        exclude: ^deployment-scripts/setup-github-ssh-keys\.sh$  # Script displays key generation instructions
+      # Frontend checks
+      - id: frontend-typecheck
+        name: Frontend type checking
+        entry: bash -c "cd frontend && npm run check"
+        language: system
+        pass_filenames: false
+        files: ^frontend/
+
+      # Fast backend tests (no LLM)
+      - id: backend-tests-fast
+        name: Backend tests (no LLM)
+        entry: docker-compose run --rm bo1 pytest -v -m "not requires_llm" --tb=line
+        language: system
+        pass_filenames: false
+        always_run: true

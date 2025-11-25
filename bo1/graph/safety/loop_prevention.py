@@ -315,17 +315,17 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
 
         # Calculate meeting completeness index (composite metric)
         try:
-            M_r = calculate_meeting_completeness_index(
+            meeting_completeness = calculate_meeting_completeness_index(
                 exploration_score=exploration_score,
                 convergence_score=convergence_score,
                 focus_score=focus_score,
                 novelty_score_recent=novelty if "novelty" in locals() else 0.5,
                 weights=config.weights,
             )
-            metrics.meeting_completeness_index = M_r
+            metrics.meeting_completeness_index = meeting_completeness
         except Exception as e:
             logger.warning(f"Completeness index calculation failed: {e}")
-            M_r = 0.5  # Fallback
+            meeting_completeness = 0.5  # Fallback
 
         # Apply multi-criteria stopping rules
         can_end, blockers = should_allow_end(state, config)
@@ -348,7 +348,7 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
             # High quality threshold met - recommend ending
             logger.info(
                 f"Round {round_number}: Recommend ending - Meeting quality high "
-                f"(M_r={M_r:.2f}, E={exploration_score:.2f}, C={convergence_score:.2f})"
+                f"(completeness={meeting_completeness:.2f}, exploration={exploration_score:.2f}, convergence={convergence_score:.2f})"
             )
             state["should_stop"] = True
             state["stop_reason"] = "quality_threshold_met"
@@ -413,30 +413,30 @@ def should_allow_end(state: DeliberationGraphState, config: Any) -> tuple[bool, 
         blockers.append(f"Only {round_number} rounds (need {min_rounds} minimum)")
 
     # Check 2: Minimum exploration
-    E_r = (
+    exploration_score = (
         metrics.exploration_score
         if hasattr(metrics, "exploration_score") and metrics.exploration_score is not None
         else 0.0
     )
     min_exploration = config.thresholds["exploration"]["min_to_allow_end"]
-    if E_r < min_exploration:
-        blockers.append(f"Exploration too low ({E_r:.2f} < {min_exploration:.2f})")
+    if exploration_score < min_exploration:
+        blockers.append(f"Exploration too low ({exploration_score:.2f} < {min_exploration:.2f})")
 
     # Check 3: Minimum convergence
-    C_r = metrics.convergence_score if metrics.convergence_score is not None else 0.0
+    convergence_score = metrics.convergence_score if metrics.convergence_score is not None else 0.0
     min_convergence = config.thresholds["convergence"]["min_to_allow_end"]
-    if C_r < min_convergence:
-        blockers.append(f"Convergence too low ({C_r:.2f} < {min_convergence:.2f})")
+    if convergence_score < min_convergence:
+        blockers.append(f"Convergence too low ({convergence_score:.2f} < {min_convergence:.2f})")
 
     # Check 4: Minimum focus (not drifting)
-    F_r = (
+    focus_score = (
         metrics.focus_score
         if hasattr(metrics, "focus_score") and metrics.focus_score is not None
         else 0.8
     )
     min_focus = config.thresholds["focus"]["min_acceptable"]
-    if F_r < min_focus:
-        blockers.append(f"Focus too low - drifting off topic ({F_r:.2f} < {min_focus:.2f})")
+    if focus_score < min_focus:
+        blockers.append(f"Focus too low - drifting off topic ({focus_score:.2f} < {min_focus:.2f})")
 
     # Check 5: Critical aspects must be at least shallow
     if hasattr(metrics, "aspect_coverage") and metrics.aspect_coverage:
@@ -477,7 +477,7 @@ def should_recommend_end(state: DeliberationGraphState, config: Any) -> tuple[bo
         return False, "No metrics available"
 
     # Check meeting completeness index
-    M_r = (
+    meeting_completeness = (
         metrics.meeting_completeness_index
         if hasattr(metrics, "meeting_completeness_index")
         and metrics.meeting_completeness_index is not None
@@ -485,20 +485,24 @@ def should_recommend_end(state: DeliberationGraphState, config: Any) -> tuple[bo
     )
     threshold = config.thresholds["composite"]["min_index_to_recommend_end"]
 
-    if M_r < threshold:
-        return False, f"Meeting quality below threshold ({M_r:.2f} < {threshold:.2f})"
+    if meeting_completeness < threshold:
+        return (
+            False,
+            f"Meeting quality below threshold ({meeting_completeness:.2f} < {threshold:.2f})",
+        )
 
     # Check low novelty (repetition = ready to end)
-    N_r = metrics.novelty_score if metrics.novelty_score is not None else 0.5
+    novelty_score = metrics.novelty_score if metrics.novelty_score is not None else 0.5
     novelty_floor = config.thresholds["novelty"]["novelty_floor_recent"]
 
-    if N_r > novelty_floor:
-        return False, f"Still generating new ideas (novelty {N_r:.2f} > {novelty_floor:.2f})"
+    if novelty_score > novelty_floor:
+        return (
+            False,
+            f"Still generating new ideas (novelty {novelty_score:.2f} > {novelty_floor:.2f})",
+        )
 
     # All checks passed - recommend ending
-    rationale = (
-        f"Meeting quality high (M_r={M_r:.2f}), novelty low (N_r={N_r:.2f}), ready to conclude"
-    )
+    rationale = f"Meeting quality high (completeness={meeting_completeness:.2f}), novelty low (novelty={novelty_score:.2f}), ready to conclude"
     return True, rationale
 
 
@@ -525,13 +529,13 @@ def should_continue_targeted(state: DeliberationGraphState, config: Any) -> tupl
 
     focus_prompts = []
 
-    # Check 1: Premature consensus (high C_r but low E_r)
-    E_r = (
+    # Check 1: Premature consensus (high convergence but low exploration)
+    exploration_score = (
         metrics.exploration_score
         if hasattr(metrics, "exploration_score") and metrics.exploration_score is not None
         else 0.0
     )
-    C_r = metrics.convergence_score if metrics.convergence_score is not None else 0.0
+    convergence_score = metrics.convergence_score if metrics.convergence_score is not None else 0.0
     round_number = state.get("round_number", 1)
 
     if "early_consensus_requires_extra_check" in config.rules:
@@ -540,8 +544,8 @@ def should_continue_targeted(state: DeliberationGraphState, config: Any) -> tupl
             early_cutoff = rule["early_round_cutoff"]
             if (
                 round_number <= early_cutoff
-                and C_r > rule["convergence_high"]
-                and E_r < rule["exploration_low"]
+                and convergence_score > rule["convergence_high"]
+                and exploration_score < rule["exploration_low"]
             ):
                 focus_prompts.append(
                     "We're converging quickly but haven't explored all aspects. "
@@ -566,8 +570,8 @@ def should_continue_targeted(state: DeliberationGraphState, config: Any) -> tupl
                 focus_prompts.append(prompt_templates[aspect.name])
 
     # Check 3: High novelty = still generating ideas
-    N_r = metrics.novelty_score if metrics.novelty_score is not None else 0.5
-    if N_r > 0.6:
+    novelty_score = metrics.novelty_score if metrics.novelty_score is not None else 0.5
+    if novelty_score > 0.6:
         # Let it continue naturally, novelty is good
         pass
 

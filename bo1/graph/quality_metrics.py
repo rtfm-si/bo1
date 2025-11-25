@@ -323,16 +323,16 @@ def calculate_meeting_completeness_index(
     novelty_score_recent: float,
     weights: dict[str, float] | None = None,
 ) -> float:
-    """Calculate Meeting Completeness Index (meeting_index).
+    """Calculate Meeting Completeness Index.
 
     This is the composite quality metric that combines all dimensions:
-    meeting_index = wE * E_r + wC * C_r + wF * F_r + wN * (1 - N_r_recent)
+    meeting_index = wE * exploration + wC * convergence + wF * focus + wN * (1 - novelty_recent)
 
     Where:
-    - E_r = exploration score (coverage of aspects)
-    - C_r = convergence score (agreement level)
-    - F_r = focus score (on-topic ratio)
-    - N_r_recent = recent novelty (1 - N_r = lack of novelty bonus)
+    - exploration_score = coverage of 8 critical aspects
+    - convergence_score = agreement level
+    - focus_score = on-topic ratio
+    - novelty_score_recent = recent novelty (1 - novelty = lack of novelty bonus)
     - wE, wC, wF, wN = weights (must sum to 1.0)
 
     Args:
@@ -349,13 +349,13 @@ def calculate_meeting_completeness_index(
         - <0.5 = low quality, needs more exploration
 
     Example:
-        >>> meeting_index = calculate_meeting_completeness_index(
+        >>> completeness = calculate_meeting_completeness_index(
         ...     exploration_score=0.68,
         ...     convergence_score=0.72,
         ...     focus_score=0.81,
         ...     novelty_score_recent=0.42
         ... )
-        >>> print(f"Meeting quality: {meeting_index:.0%}")
+        >>> print(f"Meeting quality: {completeness:.0%}")
         Meeting quality: 64%
     """
     # Default weights (balanced config)

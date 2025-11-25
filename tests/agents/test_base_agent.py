@@ -12,7 +12,7 @@ class MockAgent(BaseAgent):
 
     def get_default_model(self) -> str:
         """Return default model."""
-        return "test-model"
+        return "claude-haiku-4-5-20251001"
 
 
 @pytest.mark.asyncio
@@ -28,7 +28,7 @@ async def test_base_agent_cost_tracking(mock_broker):
     request = PromptRequest(
         system="test system",
         user_message="test message",
-        model="test-model",
+        model="claude-haiku-4-5-20251001",
         phase="test",
     )
     response1 = await agent._call_llm(request)
@@ -55,7 +55,7 @@ async def test_base_agent_get_cost_stats(mock_broker):
     request = PromptRequest(
         system="test system",
         user_message="test message",
-        model="test-model",
+        model="claude-haiku-4-5-20251001",
         phase="test",
     )
 
@@ -82,7 +82,7 @@ async def test_base_agent_reset_cost_tracking(mock_broker):
     request = PromptRequest(
         system="test system",
         user_message="test message",
-        model="test-model",
+        model="claude-haiku-4-5-20251001",
         phase="test",
     )
     await agent._call_llm(request)
@@ -113,7 +113,7 @@ async def test_base_agent_error_handling(monkeypatch):
     request = PromptRequest(
         system="test system",
         user_message="test message",
-        model="test-model",
+        model="claude-haiku-4-5-20251001",
         phase="test",
     )
 
@@ -149,7 +149,7 @@ def test_base_agent_model_initialization():
     """Test that BaseAgent initializes with correct model."""
     # Default model
     agent = MockAgent()
-    assert agent.model == "test-model"
+    assert agent.model == "claude-haiku-4-5-20251001"
 
     # Override model
     agent = MockAgent(model="custom-model")

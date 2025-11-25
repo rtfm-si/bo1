@@ -107,6 +107,7 @@ class TestLLMResponseCache:
             retry_count=0,
         )
 
+    @pytest.mark.asyncio
     async def test_cache_hit(
         self,
         cache: LLMResponseCache,
@@ -127,6 +128,7 @@ class TestLLMResponseCache:
         assert cache._hits == 1
         assert cache._misses == 0
 
+    @pytest.mark.asyncio
     async def test_cache_miss(
         self,
         cache: LLMResponseCache,
@@ -145,6 +147,7 @@ class TestLLMResponseCache:
         assert cache._hits == 0
         assert cache._misses == 1
 
+    @pytest.mark.asyncio
     async def test_cache_response(
         self,
         cache: LLMResponseCache,
@@ -165,6 +168,7 @@ class TestLLMResponseCache:
         # Check data is JSON
         assert "test response" in call_args[0][2]
 
+    @pytest.mark.asyncio
     async def test_cache_disabled(
         self,
         mock_redis_manager: object,
@@ -191,6 +195,7 @@ class TestLLMResponseCache:
             assert cached is None
             cache.redis.get.assert_not_called()
 
+    @pytest.mark.asyncio
     async def test_cache_read_error_graceful(
         self,
         cache: LLMResponseCache,
@@ -205,6 +210,7 @@ class TestLLMResponseCache:
         assert cached is None
         assert cache._misses == 1
 
+    @pytest.mark.asyncio
     async def test_cache_write_error_graceful(
         self,
         cache: LLMResponseCache,

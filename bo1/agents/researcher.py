@@ -66,6 +66,7 @@ class ResearcherAgent:
                 Format: [{"question": "...", "priority": "...", "reason": "..."}]
             category: Optional category filter (e.g., 'saas_metrics', 'pricing')
             industry: Optional industry filter (e.g., 'saas', 'ecommerce')
+            research_depth: Depth of research - "basic" for quick facts, "deep" for comprehensive analysis
 
         Returns:
             List of research results with cache metadata:

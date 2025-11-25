@@ -347,6 +347,8 @@ def test_validate_round_counter_round_exceeds_max():
 # ============================================================================
 
 
+@pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_convergence_node_preserves_state(sample_problem: Problem):
     """Test that convergence node preserves all state fields."""
     state = create_initial_state(
@@ -377,6 +379,8 @@ async def test_convergence_node_preserves_state(sample_problem: Problem):
     assert result["round_number"] == 3
 
 
+@pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_multiple_rounds_with_counter(sample_problem: Problem):
     """Test multiple rounds with round counter incrementing."""
     state = create_initial_state(
@@ -618,6 +622,8 @@ def test_route_cost_guard_exceeds_budget(sample_problem: Problem):
 # ============================================================================
 
 
+@pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_all_five_layers_independently(sample_problem: Problem):
     """Test that all 5 layers can be activated independently."""
     # Layer 1: Recursion limit (constant check)
@@ -826,6 +832,7 @@ async def test_semantic_convergence_detects_repetition():
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_llm
 async def test_semantic_convergence_diverse_content():
     """Test semantic convergence correctly identifies diverse contributions."""
     from bo1.graph.safety.loop_prevention import _calculate_convergence_score_semantic

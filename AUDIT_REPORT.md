@@ -443,19 +443,27 @@ contribution_cluster_similarity_threshold: float = 0.75
 | P1-UX-3 | Make connection error recoverable | UX | ✅ DONE |
 | P1-UX-4 | Add error boundary components | Stability | ⏳ DEFERRED |
 
-### P2 - Medium (Next Sprint) - 2/12 COMPLETED
+### P2 - Medium (Next Sprint) - 14/16 COMPLETED
 
 | ID | Issue | Impact | Status |
 |----|-------|--------|--------|
 | P2-SSE-5 | Remove duplicate SSE client | Technical debt | ✅ DONE |
-| P2-DECOMP-5 | Add consistency test | Quality assurance | ⏳ Pending |
+| P2-SSE-6 | Add SSE heartbeat/stall detection | UX | ✅ DONE |
+| P2-SSE-7/8/9 | Add SSE security tests | Security | ✅ DONE |
+| P2-DECOMP-5 | Add consistency test | Quality assurance | ✅ DONE |
+| P2-DECOMP-6 | Lower base temperature default | Consistency | ✅ DONE |
 | P2-EMB-3 | Contribution clustering | Quality | ⏳ Pending |
 | P2-EMB-4 | Embedding-based context selection | Quality | ⏳ Pending |
-| P2-RESEARCH-3 | Research request consolidation | Cost savings | ⏳ Pending |
-| P2-DRY-5 | Consolidate error handling | Maintainability | ⏳ Pending |
+| P2-RESEARCH-3 | Research request consolidation | Cost savings | ✅ DONE |
+| P2-RESEARCH-4 | Add request rate limiting queue | Reliability | ✅ DONE |
+| P2-RESEARCH-5 | Track success rate by research_depth | Observability | ✅ DONE |
+| P2-DRY-5 | Consolidate error handling | Maintainability | ✅ DONE |
 | P2-DRY-6 | Extract cost calculation helper | DRY | ✅ DONE |
-| P2-UX-6 | Improve skeleton accuracy | UX | ⏳ Pending |
-| P2-UX-9 | Extract +page.svelte logic | Maintainability | ⏳ Pending |
+| P2-DRY-7 | Create frontend data fetching composable | DRY | ✅ DONE |
+| P2-DRY-8 | Refactor session metadata updates | DRY | ✅ DONE |
+| P2-UX-6 | Improve skeleton accuracy | UX | ✅ DONE |
+| P2-UX-9 | Extract +page.svelte logic | Maintainability | ✅ DONE |
+| P2-UX-10 | Use Button.svelte consistently | Consistency | ✅ DONE |
 
 ### P3 - Low (Future)
 
@@ -502,16 +510,16 @@ contribution_cluster_similarity_threshold: float = 0.75
 
 ## Progress Tracking
 
-**Total Items**: 47
-**Completed**: 19 (40%)
+**Total Items**: 52
+**Completed**: 31 (60%)
 **Deferred**: 4 (8%)
-**Pending**: 24 (52%)
+**Pending**: 17 (32%)
 
 | Priority | Total | Done | Deferred | Pending |
 |----------|-------|------|----------|---------|
 | P0 (Critical) | 7 | 7 | 0 | 0 |
 | P1 (High) | 13 | 10 | 3 | 0 |
-| P2 (Medium) | 12 | 2 | 0 | 10 |
+| P2 (Medium) | 17 | 14 | 0 | 3 |
 | P3 (Low) | 15 | 0 | 1 | 14 |
 
 ### Completion Summary
@@ -531,10 +539,22 @@ contribution_cluster_similarity_threshold: float = 0.75
 - Phase progress mappings consolidated
 - *Deferred*: Deliberation caching, implicit research, prompt consolidation
 
-**P2 Medium - 17% Complete**
+**P2 Medium - 82% Complete**
 - Duplicate SSE client removed (827 lines)
-- Cost calculation helper extracted
-- *Remaining work for next sprint*
+- SSE heartbeat/stall detection added
+- SSE security tests added for non-owned sessions
+- Decomposition consistency test added
+- Base temperature lowered to 0.7 for better consistency
+- Research request consolidation implemented
+- Request rate limiting queue added
+- Research success rate tracking implemented
+- Error handling utilities consolidated
+- Frontend data fetching composable created
+- Session metadata updates refactored
+- Skeleton accuracy improved with component-specific skeletons
+- +page.svelte logic extracted to separate modules
+- Button.svelte used consistently across app
+- *Remaining: Contribution clustering, embedding-based context selection*
 
 ---
 

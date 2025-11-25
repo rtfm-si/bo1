@@ -15,6 +15,10 @@ export interface SSEClientOptions {
 	onMessage?: (event: MessageEvent) => void;
 	/** Map of event types to handlers */
 	eventHandlers?: Record<string, (event: MessageEvent) => void>;
+	/** Callback when connection appears stalled (no messages for 30s) */
+	onStall?: () => void;
+	/** Interval in milliseconds to check for stalled connection (default: 30000) */
+	stallDetectionInterval?: number;
 }
 
 export class SSEClient {
@@ -23,6 +27,9 @@ export class SSEClient {
 	private abortController: AbortController | null = null;
 	private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 	private closed = false;
+	private lastMessageTime: number = Date.now();
+	private stallCheckInterval: NodeJS.Timeout | null = null;
+	private hasWarned = false;
 
 	constructor(url: string, options: SSEClientOptions = {}) {
 		this.url = url;
@@ -32,6 +39,13 @@ export class SSEClient {
 	async connect(): Promise<void> {
 		this.closed = false;
 		this.abortController = new AbortController();
+		this.lastMessageTime = Date.now();
+		this.hasWarned = false;
+
+		// Start stall detection if callback provided
+		if (this.options.onStall) {
+			this.startStallDetection();
+		}
 
 		try {
 			const response = await fetch(this.url, {
@@ -66,6 +80,10 @@ export class SSEClient {
 				if (done) {
 					break;
 				}
+
+				// Update last message time on any data received
+				this.lastMessageTime = Date.now();
+				this.hasWarned = false; // Reset warning flag on new data
 
 				// Decode chunk and add to buffer
 				buffer += decoder.decode(value, { stream: true });
@@ -124,7 +142,34 @@ export class SSEClient {
 		this.cleanup();
 	}
 
+	private startStallDetection(): void {
+		const intervalMs = this.options.stallDetectionInterval || 30000; // Default 30s
+
+		this.stallCheckInterval = setInterval(() => {
+			if (this.closed) {
+				return;
+			}
+
+			const timeSinceLastMessage = Date.now() - this.lastMessageTime;
+
+			// Warn if no message received in specified interval and not already warned
+			if (timeSinceLastMessage >= intervalMs && !this.hasWarned) {
+				this.hasWarned = true;
+				this.options.onStall?.();
+			}
+		}, 5000); // Check every 5 seconds
+	}
+
+	private stopStallDetection(): void {
+		if (this.stallCheckInterval) {
+			clearInterval(this.stallCheckInterval);
+			this.stallCheckInterval = null;
+		}
+	}
+
 	private cleanup(): void {
+		this.stopStallDetection();
+
 		if (this.reader) {
 			this.reader.cancel().catch((error) => {
 				// Log but don't throw - cleanup should be resilient

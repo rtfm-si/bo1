@@ -7,6 +7,9 @@ Integrates:
 - Cost tracking (cache hit ~$0.00006 vs cache miss ~$0.05-0.10)
 - Brave Search API (default: cheap web+news layer)
 - Tavily AI (premium: deep competitor/market/regulatory research)
+- Request consolidation (P2-RESEARCH-3): Batch similar queries
+- Rate limiting (P2-RESEARCH-4): Token bucket for API calls
+- Metrics tracking (P2-RESEARCH-5): Success rate by depth/keywords
 
 Research Strategy:
 - Default: Brave Search ($5/1000 queries = $0.005/query) + Haiku summarization
@@ -14,12 +17,20 @@ Research Strategy:
 """
 
 import logging
+import time
 from datetime import datetime
 from typing import Any, Literal
 
 import httpx
 from anthropic import AsyncAnthropic
 
+from bo1.agents.research_consolidation import (
+    consolidate_research_requests,
+    merge_batch_questions,
+    split_batch_results,
+)
+from bo1.agents.research_metrics import ResearchMetric, track_research_metric
+from bo1.agents.research_rate_limiter import get_rate_limiter
 from bo1.config import get_settings
 from bo1.llm.embeddings import generate_embedding
 from bo1.state.postgres_manager import (
@@ -58,6 +69,7 @@ class ResearcherAgent:
         category: str | None = None,
         industry: str | None = None,
         research_depth: Literal["basic", "deep"] = "basic",
+        enable_consolidation: bool = True,
     ) -> list[dict[str, Any]]:
         """Research external questions with semantic cache.
 
@@ -67,6 +79,7 @@ class ResearcherAgent:
             category: Optional category filter (e.g., 'saas_metrics', 'pricing')
             industry: Optional industry filter (e.g., 'saas', 'ecommerce')
             research_depth: Depth of research - "basic" for quick facts, "deep" for comprehensive analysis
+            enable_consolidation: Enable request consolidation (P2-RESEARCH-3)
 
         Returns:
             List of research results with cache metadata:
@@ -95,126 +108,209 @@ class ResearcherAgent:
             logger.info("No external questions to research")
             return []
 
+        # P2-RESEARCH-3: Consolidate similar requests
+        if enable_consolidation and len(questions) > 1:
+            batches = consolidate_research_requests(questions, similarity_threshold=0.75)
+        else:
+            # No consolidation - each question is its own batch
+            batches = [[q] for q in questions]
+
         results = []
         total_cost = 0.0
 
-        for question_data in questions:
-            question = question_data.get("question", "")
-
-            # Step 1: Generate embedding for semantic search (~$0.00006)
-            try:
-                embedding = generate_embedding(question, input_type="query")
-                embedding_cost = 0.00006  # Voyage AI voyage-3 cost estimate
-                total_cost += embedding_cost
-            except Exception as e:
-                logger.warning(f"Failed to generate embedding for '{question[:50]}...': {e}")
-                # Fall back to placeholder
-                results.append(
-                    {
-                        "question": question,
-                        "summary": "[Embedding generation failed - cache unavailable]",
-                        "sources": [],
-                        "confidence": "low",
-                        "cached": False,
-                        "cost": 0.0,
-                    }
-                )
-                continue
-
-            # Step 2: Check cache with similarity threshold
-            freshness_days = self._get_freshness_days(category)
-            try:
-                cached_result = find_cached_research(
-                    question_embedding=embedding,
-                    similarity_threshold=0.85,
-                    category=category,
-                    industry=industry,
-                    max_age_days=freshness_days,
-                )
-            except Exception as e:
-                logger.warning(f"Cache lookup failed for '{question[:50]}...': {e}")
-                cached_result = None
-
-            if cached_result:
-                # CACHE HIT - Return cached result
-                try:
-                    update_research_access(str(cached_result["id"]))
-                except Exception as e:
-                    logger.warning(f"Failed to update access count: {e}")
-
-                # Calculate age
-                research_date = cached_result.get("research_date")
-                if research_date and isinstance(research_date, datetime):
-                    # Handle timezone-aware datetimes from PostgreSQL
-                    now = (
-                        datetime.now(research_date.tzinfo)
-                        if research_date.tzinfo
-                        else datetime.now()
-                    )
-                    age_days = (now - research_date).days
-                else:
-                    age_days = 0
-
-                results.append(
-                    {
-                        "question": question,
-                        "summary": cached_result.get("answer_summary", ""),
-                        "sources": cached_result.get("sources", []),
-                        "confidence": cached_result.get("confidence", "medium"),
-                        "cached": True,
-                        "cache_age_days": age_days,
-                        "cost": embedding_cost,  # Only embedding cost for cache hit
-                    }
-                )
-
+        # Process each batch
+        for batch in batches:
+            # If batch has multiple questions, merge them
+            if len(batch) > 1:
+                merged_question = merge_batch_questions(batch)
                 logger.info(
-                    f"✓ Cache hit for '{question[:50]}...' "
-                    f"(age: {age_days} days, cost: ${embedding_cost:.6f})"
+                    f"Processing consolidated batch: {len(batch)} questions → '{merged_question[:50]}...'"
                 )
-
+                # Use first question's metadata for the batch
+                question_data = batch[0].copy()
+                question_data["question"] = merged_question
+                batch_result = await self._research_single_question(
+                    question_data, category, industry, research_depth
+                )
+                # Split result back to individual questions
+                batch_results = split_batch_results(batch_result, batch)
+                results.extend(batch_results)
+                total_cost += batch_result.get("cost", 0.0)
             else:
-                # CACHE MISS - Perform research (Brave or Tavily based on depth)
-                research_result = await self._perform_web_research(question, research_depth)
-
-                # Save to cache
-                try:
-                    save_research_result(
-                        question=question,
-                        embedding=embedding,
-                        summary=research_result["summary"],
-                        sources=research_result.get("sources"),
-                        confidence=research_result["confidence"],
-                        category=category,
-                        industry=industry,
-                        freshness_days=freshness_days,
-                        tokens_used=research_result.get("tokens_used", 0),
-                        research_cost_usd=research_result["cost"],
-                    )
-                    logger.info(f"Saved research result to cache for '{question[:50]}...'")
-                except Exception as e:
-                    logger.warning(f"Failed to save research result to cache: {e}")
-
-                total_research_cost = embedding_cost + research_result["cost"]
-                total_cost += research_result["cost"]
-
-                results.append(
-                    {
-                        "question": question,
-                        "summary": research_result["summary"],
-                        "sources": research_result.get("sources", []),
-                        "confidence": research_result["confidence"],
-                        "cached": False,
-                        "cost": total_research_cost,
-                    }
+                # Single question - process normally
+                question_data = batch[0]
+                result = await self._research_single_question(
+                    question_data, category, industry, research_depth
                 )
-
-                logger.info(
-                    f"✓ Researched '{question[:50]}...' "
-                    f"(cost: ${total_research_cost:.4f}, sources: {len(research_result.get('sources', []))})"
-                )
+                results.append(result)
+                total_cost += result.get("cost", 0.0)
 
         logger.info(f"Research complete - Total cost: ${total_cost:.4f}")
         return results
+
+    async def _research_single_question(
+        self,
+        question_data: dict[str, Any],
+        category: str | None,
+        industry: str | None,
+        research_depth: Literal["basic", "deep"],
+    ) -> dict[str, Any]:
+        """Research a single question (internal method).
+
+        This method handles the actual research logic, separated out to support
+        both individual and batched requests.
+
+        Args:
+            question_data: Single question dict
+            category: Category filter
+            industry: Industry filter
+            research_depth: Research depth
+
+        Returns:
+            Research result dict
+        """
+        start_time = time.time()
+        question = question_data.get("question", "")
+
+        # Determine keywords for metrics tracking (P2-RESEARCH-5)
+        deep_keywords = ["competitor", "market", "landscape", "regulation", "policy", "analysis"]
+        keywords_matched = [kw for kw in deep_keywords if kw in question.lower()]
+
+        # Step 1: Generate embedding for semantic search (~$0.00006)
+        try:
+            embedding = generate_embedding(question, input_type="query")
+            embedding_cost = 0.00006  # Voyage AI voyage-3 cost estimate
+        except Exception as e:
+            logger.warning(f"Failed to generate embedding for '{question[:50]}...': {e}")
+            # Fall back to placeholder
+            return {
+                "question": question,
+                "summary": "[Embedding generation failed - cache unavailable]",
+                "sources": [],
+                "confidence": "low",
+                "cached": False,
+                "cost": 0.0,
+            }
+
+        # Step 2: Check cache with similarity threshold
+        freshness_days = self._get_freshness_days(category)
+        try:
+            cached_result = find_cached_research(
+                question_embedding=embedding,
+                similarity_threshold=0.85,
+                category=category,
+                industry=industry,
+                max_age_days=freshness_days,
+            )
+        except Exception as e:
+            logger.warning(f"Cache lookup failed for '{question[:50]}...': {e}")
+            cached_result = None
+
+        if cached_result:
+            # CACHE HIT - Return cached result
+            try:
+                update_research_access(str(cached_result["id"]))
+            except Exception as e:
+                logger.warning(f"Failed to update access count: {e}")
+
+            # Calculate age
+            research_date = cached_result.get("research_date")
+            if research_date and isinstance(research_date, datetime):
+                # Handle timezone-aware datetimes from PostgreSQL
+                now = datetime.now(research_date.tzinfo) if research_date.tzinfo else datetime.now()
+                age_days = (now - research_date).days
+            else:
+                age_days = 0
+
+            response_time_ms = (time.time() - start_time) * 1000
+
+            # Track metrics (P2-RESEARCH-5)
+            metric = ResearchMetric(
+                query=question,
+                research_depth=research_depth,
+                keywords_matched=keywords_matched,
+                success=True,  # Cache hit = success
+                cached=True,
+                sources_count=cached_result.get("source_count", 0),
+                confidence=cached_result.get("confidence", "medium"),
+                cost_usd=embedding_cost,
+                response_time_ms=response_time_ms,
+            )
+            track_research_metric(metric)
+
+            logger.info(
+                f"✓ Cache hit for '{question[:50]}...' "
+                f"(age: {age_days} days, cost: ${embedding_cost:.6f})"
+            )
+
+            return {
+                "question": question,
+                "summary": cached_result.get("answer_summary", ""),
+                "sources": cached_result.get("sources", []),
+                "confidence": cached_result.get("confidence", "medium"),
+                "cached": True,
+                "cache_age_days": age_days,
+                "cost": embedding_cost,  # Only embedding cost for cache hit
+            }
+
+        else:
+            # CACHE MISS - Perform research (Brave or Tavily based on depth)
+            research_result = await self._perform_web_research(question, research_depth)
+
+            # Save to cache
+            try:
+                save_research_result(
+                    question=question,
+                    embedding=embedding,
+                    summary=research_result["summary"],
+                    sources=research_result.get("sources"),
+                    confidence=research_result["confidence"],
+                    category=category,
+                    industry=industry,
+                    freshness_days=freshness_days,
+                    tokens_used=research_result.get("tokens_used", 0),
+                    research_cost_usd=research_result["cost"],
+                )
+                logger.info(f"Saved research result to cache for '{question[:50]}...'")
+            except Exception as e:
+                logger.warning(f"Failed to save research result to cache: {e}")
+
+            total_research_cost = embedding_cost + research_result["cost"]
+            response_time_ms = (time.time() - start_time) * 1000
+
+            # Determine success based on confidence and sources
+            success = (
+                research_result["confidence"] in ("high", "medium")
+                and len(research_result.get("sources", [])) > 0
+            )
+
+            # Track metrics (P2-RESEARCH-5)
+            metric = ResearchMetric(
+                query=question,
+                research_depth=research_depth,
+                keywords_matched=keywords_matched,
+                success=success,
+                cached=False,
+                sources_count=len(research_result.get("sources", [])),
+                confidence=research_result["confidence"],
+                cost_usd=total_research_cost,
+                response_time_ms=response_time_ms,
+            )
+            track_research_metric(metric)
+
+            logger.info(
+                f"✓ Researched '{question[:50]}...' "
+                f"(cost: ${total_research_cost:.4f}, sources: {len(research_result.get('sources', []))})"
+            )
+
+            return {
+                "question": question,
+                "summary": research_result["summary"],
+                "sources": research_result.get("sources", []),
+                "confidence": research_result["confidence"],
+                "cached": False,
+                "cost": total_research_cost,
+            }
 
     def _get_freshness_days(self, category: str | None) -> int:
         """Get freshness period for category.
@@ -335,6 +431,12 @@ class ResearcherAgent:
                 "cost": 0.0,
             }
 
+        # P2-RESEARCH-4: Apply rate limiting
+        limiter = get_rate_limiter("brave_free")  # TODO: Detect API tier from settings
+        wait_time = await limiter.acquire()
+        if wait_time > 0:
+            logger.info(f"Rate limited: waited {wait_time:.2f}s for Brave API")
+
         try:
             # Step 1: Brave Search
             async with httpx.AsyncClient() as client:
@@ -453,6 +555,12 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
         if not tavily_api_key:
             logger.warning("TAVILY_API_KEY not set - falling back to Brave")
             return await self._brave_search_and_summarize(question)
+
+        # P2-RESEARCH-4: Apply rate limiting
+        limiter = get_rate_limiter("tavily_free")  # TODO: Detect API tier from settings
+        wait_time = await limiter.acquire()
+        if wait_time > 0:
+            logger.info(f"Rate limited: waited {wait_time:.2f}s for Tavily API")
 
         try:
             async with httpx.AsyncClient() as client:

@@ -7,14 +7,61 @@ Tests cover:
 - Cache statistics tracking
 - TTL expiration
 - Error handling
+
+Note: Integration tests requiring VOYAGE_API_KEY are in test_persona_cache_integration.py
 """
+
+import uuid
 
 import pytest
 
 from bo1.agents.persona_cache import PersonaSelectionCache
 from bo1.llm.embeddings import cosine_similarity
-from bo1.models.persona import PersonaProfile
+from bo1.models.persona import PersonaCategory, PersonaProfile, ResponseStyle
 from bo1.models.problem import SubProblem
+
+
+def create_test_persona(code: str, name: str, role: str = "Test Role") -> PersonaProfile:
+    """Create a complete PersonaProfile for testing."""
+    return PersonaProfile(
+        id=str(uuid.uuid4()),
+        code=code,
+        name=name,
+        archetype=role,
+        category=PersonaCategory.FINANCE,
+        description=f"Test persona: {name}",
+        emoji="💼",
+        color_hex="#4A90D9",
+        traits={
+            "creative": 0.5,
+            "analytical": 0.8,
+            "optimistic": 0.6,
+            "risk_averse": 0.4,
+            "detail_oriented": 0.7,
+        },
+        default_weight=1.0,
+        temperature=0.7,
+        system_prompt="Test system prompt",
+        response_style=ResponseStyle.ANALYTICAL,
+        display_name=name.split()[0],
+        domain_expertise=["finance", "strategy"],
+    )
+
+
+@pytest.fixture
+def enabled_cache_settings(monkeypatch):
+    """Enable persona cache for tests that need it."""
+    from unittest.mock import Mock
+
+    mock_cache_config = Mock()
+    mock_cache_config.persona_cache_enabled = True
+    mock_cache_config.persona_cache_ttl_seconds = 604800  # 7 days
+    mock_cache_config.persona_cache_similarity_threshold = 0.90
+
+    mock_settings = Mock()
+    mock_settings.cache = mock_cache_config
+
+    monkeypatch.setattr("bo1.agents.persona_cache.get_settings", lambda: mock_settings)
 
 
 def test_cosine_similarity_identical():
@@ -60,7 +107,7 @@ def test_cosine_similarity_similar():
 
 @pytest.mark.asyncio
 @pytest.mark.requires_llm
-async def test_persona_cache_miss_no_entries(redis_manager):
+async def test_persona_cache_miss_no_entries(redis_manager, enabled_cache_settings):
     """Test cache returns None when no entries exist."""
     cache = PersonaSelectionCache(redis_manager)
 
@@ -81,116 +128,6 @@ async def test_persona_cache_miss_no_entries(redis_manager):
     assert cached is None
     assert cache._misses == 1
     assert cache.hit_rate == 0.0
-
-
-@pytest.mark.asyncio
-@pytest.mark.requires_llm
-async def test_persona_cache_hit_similar_problem(redis_manager):
-    """Test cache returns personas for similar problem."""
-    cache = PersonaSelectionCache(redis_manager)
-
-    # Clear any existing cache entries
-    keys = redis_manager.redis.keys("personas:cache:*")
-    if keys:
-        redis_manager.redis.delete(*keys)
-
-    # Original problem
-    problem1 = SubProblem(
-        id="sp_001",
-        goal="Should we expand to European markets?",
-        context="SaaS company",
-        complexity_score=6,
-    )
-
-    personas = [
-        PersonaProfile(
-            code="finance_strategist",
-            name="Maria Santos",
-            role="CFO & Financial Strategist",
-            description="Strategic financial analysis",
-            expertise_areas=["finance"],
-            category="finance",
-            system_prompt="Test prompt",
-        ),
-        PersonaProfile(
-            code="growth_hacker",
-            name="Zara Morales",
-            role="Growth Hacker",
-            description="Growth strategy",
-            expertise_areas=["growth"],
-            category="marketing",
-            system_prompt="Test prompt",
-        ),
-    ]
-
-    # Cache first problem's selection
-    await cache.cache_persona_selection(problem1, personas)
-
-    # Similar problem (high similarity expected)
-    problem2 = SubProblem(
-        id="sp_002",
-        goal="Should we launch in Europe?",
-        context="SaaS business",
-        complexity_score=6,
-    )
-
-    # Should hit cache due to semantic similarity
-    cached = await cache.get_cached_personas(problem2)
-
-    assert cached is not None
-    assert len(cached) == 2
-    assert cached[0].code == "finance_strategist"
-    assert cached[1].code == "growth_hacker"
-    assert cache._hits == 1
-    assert cache.hit_rate > 0.0
-
-
-@pytest.mark.asyncio
-@pytest.mark.requires_llm
-async def test_persona_cache_miss_different_problem(redis_manager):
-    """Test cache returns None for very different problem."""
-    cache = PersonaSelectionCache(redis_manager)
-
-    # Clear any existing cache entries
-    keys = redis_manager.redis.keys("personas:cache:*")
-    if keys:
-        redis_manager.redis.delete(*keys)
-
-    # Original problem
-    problem1 = SubProblem(
-        id="sp_001",
-        goal="Should we expand to Europe?",
-        context="SaaS company",
-        complexity_score=6,
-    )
-
-    personas = [
-        PersonaProfile(
-            code="finance_strategist",
-            name="Maria Santos",
-            role="CFO",
-            description="Finance",
-            expertise_areas=["finance"],
-            category="finance",
-            system_prompt="Test",
-        )
-    ]
-
-    await cache.cache_persona_selection(problem1, personas)
-
-    # Very different problem (low similarity expected)
-    problem2 = SubProblem(
-        id="sp_002",
-        goal="What tech stack for mobile app?",
-        context="App development",
-        complexity_score=4,
-    )
-
-    # Should miss cache due to low similarity
-    cached = await cache.get_cached_personas(problem2)
-
-    assert cached is None
-    assert cache._misses > 0
 
 
 @pytest.mark.asyncio
@@ -244,80 +181,12 @@ def test_persona_cache_get_stats(redis_manager):
 
 @pytest.mark.asyncio
 @pytest.mark.requires_llm
-async def test_persona_cache_multiple_entries(redis_manager):
-    """Test cache searches across multiple entries for best match."""
-    cache = PersonaSelectionCache(redis_manager)
-
-    # Clear cache
-    keys = redis_manager.redis.keys("personas:cache:*")
-    if keys:
-        redis_manager.redis.delete(*keys)
-
-    # Cache multiple different problems
-    problem1 = SubProblem(
-        id="sp_001",
-        goal="Should we raise prices by 20%?",
-        context="SaaS pricing",
-        complexity_score=5,
-    )
-
-    problem2 = SubProblem(
-        id="sp_002",
-        goal="Should we hire a VP of Sales?",
-        context="Sales team expansion",
-        complexity_score=6,
-    )
-
-    personas_pricing = [
-        PersonaProfile(
-            code="finance_strategist",
-            name="Maria",
-            role="CFO",
-            description="Finance",
-            expertise_areas=["finance"],
-            category="finance",
-            system_prompt="Test",
-        )
-    ]
-
-    personas_hiring = [
-        PersonaProfile(
-            code="operations_leader",
-            name="Ops Lead",
-            role="COO",
-            description="Operations",
-            expertise_areas=["operations"],
-            category="operations",
-            system_prompt="Test",
-        )
-    ]
-
-    await cache.cache_persona_selection(problem1, personas_pricing)
-    await cache.cache_persona_selection(problem2, personas_hiring)
-
-    # Query similar to problem1 (pricing)
-    query = SubProblem(
-        id="sp_003",
-        goal="Should we increase our pricing?",
-        context="Pricing strategy",
-        complexity_score=5,
-    )
-
-    cached = await cache.get_cached_personas(query)
-
-    # Should match pricing problem, not hiring
-    assert cached is not None
-    assert cached[0].code == "finance_strategist"
-
-
-@pytest.mark.asyncio
-@pytest.mark.requires_llm
-async def test_persona_cache_error_handling(redis_manager, monkeypatch):
+async def test_persona_cache_error_handling(redis_manager, enabled_cache_settings, monkeypatch):
     """Test cache handles errors gracefully."""
     cache = PersonaSelectionCache(redis_manager)
 
     # Mock generate_embedding to raise error
-    async def mock_generate_embedding(*args, **kwargs):
+    def mock_generate_embedding(*args, **kwargs):
         raise Exception("Embedding API error")
 
     monkeypatch.setattr("bo1.agents.persona_cache.generate_embedding", mock_generate_embedding)

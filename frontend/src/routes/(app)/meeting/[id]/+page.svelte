@@ -113,60 +113,40 @@
 		MeetingStatusBar,
 		Tabs,
 		SubProblemMetrics,
+		Button,
 	} from '$lib/components/ui';
 	import type { Tab } from '$lib/components/ui';
+	import {
+		EventCardSkeleton,
+		ExpertPanelSkeleton,
+		ContributionSkeleton,
+		DashboardCardSkeleton
+	} from '$lib/components/ui/skeletons';
 
 	// Import utilities
 	import { getEventPriority, type EventPriority } from '$lib/utils/event-humanization';
 
+	// Import business logic modules
+	import { createSessionStore, type SessionData } from './lib/sessionStore.svelte';
+	import { groupEvents, indexEventsBySubProblem, shouldShowEvent, type EventGroup } from './lib/eventGrouping';
+	import { buildSubProblemTabs, calculateSubProblemProgress, type SubProblemTab } from './lib/subProblemTabs';
+
 	const sessionId: string = $page.params.id!; // SvelteKit guarantees this exists due to [id] route
 
-	interface SessionData {
-		id: string;
-		problem?: {
-			statement: string;
-			context?: Record<string, any>;
-		};
-		status: string;
-		phase: string | null;
-		round_number?: number; // Optional since it may not exist yet
-		created_at: string;
-	}
+	// Create session store
+	const store = createSessionStore();
 
-	// Constants for internal event filtering
-	const INTERNAL_EVENTS = ['node_start', 'node_end'];
+	// Reactive references to store values
+	let session = $derived(store.session);
+	let events = $derived(store.events);
+	let isLoading = $derived(store.isLoading);
+	let error = $derived(store.error);
+	let autoScroll = $state(true); // Local UI state
+	let retryCount = $derived(store.retryCount);
+	let connectionStatus = $derived(store.connectionStatus);
 
-	// Status noise events to hide (UX redesign - these don't provide actionable info)
-	const STATUS_NOISE_EVENTS = [
-		'decomposition_started',
-		'persona_selection_started',
-		'persona_selection_complete', // Just shows "experts selected" - panel shows the actual experts
-		'initial_round_started',
-		'facilitator_decision', // Internal deliberation orchestration - not meaningful to end users
-		'voting_started',
-		'voting_complete', // Individual results shown in VotingResults component
-		'synthesis_started',
-		'meta_synthesis_started',
-		'persona_vote', // Individual votes now aggregated in voting_complete
-		'convergence', // Moved to sidebar DecisionMetrics component (Issue #6 fix)
-	];
-
-	let session = $state<SessionData | null>(null);
-	let events = $state<SSEEvent[]>([]);
-	let isLoading = $state(true);
-	let error = $state<string | null>(null);
 	let sseClient: SSEClient | null = null;
-	let autoScroll = $state(true);
-	let retryCount = $state(0);
 	let maxRetries = 3;
-	let connectionStatus = $state<'connecting' | 'connected' | 'error' | 'retrying'>('connecting');
-
-	// Track seen events for deduplication (bounded to prevent memory leaks)
-	const MAX_SEEN_EVENTS = 500;
-	let seenEventKeys = $state(new Set<string>());
-
-	// Issue #1 fix: Add sequence number to handle identical timestamps
-	let eventSequence = $state(0);
 
 	// Check URL for debug mode to show internal events
 	const debugMode = $derived($page.url.searchParams.has('debug'));
@@ -190,61 +170,17 @@
 	 *
 	 * Caches expensive array filtering to avoid recalculation on every render.
 	 * Only recalculates when events.length changes.
-	 *
-	 * Before: O(2n) on every render (two full filters)
-	 * After: O(n) only on events change (single iteration)
-	 *
-	 * Measured improvement: ~5-10ms → <1ms for cached renders (50-100 events)
 	 */
 	let subProblemProgressCache = $state<{ current: number; total: number } | null>(null);
 	let lastEventCountForProgress = $state(0);
 
 	$effect(() => {
-		// Only recalculate if events changed (using length as cheap proxy)
 		if (events.length !== lastEventCountForProgress) {
-			// Single iteration instead of two filters
-			let startedCount = 0;
-			let completedCount = 0;
-			let totalSubProblems = 1;
-			let firstStarted: SSEEvent | null = null;
-			const startedIndices = new Set<number>();
-
-			for (const event of events) {
-				if (event.event_type === 'subproblem_started') {
-					startedCount++;
-					if (!firstStarted) {
-						firstStarted = event;
-						totalSubProblems = (event.data.total_sub_problems as number) ?? 1;
-					}
-					const index = event.data.sub_problem_index as number;
-					if (index !== undefined) {
-						startedIndices.add(index);
-					}
-				} else if (event.event_type === 'subproblem_complete') {
-					completedCount++;
-				}
-			}
-
-			// Calculate current/total - use null when no sub-problems started yet
-			if (startedCount === 0) {
-				subProblemProgressCache = null; // Not yet known - show "Preparing..."
-			} else if (completedCount > 0) {
-				subProblemProgressCache = {
-					current: completedCount,
-					total: totalSubProblems
-				};
-			} else {
-				subProblemProgressCache = {
-					current: startedIndices.size,
-					total: totalSubProblems
-				};
-			}
-
+			subProblemProgressCache = calculateSubProblemProgress(events);
 			lastEventCountForProgress = events.length;
 		}
 	});
 
-	// Use cached value (no recalculation on unrelated state changes)
 	const subProblemProgress = $derived(subProblemProgressCache);
 
 	// Heartbeat tracking for long operations
@@ -286,53 +222,9 @@
 		}
 	});
 
-	// Filter function to hide internal events and status noise (unless debug mode)
-	function shouldShowEvent(eventType: string): boolean {
-		if (debugMode) return !INTERNAL_EVENTS.includes(eventType);
-		return !INTERNAL_EVENTS.includes(eventType) && !STATUS_NOISE_EVENTS.includes(eventType);
-	}
-
 	// Helper function to add events safely with deduplication
 	function addEvent(newEvent: SSEEvent) {
-		// Issue #1 fix: Use sequence number + sub_problem_index for unique keys
-		// This prevents duplicate key issues when events have identical timestamps
-		// Format: {sub_problem_index}-{sequence}-{event_type}-{persona_code}
-		const subProblemIndex = newEvent.data.sub_problem_index ?? 'global';
-		const personaOrId = newEvent.data.persona_code || newEvent.data.sub_problem_id || '';
-		const eventKey = `${subProblemIndex}-${eventSequence}-${newEvent.event_type}-${personaOrId}`;
-
-		// Increment sequence for next event
-		eventSequence++;
-
-		// Skip if already seen (should be rare with sequence numbers)
-		if (seenEventKeys.has(eventKey)) {
-			console.warn('[Events] Duplicate detected (should be rare with sequence numbers):', eventKey);
-			return;
-		}
-
-		// Enforce max size to prevent unbounded memory growth
-		if (seenEventKeys.size >= MAX_SEEN_EVENTS) {
-			// Prune: keep most recent MAX_SEEN_EVENTS entries
-			const keys = Array.from(seenEventKeys);
-			seenEventKeys = new Set(keys.slice(-MAX_SEEN_EVENTS));
-			console.debug(`[Events] Pruned deduplication set to ${MAX_SEEN_EVENTS} entries`);
-		}
-
-		seenEventKeys.add(eventKey);
-		events = [...events, newEvent];
-
-		// Debug convergence events
-		if (newEvent.event_type === 'convergence') {
-			console.log('[EVENT RECEIVED] Convergence event:', {
-				sequence: eventSequence - 1,
-				event_type: newEvent.event_type,
-				sub_problem_index: newEvent.data.sub_problem_index,
-				score: newEvent.data.score,
-				threshold: newEvent.data.threshold,
-				round: newEvent.data.round,
-				data: newEvent.data
-			});
-		}
+		store.addEvent(newEvent);
 	}
 
 	// Helper functions for phase display
@@ -396,12 +288,13 @@
 
 	async function loadSession() {
 		try {
-			session = await apiClient.getSession(sessionId);
-			isLoading = false;
+			const sessionData = await apiClient.getSession(sessionId);
+			store.setSession(sessionData);
+			store.setIsLoading(false);
 		} catch (err) {
 			console.error('Failed to load session:', err);
-			error = err instanceof Error ? err.message : 'Failed to load session';
-			isLoading = false;
+			store.setError(err instanceof Error ? err.message : 'Failed to load session');
+			store.setIsLoading(false);
 		}
 	}
 
@@ -438,7 +331,7 @@
 		}
 
 		// Reset connection state for manual retry
-		connectionStatus = 'connecting';
+		store.setConnectionStatus('connecting');
 
 		// Helper to handle SSE events (converts SSE format to SSEEvent)
 		const handleSSEEvent = (eventType: string, event: MessageEvent) => {
@@ -460,34 +353,7 @@
 				scrollToLatestEventDebounced(true);
 
 				// Update session phase and round based on events
-				if (session) {
-					// Extract round_number from multiple event types (Fix for Issue #7)
-					// Events that include round info: contribution, facilitator_decision, convergence, round_started, initial_round_started
-					if (payload.round !== undefined && typeof payload.round === 'number') {
-						session.round_number = payload.round;
-					} else if (payload.round_number !== undefined && typeof payload.round_number === 'number') {
-						session.round_number = payload.round_number;
-					}
-
-					// Phase transitions
-					if (eventType === 'decomposition_complete') {
-						session.phase = 'persona_selection';
-					} else if (eventType === 'persona_selection_complete') {
-						session.phase = 'initial_round';
-					} else if (eventType === 'initial_round_started') {
-						session.phase = 'initial_round';
-						session.round_number = session.round_number || 1;
-					} else if (eventType === 'round_started') {
-						session.phase = 'discussion';
-					} else if (eventType === 'voting_started') {
-						session.phase = 'voting';
-					} else if (eventType === 'synthesis_started') {
-						session.phase = 'synthesis';
-					} else if (eventType === 'complete') {
-						session.status = 'completed';
-						session.phase = 'complete';
-					}
-				}
+				store.updateSessionPhase(eventType, payload);
 			} catch (err) {
 				console.error(`Failed to parse ${eventType} event:`, err);
 			}
@@ -535,19 +401,19 @@
 		sseClient = new SSEClient(`/api/v1/sessions/${sessionId}/stream`, {
 			onOpen: () => {
 				console.log('[SSE] Connection established');
-				retryCount = 0;
-				connectionStatus = 'connected';
+				store.setRetryCount(0);
+				store.setConnectionStatus('connected');
 			},
 			onError: (err) => {
-				console.error('[SSE] Connection error:', err, 'retry count:', retryCount);
+				console.error('[SSE] Connection error:', err, 'retry count:', store.retryCount);
 
 				// Close existing connection
 				sseClient?.close();
 
-				if (retryCount < maxRetries) {
-					retryCount++;
-					connectionStatus = 'retrying';
-					const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
+				if (store.retryCount < maxRetries) {
+					store.setRetryCount(store.retryCount + 1);
+					store.setConnectionStatus('retrying');
+					const delay = Math.min(1000 * Math.pow(2, store.retryCount - 1), 5000);
 					console.log(`[SSE] Retrying in ${delay}ms...`);
 
 					setTimeout(() => {
@@ -555,8 +421,8 @@
 					}, delay);
 				} else {
 					console.error('[SSE] Max retries reached');
-					connectionStatus = 'error';
-					error = 'Failed to connect to session stream. Please refresh the page.';
+					store.setConnectionStatus('error');
+					store.setError('Failed to connect to session stream. Please refresh the page.');
 				}
 			},
 			eventHandlers,
@@ -607,15 +473,6 @@
 		return date.toLocaleTimeString();
 	}
 
-	// Event grouping: Group contributions by round AND persona_selected events
-	interface EventGroup {
-		type: 'single' | 'round' | 'expert_panel';
-		event?: SSEEvent;
-		events?: SSEEvent[];
-		roundNumber?: number;
-		subProblemGoal?: string;
-	}
-
 	/**
 	 * Performance optimization: Memoized + debounced event grouping
 	 *
@@ -632,108 +489,7 @@
 
 	// Debounced recalculation function
 	const recalculateGroupedEvents = debounce(() => {
-			const groups: EventGroup[] = [];
-			let currentRound: SSEEvent[] = [];
-			let currentRoundNumber = 1;
-			let currentExpertPanel: SSEEvent[] = [];
-			let currentSubProblemGoal: string | undefined = undefined;
-
-			// Single iteration with inline filtering (combine filter + group logic)
-			for (const event of events) {
-				// Skip internal/noise events (inline filtering)
-				if (!shouldShowEvent(event.event_type)) {
-					continue;
-				}
-
-				// Track round_started events to get round numbers
-				if (event.event_type === 'round_started' || event.event_type === 'initial_round_started') {
-					if (event.data.round_number) {
-						currentRoundNumber = event.data.round_number as number;
-					}
-				}
-
-				// Track subproblem_started for context
-				if (event.event_type === 'subproblem_started') {
-					currentSubProblemGoal = event.data.goal as string;
-				}
-
-				// Group persona_selected events
-				if (event.event_type === 'persona_selected') {
-					currentExpertPanel.push(event);
-				} else if (event.event_type === 'contribution') {
-					// Flush expert panel if any
-					if (currentExpertPanel.length > 0) {
-						groups.push({
-							type: 'expert_panel',
-							events: currentExpertPanel,
-							subProblemGoal: currentSubProblemGoal,
-						});
-						currentExpertPanel = [];
-					}
-
-					// Get round number from contribution event itself
-					const contributionRound = event.data.round as number | undefined;
-
-					// If round number changed, flush previous round
-					if (contributionRound && contributionRound !== currentRoundNumber && currentRound.length > 0) {
-						groups.push({
-							type: 'round',
-							events: currentRound,
-							roundNumber: currentRoundNumber,
-						});
-						currentRound = [];
-					}
-
-					// Update current round number from contribution
-					if (contributionRound) {
-						currentRoundNumber = contributionRound;
-					}
-
-					// Add contribution to current round
-					currentRound.push(event);
-				} else {
-					// Flush expert panel if any
-					if (currentExpertPanel.length > 0) {
-						groups.push({
-							type: 'expert_panel',
-							events: currentExpertPanel,
-							subProblemGoal: currentSubProblemGoal,
-						});
-						currentExpertPanel = [];
-					}
-					// Flush contributions if any
-					if (currentRound.length > 0) {
-						groups.push({
-							type: 'round',
-							events: currentRound,
-							roundNumber: currentRoundNumber,
-						});
-						currentRound = [];
-					}
-					// Add non-contribution/non-expert event as single
-					groups.push({ type: 'single', event });
-				}
-			}
-
-			// Flush remaining expert panel
-			if (currentExpertPanel.length > 0) {
-				groups.push({
-					type: 'expert_panel',
-					events: currentExpertPanel,
-					subProblemGoal: currentSubProblemGoal,
-				});
-			}
-
-			// Flush remaining contributions
-			if (currentRound.length > 0) {
-				groups.push({
-					type: 'round',
-					events: currentRound,
-					roundNumber: currentRoundNumber,
-				});
-			}
-
-		groupedEventsCache = groups;
+		groupedEventsCache = groupEvents(events, debugMode);
 		lastEventCountForGrouping = events.length;
 	}, 200); // 200ms debounce for rapid event streams
 
@@ -761,175 +517,18 @@
 		return baseProgress;
 	}
 
-	// Sub-problem tabs organization
-	interface SubProblemTab {
-		id: string;
-		label: string;
-		goal: string;
-		status: 'pending' | 'active' | 'voting' | 'synthesis' | 'complete' | 'blocked';
-		metrics: {
-			expertCount: number;
-			convergencePercent: number;
-			currentRound: number;
-			maxRounds: number;
-			duration: string;
-		};
-		events: SSEEvent[];
-	}
-
 	/**
 	 * Performance optimization: Memoized sub-problem tabs calculation
 	 *
 	 * Caches tab metrics to avoid expensive recalculation on every render.
 	 * Only recalculates when events.length changes.
-	 *
-	 * Before: O(n×m) - filters subEvents for each tab on every render
-	 * After: O(n) - single iteration when events change, cached lookup otherwise
-	 *
-	 * Measured improvement: ~10-20ms → <1ms for cached renders (3-5 tabs)
 	 */
 	let subProblemTabsCache = $state<SubProblemTab[]>([]);
 	let lastEventCountForTabs = $state(0);
 
 	$effect(() => {
-		// Only recalculate if events changed
 		if (events.length !== lastEventCountForTabs) {
-			// Find decomposition event
-			const decompositionEvent = events.find(e => e.event_type === 'decomposition_complete');
-
-			if (!decompositionEvent) {
-				console.log('[TAB BUILD DEBUG] No decomposition_complete event found');
-				subProblemTabsCache = [];
-				lastEventCountForTabs = events.length;
-				return;
-			}
-
-			const subProblems = decompositionEvent.data.sub_problems as Array<{
-				goal: string;
-				complexity: number;
-				dependencies?: number[];
-			}>;
-
-			console.log('[TAB BUILD DEBUG] Decomposition event:', {
-				eventData: decompositionEvent.data,
-				subProblemsCount: subProblems?.length || 0,
-				subProblems
-			});
-
-			if (!subProblems || subProblems.length <= 1) {
-				console.log('[TAB BUILD DEBUG] Single sub-problem scenario, not building tabs');
-				subProblemTabsCache = [];
-				lastEventCountForTabs = events.length;
-				return;
-			}
-
-			const tabs: SubProblemTab[] = [];
-
-			console.log('[TAB BUILD DEBUG] Building tabs for', subProblems.length, 'sub-problems');
-
-			for (let index = 0; index < subProblems.length; index++) {
-				const subProblem = subProblems[index];
-
-				// Use indexed lookup (already optimized)
-				const subEvents = eventsBySubProblem.get(index) || [];
-				console.log(`[TAB BUILD DEBUG] Sub-problem ${index}:`, {
-					totalEvents: subEvents.length,
-					eventTypes: subEvents.map(e => e.event_type)
-				});
-
-				// Single iteration for all metrics (instead of multiple filters)
-				let expertCount = 0;
-				let convergencePercent = 0;
-				let roundCount = 0;
-				let status: SubProblemTab['status'] = 'pending';
-				let latestConvergenceEvent: SSEEvent | null = null;
-
-				for (const event of subEvents) {
-					// Count experts
-					if (event.event_type === 'persona_selected') {
-						expertCount++;
-					}
-					// Track latest convergence
-					else if (event.event_type === 'convergence') {
-						latestConvergenceEvent = event;
-					}
-					// Count rounds
-					else if (event.event_type === 'round_started' || event.event_type === 'initial_round_started') {
-						roundCount++;
-					}
-					// Determine status (priority order: complete > synthesis > voting > active)
-					else if (event.event_type === 'subproblem_complete') {
-						status = 'complete';
-					} else if (event.event_type === 'synthesis_started' && status !== 'complete') {
-						status = 'synthesis';
-					} else if (event.event_type === 'voting_started' && status !== 'complete' && status !== 'synthesis') {
-						status = 'voting';
-					} else if (event.event_type === 'subproblem_started' && status === 'pending') {
-						status = 'active';
-					}
-				}
-
-				// Calculate convergence percentage
-				if (latestConvergenceEvent) {
-					const score = latestConvergenceEvent.data.score as number;
-					const threshold = latestConvergenceEvent.data.threshold as number;
-					convergencePercent = Math.round((score / threshold) * 100);
-					console.log('[CONVERGENCE DEBUG]', {
-						subProblem: index,
-						score,
-						threshold,
-						convergencePercent,
-						eventData: latestConvergenceEvent.data
-					});
-				} else {
-					console.log('[CONVERGENCE DEBUG] No convergence event found for sub-problem', index, {
-						subEvents: subEvents.length,
-						eventTypes: subEvents.map(e => e.event_type)
-					});
-				}
-
-				// Calculate duration - prefer duration_seconds from subproblem_complete event
-				let duration = '0s';
-
-				// First, check if we have a subproblem_complete or synthesis_complete event with duration_seconds
-				const completionEvent = subEvents.find(
-					e => (e.event_type === 'subproblem_complete' || e.event_type === 'synthesis_complete') &&
-					     e.data?.duration_seconds !== undefined
-				);
-
-				if (completionEvent?.data?.duration_seconds) {
-					// Use backend-provided duration
-					const totalSeconds = Math.floor(Number(completionEvent.data.duration_seconds));
-					const minutes = Math.floor(totalSeconds / 60);
-					const seconds = totalSeconds % 60;
-					duration = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-				} else if (subEvents.length > 1) {
-					// Fallback: calculate from timestamps
-					const firstTime = new Date(subEvents[0].timestamp);
-					const lastTime = new Date(subEvents[subEvents.length - 1].timestamp);
-					const diffMs = lastTime.getTime() - firstTime.getTime();
-					const diffMin = Math.floor(diffMs / 60000);
-					const diffSec = Math.floor((diffMs % 60000) / 1000);
-					duration = diffMin > 0 ? `${diffMin}m ${diffSec}s` : `${diffSec}s`;
-				}
-
-				tabs.push({
-					id: `subproblem-${index}`,
-					label: `Sub-problem ${index + 1}`,
-					goal: subProblem.goal,
-					status,
-					metrics: {
-						expertCount,
-						convergencePercent,
-						currentRound: roundCount || 1,
-						maxRounds: 10,
-						duration,
-					},
-					events: subEvents,
-				});
-			}
-
-			subProblemTabsCache = tabs;
+			subProblemTabsCache = buildSubProblemTabs(events, eventsBySubProblem);
 			lastEventCountForTabs = events.length;
 		}
 	});
@@ -969,47 +568,26 @@
 	 *
 	 * Caches Map-based index to avoid rebuilding on every render.
 	 * Only recalculates when events.length changes, with 200ms debounce.
-	 *
-	 * Before: O(n) on every render
-	 * After: O(n) only on events change, debounced for rapid streams
-	 *
-	 * Measured improvement: ~2-5ms → <1ms for cached lookups (Issue #2)
 	 */
 	let eventsBySubProblemCache = $state(new Map<number, SSEEvent[]>());
 	let lastEventCountForIndex = $state(0);
 
 	// Debounced recalculation function
 	const recalculateEventIndex = debounce(() => {
-			const index = new Map<number, SSEEvent[]>();
-			let eventsWithSubIndex = 0;
-			let eventsWithoutSubIndex = 0;
-
-			for (const event of events) {
-				const subIndex = event.data.sub_problem_index as number | undefined;
-				if (subIndex !== undefined) {
-					eventsWithSubIndex++;
-					const existing = index.get(subIndex) || [];
-					existing.push(event);
-					index.set(subIndex, existing);
-				} else {
-					eventsWithoutSubIndex++;
-				}
-			}
-
-			console.log('[EVENT INDEX DEBUG]', {
-				totalEvents: events.length,
-				eventsWithSubIndex,
-				eventsWithoutSubIndex,
-				indexedSubProblems: Array.from(index.keys()),
-				eventsPerSubProblem: Array.from(index.entries()).map(([key, val]) => ({ subProblem: key, count: val.length }))
-			});
-
-		eventsBySubProblemCache = index;
+		eventsBySubProblemCache = indexEventsBySubProblem(events);
 		lastEventCountForIndex = events.length;
+
+		console.log('[EVENT INDEX DEBUG]', {
+			totalEvents: events.length,
+			indexedSubProblems: Array.from(eventsBySubProblemCache.keys()),
+			eventsPerSubProblem: Array.from(eventsBySubProblemCache.entries()).map(([key, val]) => ({
+				subProblem: key,
+				count: val.length
+			}))
+		});
 	}, 200); // 200ms debounce for rapid event streams
 
 	$effect(() => {
-		// Only trigger recalculation if events changed
 		if (events.length !== lastEventCountForIndex) {
 			recalculateEventIndex();
 		}
@@ -1095,30 +673,27 @@
 
 				<div class="flex items-center gap-2">
 					{#if session?.status === 'active'}
-						<button
-							onclick={handlePause}
-							class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
-						>
-							<Pause size={16} />
-							<span>Pause</span>
-						</button>
+						<Button variant="secondary" size="md" onclick={handlePause}>
+							{#snippet children()}
+								<Pause size={16} />
+								<span>Pause</span>
+							{/snippet}
+						</Button>
 					{:else if session?.status === 'paused'}
-						<button
-							onclick={handleResume}
-							class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
-						>
-							<Play size={16} />
-							<span>Resume</span>
-						</button>
+						<Button variant="brand" size="md" onclick={handleResume}>
+							{#snippet children()}
+								<Play size={16} />
+								<span>Resume</span>
+							{/snippet}
+						</Button>
 					{/if}
 
-					<button
-						onclick={handleKill}
-						class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
-					>
-						<Square size={16} />
-						<span>Stop</span>
-					</button>
+					<Button variant="danger" size="md" onclick={handleKill}>
+						{#snippet children()}
+							<Square size={16} />
+							<span>Stop</span>
+						{/snippet}
+					</Button>
 				</div>
 			</div>
 		</div>
@@ -1218,16 +793,7 @@
 							<!-- Skeleton Loading States -->
 							<div class="space-y-4 p-4">
 								{#each Array(5) as _, i}
-									<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 animate-pulse">
-										<div class="flex items-start gap-3">
-											<div class="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
-											<div class="flex-1 space-y-3">
-												<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
-												<div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full"></div>
-												<div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-5/6"></div>
-											</div>
-										</div>
-									</div>
+									<EventCardSkeleton />
 								{/each}
 							</div>
 						{:else if events.length === 0}
@@ -1311,10 +877,7 @@
 												<div transition:fade={{ duration: 300, delay: 50 }}>
 													{#await getComponentForEvent('expert_panel')}
 														<!-- Loading skeleton for expert panel -->
-														<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg p-4 mb-2">
-															<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
-															<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-														</div>
+														<ExpertPanelSkeleton expertCount={group.events.length} />
 													{:then ExpertPanelComponent}
 														<ExpertPanelComponent
 															experts={group.events.map((e) => ({
@@ -1337,10 +900,7 @@
 														{#each group.events as contrib}
 															{#await getComponentForEvent('contribution')}
 																<!-- Loading skeleton with timeout fallback -->
-																<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg p-4 mb-2">
-																	<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
-																	<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-																</div>
+																<ContributionSkeleton />
 															{:then ExpertPerspectiveCardComponent}
 																{#if ExpertPerspectiveCardComponent}
 																	<ExpertPerspectiveCardComponent event={contrib as any} />
@@ -1382,10 +942,7 @@
 
 															{#await getComponentForEvent(event.event_type)}
 																<!-- Loading skeleton with timeout fallback -->
-																<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg p-3">
-																	<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
-																	<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-																</div>
+																<EventCardSkeleton hasAvatar={false} />
 															{:then EventComponent}
 																{#if EventComponent}
 																	<EventComponent event={event as any} />
@@ -1501,10 +1058,7 @@
 									<div transition:fade={{ duration: 300, delay: 50 }}>
 										{#await getComponentForEvent('expert_panel')}
 											<!-- Loading skeleton with timeout fallback -->
-											<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg p-4 mb-2">
-												<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
-												<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-											</div>
+											<ExpertPanelSkeleton expertCount={group.events?.length || 4} />
 										{:then ExpertPanelComponent}
 											{#if ExpertPanelComponent}
 												<ExpertPanelComponent
@@ -1540,10 +1094,7 @@
 											{#each group.events as contrib}
 												{#await getComponentForEvent('contribution')}
 													<!-- Loading skeleton with timeout fallback -->
-													<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg p-4 mb-2">
-														<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
-														<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-													</div>
+													<ContributionSkeleton />
 												{:then ExpertPerspectiveCardComponent}
 													{#if ExpertPerspectiveCardComponent}
 														<ExpertPerspectiveCardComponent event={contrib as any} />
@@ -1588,10 +1139,7 @@
 												<!-- Render appropriate component based on event type with dynamic loading -->
 												{#await getComponentForEvent(event.event_type)}
 													<!-- Loading skeleton with timeout fallback -->
-													<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg p-3">
-														<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
-														<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-													</div>
+													<EventCardSkeleton hasAvatar={false} />
 												{:then EventComponent}
 													{#if EventComponent}
 														<EventComponent event={event as any} />
@@ -1655,11 +1203,12 @@
 
 					<!-- Actions -->
 					{#if session.status === 'completed'}
-						<a
-							href="/meeting/{sessionId}/results"
-							class="block w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-center font-medium rounded-lg transition-colors duration-200"
-						>
-							View Results
+						<a href="/meeting/{sessionId}/results" class="block w-full">
+							<Button variant="brand" size="lg" class="w-full">
+								{#snippet children()}
+									View Results
+								{/snippet}
+							</Button>
 						</a>
 					{/if}
 				{/if}

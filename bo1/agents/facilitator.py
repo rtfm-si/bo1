@@ -18,6 +18,7 @@ from bo1.llm.response_parser import ResponseParser
 from bo1.models.state import DeliberationState
 from bo1.prompts.reusable_prompts import compose_facilitator_prompt
 from bo1.utils.deliberation_analysis import DeliberationAnalyzer
+from bo1.utils.error_logger import ErrorLogger
 from bo1.utils.json_parsing import parse_json_with_fallback
 from bo1.utils.logging_helpers import LogHelper
 from bo1.utils.xml_parsing import extract_xml_tag_with_fallback
@@ -652,7 +653,7 @@ Output JSON only."""
                 return False, revision_guidance, response
 
         except Exception as e:
-            LogHelper.log_fallback_used(
+            ErrorLogger.log_fallback(
                 logger,
                 operation="Synthesis validation parsing",
                 reason="Failed to parse JSON response",

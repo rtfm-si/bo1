@@ -17,6 +17,7 @@
 	import { parseSynthesisXML, isXMLFormatted, type SynthesisSection } from '$lib/utils/xml-parser';
 	import ActionableTasks from '$lib/components/events/ActionableTasks.svelte';
 	import Badge from '$lib/components/ui/Badge.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	import { CheckCircle, Download, ArrowLeft, Users, TrendingUp, Target, Clock } from 'lucide-svelte';
 	import type { SessionDetailResponse } from '$lib/api/types';
 
@@ -167,13 +168,12 @@
 				</div>
 
 				{#if session && !isLoading}
-					<button
-						onclick={exportMarkdown}
-						class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-sm"
-					>
-						<Download class="w-4 h-4" />
-						Export Report
-					</button>
+					<Button variant="brand" size="md" onclick={exportMarkdown}>
+						{#snippet children()}
+							<Download class="w-4 h-4" />
+							Export Report
+						{/snippet}
+					</Button>
 				{/if}
 			</div>
 		</div>

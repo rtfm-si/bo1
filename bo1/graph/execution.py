@@ -69,15 +69,8 @@ class SessionManager:
         Returns:
             Background asyncio.Task
         """
-        # Store ownership metadata
-        self._save_session_metadata(
-            session_id,
-            {
-                "user_id": user_id,
-                "status": "running",
-                "started_at": str(time.time()),
-            },
-        )
+        # Store ownership metadata with running status
+        self._update_session_status(session_id, "running", user_id=user_id)
 
         # Wrap coroutine with error handling
         async def wrapped_execution() -> Any:
@@ -87,13 +80,7 @@ class SessionManager:
                 logger.info(f"[{session_id}] Graph execution completed successfully")
 
                 # Update metadata on successful completion
-                self._save_session_metadata(
-                    session_id,
-                    {
-                        "status": "completed",
-                        "completed_at": str(time.time()),
-                    },
-                )
+                self._update_session_status(session_id, "completed")
                 return result
             except asyncio.CancelledError:
                 logger.info(f"[{session_id}] Graph execution was cancelled")
@@ -102,14 +89,7 @@ class SessionManager:
                 logger.error(f"[{session_id}] Graph execution failed: {e}", exc_info=True)
 
                 # Update metadata on failure
-                self._save_session_metadata(
-                    session_id,
-                    {
-                        "status": "failed",
-                        "failed_at": str(time.time()),
-                        "error": str(e),
-                    },
-                )
+                self._update_session_status(session_id, "failed", error=str(e))
                 raise
             finally:
                 # Remove from active executions
@@ -244,15 +224,12 @@ class SessionManager:
         self.active_executions.pop(session_id, None)
 
         # Update metadata
-        self._save_session_metadata(
+        self._update_session_status(
             session_id,
-            {
-                "status": "killed",
-                "killed_at": str(time.time()),
-                "killed_by": killed_by,
-                "kill_reason": reason,
-                "admin_kill": str(is_admin),
-            },
+            "killed",
+            killed_by=killed_by,
+            kill_reason=reason,
+            admin_kill=str(is_admin),
         )
 
         # Log termination (audit trail)
@@ -290,6 +267,39 @@ class SessionManager:
             Metadata dict or None if not found
         """
         return self.redis_manager.load_metadata(session_id)
+
+    def _update_session_status(self, session_id: str, status: str, **extra_fields: Any) -> None:
+        """Update session status with timestamp and optional extra fields.
+
+        Convenience method to update session status with automatic timestamping.
+        Consolidates the repeated pattern of updating metadata with status + timestamp.
+
+        Args:
+            session_id: Session identifier
+            status: New status (e.g., "running", "completed", "failed", "killed")
+            **extra_fields: Additional fields to update (e.g., error="...", killed_by="...")
+
+        Examples:
+            >>> self._update_session_status(session_id, "completed")
+            >>> self._update_session_status(session_id, "failed", error=str(e))
+            >>> self._update_session_status(session_id, "killed", killed_by=user_id, kill_reason=reason)
+        """
+        # Build metadata dict with status and appropriate timestamp
+        metadata: dict[str, Any] = {"status": status}
+
+        # Add timestamp field based on status
+        # Special case: "running" status uses "started_at" for backward compatibility
+        if status == "running":
+            timestamp_field = "started_at"
+        else:
+            timestamp_field = f"{status}_at"
+
+        metadata[timestamp_field] = str(time.time())
+
+        # Add any extra fields
+        metadata.update(extra_fields)
+
+        self._save_session_metadata(session_id, metadata)
 
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""

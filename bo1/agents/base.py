@@ -8,7 +8,8 @@ from abc import ABC, abstractmethod
 
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
-from bo1.utils.logging import get_logger, log_error_with_context
+from bo1.utils.error_logger import ErrorLogger
+from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -77,7 +78,7 @@ class BaseAgent(ABC):
             return response
         except Exception as e:
             # Log error with structured context
-            log_error_with_context(
+            ErrorLogger.log_error_with_context(
                 logger,
                 e,
                 "LLM call failed in agent",
@@ -95,7 +96,7 @@ class BaseAgent(ABC):
         phase: str,
         *,
         prefill: str = "",
-        temperature: float = 1.0,
+        temperature: float = 0.7,
         max_tokens: int = 2048,
         cache_system: bool = True,
     ) -> LLMResponse:
@@ -109,7 +110,7 @@ class BaseAgent(ABC):
             user_message: User message/prompt
             phase: Phase name for cost tracking (e.g., "decomposition", "selection")
             prefill: Optional prefill text (e.g., "{" for JSON responses)
-            temperature: LLM temperature (0.0-2.0, default 1.0)
+            temperature: LLM temperature (0.0-2.0, default 0.7)
             max_tokens: Maximum tokens in response (default 2048)
             cache_system: Whether to cache system prompt (default True)
 

@@ -140,3 +140,100 @@ async def test_full_linear_graph_flow(initial_state):
     assert "problem_decomposition" in phase_costs
     assert "persona_selection" in phase_costs
     assert "initial_round" in phase_costs
+
+
+@pytest.mark.asyncio
+async def test_decompose_node_consistency(sample_problem_marketing):
+    """Test decompose_node produces identical results with temperature=0.0.
+
+    This test verifies that the decomposer agent's temperature=0.0 setting
+    produces deterministic, reproducible decompositions. Running the same
+    problem through the decomposer 3 times should yield identical results.
+
+    This is P2-DECOMP-5 from the audit.
+    """
+    # Run decomposition 3 times
+    results = []
+    for i in range(3):
+        # Create fresh state for each run
+        state = create_initial_state(
+            session_id=f"test_consistency_{i:03d}",
+            problem=sample_problem_marketing,
+            max_rounds=5,
+        )
+
+        # Run decompose node
+        updates = await decompose_node(state)
+        results.append(updates)
+
+    # Extract decompositions for comparison
+    decompositions = []
+    for result in results:
+        problem = result["problem"]
+        # Serialize sub-problems to JSON for comparison
+        sub_problems = [
+            {
+                "id": sp.id,
+                "goal": sp.goal,
+                "context": sp.context,
+                "complexity_score": sp.complexity_score,
+                "dependencies": sp.dependencies,
+            }
+            for sp in problem.sub_problems
+        ]
+        decompositions.append(sub_problems)
+
+    # Verify all three runs produced identical decompositions
+    # Compare run 1 vs run 2
+    assert len(decompositions[0]) == len(decompositions[1]), (
+        f"Run 1 and 2 produced different number of sub-problems: "
+        f"{len(decompositions[0])} vs {len(decompositions[1])}"
+    )
+
+    # Compare run 1 vs run 3
+    assert len(decompositions[0]) == len(decompositions[2]), (
+        f"Run 1 and 3 produced different number of sub-problems: "
+        f"{len(decompositions[0])} vs {len(decompositions[2])}"
+    )
+
+    # Compare each sub-problem in detail
+    for i, (sp1, sp2, sp3) in enumerate(
+        zip(decompositions[0], decompositions[1], decompositions[2], strict=True)
+    ):
+        # ID should be identical (sp_001, sp_002, etc.)
+        assert sp1["id"] == sp2["id"] == sp3["id"], (
+            f"Sub-problem {i} IDs differ: {sp1['id']} vs {sp2['id']} vs {sp3['id']}"
+        )
+
+        # Goal should be identical
+        assert sp1["goal"] == sp2["goal"] == sp3["goal"], (
+            f"Sub-problem {i} goals differ:\n"
+            f"Run 1: {sp1['goal']}\n"
+            f"Run 2: {sp2['goal']}\n"
+            f"Run 3: {sp3['goal']}"
+        )
+
+        # Context should be identical
+        assert sp1["context"] == sp2["context"] == sp3["context"], (
+            f"Sub-problem {i} contexts differ:\n"
+            f"Run 1: {sp1['context']}\n"
+            f"Run 2: {sp2['context']}\n"
+            f"Run 3: {sp3['context']}"
+        )
+
+        # Complexity score should be identical
+        assert sp1["complexity_score"] == sp2["complexity_score"] == sp3["complexity_score"], (
+            f"Sub-problem {i} complexity scores differ: "
+            f"{sp1['complexity_score']} vs {sp2['complexity_score']} vs {sp3['complexity_score']}"
+        )
+
+        # Dependencies should be identical
+        assert sp1["dependencies"] == sp2["dependencies"] == sp3["dependencies"], (
+            f"Sub-problem {i} dependencies differ: "
+            f"{sp1['dependencies']} vs {sp2['dependencies']} vs {sp3['dependencies']}"
+        )
+
+    # Log success
+    print("\n✓ Consistency verified: All 3 runs produced identical decompositions")
+    print(f"  - Number of sub-problems: {len(decompositions[0])}")
+    print(f"  - Sub-problem IDs: {[sp['id'] for sp in decompositions[0]]}")

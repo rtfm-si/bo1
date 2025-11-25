@@ -93,6 +93,12 @@ class PersonaSelectionCache(BaseCache[SubProblem, list[PersonaProfile]]):
             # For larger scale, migrate to pgvector like research cache
             cache_keys = self.redis.keys("personas:cache:*")
 
+            # If no cache entries exist, it's a miss
+            if not cache_keys:
+                self._record_miss()
+                logger.debug("Persona cache miss (no entries in cache)")
+                return None
+
             best_match_personas = None
             best_similarity = self.similarity_threshold
 

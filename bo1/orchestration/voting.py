@@ -12,8 +12,8 @@ from bo1.llm.response_parser import ResponseParser
 from bo1.models.recommendations import ConsensusLevel, Recommendation, RecommendationAggregation
 from bo1.models.state import DeliberationState
 from bo1.prompts.reusable_prompts import RECOMMENDATION_SYSTEM_PROMPT, RECOMMENDATION_USER_MESSAGE
+from bo1.utils.error_logger import ErrorLogger
 from bo1.utils.json_parsing import parse_json_with_fallback
-from bo1.utils.logging_helpers import LogHelper
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +301,7 @@ Output ONLY the JSON object (starting with the fields after the opening brace)."
         return ai_aggregation, response
 
     except Exception as e:
-        LogHelper.log_fallback_used(
+        ErrorLogger.log_fallback(
             logger,
             operation="AI recommendation aggregation",
             reason="Failed to parse or call LLM",

@@ -12,6 +12,7 @@
 	import { apiClient } from '$lib/api/client';
 	import { fade, slide } from 'svelte/transition';
 	import { ChevronDown, ChevronUp, Download } from 'lucide-svelte';
+	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 
 	interface Task {
 		id: string;
@@ -30,12 +31,17 @@
 
 	let { sessionId }: Props = $props();
 
-	let tasks = $state<Task[]>([]);
+	// Use data fetch utility for tasks
+	const tasksData = useDataFetch(() => apiClient.extractTasks(sessionId));
+
+	// Derived state
+	const tasks = $derived<Task[]>(tasksData.data?.tasks || []);
+	const isLoading = $derived(tasksData.isLoading);
+	const error = $derived(tasksData.error);
+
 	let taskStatuses = $state<Map<string, string>>(new Map());
 	let expandedTasks = $state<Set<string>>(new Set());
-	let isLoading = $state(true);
 	let isExporting = $state(false);
-	let error = $state<string | null>(null);
 
 	const statusOptions = [
 		{ value: 'pending', label: 'Pending', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
@@ -52,20 +58,11 @@
 	});
 
 	async function loadTasks() {
-		try {
-			isLoading = true;
-			error = null;
-			const response = await apiClient.extractTasks(sessionId);
-			tasks = response.tasks;
+		await tasksData.fetch();
 
-			// Initialize all tasks as pending
-			taskStatuses = new Map(tasks.map(t => [t.id, 'pending']));
-
-			isLoading = false;
-		} catch (err) {
-			console.error('Failed to extract tasks:', err);
-			error = err instanceof Error ? err.message : 'Failed to extract tasks';
-			isLoading = false;
+		// Initialize all tasks as pending
+		if (tasksData.data?.tasks) {
+			taskStatuses = new Map(tasksData.data.tasks.map(t => [t.id, 'pending']));
 		}
 	}
 

@@ -4,34 +4,29 @@
 	import Header from '$lib/components/Header.svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { SessionResponse } from '$lib/api/types';
+	import { DashboardCardSkeleton } from '$lib/components/ui/skeletons';
+	import { Button } from '$lib/components/ui';
+	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 
-	let sessions: SessionResponse[] = $state([]);
-	let isLoading = $state(true);
-	let error: string | null = $state(null);
+	// Use data fetch utility for sessions
+	const sessionsData = useDataFetch(() => apiClient.listSessions());
+
+	// Derived state for template compatibility
+	const sessions = $derived<SessionResponse[]>(sessionsData.data?.sessions || []);
+	const isLoading = $derived(sessionsData.isLoading);
+	const error = $derived(sessionsData.error);
 
 	onMount(() => {
 		console.log('[Dashboard] onMount - user is authenticated, loading sessions');
+		console.log('[Dashboard] User from auth store:', $user);
 		// Auth is already verified by parent layout, safe to load sessions
-		loadSessions();
+		sessionsData.fetch();
 	});
 
 	async function loadSessions() {
-		try {
-			isLoading = true;
-			error = null;
-
-			console.log('[Dashboard] Loading sessions...');
-			console.log('[Dashboard] User from auth store:', $user);
-
-			const data = await apiClient.listSessions();
-			console.log('[Dashboard] Sessions loaded:', data);
-			sessions = data.sessions || [];
-		} catch (err) {
-			console.error('[Dashboard] Failed to load sessions:', err);
-			error = err instanceof Error ? err.message : 'Failed to load sessions';
-		} finally {
-			isLoading = false;
-		}
+		console.log('[Dashboard] Loading sessions...');
+		await sessionsData.fetch();
+		console.log('[Dashboard] Sessions loaded:', sessionsData.data);
 	}
 
 	function getStatusColor(status: string): string {
@@ -76,11 +71,11 @@
 
 		try {
 			await apiClient.deleteSession(sessionId);
-			// Remove from local list
-			sessions = sessions.filter(s => s.id !== sessionId);
+			// Refresh sessions list after successful delete
+			await sessionsData.fetch();
 		} catch (err) {
 			console.error('Failed to delete session:', err);
-			error = err instanceof Error ? err.message : 'Failed to delete session';
+			// Error will be reflected in sessionsData.error
 		}
 	}
 </script>
@@ -97,11 +92,10 @@
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		{#if isLoading}
 			<!-- Loading State -->
-			<div class="flex items-center justify-center py-12">
-				<svg class="animate-spin h-8 w-8 text-brand-600 dark:text-brand-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-				</svg>
+			<div class="space-y-4">
+				{#each Array(3) as _, i}
+					<DashboardCardSkeleton />
+				{/each}
 			</div>
 		{:else if error}
 			<!-- Error State -->
@@ -115,12 +109,13 @@
 						<p class="text-sm text-error-700 dark:text-error-300">{error}</p>
 					</div>
 				</div>
-				<button
-					onclick={loadSessions}
-					class="mt-4 px-4 py-2 bg-error-600 hover:bg-error-700 text-white rounded-lg transition-colors duration-200"
-				>
-					Retry
-				</button>
+				<div class="mt-4">
+					<Button variant="danger" size="md" onclick={loadSessions}>
+						{#snippet children()}
+							Retry
+						{/snippet}
+					</Button>
+				</div>
 			</div>
 		{:else if sessions.length === 0}
 			<!-- Empty State -->
@@ -134,14 +129,15 @@
 				<p class="text-neutral-600 dark:text-neutral-400 mb-6 max-w-md mx-auto">
 					Get started by creating your first strategic decision meeting. Our AI board will analyze your problem from multiple expert perspectives.
 				</p>
-				<a
-					href="/meeting/new"
-					class="inline-flex items-center gap-2 px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg transition-colors duration-200"
-				>
-					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-					</svg>
-					Start Your First Meeting
+				<a href="/meeting/new">
+					<Button variant="brand" size="lg">
+						{#snippet children()}
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+							</svg>
+							Start Your First Meeting
+						{/snippet}
+					</Button>
 				</a>
 			</div>
 		{:else}

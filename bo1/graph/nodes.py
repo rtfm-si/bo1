@@ -300,6 +300,81 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
             speaker_prompt="Build on the discussion so far and add depth to the analysis.",
         )
 
+    # SAFETY CHECK: Prevent infinite research loops (Bug fix)
+    # Check if facilitator is requesting research that's already been completed
+    if decision.action == "research":
+        completed_queries = state.get("completed_research_queries", [])
+
+        # Extract research query from facilitator reasoning
+        research_query = decision.reasoning[:200] if decision.reasoning else ""
+
+        # Check semantic similarity to completed queries
+        is_duplicate = False
+        if completed_queries and research_query:
+            from bo1.llm.embeddings import cosine_similarity, generate_embedding
+
+            try:
+                query_embedding = generate_embedding(research_query, input_type="query")
+
+                for completed in completed_queries:
+                    completed_embedding = completed.get("embedding")
+                    if not completed_embedding:
+                        continue
+
+                    similarity = cosine_similarity(query_embedding, completed_embedding)
+
+                    # High similarity threshold (0.90) = very similar query
+                    if similarity > 0.90:
+                        is_duplicate = True
+                        logger.warning(
+                            f"Research deduplication: Query too similar to completed research "
+                            f"(similarity={similarity:.3f}). Overriding to 'continue'. "
+                            f"Query: '{research_query[:50]}...' ≈ '{completed.get('query', '')[:50]}...'"
+                        )
+                        break
+
+            except Exception as e:
+                logger.warning(
+                    f"Research deduplication check failed: {e}. Allowing research to proceed."
+                )
+
+        # Override to 'continue' if duplicate research detected
+        if is_duplicate:
+            # Select next speaker (same logic as premature voting override)
+            personas = state.get("personas", [])
+            contributions = state.get("contributions", [])
+
+            research_contrib_counts: dict[str, int] = {}
+            for contrib in contributions:
+                persona_code = contrib.persona_code
+                research_contrib_counts[persona_code] = (
+                    research_contrib_counts.get(persona_code, 0) + 1
+                )
+
+            min_contributions_research = (
+                min(research_contrib_counts.values()) if research_contrib_counts else 0
+            )
+            candidates_research = [
+                p.code
+                for p in personas
+                if research_contrib_counts.get(p.code, 0) == min_contributions_research
+            ]
+
+            next_speaker = (
+                candidates_research[0]
+                if candidates_research
+                else personas[0].code
+                if personas
+                else "unknown"
+            )
+
+            decision = FacilitatorDecision(
+                action="continue",
+                reasoning="Research already completed for this topic. Continuing deliberation with fresh perspectives.",
+                next_speaker=next_speaker,
+                speaker_prompt="Build on the research findings and add your unique perspective to the analysis.",
+            )
+
     # Track cost in metrics (if LLM was called)
     metrics = ensure_metrics(state)
 
@@ -668,6 +743,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     return {
         "research_results": research_results,
         "completed_research_queries": completed_queries,  # Track completed research
+        "facilitator_decision": None,  # Clear previous decision to prevent loops
         "current_node": "research",
         "sub_problem_index": state.get("sub_problem_index", 0),
     }

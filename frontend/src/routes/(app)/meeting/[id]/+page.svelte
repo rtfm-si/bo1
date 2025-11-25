@@ -141,6 +141,7 @@
 		'persona_selection_started',
 		'persona_selection_complete', // Just shows "experts selected" - panel shows the actual experts
 		'initial_round_started',
+		'facilitator_decision', // Internal deliberation orchestration - not meaningful to end users
 		'voting_started',
 		'voting_complete', // Individual results shown in VotingResults component
 		'synthesis_started',

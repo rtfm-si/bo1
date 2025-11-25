@@ -314,6 +314,33 @@ Provide your recommendation as JSON following the format in your system prompt.
             except Exception as e:
                 logger.warning(f"Failed to cache persona selection: {e}")
 
+            # Update response content to reflect filtered personas
+            # This ensures nodes.py uses the filtered list, not the original LLM recommendation
+            filtered_recommendation = recommendation.copy()
+            filtered_recommendation["recommended_personas"] = [
+                {
+                    "code": p.code,
+                    "name": p.name,
+                    "rationale": next(
+                        (
+                            rec["rationale"]
+                            for rec in recommendation["recommended_personas"]
+                            if rec["code"] == p.code
+                        ),
+                        f"Selected for expertise in {persona_dict.get('domain_expertise', '')}",
+                    ),
+                }
+                for p in selected_personas
+                # Get persona_dict for each selected persona
+                if (persona_dict := get_persona_by_code(p.code))
+            ]
+            response.content = json.dumps(filtered_recommendation)
+
+            logger.info(
+                f"Final selection after filtering: {len(selected_personas)} personas: "
+                f"{', '.join(p.code for p in selected_personas)}"
+            )
+
             return response
 
         except json.JSONDecodeError as e:

@@ -289,17 +289,20 @@ def find_cached_research(
     industry: str | None = None,
     max_age_days: int | None = None,
 ) -> dict[str, Any] | None:
-    """Find cached research result using semantic similarity.
+    """Find cached research result using vector similarity search with HNSW index.
+
+    Uses pgvector's HNSW index for fast cosine similarity search.
+    Returns the most similar cached result that meets the threshold.
 
     Args:
-        question_embedding: Vector embedding of the question (1536 dimensions for ada-002)
-        similarity_threshold: Minimum cosine similarity (0.0-1.0)
+        question_embedding: Vector embedding of the question (1024 dimensions for voyage-3)
+        similarity_threshold: Minimum cosine similarity (0.0-1.0, default 0.85)
         category: Optional category filter (e.g., 'saas_metrics')
         industry: Optional industry filter (e.g., 'saas')
         max_age_days: Maximum age in days (uses freshness_days if not specified)
 
     Returns:
-        Cached research result or None if no match found
+        Cached research result with highest similarity, or None if no match found
     """
     # Validate max_age_days BEFORE database connection (prevents injection early)
     if max_age_days is not None:
@@ -308,52 +311,95 @@ def find_cached_research(
         if max_age_days < 0:
             raise ValueError(f"days must be non-negative, got {max_age_days}")
 
+    # Use new vector similarity search function
+    similar_results = find_similar_research(
+        question_embedding=question_embedding,
+        similarity_threshold=similarity_threshold,
+        limit=10,  # Get top 10 for filtering by category/industry
+        max_age_days=max_age_days,
+    )
+
+    if not similar_results:
+        return None
+
+    # Filter by category/industry if specified
+    filtered_results = similar_results
+    if category:
+        filtered_results = [r for r in filtered_results if r.get("category") == category]
+    if industry:
+        filtered_results = [r for r in filtered_results if r.get("industry") == industry]
+
+    # Return the most similar result (first in list, already ordered by similarity)
+    return filtered_results[0] if filtered_results else None
+
+
+def find_similar_research(
+    question_embedding: list[float],
+    similarity_threshold: float = 0.85,
+    limit: int = 5,
+    max_age_days: int | None = None,
+) -> list[dict[str, Any]]:
+    """Find similar research questions using vector similarity search.
+
+    Uses HNSW index for fast cosine similarity search with pgvector.
+
+    Args:
+        question_embedding: Vector embedding of the query question (1024 dimensions)
+        similarity_threshold: Minimum cosine similarity (0.0-1.0, default 0.85)
+        limit: Maximum number of results to return
+        max_age_days: Only return results from last N days (None = no limit)
+
+    Returns:
+        List of similar research results, ordered by similarity (highest first)
+        Each result includes:
+        - All research_cache fields
+        - similarity: float (cosine similarity score 0.0-1.0)
+
+    Example:
+        >>> from bo1.llm.embeddings import generate_embedding
+        >>> embedding = generate_embedding("What is the market size?", input_type="query")
+        >>> similar = find_similar_research(embedding, similarity_threshold=0.85)
+        >>> if similar:
+        ...     print(f"Found cached answer (similarity={similar[0]['similarity']:.3f})")
+        ...     print(similar[0]['answer_summary'])
+    """
     with db_session() as conn:
         with conn.cursor() as cur:
-            # For now, we'll use a simple approach without vector similarity
-            # because pgvector requires proper setup. We'll use category/industry filters
-            # and return the most recent match.
-            # TODO: Implement proper vector similarity search with pgvector
+            # Build query with vector similarity using cosine distance operator (<=>)
+            # Note: 1 - (vec1 <=> vec2) converts distance to similarity
+            # pgvector's <=> operator returns cosine distance (0=identical, 2=opposite)
+            # So similarity = 1 - (distance / 2) to get range 0.0-1.0
 
-            # Use SafeQueryBuilder for all query construction (prevents SQL injection)
-            from bo1.utils.sql_safety import SafeQueryBuilder
-
-            builder = SafeQueryBuilder(
-                """
-                SELECT id, question, answer_summary, confidence, sources,
-                       source_count, category, industry, research_date,
-                       access_count, last_accessed_at, freshness_days,
-                       tokens_used, research_cost_usd
+            query = """
+                SELECT
+                    id, question, answer_summary, confidence, sources,
+                    source_count, category, industry, research_date,
+                    access_count, last_accessed_at, freshness_days,
+                    tokens_used, research_cost_usd,
+                    1 - (question_embedding <=> %s::vector) AS similarity
                 FROM research_cache
-                WHERE 1=1
-                """
-            )
+                WHERE question_embedding IS NOT NULL
+            """
 
-            if category:
-                builder.add_condition("category")
-                builder.add_param(category)
+            params: list[Any] = [question_embedding]
 
-            if industry:
-                builder.add_condition("industry")
-                builder.add_param(industry)
+            # Add age filter if specified
+            if max_age_days is not None:
+                query += " AND research_date > NOW() - INTERVAL '%s days'"
+                params.append(max_age_days)
 
-            if max_age_days:
-                # Add interval filter with max_age_days
-                builder.add_interval_filter("research_date", max_age_days)
-            else:
-                # Use database column value for freshness
-                # Note: This is safe because it references a column, not user input
-                builder.query += (
-                    " AND research_date >= NOW() - (freshness_days || ' days')::interval"
-                )
+            # Filter by similarity threshold and order by similarity
+            query += """
+                AND (1 - (question_embedding <=> %s::vector)) >= %s
+                ORDER BY question_embedding <=> %s::vector
+                LIMIT %s
+            """
+            params.extend([question_embedding, similarity_threshold, question_embedding, limit])
 
-            builder.add_order_by("research_date", "DESC")
-            builder.add_limit(1)
-
-            query, params = builder.build()
             cur.execute(query, params)
-            row = cur.fetchone()
-            return dict(row) if row else None
+            results = [dict(row) for row in cur.fetchall()]
+
+            return results
 
 
 def save_research_result(

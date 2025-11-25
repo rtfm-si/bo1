@@ -330,7 +330,7 @@ class ResearcherAgent:
             return {
                 "summary": "[Brave Search API key not configured]",
                 "sources": [],
-                "confidence": "error",
+                "confidence": "low",
                 "tokens_used": 0,
                 "cost": 0.0,
             }
@@ -419,7 +419,7 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
             return {
                 "summary": f"[Search API error: {e.response.status_code}]",
                 "sources": [],
-                "confidence": "error",
+                "confidence": "low",
                 "tokens_used": 0,
                 "cost": 0.0,
             }
@@ -428,7 +428,7 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
             return {
                 "summary": f"[Research error: {str(e)[:100]}]",
                 "sources": [],
-                "confidence": "error",
+                "confidence": "low",
                 "tokens_used": 0,
                 "cost": 0.0,
             }

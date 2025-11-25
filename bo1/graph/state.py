@@ -82,8 +82,10 @@ class DeliberationGraphState(TypedDict, total=False):
     # Meeting quality guidance
     facilitator_guidance: dict[str, Any] | None  # Guidance for facilitator on next steps
 
-    # Research tracking (prevent infinite research loops)
-    completed_research_queries: list[str]  # Hashes of completed research queries
+    # Research tracking (prevent infinite research loops with semantic similarity)
+    completed_research_queries: list[
+        dict[str, Any]
+    ]  # List of {"query": str, "embedding": list[float]}
 
 
 def create_initial_state(

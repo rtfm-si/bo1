@@ -638,17 +638,32 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     )
 
     # Mark this research query as completed to prevent infinite loops
-    # Get query hash from facilitator decision (if available)
-    import hashlib
-
-    query_hash = hashlib.md5(research_query.encode()).hexdigest()  # noqa: S324 (deduplication, not security)
+    # Store query with embedding for semantic similarity matching
+    from bo1.llm.embeddings import generate_embedding
 
     completed_queries_obj = state.get("completed_research_queries", [])
     completed_queries = (
         list(completed_queries_obj) if isinstance(completed_queries_obj, list) else []
     )
-    if query_hash not in completed_queries:
-        completed_queries.append(query_hash)
+
+    # Generate embedding for this query (or extract from facilitator decision if available)
+    try:
+        query_embedding = generate_embedding(research_query, input_type="query")
+    except Exception as e:
+        logger.warning(f"Failed to generate embedding for research query: {e}")
+        query_embedding = []  # Empty embedding for fallback
+
+    # Check if this exact query already exists (avoid duplicates)
+    query_exists = any(q.get("query") == research_query for q in completed_queries)
+
+    if not query_exists:
+        completed_queries.append(
+            {
+                "query": research_query,
+                "embedding": query_embedding,
+            }
+        )
+        logger.debug(f"Marked research query as completed: '{research_query[:50]}...'")
 
     return {
         "research_results": research_results,

@@ -8,6 +8,8 @@ Provides reusable pattern detection methods to identify:
 - Research needs
 """
 
+from typing import Any
+
 from bo1.constants import ThresholdValues
 from bo1.models.state import ContributionMessage, DeliberationState
 
@@ -173,14 +175,17 @@ class DeliberationAnalyzer:
         return (unique_phrases / total_phrases) < 0.40
 
     @staticmethod
-    def check_research_needed(state: DeliberationState) -> dict[str, str] | None:
-        """Check if research or external information is needed.
+    def check_research_needed(state: DeliberationState) -> dict[str, Any] | None:
+        """Check if research or external information is needed using semantic similarity.
+
+        Uses Voyage AI embeddings to detect semantically similar research queries
+        and avoid re-triggering research for questions that have already been answered.
 
         Args:
             state: Current deliberation state
 
         Returns:
-            dict with "query" and "reason" if research needed, None otherwise
+            dict with "query", "reason", and "embedding" if research needed, None otherwise
 
         Example:
             >>> research = analyzer.check_research_needed(state)
@@ -190,8 +195,8 @@ class DeliberationAnalyzer:
         if len(state.contributions) < 2:
             return None
 
-        # Get completed research queries to avoid re-triggering
-        completed_queries = getattr(state, "completed_research_queries", [])
+        # Get completed research queries to avoid re-triggering (with embeddings)
+        completed_queries: list[dict[str, Any]] = getattr(state, "completed_research_queries", [])
 
         recent = state.contributions[-3:]  # Last round
 
@@ -221,20 +226,63 @@ class DeliberationAnalyzer:
                         if pattern in sentence:
                             query = sentence.strip()[:200]  # Limit to 200 chars
 
-                            # Check if we've already researched this query
-                            # Use simple hash to detect duplicate queries
-                            import hashlib
+                            # Generate embedding for semantic similarity check
+                            from bo1.llm.embeddings import cosine_similarity, generate_embedding
 
-                            query_hash = hashlib.md5(query.encode()).hexdigest()  # noqa: S324 (deduplication, not security)
+                            try:
+                                query_embedding = generate_embedding(query, input_type="query")
 
-                            if query_hash in completed_queries:
-                                # Already researched this query, skip
-                                continue
+                                # Check if semantically similar query already researched
+                                # Threshold: 0.85 (lower than persona cache's 0.90 for more flexibility)
+                                similarity_threshold = 0.85
+                                is_duplicate = False
 
-                            return {
-                                "query": query,
-                                "reason": f"{contrib.persona_name} raised: {query}",
-                                "query_hash": query_hash,  # Include hash for tracking
-                            }
+                                for completed in completed_queries:
+                                    completed_embedding = completed.get("embedding")
+                                    if not completed_embedding:
+                                        continue
+
+                                    similarity = cosine_similarity(
+                                        query_embedding, completed_embedding
+                                    )
+
+                                    if similarity > similarity_threshold:
+                                        # Semantically similar query already researched
+                                        import logging
+
+                                        logger = logging.getLogger(__name__)
+                                        logger.info(
+                                            f"Skipping semantically similar research query "
+                                            f"(similarity={similarity:.3f}): '{query}' ≈ '{completed.get('query', '')[:50]}...'"
+                                        )
+                                        is_duplicate = True
+                                        break  # Found duplicate, stop checking
+
+                                # If duplicate found, skip to next sentence
+                                if is_duplicate:
+                                    continue
+
+                                # No similar query found - this is new research
+                                return {
+                                    "query": query,
+                                    "reason": f"{contrib.persona_name} raised: {query}",
+                                    "embedding": query_embedding,  # Include embedding for tracking
+                                }
+
+                            except Exception as e:
+                                # Embedding failed - fall back to allowing research
+                                # (Better to allow duplicate research than block legitimate research)
+                                import logging
+
+                                logger = logging.getLogger(__name__)
+                                logger.warning(
+                                    f"Failed to generate embedding for research query: {e}. "
+                                    f"Allowing research to proceed."
+                                )
+                                return {
+                                    "query": query,
+                                    "reason": f"{contrib.persona_name} raised: {query}",
+                                    "embedding": [],  # Empty embedding signals fallback
+                                }
 
         return None

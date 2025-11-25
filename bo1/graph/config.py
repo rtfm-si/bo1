@@ -153,8 +153,10 @@ def create_deliberation_graph(
         },
     )
 
-    # research -> persona_contribute (Week 6: Continue deliberation with enriched context)
-    workflow.add_edge("research", "persona_contribute")
+    # research -> facilitator_decide (Week 6: Let facilitator decide next action after research)
+    # Previously routed directly to persona_contribute, which caused crashes because
+    # facilitator_decision still had action="research" with no next_speaker
+    workflow.add_edge("research", "facilitator_decide")
 
     # persona_contribute -> check_convergence
     workflow.add_edge("persona_contribute", "check_convergence")

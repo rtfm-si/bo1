@@ -61,7 +61,7 @@ def test_create_initial_state(
         session_id="test-123",
         problem=sample_problem,
         personas=sample_personas,
-        max_rounds=10,
+        max_rounds=6,
     )
 
     assert state["session_id"] == "test-123"
@@ -69,7 +69,7 @@ def test_create_initial_state(
     assert state["personas"] == sample_personas
     assert state["phase"] == DeliberationPhase.INTAKE
     assert state["round_number"] == 0
-    assert state["max_rounds"] == 10
+    assert state["max_rounds"] == 6
     assert state["should_stop"] is False
     assert state["stop_reason"] is None
     assert state["contributions"] == []
@@ -132,7 +132,7 @@ def test_validate_state_round_exceeds_max(sample_problem: Problem) -> None:
     state = create_initial_state(
         session_id="test-789",
         problem=sample_problem,
-        max_rounds=10,
+        max_rounds=6,
     )
 
     state["round_number"] = 11
@@ -180,7 +180,7 @@ def test_v1_to_v2_conversion(
         problem=sample_problem,
         selected_personas=sample_personas,
         current_round=2,
-        max_rounds=10,
+        max_rounds=6,
         phase=DeliberationPhase.DISCUSSION,
     )
 
@@ -190,7 +190,7 @@ def test_v1_to_v2_conversion(
     assert v2_state["problem"] == sample_problem
     assert v2_state["personas"] == sample_personas
     assert v2_state["round_number"] == 2
-    assert v2_state["max_rounds"] == 10
+    assert v2_state["max_rounds"] == 6
     assert v2_state["phase"] == DeliberationPhase.DISCUSSION
     # New v2 fields
     assert v2_state["should_stop"] is False
@@ -205,7 +205,7 @@ def test_v2_to_v1_conversion(
         session_id="v2-test",
         problem=sample_problem,
         personas=sample_personas,
-        max_rounds=12,
+        max_rounds=6,
     )
     v2_state["round_number"] = 3
     v2_state["phase"] = DeliberationPhase.VOTING
@@ -216,7 +216,7 @@ def test_v2_to_v1_conversion(
     assert v1_state.problem == sample_problem
     assert v1_state.selected_personas == sample_personas
     assert v1_state.current_round == 3
-    assert v1_state.max_rounds == 12
+    assert v1_state.max_rounds == 6
     assert v1_state.phase == DeliberationPhase.VOTING
 
 
@@ -230,7 +230,7 @@ def test_round_trip_conversion_no_data_loss(
         problem=sample_problem,
         selected_personas=sample_personas,
         current_round=5,
-        max_rounds=10,
+        max_rounds=6,
         phase=DeliberationPhase.DISCUSSION,
     )
 
@@ -308,8 +308,8 @@ def test_graph_state_with_stop_flags(sample_problem: Problem) -> None:
 
     state["should_stop"] = True
     state["stop_reason"] = "max_rounds"
-    state["round_number"] = 10
-    state["max_rounds"] = 10
+    state["round_number"] = 6
+    state["max_rounds"] = 6
 
     # Should still be valid
     validate_state(state)

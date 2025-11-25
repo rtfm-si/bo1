@@ -57,7 +57,7 @@ def test_state_conversion_caching_same_state(
         session_id="test-123",
         problem=sample_problem,
         personas=sample_personas,
-        max_rounds=10,
+        max_rounds=6,
     )
 
     # First call should be a cache miss
@@ -94,7 +94,7 @@ def test_state_conversion_cache_invalidation(
         session_id="test-123",
         problem=sample_problem,
         personas=sample_personas,
-        max_rounds=10,
+        max_rounds=6,
     )
 
     # First conversion

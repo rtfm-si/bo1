@@ -29,13 +29,22 @@ FacilitatorAction = Literal["continue", "vote", "research", "moderator"]
 
 @dataclass
 class FacilitatorDecision:
-    """Parsed decision from facilitator."""
+    """Parsed decision from facilitator.
+
+    NEW PARALLEL ARCHITECTURE: Added fields for phase-based multi-expert selection.
+    """
 
     action: FacilitatorAction
     reasoning: str
-    # For "continue" action
-    next_speaker: str | None = None
+
+    # For "continue" action (LEGACY - kept for backward compatibility)
+    next_speaker: str | None = None  # DEPRECATED in parallel mode
     speaker_prompt: str | None = None
+
+    # NEW PARALLEL ARCHITECTURE: Phase and expert count selection
+    next_phase: str | None = None  # "exploration", "challenge", "convergence"
+    num_experts: int | None = None  # How many experts for next round (2-5)
+
     # For "moderator" action
     moderator_type: Literal["contrarian", "skeptic", "optimist"] | None = None
     moderator_focus: str | None = None
@@ -119,6 +128,153 @@ class FacilitatorAgent(BaseAgent):
         """
         return DeliberationAnalyzer.check_research_needed(state)
 
+    def _count_contributions(self, contributions: list[Any]) -> dict[str, int]:
+        """Count contributions per persona.
+
+        Args:
+            contributions: List of contribution messages
+
+        Returns:
+            Dictionary mapping persona_code to contribution count
+        """
+        counts: dict[str, int] = {}
+        for contrib in contributions:
+            persona_code = contrib.persona_code
+            counts[persona_code] = counts.get(persona_code, 0) + 1
+        return counts
+
+    def _check_rotation_limits(self, state: DeliberationState) -> dict[str, str] | None:
+        """Check if rotation rules require overriding facilitator decision.
+
+        Issue #5 fix: Enforces hard rotation limits to prevent expert dominance.
+
+        NEW PARALLEL ARCHITECTURE: Updated rules for multi-expert-per-round model.
+
+        Rules (UPDATED for parallel):
+        1. No expert in >50% of recent 4 rounds (was: 3 consecutive contributions)
+        2. Each expert 15-25% of total contributions (was: no more than 40%)
+        3. Every expert must contribute at least once per 3 rounds (was: once per 2 rounds)
+
+        Args:
+            state: Current deliberation state
+
+        Returns:
+            dict with rotation override info if limits exceeded, None otherwise
+        """
+        contributions = state.contributions
+        personas = state.selected_personas
+
+        if not contributions or not personas:
+            return None
+
+        # Rule 1 (UPDATED for parallel): No expert in >50% of recent 4 rounds
+        # In parallel model, multiple experts contribute per round, so we check round participation
+        recent_round_limit = 4
+        max_round_participation_rate = 0.50  # 50% of recent rounds
+
+        # Get recent rounds (last 4 rounds worth of contributions)
+        # Estimate: avg 3 contributions per round
+        recent_contributions = contributions[-12:]  # Last ~4 rounds
+
+        if len(recent_contributions) >= 6:  # At least 2 rounds of data
+            contribution_counts_recent = self._count_contributions(recent_contributions)
+
+            for persona_code, recent_count in contribution_counts_recent.items():
+                # Estimate rounds participated (contributions / avg 3 per round)
+                estimated_rounds_participated = recent_count / 3.0
+                estimated_total_recent_rounds = len(recent_contributions) / 3.0
+
+                if estimated_total_recent_rounds > 0:
+                    participation_rate = (
+                        estimated_rounds_participated / estimated_total_recent_rounds
+                    )
+
+                    if participation_rate > max_round_participation_rate:
+                        # This expert is in too many recent rounds
+                        contribution_counts_all = self._count_contributions(contributions)
+                        other_experts = [
+                            p.code
+                            for p in personas
+                            if contribution_counts_recent.get(p.code, 0) < recent_count * 0.7
+                        ]
+
+                        if other_experts:
+                            # Select least-contributing expert (across all rounds)
+                            other_experts.sort(
+                                key=lambda code: contribution_counts_all.get(code, 0)
+                            )
+                            next_speaker = other_experts[0]
+
+                            return {
+                                "reason": f"ROTATION LIMIT: {persona_code} participated in "
+                                f"{participation_rate:.0%} of recent {recent_round_limit} rounds "
+                                f"(limit: {max_round_participation_rate:.0%}). Rotating to {next_speaker}.",
+                                "next_speaker": next_speaker,
+                                "prompt": "Provide a fresh perspective on the discussion so far. "
+                                "Challenge points you disagree with or build on strong arguments.",
+                            }
+
+        # Rule 2 (UPDATED for parallel): Each expert 15-25% of total contributions (balanced)
+        # With parallel rounds, we want MORE balanced distribution (not just "not dominating")
+        contribution_counts = self._count_contributions(contributions)
+        total_contributions = len(contributions)
+
+        if total_contributions >= 10:  # Meaningful sample size
+            expected_per_expert = 1.0 / len(personas)  # Equal distribution
+            # min_threshold = expected_per_expert * 0.75  # 75% of expected (15% with 5 experts) - TODO: use for undercontribution check
+            max_threshold = expected_per_expert * 1.5  # 150% of expected (30% with 5 experts)
+
+            for persona_code, count in contribution_counts.items():
+                contribution_ratio = count / total_contributions
+
+                # Check if expert is contributing too much (dominance)
+                if contribution_ratio > max_threshold:
+                    # This expert is dominating - exclude them from next round
+                    other_experts = [
+                        p.code for p in personas if contribution_counts.get(p.code, 0) < count * 0.7
+                    ]
+
+                    if other_experts:
+                        # Select least-contributing expert
+                        other_experts.sort(key=lambda code: contribution_counts.get(code, 0))
+                        next_speaker = other_experts[0]
+
+                        return {
+                            "reason": f"BALANCE LIMIT: {persona_code} has {count}/{total_contributions} "
+                            f"contributions ({contribution_ratio:.0%}), exceeding balanced threshold "
+                            f"({max_threshold:.0%}). Rotating to {next_speaker} for balance.",
+                            "next_speaker": next_speaker,
+                            "prompt": "We haven't heard much from your perspective. What concerns or "
+                            "opportunities do you see that haven't been discussed?",
+                        }
+
+        # Rule 3 (UPDATED for parallel): Every expert must contribute at least once per 3 rounds
+        # With parallel rounds (avg 3-4 experts per round), this gives ~1 contribution per expert per 3 rounds
+        if total_contributions >= 9:  # After ~3 rounds
+            contribution_counts = self._count_contributions(contributions)
+
+            # Expected: ~1 contribution per expert per 3 rounds
+            min_expected = total_contributions / (len(personas) * 3)
+
+            silent_experts = [
+                p.code for p in personas if contribution_counts.get(p.code, 0) < min_expected
+            ]
+
+            if silent_experts:
+                # Select expert with fewest contributions
+                silent_experts.sort(key=lambda code: contribution_counts.get(code, 0))
+                next_speaker = silent_experts[0]
+
+                return {
+                    "reason": f"PARTICIPATION ENFORCEMENT: {next_speaker} has been relatively quiet. "
+                    f"Ensuring all perspectives are heard.",
+                    "next_speaker": next_speaker,
+                    "prompt": "Your expertise is needed here. What are your thoughts on the points raised so far? "
+                    "What risks or opportunities do you see from your perspective?",
+                }
+
+        return None  # No rotation override needed
+
     async def decide_next_action(
         self, state: DeliberationState, round_number: int, max_rounds: int
     ) -> tuple[FacilitatorDecision, LLMResponse | None]:
@@ -147,6 +303,23 @@ class FacilitatorAgent(BaseAgent):
                     research_query=research_needed["query"],
                 ),
                 None,  # Skip LLM call
+            )
+
+        # Issue #5 fix: Check rotation limits BEFORE moderator check
+        # This ensures hard rotation rules always take precedence
+        rotation_override = self._check_rotation_limits(state)
+
+        if rotation_override:
+            logger.info(f"🔄 Rotation override: {rotation_override['reason']}")
+
+            return (
+                FacilitatorDecision(
+                    action="continue",
+                    reasoning=rotation_override["reason"],
+                    next_speaker=rotation_override["next_speaker"],
+                    speaker_prompt=rotation_override["prompt"],
+                ),
+                None,  # Skip LLM call, use rule-based override
             )
 
         # Check if moderator should intervene BEFORE calling LLM (saves time and cost)

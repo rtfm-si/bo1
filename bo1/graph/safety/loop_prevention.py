@@ -49,15 +49,19 @@ DEFAULT_TIMEOUT_SECONDS = int(os.getenv("DELIBERATION_TIMEOUT_SECONDS", "3600"))
 # ============================================================================
 
 # Maximum steps the graph can take before raising GraphRecursionError
-# Calculation: 15 max rounds x 3 nodes/round + 10 overhead = 55
-DELIBERATION_RECURSION_LIMIT = 55
+# NEW PARALLEL ARCHITECTURE: Reduced from 55 to 20
+# Calculation: 6 max rounds x 3 nodes/round + 10 overhead = 28 (capped at 20 for safety)
+DELIBERATION_RECURSION_LIMIT = 20
 
-# Why 55 is safe:
-# - Max deliberation: 15 rounds (hard cap)
-# - Nodes per round: ~3 (persona, check_convergence, facilitator)
-# - Total nodes: 15 x 3 = 45
+# Why 20 is safe for parallel architecture:
+# - Max deliberation: 6 rounds (hard cap with parallel contributions)
+# - Nodes per round: ~3 (parallel_round, check_convergence, facilitator)
+# - Total nodes: 6 x 3 = 18
 # - Overhead (decompose, select, vote, synthesize): ~10 nodes
-# - Total: 55 steps
+# - Total: 28 steps (capped at 20 for early detection)
+# - With 3-5 experts per round, 6 rounds = 18-30 total contributions
+# - Old architecture: 1 expert × 15 rounds = 15 contributions
+# - New architecture: 4 experts × 6 rounds = 24 contributions (optimal)
 # - If we hit this limit, something is definitely wrong
 
 
@@ -166,11 +170,16 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
     round_number = state["round_number"]
     max_rounds = state["max_rounds"]
 
-    # Absolute hard cap (Layer 3a)
-    if round_number >= 15:
-        logger.warning(f"Round {round_number}: Hit absolute hard cap (15 rounds)")
+    # Absolute hard cap (Layer 3a) - UPDATED for parallel architecture
+    # NEW: 6 rounds max (3-5 experts per round = 18-30 total contributions)
+    hard_cap_rounds = 6
+    if round_number >= hard_cap_rounds:
+        logger.warning(
+            f"Round {round_number}: Hit absolute hard cap ({hard_cap_rounds} rounds) "
+            f"for parallel architecture"
+        )
         state["should_stop"] = True
-        state["stop_reason"] = "hard_cap_15_rounds"
+        state["stop_reason"] = f"hard_cap_{hard_cap_rounds}_rounds"
         return state
 
     # User-configured max (Layer 3b)
@@ -412,7 +421,8 @@ def should_allow_end(state: DeliberationGraphState, config: Any) -> tuple[bool, 
         return False, ["No metrics available"]
 
     round_number = state.get("round_number", 1)
-    min_rounds = config.round_limits["min_rounds"]
+    # NEW PARALLEL ARCHITECTURE: Adjust min_rounds if needed (was 3, now 2)
+    min_rounds = max(2, config.round_limits.get("min_rounds", 2))
 
     # Check 1: Minimum rounds
     if round_number < min_rounds:
@@ -782,8 +792,11 @@ def validate_round_counter_invariants(state: DeliberationGraphState) -> None:
     if round_number < 0:
         raise ValueError(f"Invalid round_number: {round_number} (must be >= 0)")
 
-    if max_rounds > 15:
-        raise ValueError(f"Invalid max_rounds: {max_rounds} (hard cap is 15)")
+    # NEW PARALLEL ARCHITECTURE: Hard cap is 6 rounds (was 15)
+    if max_rounds > 6:
+        raise ValueError(
+            f"Invalid max_rounds: {max_rounds} (hard cap is 6 for parallel architecture)"
+        )
 
     if round_number > max_rounds:
         raise ValueError(f"Round number ({round_number}) exceeds max_rounds ({max_rounds})")

@@ -85,15 +85,43 @@ class EventCollector:
                 data["sub_problem_index"] = sub_problem_index
 
                 logger.info(
-                    f"[EVENT DEBUG] Publishing {event_type} | data keys: {list(data.keys())}"
+                    f"[EVENT DEBUG] Publishing {event_type} | sub_problem_index={sub_problem_index} | data keys: {list(data.keys())}"
                 )
                 self.publisher.publish_event(session_id, event_type, data)
             else:
-                logger.warning(
-                    f"[EVENT DEBUG] Extractor returned no data for {event_type} (registry_key={registry_key})"
+                # Issue #3 fix: Publish error event when extractor fails
+                error_msg = f"Event extraction failed for {event_type}"
+                logger.error(
+                    f"[EVENT ERROR] {error_msg} (registry_key={registry_key}). Output keys: {list(output.keys())}"
+                )
+                # Publish error event so UI knows something went wrong
+                self.publisher.publish_event(
+                    session_id,
+                    "error",
+                    {
+                        "error": error_msg,
+                        "error_type": "EventExtractionError",
+                        "event_type_attempted": event_type,
+                        "sub_problem_index": output.get("sub_problem_index", 0),
+                    },
                 )
         except Exception as e:
-            logger.error(f"Failed to publish {event_type} for session {session_id}: {e}")
+            # Issue #3 fix: Publish error event instead of swallowing the error
+            logger.error(
+                f"Failed to publish {event_type} for session {session_id}: {e}",
+                exc_info=True,
+            )
+            # Publish error event so frontend can display the failure
+            self.publisher.publish_event(
+                session_id,
+                "error",
+                {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "event_type_attempted": event_type,
+                    "sub_problem_index": output.get("sub_problem_index", 0),
+                },
+            )
 
     async def collect_and_publish(
         self,

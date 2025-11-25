@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import { page } from '$app/stores';
 	import { env } from '$env/dynamic/public';
 	import { apiClient } from '$lib/api/client';
@@ -164,6 +164,9 @@
 	const MAX_SEEN_EVENTS = 500;
 	let seenEventKeys = $state(new Set<string>());
 
+	// Issue #1 fix: Add sequence number to handle identical timestamps
+	let eventSequence = $state(0);
+
 	// Check URL for debug mode to show internal events
 	const debugMode = $derived($page.url.searchParams.has('debug'));
 
@@ -290,16 +293,19 @@
 
 	// Helper function to add events safely with deduplication
 	function addEvent(newEvent: SSEEvent) {
-		// Create unique key with sub_problem_index to avoid collisions across sub-problems
-		// Format: {sub_problem_index}-{timestamp}-{event_type}-{persona_code}
-		// This ensures events from different sub-problems don't collide even with same timestamp
+		// Issue #1 fix: Use sequence number + sub_problem_index for unique keys
+		// This prevents duplicate key issues when events have identical timestamps
+		// Format: {sub_problem_index}-{sequence}-{event_type}-{persona_code}
 		const subProblemIndex = newEvent.data.sub_problem_index ?? 'global';
 		const personaOrId = newEvent.data.persona_code || newEvent.data.sub_problem_id || '';
-		const eventKey = `${subProblemIndex}-${newEvent.timestamp}-${newEvent.event_type}-${personaOrId}`;
+		const eventKey = `${subProblemIndex}-${eventSequence}-${newEvent.event_type}-${personaOrId}`;
 
-		// Skip if already seen
+		// Increment sequence for next event
+		eventSequence++;
+
+		// Skip if already seen (should be rare with sequence numbers)
 		if (seenEventKeys.has(eventKey)) {
-			console.debug('[Events] Skipping duplicate event:', eventKey);
+			console.warn('[Events] Duplicate detected (should be rare with sequence numbers):', eventKey);
 			return;
 		}
 
@@ -317,6 +323,7 @@
 		// Debug convergence events
 		if (newEvent.event_type === 'convergence') {
 			console.log('[EVENT RECEIVED] Convergence event:', {
+				sequence: eventSequence - 1,
 				event_type: newEvent.event_type,
 				sub_problem_index: newEvent.data.sub_problem_index,
 				score: newEvent.data.score,
@@ -339,22 +346,43 @@
 	}
 
 	onMount(() => {
+		// Preload critical components before any events arrive
+		const criticalComponents = [
+			'contribution',
+			'facilitator_decision',
+			'convergence',
+			'voting_complete',
+			'synthesis_complete',
+			'decomposition_complete'
+		];
+
+		// Fire all preloads in parallel
+		Promise.all(criticalComponents.map(type => getComponentForEvent(type)))
+			.then(() => console.log('[Events] Critical components preloaded'))
+			.catch(err => console.warn('[Events] Component preload failed:', err));
+
 		// Auth is already verified by parent layout, safe to load session
 		// Run async initialization with proper sequencing
 		(async () => {
 			try {
-				// Load session metadata and historical events in parallel for speed
-				// Both must complete before SSE stream starts to avoid race conditions
-				await Promise.all([
-					loadSession(),
-					loadHistoricalEvents()
-				]);
+				// Issue #1 fix: Sequential loading to prevent race conditions
+				// STEP 1: Load session metadata
+				await loadSession();
 
-				console.log('[Events] Session and history loaded, starting SSE stream...');
+				// STEP 2: Load ALL historical events
+				await loadHistoricalEvents();
 
-				// Only start SSE stream after historical events are fully processed
+				// STEP 3: Wait for Svelte to finish reactive updates
+				// This ensures all historical events are processed before SSE starts
+				await tick();
+
+				console.log('[Events] Session and history loaded, Svelte tick complete, starting SSE stream...');
+
+				// STEP 4: NOW start SSE stream (historical events fully processed)
 				// This prevents duplicate detection issues and missing events
 				await startEventStream();
+
+				console.log('[Events] Initialization sequence complete');
 			} catch (err) {
 				console.error('[Events] Initialization failed:', err);
 				error = err instanceof Error ? err.message : 'Failed to initialize session';
@@ -1266,15 +1294,27 @@
 														</h3>
 														{#each group.events as contrib}
 															{#await getComponentForEvent('contribution')}
-																<!-- Loading skeleton for contribution -->
+																<!-- Loading skeleton with timeout fallback -->
 																<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg p-4 mb-2">
 																	<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
 																	<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
 																</div>
 															{:then ExpertPerspectiveCardComponent}
-																<ExpertPerspectiveCardComponent event={contrib as any} />
+																{#if ExpertPerspectiveCardComponent}
+																	<ExpertPerspectiveCardComponent event={contrib as any} />
+																{:else}
+																	<!-- Component loaded but null - use GenericEvent -->
+																	<GenericEvent event={contrib} />
+																	<div class="text-xs text-red-600 mt-2">
+																		Component failed to load for: contribution
+																	</div>
+																{/if}
 															{:catch error}
+																<!-- Component import failed - show error with details -->
 																<GenericEvent event={contrib} />
+																<div class="text-xs text-red-600 mt-2">
+																	Error loading component: {error.message || 'Unknown error'}
+																</div>
 															{/await}
 														{/each}
 													</div>
@@ -1299,15 +1339,27 @@
 															</div>
 
 															{#await getComponentForEvent(event.event_type)}
-																<!-- Loading skeleton for single event -->
+																<!-- Loading skeleton with timeout fallback -->
 																<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg p-3">
 																	<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
 																	<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
 																</div>
 															{:then EventComponent}
-																<EventComponent event={event as any} />
+																{#if EventComponent}
+																	<EventComponent event={event as any} />
+																{:else}
+																	<!-- Component loaded but null - use GenericEvent -->
+																	<GenericEvent event={event} />
+																	<div class="text-xs text-red-600 mt-2">
+																		Component failed to load for: {event.event_type}
+																	</div>
+																{/if}
 															{:catch error}
+																<!-- Component import failed - show error with details -->
 																<GenericEvent event={event} />
+																<div class="text-xs text-red-600 mt-2">
+																	Error loading component: {error.message || 'Unknown error'}
+																</div>
 															{/await}
 														</div>
 													</div>
@@ -1407,22 +1459,34 @@
 									<!-- Render grouped expert panel -->
 									<div transition:fade={{ duration: 300, delay: 50 }}>
 										{#await getComponentForEvent('expert_panel')}
-											<!-- Loading skeleton for expert panel -->
+											<!-- Loading skeleton with timeout fallback -->
 											<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg p-4 mb-2">
 												<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
 												<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
 											</div>
 										{:then ExpertPanelComponent}
-											<ExpertPanelComponent
-												experts={group.events.map((e) => ({
-													persona: e.data.persona as any,
-													rationale: e.data.rationale as string,
-													order: e.data.order as number,
-												}))}
-												subProblemGoal={group.subProblemGoal}
-											/>
+											{#if ExpertPanelComponent}
+												<ExpertPanelComponent
+													experts={group.events.map((e) => ({
+														persona: e.data.persona as any,
+														rationale: e.data.rationale as string,
+														order: e.data.order as number,
+													}))}
+													subProblemGoal={group.subProblemGoal}
+												/>
+											{:else}
+												<!-- Component loaded but null - use GenericEvent -->
+												<GenericEvent event={group.events[0]} />
+												<div class="text-xs text-red-600 mt-2">
+													Component failed to load for: expert_panel
+												</div>
+											{/if}
 										{:catch error}
+											<!-- Component import failed - show error with details -->
 											<GenericEvent event={group.events[0]} />
+											<div class="text-xs text-red-600 mt-2">
+												Error loading component: {error.message || 'Unknown error'}
+											</div>
 										{/await}
 									</div>
 								{:else if group.type === 'round' && group.events}
@@ -1434,15 +1498,27 @@
 											</h3>
 											{#each group.events as contrib}
 												{#await getComponentForEvent('contribution')}
-													<!-- Loading skeleton for contribution -->
+													<!-- Loading skeleton with timeout fallback -->
 													<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg p-4 mb-2">
 														<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
 														<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
 													</div>
 												{:then ExpertPerspectiveCardComponent}
-													<ExpertPerspectiveCardComponent event={contrib as any} />
+													{#if ExpertPerspectiveCardComponent}
+														<ExpertPerspectiveCardComponent event={contrib as any} />
+													{:else}
+														<!-- Component loaded but null - use GenericEvent -->
+														<GenericEvent event={contrib} />
+														<div class="text-xs text-red-600 mt-2">
+															Component failed to load for: contribution
+														</div>
+													{/if}
 												{:catch error}
+													<!-- Component import failed - show error with details -->
 													<GenericEvent event={contrib} />
+													<div class="text-xs text-red-600 mt-2">
+														Error loading component: {error.message || 'Unknown error'}
+													</div>
 												{/await}
 											{/each}
 										</div>
@@ -1470,15 +1546,27 @@
 
 												<!-- Render appropriate component based on event type with dynamic loading -->
 												{#await getComponentForEvent(event.event_type)}
-													<!-- Loading skeleton for single event -->
+													<!-- Loading skeleton with timeout fallback -->
 													<div class="animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg p-3">
 														<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
 														<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
 													</div>
 												{:then EventComponent}
-													<EventComponent event={event as any} />
+													{#if EventComponent}
+														<EventComponent event={event as any} />
+													{:else}
+														<!-- Component loaded but null - use GenericEvent -->
+														<GenericEvent event={event} />
+														<div class="text-xs text-red-600 mt-2">
+															Component failed to load for: {event.event_type}
+														</div>
+													{/if}
 												{:catch error}
+													<!-- Component import failed - show error with details -->
 													<GenericEvent event={event} />
+													<div class="text-xs text-red-600 mt-2">
+														Error loading component: {error.message || 'Unknown error'}
+													</div>
 												{/await}
 											</div>
 										</div>
@@ -1518,6 +1606,8 @@
 						events={events}
 						currentPhase={session.phase}
 						currentRound={session.round_number ?? null}
+						activeSubProblemIndex={activeSubProblemTab ? parseInt(activeSubProblemTab.replace('subproblem-', '')) : null}
+						totalSubProblems={subProblemTabs.length}
 					/>
 
 

@@ -24,7 +24,7 @@ from bo1.models.state import (
     DeliberationPhase,
     DeliberationState,
 )
-from bo1.prompts.reusable_prompts import compose_persona_prompt, get_round_phase_config
+from bo1.prompts.reusable_prompts import get_round_phase_config
 from bo1.utils.logging_helpers import LogHelper
 
 logger = logging.getLogger(__name__)
@@ -205,43 +205,26 @@ class DeliberationEngine:
         if not persona_data:
             raise ValueError(f"Persona not found: {persona_profile.code}")
 
-        # Compose system prompt
-        system_prompt = compose_persona_prompt(
-            persona_system_role=persona_data["system_prompt"],
-            problem_statement=problem_statement,
-            participant_list=participant_list,
-            current_phase="initial_round" if round_number == 0 else "discussion",
-            expert_memory=expert_memory,
-        )
+        # Use enhanced persona contribution prompt with phase-based critical thinking
+        from bo1.prompts.reusable_prompts import compose_persona_contribution_prompt
 
-        # Build user message with adaptive directive and context
-        user_message_parts = [
-            f"## Directive\n{round_config['directive']}\n\n",  # Adaptive round-specific instruction
-            f"## Problem\n{problem_statement}\n",
+        # Convert previous contributions to dict format for enhanced prompts
+        prev_contribs = [
+            {"persona_code": c.persona_code, "persona_name": c.persona_name, "content": c.content}
+            for c in (previous_contributions or [])
         ]
 
-        if problem_context:
-            user_message_parts.append(f"\n## Context\n{problem_context}\n")
-
-        if previous_contributions:
-            user_message_parts.append("\n## Previous Contributions\n")
-            for contrib in previous_contributions:
-                user_message_parts.append(f"**{contrib.persona_name}**: {contrib.content}\n\n")
-
-        if round_number == 0:
-            user_message_parts.append(
-                "\n## Your Task\n"
-                "Provide your initial analysis and recommendations for this problem. "
-                "Use the <thinking> and <contribution> structure as specified in your guidelines."
-            )
-        else:
-            user_message_parts.append(
-                "\n## Your Task\n"
-                "Respond to the previous contributions, building on or challenging points raised. "
-                "Use the <thinking> and <contribution> structure as specified in your guidelines."
-            )
-
-        user_message = "".join(user_message_parts)
+        # Use enhanced prompts with phase-based critical thinking
+        system_prompt, user_message = compose_persona_contribution_prompt(
+            persona_name=persona_data["name"],
+            persona_description=persona_data["description"],
+            persona_expertise=", ".join(persona_data.get("domain_expertise", [])),
+            persona_communication_style=persona_data.get("response_style", "analytical"),
+            problem_statement=problem_statement,
+            previous_contributions=prev_contribs,
+            speaker_prompt=expert_memory or round_config["directive"],
+            round_number=round_number + 1,  # +1 for 1-indexed rounds
+        )
 
         # Call LLM (async) with timing - use PromptBroker for retry protection
         from datetime import datetime

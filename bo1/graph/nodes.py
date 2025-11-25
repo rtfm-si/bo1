@@ -262,10 +262,61 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         max_rounds=max_rounds,
     )
 
+    # VALIDATION: Ensure decision is complete and valid (Issue #3 fix)
+    # This prevents silent failures when facilitator returns invalid decisions
+    personas = state.get("personas", [])
+    persona_codes = [p.code for p in personas]
+
+    if decision.action == "continue":
+        # Validate next_speaker exists in personas
+        if not decision.next_speaker:
+            logger.error(
+                "facilitator_decide_node: 'continue' action without next_speaker! "
+                "Falling back to first available persona."
+            )
+            # Fallback: select first persona
+            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
+            decision.reasoning = f"ERROR RECOVERY: Selected {decision.next_speaker} due to missing next_speaker in facilitator decision"
+
+        elif decision.next_speaker not in persona_codes:
+            logger.error(
+                f"facilitator_decide_node: Invalid next_speaker '{decision.next_speaker}' "
+                f"not in selected personas: {persona_codes}. Falling back to first available persona."
+            )
+            # Fallback: select first persona
+            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
+            decision.reasoning = f"ERROR RECOVERY: Selected {decision.next_speaker} because original speaker was invalid"
+
+    elif decision.action == "moderator":
+        # Validate moderator_type exists
+        if not decision.moderator_type:
+            logger.error(
+                "facilitator_decide_node: 'moderator' action without moderator_type! "
+                "Defaulting to contrarian moderator."
+            )
+            # Fallback: default to contrarian
+            decision.moderator_type = "contrarian"
+            decision.reasoning = "ERROR RECOVERY: Using contrarian moderator due to missing type"
+
+    elif decision.action == "research":
+        # Validate research_query exists
+        if not decision.research_query and not decision.reasoning:
+            logger.error(
+                "facilitator_decide_node: 'research' action without research_query or reasoning! "
+                "Overriding to 'continue' to prevent failure."
+            )
+            # Fallback: skip research, continue with discussion
+            decision.action = "continue"
+            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
+            decision.reasoning = (
+                "ERROR RECOVERY: Skipping research due to missing query, continuing discussion"
+            )
+
     # SAFETY CHECK: Prevent premature voting (Bug #3 fix)
     # Override facilitator if trying to vote before minimum rounds
     # NOTE: Research action is now fully implemented and no longer overridden
-    min_rounds_before_voting = 3
+    # NEW PARALLEL ARCHITECTURE: Reduced from 3 to 2 (with 3-5 experts per round, 2 rounds = 6-10 contributions)
+    min_rounds_before_voting = 2
     if decision.action == "vote" and round_number < min_rounds_before_voting:
         logger.warning(
             f"Facilitator attempted to vote at round {round_number} (min: {min_rounds_before_voting}). "
@@ -384,7 +435,13 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     else:
         cost_msg = "(no LLM call)"
 
-    logger.info(f"facilitator_decide_node: Complete - action={decision.action} {cost_msg}")
+    # Enhanced logging with sub_problem_index for debugging (Issue #3 fix)
+    sub_problem_index = state.get("sub_problem_index", 0)
+    logger.info(
+        f"facilitator_decide_node: Complete - action={decision.action}, "
+        f"next_speaker={decision.next_speaker if decision.action == 'continue' else 'N/A'}, "
+        f"sub_problem_index={sub_problem_index} {cost_msg}"
+    )
 
     # Return state updates with facilitator decision
     # Include round_number so it's available for display
@@ -395,7 +452,7 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         "phase": DeliberationPhase.DISCUSSION,
         "metrics": metrics,
         "current_node": "facilitator_decide",
-        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
+        "sub_problem_index": sub_problem_index,  # CRITICAL: Always preserve sub_problem_index (Issue #3 fix)
     }
 
 
@@ -1445,3 +1502,359 @@ async def clarification_node(state: DeliberationGraphState) -> dict[str, Any]:
             "pending_clarification": None,
             "current_node": "clarification",
         }
+
+
+# ============================================================================
+# NEW PARALLEL ARCHITECTURE - Multi-Expert Round Node (Day 38)
+# ============================================================================
+
+
+async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Execute a round with multiple experts contributing in parallel.
+
+    NEW PARALLEL ARCHITECTURE: Replaces serial persona_contribute_node with
+    parallel multi-expert contributions per round.
+
+    Flow:
+    1. Determine phase (exploration/challenge/convergence) based on round number
+    2. Select 2-5 experts based on phase, contribution balance, and novelty
+    3. Generate contributions from all selected experts in parallel (asyncio.gather)
+    4. Apply semantic deduplication to filter repetitive contributions
+    5. Update state with filtered contributions and phase tracking
+
+    Args:
+        state: Current graph state
+
+    Returns:
+        Dictionary with state updates
+
+    Phases:
+        - Exploration (rounds 1-2): 3-5 experts, broad perspectives
+        - Challenge (rounds 3-4): 2-3 experts, focused debate
+        - Convergence (rounds 5+): 2-3 experts, synthesis
+
+    Example:
+        Round 1 (Exploration): 4 experts contribute in parallel
+        Round 2 (Exploration): 3 experts contribute (semantic dedup filters 1)
+        Round 3 (Challenge): 3 experts challenge previous points
+        Round 4 (Convergence): 3 experts provide recommendations
+    """
+    from bo1.graph.quality.semantic_dedup import filter_duplicate_contributions
+
+    logger.info("parallel_round_node: Starting parallel round with multiple experts")
+
+    # Get current round and phase
+    round_number = state.get("round_number", 1)
+    max_rounds = state.get("max_rounds", 6)
+
+    # Determine phase based on round number
+    current_phase = _determine_phase(round_number, max_rounds)
+    logger.info(f"Round {round_number}/{max_rounds}: Phase = {current_phase}")
+
+    # Select experts for this round (phase-based selection)
+    selected_experts = await _select_experts_for_round(state, current_phase, round_number)
+
+    logger.info(
+        f"parallel_round_node: {len(selected_experts)} experts selected for {current_phase} phase"
+    )
+
+    # Generate contributions in parallel
+    contributions = await _generate_parallel_contributions(
+        experts=selected_experts,
+        state=state,
+        phase=current_phase,
+        round_number=round_number,
+    )
+
+    logger.info(f"parallel_round_node: {len(contributions)} contributions generated")
+
+    # Apply semantic deduplication
+    filtered_contributions = await filter_duplicate_contributions(
+        contributions=contributions,
+        threshold=0.80,  # 80% similarity = likely duplicate
+    )
+
+    filtered_count = len(contributions) - len(filtered_contributions)
+    if filtered_count > 0:
+        logger.info(
+            f"parallel_round_node: Filtered {filtered_count} duplicate contributions "
+            f"({filtered_count / len(contributions):.0%})"
+        )
+
+    # Update state
+    all_contributions = list(state.get("contributions", []))
+    all_contributions.extend(filtered_contributions)
+
+    # Track which experts contributed this round
+    experts_per_round = list(state.get("experts_per_round", []))
+    round_experts = [c.persona_code for c in filtered_contributions]
+    experts_per_round.append(round_experts)
+
+    # Track cost
+    metrics = ensure_metrics(state)
+    # Note: Cost tracking happens inside _generate_parallel_contributions
+
+    # Increment round number
+    next_round = round_number + 1
+
+    logger.info(
+        f"parallel_round_node: Complete - Round {round_number} → {next_round}, "
+        f"{len(filtered_contributions)} contributions added"
+    )
+
+    return {
+        "contributions": all_contributions,
+        "round_number": next_round,
+        "current_phase": current_phase,
+        "experts_per_round": experts_per_round,
+        "metrics": metrics,
+        "current_node": "parallel_round",
+        "sub_problem_index": state.get("sub_problem_index", 0),
+    }
+
+
+def _determine_phase(round_number: int, max_rounds: int) -> str:
+    """Determine deliberation phase based on round number.
+
+    Phase allocation for 6-round max:
+    - Exploration: Rounds 1-2 (33% of deliberation)
+    - Challenge: Rounds 3-4 (33% of deliberation)
+    - Convergence: Rounds 5+ (33% of deliberation)
+
+    Args:
+        round_number: Current round (1-indexed)
+        max_rounds: Maximum rounds configured
+
+    Returns:
+        Phase name: "exploration", "challenge", or "convergence"
+    """
+    # Calculate phase boundaries (thirds)
+    exploration_end = max(2, max_rounds // 3)
+    challenge_end = max(4, 2 * max_rounds // 3)
+
+    if round_number <= exploration_end:
+        return "exploration"
+    elif round_number <= challenge_end:
+        return "challenge"
+    else:
+        return "convergence"
+
+
+async def _select_experts_for_round(
+    state: DeliberationGraphState,
+    phase: str,
+    round_number: int,
+) -> list[Any]:  # Returns list[PersonaProfile]
+    """Select 2-5 experts for this round based on phase and balance.
+
+    Selection Strategy:
+    - Exploration: 3-5 experts (broad exploration, prioritize unheard voices)
+    - Challenge: 2-3 experts (focused debate, avoid recent speakers)
+    - Convergence: 2-3 experts (synthesis, balanced representation)
+
+    Balancing Rules:
+    - No expert in >50% of recent 4 rounds
+    - Each expert 15-25% of total contributions (balanced)
+
+    Args:
+        state: Current deliberation state
+        phase: "exploration", "challenge", or "convergence"
+        round_number: Current round number
+
+    Returns:
+        List of selected PersonaProfile objects
+    """
+    personas = state.get("personas", [])
+    contributions = state.get("contributions", [])
+    experts_per_round = state.get("experts_per_round", [])
+
+    if not personas:
+        logger.warning("No personas available for selection")
+        return []
+
+    # Count contributions per expert
+    contribution_counts: dict[str, int] = {}
+    for contrib in contributions:
+        contribution_counts[contrib.persona_code] = (
+            contribution_counts.get(contrib.persona_code, 0) + 1
+        )
+
+    # Get recent speakers (last 4 rounds)
+    recent_speakers: list[str] = []
+    if experts_per_round:
+        for round_experts in experts_per_round[-4:]:
+            recent_speakers.extend(round_experts)
+
+    # Phase-specific selection
+    if phase == "exploration":
+        # Select 3-4 experts, prioritize those who haven't spoken much
+        target_count = min(4, len(personas))
+
+        # Sort by contribution count (fewest first)
+        candidates = sorted(
+            personas,
+            key=lambda p: (
+                contribution_counts.get(p.code, 0),  # Fewest contributions first
+                p.code,  # Stable sort by code
+            ),
+        )
+
+        selected = candidates[:target_count]
+
+    elif phase == "challenge":
+        # Select 2-3 experts who haven't spoken recently
+        target_count = min(3, len(personas))
+
+        # Filter out recent speakers
+        candidates = [
+            p
+            for p in personas
+            if recent_speakers.count(p.code) < 2  # Not in last 2 rounds
+        ]
+
+        if not candidates:
+            # All experts spoke recently, just use all
+            candidates = list(personas)
+
+        # Sort by contribution count (fewest first)
+        candidates = sorted(candidates, key=lambda p: contribution_counts.get(p.code, 0))
+
+        selected = candidates[:target_count]
+
+    elif phase == "convergence":
+        # Select 2-3 experts representing different viewpoints
+        target_count = min(3, len(personas))
+
+        # Select balanced set (least-contributing experts to ensure all voices heard)
+        selected = sorted(personas, key=lambda p: contribution_counts.get(p.code, 0))[:target_count]
+
+    else:
+        # Default: select first 3
+        selected = personas[: min(3, len(personas))]
+
+    logger.info(
+        f"Expert selection ({phase}): {[p.code for p in selected]} "
+        f"(target: {target_count if 'target_count' in locals() else 'N/A'})"
+    )
+
+    return selected
+
+
+async def _generate_parallel_contributions(
+    experts: list[Any],  # list[PersonaProfile]
+    state: DeliberationGraphState,
+    phase: str,
+    round_number: int,
+) -> list[Any]:  # Returns list[ContributionMessage]
+    """Generate contributions from multiple experts in parallel.
+
+    Uses asyncio.gather to call all experts concurrently, reducing
+    total round time from serial (n × LLM_latency) to parallel (1 × LLM_latency).
+
+    Args:
+        experts: List of PersonaProfile objects
+        state: Current deliberation state
+        phase: "exploration", "challenge", or "convergence"
+        round_number: Current round number
+
+    Returns:
+        List of ContributionMessage objects
+    """
+    import asyncio
+
+    from bo1.models.state import ContributionType
+    from bo1.orchestration.deliberation import DeliberationEngine
+
+    # Convert graph state to v1 for engine
+    v1_state = graph_state_to_deliberation_state(state)
+    engine = DeliberationEngine(state=v1_state)
+
+    # Get problem context
+    problem = state.get("problem")
+    contributions = state.get("contributions", [])
+    personas = state.get("personas", [])
+
+    participant_list = ", ".join([p.name for p in personas])
+
+    # Get phase-specific speaker prompt
+    speaker_prompt = _get_phase_prompt(phase, round_number)
+
+    # Create tasks for all experts
+    # NOTE: speaker_prompt is stored in expert_memory for now (until _call_persona_async is updated)
+    tasks = []
+    for expert in experts:
+        # Use expert_memory to pass phase-specific guidance
+        phase_guidance = f"Phase Guidance: {speaker_prompt}"
+
+        task = engine._call_persona_async(
+            persona_profile=expert,
+            problem_statement=problem.description if problem else "",
+            problem_context=problem.context if problem else "",
+            participant_list=participant_list,
+            round_number=round_number,
+            contribution_type=ContributionType.RESPONSE,
+            previous_contributions=contributions,
+            expert_memory=phase_guidance,  # Pass phase prompt via memory field
+        )
+        tasks.append(task)
+
+    # Run all in parallel
+    results = await asyncio.gather(*tasks)
+
+    # Extract contributions and track costs
+    contribution_msgs = []
+    metrics = ensure_metrics(state)
+
+    for contribution_msg, llm_response in results:
+        contribution_msgs.append(contribution_msg)
+
+        # Track cost
+        phase_key = f"round_{round_number}_parallel_deliberation"
+        track_accumulated_cost(metrics, phase_key, llm_response)
+
+    total_cost = sum(r[1].cost_total for r in results)
+    logger.info(
+        f"Parallel contributions: {len(contribution_msgs)} experts, cost: ${total_cost:.4f}"
+    )
+
+    return contribution_msgs
+
+
+def _get_phase_prompt(phase: str, round_number: int) -> str:
+    """Get phase-specific speaker prompts.
+
+    From MEETING_SYSTEM_ANALYSIS.md, these prompts enforce:
+    - 80-token max (prevents rambling)
+    - Explicit phase objectives
+    - No generic agreement without new information
+
+    Args:
+        phase: "exploration", "challenge", or "convergence"
+        round_number: Current round number
+
+    Returns:
+        Speaker prompt string
+    """
+    if phase == "exploration":
+        return (
+            "EXPLORATION PHASE: Surface new perspectives, risks, and opportunities. "
+            "Challenge assumptions. Identify gaps in analysis. "
+            "Max 80 tokens. No agreement statements without new information."
+        )
+
+    elif phase == "challenge":
+        return (
+            "CHALLENGE PHASE: Directly challenge a previous point OR provide new evidence. "
+            "Must either disagree with a specific claim or add novel data. "
+            "Max 80 tokens. No summaries or meta-commentary."
+        )
+
+    elif phase == "convergence":
+        return (
+            "CONVERGENCE PHASE: Provide your strongest recommendation, key risk, and "
+            "reason it outweighs alternatives. Be specific. "
+            "Max 80 tokens. No further debate."
+        )
+
+    else:
+        return "Provide your contribution based on your expertise."

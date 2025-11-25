@@ -918,6 +918,157 @@ Generate the JSON action plan now (PURE JSON only, no markdown formatting):
 </instructions>"""
 
 # =============================================================================
+# Enhanced Persona Contribution Prompt (Issue #4 - Deeper Discussion)
+# =============================================================================
+
+
+def compose_persona_contribution_prompt(
+    persona_name: str,
+    persona_description: str,
+    persona_expertise: str,
+    persona_communication_style: str,
+    problem_statement: str,
+    previous_contributions: list[dict[str, str]],
+    speaker_prompt: str,
+    round_number: int,
+) -> tuple[str, str]:
+    """Compose prompt for persona contribution with critical thinking emphasis.
+
+    Args:
+        persona_name: Name of the persona
+        persona_description: Short description of the persona
+        persona_expertise: Areas of expertise
+        persona_communication_style: How they communicate
+        problem_statement: The problem being discussed
+        previous_contributions: List of dicts with 'persona_code' and 'content' keys
+        speaker_prompt: Specific focus for this contribution
+        round_number: Current round number (1-indexed)
+
+    Returns:
+        Tuple of (system_prompt, user_message) for the LLM
+    """
+    # Determine debate phase based on round number
+    if round_number <= 2:
+        phase_instruction = """
+        <debate_phase>EARLY - DIVERGENT THINKING</debate_phase>
+        <phase_goals>
+        - Explore multiple perspectives
+        - Challenge initial assumptions
+        - Raise concerns and risks
+        - Identify gaps in analysis
+        - DON'T seek consensus yet - surface disagreements
+        </phase_goals>
+        """
+    elif round_number <= 4:
+        phase_instruction = """
+        <debate_phase>MIDDLE - DEEP ANALYSIS</debate_phase>
+        <phase_goals>
+        - Provide evidence for claims
+        - Challenge weak arguments
+        - Request clarification on unclear points
+        - Build on strong ideas from others
+        - Identify trade-offs and constraints
+        </phase_goals>
+        """
+    else:
+        phase_instruction = """
+        <debate_phase>LATE - CONVERGENT THINKING</debate_phase>
+        <phase_goals>
+        - Synthesize key insights
+        - Recommend specific actions
+        - Acknowledge remaining uncertainties
+        - Build consensus on critical points
+        - Propose next steps
+        </phase_goals>
+        """
+
+    # Format previous contributions for context (last 5 only)
+    discussion_history = "\n\n".join(
+        [
+            f"[{c.get('persona_code', 'Unknown')}]: {c.get('content', '')}"
+            for c in previous_contributions[-5:]  # Last 5 contributions
+        ]
+    )
+
+    system_prompt = f"""You are {persona_name}, {persona_description}.
+
+<expertise>
+{persona_expertise}
+</expertise>
+
+<communication_style>
+{persona_communication_style}
+</communication_style>
+
+{phase_instruction}
+
+<critical_thinking_protocol>
+You MUST engage critically with the discussion:
+
+1. **Challenge Assumptions**: If someone makes an assumption, question it
+2. **Demand Evidence**: If a claim lacks support, ask for evidence
+3. **Identify Gaps**: Point out what's missing from the analysis
+4. **Build or Refute**: Explicitly agree/disagree with previous speakers
+5. **Recommend Actions**: End with specific, actionable recommendations
+
+**Format your response with explicit structure:**
+- Start with: "Based on [previous speaker's] point about X..."
+- Include: "I disagree/agree with [persona] because..."
+- End with: "My recommendation is to [specific action]..."
+</critical_thinking_protocol>
+
+<forbidden_patterns>
+- Generic agreement ("I agree with the previous speakers...")
+- Vague observations without conclusions
+- Listing facts without analysis
+- Ending without a recommendation or question
+</forbidden_patterns>
+
+<problem_context>
+{problem_statement}
+</problem_context>
+
+<previous_discussion>
+{discussion_history}
+</previous_discussion>
+
+<your_focus>
+{speaker_prompt}
+</your_focus>
+
+{BEHAVIORAL_GUIDELINES}
+
+{EVIDENCE_PROTOCOL}
+
+{SECURITY_PROTOCOL}
+"""
+
+    user_message = f"""Provide your contribution following this structure:
+
+<thinking>
+(Private reasoning - not shown to other experts)
+- Which previous points relate to my expertise?
+- What do I disagree with or find concerning?
+- What evidence supports my position?
+- What am I uncertain about?
+</thinking>
+
+<contribution>
+(Public statement to the group - 2-4 paragraphs)
+
+[Start by referencing a specific previous contribution]
+[Provide your analysis with clear reasoning]
+[Challenge weak points or build on strong ones]
+[End with specific recommendations or questions]
+</contribution>
+
+Remember: This is round {round_number}. Focus on {phase_instruction.split("</debate_phase>")[0].split(">")[-1]} thinking.
+"""
+
+    return system_prompt, user_message
+
+
+# =============================================================================
 # Helper Functions
 # =============================================================================
 

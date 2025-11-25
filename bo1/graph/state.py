@@ -87,12 +87,19 @@ class DeliberationGraphState(TypedDict, total=False):
         dict[str, Any]
     ]  # List of {"query": str, "embedding": list[float]}
 
+    # NEW FIELDS FOR PARALLEL ARCHITECTURE (Day 38)
+    current_phase: str  # "exploration", "challenge", "convergence"
+    experts_per_round: list[list[str]]  # Track which experts contributed each round
+    semantic_novelty_scores: dict[str, float]  # Per-contribution novelty scores
+    exploration_score: float  # From quality metrics (0.0-1.0)
+    focus_score: float  # From quality metrics (0.0-1.0)
+
 
 def create_initial_state(
     session_id: str,
     problem: Problem,
     personas: list[PersonaProfile] | None = None,
-    max_rounds: int = 10,
+    max_rounds: int = 6,  # NEW DEFAULT: 6 rounds for parallel architecture
     user_id: str | None = None,
     collect_context: bool = True,
 ) -> DeliberationGraphState:
@@ -135,6 +142,12 @@ def create_initial_state(
         business_context=None,
         pending_clarification=None,
         phase_costs={},
+        # NEW FIELDS FOR PARALLEL ARCHITECTURE
+        current_phase="exploration",  # Start with exploration phase
+        experts_per_round=[],  # Will track experts per round
+        semantic_novelty_scores={},  # Will track novelty per contribution
+        exploration_score=0.0,  # Will be calculated during deliberation
+        focus_score=1.0,  # Start at 1.0 (assume focused until proven otherwise)
     )
 
 
@@ -172,9 +185,12 @@ def validate_state(state: DeliberationGraphState) -> None:
             f"round_number ({state['round_number']}) exceeds max_rounds ({state['max_rounds']})"
         )
 
-    # Validate max_rounds cap
-    if state["max_rounds"] > 15:
-        raise ValueError(f"max_rounds ({state['max_rounds']}) exceeds hard cap of 15")
+    # Validate max_rounds cap - NEW PARALLEL ARCHITECTURE: 6 rounds max
+    # (with 3-5 experts per round = 18-30 contributions, equivalent to old 15-round serial model)
+    if state["max_rounds"] > 6:
+        raise ValueError(
+            f"max_rounds ({state['max_rounds']}) exceeds hard cap of 6 for parallel architecture"
+        )
 
 
 def state_to_dict(state: DeliberationGraphState) -> dict[str, Any]:

@@ -40,8 +40,8 @@ def sample_problem() -> Problem:
 
 def test_recursion_limit_constant():
     """Test that recursion limit is set correctly."""
-    # 15 rounds × 3 nodes/round + 10 overhead = 55
-    assert DELIBERATION_RECURSION_LIMIT == 55
+    # 6 rounds × 3 nodes/round + 2 overhead = 20 (parallel architecture)
+    assert DELIBERATION_RECURSION_LIMIT == 20  # Updated for parallel rounds architecture
 
 
 # ============================================================================
@@ -111,9 +111,9 @@ async def test_check_convergence_below_max_rounds(sample_problem: Problem):
     state = create_initial_state(
         session_id="test-123",
         problem=sample_problem,
-        max_rounds=10,
+        max_rounds=5,
     )
-    state["round_number"] = 5
+    state["round_number"] = 3
 
     result = await check_convergence_node(state)
 
@@ -127,9 +127,9 @@ async def test_check_convergence_at_max_rounds(sample_problem: Problem):
     state = create_initial_state(
         session_id="test-123",
         problem=sample_problem,
-        max_rounds=10,
+        max_rounds=5,
     )
-    state["round_number"] = 10
+    state["round_number"] = 5
 
     result = await check_convergence_node(state)
 
@@ -139,18 +139,18 @@ async def test_check_convergence_at_max_rounds(sample_problem: Problem):
 
 @pytest.mark.asyncio
 async def test_check_convergence_at_hard_cap(sample_problem: Problem):
-    """Test convergence check at absolute hard cap (15 rounds)."""
+    """Test convergence check at absolute hard cap (6 rounds)."""
     state = create_initial_state(
         session_id="test-123",
         problem=sample_problem,
-        max_rounds=15,
+        max_rounds=6,
     )
-    state["round_number"] = 15
+    state["round_number"] = 6
 
     result = await check_convergence_node(state)
 
     assert result["should_stop"] is True
-    assert result["stop_reason"] == "hard_cap_15_rounds"
+    assert result["stop_reason"] == "hard_cap_6_rounds"
 
 
 @pytest.mark.asyncio
@@ -167,7 +167,7 @@ async def test_check_convergence_with_high_score(sample_problem: Problem):
     state = create_initial_state(
         session_id="test-123",
         problem=sample_problem,
-        max_rounds=10,
+        max_rounds=6,
     )
     state["round_number"] = 3
 
@@ -233,7 +233,7 @@ async def test_check_convergence_with_low_score(sample_problem: Problem):
     state = create_initial_state(
         session_id="test-123",
         problem=sample_problem,
-        max_rounds=10,
+        max_rounds=6,
     )
     state["round_number"] = 3
     state["metrics"] = DeliberationMetrics(convergence_score=0.50)
@@ -280,7 +280,7 @@ def test_validate_round_counter_valid(sample_problem: Problem):
     state = create_initial_state(
         session_id="test-123",
         problem=sample_problem,
-        max_rounds=10,
+        max_rounds=6,
     )
     state["round_number"] = 5
 
@@ -298,7 +298,7 @@ def test_validate_round_counter_negative():
         "round_summaries": [],
         "phase": None,  # type: ignore
         "round_number": -1,  # Invalid
-        "max_rounds": 10,
+        "max_rounds": 6,
         "metrics": DeliberationMetrics(),
     }
 
@@ -316,11 +316,11 @@ def test_validate_round_counter_exceeds_hard_cap():
         "round_summaries": [],
         "phase": None,  # type: ignore
         "round_number": 5,
-        "max_rounds": 20,  # Exceeds hard cap of 15
+        "max_rounds": 10,  # Exceeds hard cap of 6
         "metrics": DeliberationMetrics(),
     }
 
-    with pytest.raises(ValueError, match="hard cap is 15"):
+    with pytest.raises(ValueError, match="hard cap is 6"):
         validate_round_counter_invariants(state)
 
 
@@ -333,8 +333,8 @@ def test_validate_round_counter_round_exceeds_max():
         "contributions": [],
         "round_summaries": [],
         "phase": None,  # type: ignore
-        "round_number": 11,
-        "max_rounds": 10,
+        "round_number": 6,
+        "max_rounds": 5,
         "metrics": DeliberationMetrics(),
     }
 
@@ -354,7 +354,7 @@ async def test_convergence_node_preserves_state(sample_problem: Problem):
     state = create_initial_state(
         session_id="test-preserve",
         problem=sample_problem,
-        max_rounds=10,
+        max_rounds=6,
     )
     state["round_number"] = 3
 
@@ -627,7 +627,7 @@ def test_route_cost_guard_exceeds_budget(sample_problem: Problem):
 async def test_all_five_layers_independently(sample_problem: Problem):
     """Test that all 5 layers can be activated independently."""
     # Layer 1: Recursion limit (constant check)
-    assert DELIBERATION_RECURSION_LIMIT == 55
+    assert DELIBERATION_RECURSION_LIMIT == 20  # Updated for parallel rounds architecture
 
     # Layer 2: Cycle detection (graph validation)
     graph = nx.DiGraph()
@@ -638,9 +638,9 @@ async def test_all_five_layers_independently(sample_problem: Problem):
     state = create_initial_state(
         session_id="test-layer3",
         problem=sample_problem,
-        max_rounds=5,
+        max_rounds=4,
     )
-    state["round_number"] = 5
+    state["round_number"] = 4
     result = await check_convergence_node(state)
     assert result["should_stop"] is True
     assert result["stop_reason"] == "max_rounds"
@@ -665,15 +665,15 @@ async def test_multiple_layers_triggered(sample_problem: Problem):
     state = create_initial_state(
         session_id="test-multi-layer",
         problem=sample_problem,
-        max_rounds=5,
+        max_rounds=4,
     )
-    state["round_number"] = 5  # At max_rounds
+    state["round_number"] = 4  # At max_rounds
     state["metrics"] = DeliberationMetrics(total_cost=2.00)  # Also exceeds cost
 
     # Layer 3 should trigger first (round counter)
     result = await check_convergence_node(state)
     assert result["should_stop"] is True
-    # max_rounds triggers first (before hard cap at 15)
+    # max_rounds triggers first (before hard cap at 6)
     assert result["stop_reason"] == "max_rounds"
 
     # Layer 5 also triggers independently
@@ -710,7 +710,7 @@ async def test_convergence_and_cost_guard_interaction(sample_problem: Problem):
     state = create_initial_state(
         session_id="test-interaction",
         problem=sample_problem,
-        max_rounds=10,
+        max_rounds=6,
     )
     state["round_number"] = 3
 
@@ -922,7 +922,7 @@ async def test_check_convergence_node_uses_semantic_detection(sample_problem: Pr
     state = create_initial_state(
         session_id="test-semantic",
         problem=sample_problem,
-        max_rounds=10,
+        max_rounds=6,
     )
     state["round_number"] = 4
 

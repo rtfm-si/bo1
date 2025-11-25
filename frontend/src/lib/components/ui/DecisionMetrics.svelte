@@ -10,13 +10,35 @@
 		events: SSEEvent[];
 		currentPhase: string | null;
 		currentRound: number | null;
+		activeSubProblemIndex?: number | null;  // NEW
+		totalSubProblems?: number;               // NEW
 	}
 
-	let { events, currentPhase, currentRound }: Props = $props();
+	let {
+		events,
+		currentPhase,
+		currentRound,
+		activeSubProblemIndex = null,
+		totalSubProblems = 1
+	}: Props = $props();
+
+	// Filter events by active sub-problem
+	const filteredEvents = $derived.by(() => {
+		// If single sub-problem OR no active tab, show all events
+		if (totalSubProblems <= 1 || activeSubProblemIndex === null) {
+			return events;
+		}
+
+		// Filter to active sub-problem only
+		return events.filter(e => {
+			const eventSubIndex = e.data.sub_problem_index as number | undefined;
+			return eventSubIndex === activeSubProblemIndex;
+		});
+	});
 
 	// Convergence metrics (from convergence events)
 	const convergenceEvents = $derived(
-		events.filter(e => e.event_type === 'convergence')
+		filteredEvents.filter(e => e.event_type === 'convergence')
 	);
 	const latestConvergence = $derived(
 		convergenceEvents.length > 0 ? convergenceEvents[convergenceEvents.length - 1] : null
@@ -40,7 +62,7 @@
 
 	// Expert contributions
 	const contributions = $derived(
-		events.filter(e => e.event_type === 'contribution')
+		filteredEvents.filter(e => e.event_type === 'contribution')
 	);
 	const contributionsByExpert = $derived.by(() => {
 		const byExpert = new Map<string, number>();
@@ -56,7 +78,7 @@
 
 	// Votes/Recommendations
 	const votes = $derived(
-		events.filter(e => e.event_type === 'persona_vote')
+		filteredEvents.filter(e => e.event_type === 'persona_vote')
 	);
 	const confidenceLevels = $derived.by(() => {
 		return votes
@@ -77,7 +99,7 @@
 
 	// Moderator interventions
 	const interventions = $derived(
-		events.filter(e => e.event_type === 'moderator_intervention').length
+		filteredEvents.filter(e => e.event_type === 'moderator_intervention').length
 	);
 
 	function getConfidenceColor(confidence: number): string {
@@ -103,6 +125,19 @@
 </script>
 
 <div class="space-y-4">
+	<!-- Context indicator for multi-sub-problem scenarios -->
+	{#if totalSubProblems > 1}
+		<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 p-3 mb-4">
+			<p class="text-xs text-blue-800 dark:text-blue-200">
+				{#if activeSubProblemIndex !== null}
+					Showing metrics for <strong>Sub-Problem {activeSubProblemIndex + 1}</strong>
+				{:else}
+					Showing overall metrics across all sub-problems
+				{/if}
+			</p>
+		</div>
+	{/if}
+
 	<!-- Convergence Metrics (moved from timeline to sidebar) -->
 	{#if convergenceScore !== null}
 		{@const score = convergenceScore}

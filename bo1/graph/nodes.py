@@ -597,6 +597,14 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
                 )
             except Exception as e:
                 logger.warning(f"Failed to summarize round {round_number}: {e}")
+                # Add minimal fallback summary to preserve hierarchical mode
+                expert_names = ", ".join([c.get("persona", "Unknown") for c in round_contributions])
+                fallback_summary = (
+                    f"Round {round_number}: {len(round_contributions)} contributions from {expert_names}. "
+                    f"(Detailed summary unavailable)"
+                )
+                round_summaries.append(fallback_summary)
+                logger.info(f"Added fallback summary for round {round_number}")
 
     logger.info(
         f"persona_contribute_node: Complete - {speaker_code} contributed "
@@ -1616,6 +1624,16 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
             f"({filtered_count / len(contributions):.0%})"
         )
 
+    # FAILSAFE: Ensure at least 1 contribution per round
+    if not filtered_contributions and contributions:
+        logger.warning(
+            f"All {len(contributions)} contributions filtered as duplicates. "
+            f"Keeping most novel contribution to ensure progress."
+        )
+        # Keep the first contribution (earliest in generation, likely most novel)
+        filtered_contributions = [contributions[0]]
+        logger.info(f"Failsafe: Kept contribution from {contributions[0].persona_name}")
+
     # Update state
     all_contributions = list(state.get("contributions", []))
     all_contributions.extend(filtered_contributions)
@@ -1669,6 +1687,15 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
             )
         except Exception as e:
             logger.warning(f"Failed to summarize round {round_number}: {e}")
+            # Add minimal fallback summary to preserve hierarchical mode
+            expert_names = ", ".join([c.persona_name for c in filtered_contributions])
+            fallback_summary = (
+                f"Round {round_number} ({current_phase} phase): "
+                f"{len(filtered_contributions)} contributions from {expert_names}. "
+                f"(Detailed summary unavailable due to error: {str(e)[:50]})"
+            )
+            round_summaries.append(fallback_summary)
+            logger.info(f"Added fallback summary for round {round_number}")
 
     logger.info(
         f"parallel_round_node: Complete - Round {round_number} → {next_round}, "

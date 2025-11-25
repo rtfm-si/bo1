@@ -802,4 +802,15 @@ def get_event_registry() -> EventExtractorRegistry:
     registry.register("subproblem_complete", _create_subproblem_complete_extractors)
     registry.register("completion", _create_completion_extractors)
 
+    # Parallel architecture events (Day 38+)
+    registry.register(
+        "parallel_round_start",
+        [
+            {"source_field": "round", "target_field": "round_number"},
+            {"source_field": "phase", "target_field": "phase"},
+            {"source_field": "experts_selected", "target_field": "experts"},
+            {"source_field": "expert_count", "target_field": "count"},
+        ],
+    )
+
     return registry

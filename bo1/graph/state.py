@@ -278,6 +278,21 @@ def deliberation_state_to_graph_state(v1_state: DeliberationState) -> Deliberati
         current_node="unknown",  # New field for visualization
         votes=v1_state.votes,
         synthesis=v1_state.synthesis,
+        completed_research_queries=getattr(v1_state, "completed_research_queries", []),
+        user_id=getattr(v1_state, "user_id", None),
+        sub_problem_results=getattr(v1_state, "sub_problem_results", []),
+        sub_problem_index=0,
+        collect_context=True,
+        business_context=getattr(v1_state, "business_context", None),
+        pending_clarification=getattr(v1_state, "pending_clarification", None),
+        phase_costs=getattr(v1_state, "phase_costs", {}),
+        facilitator_guidance=None,
+        # NEW FIELDS FOR PARALLEL ARCHITECTURE (Day 38):
+        current_phase="exploration",  # Default to exploration phase
+        experts_per_round=[],  # Will be populated as rounds execute
+        semantic_novelty_scores={},  # Will be populated by semantic dedup
+        exploration_score=0.0,  # Will be calculated by quality metrics
+        focus_score=1.0,  # Default to on-topic
     )
 
 

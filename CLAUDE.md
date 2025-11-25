@@ -39,15 +39,29 @@ uv run alembic upgrade head
 
 ```
 decompose_node → select_personas_node → initial_round_node
-  → facilitator_decide_node → (persona_contribute_node | moderator_intervene_node)
+  → facilitator_decide_node → (parallel_round_node | persona_contribute_node | moderator_intervene_node)
   → check_convergence_node → (loop back OR vote_node) → synthesize_node → END
 ```
+
+**Parallel Multi-Expert Architecture** (Day 38+):
+- **Round Limit**: 6 rounds (down from 15)
+- **Recursion Limit**: 20 steps (down from 55)
+- **Experts per Round**: 3-5 (parallel execution via asyncio.gather)
+- **Semantic Deduplication**: 0.80 similarity threshold (Voyage AI embeddings)
+- **Hierarchical Context**: Round summaries + recent contributions
+- **Feature Flag**: `ENABLE_PARALLEL_ROUNDS` (default: true)
+
+**Phase-Based Deliberation**:
+- **Exploration** (rounds 1-2): Divergent thinking, surface all perspectives
+- **Challenge** (rounds 3-4): Deep analysis with evidence, challenge weak arguments
+- **Convergence** (rounds 5-6): Synthesis, explicit recommendations
 
 **Key files**:
 - `bo1/graph/config.py` - Graph construction
 - `bo1/graph/state.py` - State definition + v1 conversion
-- `bo1/graph/nodes.py` - Node implementations
-- `bo1/graph/safety/loop_prevention.py` - Loop prevention
+- `bo1/graph/nodes.py` - Node implementations (parallel_round_node)
+- `bo1/graph/quality/semantic_dedup.py` - Semantic deduplication
+- `bo1/graph/safety/loop_prevention.py` - Loop prevention (6 round hard cap)
 
 ### Recommendation System (NOT Voting)
 
@@ -75,9 +89,9 @@ decompose_node → select_personas_node → initial_round_node
 ### Loop Prevention
 
 5-layer system prevents infinite loops:
-1. Recursion limit (55 steps)
+1. Recursion limit (20 steps, down from 55)
 2. Cycle detection (compile-time)
-3. Round counter (15 max)
+3. Round counter (6 max, down from 15)
 4. Timeout watchdog (1 hour)
 5. Cost kill switch (tier-based)
 

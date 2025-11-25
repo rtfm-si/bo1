@@ -212,6 +212,7 @@ class DeliberationEngine:
 
         if round_summaries and round_number > 1:
             # Use hierarchical prompts (summaries + recent contributions)
+            # MERGED WITH CRITICAL THINKING PROTOCOL (P1.1 fix)
             from bo1.prompts.reusable_prompts import compose_persona_prompt_hierarchical
 
             # Get participant list
@@ -224,8 +225,8 @@ class DeliberationEngine:
                 for c in (previous_contributions or [])[-10:]  # Last 10 contributions
             ]
 
-            # Compose with hierarchical context
-            system_prompt = compose_persona_prompt_hierarchical(
+            # Compose hierarchical base prompt
+            base_system_prompt = compose_persona_prompt_hierarchical(
                 persona_system_role=f"{persona_data['name']}, {persona_data['description']}",
                 problem_statement=problem_statement,
                 participant_list=participant_list,
@@ -235,12 +236,80 @@ class DeliberationEngine:
                 current_phase="discussion",
             )
 
+            # MERGE: Inject critical thinking protocol
+            # Get the protocol from enhanced prompts
+            phase_config = get_round_phase_config(round_number + 1, self.state.max_rounds)
+
+            # Determine debate phase based on round number
+            if round_number <= 1:
+                phase_instruction = """
+                <debate_phase>EARLY - DIVERGENT THINKING</debate_phase>
+                <phase_goals>
+                - Explore multiple perspectives
+                - Challenge initial assumptions
+                - Raise concerns and risks
+                - Identify gaps in analysis
+                - DON'T seek consensus yet - surface disagreements
+                </phase_goals>
+                """
+            elif round_number <= 3:
+                phase_instruction = """
+                <debate_phase>MIDDLE - DEEP ANALYSIS</debate_phase>
+                <phase_goals>
+                - Provide evidence for claims
+                - Challenge weak arguments
+                - Request clarification on unclear points
+                - Build on strong ideas from others
+                - Identify trade-offs and constraints
+                </phase_goals>
+                """
+            else:
+                phase_instruction = """
+                <debate_phase>LATE - CONVERGENT THINKING</debate_phase>
+                <phase_goals>
+                - Synthesize key insights
+                - Recommend specific actions
+                - Acknowledge remaining uncertainties
+                - Build consensus on critical points
+                - Propose next steps
+                </phase_goals>
+                """
+
+            critical_thinking_section = f"""
+{phase_instruction}
+
+<critical_thinking_protocol>
+You MUST engage critically with the discussion:
+
+1. **Challenge Assumptions**: If someone makes an assumption, question it
+2. **Demand Evidence**: If a claim lacks support, ask for evidence
+3. **Identify Gaps**: Point out what's missing from the analysis
+4. **Build or Refute**: Explicitly agree/disagree with previous speakers
+5. **Recommend Actions**: End with specific, actionable recommendations
+
+**Format your response with explicit structure:**
+- Start with: "Based on [previous speaker's] point about X..."
+- Include: "I disagree/agree with [persona] because..."
+- End with: "My recommendation is to [specific action]..."
+</critical_thinking_protocol>
+
+<forbidden_patterns>
+- Generic agreement ("I agree with the previous speakers...")
+- Vague observations without conclusions
+- Listing facts without analysis
+- Ending without a recommendation or question
+</forbidden_patterns>
+"""
+
+            # Merge into system prompt
+            system_prompt = base_system_prompt + "\n\n" + critical_thinking_section
+
             # User message is the speaker prompt
             user_message = expert_memory or round_config["directive"]
 
             logger.debug(
-                f"Using hierarchical prompts: {len(round_summaries)} summaries, "
-                f"{len(prev_round_contribs)} recent contributions"
+                f"Using hierarchical prompts with critical thinking: {len(round_summaries)} summaries, "
+                f"{len(prev_round_contribs)} recent contributions, phase={phase_config['phase']}"
             )
         else:
             # Use regular prompts (no summaries yet or early rounds)

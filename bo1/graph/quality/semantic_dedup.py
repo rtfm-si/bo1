@@ -119,8 +119,22 @@ async def check_semantic_novelty(
         return _check_novelty_keyword_fallback(new_contribution, previous_contributions, threshold)
 
     except Exception as e:
-        logger.error(f"Semantic novelty check failed: {e}. Falling back to keyword method.")
-        return _check_novelty_keyword_fallback(new_contribution, previous_contributions, threshold)
+        logger.error(
+            f"Semantic novelty check failed: {e}. Falling back to keyword method. "
+            "If keyword fallback also fails, will mark as NOVEL (failsafe)."
+        )
+        try:
+            return _check_novelty_keyword_fallback(
+                new_contribution, previous_contributions, threshold
+            )
+        except Exception as fallback_error:
+            logger.error(
+                f"Both embedding AND keyword novelty checks failed: {fallback_error}. "
+                "Marking as NOVEL (failsafe to prevent blocking all contributions)"
+            )
+            # FAILSAFE: Return True (novel) if we can't determine
+            # Better to risk duplicates than block all contributions
+            return True, 0.0
 
 
 def _check_novelty_keyword_fallback(

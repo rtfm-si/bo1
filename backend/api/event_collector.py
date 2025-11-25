@@ -175,6 +175,9 @@ class EventCollector:
                     elif event_name == "persona_contribute" and isinstance(output, dict):
                         await self._handle_contribution(session_id, output)
 
+                    elif event_name == "parallel_round" and isinstance(output, dict):
+                        await self._handle_parallel_round(session_id, output)
+
                     elif event_name == "moderator_intervene" and isinstance(output, dict):
                         await self._handle_moderator(session_id, output)
 
@@ -321,6 +324,57 @@ class EventCollector:
             await self._publish_contribution(
                 session_id, contributions[-1], round_number, sub_problem_index, personas
             )
+
+    async def _handle_parallel_round(self, session_id: str, output: dict) -> None:
+        """Handle parallel_round node completion events.
+
+        Publishes events for:
+        - Round start (phase, experts selected)
+        - Each contribution generated in this round
+        - Round summary
+
+        Args:
+            session_id: Session identifier
+            output: Node output state
+        """
+        contributions = output.get("contributions", [])
+        round_number = output.get("round_number", 1)
+        current_phase = output.get("current_phase", "exploration")
+        experts_per_round = output.get("experts_per_round", [])
+        sub_problem_index = output.get("sub_problem_index", 0)
+        personas = output.get("personas", [])
+
+        # Extract experts for the just-completed round
+        # round_number has already been incremented, so we look at -1
+        completed_round = round_number - 1
+        experts_this_round = experts_per_round[-1] if experts_per_round else []
+
+        # Emit parallel round start event
+        self.publisher.publish_event(
+            session_id,
+            "parallel_round_start",
+            {
+                "round": completed_round,
+                "phase": current_phase,
+                "experts_selected": experts_this_round,
+                "expert_count": len(experts_this_round),
+                "sub_problem_index": sub_problem_index,
+            },
+        )
+
+        # Emit contribution events for each contribution in this round
+        for contribution in contributions:
+            contrib_round = (
+                contribution.round_number
+                if hasattr(contribution, "round_number")
+                else contribution.get("round_number", 0)
+            )
+
+            # Only publish contributions from the just-completed round
+            if contrib_round == completed_round:
+                await self._publish_contribution(
+                    session_id, contribution, completed_round, sub_problem_index, personas
+                )
 
     async def _handle_moderator(self, session_id: str, output: dict) -> None:
         """Handle moderator_intervene node completion."""

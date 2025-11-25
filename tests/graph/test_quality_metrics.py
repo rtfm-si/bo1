@@ -396,7 +396,9 @@ class TestMeetingCompletenessIndex:
         )
 
         # High quality metrics should yield high meeting_completeness_index
-        assert meeting_completeness_index >= 0.7, f"Expected high completeness index, got {meeting_completeness_index:.2f}"
+        assert meeting_completeness_index >= 0.7, (
+            f"Expected high completeness index, got {meeting_completeness_index:.2f}"
+        )
 
     def test_completeness_index_low_quality(self):
         """Test completeness index with low quality metrics."""
@@ -408,7 +410,9 @@ class TestMeetingCompletenessIndex:
         )
 
         # Low quality metrics should yield low meeting_completeness_index
-        assert meeting_completeness_index < 0.5, f"Expected low completeness index, got {meeting_completeness_index:.2f}"
+        assert meeting_completeness_index < 0.5, (
+            f"Expected low completeness index, got {meeting_completeness_index:.2f}"
+        )
 
     def test_completeness_index_custom_weights(self):
         """Test completeness index with custom weights."""
@@ -431,7 +435,9 @@ class TestMeetingCompletenessIndex:
         )
 
         # Tactical should value high convergence more
-        assert meeting_completeness_tactical > meeting_completeness_strategic, "Tactical config should value convergence more"
+        assert meeting_completeness_tactical > meeting_completeness_strategic, (
+            "Tactical config should value convergence more"
+        )
 
     def test_completeness_index_weight_normalization(self):
         """Test that weights are normalized if they don't sum to 1.0."""
@@ -450,7 +456,9 @@ class TestMeetingCompletenessIndex:
         )
 
         # Should still return valid score in 0-1 range
-        assert 0.0 <= meeting_completeness_index <= 1.0, f"meeting_completeness_index should be in [0, 1], got {meeting_completeness_index:.2f}"
+        assert 0.0 <= meeting_completeness_index <= 1.0, (
+            f"meeting_completeness_index should be in [0, 1], got {meeting_completeness_index:.2f}"
+        )
 
     def test_completeness_index_bounds(self):
         """Test that completeness index is bounded to [0, 1]."""
@@ -469,9 +477,15 @@ class TestMeetingCompletenessIndex:
             novelty_score_recent=1.0,  # High novelty = penalty
         )
 
-        assert 0.0 <= meeting_completeness_min <= 1.0, f"meeting_completeness_min should be in [0, 1], got {meeting_completeness_min:.2f}"
-        assert 0.0 <= meeting_completeness_max <= 1.0, f"meeting_completeness_max should be in [0, 1], got {meeting_completeness_max:.2f}"
-        assert meeting_completeness_max > meeting_completeness_min, "Max metrics should yield higher meeting_completeness_index than min metrics"
+        assert 0.0 <= meeting_completeness_min <= 1.0, (
+            f"meeting_completeness_min should be in [0, 1], got {meeting_completeness_min:.2f}"
+        )
+        assert 0.0 <= meeting_completeness_max <= 1.0, (
+            f"meeting_completeness_max should be in [0, 1], got {meeting_completeness_max:.2f}"
+        )
+        assert meeting_completeness_max > meeting_completeness_min, (
+            "Max metrics should yield higher meeting_completeness_index than min metrics"
+        )
 
 
 class TestAspectCoverage:

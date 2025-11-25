@@ -15,6 +15,21 @@ Your role is to analyze complex problems and break them into 1-5 manageable sub-
 ## Core Principles
 
 1. **Atomic vs Decomposed**: Some problems are already atomic (indivisible). Don't force decomposition if unnecessary.
+
+   **Keep ATOMIC when**:
+   - Single clear question (e.g., "Framework A vs B?")
+   - Less than 5 independent factors to evaluate
+   - All factors can be evaluated simultaneously (no sequential dependencies)
+   - High expertise overlap (same experts can evaluate all factors together)
+   - Binary or ternary choices with straightforward trade-offs
+
+   **DECOMPOSE when**:
+   - Multiple distinct decisions required (not just evaluation criteria)
+   - More than 5 independent factors that interact in complex ways
+   - Some factors are prerequisites for evaluating others (sequential dependencies)
+   - Different expert types needed for different aspects (e.g., market + technical + financial)
+   - Sub-problems would benefit from focused, specialized deliberation
+
 2. **1-5 Sub-problems**: Aim for 1-5 sub-problems. More than 5 indicates over-decomposition.
 3. **Independence**: Sub-problems should be as independent as possible, but dependencies are OK when necessary.
 4. **Actionability**: Each sub-problem should have a clear, answerable question.
@@ -25,16 +40,61 @@ Your role is to analyze complex problems and break them into 1-5 manageable sub-
    - Information needed
    - Stakeholder complexity
 
-## Complexity Guidelines
+## Complexity Scoring Rubric
 
-- **Simple (1-3)**: Binary choices, clear criteria, limited trade-offs
-  - Example: "Should we use PostgreSQL or MySQL?" (technical comparison)
+Use this detailed rubric to assign complexity scores consistently:
 
-- **Moderate (4-6)**: Multiple factors, some uncertainty, moderate trade-offs
-  - Example: "What pricing tier structure should we use?" (market + value + psychology)
+**1-2 (Trivial)**:
+- Binary choice with established best practices
+- Single dimension of evaluation
+- Clear right/wrong answer based on context
+- Minimal uncertainty or trade-offs
+- Examples:
+  - "PostgreSQL vs MySQL for a standard CRUD app?" (Score: 2)
+  - "Should I enable two-factor authentication?" (Score: 1)
+  - "REST API vs GraphQL for a simple data API?" (Score: 2)
 
-- **Complex (7-10)**: Many interdependent factors, high uncertainty, significant trade-offs
-  - Example: "Should we pivot from B2B to B2C?" (strategy + market + product + team)
+**3-4 (Simple)**:
+- Multiple factors but straightforward evaluation
+- Moderate trade-offs with clear priorities
+- Some uncertainty but manageable with research
+- Relatively independent factors
+- Examples:
+  - "Hiring first employee: contractor vs full-time?" (Score: 4)
+  - "Choosing a payment processor (Stripe vs PayPal vs Square)?" (Score: 3)
+  - "Office vs remote for a 5-person team?" (Score: 4)
+
+**5-6 (Moderate)**:
+- Many factors with interdependencies
+- Significant trade-offs requiring judgment calls
+- Uncertainty about outcomes or market response
+- Requires expertise from multiple domains
+- Examples:
+  - "Pricing tier structure for new SaaS product?" (Score: 6)
+  - "Which growth channel to invest $50K in?" (Score: 5)
+  - "Raising VC vs bootstrapping with current traction?" (Score: 6)
+
+**7-8 (Complex)**:
+- Highly interdependent factors across domains
+- Strategic impact on company direction
+- High uncertainty with long feedback loops
+- Significant downside risk if wrong
+- Requires synthesis across technical, market, financial, and organizational factors
+- Examples:
+  - "Market pivot from one vertical to another?" (Score: 8)
+  - "Launching second product vs doubling down on first?" (Score: 7)
+  - "Bringing on co-founder 12 months in?" (Score: 7)
+
+**9-10 (Highly Complex)**:
+- Fundamental strategic decisions with irreversible consequences
+- Affects company identity, culture, or long-term viability
+- Extreme uncertainty or novel market conditions
+- Requires deep expertise across many domains
+- High stakes with asymmetric risk/reward
+- Examples:
+  - "Complete company pivot (market + product + business model)?" (Score: 10)
+  - "Should we accept acquisition offer vs continue building?" (Score: 9)
+  - "Geographic expansion into new region with different regulations?" (Score: 9)
 
 ## Output Format
 

@@ -374,8 +374,9 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
 
                     similarity = cosine_similarity(query_embedding, completed_embedding)
 
-                    # High similarity threshold (0.90) = very similar query
-                    if similarity > 0.90:
+                    # High similarity threshold (0.85) = very similar query
+                    # Lowered from 0.90 to catch more similar queries (P1-RESEARCH-1)
+                    if similarity > 0.85:
                         is_duplicate = True
                         logger.warning(
                             f"Research deduplication: Query too similar to completed research "
@@ -804,6 +805,26 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     )
 
     logger.info(f"[RESEARCH] Depth: {research_depth}")
+
+    # P1-RESEARCH-2: Early cache check for cross-session deduplication
+    # Check if similar research exists in cache before calling ResearcherAgent
+    from bo1.llm.embeddings import generate_embedding
+    from bo1.state.postgres_manager import find_similar_research
+
+    try:
+        query_embedding = generate_embedding(research_query, input_type="query")
+        cached_results = find_similar_research(
+            question_embedding=query_embedding,
+            similarity_threshold=0.85,  # Same threshold as in-session dedup
+            limit=1,
+        )
+        if cached_results:
+            logger.info(
+                f"[RESEARCH] Found similar cached research (similarity={cached_results[0].get('similarity', 0):.3f}). "
+                f"ResearcherAgent will use this cached result."
+            )
+    except Exception as e:
+        logger.debug(f"[RESEARCH] Cache pre-check failed (non-critical): {e}")
 
     # Perform research (uses cache if available)
     researcher = ResearcherAgent()

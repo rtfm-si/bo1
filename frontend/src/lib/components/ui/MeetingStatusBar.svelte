@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { eventTokens } from '$lib/design/tokens';
+	import { eventTokens, PHASE_PROGRESS_MAP } from '$lib/design/tokens';
 
 	interface Props {
 		currentPhase: string | null;
@@ -14,17 +14,7 @@
 	const phaseProgress = $derived.by(() => {
 		if (!currentPhase) return 0;
 
-		const phaseMap: Record<string, number> = {
-			decomposition: 5,
-			persona_selection: 15,
-			initial_round: 30,
-			discussion: 60,
-			voting: 80,
-			synthesis: 95,
-			complete: 100,
-		};
-
-		const baseProgress = phaseMap[currentPhase] || 0;
+		const baseProgress = PHASE_PROGRESS_MAP[currentPhase as keyof typeof PHASE_PROGRESS_MAP] || 0;
 
 		// Add round-based progress within discussion phase
 		if (currentPhase === 'discussion' && currentRound) {

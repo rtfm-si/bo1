@@ -9,6 +9,7 @@
 	import { SSEClient } from '$lib/utils/sse';
 	import { debounce } from '$lib/utils/debounce';
 	import { CheckCircle, AlertCircle, Clock, Pause, Play, Square } from 'lucide-svelte';
+	import { PHASE_PROGRESS_MAP } from '$lib/design/tokens';
 
 	/**
 	 * Dynamic component loading strategy:
@@ -436,6 +437,9 @@
 			sseClient.close();
 		}
 
+		// Reset connection state for manual retry
+		connectionStatus = 'connecting';
+
 		// Helper to handle SSE events (converts SSE format to SSEEvent)
 		const handleSSEEvent = (eventType: string, event: MessageEvent) => {
 			try {
@@ -746,18 +750,7 @@
 	function calculateProgress(session: SessionData | null): number {
 		if (!session) return 0;
 
-		// Map phases to progress percentages
-		const phaseProgress: Record<string, number> = {
-			decomposition: 10,
-			persona_selection: 20,
-			initial_round: 35,
-			discussion: 50,
-			voting: 75,
-			synthesis: 90,
-			complete: 100,
-		};
-
-		const baseProgress = phaseProgress[session.phase || ''] || 0;
+		const baseProgress = PHASE_PROGRESS_MAP[session.phase as keyof typeof PHASE_PROGRESS_MAP] || 0;
 
 		// Add round-based progress within discussion phase
 		if (session.phase === 'discussion' && session.round_number) {
@@ -1135,6 +1128,26 @@
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Phase Timeline removed - info now in MeetingStatusBar -->
 
+		<!-- ARIA Live Region for Event Updates (A11Y: Announce new events to screen readers) -->
+		<div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+			{#if events.length > 0}
+				{@const latestEvent = events[events.length - 1]}
+				{#if latestEvent.event_type === 'contribution'}
+					New contribution from {latestEvent.data.persona_name || 'expert'}
+				{:else if latestEvent.event_type === 'convergence'}
+					Convergence check: {Math.round((Number(latestEvent.data.score) / Number(latestEvent.data.threshold ?? 0.85)) * 100)}% of threshold
+				{:else if latestEvent.event_type === 'synthesis_complete'}
+					Synthesis complete
+				{:else if latestEvent.event_type === 'complete'}
+					Deliberation complete
+				{:else if latestEvent.event_type === 'voting_complete'}
+					Voting complete
+				{:else if latestEvent.event_type === 'subproblem_complete'}
+					Sub-problem complete
+				{/if}
+			{/if}
+		</div>
+
 		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 			<!-- Events Stream with Tab Navigation -->
 			<div class="lg:col-span-2">
@@ -1159,19 +1172,36 @@
 									Connected
 								</span>
 							{:else if connectionStatus === 'retrying'}
-								<span class="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400">
-									<span class="inline-block w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
-									Retrying... ({retryCount}/{maxRetries})
-								</span>
+								<div class="flex items-center gap-2">
+									<span class="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400">
+										<span class="inline-block w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+										Retrying... ({retryCount}/{maxRetries})
+									</span>
+									<button
+										onclick={() => startEventStream()}
+										class="px-2 py-1 text-xs font-medium text-orange-700 dark:text-orange-300 hover:text-orange-900 dark:hover:text-orange-100 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded transition-colors"
+									>
+										Retry Now
+									</button>
+								</div>
 							{:else if connectionStatus === 'error'}
-								<span class="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
-									<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span>
-									Connection Failed
-								</span>
+								<div class="flex items-center gap-2">
+									<span class="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
+										<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span>
+										Connection Failed
+									</span>
+									<button
+										onclick={() => startEventStream()}
+										class="px-2 py-1 text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+									>
+										Retry Now
+									</button>
+								</div>
 							{/if}
 						</div>
-						<label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+						<label for="auto-scroll-checkbox" class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
 							<input
+								id="auto-scroll-checkbox"
 								type="checkbox"
 								bind:checked={autoScroll}
 								class="rounded"
@@ -1208,11 +1238,15 @@
 							<!-- Tab-based navigation for multiple sub-problems -->
 							<div class="h-full flex flex-col">
 								<div class="border-b border-slate-200 dark:border-slate-700">
-									<div class="flex overflow-x-auto px-4 pt-3">
+									<div class="flex overflow-x-auto px-4 pt-3" role="tablist" aria-label="Sub-problem tabs">
 										{#each subProblemTabs as tab}
 											{@const isActive = activeSubProblemTab === tab.id}
 											<button
 												type="button"
+												role="tab"
+												aria-selected={isActive}
+												aria-controls="tabpanel-{tab.id}"
+												id="tab-{tab.id}"
 												class={[
 													'flex-shrink-0 px-4 py-2 border-b-2 -mb-px transition-all text-sm font-medium',
 													isActive
@@ -1233,22 +1267,30 @@
 								</div>
 
 								{#each subProblemTabs as tab}
-									{#if tab.id === activeSubProblemTab}
-										{@const tabIndex = parseInt(tab.id.replace('subproblem-', ''))}
-										{@const subGroupedEvents = groupedEvents.filter(group => {
-											if (group.type === 'single' && group.event) {
-												const eventSubIndex = group.event.data.sub_problem_index as number | undefined;
+									{@const isTabActive = tab.id === activeSubProblemTab}
+									{@const tabIndex = parseInt(tab.id.replace('subproblem-', ''))}
+									{@const subGroupedEvents = groupedEvents.filter(group => {
+										if (group.type === 'single' && group.event) {
+											const eventSubIndex = group.event.data.sub_problem_index as number | undefined;
+											return eventSubIndex === tabIndex;
+										} else if (group.type === 'round' || group.type === 'expert_panel') {
+											if (group.events && group.events.length > 0) {
+												const eventSubIndex = group.events[0].data.sub_problem_index as number | undefined;
 												return eventSubIndex === tabIndex;
-											} else if (group.type === 'round' || group.type === 'expert_panel') {
-												if (group.events && group.events.length > 0) {
-													const eventSubIndex = group.events[0].data.sub_problem_index as number | undefined;
-													return eventSubIndex === tabIndex;
-												}
 											}
-											return false;
-										})}
-									<!-- Active tab content -->
-									<div class="flex-1 overflow-y-auto p-4 space-y-4">
+										}
+										return false;
+									})}
+									<!-- Tab panel with proper ARIA attributes -->
+									<div
+										class="flex-1 overflow-y-auto p-4 space-y-4"
+										role="tabpanel"
+										id="tabpanel-{tab.id}"
+										aria-labelledby="tab-{tab.id}"
+										aria-hidden={!isTabActive}
+										inert={!isTabActive}
+										hidden={!isTabActive}
+									>
 										<!-- Sub-problem header with metrics -->
 										<div class="bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
 											<h3 class="text-base font-semibold text-slate-900 dark:text-white mb-3">
@@ -1367,7 +1409,6 @@
 											{/if}
 										{/each}
 									</div>
-									{/if}
 								{/each}
 							</div>
 						{:else}

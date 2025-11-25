@@ -35,6 +35,7 @@ def generate_cache_key(
     user_message: str,
     model: str,
     max_tokens: int | None = None,
+    temperature: float = 1.0,
 ) -> str:
     """Generate deterministic cache key for LLM prompt.
 
@@ -46,6 +47,7 @@ def generate_cache_key(
         user_message: User message/prompt
         model: Model identifier (e.g., 'claude-sonnet-4.5')
         max_tokens: Max tokens setting (affects response)
+        temperature: Temperature setting (affects response)
 
     Returns:
         Redis cache key (e.g., 'llm:cache:a1b2c3d4e5f6g7h8')
@@ -60,6 +62,7 @@ def generate_cache_key(
         "user": user_message,
         "model": model,
         "max_tokens": max_tokens,
+        "temperature": temperature,
     }
 
     # JSON serialize with sorted keys for determinism
@@ -121,6 +124,7 @@ class LLMResponseCache(BaseCache[PromptRequest, LLMResponse]):
             user_message=request.user_message,
             model=request.model,
             max_tokens=request.max_tokens,
+            temperature=request.temperature,
         )
 
         try:
@@ -153,6 +157,7 @@ class LLMResponseCache(BaseCache[PromptRequest, LLMResponse]):
             user_message=request.user_message,
             model=request.model,
             max_tokens=request.max_tokens,
+            temperature=request.temperature,
         )
 
         try:

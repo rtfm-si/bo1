@@ -424,6 +424,20 @@ export const componentSpacing = {
 } as const;
 
 // ============================================================================
+// Phase Progress Mapping - Single source of truth for progress percentages
+// ============================================================================
+
+export const PHASE_PROGRESS_MAP = {
+	decomposition: 5,
+	persona_selection: 15,
+	initial_round: 30,
+	discussion: 60,
+	voting: 80,
+	synthesis: 95,
+	complete: 100,
+} as const;
+
+// ============================================================================
 // Export all tokens
 // ============================================================================
 
@@ -439,6 +453,7 @@ export const tokens = {
 	animations,
 	eventTokens,
 	componentSpacing,
+	PHASE_PROGRESS_MAP,
 } as const;
 
 export default tokens;

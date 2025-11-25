@@ -165,6 +165,7 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             phase="decomposition",
             prefill="{",
             cache_system=False,
+            temperature=0.0,
         )
 
         # Validate JSON structure

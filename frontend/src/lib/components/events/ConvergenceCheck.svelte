@@ -124,7 +124,7 @@
 		</div>
 	</div>
 
-	<!-- Progress Bar with Color Coding -->
+	<!-- Progress Bar with Color Coding and Text Labels -->
 	<div class="space-y-2">
 		<div class="flex items-center justify-between text-sm">
 			<div class="flex items-center gap-2">
@@ -137,7 +137,7 @@
 				{score.toFixed(2)} / {threshold.toFixed(2)}
 			</span>
 		</div>
-		<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-3 overflow-hidden">
+		<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-3 overflow-hidden" role="progressbar" aria-valuenow={percentage} aria-valuemin={0} aria-valuemax={100} aria-label="Consensus progress: {statusMessage}">
 			<div
 				class="{progressColor} h-full transition-all duration-700 ease-out rounded-full"
 				style="width: {progressWidth}%"
@@ -146,11 +146,11 @@
 		</div>
 		<div class="flex items-center justify-between text-xs">
 			<span class="{textColor} font-medium">
-				{percentage}% of threshold
+				{percentage}% of threshold - {statusMessage}
 			</span>
 			{#if event.data.converged}
 				<span class="text-green-600 dark:text-green-400 font-semibold flex items-center gap-1">
-					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 					</svg>
 					Converged

@@ -54,43 +54,44 @@ class LLMResponse(BaseModel):
     )
 
     # Cost breakdown (computed from token_usage)
+    def _calculate_token_cost(self, token_count: int, pricing_key: str) -> float:
+        """Calculate cost for a specific token type.
+
+        Args:
+            token_count: Number of tokens to calculate cost for
+            pricing_key: Key in MODEL_PRICING dict (e.g., 'input', 'output', 'cache_read')
+
+        Returns:
+            Cost in USD for the given tokens
+        """
+        from bo1.config import MODEL_PRICING
+
+        pricing = MODEL_PRICING.get(self.model, {})
+        return (token_count / 1_000_000) * pricing.get(pricing_key, 0.0)
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def cost_input(self) -> float:
         """Cost for regular input tokens."""
-        from bo1.config import MODEL_PRICING
-
-        pricing = MODEL_PRICING.get(self.model, {})
-        return (self.token_usage.input_tokens / 1_000_000) * pricing.get("input", 0.0)
+        return self._calculate_token_cost(self.token_usage.input_tokens, "input")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def cost_output(self) -> float:
         """Cost for output tokens."""
-        from bo1.config import MODEL_PRICING
-
-        pricing = MODEL_PRICING.get(self.model, {})
-        return (self.token_usage.output_tokens / 1_000_000) * pricing.get("output", 0.0)
+        return self._calculate_token_cost(self.token_usage.output_tokens, "output")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def cost_cache_write(self) -> float:
         """Cost for cache creation tokens."""
-        from bo1.config import MODEL_PRICING
-
-        pricing = MODEL_PRICING.get(self.model, {})
-        return (self.token_usage.cache_creation_tokens / 1_000_000) * pricing.get(
-            "cache_creation", 0.0
-        )
+        return self._calculate_token_cost(self.token_usage.cache_creation_tokens, "cache_creation")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def cost_cache_read(self) -> float:
         """Cost for cache read tokens."""
-        from bo1.config import MODEL_PRICING
-
-        pricing = MODEL_PRICING.get(self.model, {})
-        return (self.token_usage.cache_read_tokens / 1_000_000) * pricing.get("cache_read", 0.0)
+        return self._calculate_token_cost(self.token_usage.cache_read_tokens, "cache_read")
 
     @computed_field  # type: ignore[prop-decorator]
     @property

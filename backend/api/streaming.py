@@ -10,15 +10,14 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from backend.api.dependencies import get_redis_manager
+from backend.api.dependencies import VerifiedSession, get_redis_manager
 from backend.api.events import (
     error_event,
     node_start_event,
 )
-from backend.api.middleware.auth import get_current_user
 from backend.api.utils.validation import validate_session_id
 
 logger = logging.getLogger(__name__)
@@ -43,13 +42,13 @@ router = APIRouter(prefix="/v1/sessions", tags=["streaming"])
 )
 async def get_event_history(
     session_id: str,
-    user: dict[str, Any] = Depends(get_current_user),
+    session_data: VerifiedSession,
 ) -> dict[str, Any]:
     """Get historical events for a session.
 
     Args:
         session_id: Session identifier
-        user: Authenticated user data
+        session_data: Verified session (user_id, metadata) from dependency
 
     Returns:
         Dict with events array and count
@@ -58,25 +57,14 @@ async def get_event_history(
         HTTPException: If session not found or retrieval fails
     """
     try:
+        # Unpack verified session data
+        user_id, metadata = session_data
+
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        # Verify session exists
+        # Get Redis manager (metadata already verified by VerifiedSession dependency)
         redis_manager = get_redis_manager()
-
-        if not redis_manager.is_available:
-            raise HTTPException(
-                status_code=500,
-                detail="Redis unavailable - cannot retrieve events",
-            )
-
-        # Check if session metadata exists
-        metadata = redis_manager.load_metadata(session_id)
-        if not metadata:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session not found: {session_id}",
-            )
 
         # Load event history
         history_key = f"events_history:{session_id}"
@@ -388,13 +376,13 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
 )
 async def stream_deliberation(
     session_id: str,
-    user: dict[str, Any] = Depends(get_current_user),
+    session_data: VerifiedSession,
 ) -> StreamingResponse:
     """Stream deliberation events via Server-Sent Events.
 
     Args:
         session_id: Session identifier
-        user: Authenticated user data
+        session_data: Verified session (user_id, metadata) from dependency
 
     Returns:
         StreamingResponse with SSE events
@@ -403,25 +391,14 @@ async def stream_deliberation(
         HTTPException: If session not found
     """
     try:
+        # Unpack verified session data
+        user_id, metadata = session_data
+
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        # Verify session exists
+        # Get Redis manager (metadata already verified by VerifiedSession dependency)
         redis_manager = get_redis_manager()
-
-        if not redis_manager.is_available:
-            raise HTTPException(
-                status_code=500,
-                detail="Redis unavailable - cannot stream session",
-            )
-
-        # Check if session metadata exists (created via POST /api/v1/sessions)
-        metadata = redis_manager.load_metadata(session_id)
-        if not metadata:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session not found: {session_id}",
-            )
 
         # Wait for state to be initialized (with timeout)
         # This handles race condition where frontend connects before graph initializes state
@@ -439,7 +416,7 @@ async def stream_deliberation(
             current_metadata = redis_manager.load_metadata(session_id)
             if current_metadata and current_metadata.get("status") in ["killed", "failed"]:
                 raise HTTPException(
-                    status_code=404,
+                    status_code=500,
                     detail=f"Session {session_id} failed to initialize: {current_metadata.get('status')}",
                 )
 
@@ -447,8 +424,26 @@ async def stream_deliberation(
             await asyncio.sleep(poll_interval)
             elapsed += poll_interval
 
-        # If we exit the loop without finding state, session may still be initializing
-        # Continue anyway and let stream_session_events handle it
+        # If we exit the loop without finding state, check metadata to determine proper error
+        if not state:
+            current_metadata = redis_manager.load_metadata(session_id)
+            if current_metadata:
+                # Session exists but state not initialized - graph not started yet
+                logger.warning(
+                    f"Session {session_id} exists but state not initialized after {elapsed}s"
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Session {session_id} exists but graph has not started yet. Please retry.",
+                )
+            else:
+                # Neither state nor metadata exists - session not found
+                logger.error(f"Session {session_id} not found (no metadata)")
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Session {session_id} not found",
+                )
+
         logger.info(f"SSE connection established for session {session_id} after {elapsed:.1f}s")
 
         # Return streaming response

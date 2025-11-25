@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { PHASE_PROGRESS_MAP } from '$lib/design/tokens';
+
 	/**
 	 * DualProgress Component
 	 * Shows overall meeting progress + per-round progress during discussion phases
@@ -41,23 +43,12 @@
 	const overallProgress = $derived.by(() => {
 		if (!currentPhase) return 0;
 
-		// Phase-based progress
-		const phaseProgress: Record<string, number> = {
-			decomposition: 10,
-			persona_selection: 20,
-			initial_round: 35,
-			discussion: 50,
-			voting: 75,
-			synthesis: 90,
-			complete: 100,
-		};
-
-		const baseProgress = phaseProgress[currentPhase] || 0;
+		const baseProgress = PHASE_PROGRESS_MAP[currentPhase as keyof typeof PHASE_PROGRESS_MAP] || 0;
 
 		// Add micro-progress within discussion phase
 		if (isDiscussionPhase && currentRound && maxRounds) {
 			const roundBonus = (roundProgress / 100) * 25; // Up to 25% bonus for rounds
-			return Math.min(baseProgress + roundBonus, 75); // Cap at voting phase start
+			return Math.min(baseProgress + roundBonus, PHASE_PROGRESS_MAP.voting); // Cap at voting phase start
 		}
 
 		return baseProgress;

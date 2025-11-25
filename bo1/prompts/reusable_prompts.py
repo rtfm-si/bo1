@@ -360,6 +360,46 @@ Gather relevant evidence and information to support the deliberation, providing 
 </your_task>"""
 
 # =============================================================================
+# Helper Functions for Protocol Assembly
+# =============================================================================
+
+
+def _build_prompt_protocols(
+    include_communication: bool = True, include_security: bool = True
+) -> str:
+    """Build standard protocol string for prompts.
+
+    Assembles BEHAVIORAL_GUIDELINES, EVIDENCE_PROTOCOL, COMMUNICATION_PROTOCOL,
+    and SECURITY_PROTOCOL into a single string for prompt injection.
+
+    Args:
+        include_communication: Whether to include COMMUNICATION_PROTOCOL
+        include_security: Whether to include SECURITY_PROTOCOL
+
+    Returns:
+        Concatenated protocol string
+    """
+    protocols = [BEHAVIORAL_GUIDELINES, EVIDENCE_PROTOCOL]
+
+    if include_communication:
+        protocols.append(COMMUNICATION_PROTOCOL)
+
+    if include_security:
+        protocols.append(SECURITY_PROTOCOL)
+
+    return "\n\n".join(protocols)
+
+
+def _get_security_task() -> str:
+    """Get formatted security task addendum.
+
+    Returns:
+        Formatted SECURITY_ADDENDUM with SECURITY_PROTOCOL injected
+    """
+    return SECURITY_ADDENDUM.format(security_protocol=SECURITY_PROTOCOL)
+
+
+# =============================================================================
 # Voting Prompt Template
 # =============================================================================
 
@@ -435,73 +475,6 @@ Remember: Use ONLY the XML tags shown above. Do NOT use markdown headings like #
 RECOMMENDATION_USER_MESSAGE = """You are {persona_name} preparing your final recommendation.
 
 Please provide your recommendation using the XML structure specified in the instructions above."""
-
-# DEPRECATED: Old template kept for backward compatibility during migration
-VOTING_PROMPT_TEMPLATE = """<system_role>
-You are {persona_name} preparing your final vote and recommendation.
-</system_role>
-
-<instructions>
-The deliberation is concluding. Review the full discussion and provide your final assessment.
-
-<full_discussion>
-{discussion_history}
-</full_discussion>
-
-IMPORTANT: You MUST respond using the following XML structure. Do NOT use markdown headings or other formats.
-
-Your response will start with <thinking> (which is prefilled for you), and you must continue with the rest of the XML structure:
-
-<thinking>
-Reflect on the deliberation:
-1. What are the strongest arguments made?
-2. What risks or concerns remain from your perspective?
-3. What evidence supports each option?
-4. What is your domain-specific recommendation?
-5. How confident are you (and why)?
-6. What conditions would change your recommendation?
-</thinking>
-
-<vote>
-<decision>approve | reject | conditional | abstain</decision>
-
-<reasoning>
-2-3 paragraphs explaining your vote from your expert perspective:
-- Key factors influencing your decision
-- How the discussion shaped your thinking
-- Specific risks or opportunities you weight heavily
-- Evidence or frameworks supporting your choice
-- Your specific recommendation (what option/approach you favor)
-</reasoning>
-
-<confidence>high | medium | low</confidence>
-
-<confidence_rationale>
-Why this confidence level? What would increase or decrease it?
-</confidence_rationale>
-
-<conditions>
-List any conditions or caveats that apply to your vote (one per line):
-- Condition 1
-- Condition 2
-- Condition 3
-
-If your vote is "conditional", specify what must be true for you to approve.
-If your vote is "approve" or "reject", list any important caveats.
-If none, write "No additional conditions."
-</conditions>
-</vote>
-
-IMPORTANT: Your <decision> tag MUST contain exactly one of these words: approve, reject, conditional, abstain
-- Use "approve" if you support the proposed approach
-- Use "reject" if you oppose the proposed approach
-- Use "conditional" if you support it ONLY with specific conditions met
-- Use "abstain" only if you genuinely cannot make a recommendation
-
-In your <reasoning>, explain your specific recommendation and preferred option.
-
-Remember: Use ONLY the XML tags shown above. Do NOT use markdown headings like ## Decision or # Vote.
-</instructions>"""
 
 # =============================================================================
 # Synthesis Prompt Template
@@ -1036,11 +1009,7 @@ You MUST engage critically with the discussion:
 {speaker_prompt}
 </your_focus>
 
-{BEHAVIORAL_GUIDELINES}
-
-{EVIDENCE_PROTOCOL}
-
-{SECURITY_PROTOCOL}
+{_build_prompt_protocols(include_communication=False)}
 """
 
     user_message = f"""Provide your contribution following this structure:
@@ -1134,13 +1103,12 @@ change your position, explain why.
     )
 
     parts.append(f"\n{context}\n")
-    parts.append(f"\n{BEHAVIORAL_GUIDELINES}\n")
-    parts.append(f"\n{EVIDENCE_PROTOCOL}\n")
-    parts.append(f"\n{COMMUNICATION_PROTOCOL}\n")
+    parts.append(
+        f"\n{_build_prompt_protocols(include_communication=True, include_security=False)}\n"
+    )
 
     # Build security addendum
-    security_task = SECURITY_ADDENDUM.format(security_protocol=SECURITY_PROTOCOL)
-    parts.append(f"\n{security_task}")
+    parts.append(f"\n{_get_security_task()}")
 
     return "".join(parts)
 
@@ -1190,19 +1158,12 @@ def compose_persona_prompt_cached(
         current_phase=current_phase,
     )
 
-    # Build security addendum
-    security_task = SECURITY_ADDENDUM.format(security_protocol=SECURITY_PROTOCOL)
-
     # System prompt: Generic content shared by all personas (CACHED)
     system_prompt = f"""{context}
 
-{BEHAVIORAL_GUIDELINES}
+{_build_prompt_protocols(include_communication=True, include_security=False)}
 
-{EVIDENCE_PROTOCOL}
-
-{COMMUNICATION_PROTOCOL}
-
-{security_task}"""
+{_get_security_task()}"""
 
     # User message template: Persona-specific content (NOT CACHED)
     user_message_template = """{{persona_system_role}}
@@ -1307,13 +1268,6 @@ def compose_researcher_prompt(
         what_personas_need=what_personas_need,
         specific_query=specific_query,
         security_protocol=SECURITY_PROTOCOL,
-    )
-
-
-def compose_voting_prompt(persona_name: str, discussion_history: str) -> str:
-    """Compose voting phase prompt."""
-    return VOTING_PROMPT_TEMPLATE.format(
-        persona_name=persona_name, discussion_history=discussion_history
     )
 
 
@@ -1501,9 +1455,6 @@ def compose_persona_prompt_hierarchical(
     phase_config = get_round_phase_config(round_number, max_rounds)
     phase_directive = phase_config["directive"]
 
-    # Build security addendum
-    security_task = SECURITY_ADDENDUM.format(security_protocol=SECURITY_PROTOCOL)
-
     # Compose full prompt
     return f"""{persona_system_role}
 
@@ -1531,13 +1482,9 @@ Your contribution should:
 - Stay focused on the problem statement
 </task>
 
-{BEHAVIORAL_GUIDELINES}
+{_build_prompt_protocols(include_communication=True, include_security=False)}
 
-{EVIDENCE_PROTOCOL}
-
-{COMMUNICATION_PROTOCOL}
-
-{security_task}"""
+{_get_security_task()}"""
 
 
 # =============================================================================

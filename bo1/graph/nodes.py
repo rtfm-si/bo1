@@ -637,8 +637,22 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
         f"Depth: {research_depth}, Cost: ${result.get('cost', 0):.4f}"
     )
 
+    # Mark this research query as completed to prevent infinite loops
+    # Get query hash from facilitator decision (if available)
+    import hashlib
+
+    query_hash = hashlib.md5(research_query.encode()).hexdigest()  # noqa: S324 (deduplication, not security)
+
+    completed_queries_obj = state.get("completed_research_queries", [])
+    completed_queries = (
+        list(completed_queries_obj) if isinstance(completed_queries_obj, list) else []
+    )
+    if query_hash not in completed_queries:
+        completed_queries.append(query_hash)
+
     return {
         "research_results": research_results,
+        "completed_research_queries": completed_queries,  # Track completed research
         "current_node": "research",
         "sub_problem_index": state.get("sub_problem_index", 0),
     }
@@ -950,6 +964,7 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
             "phase": DeliberationPhase.DECOMPOSITION,  # Ready for new sub-problem
             "metrics": metrics,  # Keep metrics (accumulates across sub-problems)
             "current_node": "next_subproblem",
+            "completed_research_queries": [],  # Reset research tracking for new sub-problem
         }
     else:
         # All complete → meta-synthesis

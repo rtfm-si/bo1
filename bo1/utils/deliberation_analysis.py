@@ -190,6 +190,9 @@ class DeliberationAnalyzer:
         if len(state.contributions) < 2:
             return None
 
+        # Get completed research queries to avoid re-triggering
+        completed_queries = getattr(state, "completed_research_queries", [])
+
         recent = state.contributions[-3:]  # Last round
 
         # Look for questions or information gaps
@@ -217,9 +220,21 @@ class DeliberationAnalyzer:
                     for sentence in sentences:
                         if pattern in sentence:
                             query = sentence.strip()[:200]  # Limit to 200 chars
+
+                            # Check if we've already researched this query
+                            # Use simple hash to detect duplicate queries
+                            import hashlib
+
+                            query_hash = hashlib.md5(query.encode()).hexdigest()  # noqa: S324 (deduplication, not security)
+
+                            if query_hash in completed_queries:
+                                # Already researched this query, skip
+                                continue
+
                             return {
                                 "query": query,
                                 "reason": f"{contrib.persona_name} raised: {query}",
+                                "query_hash": query_hash,  # Include hash for tracking
                             }
 
         return None

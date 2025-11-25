@@ -82,6 +82,9 @@ class DeliberationGraphState(TypedDict, total=False):
     # Meeting quality guidance
     facilitator_guidance: dict[str, Any] | None  # Guidance for facilitator on next steps
 
+    # Research tracking (prevent infinite research loops)
+    completed_research_queries: list[str]  # Hashes of completed research queries
+
 
 def create_initial_state(
     session_id: str,
@@ -119,6 +122,7 @@ def create_initial_state(
         should_stop=False,
         stop_reason=None,
         user_input=None,
+        completed_research_queries=[],  # Track completed research
         user_id=user_id,
         current_node="start",
         votes=[],

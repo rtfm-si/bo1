@@ -205,26 +205,68 @@ class DeliberationEngine:
         if not persona_data:
             raise ValueError(f"Persona not found: {persona_profile.code}")
 
-        # Use enhanced persona contribution prompt with phase-based critical thinking
-        from bo1.prompts.reusable_prompts import compose_persona_contribution_prompt
-
-        # Convert previous contributions to dict format for enhanced prompts
-        prev_contribs = [
-            {"persona_code": c.persona_code, "persona_name": c.persona_name, "content": c.content}
-            for c in (previous_contributions or [])
-        ]
-
-        # Use enhanced prompts with phase-based critical thinking
-        system_prompt, user_message = compose_persona_contribution_prompt(
-            persona_name=persona_data["name"],
-            persona_description=persona_data["description"],
-            persona_expertise=", ".join(persona_data.get("domain_expertise", [])),
-            persona_communication_style=persona_data.get("response_style", "analytical"),
-            problem_statement=problem_statement,
-            previous_contributions=prev_contribs,
-            speaker_prompt=expert_memory or round_config["directive"],
-            round_number=round_number + 1,  # +1 for 1-indexed rounds
+        # Check if we have round summaries for hierarchical context
+        round_summaries = (
+            self.state.round_summaries if hasattr(self.state, "round_summaries") else []
         )
+
+        if round_summaries and round_number > 1:
+            # Use hierarchical prompts (summaries + recent contributions)
+            from bo1.prompts.reusable_prompts import compose_persona_prompt_hierarchical
+
+            # Get participant list
+            participant_list = ", ".join([p.display_name for p in self.state.selected_personas])
+
+            # Get current round contributions (last round, for full detail)
+            # We want the most recent round's contributions in full
+            prev_round_contribs = [
+                {"persona": c.persona_name, "content": c.content}
+                for c in (previous_contributions or [])[-10:]  # Last 10 contributions
+            ]
+
+            # Compose with hierarchical context
+            system_prompt = compose_persona_prompt_hierarchical(
+                persona_system_role=f"{persona_data['name']}, {persona_data['description']}",
+                problem_statement=problem_statement,
+                participant_list=participant_list,
+                round_summaries=round_summaries,  # All previous round summaries
+                current_round_contributions=prev_round_contribs,  # Recent full contributions
+                round_number=round_number + 1,  # +1 for 1-indexed display
+                current_phase="discussion",
+            )
+
+            # User message is the speaker prompt
+            user_message = expert_memory or round_config["directive"]
+
+            logger.debug(
+                f"Using hierarchical prompts: {len(round_summaries)} summaries, "
+                f"{len(prev_round_contribs)} recent contributions"
+            )
+        else:
+            # Use regular prompts (no summaries yet or early rounds)
+            from bo1.prompts.reusable_prompts import compose_persona_contribution_prompt
+
+            # Convert previous contributions to dict format for enhanced prompts
+            prev_contribs = [
+                {
+                    "persona_code": c.persona_code,
+                    "persona_name": c.persona_name,
+                    "content": c.content,
+                }
+                for c in (previous_contributions or [])
+            ]
+
+            # Use enhanced prompts with phase-based critical thinking
+            system_prompt, user_message = compose_persona_contribution_prompt(
+                persona_name=persona_data["name"],
+                persona_description=persona_data["description"],
+                persona_expertise=", ".join(persona_data.get("domain_expertise", [])),
+                persona_communication_style=persona_data.get("response_style", "analytical"),
+                problem_statement=problem_statement,
+                previous_contributions=prev_contribs,
+                speaker_prompt=expert_memory or round_config["directive"],
+                round_number=round_number + 1,  # +1 for 1-indexed rounds
+            )
 
         # Call LLM (async) with timing - use PromptBroker for retry protection
         from datetime import datetime

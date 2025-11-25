@@ -564,6 +564,40 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
     # Increment round number for next round
     next_round = round_number + 1
 
+    # Trigger summarization for completed round
+    round_summaries = list(state.get("round_summaries", []))
+
+    if round_number > 0:  # Don't summarize round 0
+        # Get all contributions from the just-completed round
+        round_contributions = [
+            {"persona": c.persona_name, "content": c.content}
+            for c in contributions
+            if c.round_number == round_number
+        ]
+
+        if round_contributions:  # Only summarize if there were contributions
+            from bo1.agents.summarizer import SummarizerAgent
+
+            summarizer = SummarizerAgent()
+            # Reuse problem from earlier in the function
+            summary_problem_stmt = problem.description if problem else None
+
+            try:
+                summary_response = await summarizer.summarize_round(
+                    round_number=round_number,
+                    contributions=round_contributions,
+                    problem_statement=summary_problem_stmt,
+                )
+
+                round_summaries.append(summary_response.content)
+                track_accumulated_cost(metrics, "summarization", summary_response)
+
+                logger.info(
+                    f"Round {round_number} summarized: {summary_response.token_usage.output_tokens} tokens"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to summarize round {round_number}: {e}")
+
     logger.info(
         f"persona_contribute_node: Complete - {speaker_code} contributed "
         f"(round {round_number} → {next_round}, cost: ${llm_response.cost_total:.4f})"
@@ -573,6 +607,7 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
     return {
         "contributions": contributions,
         "round_number": next_round,
+        "round_summaries": round_summaries,
         "metrics": metrics,
         "current_node": "persona_contribute",
         "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
@@ -1597,6 +1632,44 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Increment round number
     next_round = round_number + 1
 
+    # Trigger summarization for this round
+    round_summaries = list(state.get("round_summaries", []))
+
+    if round_number > 0:  # Don't summarize round 0
+        from bo1.agents.summarizer import SummarizerAgent
+
+        summarizer = SummarizerAgent()
+
+        # Get contributions for this round only
+        round_contributions = [
+            {"persona": c.persona_name, "content": c.content} for c in filtered_contributions
+        ]
+
+        # Get problem statement for context
+        problem = state.get("problem")
+        problem_statement = problem.description if problem else None
+
+        # Summarize the round (async)
+        try:
+            summary_response = await summarizer.summarize_round(
+                round_number=round_number,
+                contributions=round_contributions,
+                problem_statement=problem_statement,
+            )
+
+            # Add summary to state
+            round_summaries.append(summary_response.content)
+
+            # Track cost
+            track_accumulated_cost(metrics, "summarization", summary_response)
+
+            logger.info(
+                f"Round {round_number} summarized: {summary_response.token_usage.output_tokens} tokens, "
+                f"${summary_response.cost_total:.6f}"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to summarize round {round_number}: {e}")
+
     logger.info(
         f"parallel_round_node: Complete - Round {round_number} → {next_round}, "
         f"{len(filtered_contributions)} contributions added"
@@ -1607,6 +1680,7 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         "round_number": next_round,
         "current_phase": current_phase,
         "experts_per_round": experts_per_round,
+        "round_summaries": round_summaries,
         "metrics": metrics,
         "current_node": "parallel_round",
         "sub_problem_index": state.get("sub_problem_index", 0),

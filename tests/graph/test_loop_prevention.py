@@ -155,14 +155,71 @@ async def test_check_convergence_at_hard_cap(sample_problem: Problem):
 
 @pytest.mark.asyncio
 async def test_check_convergence_with_high_score(sample_problem: Problem):
-    """Test convergence check when convergence score is high."""
+    """Test convergence check when convergence score is high.
+
+    Updated for quality metrics refactoring (commit d1fdc3b):
+    - Convergence threshold increased from 0.85 to 0.90
+    - Requires participation rate >= 0.70
+    - Requires novelty score <= 0.40
+    """
+    from bo1.models.state import ContributionMessage
+
     state = create_initial_state(
         session_id="test-123",
         problem=sample_problem,
         max_rounds=10,
     )
     state["round_number"] = 3
-    state["metrics"] = DeliberationMetrics(convergence_score=0.90)
+
+    # Add personas for participation check (need at least 1 for valid participation rate)
+    state["personas"] = [
+        {"code": "CFO", "name": "Zara Kim"},
+        {"code": "CTO", "name": "Alex Rivera"},
+    ]
+
+    # Add enough contributions for novelty calculation (need >= 6)
+    # These contributions should be similar enough to indicate low novelty
+    state["contributions"] = [
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="Zara",
+            content="We should prioritize cash flow management",
+            round_number=1,
+        ),
+        ContributionMessage(
+            persona_code="CTO",
+            persona_name="Alex",
+            content="Cash flow is critical",
+            round_number=1,
+        ),
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="Zara",
+            content="Cash management remains important",
+            round_number=2,
+        ),
+        ContributionMessage(
+            persona_code="CTO",
+            persona_name="Alex",
+            content="We need to focus on cash",
+            round_number=2,
+        ),
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="Zara",
+            content="Cash flow is the priority",
+            round_number=3,
+        ),
+        ContributionMessage(
+            persona_code="CTO",
+            persona_name="Alex",
+            content="Managing cash is essential",
+            round_number=3,
+        ),
+    ]
+
+    # Set convergence score above threshold (> 0.90)
+    state["metrics"] = DeliberationMetrics(convergence_score=0.91, novelty_score=0.2)
 
     result = await check_convergence_node(state)
 
@@ -635,14 +692,72 @@ def test_cost_guard_zero_cost(sample_problem: Problem):
 
 @pytest.mark.asyncio
 async def test_convergence_and_cost_guard_interaction(sample_problem: Problem):
-    """Test interaction between convergence check and cost guard."""
+    """Test interaction between convergence check and cost guard.
+
+    Updated for quality metrics refactoring (commit d1fdc3b):
+    - Convergence threshold increased from 0.85 to 0.90
+    - Requires participation rate >= 0.70
+    - Requires novelty score <= 0.40
+    """
+    from bo1.models.state import ContributionMessage
+
     state = create_initial_state(
         session_id="test-interaction",
         problem=sample_problem,
         max_rounds=10,
     )
     state["round_number"] = 3
-    state["metrics"] = DeliberationMetrics(total_cost=0.80, convergence_score=0.90)
+
+    # Add personas for participation check
+    state["personas"] = [
+        {"code": "CFO", "name": "Zara Kim"},
+        {"code": "CTO", "name": "Alex Rivera"},
+    ]
+
+    # Add enough contributions for novelty calculation (need >= 6)
+    state["contributions"] = [
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="Zara",
+            content="We should prioritize cash flow management",
+            round_number=1,
+        ),
+        ContributionMessage(
+            persona_code="CTO",
+            persona_name="Alex",
+            content="Cash flow is critical",
+            round_number=1,
+        ),
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="Zara",
+            content="Cash management remains important",
+            round_number=2,
+        ),
+        ContributionMessage(
+            persona_code="CTO",
+            persona_name="Alex",
+            content="We need to focus on cash",
+            round_number=2,
+        ),
+        ContributionMessage(
+            persona_code="CFO",
+            persona_name="Zara",
+            content="Cash flow is the priority",
+            round_number=3,
+        ),
+        ContributionMessage(
+            persona_code="CTO",
+            persona_name="Alex",
+            content="Managing cash is essential",
+            round_number=3,
+        ),
+    ]
+
+    # Set convergence score above threshold (> 0.90) and low novelty
+    state["metrics"] = DeliberationMetrics(
+        total_cost=0.80, convergence_score=0.91, novelty_score=0.2
+    )
 
     # Both convergence (Layer 3) and cost check pass
     result = await check_convergence_node(state)

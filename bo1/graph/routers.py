@@ -46,7 +46,9 @@ def route_phase(
 
 def route_facilitator_decision(
     state: DeliberationGraphState,
-) -> Literal["vote", "moderator_intervene", "persona_contribute", "clarification", "END"]:
+) -> Literal[
+    "vote", "moderator_intervene", "persona_contribute", "clarification", "research", "END"
+]:
     """Route based on facilitator's decision.
 
     Routes to different nodes based on the facilitator's action:
@@ -54,7 +56,7 @@ def route_facilitator_decision(
     - "moderator" → Trigger moderator intervention
     - "continue" → Persona contributes next round
     - "clarify" → Request clarification from user (Day 37)
-    - "research" → Treat as continue (research not implemented)
+    - "research" → External research node (Week 6)
 
     Args:
         state: Current graph state with facilitator_decision

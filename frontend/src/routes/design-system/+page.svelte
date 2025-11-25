@@ -16,10 +16,91 @@
 	import ColorSwatch from '$lib/components/ui/ColorSwatch.svelte';
 	import ShadowDemo from '$lib/components/ui/ShadowDemo.svelte';
 	import BorderRadiusDemo from '$lib/components/ui/BorderRadiusDemo.svelte';
+	import Avatar from '$lib/components/ui/Avatar.svelte';
+	import Tooltip from '$lib/components/ui/Tooltip.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import Dropdown from '$lib/components/ui/Dropdown.svelte';
+	import Tabs from '$lib/components/ui/Tabs.svelte';
+	import Toast from '$lib/components/ui/Toast.svelte';
+	import InsightFlag from '$lib/components/ui/InsightFlag.svelte';
+	import ContributionCard from '$lib/components/ui/ContributionCard.svelte';
+	import type { DropdownItem, Tab, Persona } from '$lib/components/ui';
 
 	let currentTheme: ThemeName = 'light';
 	let progressValue = 65;
 	let animatedProgress = 0;
+	let loading = false;
+
+	// Form values
+	let inputValue = '';
+	let emailValue = '';
+	let passwordValue = '';
+	let errorMessage = '';
+	let showSuccessAlert = true;
+	let showWarningAlert = true;
+
+	// Modal demo
+	let showModal = false;
+
+	// Dropdown demo
+	const dropdownItems: DropdownItem[] = [
+		{ value: 'light', label: 'Light Theme', icon: '☀️' },
+		{ value: 'dark', label: 'Dark Theme', icon: '🌙' },
+		{ value: 'ocean', label: 'Ocean Theme', icon: '🌊' },
+	];
+	let selectedTheme = 'light';
+
+	// Tabs demo
+	const tabs: Tab[] = [
+		{ id: 'overview', label: 'Overview', icon: '📊' },
+		{ id: 'contributions', label: 'Contributions', icon: '💬' },
+		{ id: 'synthesis', label: 'Synthesis', icon: '✨' },
+	];
+	let activeTab = 'overview';
+
+	// Toast demo
+	let toasts: Array<{ id: number; type: 'success' | 'error' | 'warning' | 'info'; message: string }> =
+		[];
+	let toastId = 0;
+
+	function showToast(
+		type: 'success' | 'error' | 'warning' | 'info',
+		message: string
+	) {
+		const id = toastId++;
+		toasts = [...toasts, { id, type, message }];
+	}
+
+	function removeToast(id: number) {
+		toasts = toasts.filter((t) => t.id !== id);
+	}
+
+	// Insight flags demo
+	let insights = [
+		{
+			id: 1,
+			type: 'risk' as const,
+			message: 'Market volatility detected in Q4 projections',
+		},
+		{
+			id: 2,
+			type: 'opportunity' as const,
+			message: 'Strategic alignment with emerging AI trends',
+		},
+	];
+
+	function removeInsight(id: number) {
+		insights = insights.filter((i) => i.id !== id);
+	}
+
+	// Contribution card demo
+	const samplePersona: Persona = {
+		name: 'Maria Chen',
+		code: 'MARIA',
+		expertise: 'Marketing Strategy & Consumer Behavior',
+	};
+
+	const sampleTimestamp = new Date(Date.now() - 1000 * 60 * 15); // 15 min ago
 
 	onMount(() => {
 		// Get current theme from localStorage or default to light
@@ -42,19 +123,50 @@
 		applyTheme(theme);
 	}
 
+	function handleButtonClick() {
+		console.log('Button clicked!');
+	}
+
+	async function handleLoadingButton() {
+		loading = true;
+		await new Promise((resolve) => setTimeout(resolve, 2000));
+		loading = false;
+	}
+
+	function validateForm() {
+		if (!emailValue.includes('@')) {
+			errorMessage = 'Please enter a valid email';
+		} else {
+			errorMessage = '';
+		}
+	}
+
 	// Color scales to display
-	const colorScales = [
-		{ name: 'Brand (Primary)', key: 'brand' as const, description: 'Main teal from logo' },
-		{ name: 'Accent', key: 'accent' as const, description: 'Warm complementary tones' },
-		{ name: 'Success', key: 'success' as const, description: 'Teal-green harmony' },
-		{ name: 'Warning', key: 'warning' as const, description: 'Muted amber' },
-		{ name: 'Error', key: 'error' as const, description: 'Clear but not alarming' },
-		{ name: 'Info', key: 'info' as const, description: 'Soft blue-teal' },
-		{ name: 'Neutral', key: 'neutral' as const, description: 'Cool grays with teal tint' },
+	type ColorScale = 'brand' | 'neutral';
+	type ColorShade = 50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 | 950;
+
+	// Create a flat color map that works with the tokens structure
+	const colorMap = {
+		brand: colors.brand,
+		neutral: colors.neutral,
+	};
+
+	const colorScales: Array<{ name: string; key: ColorScale; description: string }> = [
+		{ name: 'Brand (Primary)', key: 'brand', description: 'Main teal from logo' },
+		{ name: 'Neutral', key: 'neutral', description: 'Cool grays with teal tint' },
 	];
 
-	const coreShades = [400, 500, 600]; // Most commonly used
-	const allShades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+	// Semantic colors don't have shades, they're single values
+	const semanticColors = [
+		{ name: 'Success', color: colors.semantic.success, description: 'Success states' },
+		{ name: 'Warning', color: colors.semantic.warning, description: 'Warning states' },
+		{ name: 'Error', color: colors.semantic.error, description: 'Error states' },
+		{ name: 'Info', color: colors.semantic.info, description: 'Informational states' },
+	];
+
+	const coreShades: ColorShade[] = [400, 500, 600]; // Most commonly used
+	const allShades: ColorShade[] = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900];
+	const neutralShades: ColorShade[] = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
 
 	// Typography scales
 	const headingSizes = [
@@ -71,6 +183,12 @@
 		{ name: 'sm', size: '0.875rem', usage: 'Helper text' },
 		{ name: 'xs', size: '0.75rem', usage: 'Labels, captions' },
 	];
+
+	// Helper to get color value safely
+	function getColorValue(key: ColorScale, shade: ColorShade): string {
+		const scale = colorMap[key];
+		return (scale as any)[shade] as string;
+	}
 </script>
 
 <svelte:head>
@@ -78,6 +196,17 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900 py-12">
+	<!-- Toast Container -->
+	<div class="fixed top-4 right-4 z-[1100] space-y-2 max-w-md">
+		{#each toasts as toast (toast.id)}
+			<Toast
+				type={toast.type}
+				message={toast.message}
+				ondismiss={() => removeToast(toast.id)}
+			/>
+		{/each}
+	</div>
+
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 		<!-- Header -->
 		<div class="mb-12">
@@ -145,11 +274,44 @@
 						<div class="grid grid-cols-3 gap-4">
 							{#each coreShades as shade}
 								<ColorSwatch
-									color={colors[scale.key][String(shade) as unknown as keyof typeof colors.brand]}
+									color={getColorValue(scale.key, shade)}
 									shade={shade}
-									label={colors[scale.key][String(shade) as unknown as keyof typeof colors.brand]}
+									label={getColorValue(scale.key, shade)}
 								/>
 							{/each}
+						</div>
+					</Card>
+				{/each}
+			</div>
+		</section>
+
+		<!-- Semantic Colors -->
+		<section class="mb-16">
+			<h2 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-2">
+				Semantic Colors
+			</h2>
+			<p class="text-neutral-600 dark:text-neutral-400 mb-6">Single values for status indicators</p>
+			<div class="grid md:grid-cols-4 gap-6">
+				{#each semanticColors as semantic}
+					<Card class="p-6">
+						<div class="flex items-center justify-between mb-4">
+							<div>
+								<h3 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+									{semantic.name}
+								</h3>
+								<p class="text-sm text-neutral-500 dark:text-neutral-500">{semantic.description}</p>
+							</div>
+						</div>
+						<div class="flex items-center gap-3">
+							<div
+								class="w-16 h-16 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700"
+								style="background-color: {semantic.color}"
+							></div>
+							<div>
+								<code class="text-xs font-mono text-neutral-600 dark:text-neutral-400 block">
+									{semantic.color}
+								</code>
+							</div>
 						</div>
 					</Card>
 				{/each}
@@ -178,15 +340,27 @@
 						</summary>
 						<div class="mt-4">
 							<Card class="p-6">
-								<div class="grid grid-cols-11 gap-2">
-									{#each allShades as shade}
-										<ColorSwatch
-											color={colors[scale.key][String(shade) as unknown as keyof typeof colors.brand]}
-											shade={shade}
-											size="sm"
-										/>
-									{/each}
-								</div>
+								{#if scale.key === 'neutral'}
+									<div class="grid grid-cols-11 gap-2">
+										{#each neutralShades as shade}
+											<ColorSwatch
+												color={getColorValue(scale.key, shade)}
+												shade={shade}
+												size="sm"
+											/>
+										{/each}
+									</div>
+								{:else}
+									<div class="grid grid-cols-10 gap-2">
+										{#each allShades as shade}
+											<ColorSwatch
+												color={getColorValue(scale.key, shade)}
+												shade={shade}
+												size="sm"
+											/>
+										{/each}
+									</div>
+								{/if}
 							</Card>
 						</div>
 					</details>
@@ -304,6 +478,319 @@
 			</Card>
 		</section>
 
+		<!-- Progressive Disclosure Components -->
+		<section class="mb-16">
+			<h2 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
+				Progressive Disclosure
+			</h2>
+
+			<div class="space-y-8">
+				<!-- Progress Bars -->
+				<div>
+					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
+						Progress Bars
+					</h3>
+					<div class="space-y-4 max-w-md">
+						<div>
+							<div class="flex items-center justify-between mb-2">
+								<span class="text-sm text-neutral-600 dark:text-neutral-400">
+									Static Progress (65%)
+								</span>
+							</div>
+							<ProgressBar value={progressValue} variant="brand" showLabel />
+						</div>
+						<div>
+							<span class="text-sm text-neutral-600 dark:text-neutral-400 block mb-2">
+								Animated Progress
+							</span>
+							<ProgressBar value={animatedProgress} variant="brand" animated={true} showLabel={true} />
+						</div>
+						<div>
+							<span class="text-sm text-neutral-600 dark:text-neutral-400 block mb-2">
+								Indeterminate (loading)
+							</span>
+							<ProgressBar indeterminate variant="brand" />
+						</div>
+						<div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">Different Variants</p>
+							<div class="space-y-3">
+								<ProgressBar value={75} variant="brand" size="md" />
+								<ProgressBar value={60} variant="accent" size="md" />
+								<ProgressBar value={90} variant="success" size="md" />
+							</div>
+						</div>
+						<div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">Different Sizes</p>
+							<div class="space-y-3">
+								<ProgressBar value={65} variant="brand" size="sm" />
+								<ProgressBar value={65} variant="brand" size="md" />
+								<ProgressBar value={65} variant="brand" size="lg" />
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Spinners -->
+				<div>
+					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
+						Spinners
+					</h3>
+					<div class="flex items-center gap-6">
+						<div class="text-center">
+							<Spinner size="xs" />
+							<p class="text-xs text-neutral-600 dark:text-neutral-400 mt-2">XS</p>
+						</div>
+						<div class="text-center">
+							<Spinner size="sm" />
+							<p class="text-xs text-neutral-600 dark:text-neutral-400 mt-2">SM</p>
+						</div>
+						<div class="text-center">
+							<Spinner size="md" />
+							<p class="text-xs text-neutral-600 dark:text-neutral-400 mt-2">MD</p>
+						</div>
+						<div class="text-center">
+							<Spinner size="lg" variant="accent" />
+							<p class="text-xs text-neutral-600 dark:text-neutral-400 mt-2">LG</p>
+						</div>
+						<div class="text-center">
+							<Spinner size="xl" variant="neutral" />
+							<p class="text-xs text-neutral-600 dark:text-neutral-400 mt-2">XL</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Avatars -->
+				<div>
+					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
+						Avatars
+					</h3>
+					<div class="flex items-center gap-4">
+						<Avatar name="Maria Chen" size="xs" />
+						<Avatar name="Zara Thompson" size="sm" status="online" />
+						<Avatar name="Tariq Rahman" size="md" status="typing" />
+						<Avatar name="John Doe" size="lg" status="offline" />
+						<Avatar name="Board of One" size="xl" />
+					</div>
+				</div>
+
+				<!-- Tooltips -->
+				<div>
+					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
+						Tooltips
+					</h3>
+					<div class="flex gap-4">
+						<Tooltip text="This is a top tooltip" position="top">
+							<Button variant="ghost">Hover (Top)</Button>
+						</Tooltip>
+						<Tooltip text="This is a bottom tooltip" position="bottom">
+							<Button variant="ghost">Hover (Bottom)</Button>
+						</Tooltip>
+						<Tooltip text="Light variant tooltip" position="top" variant="light">
+							<Button variant="ghost">Light Tooltip</Button>
+						</Tooltip>
+					</div>
+				</div>
+
+				<!-- Insight Flags -->
+				<div>
+					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
+						Insight Flags
+					</h3>
+					<div class="space-y-3 max-w-2xl">
+						{#each insights as insight (insight.id)}
+							<InsightFlag
+								type={insight.type}
+								message={insight.message}
+								ondismiss={() => removeInsight(insight.id)}
+							/>
+						{/each}
+						<InsightFlag
+							type="tension"
+							message="Conflicting priorities between short-term revenue and long-term growth"
+							dismissable={false}
+							pulse
+						/>
+						<InsightFlag
+							type="alignment"
+							message="Strong consensus emerging around customer-first approach"
+							dismissable={false}
+						/>
+					</div>
+				</div>
+
+				<!-- Contribution Card -->
+				<div>
+					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
+						Contribution Card
+					</h3>
+					<div class="max-w-2xl">
+						<ContributionCard
+							persona={samplePersona}
+							content="Based on consumer behavior analysis, I recommend a phased rollout strategy. Start with early adopters (tech-savvy millennials) to build social proof, then expand to broader demographics. This approach reduces market risk while maximizing word-of-mouth amplification."
+							timestamp={sampleTimestamp}
+							confidence="high"
+						>
+							{#snippet actions()}
+								<div class="flex gap-2">
+									<Button size="sm" variant="ghost">View Analysis</Button>
+									<Button size="sm" variant="ghost">Ask Follow-up</Button>
+								</div>
+							{/snippet}
+						</ContributionCard>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- Interactive Components -->
+		<section class="mb-16">
+			<h2 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
+				Interactive Components
+			</h2>
+
+			<div class="space-y-8">
+				<!-- Modal -->
+				<div>
+					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
+						Modal
+					</h3>
+					<Button onclick={() => (showModal = true)}>Open Modal</Button>
+
+					<Modal bind:open={showModal} title="Session Details" size="md">
+						<div class="space-y-4">
+							<p class="text-neutral-700 dark:text-neutral-300">
+								This is a modal dialog demonstrating focus trap, ESC to close, and
+								scroll lock.
+							</p>
+							<div class="grid grid-cols-2 gap-4">
+								<div>
+									<p class="text-sm font-semibold text-neutral-600 dark:text-neutral-400">
+										Session ID
+									</p>
+									<p class="text-neutral-900 dark:text-neutral-100">
+										session-abc123
+									</p>
+								</div>
+								<div>
+									<p class="text-sm font-semibold text-neutral-600 dark:text-neutral-400">
+										Status
+									</p>
+									<Badge variant="success">Active</Badge>
+								</div>
+							</div>
+						</div>
+
+						{#snippet footer()}
+							<div class="flex justify-end gap-2">
+								<Button variant="ghost" onclick={() => (showModal = false)}>
+									Cancel
+								</Button>
+								<Button variant="brand" onclick={() => (showModal = false)}>
+									Confirm
+								</Button>
+							</div>
+						{/snippet}
+					</Modal>
+				</div>
+
+				<!-- Dropdown -->
+				<div>
+					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
+						Dropdown
+					</h3>
+					<div class="max-w-xs">
+						<Dropdown
+							items={dropdownItems}
+							bind:value={selectedTheme}
+							placeholder="Select theme..."
+							searchable
+							onselect={(value) => console.log('Selected:', value)}
+						/>
+					</div>
+				</div>
+
+				<!-- Tabs -->
+				<div>
+					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
+						Tabs
+					</h3>
+					<Tabs {tabs} bind:activeTab onchange={(tabId) => console.log('Tab changed:', tabId)}>
+						{#snippet children({ activeTab })}
+							{#if activeTab === 'overview'}
+							<Card>
+								<h4 class="text-lg font-semibold mb-2 text-neutral-900 dark:text-neutral-100">
+									Overview Content
+								</h4>
+								<p class="text-neutral-600 dark:text-neutral-400">
+									This is the overview tab content. Session analytics and key metrics
+									would appear here.
+								</p>
+							</Card>
+						{:else if activeTab === 'contributions'}
+							<Card>
+								<h4 class="text-lg font-semibold mb-2 text-neutral-900 dark:text-neutral-100">
+									Contributions Content
+								</h4>
+								<p class="text-neutral-600 dark:text-neutral-400">
+									Expert contributions and deliberation messages would be displayed here.
+								</p>
+							</Card>
+						{:else if activeTab === 'synthesis'}
+							<Card>
+								<h4 class="text-lg font-semibold mb-2 text-neutral-900 dark:text-neutral-100">
+									Synthesis Content
+								</h4>
+								<p class="text-neutral-600 dark:text-neutral-400">
+									Final synthesis and recommendations would appear in this section.
+								</p>
+							</Card>
+							{/if}
+						{/snippet}
+					</Tabs>
+				</div>
+
+				<!-- Toast Triggers -->
+				<div>
+					<h3 class="text-lg font-semibold mb-4 text-neutral-800 dark:text-neutral-200">
+						Toasts
+					</h3>
+					<div class="flex gap-2">
+						<Button
+							size="sm"
+							variant="brand"
+							onclick={() => showToast('success', 'Session started successfully!')}
+						>
+							Show Success
+						</Button>
+						<Button
+							size="sm"
+							variant="accent"
+							onclick={() =>
+								showToast('error', 'Failed to connect to API. Please try again.')}
+						>
+							Show Error
+						</Button>
+						<Button
+							size="sm"
+							variant="secondary"
+							onclick={() =>
+								showToast('warning', 'Session will timeout in 5 minutes.')}
+						>
+							Show Warning
+						</Button>
+						<Button
+							size="sm"
+							variant="ghost"
+							onclick={() =>
+								showToast('info', 'New deliberation features are now available!')}
+						>
+							Show Info
+						</Button>
+					</div>
+				</div>
+			</div>
+		</section>
+
 		<!-- Buttons -->
 		<section class="mb-16">
 			<h2 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">Buttons</h2>
@@ -313,9 +800,9 @@
 					All Variants
 				</h3>
 				<div class="flex flex-wrap gap-4">
-					<Button variant="brand">Brand</Button>
-					<Button variant="secondary">Secondary</Button>
-					<Button variant="accent">Accent</Button>
+					<Button variant="brand" onclick={handleButtonClick}>Brand</Button>
+					<Button variant="secondary" onclick={handleButtonClick}>Secondary</Button>
+					<Button variant="accent" onclick={handleButtonClick}>Accent</Button>
 					<Button variant="outline">Outline</Button>
 					<Button variant="ghost">Ghost</Button>
 					<Button variant="danger">Danger</Button>
@@ -341,7 +828,9 @@
 					Loading States
 				</h3>
 				<div class="flex flex-wrap gap-4">
-					<Button variant="brand" loading={true}>Processing...</Button>
+					<Button variant="brand" {loading} onclick={handleLoadingButton}>
+						{loading ? 'Loading...' : 'Click to Load'}
+					</Button>
 					<Button variant="secondary" loading={true}>Loading</Button>
 					<Button variant="outline" loading={true}>Saving</Button>
 				</div>
@@ -360,103 +849,13 @@
 			</Card>
 		</section>
 
-		<!-- Loading Indicators -->
-		<section class="mb-16">
-			<h2 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
-				Loading Indicators
-			</h2>
-
-			<Card class="p-6 mb-6">
-				<h3 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
-					Spinners
-				</h3>
-				<div class="space-y-6">
-					<div>
-						<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">Sizes</p>
-						<div class="flex items-center gap-6">
-							<div class="text-center">
-								<Spinner size="xs" />
-								<p class="text-xs text-neutral-500 dark:text-neutral-500 mt-2">xs</p>
-							</div>
-							<div class="text-center">
-								<Spinner size="sm" />
-								<p class="text-xs text-neutral-500 dark:text-neutral-500 mt-2">sm</p>
-							</div>
-							<div class="text-center">
-								<Spinner size="md" />
-								<p class="text-xs text-neutral-500 dark:text-neutral-500 mt-2">md</p>
-							</div>
-							<div class="text-center">
-								<Spinner size="lg" />
-								<p class="text-xs text-neutral-500 dark:text-neutral-500 mt-2">lg</p>
-							</div>
-							<div class="text-center">
-								<Spinner size="xl" />
-								<p class="text-xs text-neutral-500 dark:text-neutral-500 mt-2">xl</p>
-							</div>
-						</div>
-					</div>
-					<div>
-						<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">Variants</p>
-						<div class="flex items-center gap-6">
-							<div class="text-center">
-								<Spinner variant="brand" size="lg" />
-								<p class="text-xs text-neutral-500 dark:text-neutral-500 mt-2">brand</p>
-							</div>
-							<div class="text-center">
-								<Spinner variant="accent" size="lg" />
-								<p class="text-xs text-neutral-500 dark:text-neutral-500 mt-2">accent</p>
-							</div>
-							<div class="text-center">
-								<Spinner variant="neutral" size="lg" />
-								<p class="text-xs text-neutral-500 dark:text-neutral-500 mt-2">neutral</p>
-							</div>
-						</div>
-					</div>
-				</div>
-			</Card>
-
-			<Card class="p-6">
-				<h3 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
-					Progress Bars
-				</h3>
-				<div class="space-y-6">
-					<div>
-						<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">Animated Progress</p>
-						<ProgressBar value={animatedProgress} variant="brand" animated={true} showLabel={true} />
-					</div>
-					<div>
-						<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">Static Progress (65%)</p>
-						<ProgressBar value={progressValue} variant="brand" animated={false} showLabel={true} />
-					</div>
-					<div>
-						<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">Indeterminate Loading</p>
-						<ProgressBar indeterminate={true} variant="accent" />
-					</div>
-					<div>
-						<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">Different Variants</p>
-						<div class="space-y-3">
-							<ProgressBar value={75} variant="brand" size="md" />
-							<ProgressBar value={60} variant="accent" size="md" />
-							<ProgressBar value={90} variant="success" size="md" />
-						</div>
-					</div>
-					<div>
-						<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">Different Sizes</p>
-						<div class="space-y-3">
-							<ProgressBar value={65} variant="brand" size="sm" />
-							<ProgressBar value={65} variant="brand" size="md" />
-							<ProgressBar value={65} variant="brand" size="lg" />
-						</div>
-					</div>
-				</div>
-			</Card>
-		</section>
-
 		<!-- Badges -->
 		<section class="mb-16">
 			<h2 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">Badges</h2>
-			<Card class="p-6">
+			<Card class="p-6 mb-6">
+				<h3 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
+					Variants
+				</h3>
 				<div class="flex flex-wrap gap-4">
 					<Badge variant="brand">Brand</Badge>
 					<Badge variant="success">Success</Badge>
@@ -466,21 +865,43 @@
 					<Badge variant="neutral">Neutral</Badge>
 				</div>
 			</Card>
+			<Card class="p-6">
+				<h3 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
+					Sizes
+				</h3>
+				<div class="flex flex-wrap items-center gap-4">
+					<Badge size="sm">Small</Badge>
+					<Badge size="md">Medium</Badge>
+					<Badge size="lg">Large</Badge>
+				</div>
+			</Card>
 		</section>
 
 		<!-- Alerts -->
 		<section class="mb-16">
 			<h2 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">Alerts</h2>
 			<div class="space-y-4">
-				<Alert variant="success" title="Success!">
-					Your deliberation has been completed successfully. Check your results below.
-				</Alert>
-				<Alert variant="warning" title="Warning">
-					This action will use credits from your account. Continue?
-				</Alert>
+				{#if showSuccessAlert}
+					<Alert
+						variant="success"
+						title="Success!"
+						dismissable
+						ondismiss={() => (showSuccessAlert = false)}
+					>
+						Your deliberation has been completed successfully. Check your results below.
+					</Alert>
+				{/if}
+
+				{#if showWarningAlert}
+					<Alert variant="warning" title="Warning" dismissable ondismiss={() => (showWarningAlert = false)}>
+						This action will use credits from your account. Continue?
+					</Alert>
+				{/if}
+
 				<Alert variant="error" title="Error">
 					Failed to connect to the server. Please check your connection and try again.
 				</Alert>
+
 				<Alert variant="info" title="Information">
 					Your session will expire in 15 minutes. Save your work to avoid losing progress.
 				</Alert>
@@ -494,30 +915,33 @@
 			</h2>
 			<Card class="p-6">
 				<div class="max-w-md space-y-4">
-					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-							Text Input
-						</label>
-						<Input placeholder="Enter your text..." />
-					</div>
-					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-							Email Input
-						</label>
-						<Input type="email" placeholder="your.email@example.com" />
-					</div>
-					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-							Password Input
-						</label>
-						<Input type="password" placeholder="Enter password" />
-					</div>
-					<div>
-						<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-500 mb-2">
-							Disabled Input
-						</label>
-						<Input placeholder="This field is disabled" disabled={true} />
-					</div>
+					<Input
+						label="Text Input"
+						type="text"
+						placeholder="Enter text..."
+						bind:value={inputValue}
+					/>
+
+					<Input
+						label="Email"
+						type="email"
+						placeholder="your@email.com"
+						bind:value={emailValue}
+						error={errorMessage}
+						onblur={validateForm}
+						required
+					/>
+
+					<Input
+						label="Password"
+						type="password"
+						placeholder="Enter password"
+						bind:value={passwordValue}
+						helperText="Must be at least 8 characters"
+						required
+					/>
+
+					<Input label="Disabled Input" type="text" value="Cannot edit this" disabled />
 				</div>
 			</Card>
 		</section>

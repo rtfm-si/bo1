@@ -79,7 +79,10 @@ def test_route_facilitator_decision_continue(sample_state):
 
 
 def test_route_facilitator_decision_research(sample_state):
-    """Test routing when facilitator requests research (routes to vote in Week 5)."""
+    """Test routing when facilitator requests research.
+
+    Updated: Research is now implemented (Week 6) and routes to 'research' node.
+    """
     # Create facilitator decision for research
     decision = FacilitatorDecision(
         action="research",
@@ -93,8 +96,8 @@ def test_route_facilitator_decision_research(sample_state):
     # Test routing
     next_node = route_facilitator_decision(sample_state)
 
-    # Research not implemented in Week 5, should route to vote
-    assert next_node == "vote"
+    # Research is now implemented, should route to research node
+    assert next_node == "research"
 
 
 def test_route_facilitator_decision_missing_decision(sample_state):

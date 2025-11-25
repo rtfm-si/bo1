@@ -29,11 +29,27 @@ export interface SessionDetailResponse extends SessionResponse {
 			goal: string;
 		}>;
 	};
+	state?: {
+		synthesis?: string;
+		final_synthesis?: string;
+		recommendations?: Array<{
+			persona_code: string;
+			recommendation: string;
+			reasoning: string;
+			confidence: number;
+			conditions?: string[];
+		}>;
+		round_number?: number;
+		max_rounds?: number;
+		duration_seconds?: number;
+		[key: string]: any;
+	};
 	metrics?: {
 		total_cost: number;
 		total_tokens: number;
 		phase_costs: Record<string, number>;
 		convergence_score?: number;
+		duration_seconds?: number;
 	};
 	contributions?: Array<{
 		persona_code: string;

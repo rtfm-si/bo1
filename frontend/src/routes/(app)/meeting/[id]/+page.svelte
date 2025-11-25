@@ -122,9 +122,9 @@
 
 	interface SessionData {
 		id: string;
-		problem: {
+		problem?: {
 			statement: string;
-			context: Record<string, any>;
+			context?: Record<string, any>;
 		};
 		status: string;
 		phase: string | null;
@@ -876,7 +876,7 @@
 
 				if (completionEvent?.data?.duration_seconds) {
 					// Use backend-provided duration
-					const totalSeconds = Math.floor(completionEvent.data.duration_seconds);
+					const totalSeconds = Math.floor(Number(completionEvent.data.duration_seconds));
 					const minutes = Math.floor(totalSeconds / 60);
 					const seconds = totalSeconds % 60;
 					duration = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;

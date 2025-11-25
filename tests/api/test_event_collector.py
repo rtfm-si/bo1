@@ -1,25 +1,16 @@
-"""Tests for event_collector module - extraction logic verification."""
+"""Tests for event extraction framework - registry-based extraction verification."""
 
 import pytest
 
-from backend.api.event_collector import (
-    _extract_completion_data,
-    _extract_convergence_data,
-    _extract_decomposition_data,
-    _extract_facilitator_decision_data,
-    _extract_meta_synthesis_data,
-    _extract_moderator_intervention_data,
-    _extract_persona_selection_data,
-    _extract_subproblem_started_data,
-    _extract_synthesis_data,
-    _extract_voting_data,
-)
+from backend.api.event_extractors import get_event_registry
 from bo1.models.problem import SubProblem
 
 
 @pytest.mark.unit
 def test_extract_decomposition_data():
-    """Test decomposition data extraction."""
+    """Test decomposition data extraction using registry."""
+    registry = get_event_registry()
+
     output = {
         "problem": type(
             "Problem",
@@ -39,7 +30,7 @@ def test_extract_decomposition_data():
         )()
     }
 
-    result = _extract_decomposition_data(output)
+    result = registry.extract("decomposition", output)
 
     assert "sub_problems" in result
     assert "count" in result
@@ -49,7 +40,9 @@ def test_extract_decomposition_data():
 
 @pytest.mark.unit
 def test_extract_persona_selection_data():
-    """Test persona selection data extraction."""
+    """Test persona selection data extraction using registry."""
+    registry = get_event_registry()
+
     output = {
         "personas": [
             type("Persona", (), {"code": "ceo", "name": "CEO"})(),
@@ -58,7 +51,7 @@ def test_extract_persona_selection_data():
         "sub_problem_index": 0,
     }
 
-    result = _extract_persona_selection_data(output)
+    result = registry.extract("persona_selection", output)
 
     assert result["personas"] == ["ceo", "cto"]
     assert result["count"] == 2
@@ -67,7 +60,9 @@ def test_extract_persona_selection_data():
 
 @pytest.mark.unit
 def test_extract_facilitator_decision_data():
-    """Test facilitator decision data extraction."""
+    """Test facilitator decision data extraction using registry."""
+    registry = get_event_registry()
+
     output = {
         "facilitator_decision": {
             "action": "continue",
@@ -78,7 +73,7 @@ def test_extract_facilitator_decision_data():
         "sub_problem_index": 0,
     }
 
-    result = _extract_facilitator_decision_data(output)
+    result = registry.extract("facilitator_decision", output)
 
     assert result["action"] == "continue"
     assert result["reasoning"] == "Need more discussion"
@@ -88,14 +83,16 @@ def test_extract_facilitator_decision_data():
 
 @pytest.mark.unit
 def test_extract_moderator_intervention_data():
-    """Test moderator intervention data extraction."""
+    """Test moderator intervention data extraction using registry."""
+    registry = get_event_registry()
+
     output = {
         "contributions": [{"persona_code": "moderator_bias", "content": "Let's focus on facts"}],
         "round_number": 3,
         "sub_problem_index": 0,
     }
 
-    result = _extract_moderator_intervention_data(output)
+    result = registry.extract("moderator_intervention", output)
 
     assert result["moderator_type"] == "moderator_bias"
     assert result["content"] == "Let's focus on facts"
@@ -104,7 +101,9 @@ def test_extract_moderator_intervention_data():
 
 @pytest.mark.unit
 def test_extract_convergence_data():
-    """Test convergence data extraction."""
+    """Test convergence data extraction using registry."""
+    registry = get_event_registry()
+
     output = {
         "should_stop": True,
         "stop_reason": "convergence",
@@ -114,7 +113,7 @@ def test_extract_convergence_data():
         "metrics": {"convergence_score": 0.9},
     }
 
-    result = _extract_convergence_data(output)
+    result = registry.extract("convergence", output)
 
     assert result["converged"] is True
     assert result["score"] == 0.9
@@ -124,7 +123,9 @@ def test_extract_convergence_data():
 
 @pytest.mark.unit
 def test_extract_voting_data():
-    """Test voting data extraction."""
+    """Test voting data extraction using registry."""
+    registry = get_event_registry()
+
     output = {
         "votes": [
             {
@@ -147,7 +148,7 @@ def test_extract_voting_data():
         "sub_problem_index": 0,
     }
 
-    result = _extract_voting_data(output)
+    result = registry.extract("voting", output)
 
     assert result["votes_count"] == 2
     assert result["consensus_level"] == "strong"
@@ -156,13 +157,15 @@ def test_extract_voting_data():
 
 @pytest.mark.unit
 def test_extract_synthesis_data():
-    """Test synthesis data extraction."""
+    """Test synthesis data extraction using registry."""
+    registry = get_event_registry()
+
     output = {
         "synthesis": "This is a test synthesis with exactly ten words.",
         "sub_problem_index": 0,
     }
 
-    result = _extract_synthesis_data(output)
+    result = registry.extract("synthesis", output)
 
     assert result["synthesis"] == "This is a test synthesis with exactly ten words."
     assert result["word_count"] == 9  # Actual word count
@@ -171,10 +174,12 @@ def test_extract_synthesis_data():
 
 @pytest.mark.unit
 def test_extract_meta_synthesis_data():
-    """Test meta-synthesis data extraction."""
+    """Test meta-synthesis data extraction using registry."""
+    registry = get_event_registry()
+
     output = {"synthesis": "Final synthesis across all sub-problems."}
 
-    result = _extract_meta_synthesis_data(output)
+    result = registry.extract("meta_synthesis", output)
 
     assert result["synthesis"] == "Final synthesis across all sub-problems."
     assert result["word_count"] == 5
@@ -182,7 +187,9 @@ def test_extract_meta_synthesis_data():
 
 @pytest.mark.unit
 def test_extract_subproblem_started_data():
-    """Test subproblem started data extraction."""
+    """Test subproblem started data extraction using registry."""
+    registry = get_event_registry()
+
     # Case 1: Multi-subproblem scenario
     output = {
         "sub_problem_index": 1,
@@ -190,7 +197,7 @@ def test_extract_subproblem_started_data():
         "problem": type("Problem", (), {"sub_problems": [None, None]})(),
     }
 
-    result = _extract_subproblem_started_data(output)
+    result = registry.extract("subproblem_started", output)
 
     assert result["sub_problem_index"] == 1
     assert result["sub_problem_id"] == "sp2"
@@ -203,14 +210,16 @@ def test_extract_subproblem_started_data():
         "problem": type("Problem", (), {"sub_problems": [None]})(),
     }
 
-    result_single = _extract_subproblem_started_data(output_single)
+    result_single = registry.extract("subproblem_started", output_single)
 
     assert result_single == {}
 
 
 @pytest.mark.unit
 def test_extract_completion_data():
-    """Test completion data extraction."""
+    """Test completion data extraction using registry."""
+    registry = get_event_registry()
+
     output = {
         "metrics": {"total_cost": 0.15, "total_tokens": 5000},
         "round_number": 5,
@@ -220,10 +229,54 @@ def test_extract_completion_data():
         "session_id": "test-session-123",
     }
 
-    result = _extract_completion_data(output)
+    result = registry.extract("completion", output)
 
     assert result["session_id"] == "test-session-123"
     assert result["total_cost"] == 0.15
     assert result["total_rounds"] == 5
     assert result["total_contributions"] == 3
     assert result["stop_reason"] == "convergence"
+
+
+@pytest.mark.unit
+def test_registry_get_event_types():
+    """Test that registry returns all registered event types."""
+    registry = get_event_registry()
+
+    event_types = registry.get_event_types()
+
+    # Should include all standard event types
+    expected_types = [
+        "decomposition",
+        "persona_selection",
+        "facilitator_decision",
+        "moderator_intervention",
+        "convergence",
+        "voting",
+        "synthesis",
+        "meta_synthesis",
+        "subproblem_started",
+        "subproblem_complete",
+        "completion",
+    ]
+
+    for expected_type in expected_types:
+        assert expected_type in event_types
+
+
+@pytest.mark.unit
+def test_registry_unknown_event_type():
+    """Test that registry raises error for unknown event type."""
+    registry = get_event_registry()
+
+    with pytest.raises(ValueError, match="Unknown event type"):
+        registry.extract("unknown_event", {})
+
+
+@pytest.mark.unit
+def test_registry_is_registered():
+    """Test registry is_registered method."""
+    registry = get_event_registry()
+
+    assert registry.is_registered("decomposition") is True
+    assert registry.is_registered("unknown_event") is False

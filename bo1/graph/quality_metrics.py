@@ -1,5 +1,4 @@
-"""
-Advanced meeting quality metrics.
+"""Advanced meeting quality metrics.
 
 This module provides functions to calculate:
 - Exploration Score: Coverage of 8 critical decision aspects (NEW)
@@ -324,10 +323,10 @@ def calculate_meeting_completeness_index(
     novelty_score_recent: float,
     weights: dict[str, float] | None = None,
 ) -> float:
-    """Calculate Meeting Completeness Index (M_r).
+    """Calculate Meeting Completeness Index (meeting_index).
 
     This is the composite quality metric that combines all dimensions:
-    M_r = wE * E_r + wC * C_r + wF * F_r + wN * (1 - N_r_recent)
+    meeting_index = wE * E_r + wC * C_r + wF * F_r + wN * (1 - N_r_recent)
 
     Where:
     - E_r = exploration score (coverage of aspects)
@@ -350,13 +349,13 @@ def calculate_meeting_completeness_index(
         - <0.5 = low quality, needs more exploration
 
     Example:
-        >>> M_r = calculate_meeting_completeness_index(
+        >>> meeting_index = calculate_meeting_completeness_index(
         ...     exploration_score=0.68,
         ...     convergence_score=0.72,
         ...     focus_score=0.81,
         ...     novelty_score_recent=0.42
         ... )
-        >>> print(f"Meeting quality: {M_r:.0%}")
+        >>> print(f"Meeting quality: {meeting_index:.0%}")
         Meeting quality: 64%
     """
     # Default weights (balanced config)
@@ -372,7 +371,7 @@ def calculate_meeting_completeness_index(
 
     # Calculate composite index
     # Note: (1 - novelty_score_recent) = lack of novelty bonus (low novelty = good for ending)
-    M_r = (
+    meeting_index = (
         weights["exploration"] * exploration_score
         + weights["convergence"] * convergence_score
         + weights["focus"] * focus_score
@@ -380,15 +379,15 @@ def calculate_meeting_completeness_index(
     )
 
     # Ensure in range [0, 1]
-    M_r = max(0.0, min(1.0, M_r))
+    meeting_index = max(0.0, min(1.0, meeting_index))
 
     logger.info(
-        f"Meeting Completeness Index: {M_r:.2f} "
+        f"Meeting Completeness Index: {meeting_index:.2f} "
         f"(E={exploration_score:.2f}, C={convergence_score:.2f}, "
         f"F={focus_score:.2f}, N={novelty_score_recent:.2f})"
     )
 
-    return M_r
+    return meeting_index
 
 
 # ============================================================================
@@ -397,8 +396,7 @@ def calculate_meeting_completeness_index(
 
 
 def calculate_novelty_score_semantic(contributions: list[dict[str, Any]]) -> float:
-    """
-    Calculate novelty score using semantic embeddings.
+    """Calculate novelty score using semantic embeddings.
 
     For each recent contribution:
     1. Generate embedding using Voyage AI
@@ -469,8 +467,7 @@ def calculate_novelty_score_semantic(contributions: list[dict[str, Any]]) -> flo
 
 
 def calculate_conflict_score(contributions: list[dict[str, Any]]) -> float:
-    """
-    Calculate conflict score based on disagreement vs agreement keywords.
+    """Calculate conflict score based on disagreement vs agreement keywords.
 
     Detects:
     - Disagreement keywords: "disagree", "however", "but", "wrong", "incorrect", "alternative"
@@ -569,8 +566,7 @@ def calculate_conflict_score(contributions: list[dict[str, Any]]) -> float:
 
 
 def detect_contribution_drift(contribution: str, problem_statement: str) -> bool:
-    """
-    Detect if a contribution has drifted off-topic from the problem.
+    """Detect if a contribution has drifted off-topic from the problem.
 
     Algorithm:
     1. Generate embeddings for contribution and problem statement

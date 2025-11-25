@@ -20,15 +20,17 @@
 	const progressWidth = $derived(Math.min(percentage, 100));
 
 	// Debug convergence rendering
-	console.log('[CONVERGENCE RENDER]', {
-		score,
-		threshold,
-		percentage,
-		novelty_score: event.data.novelty_score,
-		conflict_score: event.data.conflict_score,
-		drift_events: event.data.drift_events,
-		eventData: event.data,
-		round: event.data.round
+	$effect(() => {
+		console.log('[CONVERGENCE RENDER]', {
+			score,
+			threshold,
+			percentage,
+			novelty_score: event.data.novelty_score,
+			conflict_score: event.data.conflict_score,
+			drift_events: event.data.drift_events,
+			eventData: event.data,
+			round: event.data.round
+		});
 	});
 
 	// Color coding based on score

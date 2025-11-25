@@ -269,15 +269,20 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         await event_collector._handle_voting(session_id, voting_output)
 
         # Verify voting events
-        events = capture.get_events(count=4)  # started + 2 votes + complete
-        assert len(events) == 4
-        assert events[0]["event_type"] == "voting_started"
-        assert events[1]["event_type"] == "persona_vote"
-        assert events[1]["data"]["confidence"] == 0.85
-        assert events[2]["event_type"] == "persona_vote"
-        assert events[2]["data"]["confidence"] == 0.80
-        assert events[3]["event_type"] == "voting_complete"
-        assert events[3]["data"]["consensus_level"] == "strong"
+        # Updated (commit d1fdc3b): Event collector now emits single voting_complete event with all votes
+        events = capture.get_events(count=1)
+        assert len(events) == 1
+        assert events[0]["event_type"] == "voting_complete"
+        assert events[0]["data"]["consensus_level"] == "strong"
+        assert events[0]["data"]["votes_count"] == 2
+        assert events[0]["data"]["avg_confidence"] == 0.825  # (0.85 + 0.80) / 2
+        # Verify votes are included in the data
+        votes = events[0]["data"]["votes"]
+        assert len(votes) == 2
+        assert votes[0]["persona_code"] == "CFO"
+        assert votes[0]["confidence"] == 0.85
+        assert votes[1]["persona_code"] == "CTO"
+        assert votes[1]["confidence"] == 0.80
 
         # ===================================================================
         # Phase 7: Synthesis
@@ -289,16 +294,17 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         await event_collector._handle_synthesis(session_id, synthesis_output)
 
         # Verify synthesis events
-        events = capture.get_events(count=2)  # started + complete
-        assert len(events) == 2
-        assert events[0]["event_type"] == "synthesis_started"
-        assert events[1]["event_type"] == "synthesis_complete"
-        assert events[1]["data"]["word_count"] == 6  # Actual word count from synthesis text
-        assert "Final Recommendation" in events[1]["data"]["synthesis"]
+        # Updated (commit d1fdc3b): Event collector now emits single synthesis_complete event
+        events = capture.get_events(count=1)
+        assert len(events) == 1
+        assert events[0]["event_type"] == "synthesis_complete"
+        assert events[0]["data"]["word_count"] == 6  # Actual word count from synthesis text
+        assert "Final Recommendation" in events[0]["data"]["synthesis"]
 
         # ===================================================================
         # Verify Event Order and Count
         # ===================================================================
+        # Updated (commit d1fdc3b): Event structure simplified - no individual vote/synthesis start events
         all_events = capture.events
         expected_event_types = [
             "decomposition_complete",
@@ -309,12 +315,8 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
             "contribution",
             "facilitator_decision",
             "convergence",
-            "voting_started",
-            "persona_vote",
-            "persona_vote",
-            "voting_complete",
-            "synthesis_started",
-            "synthesis_complete",
+            "voting_complete",  # Single event with all votes
+            "synthesis_complete",  # Single event
         ]
 
         assert len(all_events) == len(expected_event_types)

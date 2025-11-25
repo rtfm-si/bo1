@@ -20,9 +20,9 @@
 	import { CheckCircle, Download, ArrowLeft, Users, TrendingUp, Target, Clock } from 'lucide-svelte';
 	import type { SessionDetailResponse } from '$lib/api/types';
 
-	const sessionId = $page.params.id;
+	const sessionId: string = $page.params.id!; // SvelteKit guarantees this exists due to [id] route
 
-	let session: SessionDetailResponse | null = null;
+	let session = $state<SessionDetailResponse | null>(null);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 
@@ -90,6 +90,8 @@
 	}
 
 	function generateMarkdownReport(): string {
+		if (!session) return '';
+
 		let md = `# Meeting Results\n\n`;
 		md += `**Session ID:** ${sessionId}\n`;
 		md += `**Date:** ${new Date(session.created_at).toLocaleDateString()}\n`;

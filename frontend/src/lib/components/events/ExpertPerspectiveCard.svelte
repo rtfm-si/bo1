@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { eventTokens } from '$lib/design/tokens';
 	import type { SSEEvent } from '$lib/api/sse-events';
-	import { Lightbulb, AlertTriangle, HelpCircle, Search, ChevronDown, ChevronUp } from 'lucide-svelte';
+	import { Lightbulb, AlertTriangle, HelpCircle, Search } from 'lucide-svelte';
 
 	interface ExpertPerspectiveSummary {
 		concise?: string;
@@ -24,70 +24,52 @@
 				contribution_type: string;
 			};
 		};
+		// View mode controlled by parent (sub-problem level)
+		viewMode?: 'simple' | 'full';
+		// Whether to show full transcript (controlled by parent)
+		showFull?: boolean;
+		// Optional callback for toggling this card's view mode
+		onToggle?: () => void;
 	}
 
-	let { event }: Props = $props();
-
-	// View mode: 'concise' (1-2 sentence) or 'detailed' (structured breakdown)
-	let viewMode = $state<'concise' | 'detailed'>('concise');
-	let showFullContent = $state(false);
+	let { event, viewMode = 'simple', showFull = false, onToggle }: Props = $props();
 
 	// Fallback if no summary available
 	const hasSummary = $derived(event.data.summary !== null && event.data.summary !== undefined);
-	const hasConcise = $derived(hasSummary && event.data.summary?.concise);
+	const hasSimpleSummary = $derived(hasSummary && event.data.summary?.concise);
 </script>
 
-<div class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors">
+<!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_tabindex -->
+<div
+	class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all shadow-sm hover:shadow-md {onToggle ? 'cursor-pointer' : ''}"
+	onclick={onToggle}
+	onkeydown={(e) => e.key === 'Enter' && onToggle?.()}
+	role={onToggle ? 'button' : undefined}
+	tabindex={onToggle ? 0 : undefined}
+>
 	<!-- Expert Header -->
 	<div class="flex items-center justify-between mb-3">
 		<div>
 			<h4 class="text-[1.25rem] font-medium leading-snug text-neutral-800 dark:text-neutral-100">
 				{event.data.persona_name}
-			</h4>
-			{#if event.data.archetype}
-				<p class="text-[0.8125rem] font-medium leading-normal text-neutral-700 dark:text-neutral-300">
-					{event.data.archetype}
-				</p>
-			{/if}
-		</div>
-
-		<!-- View toggle buttons (concise/detailed/full) -->
-		{#if hasSummary}
-			<div class="flex items-center gap-2">
-				{#if hasConcise}
-					<button
-						onclick={() => viewMode = viewMode === 'concise' ? 'detailed' : 'concise'}
-						class="text-[0.75rem] px-2 py-1 rounded-md transition-colors {viewMode === 'concise'
-							? 'bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300'
-							: 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700'}"
-					>
-						{viewMode === 'concise' ? 'Concise' : 'Detailed'}
-					</button>
+				{#if event.data.archetype}
+					<span class="text-[0.875rem] font-normal text-neutral-600 dark:text-neutral-400">
+						— {event.data.archetype}
+					</span>
 				{/if}
-				<button
-					onclick={() => (showFullContent = !showFullContent)}
-					class="text-[0.75rem] text-brand-600 dark:text-brand-400 hover:underline font-medium flex items-center gap-1"
-				>
-					{showFullContent ? 'Hide full' : 'Show full'}
-					{#if showFullContent}
-						<ChevronUp size={12} />
-					{:else}
-						<ChevronDown size={12} />
-					{/if}
-				</button>
-			</div>
-		{/if}
+			</h4>
+		</div>
 	</div>
 
 	<!-- Content Display -->
 	{#if hasSummary && event.data.summary}
-		<!-- Concise View: 1-2 sentence summary -->
-		{#if viewMode === 'concise' && hasConcise}
+		<!-- Simple View: 1-2 sentence summary -->
+		{#if viewMode === 'simple' && hasSimpleSummary}
 			<p class="text-[0.9375rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300">
 				{event.data.summary.concise}
 			</p>
 		{:else}
-			<!-- Detailed View: Structured breakdown -->
+			<!-- Full View: Structured breakdown -->
 			<div class="space-y-3">
 				<!-- Looking For -->
 				{#if event.data.summary.looking_for}
@@ -162,8 +144,8 @@
 			</div>
 		{/if}
 
-		<!-- Full Content (Collapsible) -->
-		{#if showFullContent}
+		<!-- Full Transcript (when showFull is true) -->
+		{#if showFull}
 			<div class="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-700">
 				<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-2">
 					Full Response

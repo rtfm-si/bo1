@@ -67,11 +67,6 @@
 								<span class="inline-block w-1 h-1 bg-slate-400 rounded-full"></span>
 								<span>Round {currentRound}/{maxRounds}</span>
 							</span>
-						{:else if currentPhase === 'discussion' || currentPhase === 'initial_round'}
-							<span class="inline-flex items-center gap-1">
-								<span class="inline-block w-1 h-1 bg-slate-400 rounded-full"></span>
-								<span>Preparing deliberation...</span>
-							</span>
 						{/if}
 						{#if subProblemProgress && subProblemProgress.total > 1 && subProblemProgress.current > 0}
 							<span class="inline-flex items-center gap-1">
@@ -83,29 +78,9 @@
 				</div>
 			</div>
 
-			<!-- Phase Progress Bar -->
-			<div class="flex-1 max-w-md min-w-0 hidden sm:block">
-				<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-					<div
-						class="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
-						style="width: {phaseProgress}%"
-					></div>
-				</div>
-			</div>
-
 			<!-- Phase Estimate -->
 			<div class="text-xs text-slate-600 dark:text-slate-400 font-medium hidden md:block flex-shrink-0">
 				{getPhaseEstimate(currentPhase)}
-			</div>
-		</div>
-
-		<!-- Mobile progress bar (below main content on small screens) -->
-		<div class="mt-2 sm:hidden">
-			<div class="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-				<div
-					class="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
-					style="width: {phaseProgress}%"
-				></div>
 			</div>
 		</div>
 	</div>

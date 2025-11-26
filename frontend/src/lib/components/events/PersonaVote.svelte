@@ -12,11 +12,20 @@
 
 	let { event }: Props = $props();
 
-	const confidencePercentage = $derived(Math.round(event.data.confidence * 100));
+	// Convert confidence to descriptive text
+	const confidenceText = $derived(
+		event.data.confidence >= 0.85
+			? 'very high confidence'
+			: event.data.confidence >= 0.7
+				? 'high confidence'
+				: event.data.confidence >= 0.5
+					? 'medium confidence'
+					: 'low confidence'
+	);
 	const confidenceVariant = $derived(
-		event.data.confidence >= 0.8
+		event.data.confidence >= 0.7
 			? 'success'
-			: event.data.confidence >= 0.6
+			: event.data.confidence >= 0.5
 				? 'info'
 				: 'warning'
 	);
@@ -38,7 +47,7 @@
 						{event.data.persona_name}
 					</h3>
 					<Badge variant={confidenceVariant} size="sm">
-						{confidencePercentage}% confident
+						{confidenceText}
 					</Badge>
 				</div>
 

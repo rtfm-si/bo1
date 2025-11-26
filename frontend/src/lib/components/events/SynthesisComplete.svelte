@@ -226,8 +226,6 @@
 		{/if}
 	</div>
 
-	<!-- Actionable Tasks Section (only show for meta synthesis, not sub-problem synthesis) -->
-	{#if isMeta}
-		<ActionableTasks sessionId={event.session_id} />
-	{/if}
+	<!-- Actionable Tasks Section (show for both synthesis_complete and meta_synthesis_complete) -->
+	<ActionableTasks sessionId={event.session_id} />
 </div>

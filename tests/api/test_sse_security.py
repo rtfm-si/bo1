@@ -205,7 +205,7 @@ class TestSSEUninitializedState:
             mock_redis_instance.load_state.return_value = None
             mock_redis_instance.load_metadata.return_value = {
                 "user_id": "test_user",
-                "status": "killed"
+                "status": "killed",
             }
 
             mock_redis.return_value = mock_redis_instance
@@ -263,7 +263,10 @@ class TestSSEUninitializedState:
 
                 # Should return 404 - session doesn't exist
                 assert exc_info.value.status_code == 404
-                assert "not found" in exc_info.value.detail or "not properly initialized" in exc_info.value.detail
+                assert (
+                    "not found" in exc_info.value.detail
+                    or "not properly initialized" in exc_info.value.detail
+                )
 
 
 class TestSSEOwnershipValidation:

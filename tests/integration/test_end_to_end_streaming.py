@@ -123,12 +123,15 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         decomp_output = {"problem": problem}
         await event_collector._handle_decomposition(session_id, decomp_output)
 
-        # Verify decomposition event
-        events = capture.get_events(count=1)
-        assert len(events) == 1
-        assert events[0]["event_type"] == "decomposition_complete"
-        assert events[0]["data"]["count"] == 2
-        assert len(events[0]["data"]["sub_problems"]) == 2
+        # Verify decomposition events
+        # First, receive discussion_quality_status event (published before decomposition_complete)
+        events = capture.get_events(count=2)
+        assert len(events) == 2
+        assert events[0]["event_type"] == "discussion_quality_status"
+        # Then receive decomposition_complete event
+        assert events[1]["event_type"] == "decomposition_complete"
+        assert events[1]["data"]["count"] == 2
+        assert len(events[1]["data"]["sub_problems"]) == 2
 
         # ===================================================================
         # Phase 2: Persona Selection
@@ -159,14 +162,15 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         await event_collector._handle_persona_selection(session_id, persona_output)
 
         # Verify persona selection events
-        events = capture.get_events(count=3)  # 2 selected + complete
-        assert len(events) == 3
-        assert events[0]["event_type"] == "persona_selected"
-        assert events[0]["data"]["persona"]["code"] == "CFO"
+        events = capture.get_events(count=4)  # status + 2 selected + complete
+        assert len(events) == 4
+        assert events[0]["event_type"] == "discussion_quality_status"
         assert events[1]["event_type"] == "persona_selected"
-        assert events[1]["data"]["persona"]["code"] == "CTO"
-        assert events[2]["event_type"] == "persona_selection_complete"
-        assert events[2]["data"]["count"] == 2
+        assert events[1]["data"]["persona"]["code"] == "CFO"
+        assert events[2]["event_type"] == "persona_selected"
+        assert events[2]["data"]["persona"]["code"] == "CTO"
+        assert events[3]["event_type"] == "persona_selection_complete"
+        assert events[3]["data"]["count"] == 2
 
         # ===================================================================
         # Phase 3: Initial Round
@@ -193,12 +197,13 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         await event_collector._handle_initial_round(session_id, initial_round_output)
 
         # Verify initial round events
-        events = capture.get_events(count=2)  # 2 contributions
-        assert len(events) == 2
-        assert events[0]["event_type"] == "contribution"
-        assert events[0]["data"]["persona_code"] == "CFO"
+        events = capture.get_events(count=3)  # status + 2 contributions
+        assert len(events) == 3
+        assert events[0]["event_type"] == "discussion_quality_status"
         assert events[1]["event_type"] == "contribution"
-        assert events[1]["data"]["persona_code"] == "CTO"
+        assert events[1]["data"]["persona_code"] == "CFO"
+        assert events[2]["event_type"] == "contribution"
+        assert events[2]["data"]["persona_code"] == "CTO"
 
         # ===================================================================
         # Phase 4: Facilitator Decision
@@ -294,12 +299,13 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         await event_collector._handle_synthesis(session_id, synthesis_output)
 
         # Verify synthesis events
-        # Updated (commit d1fdc3b): Event collector now emits single synthesis_complete event
-        events = capture.get_events(count=1)
-        assert len(events) == 1
-        assert events[0]["event_type"] == "synthesis_complete"
-        assert events[0]["data"]["word_count"] == 6  # Actual word count from synthesis text
-        assert "Final Recommendation" in events[0]["data"]["synthesis"]
+        # Updated (commit d1fdc3b): Event collector now emits single synthesis_complete event (plus status)
+        events = capture.get_events(count=2)  # status + synthesis_complete
+        assert len(events) == 2
+        assert events[0]["event_type"] == "discussion_quality_status"
+        assert events[1]["event_type"] == "synthesis_complete"
+        assert events[1]["data"]["word_count"] == 6  # Actual word count from synthesis text
+        assert "Final Recommendation" in events[1]["data"]["synthesis"]
 
         # ===================================================================
         # Verify Event Order and Count
@@ -307,15 +313,19 @@ async def test_end_to_end_deliberation_flow(redis_manager, event_collector):
         # Updated (commit d1fdc3b): Event structure simplified - no individual vote/synthesis start events
         all_events = capture.events
         expected_event_types = [
+            "discussion_quality_status",  # Decomposition phase
             "decomposition_complete",
+            "discussion_quality_status",  # Persona selection phase
             "persona_selected",
             "persona_selected",
             "persona_selection_complete",
+            "discussion_quality_status",  # Initial round phase
             "contribution",
             "contribution",
             "facilitator_decision",
             "convergence",
             "voting_complete",  # Single event with all votes
+            "discussion_quality_status",  # Synthesis phase
             "synthesis_complete",  # Single event
         ]
 

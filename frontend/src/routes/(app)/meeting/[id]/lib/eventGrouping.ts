@@ -25,8 +25,8 @@ export const STATUS_NOISE_EVENTS = [
 	'facilitator_decision',
 	'voting_started',
 	'voting_complete',
-	'persona_vote',
 	'convergence',
+	'complete', // Hidden - redundant with SynthesisComplete (renders empty card otherwise)
 ];
 
 /**

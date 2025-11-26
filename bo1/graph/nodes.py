@@ -1342,8 +1342,8 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     broker = PromptBroker()
     request = PromptRequest(
         system=meta_prompt,
-        user_message="Generate the JSON action plan now (pure JSON, no markdown):",
-        prefill="<action_plan>\n{",  # Force JSON output with proper XML wrapping
+        user_message="Generate the JSON action plan now:",
+        prefill="{",  # Force pure JSON output (no markdown, no XML wrapper)
         model="sonnet",  # Use Sonnet for high-quality meta-synthesis
         temperature=0.7,
         max_tokens=4000,

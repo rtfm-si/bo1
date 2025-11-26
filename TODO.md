@@ -9,22 +9,29 @@ ssh root@139.59.201.65
 
 db tests users etc
 
-left panel:
-
-actions should have a bit of detail next to them, beyond just the title
-
-right panel:
-
-expert contributions in rows PER sub problem (and overall) in columns ?
-
 add business context page
 & research competition
 
-http://localhost:5173/meeting/bo1_38113e62-eda5-43e6-afd1-1b20742cf609
+new meeting
+(suggest q's based on bus context - CTA to add)
 
-after panel assembeld and NO cotributions:
-Error Occurred
-Fatal ValueError
+'please wait' message ui is inconsistent
 
-max_rounds (10) exceeds hard cap of 6 for parallel architecture
-This error cannot be recovered. Please check logs and restart the session.
+dont need to display' discussion_quality_status' events in the main meeting ui in left panel
+
+meetings seem to disappear from the dashboard - why?
+
+some kind of 'simple' kanban board for actions
+
+'mentor mode' - speak with an expert directly in a chat (like chatgpt) but has business and problem context and actions etc etc
+
+full report:
+rounds, minutes, experts = replace with experts and why?
+full synthesis missing
+needs the exec summary and recommendation right after problem statement
+
+opus:
+look for legacy / backwards compatibility / fallback and simplify, we dont need this - no live customers
+look for persistence gaps - we should be storing all outputs we produce for end users (meetings etc) in the db
+look for optimisations, efficiencies - redundant conversions between pydantic and dicts etc. or simplify this via an reuseable 'autoconverter'?
+look for libraries and depedencies providing the same / conflicting capability

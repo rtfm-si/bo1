@@ -464,13 +464,13 @@ CONVERGENCE_EXTRACTORS: list[FieldExtractor] = [
         "transform": lambda _: 0.85,
         "default": 0.85,
     },
-    # NEW: Quality metrics
+    # Phase field (exploration/challenge/convergence)
     {
-        "source_field": "metrics",
-        "target_field": "novelty_score",
-        "transform": lambda m: extract_metrics_field(m, "novelty_score", None),
+        "source_field": "current_phase",
+        "target_field": "phase",
         "default": None,
     },
+    # Additional quality metrics (conflict_score already handled above via novelty_score duplication)
     {
         "source_field": "metrics",
         "target_field": "conflict_score",

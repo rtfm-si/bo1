@@ -32,6 +32,7 @@ from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
+from bo1.state.postgres_manager import get_session_tasks, save_session_tasks
 from bo1.state.redis_manager import RedisManager
 from bo1.utils.logging import get_logger
 
@@ -509,6 +510,32 @@ async def extract_tasks(
             # Unpack verified session data
             user_id, metadata = session_data
 
+            # 1. Check PostgreSQL first for persistent storage (survives Redis expiry)
+            try:
+                db_tasks = get_session_tasks(session_id)
+                if db_tasks:
+                    logger.info(f"Returning tasks from PostgreSQL for session {session_id}")
+                    return {
+                        "tasks": db_tasks["tasks"],
+                        "total_tasks": db_tasks["total_tasks"],
+                        "extraction_confidence": float(db_tasks["extraction_confidence"]),
+                        "synthesis_sections_analyzed": db_tasks["synthesis_sections_analyzed"],
+                    }
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load tasks from PostgreSQL: {e}, falling back to extraction"
+                )
+
+            # 2. Check Redis cache as fallback (for backwards compatibility)
+            cache_key = f"extracted_tasks:{session_id}"
+            cached_tasks = redis_manager.redis.get(cache_key)
+
+            if cached_tasks:
+                import json
+
+                logger.info(f"Returning cached tasks from Redis for session {session_id}")
+                return json.loads(cached_tasks)
+
             # Check if synthesis exists
             synthesis = metadata.get("synthesis")
             if not synthesis:
@@ -557,8 +584,33 @@ async def extract_tasks(
                 f"(confidence: {result.extraction_confidence:.2f})"
             )
 
+            # Prepare result dictionary
+            result_dict = result.model_dump()
+
+            # 1. Save to PostgreSQL for long-term persistence (PRIMARY storage)
+            try:
+                save_session_tasks(
+                    session_id=session_id,
+                    tasks=result.tasks,
+                    total_tasks=result.total_tasks,
+                    extraction_confidence=result.extraction_confidence,
+                    synthesis_sections_analyzed=result.synthesis_sections_analyzed,
+                )
+                logger.info(f"Saved extracted tasks to PostgreSQL for session {session_id}")
+            except Exception as e:
+                logger.error(f"Failed to save tasks to PostgreSQL: {e}")
+
+            # 2. Cache in Redis with 24-hour TTL (SECONDARY cache for speed)
+            try:
+                import json
+
+                redis_manager.redis.setex(cache_key, 86400, json.dumps(result_dict))
+                logger.info(f"Cached extracted tasks in Redis for session {session_id} (24h TTL)")
+            except Exception as e:
+                logger.warning(f"Failed to cache tasks in Redis: {e}")
+
             # Return task extraction result
-            return result.model_dump()
+            return result_dict
 
         except HTTPException:
             raise

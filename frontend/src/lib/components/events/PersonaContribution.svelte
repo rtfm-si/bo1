@@ -47,6 +47,11 @@
 			<div class="flex items-center gap-2 mb-2 flex-wrap">
 				<h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
 					{event.data.persona_name}
+					{#if event.data.archetype}
+						<span class="text-[0.875rem] font-normal text-neutral-600 dark:text-neutral-400">
+							— {event.data.archetype}
+						</span>
+					{/if}
 				</h3>
 				<Badge variant="brand" size="sm">Round {event.data.round}</Badge>
 				{#if event.data.contribution_type === 'initial'}

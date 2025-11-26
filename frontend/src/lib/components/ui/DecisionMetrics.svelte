@@ -2,9 +2,16 @@
 	/**
 	 * DecisionMetrics Component
 	 * Shows valuable decision-making metrics during deliberation
+	 * Updated with natural language labels (P0 UX Metrics Refactor)
 	 */
 	import type { SSEEvent } from '$lib/api/sse-events';
 	import { fade } from 'svelte/transition';
+	import {
+		getOverallQuality,
+		getConvergenceMetaphor,
+		getConflictLabel,
+		type QualityLabel
+	} from '$lib/utils/quality-labels';
 
 	interface Props {
 		events: SSEEvent[];
@@ -23,6 +30,8 @@
 	}: Props = $props();
 
 	// Filter events by active sub-problem
+	// IMPORTANT: Do NOT filter convergence events - they're needed for metrics!
+	// Convergence events are hidden from main UI but should still drive metrics
 	const filteredEvents = $derived.by(() => {
 		// If single sub-problem OR no active tab, show all events
 		if (totalSubProblems <= 1 || activeSubProblemIndex === null) {
@@ -36,28 +45,127 @@
 		});
 	});
 
+	// Discussion quality status events (NEW - for early UX feedback)
+	const statusEvents = $derived(
+		events.filter(e => {
+			if (e.event_type !== 'discussion_quality_status') return false;
+
+			// Filter by active sub-problem if applicable
+			if (totalSubProblems <= 1 || activeSubProblemIndex === null) {
+				return true;
+			}
+
+			const eventSubIndex = e.data.sub_problem_index as number | undefined;
+			return eventSubIndex === activeSubProblemIndex;
+		})
+	);
+	const latestStatus = $derived(
+		statusEvents.length > 0 ? statusEvents[statusEvents.length - 1] : null
+	);
+
 	// Convergence metrics (from convergence events)
+	// Use ALL events (not filteredEvents) to ensure convergence events are included
 	const convergenceEvents = $derived(
-		filteredEvents.filter(e => e.event_type === 'convergence')
+		events.filter(e => {
+			// Filter by event type
+			if (e.event_type !== 'convergence') return false;
+
+			// If single sub-problem OR no active tab, include all convergence events
+			if (totalSubProblems <= 1 || activeSubProblemIndex === null) {
+				return true;
+			}
+
+			// Filter to active sub-problem only
+			const eventSubIndex = e.data.sub_problem_index as number | undefined;
+			return eventSubIndex === activeSubProblemIndex;
+		})
 	);
 	const latestConvergence = $derived(
 		convergenceEvents.length > 0 ? convergenceEvents[convergenceEvents.length - 1] : null
 	);
-	const convergenceScore = $derived.by(() => {
-		if (!latestConvergence) return null;
+	// Extract all metrics from convergence events
+	const metrics = $derived.by(() => {
+		if (!latestConvergence) {
+			console.log('[DecisionMetrics] No convergence events yet, count:', convergenceEvents.length);
+			return null;
+		}
 		const data = latestConvergence.data as any;
-		// Convergence event has 'score' field (not consensus_score)
-		return typeof data.score === 'number' ? data.score : null;
+
+		// DEBUG: Log what we're receiving
+		console.log('[DecisionMetrics] Latest convergence data:', {
+			exploration_score: data.exploration_score,
+			score: data.score,
+			focus_score: data.focus_score,
+			novelty_score: data.novelty_score,
+			conflict_score: data.conflict_score,
+			meeting_completeness_index: data.meeting_completeness_index,
+			round: data.round,
+			max_rounds: data.max_rounds,
+			phase: data.phase,
+			timestamp: latestConvergence.timestamp
+		});
+
+		const result = {
+			exploration_score: typeof data.exploration_score === 'number' ? data.exploration_score : null,
+			convergence_score: typeof data.score === 'number' ? data.score : null, // Note: 'score' field = convergence
+			focus_score: typeof data.focus_score === 'number' ? data.focus_score : null,
+			novelty_score: typeof data.novelty_score === 'number' ? data.novelty_score : null,
+			conflict_score: typeof data.conflict_score === 'number' ? data.conflict_score : null,
+			meeting_completeness_index: typeof data.meeting_completeness_index === 'number' ? data.meeting_completeness_index : null,
+			round: typeof data.round === 'number' ? data.round : (currentRound ?? 1),
+			max_rounds: typeof data.max_rounds === 'number' ? data.max_rounds : 6,
+			phase: data.phase as string | undefined
+		};
+
+		console.log('[DecisionMetrics] Extracted metrics:', result);
+		return result;
 	});
-	const noveltyScore = $derived.by(() => {
-		if (!latestConvergence) return null;
-		const data = latestConvergence.data as any;
-		return typeof data.novelty_score === 'number' ? data.novelty_score : null;
+
+	// Check if meeting is complete
+	const isMeetingComplete = $derived(
+		currentPhase === 'complete' ||
+		currentPhase === 'synthesis' ||
+		events.some(e => e.event_type === 'synthesis_complete' || e.event_type === 'meta_synthesis_complete')
+	);
+
+	// Translate metrics to user-friendly labels
+	// Override for completed meetings to show appropriate status
+	const overallQuality = $derived.by((): QualityLabel | null => {
+		// If meeting is complete, show completion-appropriate label
+		if (isMeetingComplete) {
+			return {
+				label: 'Discussion Complete',
+				description: 'Experts have concluded their deliberation and reached recommendations.',
+				color: 'green',
+				icon: 'check-circle'
+			};
+		}
+
+		if (!metrics) return null;
+		return getOverallQuality(metrics);
 	});
-	const conflictScore = $derived.by(() => {
-		if (!latestConvergence) return null;
-		const data = latestConvergence.data as any;
-		return typeof data.conflict_score === 'number' ? data.conflict_score : null;
+
+	const convergenceMetaphor = $derived.by(() => {
+		if (!metrics || metrics.convergence_score === null) return null;
+
+		// Pass phase/status for phase-aware labels
+		const phase = metrics.phase || currentPhase;
+
+		return getConvergenceMetaphor(
+			metrics.convergence_score,
+			metrics.novelty_score,
+			metrics.round ?? 1,
+			phase
+		);
+	});
+
+	const conflictLabel = $derived.by(() => {
+		if (!metrics || metrics.conflict_score === null) return null;
+		return getConflictLabel(
+			metrics.conflict_score,
+			metrics.round ?? 1,
+			metrics.max_rounds ?? 6
+		);
 	});
 
 	// Expert contributions
@@ -107,21 +215,6 @@
 		if (confidence >= 0.6) return 'text-yellow-600 dark:text-yellow-400';
 		return 'text-red-600 dark:text-red-400';
 	}
-
-	function getConvergenceLabel(score: number): string {
-		if (score >= 0.90) return 'Strongly Converged';
-		if (score >= 0.85) return 'Converged';
-		if (score >= 0.70) return 'Moderate Agreement';
-		if (score >= 0.50) return 'Exploring';
-		return 'Divergent';
-	}
-
-	function getConvergenceColor(score: number): string {
-		if (score >= 0.85) return 'text-green-600 dark:text-green-400';
-		if (score >= 0.70) return 'text-blue-600 dark:text-blue-400';
-		if (score >= 0.50) return 'text-yellow-600 dark:text-yellow-400';
-		return 'text-red-600 dark:text-red-400';
-	}
 </script>
 
 <div class="space-y-4">
@@ -138,75 +231,68 @@
 		</div>
 	{/if}
 
-	<!-- Convergence Metrics (moved from timeline to sidebar) -->
-	{#if convergenceScore !== null}
-		{@const score = convergenceScore}
+	<!-- Discussion Quality (Natural Language - P0 UX Refactor) -->
+	<!-- Show status message if no quality metrics yet, otherwise show quality -->
+	{#if !overallQuality && latestStatus}
+		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4" transition:fade>
+			<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+				<svg class="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+				</svg>
+				Discussion Quality
+			</h3>
+			<div class="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
+				<svg class="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
+					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+				</svg>
+				<span class="text-sm text-slate-700 dark:text-slate-300">
+					{latestStatus.data.message}
+				</span>
+			</div>
+		</div>
+	{:else if overallQuality}
 		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4" transition:fade>
 			<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 				</svg>
-				Convergence
+				Discussion Quality
 			</h3>
-			<div class="space-y-3">
-				<div>
-					<div class="flex items-center justify-between mb-1">
-						<span class="text-xs text-slate-600 dark:text-slate-400">Agreement</span>
-						<span class="text-xs font-medium {getConvergenceColor(score)}">
-							{getConvergenceLabel(score)}
-						</span>
-					</div>
-					<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-						<div
-							class="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500"
-							style="width: {score * 100}%"
-						></div>
-					</div>
-					<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-						{(score * 100).toFixed(0)}% similarity between expert opinions
-					</p>
-				</div>
-				{#if noveltyScore !== null}
-					{@const nScore = noveltyScore}
-					<div>
-						<div class="flex items-center justify-between mb-1">
-							<span class="text-xs text-slate-600 dark:text-slate-400">New Ideas</span>
-							<span class="text-xs font-medium text-purple-600 dark:text-purple-400">
-								{nScore < 0.3 ? 'Converging' : 'Exploring'}
-							</span>
-						</div>
-						<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-							<div
-								class="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full transition-all duration-500"
-								style="width: {nScore * 100}%"
-							></div>
-						</div>
-						<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-							{nScore < 0.3 ? 'Experts aligning on solution' : 'Still exploring new ideas'}
-						</p>
-					</div>
-				{/if}
-				{#if conflictScore !== null && conflictScore > 0.1}
-					{@const cScore = conflictScore}
-					<div>
-						<div class="flex items-center justify-between mb-1">
-							<span class="text-xs text-slate-600 dark:text-slate-400">Conflict</span>
-							<span class="text-xs font-medium text-orange-600 dark:text-orange-400">
-								{(cScore * 100).toFixed(0)}%
-							</span>
-						</div>
-						<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-							<div
-								class="bg-gradient-to-r from-orange-500 to-orange-600 h-2 rounded-full transition-all duration-500"
-								style="width: {cScore * 100}%"
-							></div>
-						</div>
-						<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-							Experts have differing viewpoints
-						</p>
-					</div>
-				{/if}
+
+			<div class="flex items-center justify-between mb-2">
+				<span class="text-lg font-semibold text-slate-900 dark:text-white">
+					{overallQuality.label}
+				</span>
+				<span class="px-2 py-1 rounded-full text-xs font-medium {
+					overallQuality.color === 'green' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
+					overallQuality.color === 'amber' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400' :
+					'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+				}">
+					{isMeetingComplete ? 'Complete' : overallQuality.color === 'green' ? 'Excellent' : overallQuality.color === 'amber' ? 'Good' : 'Early'}
+				</span>
 			</div>
+
+			<p class="text-sm text-slate-600 dark:text-slate-400 mb-3">
+				{overallQuality.description}
+			</p>
+
+			<!-- Optional: Show phase-specific insight (hidden when meeting complete - redundant) -->
+			{#if convergenceMetaphor && !isMeetingComplete}
+				<div class="flex items-start gap-2 p-2 bg-slate-50 dark:bg-slate-900 rounded">
+					<svg class="w-4 h-4 mt-0.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+					</svg>
+					<div class="flex-1">
+						<p class="text-xs font-medium text-slate-700 dark:text-slate-300">
+							{convergenceMetaphor.status}
+						</p>
+						<p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+							{convergenceMetaphor.description}
+						</p>
+					</div>
+				</div>
+			{/if}
 		</div>
 	{/if}
 

@@ -18,7 +18,6 @@
 		<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
 			Problem Decomposition Complete
 		</h3>
-		<Badge variant="success">{event.data.count} sub-problems</Badge>
 	</div>
 
 	<div class="space-y-2">
@@ -39,16 +38,13 @@
 						<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
 							{subProblem.rationale}
 						</p>
-						<div class="flex items-center gap-3 text-xs">
-							<Badge variant="info" size="sm">
-								Complexity: {subProblem.complexity_score}/10
-							</Badge>
-							{#if subProblem.dependencies.length > 0}
+						{#if subProblem.dependencies.length > 0}
+							<div class="flex items-center gap-3 text-xs">
 								<Badge variant="warning" size="sm">
 									Depends on: {subProblem.dependencies.length} other(s)
 								</Badge>
-							{/if}
-						</div>
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>

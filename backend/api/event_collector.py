@@ -13,6 +13,7 @@ from anthropic import AsyncAnthropic
 from backend.api.event_extractors import get_event_registry
 from backend.api.event_publisher import EventPublisher
 from bo1.config import get_settings
+from bo1.state.postgres_manager import save_session_synthesis
 
 logger = logging.getLogger(__name__)
 
@@ -221,6 +222,17 @@ class EventCollector:
 
     async def _handle_decomposition(self, session_id: str, output: dict) -> None:
         """Handle decompose node completion."""
+        # ISSUE FIX: Add status message for problem analysis phase
+        self.publisher.publish_event(
+            session_id,
+            "discussion_quality_status",
+            {
+                "status": "analyzing",
+                "message": "Analyzing problem structure...",
+                "round": 0,
+                "sub_problem_index": output.get("sub_problem_index", 0),
+            },
+        )
         await self._publish_node_event(session_id, output, "decomposition_complete")
 
     async def _handle_persona_selection(self, session_id: str, output: dict) -> None:
@@ -228,6 +240,18 @@ class EventCollector:
         personas = output.get("personas", [])
         persona_recommendations = output.get("persona_recommendations", [])
         sub_problem_index = output.get("sub_problem_index", 0)
+
+        # ISSUE FIX: Add status message for expert selection phase
+        self.publisher.publish_event(
+            session_id,
+            "discussion_quality_status",
+            {
+                "status": "selecting",
+                "message": "Selecting expert panel...",
+                "round": 0,
+                "sub_problem_index": sub_problem_index,
+            },
+        )
 
         # Publish individual persona selected events
         for i, persona in enumerate(personas):
@@ -298,6 +322,19 @@ class EventCollector:
 
         # Get personas for archetype/domain_expertise lookup
         personas = output.get("personas", [])
+
+        # ISSUE FIX: Emit initial discussion quality status at START of round 1
+        # This provides early UX feedback that quality tracking has begun
+        self.publisher.publish_event(
+            session_id,
+            "discussion_quality_status",
+            {
+                "status": "analyzing",
+                "message": "Gathering expert perspectives...",
+                "round": 1,
+                "sub_problem_index": sub_problem_index,
+            },
+        )
 
         # Publish individual contributions
         contributions = output.get("contributions", [])
@@ -403,7 +440,28 @@ class EventCollector:
 
     async def _handle_synthesis(self, session_id: str, output: dict) -> None:
         """Handle synthesize node completion."""
+        # ISSUE FIX: Add status message for synthesis phase
+        self.publisher.publish_event(
+            session_id,
+            "discussion_quality_status",
+            {
+                "status": "synthesizing",
+                "message": "Synthesizing insights...",
+                "round": output.get("round_number", 1),
+                "sub_problem_index": output.get("sub_problem_index", 0),
+            },
+        )
+        # Publish event
         await self._publish_node_event(session_id, output, "synthesis_complete")
+
+        # Save synthesis to PostgreSQL for long-term storage
+        synthesis_text = output.get("synthesis")
+        if synthesis_text:
+            try:
+                save_session_synthesis(session_id, synthesis_text)
+                logger.info(f"Saved synthesis to PostgreSQL for session {session_id}")
+            except Exception as e:
+                logger.error(f"Failed to save synthesis to PostgreSQL for {session_id}: {e}")
 
     async def _handle_subproblem_complete(self, session_id: str, output: dict) -> None:
         """Handle next_subproblem node completion - includes duration calculation."""
@@ -436,7 +494,17 @@ class EventCollector:
 
     async def _handle_meta_synthesis(self, session_id: str, output: dict) -> None:
         """Handle meta_synthesize node completion."""
+        # Publish event
         await self._publish_node_event(session_id, output, "meta_synthesis_complete")
+
+        # Save meta-synthesis to PostgreSQL for long-term storage
+        synthesis_text = output.get("meta_synthesis")
+        if synthesis_text:
+            try:
+                save_session_synthesis(session_id, synthesis_text)
+                logger.info(f"Saved meta-synthesis to PostgreSQL for session {session_id}")
+            except Exception as e:
+                logger.error(f"Failed to save meta-synthesis to PostgreSQL for {session_id}: {e}")
 
     async def _handle_completion(self, session_id: str, final_state: dict) -> None:
         """Handle deliberation completion - publishes cost breakdown and completion events."""

@@ -15,17 +15,32 @@ class ExtractedTask(BaseModel):
     """Represents a discrete, actionable task from synthesis."""
 
     id: str = Field(description="Unique task ID")
-    description: str = Field(description="Clear, actionable task description")
-    category: str = Field(description="Category: implementation, research, decision, communication")
-    priority: str = Field(description="high, medium, low")
-    suggested_completion_date: str | None = Field(
-        default=None, description="ISO date or relative (e.g., 'Week 1')"
+    title: str = Field(description="Short, clear title for the task (5-10 words)")
+    description: str = Field(description="Clear, actionable task description (the 'what')")
+    what_and_how: list[str] = Field(
+        default_factory=list,
+        description="What needs to be done and how to achieve it (max 3 bullets)",
+    )
+    success_criteria: list[str] = Field(
+        default_factory=list,
+        description="What success looks like (max 2 bullets)",
+    )
+    kill_criteria: list[str] = Field(
+        default_factory=list,
+        description="Conditions under which this action should be killed/replanned",
     )
     dependencies: list[str] = Field(
-        default_factory=list, description="IDs of tasks this depends on"
+        default_factory=list, description="Prerequisites or things that need to happen first"
     )
+    timeline: str = Field(description="How long this will take (e.g., '2 weeks', '1 month')")
+    priority: str = Field(description="high, medium, low")
+    category: str = Field(description="Category: implementation, research, decision, communication")
     source_section: str = Field(description="Which synthesis section this came from")
     confidence: float = Field(description="AI confidence in task extraction (0-1)", ge=0.0, le=1.0)
+    # Legacy field for backwards compatibility
+    suggested_completion_date: str | None = Field(
+        default=None, description="ISO date or relative (e.g., 'Week 1') - use timeline instead"
+    )
 
 
 class TaskExtractionResult(BaseModel):
@@ -48,10 +63,10 @@ Your task is to extract discrete, actionable tasks from the synthesis sections.
 Extract tasks following these rules:
 1. **Discrete** - Each task should be a single, completable action
 2. **Actionable** - Must be something the user can actually do (not abstract)
-3. **Prioritized** - Assign priority based on impact and urgency mentioned in synthesis
-4. **Dated** - Extract or infer completion dates from timeline section
-5. **Categorized** - Label as: implementation, research, decision, or communication
-6. **Dependencies** - Identify if task depends on other tasks
+3. **Well-structured** - Each task MUST include title, what_and_how, success criteria, kill criteria
+4. **Prioritized** - Assign priority based on impact and urgency mentioned in synthesis
+5. **Timed** - Include realistic timeline (e.g., "2 weeks", "1 month")
+6. **Dependencies** - Identify what needs to happen before this task can start
 
 **Output format (JSON):**
 ```json
@@ -59,21 +74,49 @@ Extract tasks following these rules:
   "tasks": [
     {{
       "id": "task_1",
-      "description": "Conduct customer interviews to determine pricing sensitivity for enterprise tier",
-      "category": "research",
+      "title": "Conduct enterprise pricing research",
+      "description": "Determine pricing sensitivity for enterprise tier through customer interviews",
+      "what_and_how": [
+        "Schedule 10-15 interviews with current enterprise prospects",
+        "Use Van Westendorp pricing model for survey questions",
+        "Analyze competitive pricing in similar B2B SaaS markets"
+      ],
+      "success_criteria": [
+        "Clear price range identified with >80% confidence",
+        "3+ pricing tiers defined with feature differentiation"
+      ],
+      "kill_criteria": [
+        "If <5 interviews completed after 2 weeks, pivot to survey approach",
+        "If pricing variance exceeds 3x between segments, split into separate initiatives"
+      ],
+      "dependencies": ["Access to customer contact list", "Sales team availability for intros"],
+      "timeline": "2 weeks",
       "priority": "high",
-      "suggested_completion_date": "Week 1",
-      "dependencies": [],
+      "category": "research",
       "source_section": "implementation_considerations",
       "confidence": 0.9
     }},
     {{
       "id": "task_2",
-      "description": "Build financial model comparing subscription vs usage-based revenue over 24 months",
-      "category": "implementation",
+      "title": "Build revenue comparison model",
+      "description": "Create financial model comparing subscription vs usage-based revenue",
+      "what_and_how": [
+        "Model 24-month projections for both pricing approaches",
+        "Include customer churn assumptions from industry benchmarks",
+        "Run sensitivity analysis on key variables"
+      ],
+      "success_criteria": [
+        "Clear recommendation supported by financial projections",
+        "Break-even point identified for each pricing model"
+      ],
+      "kill_criteria": [
+        "If data quality insufficient, use industry proxies with documented assumptions",
+        "Abandon if pricing research (task_1) doesn't complete"
+      ],
+      "dependencies": ["Pricing research complete (task_1)", "Finance team review"],
+      "timeline": "1 week",
       "priority": "high",
-      "suggested_completion_date": "Week 2",
-      "dependencies": ["task_1"],
+      "category": "implementation",
       "source_section": "implementation_considerations",
       "confidence": 0.85
     }}
@@ -86,10 +129,15 @@ Extract tasks following these rules:
 
 **Important:**
 - Focus on **concrete tasks**, not general advice
-- Extract from: Implementation Considerations, Timeline, Resources Required, Open Questions
+- Extract from: Implementation Considerations, Timeline, Resources Required, Open Questions, Unified Action Plan
 - Ignore vague recommendations like "consider user feedback" (too abstract)
 - Tasks should be specific enough to assign to someone
-- If timeline section mentions phases (Week 1, Month 1), use those for suggested_completion_date
+- **title** should be 5-10 words, distinct from description
+- **what_and_how** must have 1-3 specific action bullets (not a repeat of the title)
+- **success_criteria** must have 1-2 measurable outcomes
+- **kill_criteria** must have 1-2 conditions for when to stop/replan
+- **dependencies** should list prerequisites (can reference other task IDs or external requirements)
+- **timeline** should be realistic (e.g., "3 days", "2 weeks", "1 month")
 - Set confidence based on how explicit the task is in the synthesis
 
 Extract tasks now. Output ONLY valid JSON, no additional commentary."""

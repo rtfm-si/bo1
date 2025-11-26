@@ -41,7 +41,7 @@ def sample_problem() -> Problem:
 def test_recursion_limit_constant():
     """Test that recursion limit is set correctly."""
     # 6 rounds × 3 nodes/round + 2 overhead = 20 (parallel architecture)
-    assert DELIBERATION_RECURSION_LIMIT == 20  # Updated for parallel rounds architecture
+    assert DELIBERATION_RECURSION_LIMIT == 50  # Updated for parallel rounds architecture
 
 
 # ============================================================================
@@ -161,7 +161,13 @@ async def test_check_convergence_with_high_score(sample_problem: Problem):
     - Convergence threshold increased from 0.85 to 0.90
     - Requires participation rate >= 0.70
     - Requires novelty score <= 0.40
+
+    Updated for Issue #3 fix:
+    - Convergence is now recalculated each round (not cached)
+    - Test mocks the semantic calculation to return high score
     """
+    from unittest.mock import AsyncMock, patch
+
     from bo1.models.state import ContributionMessage
 
     state = create_initial_state(
@@ -218,10 +224,16 @@ async def test_check_convergence_with_high_score(sample_problem: Problem):
         ),
     ]
 
-    # Set convergence score above threshold (> 0.90)
-    state["metrics"] = DeliberationMetrics(convergence_score=0.91, novelty_score=0.2)
+    # Pre-set novelty score (convergence will be recalculated via mock)
+    state["metrics"] = DeliberationMetrics(novelty_score=0.2)
 
-    result = await check_convergence_node(state)
+    # Mock the semantic convergence calculation to return high score
+    with patch(
+        "bo1.graph.safety.loop_prevention._calculate_convergence_score_semantic",
+        new_callable=AsyncMock,
+        return_value=0.91,
+    ):
+        result = await check_convergence_node(state)
 
     assert result["should_stop"] is True
     assert result["stop_reason"] == "consensus"
@@ -627,7 +639,7 @@ def test_route_cost_guard_exceeds_budget(sample_problem: Problem):
 async def test_all_five_layers_independently(sample_problem: Problem):
     """Test that all 5 layers can be activated independently."""
     # Layer 1: Recursion limit (constant check)
-    assert DELIBERATION_RECURSION_LIMIT == 20  # Updated for parallel rounds architecture
+    assert DELIBERATION_RECURSION_LIMIT == 50  # Updated for parallel rounds architecture
 
     # Layer 2: Cycle detection (graph validation)
     graph = nx.DiGraph()
@@ -704,7 +716,13 @@ async def test_convergence_and_cost_guard_interaction(sample_problem: Problem):
     - Convergence threshold increased from 0.85 to 0.90
     - Requires participation rate >= 0.70
     - Requires novelty score <= 0.40
+
+    Updated for Issue #3 fix:
+    - Convergence is now recalculated each round (not cached)
+    - Test mocks the semantic calculation to return high score
     """
+    from unittest.mock import AsyncMock, patch
+
     from bo1.models.state import ContributionMessage
 
     state = create_initial_state(
@@ -760,15 +778,19 @@ async def test_convergence_and_cost_guard_interaction(sample_problem: Problem):
         ),
     ]
 
-    # Set convergence score above threshold (> 0.90) and low novelty
-    state["metrics"] = DeliberationMetrics(
-        total_cost=0.80, convergence_score=0.91, novelty_score=0.2
-    )
+    # Pre-set cost and novelty (convergence will be recalculated via mock)
+    state["metrics"] = DeliberationMetrics(total_cost=0.80, novelty_score=0.2)
 
-    # Both convergence (Layer 3) and cost check pass
-    result = await check_convergence_node(state)
-    assert result["should_stop"] is True  # Convergence triggered
-    assert result["stop_reason"] == "consensus"
+    # Mock the semantic convergence calculation to return high score
+    with patch(
+        "bo1.graph.safety.loop_prevention._calculate_convergence_score_semantic",
+        new_callable=AsyncMock,
+        return_value=0.91,
+    ):
+        # Both convergence (Layer 3) and cost check pass
+        result = await check_convergence_node(state)
+        assert result["should_stop"] is True  # Convergence triggered
+        assert result["stop_reason"] == "consensus"
 
     result = cost_guard_node(result)
     assert result["should_stop"] is True  # Still stopped

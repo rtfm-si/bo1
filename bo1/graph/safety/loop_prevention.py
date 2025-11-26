@@ -49,20 +49,16 @@ DEFAULT_TIMEOUT_SECONDS = int(os.getenv("DELIBERATION_TIMEOUT_SECONDS", "3600"))
 # ============================================================================
 
 # Maximum steps the graph can take before raising GraphRecursionError
-# NEW PARALLEL ARCHITECTURE: Reduced from 55 to 20
-# Calculation: 6 max rounds x 3 nodes/round + 10 overhead = 28 (capped at 20 for safety)
-DELIBERATION_RECURSION_LIMIT = 20
+# PARALLEL ARCHITECTURE: 50 steps provides safe margin for 6 rounds
+# Calculation: 6 max rounds x 4 nodes/round + 26 overhead = 50
+DELIBERATION_RECURSION_LIMIT = 50
 
-# Why 20 is safe for parallel architecture:
-# - Max deliberation: 6 rounds (hard cap with parallel contributions)
-# - Nodes per round: ~3 (parallel_round, check_convergence, facilitator)
-# - Total nodes: 6 x 3 = 18
-# - Overhead (decompose, select, vote, synthesize): ~10 nodes
-# - Total: 28 steps (capped at 20 for early detection)
-# - With 3-5 experts per round, 6 rounds = 18-30 total contributions
-# - Old architecture: 1 expert × 15 rounds = 15 contributions
-# - New architecture: 4 experts × 6 rounds = 24 contributions (optimal)
-# - If we hit this limit, something is definitely wrong
+# Why 50 is safe for parallel architecture:
+# - Setup: decompose + select_personas + initial_round = 3 nodes
+# - Per round: parallel_round + check_convergence + facilitator_decide + summarize = 4 nodes
+# - Max rounds: 6 x 4 = 24 nodes
+# - Voting + synthesis: ~4 nodes
+# - Total: ~31 nodes, 50 provides safe margin for edge cases
 
 
 # ============================================================================
@@ -190,21 +186,24 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
         return state
 
     # Convergence detection (Layer 3c)
-    # Check if convergence score is already set, otherwise calculate it
+    # ALWAYS recalculate convergence score each round to track actual progress
+    # (Previous bug: only calculated when == 0.0, so score stayed static after round 2)
     metrics = state.get("metrics")
-    convergence_score = (
-        metrics.convergence_score if metrics and metrics.convergence_score is not None else 0.0
-    )
+    contributions = state.get("contributions", [])
+    convergence_score = 0.0
 
-    # If not already calculated, compute from recent contributions using semantic method
-    if convergence_score == 0.0:
-        contributions = state.get("contributions", [])
-        if len(contributions) >= 6:
-            # Use semantic convergence detection (preferred)
-            convergence_score = await _calculate_convergence_score_semantic(contributions[-6:])
-            # Update metrics with calculated convergence
-            if metrics:
-                metrics.convergence_score = convergence_score
+    # Calculate convergence from recent contributions using semantic similarity
+    if len(contributions) >= 3:
+        # Use last 6 contributions or all if fewer available
+        recent_contributions = contributions[-6:] if len(contributions) >= 6 else contributions
+        convergence_score = await _calculate_convergence_score_semantic(recent_contributions)
+        # Update metrics with freshly calculated convergence
+        if metrics:
+            metrics.convergence_score = convergence_score
+        logger.info(
+            f"Round {round_number}: Convergence score recalculated: {convergence_score:.2f} "
+            f"(from {len(recent_contributions)} recent contributions)"
+        )
 
     # NEW: Calculate novelty, conflict, and drift metrics
     contributions = state.get("contributions", [])

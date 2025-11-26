@@ -96,6 +96,24 @@ Use this detailed rubric to assign complexity scores consistently:
   - "Should we accept acquisition offer vs continue building?" (Score: 9)
   - "Geographic expansion into new region with different regulations?" (Score: 9)
 
+## Complexity Score to Sub-Problem Count Mapping (REQUIRED)
+
+**This mapping is MANDATORY. Follow it strictly to ensure consistent decomposition:**
+
+| Problem Complexity | Target Sub-Problems | Guidance |
+|-------------------|---------------------|----------|
+| **1-3 (Trivial/Simple)** | **1** | ALWAYS keep atomic. Single decision, clear trade-offs. |
+| **4-5 (Simple/Moderate)** | **1-2** | Keep atomic unless clearly distinct domains require separation. Default to 1. |
+| **6-7 (Moderate/Complex)** | **2-3** | Decompose only when genuine sequential dependencies or distinct expert needs exist. |
+| **8-9 (Complex/Highly Complex)** | **3-4** | Decompose into focused sub-problems. Avoid more than 4 unless truly necessary. |
+| **10 (Extreme)** | **4-5** | Reserved for fundamental strategic pivots affecting entire company. |
+
+**Decision Rules:**
+1. **Default to FEWER sub-problems.** When in doubt, keep atomic or use lower count.
+2. **Each sub-problem must require DIFFERENT expertise.** If same experts would evaluate all aspects together, keep atomic.
+3. **Sub-problems must be GENUINELY independent.** Don't split what's naturally evaluated together.
+4. **5 sub-problems ONLY for complexity 10.** This is rare - maybe 1 in 20 problems.
+
 ## Output Format
 
 Respond with JSON containing:
@@ -179,55 +197,47 @@ Respond with JSON containing:
 }
 ```
 
-### Example 3: Complex Decomposition
+### Example 3: Complex Decomposition (4 sub-problems for complexity 9)
 
 **Input**: "Should I pivot my B2B SaaS from horizontal (all industries) to vertical (law firms only)?"
 
 **Output**:
 ```json
 {
-  "analysis": "This is a strategic pivot decision with far-reaching implications for product, market, team, and business model. It requires analyzing multiple dimensions that build on each other.",
+  "analysis": "This is a strategic pivot decision (complexity 9) with implications for product, market, and team. Per the mapping, complexity 8-9 warrants 3-4 sub-problems. Breaking into 4 focused areas.",
   "is_atomic": false,
   "sub_problems": [
     {
       "id": "sp_001",
-      "goal": "What is our current product-market fit across segments?",
-      "context": "Analyze retention, NPS, expansion revenue by customer segment. Identify where we have strongest PMF.",
-      "complexity_score": 6,
+      "goal": "How does our current PMF compare across segments, and what is the legal vertical opportunity?",
+      "context": "Analyze retention, NPS by segment to identify where we're strongest. Estimate TAM/SAM for law firms, identify competitors and white space.",
+      "complexity_score": 7,
       "dependencies": [],
-      "rationale": "Must understand current reality before deciding on pivot direction."
+      "rationale": "Must understand both current reality AND market opportunity to evaluate pivot direction."
     },
     {
       "id": "sp_002",
-      "goal": "What is the market size and competitive landscape in legal vertical?",
-      "context": "Estimate TAM/SAM/SOM for law firm market. Identify competitors, barriers to entry, and white space.",
+      "goal": "What product changes would verticalization require and can we execute them?",
+      "context": "Law firms need compliance features, integrations, workflows. Estimate development cost, timeline, and team capability to deliver.",
       "complexity_score": 7,
-      "dependencies": [],
-      "rationale": "Market opportunity is independent of current PMF and must be evaluated separately."
+      "dependencies": ["sp_001"],
+      "rationale": "Product scope and execution feasibility are tightly coupled - evaluate together."
     },
     {
       "id": "sp_003",
-      "goal": "What product changes would verticalization require?",
-      "context": "Law firms may need compliance features, integrations, workflows. Estimate development cost and timeline.",
-      "complexity_score": 6,
-      "dependencies": ["sp_001"],
-      "rationale": "Product implications depend on understanding what's working now and what gaps exist."
-    },
-    {
-      "id": "sp_004",
       "goal": "What are the financial implications over 12-24 months?",
       "context": "Model revenue impact: Lost horizontal customers vs gained vertical customers. Factor in CAC, development costs, opportunity cost.",
       "complexity_score": 8,
-      "dependencies": ["sp_001", "sp_002", "sp_003"],
-      "rationale": "Financial model requires inputs from market size, product scope, and current baseline."
+      "dependencies": ["sp_001", "sp_002"],
+      "rationale": "Financial model requires inputs from market size and product scope."
     },
     {
-      "id": "sp_005",
-      "goal": "Do we have the team and resources to execute this pivot?",
-      "context": "Assess if current team has domain expertise, sales relationships, and bandwidth. Identify gaps and hiring needs.",
-      "complexity_score": 5,
-      "dependencies": ["sp_003"],
-      "rationale": "Execution feasibility depends on understanding product scope but is independent of financial model."
+      "id": "sp_004",
+      "goal": "What is our go/no-go recommendation with risk mitigation?",
+      "context": "Synthesize findings into clear recommendation. If go: phased approach? If no-go: what would need to change?",
+      "complexity_score": 6,
+      "dependencies": ["sp_001", "sp_002", "sp_003"],
+      "rationale": "Final synthesis sub-problem that integrates all analysis into actionable recommendation."
     }
   ]
 }
@@ -249,8 +259,19 @@ Respond with JSON containing:
 
 ## Your Task
 
-When given a problem, analyze it and provide a JSON decomposition following the format and examples above.
-Focus on creating sub-problems that enable focused, productive deliberation while maintaining appropriate independence and clear dependencies.
+When given a problem, follow this EXACT process:
+
+1. **Assess Complexity**: Rate the overall problem 1-10 using the Complexity Scoring Rubric
+2. **Determine Count**: Use the Complexity Score to Sub-Problem Count Mapping to determine target sub-problem count
+3. **Default to Atomic**: If complexity is 1-5, strongly prefer keeping it atomic (1 sub-problem)
+4. **Justify Decomposition**: If decomposing, each sub-problem MUST require different expertise or have sequential dependencies
+
+**CRITICAL**: Most problems should stay atomic (1 sub-problem). Decompose ONLY when genuinely necessary.
+- "Should I do X or Y?" → Atomic (1 sub-problem)
+- "How should I price my product?" → Atomic (1 sub-problem)
+- "Should I raise Series A?" → Atomic (1 sub-problem) OR 2 max if clear dependencies
+
+Provide your JSON decomposition following the format above. Be consistent: same complexity = same count.
 """
 
 
@@ -296,9 +317,12 @@ def compose_decomposition_request(
 
     parts.append(
         "\n## Instructions\n"
-        "Analyze this problem and provide a JSON decomposition following the format in your system prompt. "
-        "Determine if this is atomic or should be broken into sub-problems. "
-        "If decomposing, create 1-5 sub-problems with clear goals, complexity scores, and dependencies."
+        "1. First, assess the overall complexity (1-10) using the Complexity Scoring Rubric.\n"
+        "2. Then, use the Complexity Score to Sub-Problem Count Mapping to determine how many sub-problems.\n"
+        "3. Default to keeping the problem ATOMIC (1 sub-problem) unless decomposition is clearly necessary.\n\n"
+        "**Reminder**: Complexity 1-5 should almost always be 1 sub-problem. "
+        "Complexity 6-7 should be 2-3 max. Only complexity 8+ warrants 3-5 sub-problems.\n\n"
+        "Provide your JSON decomposition following the format in your system prompt."
     )
 
     return "".join(parts)
@@ -309,34 +333,36 @@ def compose_decomposition_request(
 # =============================================================================
 
 EXAMPLE_DECOMPOSITIONS = {
+    # Per complexity-to-count mapping:
+    # 1-3 → 1, 4-5 → 1-2, 6-7 → 2-3, 8-9 → 3-4, 10 → 4-5
     "atomic_simple": {
         "problem": "Should I use PostgreSQL or MySQL for my database?",
         "context": "Building a B2B SaaS app, solo developer, familiar with both",
-        "expected_sub_problems": 1,
+        "expected_sub_problems": 1,  # complexity 3 → always 1
         "expected_complexity": 3,
     },
     "moderate_pricing": {
         "problem": "What should my SaaS pricing tiers be?",
         "context": "$50K runway, launching in 6 months, B2B product for SMBs",
-        "expected_sub_problems": 3,
+        "expected_sub_problems": 1,  # complexity 5 → 1-2, default to 1
         "expected_complexity": 5,
     },
     "complex_pivot": {
         "problem": "Should I pivot from B2B to B2C?",
         "context": "18 months in, $500K ARR, team of 5, VC-backed",
-        "expected_sub_problems": 4,
+        "expected_sub_problems": 4,  # complexity 8 → 3-4
         "expected_complexity": 8,
     },
     "moderate_growth": {
         "problem": "Should I invest $50K in SEO or paid ads?",
         "context": "Solo founder, SaaS product, $100K ARR, 12 months runway",
-        "expected_sub_problems": 3,
+        "expected_sub_problems": 2,  # complexity 6 → 2-3
         "expected_complexity": 6,
     },
     "complex_cofounder": {
         "problem": "Should I bring on a technical co-founder or hire contractors?",
         "context": "Non-technical founder, MVP built by agency, raised $200K angel round",
-        "expected_sub_problems": 4,
+        "expected_sub_problems": 3,  # complexity 7 → 2-3
         "expected_complexity": 7,
     },
 }

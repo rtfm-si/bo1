@@ -4,6 +4,7 @@ Consolidates parsing logic for structured responses from different agents.
 """
 
 import logging
+import re
 from typing import Any
 
 from bo1.models.recommendations import Recommendation
@@ -219,3 +220,105 @@ class ResponseParser:
             ) or ResponseExtractor.extract_after_marker(content, ["summary:"], max_length=500)
 
         return result
+
+    @staticmethod
+    def validate_contribution_content(content: str, persona_name: str = "") -> tuple[bool, str]:
+        """Validate that a contribution is substantive expert analysis, not meta-commentary.
+
+        Detects malformed responses where the LLM responds about the prompt structure
+        rather than providing actual expert analysis.
+
+        Args:
+            content: The contribution content to validate
+            persona_name: Name of the persona (for logging)
+
+        Returns:
+            Tuple of (is_valid: bool, reason: str)
+            - is_valid: True if content is valid expert contribution
+            - reason: Description of why content is invalid (empty if valid)
+
+        Example:
+            >>> is_valid, reason = ResponseParser.validate_contribution_content(
+            ...     "I apologize, but the guidance doesn't align with the framework..."
+            ... )
+            >>> is_valid
+            False
+            >>> reason
+            'Meta-response: apology about framework'
+        """
+        content_lower = content.lower()
+
+        # Pattern 1: Apologies about framework/guidance/instructions
+        meta_apology_patterns = [
+            r"i\s+apologize.*(?:guidance|framework|instruction|prompt|system)",
+            r"(?:sorry|apologies).*(?:doesn't|does not|can't|cannot)\s+align",
+            r"(?:this|the)\s+(?:guidance|framework).*doesn't\s+(?:align|match)",
+            r"the\s+(?:prompt|instruction).*(?:confus|unclear|doesn't)",
+        ]
+
+        for pattern in meta_apology_patterns:
+            if re.search(pattern, content_lower):
+                logger.warning(
+                    f"Malformed response from {persona_name}: Meta-response detected (apology pattern)"
+                )
+                return False, "Meta-response: apology about framework"
+
+        # Pattern 2: Meta-commentary about the deliberation process
+        meta_process_patterns = [
+            r"multi[- ]?persona\s+deliberation",
+            r"structured\s+response\s+(?:using|with|format)",
+            r"<thinking>\s*and\s*<contribution>\s*tags",
+            r"existing\s+discussion\s+protocol",
+            r"contribution\s+summarization",
+            r"response\s+(?:protocol|format|structure)",
+        ]
+
+        for pattern in meta_process_patterns:
+            if re.search(pattern, content_lower):
+                logger.warning(
+                    f"Malformed response from {persona_name}: Meta-commentary about process"
+                )
+                return False, "Meta-response: commentary about deliberation process"
+
+        # Pattern 3: Questions about how to respond (instead of actual response)
+        meta_question_patterns = [
+            r"should\s+(?:i|a)\s+(?:full|rigorous)\s+response\s+be\s+provided",
+            r"would\s+you\s+like\s+me\s+to\s+(?:provide|give|respond)",
+            r"how\s+(?:to|should\s+i)\s+(?:ensure|provide|format)",
+            r"(?:shall|should)\s+i\s+(?:proceed|continue|respond)",
+        ]
+
+        for pattern in meta_question_patterns:
+            if re.search(pattern, content_lower):
+                logger.warning(
+                    f"Malformed response from {persona_name}: Asking how to respond instead of responding"
+                )
+                return False, "Meta-response: asking how to respond"
+
+        # Pattern 4: Insufficient substance (too short to be meaningful)
+        word_count = len(content.split())
+        if word_count < 20:
+            logger.warning(
+                f"Malformed response from {persona_name}: Too short ({word_count} words)"
+            )
+            return False, f"Insufficient substance: only {word_count} words"
+
+        # Pattern 5: Starting with defensive language
+        defensive_starts = [
+            "i apologize",
+            "i'm sorry",
+            "sorry, but",
+            "i cannot",
+            "i can't",
+            "unfortunately, i",
+        ]
+
+        for start in defensive_starts:
+            if content_lower.strip().startswith(start):
+                logger.warning(
+                    f"Malformed response from {persona_name}: Starts with defensive language"
+                )
+                return False, "Meta-response: starts with defensive language"
+
+        # All checks passed
+        return True, ""

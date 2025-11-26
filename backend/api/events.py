@@ -119,7 +119,7 @@ def contribution_event(
             "session_id": session_id,
             "persona_code": persona_code,
             "persona_name": persona_name,
-            "contribution": contribution,
+            "content": contribution,
             "round": round_number,
             "timestamp": datetime.now(UTC).isoformat(),
         },

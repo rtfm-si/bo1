@@ -546,7 +546,46 @@ async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, An
     phase_key = f"round_{round_number}_deliberation"
     track_accumulated_cost(metrics, phase_key, llm_response)
 
-    # NEW: Drift detection
+    # Validate contribution and retry if malformed
+    from bo1.llm.response_parser import ResponseParser
+
+    is_valid, reason = ResponseParser.validate_contribution_content(
+        contribution_msg.content, persona.display_name
+    )
+
+    if not is_valid:
+        logger.warning(f"Malformed contribution from {persona.display_name}: {reason}. Retrying...")
+        # Retry with simplified prompt
+        retry_guidance = (
+            "RETRY - Please provide your expert analysis directly. "
+            "DO NOT apologize or discuss the prompt structure. "
+            "Focus on: the problem at hand."
+        )
+
+        contribution_msg, retry_response = await engine._call_persona_async(
+            persona_profile=persona,
+            problem_statement=problem.description if problem else "",
+            problem_context=problem.context if problem else "",
+            participant_list=participant_list,
+            round_number=round_number,
+            contribution_type=ContributionType.RESPONSE,
+            previous_contributions=contributions,
+            expert_memory=retry_guidance,
+        )
+
+        # Track retry cost
+        track_accumulated_cost(metrics, f"{phase_key}_retry", retry_response)
+
+        # Check if retry was successful
+        is_valid_retry, _ = ResponseParser.validate_contribution_content(
+            contribution_msg.content, persona.display_name
+        )
+        if is_valid_retry:
+            logger.info(f"Retry successful for {persona.display_name}")
+        else:
+            logger.error(f"Retry FAILED for {persona.display_name}. Using fallback.")
+
+    # Drift detection
     from bo1.graph.quality_metrics import detect_contribution_drift
 
     contribution_text = contribution_msg.content
@@ -1873,6 +1912,11 @@ async def _generate_parallel_contributions(
     Uses asyncio.gather to call all experts concurrently, reducing
     total round time from serial (n × LLM_latency) to parallel (1 × LLM_latency).
 
+    Includes validation and retry logic for malformed responses:
+    - Validates each contribution to detect meta-responses
+    - Retries once with simplified prompt if validation fails
+    - Falls back to placeholder if retry also fails
+
     Args:
         experts: List of PersonaProfile objects
         state: Current deliberation state
@@ -1884,6 +1928,7 @@ async def _generate_parallel_contributions(
     """
     import asyncio
 
+    from bo1.llm.response_parser import ResponseParser
     from bo1.models.state import ContributionType
     from bo1.orchestration.deliberation import DeliberationEngine
 
@@ -1918,28 +1963,105 @@ async def _generate_parallel_contributions(
             previous_contributions=contributions,
             expert_memory=phase_guidance,  # Pass phase prompt via memory field
         )
-        tasks.append(task)
+        tasks.append((expert, task))
 
     # Run all in parallel
-    results = await asyncio.gather(*tasks)
+    raw_results = await asyncio.gather(*[t[1] for t in tasks])
+    expert_results = list(zip([t[0] for t in tasks], raw_results, strict=True))
 
-    # Extract contributions and track costs
+    # Validate contributions and retry if needed
     contribution_msgs = []
+    retry_tasks = []
     metrics = ensure_metrics(state)
 
-    for contribution_msg, llm_response in results:
-        contribution_msgs.append(contribution_msg)
+    for expert, (contribution_msg, llm_response) in expert_results:
+        # Validate contribution content
+        is_valid, reason = ResponseParser.validate_contribution_content(
+            contribution_msg.content, expert.display_name
+        )
 
-        # Track cost
-        phase_key = f"round_{round_number}_parallel_deliberation"
-        track_accumulated_cost(metrics, phase_key, llm_response)
+        if is_valid:
+            contribution_msgs.append(contribution_msg)
+            # Track cost
+            phase_key = f"round_{round_number}_parallel_deliberation"
+            track_accumulated_cost(metrics, phase_key, llm_response)
+        else:
+            # Malformed response - schedule retry
+            logger.warning(
+                f"Malformed contribution from {expert.display_name}: {reason}. Scheduling retry."
+            )
+            # Track cost for failed attempt
+            phase_key = f"round_{round_number}_parallel_deliberation_retry"
+            track_accumulated_cost(metrics, phase_key, llm_response)
 
-    total_cost = sum(r[1].cost_total for r in results)
+            # Create retry task with simplified prompt
+            retry_guidance = (
+                f"RETRY - Please provide your expert analysis directly. "
+                f"DO NOT apologize or discuss the prompt structure. "
+                f"Focus on: {phase_prompt_short(phase)}"
+            )
+
+            retry_task = engine._call_persona_async(
+                persona_profile=expert,
+                problem_statement=problem.description if problem else "",
+                problem_context=problem.context if problem else "",
+                participant_list=participant_list,
+                round_number=round_number,
+                contribution_type=ContributionType.RESPONSE,
+                previous_contributions=contributions,
+                expert_memory=retry_guidance,
+            )
+            retry_tasks.append((expert, retry_task))
+
+    # Execute retries if any
+    if retry_tasks:
+        logger.info(f"Retrying {len(retry_tasks)} malformed contributions")
+        retry_results = await asyncio.gather(*[t[1] for t in retry_tasks])
+
+        for (expert, _), (contribution_msg, llm_response) in zip(
+            retry_tasks, retry_results, strict=True
+        ):
+            # Validate retry result
+            is_valid, reason = ResponseParser.validate_contribution_content(
+                contribution_msg.content, expert.display_name
+            )
+
+            if is_valid:
+                logger.info(f"Retry successful for {expert.display_name}")
+                contribution_msgs.append(contribution_msg)
+            else:
+                # Still invalid after retry - use as-is with warning
+                logger.error(
+                    f"Retry FAILED for {expert.display_name}: {reason}. "
+                    "Using malformed contribution as fallback."
+                )
+                contribution_msgs.append(contribution_msg)
+
+            # Track retry cost
+            phase_key = f"round_{round_number}_parallel_deliberation_retry"
+            track_accumulated_cost(metrics, phase_key, llm_response)
+
+    # Calculate total cost
+    base_cost = sum(r[1].cost_total for _, r in expert_results)
+    retry_cost = sum(r[1].cost_total for r in retry_results) if retry_tasks else 0.0
+    total_cost = base_cost + retry_cost
     logger.info(
         f"Parallel contributions: {len(contribution_msgs)} experts, cost: ${total_cost:.4f}"
     )
 
     return contribution_msgs
+
+
+def phase_prompt_short(phase: str) -> str:
+    """Get simplified phase prompt for retry attempts."""
+    if phase == "exploration":
+        return "Share your key insights and concerns."
+    elif phase == "challenge":
+        return "Challenge an assumption or add new evidence."
+    elif phase == "convergence":
+        return "Provide your recommendation and main reason."
+    else:
+        return "Provide your expert analysis."
 
 
 def _get_phase_prompt(phase: str, round_number: int) -> str:

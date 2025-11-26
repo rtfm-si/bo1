@@ -500,6 +500,7 @@ As CTO, I'm concerned about our current infrastructure's ability to scale. We're
 
 <summary>
 {{
+  "concise": "Exploring microservices migration to address 200% database slowdown, emphasizing that team reorganization is as critical as the technical shift—needs timeline and budget clarity first.",
   "looking_for": "Evaluating microservices migration feasibility, focusing on infrastructure scalability and team readiness",
   "value_added": "Highlights that organizational transformation (team structure alignment) is as critical as technical architecture changes",
   "concerns": ["Database query times increased 200% month-over-month", "Team lacks microservices experience and needs training", "Organizational complexity of reorganizing engineering squads"],
@@ -524,6 +525,7 @@ From a financial perspective, I need to see a clear ROI analysis before committi
 
 <summary>
 {{
+  "concise": "Questioning the $500K EU spend against our 18-month runway, proposing a $100K UK pilot to test unit economics before committing—need CAC data and clear go/no-go criteria at 3 months.",
   "looking_for": "Analyzing ROI and financial viability of $500K EU expansion against 18-month runway constraints",
   "value_added": "Recommends phased $100K UK pilot first to validate unit economics before full EU commitment",
   "concerns": ["Investment shortens runway by 2.5 months significantly", "Uncertain EU customer acquisition costs vs US baseline", "Currency risk and multi-currency billing complexity"],
@@ -534,13 +536,14 @@ From a financial perspective, I need to see a clear ROI analysis before committi
 </examples>
 
 <instructions>
-Summarize the expert contribution into 4 concise structural elements for UI display.
+Summarize the expert contribution into 5 concise structural elements for UI display.
 
 <requirements>
-1. looking_for: What is this expert analyzing or seeking? (15-25 words)
-2. value_added: What unique insight or perspective do they bring? (15-25 words)
-3. concerns: Array of 2-3 specific concerns mentioned (10-15 words each)
-4. questions: Array of 1-2 specific questions they raised (10-15 words each)
+1. concise: A 1-2 sentence summary that captures the expert's core perspective and recommendation (25-40 words). Write from the expert's viewpoint as if speaking directly.
+2. looking_for: What is this expert analyzing or seeking? (15-25 words)
+3. value_added: What unique insight or perspective do they bring? (15-25 words)
+4. concerns: Array of 2-3 specific concerns mentioned (10-15 words each)
+5. questions: Array of 1-2 specific questions they raised (10-15 words each)
 </requirements>
 
 <thinking>
@@ -557,6 +560,7 @@ Then generate the structured JSON summary.
 Generate VALID JSON in this EXACT format (no markdown, no code blocks, just pure JSON):
 
 {{
+  "concise": "string (1-2 sentence summary, 25-40 words)",
   "looking_for": "string",
   "value_added": "string",
   "concerns": ["string", "string"],

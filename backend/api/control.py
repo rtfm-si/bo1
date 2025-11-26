@@ -159,7 +159,7 @@ async def start_deliberation(
             session_id=session_id,
             problem=problem,
             personas=personas,
-            max_rounds=10,
+            max_rounds=6,  # Hard cap for parallel architecture
         )
 
         # Create graph

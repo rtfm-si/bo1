@@ -253,7 +253,7 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
 
     # Get current round number and max rounds
     round_number = state.get("round_number", 1)
-    max_rounds = state.get("max_rounds", 10)
+    max_rounds = state.get("max_rounds", 6)
 
     # Call facilitator to decide next action
     decision, llm_response = await facilitator.decide_next_action(

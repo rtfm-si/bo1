@@ -100,6 +100,11 @@ def contribution_event(
     persona_name: str,
     contribution: str,
     round_number: int,
+    archetype: str | None = None,
+    domain_expertise: list[str] | None = None,
+    summary: dict[str, Any] | None = None,
+    contribution_type: str | None = None,
+    sub_problem_index: int | None = None,
 ) -> str:
     """Create SSE event for persona contribution.
 
@@ -109,21 +114,37 @@ def contribution_event(
         persona_name: Persona display name
         contribution: The contribution text
         round_number: Current round number
+        archetype: Persona archetype/role (e.g., "Financial Strategy Advisor")
+        domain_expertise: List of expertise areas
+        summary: Structured summary of the contribution
+        contribution_type: Type of contribution ("initial" or "parallel")
+        sub_problem_index: Sub-problem index for tab filtering
 
     Returns:
         SSE-formatted event string
     """
-    return format_sse_event(
-        "contribution",
-        {
-            "session_id": session_id,
-            "persona_code": persona_code,
-            "persona_name": persona_name,
-            "content": contribution,
-            "round": round_number,
-            "timestamp": datetime.now(UTC).isoformat(),
-        },
-    )
+    data: dict[str, Any] = {
+        "session_id": session_id,
+        "persona_code": persona_code,
+        "persona_name": persona_name,
+        "content": contribution,
+        "round": round_number,
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
+
+    # Include optional fields if provided
+    if archetype is not None:
+        data["archetype"] = archetype
+    if domain_expertise is not None:
+        data["domain_expertise"] = domain_expertise
+    if summary is not None:
+        data["summary"] = summary
+    if contribution_type is not None:
+        data["contribution_type"] = contribution_type
+    if sub_problem_index is not None:
+        data["sub_problem_index"] = sub_problem_index
+
+    return format_sse_event("contribution", data)
 
 
 def facilitator_decision_event(

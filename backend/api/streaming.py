@@ -153,6 +153,11 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
             data.get("persona_name", ""),
             data.get("content", ""),
             data.get("round", 1),
+            archetype=data.get("archetype"),
+            domain_expertise=data.get("domain_expertise"),
+            summary=data.get("summary"),
+            contribution_type=data.get("contribution_type"),
+            sub_problem_index=data.get("sub_problem_index"),
         ),
         "facilitator_decision": lambda: events.facilitator_decision_event(
             session_id,
@@ -397,54 +402,34 @@ async def stream_deliberation(
         # Validate session ID format
         session_id = validate_session_id(session_id)
 
-        # Get Redis manager (metadata already verified by VerifiedSession dependency)
-        redis_manager = get_redis_manager()
+        # Check metadata status to determine if graph is ready for streaming
+        # Note: LangGraph uses checkpoint:* keys, not session:* keys, so we check metadata
+        # status instead of waiting for state that will never exist
+        status = metadata.get("status")
 
-        # Wait for state to be initialized (with timeout)
-        # This handles race condition where frontend connects before graph initializes state
-        max_wait_seconds = 10
-        poll_interval = 0.5
-        elapsed = 0.0
+        if status in ["killed", "failed"]:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Session {session_id} failed: {status}",
+            )
 
-        while elapsed < max_wait_seconds:
-            state = redis_manager.load_state(session_id)
-            if state:
-                # State exists, proceed to streaming
-                break
+        if status == "created":
+            # Graph hasn't started yet - frontend should call /start first
+            raise HTTPException(
+                status_code=409,
+                detail=f"Session {session_id} has not been started yet. Call /start endpoint first.",
+            )
 
-            # Check if session was killed/failed during initialization
-            current_metadata = redis_manager.load_metadata(session_id)
-            if current_metadata and current_metadata.get("status") in ["killed", "failed"]:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Session {session_id} failed to initialize: {current_metadata.get('status')}",
-                )
+        if status == "paused":
+            # Session is paused - frontend should call /resume first
+            raise HTTPException(
+                status_code=409,
+                detail=f"Session {session_id} is paused. Call /resume endpoint to continue.",
+            )
 
-            # Wait and retry
-            await asyncio.sleep(poll_interval)
-            elapsed += poll_interval
-
-        # If we exit the loop without finding state, check metadata to determine proper error
-        if not state:
-            current_metadata = redis_manager.load_metadata(session_id)
-            if current_metadata:
-                # Session exists but state not initialized - graph not started yet
-                logger.warning(
-                    f"Session {session_id} exists but state not initialized after {elapsed}s"
-                )
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Session {session_id} exists but graph has not started yet. Please retry.",
-                )
-            else:
-                # Neither state nor metadata exists - session not found
-                logger.error(f"Session {session_id} not found (no metadata)")
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Session {session_id} not found",
-                )
-
-        logger.info(f"SSE connection established for session {session_id} after {elapsed:.1f}s")
+        # Status is "running" or "completed" - proceed to streaming
+        # Events flow through Redis PubSub, and history is available via /events endpoint
+        logger.info(f"SSE connection established for session {session_id} (status: {status})")
 
         # Return streaming response
         return StreamingResponse(

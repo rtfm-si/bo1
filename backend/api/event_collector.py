@@ -296,11 +296,18 @@ class EventCollector:
         # Extract sub_problem_index for tab filtering
         sub_problem_index = output.get("sub_problem_index", 0)
 
+        # Get personas for archetype/domain_expertise lookup
+        personas = output.get("personas", [])
+
         # Publish individual contributions
         contributions = output.get("contributions", [])
         for contrib in contributions:
             await self._publish_contribution(
-                session_id, contrib, round_number=1, sub_problem_index=sub_problem_index
+                session_id,
+                contrib,
+                round_number=1,
+                sub_problem_index=sub_problem_index,
+                personas=personas,
             )
 
     async def _handle_facilitator_decision(self, session_id: str, output: dict) -> None:
@@ -618,6 +625,13 @@ Be specific, extract concrete insights, avoid generic statements.
             persona_name = contrib.get("persona_name", "")
             content = contrib.get("content", "")
 
+        logger.info(
+            f"[CONTRIBUTION DEBUG] Processing contribution | "
+            f"persona_code={persona_code} | "
+            f"personas_provided={'Yes' if personas else 'No'} | "
+            f"personas_count={len(personas) if personas else 0}"
+        )
+
         # Find matching persona to get domain_expertise and archetype (role)
         domain_expertise = []
         archetype = ""
@@ -635,10 +649,33 @@ Be specific, extract concrete insights, avoid generic statements.
                         if hasattr(persona, "archetype")
                         else persona.get("archetype", "")
                     )
+                    logger.info(
+                        f"[CONTRIBUTION DEBUG] Found matching persona | "
+                        f"persona_code={persona_code} | "
+                        f"archetype={archetype} | "
+                        f"domain_expertise={domain_expertise}"
+                    )
                     break
+        else:
+            logger.warning(
+                f"[CONTRIBUTION DEBUG] No personas list provided for persona_code={persona_code}"
+            )
+
+        if not archetype:
+            logger.warning(
+                f"[CONTRIBUTION DEBUG] No archetype found for persona_code={persona_code} | "
+                f"personas_available={[p.code if hasattr(p, 'code') else p.get('code') for p in personas] if personas else []}"
+            )
 
         # Generate AI summary for better UX
         summary = await self._summarize_contribution(content, persona_name)
+
+        logger.info(
+            f"[CONTRIBUTION DEBUG] Summary generation result | "
+            f"persona_name={persona_name} | "
+            f"summary_generated={'Yes' if summary else 'No'} | "
+            f"has_concise={bool(summary and summary.get('concise')) if summary else False}"
+        )
 
         self.publisher.publish_event(
             session_id,
@@ -651,7 +688,7 @@ Be specific, extract concrete insights, avoid generic statements.
                 "content": content,  # Keep full content for reference
                 "summary": summary,  # NEW: Structured summary for compact display
                 "round": round_number,
-                "contribution_type": "initial" if round_number == 1 else "sequential",
+                "contribution_type": "initial" if round_number == 1 else "parallel",
                 "sub_problem_index": sub_problem_index,  # For tab filtering
             },
         )

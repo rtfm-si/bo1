@@ -129,7 +129,14 @@ async def test_event_collector_decomposition_handler(redis_manager, event_collec
     # Call the handler
     await event_collector._handle_decomposition(session_id, output)
 
-    # Receive decomposition_complete event
+    # First, receive discussion_quality_status event (published before decomposition_complete)
+    msg = pubsub.get_message(timeout=2.0)
+    assert msg is not None
+    assert msg["type"] == "message"
+    quality_payload = json.loads(msg["data"])
+    assert quality_payload["event_type"] == "discussion_quality_status"
+
+    # Then receive decomposition_complete event
     msg = pubsub.get_message(timeout=2.0)
     assert msg is not None
     assert msg["type"] == "message"

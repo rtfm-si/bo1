@@ -405,7 +405,14 @@ async def stream_deliberation(
         # Check metadata status to determine if graph is ready for streaming
         # Note: LangGraph uses checkpoint:* keys, not session:* keys, so we check metadata
         # status instead of waiting for state that will never exist
-        status = metadata.get("status")
+        status = metadata.get("status") if metadata else None
+
+        # If no status (session metadata missing or incomplete), treat as not found
+        if status is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Session {session_id} not found or not properly initialized",
+            )
 
         if status in ["killed", "failed"]:
             raise HTTPException(

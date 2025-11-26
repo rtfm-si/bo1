@@ -9,7 +9,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "test": "vitest",
+    "test:ui": "vitest --ui"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "^5.4.0",
@@ -19,11 +21,13 @@
     "@tailwindcss/vite": "^4.1.17",
     "@types/js-cookie": "^3.0.6",
     "@types/node": "^24.10.1",
+    "@vitest/ui": "^4.0.14",
     "svelte": "^5.43.8",
     "svelte-check": "^4.3.4",
     "tailwindcss": "^4.1.17",
     "typescript": "^5.9.3",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vitest": "^4.0.14"
   },
   "dependencies": {
     "js-cookie": "^3.0.5",
@@ -32,9 +36,9 @@
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.28.1",
-    "@tailwindcss/oxide-linux-x64-gnu": "^4.1.17",
     "@tailwindcss/oxide-linux-arm64-gnu": "^4.1.17",
-    "lightningcss-linux-x64-gnu": "^1.30.2",
-    "lightningcss-linux-arm64-gnu": "^1.30.2"
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.1.17",
+    "lightningcss-linux-arm64-gnu": "^1.30.2",
+    "lightningcss-linux-x64-gnu": "^1.30.2"
   }
 }

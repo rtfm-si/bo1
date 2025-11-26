@@ -145,6 +145,15 @@ export interface ContributionEvent extends SSEEvent {
 		content: string;
 		round: number;
 		contribution_type: 'initial' | 'followup';
+		archetype?: string;
+		sub_problem_index?: number;
+		summary?: {
+			concise?: string;
+			analysis?: string;
+			key_insight?: string;
+			concerns?: string[];
+			questions?: string[];
+		};
 	};
 }
 
@@ -195,6 +204,20 @@ export interface ConvergenceEvent extends SSEEvent {
 		novelty_score: number | null;
 		conflict_score: number | null;
 		drift_events: number;
+	};
+}
+
+// ============================================================================
+// Event 12a: Discussion Quality Status (NEW)
+// ============================================================================
+
+export interface DiscussionQualityStatusEvent extends SSEEvent {
+	event_type: 'discussion_quality_status';
+	data: {
+		status: 'analyzing' | 'selecting' | 'synthesizing';
+		message: string;
+		round: number;
+		sub_problem_index: number;
 	};
 }
 
@@ -389,6 +412,7 @@ export type DeliberationEvent =
 	| FacilitatorDecisionEvent
 	| ModeratorInterventionEvent
 	| ConvergenceEvent
+	| DiscussionQualityStatusEvent
 	| RoundStartedEvent
 	| VotingStartedEvent
 	| PersonaVoteEvent
@@ -429,6 +453,10 @@ export function isModeratorInterventionEvent(event: SSEEvent): event is Moderato
 
 export function isConvergenceEvent(event: SSEEvent): event is ConvergenceEvent {
 	return event.event_type === 'convergence';
+}
+
+export function isDiscussionQualityStatusEvent(event: SSEEvent): event is DiscussionQualityStatusEvent {
+	return event.event_type === 'discussion_quality_status';
 }
 
 export function isVotingStartedEvent(event: SSEEvent): event is VotingStartedEvent {

@@ -104,6 +104,19 @@ export function createSessionStore() {
 					data: newEvent.data
 				});
 			}
+			// Debug contribution events
+			if (newEvent.event_type === 'contribution') {
+				const data = newEvent.data as Record<string, unknown>;
+				const summary = data?.summary as Record<string, unknown> | undefined;
+				console.log('[EVENT RECEIVED] Contribution event:', {
+					persona_name: data?.persona_name,
+					persona_code: data?.persona_code,
+					archetype: data?.archetype,
+					has_summary: !!summary,
+					summary_has_concise: !!summary?.concise,
+					full_data: data
+				});
+			}
 		},
 
 		updateSessionPhase(eventType: string, payload: any) {

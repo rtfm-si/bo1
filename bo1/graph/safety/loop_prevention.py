@@ -188,7 +188,21 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
     # Convergence detection (Layer 3c)
     # ALWAYS recalculate convergence score each round to track actual progress
     # (Previous bug: only calculated when == 0.0, so score stayed static after round 2)
+    from bo1.models.state import DeliberationMetrics
+
     metrics = state.get("metrics")
+    # CRITICAL: Ensure metrics object exists AND is a Pydantic model (not dict from checkpoint)
+    # When state is loaded from Redis checkpoint, metrics may be deserialized as a dict
+    if not metrics:
+        logger.warning(f"Round {round_number}: Metrics object missing, creating new one")
+        metrics = DeliberationMetrics()
+        state["metrics"] = metrics
+    elif isinstance(metrics, dict):
+        # Convert dict back to Pydantic model (happens after checkpoint restoration)
+        logger.info(f"Round {round_number}: Converting metrics dict to DeliberationMetrics model")
+        metrics = DeliberationMetrics(**metrics)
+        state["metrics"] = metrics
+
     contributions = state.get("contributions", [])
     convergence_score = 0.0
 
@@ -207,6 +221,14 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
 
     # NEW: Calculate novelty, conflict, and drift metrics
     contributions = state.get("contributions", [])
+
+    # Set fallback values for novelty/conflict before they can be calculated
+    if metrics and len(contributions) < 6:
+        if not hasattr(metrics, "novelty_score") or metrics.novelty_score is None:
+            metrics.novelty_score = 0.5  # Neutral until calculated
+        if not hasattr(metrics, "conflict_score") or metrics.conflict_score is None:
+            metrics.conflict_score = 0.5  # Neutral until calculated
+
     if len(contributions) >= 6 and metrics:
         from bo1.graph.quality_metrics import (
             calculate_conflict_score,
@@ -280,8 +302,37 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
             f"(threshold: {CONVERGENCE_THRESHOLD:.2f}, min rounds: 3)"
         )
 
+    # ALWAYS determine and set current_phase based on round number
+    # This ensures phase is available for UI display even on early rounds
+    from bo1.graph.nodes import _determine_phase
+
+    current_phase = _determine_phase(round_number, max_rounds)
+    state["current_phase"] = current_phase
+    logger.info(f"Round {round_number}: Phase set to {current_phase}")
+
     # NEW: Calculate enhanced quality metrics (exploration, focus, completeness)
     # This enables multi-criteria stopping rules based on meeting quality
+    logger.info(
+        f"Round {round_number}: Quality metrics check - "
+        f"contributions={len(contributions)}, metrics_exists={metrics is not None}"
+    )
+
+    # Set fallback values for early rounds (before enough contributions for calculation)
+    if metrics and len(contributions) < 3:
+        # Set placeholder values to avoid undefined in frontend
+        if not hasattr(metrics, "exploration_score") or metrics.exploration_score is None:
+            metrics.exploration_score = 0.0  # Will be calculated properly later
+        if not hasattr(metrics, "focus_score") or metrics.focus_score is None:
+            metrics.focus_score = 1.0  # Assume on-topic until proven otherwise
+        if (
+            not hasattr(metrics, "meeting_completeness_index")
+            or metrics.meeting_completeness_index is None
+        ):
+            metrics.meeting_completeness_index = 0.0  # Low completeness early on
+        logger.info(
+            f"Round {round_number}: Set fallback quality metrics (contributions={len(contributions)})"
+        )
+
     if len(contributions) >= 3 and metrics:
         from bo1.graph.meeting_config import get_meeting_config
         from bo1.graph.quality_metrics import (
@@ -312,9 +363,13 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
             )
             metrics.exploration_score = exploration_score
             metrics.aspect_coverage = aspect_coverage
+            logger.info(
+                f"Round {round_number}: Exploration score calculated: {exploration_score:.2f}"
+            )
         except Exception as e:
-            logger.warning(f"Exploration score calculation failed: {e}")
+            logger.warning(f"Exploration score calculation failed: {e}", exc_info=True)
             exploration_score = 0.5  # Fallback to neutral
+            metrics.exploration_score = exploration_score  # Store fallback value
 
         # Calculate focus score (on-topic ratio)
         try:
@@ -323,9 +378,11 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
                 problem_statement=problem_statement,
             )
             metrics.focus_score = focus_score
+            logger.info(f"Round {round_number}: Focus score calculated: {focus_score:.2f}")
         except Exception as e:
-            logger.warning(f"Focus score calculation failed: {e}")
+            logger.warning(f"Focus score calculation failed: {e}", exc_info=True)
             focus_score = 0.8  # Fallback to assume on-topic
+            metrics.focus_score = focus_score  # Store fallback value
 
         # Calculate meeting completeness index (composite metric)
         try:
@@ -337,9 +394,27 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
                 weights=config.weights,
             )
             metrics.meeting_completeness_index = meeting_completeness
+            logger.info(
+                f"Round {round_number}: Meeting completeness index calculated: {meeting_completeness:.2f}"
+            )
         except Exception as e:
-            logger.warning(f"Completeness index calculation failed: {e}")
+            logger.warning(f"Completeness index calculation failed: {e}", exc_info=True)
             meeting_completeness = 0.5  # Fallback
+            metrics.meeting_completeness_index = meeting_completeness  # Store fallback value
+
+        # NOTE: current_phase is now set unconditionally at the start of this function
+        # (lines ~297-303) to ensure phase is always available for UI display
+
+        # DEBUG: Log all quality metrics for verification
+        logger.info(
+            f"Round {round_number}: Quality metrics SET - "
+            f"exploration={metrics.exploration_score}, "
+            f"focus={metrics.focus_score}, "
+            f"completeness={metrics.meeting_completeness_index}, "
+            f"novelty={metrics.novelty_score}, "
+            f"conflict={metrics.conflict_score}, "
+            f"phase={current_phase}"
+        )
 
         # Apply multi-criteria stopping rules
         can_end, blockers = should_allow_end(state, config)

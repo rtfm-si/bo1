@@ -631,3 +631,219 @@ def get_stale_research_cache_entries(days_old: int = 90) -> list[dict[str, Any]]
                     entry["research_date"] = entry["research_date"].isoformat()
 
             return entries
+
+
+# =============================================================================
+# Session Persistence Functions (Events, Tasks, Synthesis)
+# =============================================================================
+
+
+def save_session_event(
+    session_id: str,
+    event_type: str,
+    sequence: int,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    """Save a session event to PostgreSQL for long-term storage.
+
+    Args:
+        session_id: Session identifier
+        event_type: Event type (e.g., 'contribution', 'synthesis_complete')
+        sequence: Event sequence number within session
+        data: Event payload (will be stored as JSONB)
+
+    Returns:
+        Saved event record with id and created_at
+
+    Examples:
+        >>> save_session_event(
+        ...     session_id="bo1_abc123",
+        ...     event_type="contribution",
+        ...     sequence=1,
+        ...     data={"persona_name": "CTO", "content": "..."}
+        ... )
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO session_events (session_id, event_type, sequence, data)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (session_id, sequence) DO UPDATE
+                SET event_type = EXCLUDED.event_type,
+                    data = EXCLUDED.data
+                RETURNING id, session_id, event_type, sequence, created_at
+                """,
+                (session_id, event_type, sequence, Json(data)),
+            )
+            result = cur.fetchone()
+            return dict(result) if result else {}
+
+
+def get_session_events(session_id: str) -> list[dict[str, Any]]:
+    """Get all events for a session from PostgreSQL.
+
+    Args:
+        session_id: Session identifier
+
+    Returns:
+        List of event records ordered by sequence
+
+    Examples:
+        >>> events = get_session_events("bo1_abc123")
+        >>> print(f"Session has {len(events)} events")
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, session_id, event_type, sequence, data, created_at
+                FROM session_events
+                WHERE session_id = %s
+                ORDER BY sequence ASC
+                """,
+                (session_id,),
+            )
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]
+
+
+def save_session_tasks(
+    session_id: str,
+    tasks: list[dict[str, Any]],
+    total_tasks: int,
+    extraction_confidence: float,
+    synthesis_sections_analyzed: list[str],
+) -> dict[str, Any]:
+    """Save extracted tasks to PostgreSQL.
+
+    Args:
+        session_id: Session identifier
+        tasks: List of ExtractedTask dictionaries
+        total_tasks: Total number of tasks
+        extraction_confidence: Confidence score (0.0-1.0)
+        synthesis_sections_analyzed: List of analyzed sections
+
+    Returns:
+        Saved task record
+
+    Examples:
+        >>> save_session_tasks(
+        ...     session_id="bo1_abc123",
+        ...     tasks=[{"id": "task_1", "description": "..."}],
+        ...     total_tasks=5,
+        ...     extraction_confidence=0.92,
+        ...     synthesis_sections_analyzed=["implementation", "timeline"]
+        ... )
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO session_tasks (
+                    session_id, tasks, total_tasks, extraction_confidence,
+                    synthesis_sections_analyzed
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (session_id) DO UPDATE
+                SET tasks = EXCLUDED.tasks,
+                    total_tasks = EXCLUDED.total_tasks,
+                    extraction_confidence = EXCLUDED.extraction_confidence,
+                    synthesis_sections_analyzed = EXCLUDED.synthesis_sections_analyzed,
+                    extracted_at = NOW()
+                RETURNING id, session_id, total_tasks, extraction_confidence, extracted_at
+                """,
+                (
+                    session_id,
+                    Json(tasks),
+                    total_tasks,
+                    extraction_confidence,
+                    synthesis_sections_analyzed,
+                ),
+            )
+            result = cur.fetchone()
+            return dict(result) if result else {}
+
+
+def get_session_tasks(session_id: str) -> dict[str, Any] | None:
+    """Get extracted tasks for a session from PostgreSQL.
+
+    Args:
+        session_id: Session identifier
+
+    Returns:
+        Task record with tasks array, or None if not found
+
+    Examples:
+        >>> tasks = get_session_tasks("bo1_abc123")
+        >>> if tasks:
+        ...     print(f"Found {tasks['total_tasks']} tasks")
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, session_id, tasks, total_tasks, extraction_confidence,
+                       synthesis_sections_analyzed, extracted_at
+                FROM session_tasks
+                WHERE session_id = %s
+                """,
+                (session_id,),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+
+def save_session_synthesis(session_id: str, synthesis_text: str) -> bool:
+    """Save synthesis text to sessions table.
+
+    Args:
+        session_id: Session identifier
+        synthesis_text: Final synthesis XML
+
+    Returns:
+        True if saved successfully
+
+    Examples:
+        >>> save_session_synthesis("bo1_abc123", "<synthesis>...</synthesis>")
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE sessions
+                SET synthesis_text = %s,
+                    updated_at = NOW()
+                WHERE id = %s
+                """,
+                (synthesis_text, session_id),
+            )
+            return bool(cur.rowcount and cur.rowcount > 0)
+
+
+def get_session_synthesis(session_id: str) -> str | None:
+    """Get synthesis text from sessions table.
+
+    Args:
+        session_id: Session identifier
+
+    Returns:
+        Synthesis text, or None if not found
+
+    Examples:
+        >>> synthesis = get_session_synthesis("bo1_abc123")
+        >>> if synthesis:
+        ...     print("Found synthesis")
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT synthesis_text
+                FROM sessions
+                WHERE id = %s
+                """,
+                (session_id,),
+            )
+            row = cur.fetchone()
+            return row["synthesis_text"] if row else None

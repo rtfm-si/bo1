@@ -41,6 +41,7 @@
 		'moderator_intervention': () => import('$lib/components/events/ModeratorIntervention.svelte'),
 		'convergence': () => import('$lib/components/events/ConvergenceCheck.svelte'),
 		'voting_complete': () => import('$lib/components/events/VotingResults.svelte'),
+		'persona_vote': () => import('$lib/components/events/PersonaVote.svelte'),
 		'meta_synthesis_complete': () => import('$lib/components/events/ActionPlan.svelte'),
 		'synthesis_complete': () => import('$lib/components/events/SynthesisComplete.svelte'),
 		'subproblem_complete': () => import('$lib/components/events/SubProblemProgress.svelte'),
@@ -110,7 +111,6 @@
 	import {
 		RelativeTimestamp,
 		DecisionMetrics,
-		MeetingStatusBar,
 		Tabs,
 		SubProblemMetrics,
 		Button,
@@ -222,8 +222,19 @@
 		}
 	});
 
-	// Helper function to add events safely with deduplication
+	// Internal event types that should not be displayed in the UI
+	const HIDDEN_EVENT_TYPES = new Set([
+		'parallel_round_start',
+		'node_start',           // Internal graph execution events
+		'stream_connected',     // SSE connection confirmation
+	]);
+
+	// Helper function to add events safely with deduplication and filtering
 	function addEvent(newEvent: SSEEvent) {
+		// Filter out internal events that shouldn't be displayed
+		if (HIDDEN_EVENT_TYPES.has(newEvent.event_type)) {
+			return;
+		}
 		store.addEvent(newEvent);
 	}
 
@@ -289,7 +300,16 @@
 	async function loadSession() {
 		try {
 			const sessionData = await apiClient.getSession(sessionId);
-			store.setSession(sessionData);
+			// Map API response to SessionData format
+			const mappedSession = {
+				id: sessionData.id,
+				status: sessionData.status,
+				phase: sessionData.phase,
+				round_number: sessionData.round_number || sessionData.state?.round_number || undefined,
+				created_at: sessionData.created_at,
+				problem: sessionData.problem
+			};
+			store.setSession(mappedSession);
 			store.setIsLoading(false);
 		} catch (err) {
 			console.error('Failed to load session:', err);
@@ -502,9 +522,223 @@
 
 	const groupedEvents = $derived(groupedEventsCache);
 
+	// ISSUE FIX: Staggered display for expert contributions
+	// This creates a progressive reveal effect where contributions appear one at a time
+	// with random delays (1-3s) to feel more dynamic and natural
+	const MIN_DELAY = 1000; // 1 second minimum
+	const MAX_DELAY = 3000; // 3 seconds maximum
+	let visibleContributionCounts = $state<Map<string, number>>(new Map());
+
+	// Track pending experts for "thinking" indicator
+	let pendingExperts = $state<{ name: string; roundKey: string }[]>([]);
+
+	// Generate random delay between min and max
+	function getRandomDelay(): number {
+		return Math.floor(Math.random() * (MAX_DELAY - MIN_DELAY + 1)) + MIN_DELAY;
+	}
+
+	// Generate varied thinking messages
+	const thinkingMessages = [
+		(name: string) => `${name} is thinking...`,
+		(name: string) => `${name} is formulating a response...`,
+		(name: string) => `${name} wants to contribute...`,
+		(name: string) => `${name} is considering the discussion...`,
+		(name: string) => `${name} is preparing insights...`,
+	];
+
+	function getThinkingMessage(name: string, index: number): string {
+		const msgFn = thinkingMessages[index % thinkingMessages.length];
+		return msgFn(name);
+	}
+
+	// Initial waiting messages (before any events arrive) - cycle every 1.5s
+	const initialWaitingMessages = [
+		'Waiting for deliberation to start...',
+		'Preparing your expert panel...',
+		'Setting up the discussion...',
+	];
+
+	// Between-rounds waiting messages (shown after all contributions in a round are revealed)
+	const betweenRoundsMessages = [
+		'Experts are consulting...',
+		'Analyzing the discussion so far...',
+		'Preparing the next round of insights...',
+		'Experts are researching...',
+		'Synthesizing perspectives...',
+		'Evaluating different viewpoints...',
+		'Building on previous contributions...',
+	];
+
+	// Phase-specific messages
+	const phaseMessages: Record<string, string> = {
+		'persona_selection': 'Experts are being selected...',
+		'initial_round': 'Experts are familiarising themselves with the problem...',
+	};
+
+	// State for rotating initial waiting messages
+	let initialWaitingMessageIndex = $state(0);
+	let initialWaitingInterval: ReturnType<typeof setInterval> | null = null;
+
+	// State for rotating between-rounds messages
+	let betweenRoundsMessageIndex = $state(0);
+	let betweenRoundsInterval: ReturnType<typeof setInterval> | null = null;
+
+	// Start initial waiting message cycling when events.length === 0
+	$effect(() => {
+		if (events.length === 0 && !initialWaitingInterval) {
+			initialWaitingInterval = setInterval(() => {
+				initialWaitingMessageIndex = (initialWaitingMessageIndex + 1) % initialWaitingMessages.length;
+			}, 1500);
+		} else if (events.length > 0 && initialWaitingInterval) {
+			clearInterval(initialWaitingInterval);
+			initialWaitingInterval = null;
+		}
+
+		return () => {
+			if (initialWaitingInterval) {
+				clearInterval(initialWaitingInterval);
+				initialWaitingInterval = null;
+			}
+		};
+	});
+
+	// Detect if we're waiting for the first contributions (early phases)
+	const isWaitingForFirstContributions = $derived.by(() => {
+		if (!session || session.status === 'completed') return false;
+
+		// Get contributions count
+		const contributionCount = events.filter(e => e.event_type === 'contribution').length;
+
+		// Check if we have events but no contributions yet
+		if (events.length > 0 && contributionCount === 0) {
+			// Check phase - show phase-specific message
+			const phase = session.phase;
+			if (phase === 'persona_selection' || phase === 'initial_round') {
+				return true;
+			}
+		}
+
+		return false;
+	});
+
+	// Get the appropriate waiting message for the current phase
+	const phaseWaitingMessage = $derived.by(() => {
+		if (!session?.phase) return 'Preparing...';
+		return phaseMessages[session.phase] || 'Experts are preparing...';
+	});
+
+	// Detect if we're waiting for the next round
+	const isWaitingForNextRound = $derived.by(() => {
+		// Don't show if session is complete
+		if (session?.status === 'completed' || session?.phase === 'complete' || session?.phase === 'synthesis') {
+			return false;
+		}
+
+		// Don't show if we're synthesizing or voting (those have their own indicators)
+		if (isSynthesizing || isVoting) {
+			return false;
+		}
+
+		// Don't show if we're waiting for first contributions
+		if (isWaitingForFirstContributions) {
+			return false;
+		}
+
+		// Find the latest round group
+		const roundGroups = groupedEvents.filter(g => g.type === 'round' && g.events);
+		if (roundGroups.length === 0) return false;
+
+		const latestRound = roundGroups[roundGroups.length - 1];
+		if (!latestRound.events || !latestRound.roundNumber) return false;
+
+		const roundKey = `round-${latestRound.roundNumber}`;
+		const visibleCount = visibleContributionCounts.get(roundKey) || 0;
+		const totalInRound = latestRound.events.length;
+
+		// All contributions in this round are visible AND we're still active
+		return visibleCount >= totalInRound && session?.status === 'active';
+	});
+
+	// Rotate between-rounds message every 3 seconds when waiting
+	$effect(() => {
+		if (isWaitingForNextRound && !betweenRoundsInterval) {
+			betweenRoundsInterval = setInterval(() => {
+				betweenRoundsMessageIndex = (betweenRoundsMessageIndex + 1) % betweenRoundsMessages.length;
+			}, 3000);
+		} else if (!isWaitingForNextRound && betweenRoundsInterval) {
+			clearInterval(betweenRoundsInterval);
+			betweenRoundsInterval = null;
+		}
+
+		return () => {
+			if (betweenRoundsInterval) {
+				clearInterval(betweenRoundsInterval);
+				betweenRoundsInterval = null;
+			}
+		};
+	});
+
+	$effect(() => {
+		// Track newly added contribution groups and stage their reveals
+		for (const group of groupedEvents) {
+			if (group.type === 'round' && group.events) {
+				const roundKey = `round-${group.roundNumber}`;
+				const currentVisible = visibleContributionCounts.get(roundKey) || 0;
+				const totalContributions = group.events.length;
+
+				// If we have new contributions to reveal
+				if (currentVisible < totalContributions) {
+					// Calculate how many we need to reveal
+					const toReveal = totalContributions - currentVisible;
+
+					// Update pending experts list
+					const newPending = group.events.slice(currentVisible).map(e => ({
+						name: (e.data as any).persona_name || 'Expert',
+						roundKey
+					}));
+					pendingExperts = newPending;
+
+					// Stage the reveals with random delays
+					let cumulativeDelay = 0;
+					for (let i = 0; i < toReveal; i++) {
+						const revealIndex = currentVisible + i;
+						const delay = i === 0 ? getRandomDelay() : cumulativeDelay;
+						cumulativeDelay += getRandomDelay();
+
+						setTimeout(() => {
+							visibleContributionCounts.set(roundKey, revealIndex + 1);
+							visibleContributionCounts = new Map(visibleContributionCounts);
+
+							// Update pending experts (remove the one we just revealed)
+							pendingExperts = pendingExperts.filter((_, idx) => idx !== 0);
+						}, delay);
+					}
+				}
+			}
+		}
+	});
+
+	// Helper to get visible contributions for a round
+	function getVisibleContributions(roundNumber: number | undefined, allContributions: SSEEvent[]): SSEEvent[] {
+		if (!roundNumber) return allContributions;
+		const roundKey = `round-${roundNumber}`;
+		const visibleCount = visibleContributionCounts.get(roundKey) || 0;
+		return allContributions.slice(0, visibleCount);
+	}
+
 	// Progress calculation
 	function calculateProgress(session: SessionData | null): number {
 		if (!session) return 0;
+
+		// Handle completed meetings (either by status or phase)
+		if (session.status === 'completed' || session.phase === 'complete') {
+			return 100;
+		}
+
+		// Handle synthesis phase
+		if (session.phase === 'synthesis') {
+			return 95;
+		}
 
 		const baseProgress = PHASE_PROGRESS_MAP[session.phase as keyof typeof PHASE_PROGRESS_MAP] || 0;
 
@@ -537,6 +771,33 @@
 
 	// Active tab state
 	let activeSubProblemTab = $state<string | undefined>(undefined);
+
+	// View mode for contribution cards: 'simple' (1-2 sentence) or 'full' (structured breakdown)
+	// Applied globally to all sub-problems for consistency
+	let contributionViewMode = $state<'simple' | 'full'>('simple');
+	// Per-card view mode overrides (for individual card toggling)
+	let cardViewModes = $state<Map<string, 'simple' | 'full'>>(new Map());
+	let showFullTranscripts = $state(false);
+
+	// Toggle individual card view mode
+	function toggleCardViewMode(cardId: string) {
+		const current = cardViewModes.get(cardId) ?? contributionViewMode;
+		const next = current === 'simple' ? 'full' : 'simple';
+		cardViewModes.set(cardId, next);
+		cardViewModes = new Map(cardViewModes); // Trigger reactivity
+	}
+
+	// Set global view mode and clear all card overrides
+	function setGlobalViewMode(mode: 'simple' | 'full') {
+		contributionViewMode = mode;
+		cardViewModes.clear();
+		cardViewModes = new Map(cardViewModes); // Trigger reactivity
+	}
+
+	// Get effective view mode for a card (card override or global)
+	function getCardViewMode(cardId: string): 'simple' | 'full' {
+		return cardViewModes.get(cardId) ?? contributionViewMode;
+	}
 
 	// Set initial active tab when tabs are created
 	$effect(() => {
@@ -637,16 +898,6 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-	<!-- Meeting Status Bar (Sticky) -->
-	{#if session}
-		<MeetingStatusBar
-			currentPhase={session.phase}
-			currentRound={session.round_number ?? null}
-			maxRounds={10}
-			subProblemProgress={subProblemProgress}
-		/>
-	{/if}
-
 	<!-- Header -->
 	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -665,9 +916,6 @@
 						<h1 class="text-[1.875rem] font-semibold leading-tight text-neutral-900 dark:text-white">
 							Meeting in Progress
 						</h1>
-						{#if session}
-							<!-- Progress info moved to MeetingStatusBar (no redundant progress indicators) -->
-						{/if}
 					</div>
 				</div>
 
@@ -687,13 +935,6 @@
 							{/snippet}
 						</Button>
 					{/if}
-
-					<Button variant="danger" size="md" onclick={handleKill}>
-						{#snippet children()}
-							<Square size={16} />
-							<span>Stop</span>
-						{/snippet}
-					</Button>
 				</div>
 			</div>
 		</div>
@@ -701,8 +942,6 @@
 
 	<!-- Main Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-		<!-- Phase Timeline removed - info now in MeetingStatusBar -->
-
 		<!-- ARIA Live Region for Event Updates (A11Y: Announce new events to screen readers) -->
 		<div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
 			{#if events.length > 0}
@@ -723,71 +962,112 @@
 			{/if}
 		</div>
 
-		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 			<!-- Events Stream with Tab Navigation -->
-			<div class="lg:col-span-2">
+			<div class="lg:col-span-2 lg:self-stretch">
 				<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
-					<div class="border-b border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between">
-						<div class="flex items-center gap-3">
-							<h2 class="text-lg font-semibold text-slate-900 dark:text-white">
-								{#if subProblemTabs.length > 1}
-									Sub-Problem Analysis
-								{:else}
-									Deliberation Stream
+					<div class="border-b border-slate-200 dark:border-slate-700">
+						<!-- Header Row -->
+						<div class="p-4 flex items-center justify-between">
+							<div class="flex items-center gap-3">
+								<h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+									{#if subProblemTabs.length > 1}
+										Sub-Problem Analysis
+									{:else}
+										Deliberation Stream
+									{/if}
+								</h2>
+								{#if connectionStatus === 'connecting'}
+									<span class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+										<span class="inline-block w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+										Connecting...
+									</span>
+								{:else if connectionStatus === 'connected'}
+									<span class="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+										<span class="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+										Connected
+									</span>
+								{:else if connectionStatus === 'retrying'}
+									<div class="flex items-center gap-2">
+										<span class="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400">
+											<span class="inline-block w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+											Retrying... ({retryCount}/{maxRetries})
+										</span>
+										<button
+											onclick={() => startEventStream()}
+											class="px-2 py-1 text-xs font-medium text-orange-700 dark:text-orange-300 hover:text-orange-900 dark:hover:text-orange-100 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded transition-colors"
+										>
+											Retry Now
+										</button>
+									</div>
+								{:else if connectionStatus === 'error'}
+									<div class="flex items-center gap-2">
+										<span class="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
+											<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span>
+											Connection Failed
+										</span>
+										<button
+											onclick={() => startEventStream()}
+											class="px-2 py-1 text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+										>
+											Retry Now
+										</button>
+									</div>
 								{/if}
-							</h2>
-							{#if connectionStatus === 'connecting'}
-								<span class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-									<span class="inline-block w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
-									Connecting...
-								</span>
-							{:else if connectionStatus === 'connected'}
-								<span class="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
-									<span class="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
-									Connected
-								</span>
-							{:else if connectionStatus === 'retrying'}
+							</div>
+							<div class="flex items-center gap-4">
+								<label for="auto-scroll-checkbox" class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+									<input
+										id="auto-scroll-checkbox"
+										type="checkbox"
+										bind:checked={autoScroll}
+										class="rounded"
+									/>
+									Auto-scroll
+								</label>
+
+								<!-- View mode toggle -->
 								<div class="flex items-center gap-2">
-									<span class="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400">
-										<span class="inline-block w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
-										Retrying... ({retryCount}/{maxRetries})
-									</span>
-									<button
-										onclick={() => startEventStream()}
-										class="px-2 py-1 text-xs font-medium text-orange-700 dark:text-orange-300 hover:text-orange-900 dark:hover:text-orange-100 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded transition-colors"
-									>
-										Retry Now
-									</button>
+									<span class="text-sm text-slate-600 dark:text-slate-400">View:</span>
+									<div class="flex items-center gap-1 bg-slate-200 dark:bg-slate-700 rounded-lg p-0.5">
+										<button
+											onclick={() => setGlobalViewMode('simple')}
+											class="px-2 py-1 text-xs font-medium rounded-md transition-colors {contributionViewMode === 'simple'
+												? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm'
+												: 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}"
+										>
+											Simple
+										</button>
+										<button
+											onclick={() => setGlobalViewMode('full')}
+											class="px-2 py-1 text-xs font-medium rounded-md transition-colors {contributionViewMode === 'full'
+												? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm'
+												: 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}"
+										>
+											Detailed
+										</button>
+									</div>
 								</div>
-							{:else if connectionStatus === 'error'}
-								<div class="flex items-center gap-2">
-									<span class="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
-										<span class="inline-block w-2 h-2 bg-red-500 rounded-full"></span>
-										Connection Failed
-									</span>
-									<button
-										onclick={() => startEventStream()}
-										class="px-2 py-1 text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-									>
-										Retry Now
-									</button>
-								</div>
-							{/if}
+							</div>
 						</div>
-						<label for="auto-scroll-checkbox" class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-							<input
-								id="auto-scroll-checkbox"
-								type="checkbox"
-								bind:checked={autoScroll}
-								class="rounded"
-							/>
-							Auto-scroll
-						</label>
+
+						<!-- Progress Bar -->
+						{#if session}
+							<div class="px-4 pb-3">
+								<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+									<div
+										class="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
+										style="width: {calculateProgress(session)}%"
+									></div>
+								</div>
+							</div>
+						{/if}
 					</div>
 
 					<div
 						id="events-container"
-						class="h-[600px] overflow-y-auto"
+						class="overflow-y-auto"
+						style="height: calc(100vh - 400px); min-height: 600px;"
 					>
 						{#if isLoading}
 							<!-- Skeleton Loading States -->
@@ -797,8 +1077,13 @@
 								{/each}
 							</div>
 						{:else if events.length === 0}
-							<div class="flex items-center justify-center h-full text-slate-500 dark:text-slate-400 p-4">
-								<p>Waiting for deliberation to start...</p>
+							<div class="flex flex-col items-center justify-center h-full text-slate-500 dark:text-slate-400 p-4 gap-3">
+								<div class="flex gap-1">
+									<div class="w-2 h-2 rounded-full bg-slate-400 animate-pulse" style="animation-delay: 0ms"></div>
+									<div class="w-2 h-2 rounded-full bg-slate-400 animate-pulse" style="animation-delay: 150ms"></div>
+									<div class="w-2 h-2 rounded-full bg-slate-400 animate-pulse" style="animation-delay: 300ms"></div>
+								</div>
+								<p class="transition-opacity duration-300">{initialWaitingMessages[initialWaitingMessageIndex]}</p>
 							</div>
 						{:else if subProblemTabs.length > 1}
 							<!-- Tab-based navigation for multiple sub-problems -->
@@ -892,18 +1177,28 @@
 													{/await}
 												</div>
 											{:else if group.type === 'round' && group.events}
+												{@const roundKey = `round-${group.roundNumber}`}
+												{@const visibleCount = visibleContributionCounts.get(roundKey) || 0}
+												{@const hasMoreToReveal = visibleCount < group.events.length}
+												{@const nextExpert = hasMoreToReveal ? group.events[visibleCount]?.data?.persona_name as string : null}
 												<div transition:fade={{ duration: 300, delay: 50 }}>
 													<div class="space-y-3">
 														<h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
 															<span>Round {group.roundNumber} Contributions</span>
 														</h3>
-														{#each group.events as contrib}
+														{#each getVisibleContributions(group.roundNumber, group.events) as contrib}
 															{#await getComponentForEvent('contribution')}
 																<!-- Loading skeleton with timeout fallback -->
 																<ContributionSkeleton />
 															{:then ExpertPerspectiveCardComponent}
 																{#if ExpertPerspectiveCardComponent}
-																	<ExpertPerspectiveCardComponent event={contrib as any} />
+																	{@const cardId = `${(contrib.data as any).persona_code}-${(contrib.data as any).round}`}
+																	<ExpertPerspectiveCardComponent
+																		event={contrib as any}
+																		viewMode={getCardViewMode(cardId)}
+																		showFull={showFullTranscripts}
+																		onToggle={() => toggleCardViewMode(cardId)}
+																	/>
 																{:else}
 																	<!-- Component loaded but null - use GenericEvent -->
 																	<GenericEvent event={contrib} />
@@ -919,6 +1214,18 @@
 																</div>
 															{/await}
 														{/each}
+
+														<!-- Thinking indicator when more contributions are pending -->
+														{#if hasMoreToReveal && nextExpert}
+															<div class="flex items-center gap-2 py-2 px-3 text-sm text-slate-500 dark:text-slate-400" transition:fade={{ duration: 200 }}>
+																<div class="flex items-center gap-1">
+																	<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 0ms;"></span>
+																	<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 150ms;"></span>
+																	<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 300ms;"></span>
+																</div>
+																<span class="italic">{getThinkingMessage(nextExpert, visibleCount)}</span>
+															</div>
+														{/if}
 													</div>
 												</div>
 											{:else if group.type === 'single' && group.event}
@@ -965,12 +1272,55 @@
 												</div>
 											{/if}
 										{/each}
+
+										<!-- Phase-specific waiting indicator (tabbed view) -->
+										{#if isWaitingForFirstContributions && isTabActive}
+											<div class="flex items-center gap-3 py-4 px-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800" transition:fade={{ duration: 300 }}>
+												<div class="flex items-center gap-1">
+													<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></span>
+													<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></span>
+													<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></span>
+												</div>
+												<span class="text-sm text-amber-700 dark:text-amber-300 font-medium">
+													{phaseWaitingMessage}
+												</span>
+											</div>
+										{/if}
+
+										<!-- Between-rounds waiting indicator (tabbed view) -->
+										{#if isWaitingForNextRound && isTabActive}
+											<div class="flex items-center gap-3 py-4 px-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800" transition:fade={{ duration: 300 }}>
+												<div class="flex items-center gap-1">
+													<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></span>
+													<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></span>
+													<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></span>
+												</div>
+												<span class="text-sm text-blue-700 dark:text-blue-300 font-medium">
+													{betweenRoundsMessages[betweenRoundsMessageIndex]}
+												</span>
+											</div>
+										{/if}
 									</div>
 								{/each}
 							</div>
 						{:else}
 							<!-- Single sub-problem or linear view -->
 							<div class="p-4 space-y-4">
+
+							<!-- Phase-specific waiting indicator (experts being selected / familiarising) -->
+							{#if isWaitingForFirstContributions}
+								<div class="flex items-center gap-3 py-4 px-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800" transition:fade={{ duration: 300 }}>
+									<div class="flex items-center gap-1">
+										<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></span>
+										<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></span>
+										<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></span>
+									</div>
+									<span class="text-sm text-amber-700 dark:text-amber-300 font-medium">
+										{phaseWaitingMessage}
+									</span>
+								</div>
+							{/if}
+
 							{#if isSynthesizing}
 								<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800" transition:fade={{ duration: 300 }}>
 									<div class="flex items-center gap-3 mb-3">
@@ -1086,18 +1436,28 @@
 									</div>
 								{:else if group.type === 'round' && group.events}
 									<!-- Render grouped contributions with new ExpertPerspectiveCard -->
+									{@const roundKey = `round-${group.roundNumber}`}
+									{@const visibleCount = visibleContributionCounts.get(roundKey) || 0}
+									{@const hasMoreToReveal = visibleCount < group.events.length}
+									{@const nextExpert = hasMoreToReveal ? group.events[visibleCount]?.data?.persona_name as string : null}
 									<div transition:fade={{ duration: 300, delay: 50 }}>
 										<div class="space-y-3">
 											<h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
 												<span>Round {group.roundNumber} Contributions</span>
 											</h3>
-											{#each group.events as contrib}
+											{#each getVisibleContributions(group.roundNumber, group.events) as contrib}
 												{#await getComponentForEvent('contribution')}
 													<!-- Loading skeleton with timeout fallback -->
 													<ContributionSkeleton />
 												{:then ExpertPerspectiveCardComponent}
 													{#if ExpertPerspectiveCardComponent}
-														<ExpertPerspectiveCardComponent event={contrib as any} />
+														{@const cardId = `${(contrib.data as any).persona_code}-${(contrib.data as any).round}`}
+														<ExpertPerspectiveCardComponent
+															event={contrib as any}
+															viewMode={getCardViewMode(cardId)}
+															showFull={showFullTranscripts}
+															onToggle={() => toggleCardViewMode(cardId)}
+														/>
 													{:else}
 														<!-- Component loaded but null - use GenericEvent -->
 														<GenericEvent event={contrib} />
@@ -1113,6 +1473,19 @@
 													</div>
 												{/await}
 											{/each}
+
+											<!-- Thinking indicator when more contributions are pending -->
+											{#if hasMoreToReveal && nextExpert}
+												<div class="flex items-center gap-2 py-2 px-3 text-sm text-slate-500 dark:text-slate-400" transition:fade={{ duration: 200 }}>
+													<!-- Pulsing dots animation like ChatGPT/Claude -->
+													<div class="flex items-center gap-1">
+														<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 0ms;"></span>
+														<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 150ms;"></span>
+														<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 300ms;"></span>
+													</div>
+													<span class="italic">{getThinkingMessage(nextExpert, visibleCount)}</span>
+												</div>
+											{/if}
 										</div>
 									</div>
 								{:else if group.type === 'single' && group.event}
@@ -1162,6 +1535,20 @@
 									</div>
 								{/if}
 							{/each}
+
+							<!-- Between-rounds waiting indicator -->
+							{#if isWaitingForNextRound}
+								<div class="flex items-center gap-3 py-4 px-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800" transition:fade={{ duration: 300 }}>
+									<div class="flex items-center gap-1">
+										<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></span>
+										<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></span>
+										<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></span>
+									</div>
+									<span class="text-sm text-blue-700 dark:text-blue-300 font-medium">
+										{betweenRoundsMessages[betweenRoundsMessageIndex]}
+									</span>
+								</div>
+							{/if}
 							</div>
 						{/if}
 					</div>
@@ -1169,7 +1556,7 @@
 			</div>
 
 			<!-- Sidebar -->
-			<div class="space-y-6">
+			<div class="space-y-6 lg:self-stretch flex flex-col">
 				<!-- Problem Statement - Collapsible -->
 				{#if session}
 					<details class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700" open>
@@ -1191,13 +1578,15 @@
 					/>
 
 					<!-- Decision Metrics Dashboard -->
-					<DecisionMetrics
-						events={events}
-						currentPhase={session.phase}
-						currentRound={session.round_number ?? null}
-						activeSubProblemIndex={activeSubProblemTab ? parseInt(activeSubProblemTab.replace('subproblem-', '')) : null}
-						totalSubProblems={subProblemTabs.length}
-					/>
+					<div class="flex-1">
+						<DecisionMetrics
+							events={events}
+							currentPhase={session.phase}
+							currentRound={session.round_number ?? null}
+							activeSubProblemIndex={activeSubProblemTab ? parseInt(activeSubProblemTab.replace('subproblem-', '')) : null}
+							totalSubProblems={subProblemTabs.length}
+						/>
+					</div>
 
 
 

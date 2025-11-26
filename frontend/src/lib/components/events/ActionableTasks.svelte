@@ -16,11 +16,16 @@
 
 	interface Task {
 		id: string;
+		title?: string;
 		description: string;
+		what_and_how?: string[];
+		success_criteria?: string[];
+		kill_criteria?: string[];
+		dependencies: string[];
+		timeline?: string;
 		category: string;
 		priority: string;
-		suggested_completion_date: string | null;
-		dependencies: string[];
+		suggested_completion_date?: string | null;
 		source_section: string;
 		confidence: number;
 	}
@@ -114,11 +119,15 @@
 		return option?.label || 'Pending';
 	}
 
-	// Generate mock success/kill criteria from task description and category
+	// Get success criteria from task or generate fallback
 	function getSuccessCriteria(task: Task): string[] {
-		// This would ideally come from the API, but for now we'll generate placeholder text
-		const criteria: string[] = [];
+		// Use API response if available
+		if (task.success_criteria && task.success_criteria.length > 0) {
+			return task.success_criteria;
+		}
 
+		// Fallback for backwards compatibility
+		const criteria: string[] = [];
 		if (task.category === 'implementation') {
 			criteria.push('Feature deployed to production without errors');
 			criteria.push('User acceptance testing completed');
@@ -131,14 +140,18 @@
 		} else {
 			criteria.push('Task deliverables completed and reviewed');
 		}
-
 		return criteria;
 	}
 
+	// Get kill criteria from task or generate fallback
 	function getKillCriteria(task: Task): string[] {
-		// This would ideally come from the API
-		const criteria: string[] = [];
+		// Use API response if available
+		if (task.kill_criteria && task.kill_criteria.length > 0) {
+			return task.kill_criteria;
+		}
 
+		// Fallback for backwards compatibility
+		const criteria: string[] = [];
 		if (task.priority === 'high') {
 			criteria.push('Blocked by missing dependencies for >2 weeks');
 			criteria.push('Cost exceeds budget by >50%');
@@ -149,8 +162,16 @@
 			criteria.push('No longer aligned with strategic goals');
 			criteria.push('Opportunity cost too high');
 		}
-
 		return criteria;
+	}
+
+	// Get what and how from task or use description as fallback
+	function getWhatAndHow(task: Task): string[] {
+		if (task.what_and_how && task.what_and_how.length > 0) {
+			return task.what_and_how;
+		}
+		// Fallback: use description as single bullet
+		return [task.description];
 	}
 
 	// Get task name from ID for dependency display
@@ -161,6 +182,30 @@
 			return task.description.substring(0, 50) + (task.description.length > 50 ? '...' : '');
 		}
 		return taskId;
+	}
+
+	// Get task title from title field or extract from description
+	function getTaskTitle(task: Task): string {
+		// Use title field if available
+		if (task.title && task.title.trim()) {
+			return task.title;
+		}
+
+		// Fallback: extract from description (first sentence or first 100 chars)
+		const description = task.description;
+		const firstSentence = description.split(/[:.]\s/)[0];
+
+		// If first sentence is too long, truncate at 100 chars
+		if (firstSentence.length > 100) {
+			return firstSentence.substring(0, 100) + '...';
+		}
+
+		// If the description is longer than the first sentence, add ellipsis
+		if (description.length > firstSentence.length + 2) {
+			return firstSentence + '...';
+		}
+
+		return firstSentence;
 	}
 
 	const acceptedCount = $derived(Array.from(taskStatuses.values()).filter(s => s === 'accepted').length);
@@ -183,16 +228,6 @@
 				</p>
 			{/if}
 		</div>
-		{#if tasks.length > 0 && !isLoading}
-			<button
-				onclick={exportTasks}
-				disabled={isExporting}
-				class="inline-flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-400 text-white text-sm font-medium rounded-lg transition-colors"
-			>
-				<Download class="w-4 h-4" />
-				{isExporting ? 'Exporting...' : 'Export'}
-			</button>
-		{/if}
 	</div>
 
 	{#if isLoading}
@@ -227,28 +262,30 @@
 					class="bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 p-4"
 					transition:slide={{ duration: 200 }}
 				>
-					<!-- Task Header -->
+					<!-- Task Header (Always Visible) -->
 					<div class="flex items-start justify-between gap-4 mb-3">
 						<div class="flex-1">
-							<div class="flex items-center gap-2 mb-2">
+							<!-- Title -->
+							<div class="flex items-center gap-2 mb-3">
 								<span class="flex-shrink-0 w-6 h-6 bg-slate-600 text-white rounded-full flex items-center justify-center text-xs font-semibold">
 									{index + 1}
 								</span>
 								<h4 class="text-base font-semibold text-slate-900 dark:text-white">
-									{task.description}
+									{getTaskTitle(task)}
 								</h4>
 							</div>
 
-							<!-- Success & Kill Criteria (Brief) -->
-							<div class="ml-8 space-y-2 text-sm text-slate-600 dark:text-slate-400">
+							<!-- Metadata: Timeline, Priority, Status (Always Visible) -->
+							<div class="ml-8 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
 								<div>
-									<span class="font-medium text-slate-700 dark:text-slate-300">Success:</span>
-									{getSuccessCriteria(task)[0]}
+									<span class="font-medium text-slate-700 dark:text-slate-300">Timeline:</span>
+									<span class="text-slate-600 dark:text-slate-400"> {task.timeline || task.suggested_completion_date || 'TBD'}</span>
 								</div>
 								<div>
-									<span class="font-medium text-slate-700 dark:text-slate-300">Kill if:</span>
-									{getKillCriteria(task)[0]}
+									<span class="font-medium text-slate-700 dark:text-slate-300">Priority:</span>
+									<span class="text-slate-600 dark:text-slate-400 capitalize"> {task.priority}</span>
 								</div>
+								<!-- Status is shown via dropdown, no need for duplicate label -->
 							</div>
 						</div>
 
@@ -281,10 +318,20 @@
 
 					<!-- Expanded Details -->
 					{#if isExpanded}
-						<div class="ml-8 mt-3 pt-3 border-t border-slate-300 dark:border-slate-600 space-y-3 text-sm">
-							<!-- All Success Criteria -->
+						<div class="ml-8 mt-3 pt-3 border-t border-slate-300 dark:border-slate-600 space-y-4 text-sm">
+							<!-- What & How -->
 							<div>
-								<p class="font-semibold text-slate-700 dark:text-slate-300 mb-1">Success Criteria:</p>
+								<p class="font-semibold text-slate-700 dark:text-slate-300 mb-2">What & How</p>
+								<ul class="list-disc list-inside text-slate-600 dark:text-slate-400 space-y-1">
+									{#each getWhatAndHow(task) as item}
+										<li>{item}</li>
+									{/each}
+								</ul>
+							</div>
+
+							<!-- Success Criteria -->
+							<div>
+								<p class="font-semibold text-slate-700 dark:text-slate-300 mb-2">Success Criteria</p>
 								<ul class="list-disc list-inside text-slate-600 dark:text-slate-400 space-y-1">
 									{#each getSuccessCriteria(task) as criterion}
 										<li>{criterion}</li>
@@ -292,9 +339,9 @@
 								</ul>
 							</div>
 
-							<!-- All Kill Criteria -->
+							<!-- Kill Criteria -->
 							<div>
-								<p class="font-semibold text-slate-700 dark:text-slate-300 mb-1">Kill Criteria:</p>
+								<p class="font-semibold text-slate-700 dark:text-slate-300 mb-2">Kill Criteria</p>
 								<ul class="list-disc list-inside text-slate-600 dark:text-slate-400 space-y-1">
 									{#each getKillCriteria(task) as criterion}
 										<li>{criterion}</li>
@@ -305,24 +352,14 @@
 							<!-- Dependencies -->
 							{#if task.dependencies && task.dependencies.length > 0}
 								<div>
-									<p class="font-semibold text-slate-700 dark:text-slate-300 mb-1">Dependencies:</p>
+									<p class="font-semibold text-slate-700 dark:text-slate-300 mb-2">Dependencies</p>
 									<ul class="list-disc list-inside text-slate-600 dark:text-slate-400 space-y-1">
 										{#each task.dependencies as dep}
-											<li>{getTaskName(dep)}</li>
+											<li>{dep}</li>
 										{/each}
 									</ul>
 								</div>
 							{/if}
-
-							<!-- Metadata -->
-							<div class="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-								<span>Category: {task.category}</span>
-								<span>Priority: {task.priority}</span>
-								<span>Confidence: {(task.confidence * 100).toFixed(0)}%</span>
-								{#if task.suggested_completion_date}
-									<span>Suggested: {task.suggested_completion_date}</span>
-								{/if}
-							</div>
 						</div>
 					{/if}
 				</div>

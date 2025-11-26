@@ -26,6 +26,47 @@ class ResponseParser:
     and deliberation agents.
     """
 
+    # Patterns that indicate a persona is confused/meta-discussing instead of engaging
+    META_DISCUSSION_PATTERNS = [
+        r"should i respond as",
+        r"what is the specific context",
+        r"interaction protocol",
+        r"communication expectations",
+        r"what role should i",
+        r"how should i respond",
+        r"framework for this communication",
+        r"should i follow a different",
+        r"what is the context",
+        r"seeking clear direction",
+        r"potential misunderstanding",
+        r"need for precise guidance",
+        r"understanding the specific communication",
+    ]
+
+    @staticmethod
+    def is_meta_discussion(content: str) -> bool:
+        """Check if the content appears to be meta-discussion rather than substantive analysis.
+
+        Args:
+            content: The contribution text to check
+
+        Returns:
+            True if the content appears to be meta-discussion about the task itself
+            rather than engaging with the problem.
+
+        Example:
+            >>> ResponseParser.is_meta_discussion("Should I respond as Henrik?")
+            True
+            >>> ResponseParser.is_meta_discussion("Based on the market analysis, I recommend...")
+            False
+        """
+        content_lower = content.lower()
+        for pattern in ResponseParser.META_DISCUSSION_PATTERNS:
+            if re.search(pattern, content_lower):
+                logger.warning(f"Meta-discussion pattern detected: {pattern}")
+                return True
+        return False
+
     @staticmethod
     def parse_persona_response(content: str) -> tuple[str | None, str]:
         """Parse persona response to extract <thinking> and <contribution>.

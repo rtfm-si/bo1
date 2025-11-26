@@ -505,26 +505,57 @@ Analyze the deliberation:
 6. How confident is the board overall?
 </thinking>
 
+<language_style>
+CRITICAL: Use plain, direct language throughout this synthesis.
+
+DO NOT use:
+- Abstract business jargon: "asymmetric capabilities", "value proposition", "leverage synergies"
+- Academic hedging: "it could be argued that", "one might consider"
+- Consultant-speak: "prioritize strategic alignment", "optimize operational efficiency"
+- Intellectual signaling: "probabilistic forecasting", "predictive market modeling"
+
+DO use:
+- Concrete, specific terms anyone can understand
+- Short sentences with clear subjects and verbs
+- Everyday words: "focus on" not "prioritize", "use" not "leverage", "test" not "validate"
+- Direct statements: "Do X" not "It may be beneficial to consider doing X"
+
+Example of BAD language:
+"Prioritizing asymmetric technological capabilities over incremental improvements"
+
+Example of GOOD language:
+"Focus on unique technology strengths instead of small improvements"
+</language_style>
+
 <synthesis_report>
 <executive_summary>
-One paragraph: problem, recommendation, key rationale (2-3 sentences)
+One paragraph: problem, recommendation, key rationale (2-3 sentences).
+Use SIMPLE, CLEAR language - avoid technical jargon and complex terminology.
+Write as if explaining to a smart friend who isn't an expert. Be direct and concise.
+If you catch yourself using abstract nouns, replace them with plain-language equivalents.
 </executive_summary>
 
 <recommendation>
-Clear, actionable statement of recommended course of action
+Clear, actionable statement of recommended course of action.
+Use everyday language - no business jargon.
 </recommendation>
 
 <rationale>
 3-5 paragraphs covering:
-- Key arguments supporting the recommendation
-- Evidence and frameworks cited by personas
-- How different expert perspectives aligned or diverged
-- Critical risks identified and proposed mitigation strategies
-- Conditions or assumptions underlying the recommendation
+- Key arguments supporting the recommendation (in plain language)
+- Evidence and real-world examples cited by experts
+- How different perspectives aligned or disagreed
+- Main risks and how to handle them
+- Key assumptions that need to be true for this to work
 </rationale>
 
 <vote_breakdown>
-Summary of how each persona voted and their key reasoning
+Summary of each expert's recommendation with their confidence level (use "very high", "high", "medium", or "low" - NOT numerical percentages).
+For each expert, present their actual recommendation text and reasoning, not just their role description.
+
+Format:
+- [Expert Name]: [Their specific recommendation] with [confidence level]
+  Key reasoning: [Their main argument in 1-2 sentences]
 </vote_breakdown>
 
 <dissenting_views>
@@ -536,11 +567,19 @@ Practical next steps and conditions for success identified by the board
 </implementation_considerations>
 
 <confidence_assessment>
-Overall confidence level (high/medium/low) with justification based on:
+Overall confidence level with justification. Express confidence using descriptive terms:
+- "Very high confidence" (near certainty, strong evidence)
+- "High confidence" (strong conviction, good evidence)
+- "Medium confidence" (reasonable certainty, moderate evidence)
+- "Low confidence" (significant uncertainty, limited evidence)
+
+Base your assessment on:
 - Strength of consensus
 - Quality of evidence
 - Known unknowns
 - Complexity of implementation
+
+DO NOT use numerical percentages or scores. Use natural language to describe confidence.
 </confidence_assessment>
 
 <open_questions>
@@ -583,14 +622,33 @@ Analyze the cross-sub-problem landscape:
 6. What holistic risks were missed by focusing on individual sub-problems?
 </thinking>
 
+<language_style>
+CRITICAL: Use plain, direct language throughout this synthesis.
+
+DO NOT use:
+- Abstract business jargon: "asymmetric capabilities", "value proposition", "leverage synergies"
+- Academic hedging: "it could be argued that", "one might consider"
+- Consultant-speak: "prioritize strategic alignment", "optimize operational efficiency"
+- Intellectual signaling: "probabilistic forecasting", "predictive market modeling"
+
+DO use:
+- Concrete, specific terms anyone can understand
+- Short sentences with clear subjects and verbs
+- Everyday words: "focus on" not "prioritize", "use" not "leverage", "test" not "validate"
+- Direct statements: "Do X" not "It may be beneficial to consider doing X"
+</language_style>
+
 <meta_synthesis_report>
 <executive_summary>
-2-3 sentences: overall recommendation, key integration insight, primary rationale
+2-3 sentences: overall recommendation, key integration insight, primary rationale.
+Use SIMPLE, CLEAR language - avoid technical jargon and complex terminology.
+Write as if explaining to a smart friend who isn't an expert. Be direct and concise.
 </executive_summary>
 
 <unified_recommendation>
 Clear, actionable statement of the recommended course of action that addresses
-the ORIGINAL problem (not just individual sub-problems)
+the ORIGINAL problem (not just individual sub-problems).
+Use everyday language - no business jargon.
 </unified_recommendation>
 
 <sub_problem_insights>
@@ -635,11 +693,19 @@ For each risk, provide:
 </integrated_risk_assessment>
 
 <confidence_assessment>
-Overall confidence level (high/medium/low) based on:
+Overall confidence level using descriptive terms:
+- "Very high confidence" (near certainty, strong evidence)
+- "High confidence" (strong conviction, good evidence)
+- "Medium confidence" (reasonable certainty, moderate evidence)
+- "Low confidence" (significant uncertainty, limited evidence)
+
+Base your assessment on:
 - Alignment across sub-problems (strong alignment → higher confidence)
 - Evidence quality across deliberations
 - Integration complexity
 - Implementation feasibility
+
+DO NOT use numerical percentages or scores. Use natural language to describe confidence.
 </confidence_assessment>
 
 <review_triggers>
@@ -655,6 +721,36 @@ META_SYNTHESIS_ACTION_PLAN_PROMPT = """<system_role>
 You are the Meta-Synthesizer for Board of One, creating structured action plans
 from multi-expert deliberations.
 </system_role>
+
+<language_style>
+CRITICAL: Use plain, direct language throughout.
+
+DO NOT use:
+- Abstract business jargon: "asymmetric capabilities", "value proposition", "leverage synergies"
+- Consultant-speak: "prioritize strategic alignment", "optimize operational efficiency"
+- Intellectual signaling: "probabilistic forecasting", "predictive market modeling"
+
+DO use:
+- Concrete, specific terms anyone can understand
+- Short sentences with clear subjects and verbs
+- Everyday words: "focus on" not "prioritize", "use" not "leverage", "test" not "validate"
+- Direct statements: "Do X" not "Consider implementing X"
+</language_style>
+
+<instructions>
+You must generate a STRUCTURED JSON action plan that integrates insights from
+expert deliberations.
+
+CRITICAL: The "action" field is your opportunity to provide detailed, actionable guidance.
+This is NOT just a title - it should explain BOTH:
+- WHAT: The specific deliverable, outcome, or result to achieve
+- HOW: The concrete methods, steps, approach, or implementation details
+
+The "action" field will be displayed prominently to users, so make it comprehensive and valuable.
+Aim for 40-70 words of detailed, PLAIN-LANGUAGE guidance. Avoid jargon.
+
+The "synthesis_summary" should be written in everyday language that anyone can understand.
+</instructions>
 
 <original_problem>
 {original_problem}
@@ -868,26 +964,36 @@ Then generate the JSON action plan following the exact format shown in examples.
 </thinking>
 
 <output>
-Generate VALID JSON in this EXACT format (no markdown, no code blocks, just pure JSON):
+Generate VALID JSON in this EXACT format (no markdown, no code blocks, just pure JSON).
+
+Your response MUST start with the opening brace of the JSON object:
 
 {{
   "problem_statement": "{original_problem}",
   "sub_problems_addressed": [list of sub-problem IDs from deliberations],
   "recommended_actions": [
     {{
-      "action": "Specific action to take (30-50 words)",
-      "rationale": "Why this action, drawing from sub-problem insights (40-60 words)",
+      "action": "DETAILED action description (40-70 words explaining WHAT and HOW). This is the primary user-facing field - make it comprehensive. Include specific deliverables, methods, technical approaches, and implementation steps. Example: 'Implement customer feedback portal: Build React dashboard with NPS surveys, feature voting module, and automated ticket routing to Salesforce. Use 2-week sprints, integrate via Salesforce REST API, implement Material-UI components for consistency, deploy to AWS with CloudFront CDN. Set up automated email triggers for survey distribution.'",
+      "rationale": "Why this action, drawing from sub-problem insights. Explain the business value and expected outcomes (50-80 words).",
       "priority": "critical|high|medium|low",
       "timeline": "When to implement (e.g., 'Week 1-2', 'Month 1-3', 'Q1 2025')",
-      "success_metrics": ["Metric 1", "Metric 2", "Metric 3"],
-      "risks": ["Risk 1", "Risk 2", "Risk 3"]
+      "success_metrics": ["Specific, measurable metric 1", "Specific, measurable metric 2", "Specific, measurable metric 3"],
+      "risks": ["Concrete risk 1 with potential impact", "Concrete risk 2 with potential impact", "Concrete risk 3 with potential impact"]
     }}
   ],
   "synthesis_summary": "100-150 word overall synthesis integrating all sub-problem insights"
 }}
+
+REMEMBER: The "action" field should be rich, detailed, and actionable - NOT just a short title.
 </output>
 
-Generate the JSON action plan now (PURE JSON only, no markdown formatting):
+<assistant_prefill>
+To ensure you generate ONLY valid JSON without markdown formatting, your response will be prefilled with the opening brace. Continue directly from here with valid JSON:
+
+{
+</assistant_prefill>
+
+Generate the JSON action plan now:
 </instructions>"""
 
 # =============================================================================
@@ -991,11 +1097,26 @@ You MUST engage critically with the discussion:
 </critical_thinking_protocol>
 
 <forbidden_patterns>
+NEVER do any of the following:
 - Generic agreement ("I agree with the previous speakers...")
 - Vague observations without conclusions
 - Listing facts without analysis
 - Ending without a recommendation or question
+- Meta-discussion about your role or how to respond (e.g., "Should I respond as X?")
+- Asking about communication protocol or format expectations
+- Analyzing the discussion framework instead of the problem itself
+- Breaking character to discuss the conversation structure
 </forbidden_patterns>
+
+<critical_instruction>
+IMPORTANT: You ARE the expert named above. You are already in character. Do NOT:
+- Ask questions about how you should respond or what role you should play
+- Discuss or analyze the communication framework
+- Question the context of the discussion
+- Reference "protocols" or "interaction formats"
+
+Instead, IMMEDIATELY engage with the problem statement and provide substantive analysis based on your expertise. The problem you must address is in <problem_context> above.
+</critical_instruction>
 
 <problem_context>
 {problem_statement}

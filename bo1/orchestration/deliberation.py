@@ -367,6 +367,39 @@ You MUST engage critically with the discussion:
         # Parse response (extract <thinking> and <contribution>)
         thinking, contribution = ResponseParser.parse_persona_response(response_text)
 
+        # Validate response - check for meta-discussion (persona confusion)
+        # If detected, add clarifying instruction and retry once
+        if ResponseParser.is_meta_discussion(contribution):
+            logger.warning(
+                f"⚠️ Meta-discussion detected from {persona_profile.display_name}, retrying with clarification"
+            )
+            # Add explicit clarification to user message
+            clarification_msg = (
+                f"{user_message}\n\n"
+                "IMPORTANT: You ARE the expert. Do not ask questions about your role or how to respond. "
+                "Engage directly with the problem statement above. Provide your expert analysis NOW."
+            )
+            request_retry = PromptRequest(
+                system=system_prompt,
+                user_message=clarification_msg,
+                model=self.model_name,
+                cache_system=True,
+                temperature=round_config["temperature"] + 0.1,  # Slightly higher temp
+                max_tokens=round_config["max_tokens"],
+                phase="deliberation",
+                agent_type=f"persona_{persona_profile.code}_retry",
+            )
+            retry_response = await broker.call(request_retry)
+            response_text = retry_response.content
+            # Add retry tokens to total
+            token_usage.input_tokens += retry_response.token_usage.input_tokens
+            token_usage.output_tokens += retry_response.token_usage.output_tokens
+            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            thinking, contribution = ResponseParser.parse_persona_response(response_text)
+            logger.info(
+                f"Retry response from {persona_profile.display_name}: {contribution[:100]}..."
+            )
+
         # Calculate cost
         cost = token_usage.calculate_cost(self.model_name)
 

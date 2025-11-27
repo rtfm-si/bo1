@@ -41,6 +41,7 @@ class RedisManager:
         host: str | None = None,
         port: int | None = None,
         db: int | None = None,
+        password: str | None = None,
         ttl_seconds: int = 86400,  # 24 hours
     ) -> None:
         """Initialize Redis manager.
@@ -49,6 +50,7 @@ class RedisManager:
             host: Redis host (defaults to config)
             port: Redis port (defaults to config)
             db: Redis database number (defaults to config)
+            password: Redis password (defaults to config)
             ttl_seconds: Session TTL in seconds (default: 24 hours)
         """
         settings = get_settings()
@@ -56,6 +58,7 @@ class RedisManager:
         self.host = host or settings.redis_host
         self.port = port or settings.redis_port
         self.db = db or settings.redis_db
+        self.password = password or settings.redis_password or None
         self.ttl_seconds = ttl_seconds
 
         # Initialize connection pool
@@ -64,6 +67,7 @@ class RedisManager:
                 host=self.host,
                 port=self.port,
                 db=self.db,
+                password=self.password if self.password else None,
                 decode_responses=True,  # Auto-decode bytes to str
                 max_connections=10,
             )
@@ -75,7 +79,8 @@ class RedisManager:
             # Test connection
             assert self.redis is not None  # Type guard: checked by is_available
             self.redis.ping()
-            logger.info(f"✅ Connected to Redis at {self.host}:{self.port}/{self.db}")
+            auth_status = " (with auth)" if self.password else ""
+            logger.info(f"✅ Connected to Redis at {self.host}:{self.port}/{self.db}{auth_status}")
             self._available = True
 
         except (redis.ConnectionError, redis.TimeoutError) as e:

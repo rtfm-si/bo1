@@ -58,19 +58,26 @@ class RedisManager:
         self.host = host or settings.redis_host
         self.port = port or settings.redis_port
         self.db = db or settings.redis_db
-        self.password = password or settings.redis_password or None
+        # Only use password if explicitly provided and non-empty
+        self.password = (
+            (password or settings.redis_password) if (password or settings.redis_password) else None
+        )
         self.ttl_seconds = ttl_seconds
 
         # Initialize connection pool
         try:
-            self.pool = redis.ConnectionPool(
-                host=self.host,
-                port=self.port,
-                db=self.db,
-                password=self.password if self.password else None,
-                decode_responses=True,  # Auto-decode bytes to str
-                max_connections=10,
-            )
+            # Build connection pool args - only include password if set
+            pool_kwargs: dict[str, Any] = {
+                "host": self.host,
+                "port": self.port,
+                "db": self.db,
+                "decode_responses": True,  # Auto-decode bytes to str
+                "max_connections": 10,
+            }
+            if self.password:  # Only add password if it's not None/empty
+                pool_kwargs["password"] = self.password
+
+            self.pool = redis.ConnectionPool(**pool_kwargs)
             # Note: decode_responses=True returns str, but Redis typing is complex
             # Different redis-py versions have different type parameter requirements
             # Using bare redis.Redis for compatibility across versions

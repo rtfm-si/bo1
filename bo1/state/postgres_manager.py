@@ -970,11 +970,12 @@ def update_session_status(
 
             params.append(session_id)
 
+            # Safe: update_fields contains only controlled column names, values are parameterized
             query = f"""
                 UPDATE sessions
                 SET {", ".join(update_fields)}
                 WHERE id = %s
-            """
+            """  # noqa: S608
 
             cur.execute(query, params)
             return bool(cur.rowcount and cur.rowcount > 0)

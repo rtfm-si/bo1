@@ -23,7 +23,7 @@ from bo1.state.postgres_manager import (
 )
 
 
-def test_session_persistence():
+def test_session_persistence() -> None:
     """Test session persistence functionality."""
     print("=" * 80)
     print("Testing PostgreSQL Session Persistence")

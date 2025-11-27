@@ -58,7 +58,13 @@ def create_deliberation_graph(
         redis_host = os.getenv("REDIS_HOST", "localhost")
         redis_port = os.getenv("REDIS_PORT", "6379")
         redis_db = os.getenv("REDIS_DB", "0")
-        redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+        redis_password = os.getenv("REDIS_PASSWORD", "")
+
+        # Build Redis URL with optional password authentication
+        if redis_password:
+            redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+        else:
+            redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
         # Configure TTL: 7 days (604800 seconds) for checkpoint expiration
         # This prevents Redis from growing indefinitely with old checkpoints
@@ -67,7 +73,11 @@ def create_deliberation_graph(
         # Create AsyncRedisSaver - let it create its own Redis client
         # AsyncRedisSaver handles decode_responses internally
         actual_checkpointer = AsyncRedisSaver(redis_url)
-        logger.info(f"Created Async Redis checkpointer: {redis_url} (TTL: {ttl_seconds}s)")
+        # Log without exposing password
+        auth_status = " (with auth)" if redis_password else ""
+        logger.info(
+            f"Created Async Redis checkpointer: {redis_host}:{redis_port}/{redis_db}{auth_status} (TTL: {ttl_seconds}s)"
+        )
     elif checkpointer is False:
         # Explicitly disabled (for tests)
         actual_checkpointer = None

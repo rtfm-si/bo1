@@ -1025,6 +1025,11 @@ def ensure_user_exists(
     Creates the user if they don't exist, or updates their info if they do.
     This is critical for FK constraints - sessions require a valid user_id.
 
+    When updating existing users:
+    - Real emails (not @placeholder.local) always replace placeholder emails
+    - auth_provider is updated when a real email is provided (OAuth sync)
+    - Placeholder emails never overwrite real emails
+
     Args:
         user_id: User identifier (from SuperTokens or auth provider)
         email: User email (optional, may not be available from all providers)
@@ -1035,28 +1040,40 @@ def ensure_user_exists(
         True if user exists or was created successfully
 
     Examples:
-        >>> ensure_user_exists("user_123", "user@example.com")
+        >>> ensure_user_exists("user_123", "user@example.com", "google")
         True
     """
+    # Determine if this is a real email or placeholder
+    is_real_email = email is not None and not email.endswith("@placeholder.local")
+    final_email = email or f"{user_id}@placeholder.local"
+
     try:
         with db_session() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO users (id, email, auth_provider, subscription_tier)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (id) DO UPDATE
-                    SET email = COALESCE(EXCLUDED.email, users.email),
-                        updated_at = NOW()
-                    """,
-                    (
-                        user_id,
-                        email
-                        or f"{user_id}@placeholder.local",  # Email required, use placeholder if none
-                        auth_provider,
-                        subscription_tier,
-                    ),
-                )
+                if is_real_email:
+                    # Real email from OAuth - always update email and auth_provider
+                    cur.execute(
+                        """
+                        INSERT INTO users (id, email, auth_provider, subscription_tier)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (id) DO UPDATE
+                        SET email = EXCLUDED.email,
+                            auth_provider = EXCLUDED.auth_provider,
+                            updated_at = NOW()
+                        """,
+                        (user_id, final_email, auth_provider, subscription_tier),
+                    )
+                    logger.info(f"User {user_id} synced with real email ({auth_provider})")
+                else:
+                    # Placeholder email - only insert, don't overwrite real data
+                    cur.execute(
+                        """
+                        INSERT INTO users (id, email, auth_provider, subscription_tier)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (id) DO NOTHING
+                        """,
+                        (user_id, final_email, auth_provider, subscription_tier),
+                    )
                 return True
     except Exception as e:
         logger.error(f"Failed to ensure user exists: {e}")
@@ -1145,3 +1162,62 @@ def get_user_sessions(
             cur.execute(query, params)
             rows = cur.fetchall()
             return [dict(row) for row in rows]
+
+
+def get_session_metadata(session_id: str) -> dict[str, Any] | None:
+    """Get session metadata from PostgreSQL in Redis-compatible format.
+
+    This function provides a fallback when Redis doesn't have the session metadata
+    (e.g., after Redis restart). Returns metadata in the same format as Redis
+    for compatibility with existing code.
+
+    Args:
+        session_id: Session identifier (e.g., "bo1_abc123")
+
+    Returns:
+        Metadata dict compatible with Redis format, or None if session not found.
+        Format: {
+            "status": "completed",
+            "phase": "synthesis",
+            "user_id": "user_123",
+            "created_at": "2025-01-01T10:00:00+00:00",
+            "updated_at": "2025-01-01T11:00:00+00:00",
+            "problem_statement": "Should we...",
+            "problem_context": {...}
+        }
+
+    Examples:
+        >>> metadata = get_session_metadata("bo1_abc123")
+        >>> if metadata:
+        ...     print(f"Session owned by: {metadata['user_id']}")
+    """
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, problem_statement, problem_context,
+                           status, phase, created_at, updated_at
+                    FROM sessions
+                    WHERE id = %s
+                    """,
+                    (session_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+
+                row_dict = dict(row)
+                # Convert to Redis-compatible metadata format
+                return {
+                    "status": row_dict["status"],
+                    "phase": row_dict["phase"],
+                    "user_id": row_dict["user_id"],
+                    "created_at": row_dict["created_at"].isoformat(),
+                    "updated_at": row_dict["updated_at"].isoformat(),
+                    "problem_statement": row_dict["problem_statement"],
+                    "problem_context": row_dict["problem_context"] or {},
+                }
+    except Exception as e:
+        logger.error(f"Failed to get session metadata for {session_id}: {e}")
+        return None

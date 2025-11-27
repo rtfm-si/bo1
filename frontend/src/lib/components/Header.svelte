@@ -92,9 +92,11 @@
 			{#if showCTA}
 				<div class="flex items-center gap-3">
 					{#if $isAuthenticated}
-						<span class="text-sm text-neutral-600 dark:text-neutral-400 mr-2">
-							{$user?.email}
-						</span>
+						{#if $user?.email && !$user.email.endsWith('@placeholder.local')}
+							<span class="text-sm text-neutral-600 dark:text-neutral-400 mr-2">
+								{$user.email}
+							</span>
+						{/if}
 						<Button variant="ghost" size="sm" onclick={handleSignOut}>
 							Sign Out
 						</Button>

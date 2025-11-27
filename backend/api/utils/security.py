@@ -24,6 +24,7 @@ async def verify_session_ownership(
     - Returns 404 (not 403) to prevent session enumeration
     - Logs security events for audit trail
     - Validates both session existence and ownership
+    - Falls back to PostgreSQL if Redis doesn't have the metadata
 
     Args:
         session_id: Session identifier to check
@@ -47,13 +48,22 @@ async def verify_session_ownership(
     """
     # Import here to avoid circular dependency
     from backend.api.dependencies import get_redis_manager
+    from bo1.state.postgres_manager import get_session_metadata
 
     # Load metadata if not provided
     if session_metadata is None:
         redis_manager = get_redis_manager()
         session_metadata = redis_manager.load_metadata(session_id)
 
-    # Session doesn't exist - return 404
+    # If Redis doesn't have metadata, fall back to PostgreSQL
+    # This handles cases where Redis was restarted but session exists in DB
+    if not session_metadata:
+        logger.debug(f"Session {session_id} not in Redis, checking PostgreSQL fallback")
+        session_metadata = get_session_metadata(session_id)
+        if session_metadata:
+            logger.info(f"Session {session_id} loaded from PostgreSQL fallback")
+
+    # Session doesn't exist in either Redis or PostgreSQL - return 404
     if not session_metadata:
         logger.warning(
             f"Session ownership check failed: session {session_id} not found "

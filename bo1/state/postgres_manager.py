@@ -1063,6 +1063,39 @@ def ensure_user_exists(
         return False
 
 
+def get_user(user_id: str) -> dict[str, Any] | None:
+    """Get user data from PostgreSQL.
+
+    Args:
+        user_id: User identifier (from SuperTokens)
+
+    Returns:
+        User data dict or None if not found
+
+    Examples:
+        >>> user = get_user("user_123")
+        >>> if user:
+        ...     print(f"Email: {user['email']}")
+    """
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, email, auth_provider, subscription_tier,
+                           gdpr_consent_at, created_at, updated_at
+                    FROM users
+                    WHERE id = %s
+                    """,
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"Failed to get user {user_id}: {e}")
+        return None
+
+
 def get_user_sessions(
     user_id: str,
     limit: int = 50,

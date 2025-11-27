@@ -18,6 +18,7 @@ from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
+from bo1.state.postgres_manager import get_user
 
 logger = logging.getLogger(__name__)
 
@@ -31,19 +32,37 @@ async def get_user_info(
 ) -> dict:
     """Get current authenticated user information.
 
+    Fetches user data from PostgreSQL (source of truth for persistent data).
+    If user not found in DB, returns minimal data from session.
+
     Returns:
-        User ID and session info
+        User ID, email, auth provider, subscription tier, and session info
     """
     user_id = session.get_user_id()
     session_handle = session.get_handle()
 
     logger.info(f"User info requested: user_id={user_id}, session={session_handle}")
 
+    # Fetch complete user data from PostgreSQL
+    user_data = get_user(user_id)
+
+    if user_data:
+        return {
+            "id": user_data["id"],
+            "user_id": user_data["id"],
+            "email": user_data["email"],
+            "auth_provider": user_data["auth_provider"],
+            "subscription_tier": user_data["subscription_tier"],
+            "session_handle": session_handle,
+        }
+
+    # Fallback if user not in database (shouldn't happen with proper sync)
+    logger.warning(f"User {user_id} not found in PostgreSQL, returning minimal data")
     return {
-        "id": user_id,  # Frontend expects 'id' not 'user_id'
+        "id": user_id,
         "user_id": user_id,
-        "email": None,  # TODO: Fetch from database
-        "auth_provider": "google",  # TODO: Get from session metadata
+        "email": None,
+        "auth_provider": None,
         "subscription_tier": "free",
         "session_handle": session_handle,
     }

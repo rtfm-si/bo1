@@ -120,12 +120,14 @@ async def create_session(
 
         # Save session to PostgreSQL for permanent storage
         try:
-            # Ensure user exists in PostgreSQL first (FK constraint requires this)
+            # Safety net: Ensure user exists in PostgreSQL (FK constraint requires this)
+            # Primary sync happens in SuperTokens sign_in_up() override (supertokens_config.py)
+            # This is a fallback for edge cases where OAuth sync failed or for direct API calls
             user_email = user.get("email") if user else None
             ensure_user_exists(
                 user_id=user_id,
                 email=user_email,
-                auth_provider="supertokens",
+                auth_provider="supertokens",  # Unknown at this point, use generic
                 subscription_tier=user.get("subscription_tier", "free") if user else "free",
             )
 

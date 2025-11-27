@@ -23,6 +23,8 @@ from supertokens_python.recipe.thirdparty.interfaces import RecipeInterface
 from supertokens_python.recipe.thirdparty.provider import ProviderInput
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 
+from bo1.state.postgres_manager import ensure_user_exists
+
 logger = logging.getLogger(__name__)
 
 
@@ -137,6 +139,24 @@ def override_thirdparty_functions(
             tenant_id,
             user_context,
         )
+
+        # Sync user to PostgreSQL on authentication (not on first session creation)
+        # This ensures the user exists in the DB immediately after OAuth success
+        # PostgreSQL is the source of truth for persistent data; Redis is for transient state
+        try:
+            user_id = result.user.id
+            ensure_user_exists(
+                user_id=user_id,
+                email=email,
+                auth_provider=third_party_id,  # "google", "linkedin", "github"
+                subscription_tier="free",  # Default tier for new users
+            )
+            logger.info(
+                f"User synced to PostgreSQL: {email} (user_id: {user_id}, provider: {third_party_id})"
+            )
+        except Exception as e:
+            # Log but don't block authentication - user will be synced on next API call
+            logger.error(f"Failed to sync user to PostgreSQL: {e}")
 
         logger.info(f"User signed in: {email} (user_id: {result.user.id})")
 

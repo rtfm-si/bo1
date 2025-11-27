@@ -1,5 +1,2 @@
-
-# Encrypt sensitive files with git-crypt
-.env filter=git-crypt diff=git-crypt
-.env.production filter=git-crypt diff=git-crypt
-.env.local filter=git-crypt diff=git-crypt
+# git-crypt removed for .env files
+# Production .env is managed directly on server (never in git)

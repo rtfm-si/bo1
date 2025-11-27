@@ -40,8 +40,9 @@ ENV/
 *~
 .DS_Store
 
-# Environment variables (git-crypt encrypted files are tracked)
-# .env files are now encrypted with git-crypt and tracked in git
+# Environment variables - NEVER commit to git
+# Production .env is managed separately on server
+.env
 .env.*.local
 
 # Logs

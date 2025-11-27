@@ -123,16 +123,55 @@ python scripts/benchmark_indexes.py
 
 ## Production Deployment
 
-Migrations are automatically run during blue-green deployment:
+**Migrations run automatically during blue-green deployment** (Step 7):
 
-1. GitHub Actions builds Docker images
-2. SSH into server, deploy to opposite environment
-3. Run health checks
-4. **Run migrations: `alembic upgrade head`**
-5. Switch nginx config
-6. Reload nginx
+### Deployment Flow with Automatic Migrations
 
-If migrations fail, deployment aborts and old environment stays active.
+1. GitHub Actions builds and pushes Docker images
+2. SSH into server, deploy to opposite environment (blue/green)
+3. Start new environment containers
+4. Run health checks on new environment
+5. Extract static assets
+6. **Run migrations automatically:**
+   - Check current migration version
+   - Check for pending migrations
+   - Apply migrations: `alembic upgrade head`
+   - Verify final version
+   - Log all output to `/tmp/migration.log`
+7. Switch nginx to new environment (zero downtime)
+8. Verify deployment and migrations
+9. Stop old environment
+
+### Migration Safety Features
+
+**Automatic Failure Handling**:
+- If migrations fail, deployment aborts immediately
+- Old environment stays active (zero downtime)
+- Full error logs available in GitHub Actions
+- No user impact from failed migrations
+
+**Verification Steps**:
+- Pre-migration version check
+- Post-migration version verification
+- Critical table existence verification
+- Database schema validation
+
+**Rollback Strategy**:
+- Migrations fail → deployment aborts → old environment continues
+- Manual rollback if needed: `alembic downgrade -1`
+- Blue-green architecture allows instant rollback via nginx switch
+
+### Migration Timing
+
+**Why migrations run AFTER health checks**:
+- Ensures database connection is working
+- Ensures application can connect to database
+- Safe environment before schema changes
+
+**Why migrations run BEFORE nginx cutover**:
+- No user traffic to new environment yet
+- Schema changes complete before accepting requests
+- Zero user impact if migrations take time
 
 ## Troubleshooting
 

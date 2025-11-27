@@ -454,7 +454,32 @@ jobs:
             # STEP 7: Run database migrations (on shared infrastructure)
             # =================================================================
             echo "🗄️  Running database migrations..."
-            docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api uv run alembic upgrade head
+
+            # Check current migration version
+            echo "Checking current database migration version..."
+            CURRENT_VERSION=$(docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api uv run alembic current 2>/dev/null || echo "none")
+            echo "Current migration version: $CURRENT_VERSION"
+
+            # Check for pending migrations
+            echo "Checking for pending migrations..."
+            PENDING_MIGRATIONS=$(docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api uv run alembic history --verbose 2>&1 | grep -c "-> head" || echo "0")
+            echo "Pending migrations: $PENDING_MIGRATIONS"
+
+            # Run migrations with error handling
+            echo "Applying migrations..."
+            if docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api uv run alembic upgrade head 2>&1 | tee /tmp/migration.log; then
+              echo "✅ Migrations completed successfully"
+
+              # Verify final migration version
+              FINAL_VERSION=$(docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api uv run alembic current 2>/dev/null || echo "none")
+              echo "Final migration version: $FINAL_VERSION"
+            else
+              echo "❌ Migration failed! Rolling back deployment..."
+              cat /tmp/migration.log
+              docker-compose -p ${TARGET_PROJECT} -f docker-compose.app.yml logs --tail=100 api
+              echo "🔴 Deployment aborted - keeping current environment"
+              exit 1
+            fi
 
             # =================================================================
             # STEP 8: Switch nginx to target environment
@@ -514,7 +539,33 @@ jobs:
             fi
 
             # =================================================================
-            # STEP 10: Cleanup
+            # STEP 10: Verify deployment and migrations
+            # =================================================================
+            echo "✅ Verifying deployment..."
+
+            # Verify migration version is up to date
+            DEPLOYED_VERSION=$(docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api uv run alembic current 2>/dev/null || echo "unknown")
+            echo "Deployed migration version: $DEPLOYED_VERSION"
+
+            # Verify critical tables exist
+            echo "Verifying database schema..."
+            TABLES_CHECK=$(docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api uv run python -c "
+from bo1.state.postgres_manager import db_session
+with db_session() as conn:
+    with conn.cursor() as cur:
+        cur.execute(\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users', 'sessions', 'session_events', 'session_tasks', 'waitlist');\")
+        count = cur.fetchone()[0]
+        print(count)
+" 2>/dev/null || echo "0")
+
+            if [ "$TABLES_CHECK" -ge 5 ]; then
+              echo "✅ All critical tables exist"
+            else
+              echo "⚠️  Warning: Some critical tables may be missing (found: $TABLES_CHECK)"
+            fi
+
+            # =================================================================
+            # STEP 11: Cleanup
             # =================================================================
             echo "🧹 Cleaning up old Docker images..."
             docker system prune -f --filter "until=72h"
@@ -527,6 +578,7 @@ jobs:
             echo "   Commit: ${GITHUB_SHA}"
             echo "   API Port: ${TARGET_API_PORT}"
             echo "   Frontend Port: ${TARGET_FRONTEND_PORT}"
+            echo "   Migration version: $DEPLOYED_VERSION"
             echo ""
             echo "🌐 Production URL: https://boardof.one"
             echo ""

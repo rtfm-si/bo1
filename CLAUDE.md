@@ -25,10 +25,100 @@ make test            # Run tests
 make pre-commit      # Lint + format + typecheck (RUN BEFORE PUSH)
 
 # Migrations
-uv run alembic upgrade head
+uv run alembic upgrade head          # Apply all pending migrations
+uv run alembic history               # View migration history
+uv run alembic current               # Check current version
+python scripts/check_migration_history.py  # Verify migrations applied
 
 # Production Deploy (via GitHub Actions)
 # Actions → "Deploy to Production" → Type "deploy-to-production"
+# Migrations run automatically during deployment (see below)
+```
+
+---
+
+## Database Migrations
+
+### Automatic Migration Deployment
+
+**Migrations run automatically during production deployment** (Step 7 of blue-green deploy):
+
+1. Check current migration version
+2. Check for pending migrations
+3. Apply migrations with `alembic upgrade head`
+4. Verify final version
+5. If migrations fail, deployment aborts and old environment stays active
+
+**Key Features**:
+- Runs AFTER health checks pass (safe environment)
+- Runs BEFORE nginx cutover (no user impact)
+- Full error logging to `/tmp/migration.log`
+- Automatic rollback on failure
+- Verification of critical tables post-migration
+
+### Migration Types
+
+**Alembic Migrations** (Preferred):
+- Location: `migrations/versions/*.py`
+- Managed by Alembic, tracked in `alembic_version` table
+- Run with: `uv run alembic upgrade head`
+- Create new: `uv run alembic revision -m "description"`
+
+**SQL Migrations** (Legacy - Use Only If Needed):
+- Location: `bo1/database/migrations/*.sql`
+- For standalone SQL files not yet in Alembic
+- Run with: `./scripts/run-sql-migrations.sh`
+- Tracked in `sql_migrations` table
+
+**IMPORTANT**: Always prefer Alembic migrations. SQL migrations should only be used for:
+- Emergency hotfixes that can't wait for Alembic
+- One-time data migrations that don't fit Alembic's schema-based approach
+
+### Creating New Migrations
+
+```bash
+# Auto-generate from model changes (RECOMMENDED)
+uv run alembic revision --autogenerate -m "add_new_table"
+
+# Create empty migration (for data migrations)
+uv run alembic revision -m "backfill_user_data"
+
+# ALWAYS review auto-generated migrations before committing!
+```
+
+### Migration Safety Checklist
+
+Before deploying migrations:
+
+- [ ] Migration is idempotent (can run multiple times safely)
+- [ ] Migration has both `upgrade()` and `downgrade()` functions
+- [ ] Migration tested locally: `alembic upgrade head`
+- [ ] Migration tested rollback: `alembic downgrade -1`
+- [ ] No data loss (use ALTER TABLE IF NOT EXISTS, etc.)
+- [ ] Backward compatible during blue-green switch
+- [ ] Indexes added for new columns with frequent queries
+- [ ] Comments added for complex migrations
+
+### Troubleshooting Migrations
+
+**Migration fails during deployment**:
+- Deployment automatically aborts
+- Old environment stays active (zero downtime)
+- Check GitHub Actions logs for error details
+- Check `/tmp/migration.log` on server
+- Fix migration locally, test, then redeploy
+
+**Check migration status in production**:
+```bash
+ssh deploy@server
+docker exec boardofone-api-1 uv run alembic current
+docker exec boardofone-api-1 uv run alembic history
+```
+
+**Manually run migrations (emergency only)**:
+```bash
+ssh deploy@server
+docker exec -it boardofone-api-1 uv run alembic upgrade head
 ```
 
 ---

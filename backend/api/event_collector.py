@@ -13,7 +13,7 @@ from anthropic import AsyncAnthropic
 from backend.api.event_extractors import get_event_registry
 from backend.api.event_publisher import EventPublisher
 from bo1.config import get_settings
-from bo1.state.postgres_manager import save_session_synthesis
+from bo1.state.postgres_manager import save_session_synthesis, update_session_status
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +216,16 @@ class EventCollector:
                     "error_type": type(e).__name__,
                 },
             )
+
+            # Update session status to 'failed' in PostgreSQL
+            try:
+                update_session_status(session_id=session_id, status="failed")
+                logger.info(f"Updated session {session_id} status to 'failed' in PostgreSQL")
+            except Exception as db_error:
+                logger.error(
+                    f"Failed to update failed session status in PostgreSQL for {session_id}: {db_error}"
+                )
+
             raise
 
         return final_state
@@ -533,6 +543,28 @@ class EventCollector:
         completion_data = registry.extract("completion", final_state)
         completion_data["session_id"] = session_id  # Ensure session_id is present
         self.publisher.publish_event(session_id, "complete", completion_data)
+
+        # Update session status in PostgreSQL for permanent record
+        try:
+            # Extract final data
+            synthesis_text = final_state.get("synthesis") or final_state.get("meta_synthesis")
+            final_recommendation = None  # Could extract from synthesis if needed
+            round_number = final_state.get("round_number", 0)
+            phase = final_state.get("current_phase")
+
+            # Update session with final status
+            update_session_status(
+                session_id=session_id,
+                status="completed",
+                phase=phase,
+                total_cost=total_cost,
+                round_number=round_number,
+                synthesis_text=synthesis_text,
+                final_recommendation=final_recommendation,
+            )
+            logger.info(f"Updated session {session_id} status to 'completed' in PostgreSQL")
+        except Exception as e:
+            logger.error(f"Failed to update session status in PostgreSQL for {session_id}: {e}")
 
     async def _summarize_contribution(self, content: str, persona_name: str) -> dict | None:
         """Summarize expert contribution into structured insights using Haiku 4.5.

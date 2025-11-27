@@ -847,3 +847,215 @@ def get_session_synthesis(session_id: str) -> str | None:
             )
             row = cur.fetchone()
             return row["synthesis_text"] if row else None
+
+
+# =============================================================================
+# Session Management Functions
+# =============================================================================
+
+
+def save_session(
+    session_id: str,
+    user_id: str,
+    problem_statement: str,
+    problem_context: dict[str, Any] | None = None,
+    status: str = "created",
+) -> dict[str, Any]:
+    """Save a new session to PostgreSQL.
+
+    Args:
+        session_id: Session identifier (e.g., bo1_uuid)
+        user_id: User who created the session (from SuperTokens)
+        problem_statement: Original problem statement
+        problem_context: Additional context as dict (optional)
+        status: Initial status (default: 'created')
+
+    Returns:
+        Saved session record with timestamps
+
+    Examples:
+        >>> save_session(
+        ...     session_id="bo1_abc123",
+        ...     user_id="user_456",
+        ...     problem_statement="How do we scale to 10M users?",
+        ...     problem_context={"industry": "saas", "stage": "series_a"}
+        ... )
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO sessions (
+                    id, user_id, problem_statement, problem_context, status
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE
+                SET user_id = EXCLUDED.user_id,
+                    problem_statement = EXCLUDED.problem_statement,
+                    problem_context = EXCLUDED.problem_context,
+                    status = EXCLUDED.status,
+                    updated_at = NOW()
+                RETURNING id, user_id, problem_statement, problem_context, status,
+                          phase, total_cost, round_number, created_at, updated_at
+                """,
+                (
+                    session_id,
+                    user_id,
+                    problem_statement,
+                    Json(problem_context) if problem_context else None,
+                    status,
+                ),
+            )
+            result = cur.fetchone()
+            return dict(result) if result else {}
+
+
+def update_session_status(
+    session_id: str,
+    status: str,
+    phase: str | None = None,
+    total_cost: float | None = None,
+    round_number: int | None = None,
+    synthesis_text: str | None = None,
+    final_recommendation: str | None = None,
+) -> bool:
+    """Update session status and optional fields.
+
+    Args:
+        session_id: Session identifier
+        status: New status (e.g., 'running', 'completed', 'failed', 'killed')
+        phase: Current deliberation phase (optional)
+        total_cost: Total cost in USD (optional)
+        round_number: Current round number (optional)
+        synthesis_text: Final synthesis text (optional)
+        final_recommendation: Final recommendation (optional)
+
+    Returns:
+        True if updated successfully, False otherwise
+
+    Examples:
+        >>> update_session_status(
+        ...     session_id="bo1_abc123",
+        ...     status="completed",
+        ...     total_cost=0.42,
+        ...     synthesis_text="<synthesis>...</synthesis>"
+        ... )
+        True
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Build dynamic UPDATE query based on provided fields
+            update_fields = ["status = %s", "updated_at = NOW()"]
+            params: list[Any] = [status]
+
+            if phase is not None:
+                update_fields.append("phase = %s")
+                params.append(phase)
+
+            if total_cost is not None:
+                update_fields.append("total_cost = %s")
+                params.append(total_cost)
+
+            if round_number is not None:
+                update_fields.append("round_number = %s")
+                params.append(round_number)
+
+            if synthesis_text is not None:
+                update_fields.append("synthesis_text = %s")
+                params.append(synthesis_text)
+
+            if final_recommendation is not None:
+                update_fields.append("final_recommendation = %s")
+                params.append(final_recommendation)
+
+            params.append(session_id)
+
+            query = f"""
+                UPDATE sessions
+                SET {", ".join(update_fields)}
+                WHERE id = %s
+            """
+
+            cur.execute(query, params)
+            return bool(cur.rowcount and cur.rowcount > 0)
+
+
+def get_session(session_id: str) -> dict[str, Any] | None:
+    """Get a single session by ID.
+
+    Args:
+        session_id: Session identifier
+
+    Returns:
+        Session record with all fields, or None if not found
+
+    Examples:
+        >>> session = get_session("bo1_abc123")
+        >>> if session:
+        ...     print(f"Session status: {session['status']}")
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, user_id, problem_statement, problem_context, status,
+                       phase, total_cost, round_number, created_at, updated_at,
+                       synthesis_text, final_recommendation
+                FROM sessions
+                WHERE id = %s
+                """,
+                (session_id,),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+
+def get_user_sessions(
+    user_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    status_filter: str | None = None,
+) -> list[dict[str, Any]]:
+    """Get all sessions for a user, ordered by created_at DESC.
+
+    Args:
+        user_id: User identifier (from SuperTokens)
+        limit: Maximum number of sessions to return (default: 50)
+        offset: Number of sessions to skip for pagination (default: 0)
+        status_filter: Optional status filter (e.g., 'completed', 'running')
+
+    Returns:
+        List of session records, ordered by created_at DESC (most recent first)
+
+    Examples:
+        >>> sessions = get_user_sessions("user_456", limit=10)
+        >>> print(f"Found {len(sessions)} sessions")
+
+        >>> completed = get_user_sessions("user_456", status_filter="completed")
+        >>> print(f"User has {len(completed)} completed sessions")
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Build query with optional status filter
+            query = """
+                SELECT id, user_id, problem_statement, problem_context, status,
+                       phase, total_cost, round_number, created_at, updated_at,
+                       synthesis_text, final_recommendation
+                FROM sessions
+                WHERE user_id = %s
+            """
+            params: list[Any] = [user_id]
+
+            if status_filter:
+                query += " AND status = %s"
+                params.append(status_filter)
+
+            query += """
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+            """
+            params.extend([limit, offset])
+
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]

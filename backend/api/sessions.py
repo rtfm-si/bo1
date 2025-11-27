@@ -32,7 +32,12 @@ from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
-from bo1.state.postgres_manager import get_session_tasks, save_session_tasks
+from bo1.state.postgres_manager import (
+    get_session_tasks,
+    get_user_sessions,
+    save_session,
+    save_session_tasks,
+)
 from bo1.state.redis_manager import RedisManager
 from bo1.utils.logging import get_logger
 
@@ -105,14 +110,28 @@ async def create_session(
             "problem_context": request.problem_context or {},
         }
 
-        # Save metadata to Redis
+        # Save metadata to Redis (for live state and fast lookup)
         if not redis_manager.save_metadata(session_id, metadata):
             raise RuntimeError("Failed to save session metadata")
 
         # Add session to user's session index for fast lookup
         redis_manager.add_session_to_user_index(user_id, session_id)
 
-        logger.info(f"Created session: {session_id} for user: {user_id}")
+        # Save session to PostgreSQL for permanent storage
+        try:
+            save_session(
+                session_id=session_id,
+                user_id=user_id,
+                problem_statement=request.problem_statement,
+                problem_context=request.problem_context,
+                status="created",
+            )
+            logger.info(
+                f"Created session: {session_id} for user: {user_id} (saved to both Redis and PostgreSQL)"
+            )
+        except Exception as e:
+            # Log error but don't fail the request - Redis is sufficient for session to continue
+            logger.error(f"Failed to save session to PostgreSQL (Redis saved successfully): {e}")
 
         # Return session response
         return SessionResponse(
@@ -169,11 +188,100 @@ async def list_sessions(
             # Extract user ID from authenticated user
             user_id = extract_user_id(user)
 
-            # Create Redis manager
+            # PRIMARY SOURCE: Query PostgreSQL for persistent session records
+            try:
+                pg_sessions = get_user_sessions(
+                    user_id=user_id,
+                    limit=limit,
+                    offset=offset,
+                    status_filter=status,
+                )
+                logger.debug(
+                    f"Loaded {len(pg_sessions)} sessions from PostgreSQL for user {user_id}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load sessions from PostgreSQL: {e}, falling back to Redis"
+                )
+                pg_sessions = []
+
+            # If Postgres returned sessions, enrich with Redis live state
+            if pg_sessions:
+                # Create Redis manager for enrichment
+                redis_manager = get_redis_manager()
+
+                sessions: list[SessionResponse] = []
+                for pg_session in pg_sessions:
+                    session_id = pg_session["id"]
+
+                    # Try to enrich with live metadata from Redis (if available)
+                    redis_metadata = None
+                    if redis_manager.is_available:
+                        redis_metadata = redis_manager.load_metadata(session_id)
+
+                    # Use Redis data if available and more recent, otherwise use Postgres
+                    if redis_metadata:
+                        # Check if Redis has newer data (e.g., for active sessions)
+                        redis_updated = redis_metadata.get("updated_at")
+                        pg_updated = (
+                            pg_session["updated_at"].isoformat()
+                            if pg_session["updated_at"]
+                            else None
+                        )
+
+                        use_redis = redis_updated and pg_updated and redis_updated > pg_updated
+                        status_val = (
+                            redis_metadata.get("status") if use_redis else pg_session["status"]
+                        )
+                        phase_val = (
+                            redis_metadata.get("phase") if use_redis else pg_session["phase"]
+                        )
+                        cost_val = (
+                            redis_metadata.get("cost")
+                            if use_redis
+                            else pg_session.get("total_cost")
+                        )
+                        last_activity_at = (
+                            datetime.fromisoformat(redis_metadata["last_activity_at"])
+                            if redis_metadata.get("last_activity_at")
+                            else None
+                        )
+                    else:
+                        # Use Postgres data only
+                        status_val = pg_session["status"]
+                        phase_val = pg_session["phase"]
+                        cost_val = pg_session.get("total_cost")
+                        last_activity_at = None
+
+                    # Create session response
+                    session = SessionResponse(
+                        id=session_id,
+                        status=status_val,
+                        phase=phase_val,
+                        created_at=pg_session["created_at"],
+                        updated_at=pg_session["updated_at"],
+                        last_activity_at=last_activity_at,
+                        problem_statement=truncate_text(pg_session["problem_statement"]),
+                        cost=cost_val,
+                    )
+                    sessions.append(session)
+
+                # Total is already filtered by status in Postgres query
+                # For accurate pagination, we'd need a count query, but this approximation works
+                total = len(sessions)
+
+                return SessionListResponse(
+                    sessions=sessions,
+                    total=total,
+                    limit=limit,
+                    offset=offset,
+                )
+
+            # FALLBACK: If Postgres failed or returned empty, try Redis
             redis_manager = get_redis_manager()
 
             if not redis_manager.is_available:
-                # Return empty list if Redis is unavailable
+                # No data available from either source
                 return SessionListResponse(
                     sessions=[],
                     total=0,
@@ -196,7 +304,7 @@ async def list_sessions(
             metadata_dict = redis_manager.batch_load_metadata(session_ids)
 
             # Build session list from metadata
-            sessions: list[SessionResponse] = []
+            sessions_fallback: list[SessionResponse] = []
             for session_id, metadata in metadata_dict.items():
                 # Skip soft-deleted sessions
                 if metadata.get("deleted_at"):
@@ -233,18 +341,22 @@ async def list_sessions(
                     ),
                     cost=metadata.get("cost"),
                 )
-                sessions.append(session)
+                sessions_fallback.append(session)
 
             # Sort by updated_at descending (most recent first)
-            sessions.sort(key=lambda s: s.updated_at, reverse=True)
+            sessions_fallback.sort(key=lambda s: s.updated_at, reverse=True)
 
             # Apply pagination
-            total = len(sessions)
-            paginated_sessions = sessions[offset : offset + limit]
+            total_fallback = len(sessions_fallback)
+            paginated_sessions = sessions_fallback[offset : offset + limit]
+
+            logger.info(
+                f"Returning {len(paginated_sessions)} sessions from Redis fallback for user {user_id}"
+            )
 
             return SessionListResponse(
                 sessions=paginated_sessions,
-                total=total,
+                total=total_fallback,
                 limit=limit,
                 offset=offset,
             )

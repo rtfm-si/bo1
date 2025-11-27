@@ -29,6 +29,7 @@ from bo1.graph.config import create_deliberation_graph
 from bo1.graph.execution import PermissionError, SessionManager
 from bo1.graph.state import create_initial_state
 from bo1.models.problem import Problem
+from bo1.state.postgres_manager import update_session_status
 from bo1.state.redis_manager import RedisManager
 
 logger = logging.getLogger(__name__)
@@ -183,7 +184,15 @@ async def start_deliberation(
         # Start background task
         await session_manager.start_session(session_id, user_id, coro)
 
-        logger.info(f"Started deliberation for session {session_id}")
+        # Update session status to 'running' in PostgreSQL
+        try:
+            update_session_status(session_id=session_id, status="running")
+            logger.info(
+                f"Started deliberation for session {session_id} (status updated in PostgreSQL)"
+            )
+        except Exception as e:
+            logger.error(f"Failed to update session status in PostgreSQL: {e}")
+            # Don't fail the request - session is running in Redis
 
         return ControlResponse(
             session_id=session_id,
@@ -422,7 +431,15 @@ async def kill_deliberation(
                 detail=f"Session not found or not running: {session_id}",
             )
 
-        logger.info(f"Killed deliberation for session {session_id}. Reason: {reason}")
+        # Update session status to 'killed' in PostgreSQL
+        try:
+            update_session_status(session_id=session_id, status="killed")
+            logger.info(
+                f"Killed deliberation for session {session_id}. Reason: {reason} (status updated in PostgreSQL)"
+            )
+        except Exception as e:
+            logger.error(f"Failed to update killed session status in PostgreSQL: {e}")
+            # Don't fail the request - session is already killed
 
         return ControlResponse(
             session_id=session_id,

@@ -301,7 +301,7 @@ Remember:
         request = PromptRequest(
             system=JUDGE_SYSTEM_PROMPT,
             user_message=user_prompt,
-            model=config.get("model", "haiku-4.5") if config else "haiku-4.5",
+            model=config.get("model", "haiku") if config else "haiku",
             temperature=config.get("temperature", 0.0) if config else 0.0,
             max_tokens=config.get("max_tokens", 2000) if config else 2000,
             phase="judge",

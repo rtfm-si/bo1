@@ -229,6 +229,7 @@ class Settings(BaseSettings):
 # All code uses the simple aliases, so no changes needed elsewhere.
 
 MODEL_ALIASES = {
+    # Primary aliases - use these throughout the codebase
     "sonnet": "claude-sonnet-4-5-20250929",  # Current: Sonnet 4.5 (Sep 2025)
     "haiku": "claude-haiku-4-5-20251001",  # Current: Haiku 4.5 (Oct 2025)
     "opus": "claude-opus-4-1-20250805",  # Current: Opus 4.1 (Aug 2025) - not used in v1

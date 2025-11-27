@@ -482,9 +482,11 @@ Search Results:
 
 Provide a concise 200-300 word summary with key facts and statistics. Be direct and factual. If the results don't contain sufficient information, state what's known and what's missing."""
 
+            from bo1.config import resolve_model_alias
+
             anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
             message = await anthropic_client.messages.create(
-                model="claude-haiku-4.5-20250929",
+                model=resolve_model_alias("haiku"),
                 max_tokens=500,
                 messages=[{"role": "user", "content": prompt}],
             )

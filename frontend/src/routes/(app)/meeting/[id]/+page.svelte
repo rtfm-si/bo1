@@ -112,7 +112,6 @@
 		RelativeTimestamp,
 		DecisionMetrics,
 		Tabs,
-		SubProblemMetrics,
 		Button,
 	} from '$lib/components/ui';
 	import type { Tab } from '$lib/components/ui';
@@ -1142,19 +1141,11 @@
 										inert={!isTabActive}
 										hidden={!isTabActive}
 									>
-										<!-- Sub-problem header with metrics -->
+										<!-- Sub-problem header -->
 										<div class="bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
-											<h3 class="text-base font-semibold text-slate-900 dark:text-white mb-3">
+											<h3 class="text-base font-semibold text-slate-900 dark:text-white">
 												{tab.goal}
 											</h3>
-											<SubProblemMetrics
-												expertCount={tab.metrics.expertCount}
-												convergencePercent={tab.metrics.convergencePercent}
-												currentRound={tab.metrics.currentRound}
-												maxRounds={tab.metrics.maxRounds}
-												duration={tab.metrics.duration}
-												status={tab.status}
-											/>
 										</div>
 
 										{#each subGroupedEvents as group, index (index)}

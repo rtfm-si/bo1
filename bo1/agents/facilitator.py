@@ -66,12 +66,12 @@ class FacilitatorAgent(BaseAgent):
             use_haiku: Use Haiku for fast, cheap decisions (default: True)
         """
         # Facilitator allows model override via use_haiku parameter
-        model = "haiku-4.5" if use_haiku else "sonnet-4.5"
+        model = "haiku" if use_haiku else "sonnet"
         super().__init__(broker=broker, model=model)
 
     def get_default_model(self) -> str:
         """Return default model for facilitator (Haiku for speed/cost)."""
-        return "haiku-4.5"
+        return "haiku"
 
     def _should_trigger_moderator(
         self, state: DeliberationState, round_number: int

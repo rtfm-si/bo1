@@ -12,7 +12,7 @@ from anthropic import AsyncAnthropic
 
 from backend.api.event_extractors import get_event_registry
 from backend.api.event_publisher import EventPublisher
-from bo1.config import get_settings
+from bo1.config import get_settings, resolve_model_alias
 from bo1.state.postgres_manager import save_session_synthesis, update_session_status
 
 logger = logging.getLogger(__name__)
@@ -679,7 +679,7 @@ Be specific, extract concrete insights, avoid generic statements.
 </instructions>"""
 
             response = await self.anthropic_client.messages.create(
-                model="claude-3-5-haiku-20241022",
+                model=resolve_model_alias("haiku"),
                 max_tokens=500,
                 messages=[
                     {"role": "user", "content": prompt},

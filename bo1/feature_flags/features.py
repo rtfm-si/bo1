@@ -61,8 +61,9 @@ ENABLE_ENHANCED_QUALITY_METRICS = os.getenv("ENABLE_ENHANCED_QUALITY_METRICS", "
 )
 
 # Model selection for facilitator
-# Options: "haiku-4.5" (fast, cheap) or "sonnet-4.5" (slower, higher quality)
-FACILITATOR_MODEL: Literal["haiku-4.5", "sonnet-4.5"] = os.getenv("FACILITATOR_MODEL", "haiku-4.5")  # type: ignore[assignment]
+# Options: "haiku" (fast, cheap) or "sonnet" (slower, higher quality)
+# These aliases are resolved to full model IDs in bo1/config.py
+FACILITATOR_MODEL: Literal["haiku", "sonnet"] = os.getenv("FACILITATOR_MODEL", "haiku")  # type: ignore[assignment]
 
 # Model selection for personas
-PERSONA_MODEL: Literal["sonnet-4.5", "haiku-4.5"] = os.getenv("PERSONA_MODEL", "sonnet-4.5")  # type: ignore[assignment]
+PERSONA_MODEL: Literal["sonnet", "haiku"] = os.getenv("PERSONA_MODEL", "sonnet")  # type: ignore[assignment]

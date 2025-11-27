@@ -549,14 +549,14 @@ jobs:
 
             # Verify critical tables exist
             echo "Verifying database schema..."
-            TABLES_CHECK=$(docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api uv run python -c "
+            TABLES_CHECK=$(docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} exec -T api uv run python -c '
 from bo1.state.postgres_manager import db_session
 with db_session() as conn:
     with conn.cursor() as cur:
-        cur.execute(\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users', 'sessions', 'session_events', 'session_tasks', 'waitlist');\")
+        cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '\''public'\'' AND table_name IN ('\''users'\'', '\''sessions'\'', '\''session_events'\'', '\''session_tasks'\'', '\''waitlist'\'');")
         count = cur.fetchone()[0]
         print(count)
-" 2>/dev/null || echo "0")
+' 2>/dev/null || echo "0")
 
             if [ "$TABLES_CHECK" -ge 5 ]; then
               echo "✅ All critical tables exist"

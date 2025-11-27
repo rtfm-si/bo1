@@ -168,6 +168,9 @@ jobs:
           push: true
           tags: ${{ steps.meta-api.outputs.tags }}
           labels: ${{ steps.meta-api.outputs.labels }}
+          build-args: |
+            BUILD_TIMESTAMP=${{ github.event.head_commit.timestamp }}
+            GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -357,15 +360,21 @@ jobs:
             # =================================================================
             echo "🚀 Deploying ${TARGET_ENV} environment..."
 
+            # Set build metadata for fresh builds
+            BUILD_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            GIT_COMMIT_SHORT=$(echo "${GITHUB_SHA}" | cut -c1-7)
+
             if [ "$TARGET_ENV" = "blue" ]; then
               # Deploy blue environment (default project, ports 8000/3000)
               TARGET_API_PORT=8000
               TARGET_FRONTEND_PORT=3000
               TARGET_PROJECT="boardofone"
 
-              echo "Building blue environment images..."
+              echo "Building blue environment images with commit ${GIT_COMMIT_SHORT}..."
               API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} build
+                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} build \
+                --build-arg BUILD_TIMESTAMP="${BUILD_TIMESTAMP}" \
+                --build-arg GIT_COMMIT="${GIT_COMMIT_SHORT}"
 
               # Remove old containers (idempotent)
               docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} rm -f -s 2>/dev/null || true
@@ -379,9 +388,11 @@ jobs:
               TARGET_FRONTEND_PORT=3001
               TARGET_PROJECT="boardofone-green"
 
-              echo "Building green environment images..."
+              echo "Building green environment images with commit ${GIT_COMMIT_SHORT}..."
               API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} build
+                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} build \
+                --build-arg BUILD_TIMESTAMP="${BUILD_TIMESTAMP}" \
+                --build-arg GIT_COMMIT="${GIT_COMMIT_SHORT}"
 
               # Stop and remove old green containers completely
               echo "Removing old green containers..."
@@ -592,6 +603,12 @@ jobs:
           curl --fail https://boardof.one/api/health || exit 1
           curl --fail https://boardof.one/api/health/db || exit 1
           curl --fail https://boardof.one/api/health/redis || exit 1
+
+          # Verify build metadata is present
+          echo ""
+          echo "📋 Build info from deployed API:"
+          HEALTH_RESPONSE=$(curl -s https://boardof.one/api/health)
+          echo "$HEALTH_RESPONSE" | jq -r '.details | "   build_timestamp: \(.build_timestamp)\n   git_commit: \(.git_commit)"' || echo "   (build info parsing failed - check response format)"
 
           echo "✅ Post-deployment validation passed"
 

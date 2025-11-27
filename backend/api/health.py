@@ -5,10 +5,14 @@ Provides endpoints to check:
 - PostgreSQL database connection
 - Redis connection
 - Anthropic API key validity
+- Build metadata (timestamp, git commit)
 """
 
+import json
+import logging
 import os
 from datetime import datetime
+from pathlib import Path
 
 import psycopg2
 import redis
@@ -17,6 +21,36 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# Load build info at startup (cached)
+_build_info: dict[str, str] = {}
+
+
+def get_build_info() -> dict[str, str]:
+    """Load build info from file (cached).
+
+    Returns:
+        Dict with build_timestamp and git_commit, or empty values if not found.
+    """
+    global _build_info
+    if _build_info:
+        return _build_info
+
+    build_info_path = Path("/app/build_info.json")
+    if build_info_path.exists():
+        try:
+            with open(build_info_path) as f:
+                _build_info = json.load(f)
+                logger.info(f"Loaded build info: {_build_info}")
+        except Exception as e:
+            logger.warning(f"Failed to load build info: {e}")
+            _build_info = {"build_timestamp": "unknown", "git_commit": "unknown"}
+    else:
+        # Development mode - no build info file
+        _build_info = {"build_timestamp": "development", "git_commit": "development"}
+
+    return _build_info
 
 
 class HealthResponse(BaseModel):
@@ -128,12 +162,15 @@ async def health_check() -> HealthResponse:
     Returns:
         Health status response indicating API is online
     """
+    build_info = get_build_info()
     return HealthResponse(
         status="healthy",
         timestamp=datetime.utcnow().isoformat(),
         details={
             "version": "1.0.0",
             "api": "Board of One",
+            "build_timestamp": build_info.get("build_timestamp", "unknown"),
+            "git_commit": build_info.get("git_commit", "unknown"),
         },
     )
 

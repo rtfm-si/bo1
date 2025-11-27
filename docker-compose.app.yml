@@ -16,6 +16,9 @@ services:
       context: .
       dockerfile: backend/Dockerfile
       target: production
+      args:
+        - BUILD_TIMESTAMP=${BUILD_TIMESTAMP:-}
+        - GIT_COMMIT=${GIT_COMMIT:-}
     environment:
       # Redis Configuration
       - REDIS_HOST=redis
@@ -83,7 +86,7 @@ services:
       - bo1-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3

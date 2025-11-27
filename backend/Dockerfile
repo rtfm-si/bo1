@@ -57,6 +57,13 @@ CMD ["uv", "run", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--por
 # =============================================================================
 FROM base AS production
 
+# Build metadata - set via docker build --build-arg
+ARG BUILD_TIMESTAMP=""
+ARG GIT_COMMIT=""
+
+# Write build info to file (read by health endpoint)
+RUN echo "{\"build_timestamp\": \"${BUILD_TIMESTAMP:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}\", \"git_commit\": \"${GIT_COMMIT:-unknown}\"}" > /app/build_info.json
+
 # Copy application code
 COPY backend/ /app/backend/
 COPY bo1/ /app/bo1/

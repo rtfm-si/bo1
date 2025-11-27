@@ -6,6 +6,7 @@ and integrate them into the LangGraph execution model.
 
 import json
 import logging
+import time
 from dataclasses import asdict
 from typing import Any, Literal
 
@@ -22,8 +23,9 @@ from bo1.graph.utils import (
     track_aggregated_cost,
     track_phase_cost,
 )
-from bo1.models.problem import SubProblem
-from bo1.models.state import DeliberationPhase
+from bo1.models.persona import PersonaProfile
+from bo1.models.problem import Problem, SubProblem
+from bo1.models.state import DeliberationPhase, SubProblemResult
 from bo1.orchestration.deliberation import DeliberationEngine
 from bo1.state.postgres_manager import load_user_context
 from bo1.utils.json_parsing import extract_json_with_fallback
@@ -1053,8 +1055,11 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
             f"(confidence: {vote['confidence']:.2f})\n"
             f"Reasoning: {vote['reasoning']}\n"
         )
-        if vote.get("conditions"):
-            all_contributions_and_votes.append(f"Conditions: {', '.join(vote['conditions'])}\n")
+        conditions = vote.get("conditions")
+        if conditions and isinstance(conditions, list):
+            all_contributions_and_votes.append(
+                f"Conditions: {', '.join(str(c) for c in conditions)}\n"
+            )
         all_contributions_and_votes.append("\n")
 
     full_context = "".join(all_contributions_and_votes)
@@ -1610,6 +1615,137 @@ async def clarification_node(state: DeliberationGraphState) -> dict[str, Any]:
 
 
 # ============================================================================
+# PARALLEL SUB-PROBLEMS - Dependency Analysis (Phase 1-2)
+# ============================================================================
+
+
+def topological_batch_sort(sub_problems: list[SubProblem]) -> list[list[int]]:
+    """Sort sub-problems into execution batches respecting dependencies.
+
+    Returns list of batches, where each batch contains indices of
+    sub-problems that can run in parallel.
+
+    Args:
+        sub_problems: List of SubProblem objects with dependencies
+
+    Returns:
+        List of batches, where each batch is a list of sub-problem indices
+        that can be executed in parallel
+
+    Raises:
+        ValueError: If circular dependency detected
+
+    Examples:
+        >>> sp1 = SubProblem(id="sp_001", goal="A", context="", complexity_score=5, dependencies=[])
+        >>> sp2 = SubProblem(id="sp_002", goal="B", context="", complexity_score=5, dependencies=["sp_001"])
+        >>> sp3 = SubProblem(id="sp_003", goal="C", context="", complexity_score=5, dependencies=[])
+        >>> batches = topological_batch_sort([sp1, sp2, sp3])
+        >>> batches
+        [[0, 2], [1]]  # sp_001 and sp_003 can run in parallel, then sp_002
+    """
+    # Build ID to index mapping (kept for potential future use in validation)
+    _id_to_idx = {sp.id: i for i, sp in enumerate(sub_problems)}  # noqa: F841
+    in_degree = [len(sp.dependencies) for sp in sub_problems]
+    batches = []
+    remaining = set(range(len(sub_problems)))
+
+    while remaining:
+        # Find all sub-problems with no remaining dependencies
+        batch = [i for i in remaining if in_degree[i] == 0]
+
+        if not batch:
+            # No sub-problems ready -> circular dependency
+            raise ValueError("Circular dependency detected in sub-problems")
+
+        batches.append(batch)
+
+        # Remove batch from remaining
+        for idx in batch:
+            remaining.remove(idx)
+            sp_id = sub_problems[idx].id
+
+            # Decrement in-degree for sub-problems that depend on this one
+            for other_idx in remaining:
+                if sp_id in sub_problems[other_idx].dependencies:
+                    in_degree[other_idx] -= 1
+
+    return batches
+
+
+async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Analyze sub-problem dependencies and create execution batches.
+
+    This node runs after decomposition to determine which sub-problems
+    can be executed in parallel vs sequentially.
+
+    Args:
+        state: Current graph state (must have problem with sub_problems)
+
+    Returns:
+        Dictionary with state updates:
+        - execution_batches: List of batches (each batch = list of sub-problem indices)
+        - parallel_mode: Boolean indicating if any batches have >1 sub-problem
+
+    Examples:
+        If sub-problems are: [A (no deps), B (depends on A), C (no deps)]
+        Then execution_batches = [[0, 2], [1]]  # A and C parallel, then B
+        And parallel_mode = True (batch 0 has 2 sub-problems)
+    """
+    from bo1.feature_flags.features import ENABLE_PARALLEL_SUBPROBLEMS
+
+    logger.info("analyze_dependencies_node: Starting dependency analysis")
+
+    problem = state.get("problem")
+    if not problem:
+        raise ValueError("analyze_dependencies_node called without problem")
+
+    sub_problems = problem.sub_problems
+
+    # Check if parallel sub-problems feature is enabled
+    if not ENABLE_PARALLEL_SUBPROBLEMS or len(sub_problems) <= 1:
+        # Sequential mode or single sub-problem
+        logger.info(
+            f"analyze_dependencies_node: Sequential mode "
+            f"(feature_flag={ENABLE_PARALLEL_SUBPROBLEMS}, sub_problems={len(sub_problems)})"
+        )
+        return {
+            "execution_batches": [[i] for i in range(len(sub_problems))],
+            "parallel_mode": False,
+            "current_node": "analyze_dependencies",
+        }
+
+    # Perform topological sort to find execution batches
+    try:
+        batches = topological_batch_sort(sub_problems)
+
+        # Check if any batch has more than 1 sub-problem (actual parallelism)
+        has_parallelism = any(len(batch) > 1 for batch in batches)
+
+        logger.info(
+            f"analyze_dependencies_node: Complete - {len(batches)} batches, "
+            f"parallel={has_parallelism}, batches={batches}"
+        )
+
+        return {
+            "execution_batches": batches,
+            "parallel_mode": has_parallelism,
+            "current_node": "analyze_dependencies",
+        }
+
+    except ValueError as e:
+        # Circular dependency detected
+        logger.error(f"analyze_dependencies_node: {e}. Falling back to sequential execution.")
+
+        # Fallback: execute all sub-problems sequentially
+        return {
+            "execution_batches": [[i] for i in range(len(sub_problems))],
+            "parallel_mode": False,
+            "dependency_error": str(e),
+            "current_node": "analyze_dependencies",
+        }
+
+
+# ============================================================================
 # NEW PARALLEL ARCHITECTURE - Multi-Expert Round Node (Day 38)
 # ============================================================================
 
@@ -2105,3 +2241,458 @@ def _get_phase_prompt(phase: str, round_number: int) -> str:
 
     else:
         return "Provide your contribution based on your expertise."
+
+
+# ============================================================================
+# PARALLEL SUB-PROBLEMS - Core Execution (Phases 3-4)
+# ============================================================================
+
+
+async def _deliberate_subproblem(
+    sub_problem: SubProblem,
+    problem: Problem,
+    all_personas: list[PersonaProfile],
+    previous_results: list[SubProblemResult],
+    user_id: str | None = None,
+) -> SubProblemResult:
+    """Run complete deliberation for a single sub-problem.
+
+    This encapsulates the full deliberation lifecycle:
+    - Persona selection for this specific sub-problem
+    - Initial round
+    - Multi-round deliberation (up to 6 rounds)
+    - Convergence checking
+    - Voting/recommendations collection
+    - Synthesis generation
+
+    This function is designed to be called in parallel for independent sub-problems.
+
+    Args:
+        sub_problem: The sub-problem to deliberate
+        problem: The parent problem (for context)
+        all_personas: Available personas (persona selection will choose subset)
+        previous_results: Results from previously completed sub-problems (for expert memory)
+        user_id: Optional user ID for context persistence
+
+    Returns:
+        SubProblemResult with synthesis, votes, costs, and expert summaries
+
+    Example:
+        >>> # Parallel execution of independent sub-problems
+        >>> tasks = [
+        ...     _deliberate_subproblem(sp1, problem, personas, []),
+        ...     _deliberate_subproblem(sp2, problem, personas, []),
+        ... ]
+        >>> results = await asyncio.gather(*tasks)
+    """
+    from bo1.agents.selector import PersonaSelectorAgent
+    from bo1.agents.summarizer import SummarizerAgent
+    from bo1.data import get_persona_by_code
+    from bo1.llm.broker import PromptBroker, PromptRequest
+    from bo1.models.persona import PersonaProfile
+    from bo1.orchestration.voting import collect_recommendations
+    from bo1.prompts.reusable_prompts import SYNTHESIS_PROMPT_TEMPLATE
+
+    logger.info(
+        f"_deliberate_subproblem: Starting deliberation for sub-problem '{sub_problem.id}': {sub_problem.goal[:80]}"
+    )
+
+    # Track metrics for this sub-problem
+    from bo1.models.state import DeliberationMetrics
+
+    metrics = DeliberationMetrics()
+    start_time = time.time()
+
+    # Step 1: Select personas for this sub-problem
+    logger.info(f"_deliberate_subproblem: Selecting personas for {sub_problem.id}")
+    selector = PersonaSelectorAgent()
+    response = await selector.recommend_personas(
+        sub_problem=sub_problem,
+        problem_context=problem.context,
+    )
+
+    # Parse recommendations
+    recommendations = json.loads(response.content)
+    recommended_personas = recommendations.get("recommended_personas", [])
+    persona_codes = [p["code"] for p in recommended_personas]
+
+    # Load persona profiles
+    personas = []
+    for code in persona_codes:
+        persona_dict = get_persona_by_code(code)
+        if persona_dict:
+            persona = PersonaProfile.model_validate(persona_dict)
+            personas.append(persona)
+
+    # Track persona selection cost
+    track_phase_cost(metrics, "persona_selection", response)
+
+    logger.info(
+        f"_deliberate_subproblem: Selected {len(personas)} personas for {sub_problem.id}: {persona_codes}"
+    )
+
+    # Step 2: Build expert memory from previous results
+    expert_memory: dict[str, str] = {}
+    if previous_results:
+        # Build memory parts first
+        memory_parts: dict[str, list[str]] = {}
+        for result in previous_results:
+            for expert_code, summary in result.expert_summaries.items():
+                if expert_code not in memory_parts:
+                    memory_parts[expert_code] = []
+                memory_parts[expert_code].append(
+                    f"Sub-problem: {result.sub_problem_goal}\nYour position: {summary}"
+                )
+
+        # Join memory parts for each expert
+        expert_memory = {code: "\n\n".join(parts) for code, parts in memory_parts.items() if parts}
+
+        logger.info(
+            f"_deliberate_subproblem: Built expert memory for {len(expert_memory)} experts from {len(previous_results)} previous sub-problems"
+        )
+
+    # Step 3: Run deliberation rounds
+    from bo1.feature_flags.features import ENABLE_PARALLEL_ROUNDS
+
+    contributions = []
+    round_summaries = []
+    max_rounds = 6
+
+    # Create a minimal graph state for deliberation
+    # This allows us to reuse existing parallel_round_node logic
+    mini_state = DeliberationGraphState(
+        session_id=f"subproblem_{sub_problem.id}",
+        problem=problem,
+        current_sub_problem=sub_problem,
+        personas=personas,
+        contributions=[],
+        round_summaries=[],
+        phase=DeliberationPhase.DISCUSSION,
+        round_number=1,
+        max_rounds=max_rounds,
+        metrics=metrics,
+        facilitator_decision=None,
+        should_stop=False,
+        stop_reason=None,
+        user_input=None,
+        user_id=user_id,
+        current_node="parallel_subproblem_deliberation",
+        votes=[],
+        synthesis=None,
+        sub_problem_results=previous_results,
+        sub_problem_index=0,
+        collect_context=False,
+        business_context=None,
+        pending_clarification=None,
+        phase_costs={},
+        current_phase="exploration",
+        experts_per_round=[],
+        semantic_novelty_scores={},
+        exploration_score=0.0,
+        focus_score=1.0,
+        completed_research_queries=[],
+    )
+
+    # Run rounds until convergence or max rounds
+    if ENABLE_PARALLEL_ROUNDS:
+        # Use parallel multi-expert architecture
+        for round_num in range(1, max_rounds + 1):
+            mini_state["round_number"] = round_num
+
+            # Run parallel round
+            updates = await parallel_round_node(mini_state)
+
+            # Update mini_state with results
+            mini_state["contributions"] = updates["contributions"]
+            mini_state["round_number"] = updates["round_number"]
+            mini_state["round_summaries"] = updates["round_summaries"]
+            mini_state["metrics"] = updates["metrics"]
+            mini_state["current_phase"] = updates.get("current_phase", "exploration")
+            mini_state["experts_per_round"] = updates.get("experts_per_round", [])
+
+            # Check convergence
+            from bo1.graph.safety.loop_prevention import check_convergence_node
+
+            convergence_updates = await check_convergence_node(mini_state)
+            mini_state["should_stop"] = convergence_updates.get("should_stop", False)
+            mini_state["stop_reason"] = convergence_updates.get("stop_reason")
+
+            if mini_state["should_stop"]:
+                logger.info(
+                    f"_deliberate_subproblem: Convergence reached at round {round_num} for {sub_problem.id}"
+                )
+                break
+    else:
+        # Legacy serial architecture (fallback)
+        logger.warning(
+            "_deliberate_subproblem: Using legacy serial architecture for sub-problem deliberation"
+        )
+        # Use existing initial_round + persona_contribute pattern
+        # (Simplified for parallel sub-problems - full implementation would need initial_round_node)
+        engine = DeliberationEngine(state=graph_state_to_deliberation_state(mini_state))
+        contrib_list, llm_responses = await engine.run_initial_round()
+        mini_state["contributions"] = contrib_list
+        track_aggregated_cost(metrics, "initial_round", llm_responses)
+
+    # Extract final contributions and summaries
+    contributions = mini_state["contributions"]
+    round_summaries = mini_state["round_summaries"]
+    metrics = mini_state["metrics"]
+
+    logger.info(
+        f"_deliberate_subproblem: Deliberation complete for {sub_problem.id} - {len(contributions)} contributions, {len(round_summaries)} rounds"
+    )
+
+    # Step 4: Collect recommendations
+    logger.info(f"_deliberate_subproblem: Collecting recommendations for {sub_problem.id}")
+
+    v1_state = graph_state_to_deliberation_state(mini_state)
+    broker = PromptBroker()
+    recommendations, llm_responses = await collect_recommendations(state=v1_state, broker=broker)
+    track_aggregated_cost(metrics, "voting", llm_responses)
+
+    # Convert recommendations to dicts
+    votes = [
+        {
+            "persona_code": r.persona_code,
+            "persona_name": r.persona_name,
+            "recommendation": r.recommendation,
+            "reasoning": r.reasoning,
+            "confidence": r.confidence,
+            "conditions": r.conditions,
+            "weight": r.weight,
+        }
+        for r in recommendations
+    ]
+
+    logger.info(
+        f"_deliberate_subproblem: Collected {len(votes)} recommendations for {sub_problem.id}"
+    )
+
+    # Step 5: Generate synthesis
+    logger.info(f"_deliberate_subproblem: Generating synthesis for {sub_problem.id}")
+
+    # Format contributions and votes
+    all_contributions_and_votes = []
+    all_contributions_and_votes.append("=== DISCUSSION ===\n")
+    for contrib in contributions:
+        all_contributions_and_votes.append(
+            f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
+        )
+
+    all_contributions_and_votes.append("\n=== RECOMMENDATIONS ===\n")
+    for vote in votes:
+        all_contributions_and_votes.append(
+            f"{vote['persona_name']}: {vote['recommendation']} "
+            f"(confidence: {vote['confidence']:.2f})\n"
+            f"Reasoning: {vote['reasoning']}\n"
+        )
+        conditions = vote.get("conditions")
+        if conditions and isinstance(conditions, list):
+            all_contributions_and_votes.append(
+                f"Conditions: {', '.join(str(c) for c in conditions)}\n"
+            )
+        all_contributions_and_votes.append("\n")
+
+    full_context = "".join(all_contributions_and_votes)
+
+    synthesis_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(
+        problem_statement=sub_problem.goal,
+        all_contributions_and_votes=full_context,
+    )
+
+    broker = PromptBroker()
+    request = PromptRequest(
+        system=synthesis_prompt,
+        user_message="Generate the synthesis report now.",
+        prefill="<thinking>",
+        model="sonnet",
+        temperature=0.7,
+        max_tokens=3000,
+        phase="synthesis",
+        agent_type="synthesizer",
+    )
+
+    response = await broker.call(request)
+    synthesis = "<thinking>" + response.content
+    track_phase_cost(metrics, "synthesis", response)
+
+    logger.info(
+        f"_deliberate_subproblem: Synthesis generated for {sub_problem.id} (cost: ${response.cost_total:.4f})"
+    )
+
+    # Step 6: Generate expert summaries for memory
+    expert_summaries: dict[str, str] = {}
+    summarizer = SummarizerAgent()
+
+    for persona in personas:
+        expert_contributions = [c for c in contributions if c.persona_code == persona.code]
+
+        if expert_contributions:
+            try:
+                contribution_dicts = [
+                    {"persona": c.persona_name, "content": c.content} for c in expert_contributions
+                ]
+
+                summary_response = await summarizer.summarize_round(
+                    round_number=mini_state["round_number"],
+                    contributions=contribution_dicts,
+                    problem_statement=sub_problem.goal,
+                    target_tokens=75,
+                )
+
+                expert_summaries[persona.code] = summary_response.content
+                track_phase_cost(metrics, "expert_memory", summary_response)
+
+            except Exception as e:
+                logger.warning(
+                    f"Failed to generate summary for {persona.display_name} in {sub_problem.id}: {e}"
+                )
+
+    # Calculate duration
+    duration_seconds = time.time() - start_time
+
+    # Create result
+    result = SubProblemResult(
+        sub_problem_id=sub_problem.id,
+        sub_problem_goal=sub_problem.goal,
+        synthesis=synthesis,
+        votes=votes,
+        contribution_count=len(contributions),
+        cost=metrics.total_cost,
+        duration_seconds=duration_seconds,
+        expert_panel=[p.code for p in personas],
+        expert_summaries=expert_summaries,
+    )
+
+    logger.info(
+        f"_deliberate_subproblem: Complete for {sub_problem.id} - "
+        f"{len(contributions)} contributions, ${metrics.total_cost:.4f}, {duration_seconds:.1f}s"
+    )
+
+    return result
+
+
+async def parallel_subproblems_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Execute independent sub-problems in parallel using asyncio.gather().
+
+    This node implements the core parallel sub-problem execution strategy:
+    1. Reads execution_batches from state (computed by analyze_dependencies_node)
+    2. For each batch, runs all sub-problems in that batch concurrently
+    3. Passes completed results to next batch (for expert memory)
+    4. Returns all SubProblemResult objects
+
+    Batching respects dependencies: sub-problems in batch N can depend on
+    results from batches 0..N-1, but not on other sub-problems in batch N.
+
+    Args:
+        state: Current graph state (must have execution_batches, problem)
+
+    Returns:
+        Dictionary with state updates:
+        - sub_problem_results: All results from all batches
+        - current_sub_problem: None (all complete)
+        - phase: SYNTHESIS (ready for meta-synthesis)
+
+    Example:
+        Given execution_batches = [[0, 1], [2]]:
+        - Batch 0: Deliberate sub-problems 0 and 1 in parallel
+        - Batch 1: Deliberate sub-problem 2 (can reference results from 0, 1)
+        - Return all 3 results
+    """
+    import asyncio
+
+    logger.info("parallel_subproblems_node: Starting parallel sub-problem execution")
+
+    problem = state.get("problem")
+    if not problem:
+        raise ValueError("parallel_subproblems_node called without problem")
+
+    execution_batches = state.get("execution_batches", [])
+    if not execution_batches:
+        logger.warning("No execution_batches in state, creating sequential batches")
+        execution_batches = [[i] for i in range(len(problem.sub_problems))]
+
+    sub_problems = problem.sub_problems
+    user_id = state.get("user_id")
+
+    # Get all available personas for selection
+    from bo1.data import get_active_personas
+
+    all_personas_dicts = get_active_personas()
+    all_personas = [PersonaProfile.model_validate(p) for p in all_personas_dicts]
+
+    # Track all results across batches
+    all_results: list[SubProblemResult] = []
+    total_batches = len(execution_batches)
+
+    logger.info(
+        f"parallel_subproblems_node: Executing {total_batches} batches for {len(sub_problems)} sub-problems"
+    )
+
+    # Execute batches sequentially, sub-problems within batch in parallel
+    for batch_idx, batch in enumerate(execution_batches):
+        logger.info(
+            f"parallel_subproblems_node: Starting batch {batch_idx + 1}/{total_batches} with {len(batch)} sub-problems: {batch}"
+        )
+
+        # Create tasks for all sub-problems in this batch
+        batch_tasks = []
+        for sp_index in batch:
+            if sp_index >= len(sub_problems):
+                logger.error(
+                    f"Invalid sub-problem index {sp_index} in batch {batch_idx} (only {len(sub_problems)} sub-problems)"
+                )
+                continue
+
+            sub_problem = sub_problems[sp_index]
+
+            # Create deliberation task
+            task = _deliberate_subproblem(
+                sub_problem=sub_problem,
+                problem=problem,
+                all_personas=all_personas,
+                previous_results=all_results,  # Results from previous batches
+                user_id=user_id,
+            )
+            batch_tasks.append((sp_index, task))
+
+        # Execute batch in parallel
+        logger.info(f"parallel_subproblems_node: Executing {len(batch_tasks)} tasks in parallel")
+        batch_results_raw = await asyncio.gather(*[t[1] for t in batch_tasks])
+
+        # Pair results with indices
+        batch_results = [(batch_tasks[i][0], result) for i, result in enumerate(batch_results_raw)]
+
+        # Add to all_results in the correct order
+        for _sp_index, result in sorted(batch_results, key=lambda x: x[0]):
+            all_results.append(result)
+
+        logger.info(
+            f"parallel_subproblems_node: Batch {batch_idx + 1}/{total_batches} complete - "
+            f"{len(batch_results)} sub-problems deliberated"
+        )
+
+    # Calculate total metrics
+    total_cost = sum(r.cost for r in all_results)
+    total_contributions = sum(r.contribution_count for r in all_results)
+    total_duration = sum(r.duration_seconds for r in all_results)
+
+    logger.info(
+        f"parallel_subproblems_node: Complete - {len(all_results)} sub-problems deliberated, "
+        f"{total_contributions} total contributions, ${total_cost:.4f}, {total_duration:.1f}s"
+    )
+
+    # Update metrics in state
+    metrics = ensure_metrics(state)
+    # Add costs from all sub-problems (they tracked their own costs)
+    for result in all_results:
+        metrics.total_cost += result.cost
+
+    return {
+        "sub_problem_results": all_results,
+        "current_sub_problem": None,  # All complete
+        "phase": DeliberationPhase.SYNTHESIS,  # Ready for meta-synthesis
+        "metrics": metrics,
+        "current_node": "parallel_subproblems",
+    }

@@ -94,6 +94,11 @@ class DeliberationGraphState(TypedDict, total=False):
     exploration_score: float  # From quality metrics (0.0-1.0)
     focus_score: float  # From quality metrics (0.0-1.0)
 
+    # PARALLEL SUB-PROBLEMS (Day 38.5 - Phases 1-2)
+    execution_batches: list[list[int]]  # Sub-problem execution batches (list of index lists)
+    parallel_mode: bool  # Whether parallel sub-problem execution is active
+    dependency_error: str | None  # Error message if circular dependencies detected
+
 
 def create_initial_state(
     session_id: str,
@@ -148,6 +153,10 @@ def create_initial_state(
         semantic_novelty_scores={},  # Will track novelty per contribution
         exploration_score=0.0,  # Will be calculated during deliberation
         focus_score=1.0,  # Start at 1.0 (assume focused until proven otherwise)
+        # PARALLEL SUB-PROBLEMS
+        execution_batches=[],  # Will be populated by analyze_dependencies_node
+        parallel_mode=False,  # Will be set based on dependency analysis
+        dependency_error=None,  # Will be set if circular dependencies detected
     )
 
 

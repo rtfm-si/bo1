@@ -206,3 +206,31 @@ def route_clarification(
     else:
         logger.info("route_clarification: Clarification handled -> routing to persona_contribute")
         return "persona_contribute"
+
+
+def route_subproblem_execution(
+    state: DeliberationGraphState,
+) -> Literal["parallel_subproblems", "context_collection"]:
+    """Route after dependency analysis to parallel or sequential execution.
+
+    This router checks the parallel_mode flag set by analyze_dependencies_node:
+    - If parallel_mode=True: Route to parallel_subproblems for concurrent execution
+    - If parallel_mode=False: Route to context_collection for sequential execution
+
+    Args:
+        state: Current graph state (must have parallel_mode set)
+
+    Returns:
+        - "parallel_subproblems" if parallel execution enabled
+        - "context_collection" if sequential execution (legacy flow)
+    """
+    parallel_mode = state.get("parallel_mode", False)
+
+    logger.info(f"route_subproblem_execution: parallel_mode={parallel_mode}")
+
+    if parallel_mode:
+        logger.info("route_subproblem_execution: Routing to parallel_subproblems")
+        return "parallel_subproblems"
+    else:
+        logger.info("route_subproblem_execution: Routing to context_collection (sequential)")
+        return "context_collection"

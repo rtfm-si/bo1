@@ -114,6 +114,23 @@ Use this detailed rubric to assign complexity scores consistently:
 3. **Sub-problems must be GENUINELY independent.** Don't split what's naturally evaluated together.
 4. **5 sub-problems ONLY for complexity 10.** This is rare - maybe 1 in 20 problems.
 
+## Dependency Identification
+
+For each sub-problem, identify if it depends on conclusions from other sub-problems:
+
+- **If sub-problem B needs the answer to sub-problem A before it can be properly addressed**, list A's ID in B's dependencies.
+- **If sub-problems are independent** (can be answered without knowing the others' conclusions), leave dependencies empty [].
+
+**Examples**:
+- "What is our current market position?" - dependencies: [] (independent research)
+- "Should we expand to new markets?" - dependencies: ["sp_001"] (needs market position first)
+- "What pricing strategy should we use?" - dependencies: [] or ["sp_001"] depending on context
+
+**Dependency Guidelines**:
+- Use dependencies when one sub-problem's conclusion is needed as input for another
+- Don't create unnecessary dependencies - independence allows parallel execution
+- Circular dependencies are invalid - the system will reject them
+
 ## Output Format
 
 Respond with JSON containing:

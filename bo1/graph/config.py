@@ -89,7 +89,7 @@ def create_deliberation_graph(
         logger.info(f"Using provided checkpointer: {type(checkpointer).__name__}")
 
     # Import nodes and routers
-    from bo1.feature_flags import ENABLE_PARALLEL_ROUNDS
+    from bo1.feature_flags import ENABLE_PARALLEL_ROUNDS, ENABLE_PARALLEL_SUBPROBLEMS
     from bo1.graph.nodes import (
         facilitator_decide_node,
         meta_synthesize_node,
@@ -103,11 +103,17 @@ def create_deliberation_graph(
     # NEW PARALLEL ARCHITECTURE: Conditional import
     if ENABLE_PARALLEL_ROUNDS:
         from bo1.graph.nodes import parallel_round_node
+
+    # PARALLEL SUB-PROBLEMS: Conditional import
+    if ENABLE_PARALLEL_SUBPROBLEMS:
+        from bo1.graph.nodes import analyze_dependencies_node, parallel_subproblems_node
+
     from bo1.graph.routers import (
         route_after_synthesis,
         route_clarification,
         route_convergence_check,
         route_facilitator_decision,
+        route_subproblem_execution,
     )
     from bo1.graph.safety.loop_prevention import check_convergence_node
 
@@ -139,10 +145,29 @@ def create_deliberation_graph(
     workflow.add_node("clarification", clarification_node)  # Day 37
 
     # Add edges - Linear setup phase
-    # decompose -> context_collection (Day 37)
-    workflow.add_edge("decompose", "context_collection")
+    # decompose -> analyze_dependencies (if parallel sub-problems enabled, else context_collection)
+    if ENABLE_PARALLEL_SUBPROBLEMS:
+        workflow.add_node("analyze_dependencies", analyze_dependencies_node)
+        workflow.add_node("parallel_subproblems", parallel_subproblems_node)
+        workflow.add_edge("decompose", "analyze_dependencies")
 
-    # context_collection -> select_personas (Day 37)
+        # analyze_dependencies -> (parallel_subproblems | context_collection)
+        workflow.add_conditional_edges(
+            "analyze_dependencies",
+            route_subproblem_execution,
+            {
+                "parallel_subproblems": "parallel_subproblems",
+                "context_collection": "context_collection",
+            },
+        )
+
+        # parallel_subproblems -> meta_synthesis
+        workflow.add_edge("parallel_subproblems", "meta_synthesis")
+    else:
+        # Legacy: decompose -> context_collection (Day 37)
+        workflow.add_edge("decompose", "context_collection")
+
+    # context_collection -> select_personas (Day 37) - only used in sequential mode
     workflow.add_edge("context_collection", "select_personas")
 
     # select_personas -> initial_round

@@ -400,6 +400,7 @@ async def test_subproblem_complete_event(redis_manager, event_collector):
                 {
                     "sub_problem_id": "sp1",
                     "sub_problem_goal": "Assess ROI",
+                    "synthesis": "Based on the deliberation, the projected ROI is 150% over 3 years.",
                     "cost": 0.0452,
                     "duration_seconds": 45.2,
                     "expert_panel": ["CFO", "CTO"],

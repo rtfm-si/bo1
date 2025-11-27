@@ -732,6 +732,7 @@ def subproblem_complete_event(
     sub_problem_index: int,
     sub_problem_id: str,
     goal: str,
+    synthesis: str,
     cost: float,
     duration_seconds: float,
     expert_panel: list[str],
@@ -744,6 +745,7 @@ def subproblem_complete_event(
         sub_problem_index: 0-indexed sub-problem number
         sub_problem_id: Sub-problem identifier
         goal: Sub-problem goal
+        synthesis: Conclusion/synthesis text for this sub-problem
         cost: Cost in USD for this sub-problem
         duration_seconds: Time taken in seconds
         expert_panel: List of expert codes who deliberated
@@ -759,6 +761,7 @@ def subproblem_complete_event(
             "sub_problem_index": sub_problem_index,
             "sub_problem_id": sub_problem_id,
             "goal": goal,
+            "synthesis": synthesis,
             "cost": cost,
             "duration_seconds": duration_seconds,
             "expert_panel": expert_panel,

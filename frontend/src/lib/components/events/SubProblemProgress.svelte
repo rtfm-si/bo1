@@ -1,7 +1,7 @@
 <script lang="ts">
 	/**
 	 * SubProblemProgress Event Component
-	 * Displays completion status for a sub-problem
+	 * Displays completion status for a sub-problem including synthesis/conclusion
 	 */
 	import type { SubProblemCompleteEvent } from '$lib/api/sse-events';
 	import Badge from '$lib/components/ui/Badge.svelte';
@@ -21,6 +21,19 @@
 	const formatCost = (cost: number): string => {
 		return `$${cost.toFixed(4)}`;
 	};
+
+	// State for showing full synthesis
+	let showFullSynthesis = $state(false);
+
+	// Truncate synthesis if too long (show first 300 chars)
+	const truncatedSynthesis = $derived(
+		event.data.synthesis && event.data.synthesis.length > 300
+			? event.data.synthesis.slice(0, 300) + '...'
+			: event.data.synthesis
+	);
+
+	const hasSynthesis = $derived(event.data.synthesis && event.data.synthesis.length > 0);
+	const isLongSynthesis = $derived(event.data.synthesis && event.data.synthesis.length > 300);
 </script>
 
 <div class="space-y-3">
@@ -58,6 +71,34 @@
 				<p class="text-sm text-neutral-700 dark:text-neutral-300 mb-3">
 					{event.data.goal}
 				</p>
+
+				<!-- Synthesis/Conclusion -->
+				{#if hasSynthesis}
+					<div class="mb-4 p-3 bg-white/50 dark:bg-neutral-800/50 rounded-lg border border-success-100 dark:border-success-800">
+						<h4 class="text-sm font-semibold text-success-800 dark:text-success-300 mb-2 flex items-center gap-1.5">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+							Conclusion
+						</h4>
+						<div class="text-sm text-neutral-700 dark:text-neutral-300 prose prose-sm dark:prose-invert max-w-none">
+							{#if showFullSynthesis || !isLongSynthesis}
+								{event.data.synthesis}
+							{:else}
+								{truncatedSynthesis}
+							{/if}
+						</div>
+						{#if isLongSynthesis}
+							<button
+								type="button"
+								class="mt-2 text-sm text-success-700 dark:text-success-400 hover:text-success-900 dark:hover:text-success-200 font-medium"
+								onclick={() => showFullSynthesis = !showFullSynthesis}
+							>
+								{showFullSynthesis ? 'Show less' : 'Show more'}
+							</button>
+						{/if}
+					</div>
+				{/if}
 
 				<!-- Metrics -->
 				<div class="grid grid-cols-2 gap-3 text-sm">

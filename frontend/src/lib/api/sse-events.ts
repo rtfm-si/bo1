@@ -303,6 +303,7 @@ export interface SubProblemCompleteEvent extends SSEEvent {
 		sub_problem_index: number;
 		sub_problem_id: string;
 		goal: string;
+		synthesis: string;
 		cost: number;
 		duration_seconds: number;
 		expert_panel: string[];

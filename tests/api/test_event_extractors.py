@@ -562,6 +562,7 @@ class TestExtractorConfigurations:
                 {
                     "sub_problem_id": "sp1",
                     "sub_problem_goal": "Goal 1",
+                    "synthesis": "This is the conclusion for this sub-problem.",
                     "cost": 0.25,
                     "duration_seconds": 45.0,
                     "expert_panel": ["cfo", "cmo"],
@@ -574,6 +575,7 @@ class TestExtractorConfigurations:
 
         assert result["sub_problem_index"] == 0
         assert result["sub_problem_id"] == "sp1"
+        assert result["synthesis"] == "This is the conclusion for this sub-problem."
         assert result["cost"] == 0.25
 
     def test_completion_extractors(self):

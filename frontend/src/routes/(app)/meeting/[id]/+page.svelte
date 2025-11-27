@@ -164,6 +164,21 @@
 		!events.some(e => e.event_type === 'voting_complete')
 	);
 
+	// Meta-synthesis event (for multi-sub-problem conclusions)
+	const metaSynthesisEvent = $derived(
+		events.find(e => e.event_type === 'meta_synthesis_complete')
+	);
+
+	// All sub-problem complete events (for individual conclusions)
+	const subProblemCompleteEvents = $derived(
+		events.filter(e => e.event_type === 'subproblem_complete')
+	);
+
+	// Whether to show the Conclusion tab (when meta-synthesis exists)
+	const showConclusionTab = $derived(
+		metaSynthesisEvent !== undefined
+	);
+
 	/**
 	 * Performance optimization: Memoized sub-problem progress calculation
 	 *
@@ -1113,6 +1128,29 @@
 												</div>
 											</button>
 										{/each}
+										<!-- Conclusion tab (appears when meta-synthesis is complete) -->
+										{#if showConclusionTab}
+											{@const isActive = activeSubProblemTab === 'conclusion'}
+											<button
+												type="button"
+												role="tab"
+												aria-selected={isActive}
+												aria-controls="tabpanel-conclusion"
+												id="tab-conclusion"
+												class={[
+													'flex-shrink-0 px-4 py-2 border-b-2 -mb-px transition-all text-sm font-medium',
+													isActive
+														? 'border-success-600 text-success-700 dark:border-success-400 dark:text-success-400'
+														: 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600',
+												].join(' ')}
+												onclick={() => activeSubProblemTab = 'conclusion'}
+											>
+												<div class="flex items-center gap-2">
+													<span>Conclusion</span>
+													<CheckCircle size={14} class="text-success-600 dark:text-success-400" />
+												</div>
+											</button>
+										{/if}
 									</div>
 								</div>
 
@@ -1293,6 +1331,83 @@
 										{/if}
 									</div>
 								{/each}
+
+								<!-- Conclusion Tab Panel -->
+								{#if showConclusionTab}
+									{@const isTabActive = activeSubProblemTab === 'conclusion'}
+									<div
+										class="flex-1 overflow-y-auto p-4 space-y-6"
+										role="tabpanel"
+										id="tabpanel-conclusion"
+										aria-labelledby="tab-conclusion"
+										aria-hidden={!isTabActive}
+										inert={!isTabActive}
+										hidden={!isTabActive}
+									>
+										<!-- Meta-Synthesis / Overall Conclusion -->
+										<div class="bg-gradient-to-r from-success-50 to-brand-50 dark:from-success-900/20 dark:to-brand-900/20 border-2 border-success-300 dark:border-success-700 rounded-xl p-6">
+											<div class="flex items-start gap-4">
+												<div class="flex-shrink-0 w-14 h-14 bg-success-500 dark:bg-success-600 text-white rounded-full flex items-center justify-center">
+													<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+													</svg>
+												</div>
+												<div class="flex-1 min-w-0">
+													<h2 class="text-xl font-bold text-success-900 dark:text-success-100 mb-3">
+														Final Conclusion
+													</h2>
+													<div class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
+														{#if metaSynthesisEvent?.data?.synthesis}
+															{@const synthesis = metaSynthesisEvent.data.synthesis as string}
+															{@html synthesis.replace(/\n/g, '<br />')}
+														{:else}
+															<p class="text-slate-500 dark:text-slate-400 italic">No synthesis available.</p>
+														{/if}
+													</div>
+												</div>
+											</div>
+										</div>
+
+										<!-- Individual Sub-Problem Conclusions -->
+										{#if subProblemCompleteEvents.length > 0}
+											<div class="space-y-4">
+												<h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+													<svg class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+													</svg>
+													Individual Sub-Problem Conclusions
+												</h3>
+
+												{#each subProblemCompleteEvents as spEvent, index}
+													{@const spData = spEvent.data as { goal: string; synthesis: string; sub_problem_index: number; expert_panel: string[]; contribution_count: number }}
+													<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+														<div class="flex items-start gap-3">
+															<div class="flex-shrink-0 w-8 h-8 bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 rounded-full flex items-center justify-center text-sm font-semibold">
+																{spData.sub_problem_index + 1}
+															</div>
+															<div class="flex-1 min-w-0">
+																<h4 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">
+																	{spData.goal}
+																</h4>
+																{#if spData.synthesis}
+																	<p class="text-sm text-slate-700 dark:text-slate-300 mb-2">
+																		{spData.synthesis}
+																	</p>
+																{:else}
+																	<p class="text-sm text-slate-500 dark:text-slate-400 italic">No synthesis available.</p>
+																{/if}
+																<div class="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mt-2">
+																	<span>{spData.expert_panel?.length || 0} experts</span>
+																	<span>{spData.contribution_count || 0} contributions</span>
+																</div>
+															</div>
+														</div>
+													</div>
+												{/each}
+											</div>
+										{/if}
+									</div>
+								{/if}
 							</div>
 						{:else}
 							<!-- Single sub-problem or linear view -->

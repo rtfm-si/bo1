@@ -211,6 +211,7 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
             data.get("sub_problem_index", 0),
             data.get("sub_problem_id", ""),
             data.get("goal", ""),
+            data.get("synthesis", ""),
             data.get("cost", 0.0),
             data.get("duration_seconds", 0.0),
             data.get("expert_panel", []),

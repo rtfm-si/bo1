@@ -261,6 +261,7 @@ def extract_subproblem_result(result: Any) -> dict[str, Any]:
     return {
         "sub_problem_id": get_field_safe(result, "sub_problem_id", ""),
         "sub_problem_goal": get_field_safe(result, "sub_problem_goal", ""),
+        "synthesis": get_field_safe(result, "synthesis", ""),
         "cost": get_field_safe(result, "cost", 0.0),
         "duration_seconds": get_field_safe(result, "duration_seconds", 0.0),
         "expert_panel": get_field_safe(result, "expert_panel", []),

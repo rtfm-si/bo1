@@ -40,8 +40,8 @@ def sample_problem() -> Problem:
 
 def test_recursion_limit_constant():
     """Test that recursion limit is set correctly."""
-    # 6 rounds × 3 nodes/round + 2 overhead = 20 (parallel architecture)
-    assert DELIBERATION_RECURSION_LIMIT == 50  # Updated for parallel rounds architecture
+    # 5 sub-problems × ~45 nodes/sub-problem + overhead = 250 (multi-subproblem architecture)
+    assert DELIBERATION_RECURSION_LIMIT == 250  # Supports up to 5 sub-problems
 
 
 # ============================================================================
@@ -639,7 +639,7 @@ def test_route_cost_guard_exceeds_budget(sample_problem: Problem):
 async def test_all_five_layers_independently(sample_problem: Problem):
     """Test that all 5 layers can be activated independently."""
     # Layer 1: Recursion limit (constant check)
-    assert DELIBERATION_RECURSION_LIMIT == 50  # Updated for parallel rounds architecture
+    assert DELIBERATION_RECURSION_LIMIT == 250  # Supports up to 5 sub-problems
 
     # Layer 2: Cycle detection (graph validation)
     graph = nx.DiGraph()

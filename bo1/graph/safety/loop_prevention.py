@@ -49,16 +49,26 @@ DEFAULT_TIMEOUT_SECONDS = int(os.getenv("DELIBERATION_TIMEOUT_SECONDS", "3600"))
 # ============================================================================
 
 # Maximum steps the graph can take before raising GraphRecursionError
-# PARALLEL ARCHITECTURE: 50 steps provides safe margin for 6 rounds
-# Calculation: 6 max rounds x 4 nodes/round + 26 overhead = 50
-DELIBERATION_RECURSION_LIMIT = 50
+# MULTI-SUBPROBLEM ARCHITECTURE: 250 steps supports up to 5 sub-problems
+# Calculation: 5 sub-problems x ~45 nodes/sub-problem + 25 overhead = 250
+DELIBERATION_RECURSION_LIMIT = 250
 
-# Why 50 is safe for parallel architecture:
-# - Setup: decompose + select_personas + initial_round = 3 nodes
-# - Per round: parallel_round + check_convergence + facilitator_decide + summarize = 4 nodes
-# - Max rounds: 6 x 4 = 24 nodes
-# - Voting + synthesis: ~4 nodes
-# - Total: ~31 nodes, 50 provides safe margin for edge cases
+# Why 250 is needed for multi-subproblem architecture:
+# - Decompose: 1 node
+# - Per sub-problem (~45 nodes worst case):
+#   - select_personas: 1
+#   - initial_round: 1
+#   - Per round (6 max): parallel_round + check_convergence + facilitator_decide = 3 x 6 = 18
+#   - summarize per round: 6
+#   - voting: 1
+#   - synthesis: 1
+#   - transitions/retries: ~17
+# - Meta-synthesis: ~5 nodes
+# - Total for 5 sub-problems: 1 + 5*45 + 5 = ~231 nodes
+# - 250 provides safe margin for retries and edge cases
+#
+# NOTE: The round counter (6 max per sub-problem) is the primary protection
+# against infinite loops. This limit is a backstop for unexpected edge cases.
 
 
 # ============================================================================

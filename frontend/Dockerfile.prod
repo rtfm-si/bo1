@@ -19,10 +19,15 @@ ENV VITE_GOOGLE_OAUTH_CLIENT_ID=$VITE_GOOGLE_OAUTH_CLIENT_ID
 COPY package*.json ./
 
 # Install ALL dependencies (including devDependencies needed for build)
-RUN npm ci
+# Using npm install instead of npm ci to resolve platform-specific native modules
+# (lightningcss requires musl binaries on Alpine)
+RUN npm install
 
 # Copy application code
 COPY . .
+
+# Generate SvelteKit types and sync before build
+RUN npx svelte-kit sync
 
 # Build the app (Vite will embed VITE_* env vars at build time)
 RUN npm run build

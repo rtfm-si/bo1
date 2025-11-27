@@ -247,7 +247,7 @@ class TestFieldExtractorUtilities:
         assert result["total_sub_problems"] == 2
 
     def test_extract_subproblem_info_single_subproblem(self):
-        """Test extracting sub-problem info returns empty for single subproblem."""
+        """Test extracting sub-problem info works for single subproblem (Issue #4 fix)."""
 
         # Use mock objects
         class MockSubProblem:
@@ -269,7 +269,13 @@ class TestFieldExtractorUtilities:
 
         result = extract_subproblem_info(output)
 
-        assert result == {}
+        # Issue #4 fix: Now returns data for single sub-problems too (expert panel should show)
+        assert result == {
+            "sub_problem_index": 0,
+            "sub_problem_id": "sp1",
+            "goal": "G1",
+            "total_sub_problems": 1,
+        }
 
     def test_extract_subproblem_result(self):
         """Test extracting sub-problem result data."""

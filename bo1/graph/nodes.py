@@ -1078,7 +1078,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         prefill="<thinking>",
         model="sonnet",  # Use Sonnet for high-quality synthesis
         temperature=0.7,
-        max_tokens=3000,
+        max_tokens=1500,  # Reduced from 3000 to force conciseness
         phase="synthesis",
         agent_type="synthesizer",
     )
@@ -2085,12 +2085,38 @@ async def _generate_parallel_contributions(
     # Get phase-specific speaker prompt
     speaker_prompt = _get_phase_prompt(phase, round_number)
 
+    # Build context from sub-problem results (Phase 1.5 - Issue #22)
+    sub_problem_results = state.get("sub_problem_results", [])
+    current_sub_problem = state.get("current_sub_problem")  # SubProblem being deliberated
+
+    # Build dependency context (Issue #22A - dependent sub-problems)
+    dependency_context = None
+    if current_sub_problem and sub_problem_results and problem:
+        dependency_context = build_dependency_context(
+            current_sp=current_sub_problem, sub_problem_results=sub_problem_results, problem=problem
+        )
+
+    # Build general sub-problem context (Issue #22B - all experts get context)
+    subproblem_context = build_subproblem_context_for_all(sub_problem_results)
+
     # Create tasks for all experts
     # NOTE: speaker_prompt is stored in expert_memory for now (until _call_persona_async is updated)
     tasks = []
     for expert in experts:
-        # Use expert_memory to pass phase-specific guidance
-        phase_guidance = f"Phase Guidance: {speaker_prompt}"
+        # Build expert_memory with phase guidance + context
+        memory_parts = [f"Phase Guidance: {speaker_prompt}"]
+
+        # Add dependency context if available (for dependent sub-problems)
+        if dependency_context:
+            memory_parts.append(dependency_context)
+            logger.debug(f"Added dependency context for {expert.display_name}")
+
+        # Add general sub-problem context if available (for all experts)
+        if subproblem_context:
+            memory_parts.append(subproblem_context)
+            logger.debug(f"Added sub-problem context for {expert.display_name}")
+
+        expert_memory = "\n\n".join(memory_parts)
 
         task = engine._call_persona_async(
             persona_profile=expert,
@@ -2100,7 +2126,7 @@ async def _generate_parallel_contributions(
             round_number=round_number,
             contribution_type=ContributionType.RESPONSE,
             previous_contributions=contributions,
-            expert_memory=phase_guidance,  # Pass phase prompt via memory field
+            expert_memory=expert_memory,  # Pass phase prompt + context via memory field
         )
         tasks.append((expert, task))
 
@@ -2133,12 +2159,20 @@ async def _generate_parallel_contributions(
             phase_key = f"round_{round_number}_parallel_deliberation_retry"
             track_accumulated_cost(metrics, phase_key, llm_response)
 
-            # Create retry task with simplified prompt
-            retry_guidance = (
+            # Create retry task with simplified prompt + context
+            retry_memory_parts = [
                 f"RETRY - Please provide your expert analysis directly. "
                 f"DO NOT apologize or discuss the prompt structure. "
                 f"Focus on: {phase_prompt_short(phase)}"
-            )
+            ]
+
+            # Add context to retry as well (maintain consistency)
+            if dependency_context:
+                retry_memory_parts.append(dependency_context)
+            if subproblem_context:
+                retry_memory_parts.append(subproblem_context)
+
+            retry_guidance = "\n\n".join(retry_memory_parts)
 
             retry_task = engine._call_persona_async(
                 persona_profile=expert,
@@ -2244,6 +2278,157 @@ def _get_phase_prompt(phase: str, round_number: int) -> str:
 
 
 # ============================================================================
+# CONTEXT PASSING HELPERS (Phase 1.5 - Issue #22)
+# ============================================================================
+
+
+def extract_recommendation_from_synthesis(synthesis: str) -> str:
+    """Extract key recommendation from synthesis XML.
+
+    Parses synthesis content to extract the core recommendation for context passing.
+    Tries multiple XML tags in order of preference:
+    1. <recommendation> tag (most specific)
+    2. <executive_summary> tag (fallback)
+    3. First 500 characters (last resort)
+
+    Args:
+        synthesis: Full synthesis text (may contain XML tags)
+
+    Returns:
+        Extracted recommendation text (truncated to 500 chars max)
+
+    Example:
+        >>> synthesis = "<recommendation>Invest in SEO...</recommendation>"
+        >>> extract_recommendation_from_synthesis(synthesis)
+        'Invest in SEO...'
+    """
+    import re
+
+    # Try to extract <recommendation> tag content
+    match = re.search(r"<recommendation[^>]*>(.*?)</recommendation>", synthesis, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+
+    # Try executive_summary as fallback
+    match = re.search(r"<executive_summary[^>]*>(.*?)</executive_summary>", synthesis, re.DOTALL)
+    if match:
+        content = match.group(1).strip()
+        return content[:500] + "..." if len(content) > 500 else content
+
+    # Last resort: first 500 chars
+    return synthesis[:500] + "..." if len(synthesis) > 500 else synthesis
+
+
+def build_dependency_context(
+    current_sp: SubProblem, sub_problem_results: list[SubProblemResult], problem: Problem
+) -> str | None:
+    """Build context from dependent sub-problems.
+
+    When a sub-problem has dependencies (earlier sub-problems that must complete first),
+    this function extracts their conclusions and formats them for expert context.
+
+    This fixes Issue #22A: Full synthesis not passed to dependent sub-problems.
+
+    Args:
+        current_sp: The current sub-problem being deliberated
+        sub_problem_results: Results from completed sub-problems
+        problem: The parent problem (contains all sub-problem metadata)
+
+    Returns:
+        Formatted dependency context string, or None if no dependencies
+
+    Example:
+        >>> # Sub-problem 2 depends on sub-problem 1
+        >>> context = build_dependency_context(sp2, [result1], problem)
+        >>> print(context)
+        <dependent_conclusions>
+        This sub-problem depends on conclusions from earlier sub-problems:
+
+        **Determine pricing tier structure** (Resolved)
+        Key Conclusion: Use 3-tier model with $49, $99, $199 pricing...
+        </dependent_conclusions>
+    """
+    if not current_sp.dependencies:
+        return None
+
+    context_parts = []
+    context_parts.append("<dependent_conclusions>")
+    context_parts.append("This sub-problem depends on conclusions from earlier sub-problems:\n")
+
+    for dep_id in current_sp.dependencies:
+        # Find the dependency sub-problem
+        dep_sp = next((sp for sp in problem.sub_problems if sp.id == dep_id), None)
+        if not dep_sp:
+            logger.warning(f"Dependency {dep_id} not found in problem.sub_problems")
+            continue
+
+        # Find the result for this dependency
+        dep_result = next((r for r in sub_problem_results if r.sub_problem_id == dep_id), None)
+        if not dep_result:
+            logger.warning(f"No result found for dependency {dep_id}")
+            continue
+
+        # Extract key recommendation from synthesis
+        recommendation = extract_recommendation_from_synthesis(dep_result.synthesis)
+
+        context_parts.append(f"""
+**{dep_sp.goal}** (Resolved)
+Key Conclusion: {recommendation}
+""")
+
+    context_parts.append("</dependent_conclusions>")
+    return "\n".join(context_parts)
+
+
+def build_subproblem_context_for_all(sub_problem_results: list[SubProblemResult]) -> str | None:
+    """Build context from all completed sub-problems for any expert.
+
+    Provides ALL experts (even new ones) with context about previous sub-problem outcomes.
+    This ensures experts who didn't participate in earlier sub-problems still know what
+    was decided.
+
+    This fixes Issue #22B: Non-participating experts get no context.
+
+    Args:
+        sub_problem_results: Results from all completed sub-problems
+
+    Returns:
+        Formatted context string, or None if no results
+
+    Example:
+        >>> context = build_subproblem_context_for_all([result1, result2])
+        >>> print(context)
+        <previous_subproblem_outcomes>
+
+        Sub-problem: Determine pricing tier structure
+        Conclusion: Use 3-tier model with $49, $99, $199 pricing...
+        Expert Panel: maria, zara, chen
+
+        Sub-problem: Select acquisition channels
+        Conclusion: Focus on SEO and content marketing initially...
+        Expert Panel: tariq, aria, elena
+        </previous_subproblem_outcomes>
+    """
+    if not sub_problem_results:
+        return None
+
+    context_parts = []
+    context_parts.append("<previous_subproblem_outcomes>")
+
+    for result in sub_problem_results:
+        recommendation = extract_recommendation_from_synthesis(result.synthesis)
+
+        context_parts.append(f"""
+Sub-problem: {result.sub_problem_goal}
+Conclusion: {recommendation}
+Expert Panel: {", ".join(result.expert_panel)}
+""")
+
+    context_parts.append("</previous_subproblem_outcomes>")
+    return "\n".join(context_parts)
+
+
+# ============================================================================
 # PARALLEL SUB-PROBLEMS - Core Execution (Phases 3-4)
 # ============================================================================
 
@@ -2253,6 +2438,7 @@ async def _deliberate_subproblem(
     problem: Problem,
     all_personas: list[PersonaProfile],
     previous_results: list[SubProblemResult],
+    sub_problem_index: int,
     user_id: str | None = None,
 ) -> SubProblemResult:
     """Run complete deliberation for a single sub-problem.
@@ -2272,6 +2458,7 @@ async def _deliberate_subproblem(
         problem: The parent problem (for context)
         all_personas: Available personas (persona selection will choose subset)
         previous_results: Results from previously completed sub-problems (for expert memory)
+        sub_problem_index: Index of this sub-problem (0-based) for event tracking
         user_id: Optional user ID for context persistence
 
     Returns:
@@ -2353,10 +2540,12 @@ async def _deliberate_subproblem(
 
     # Step 3: Run deliberation rounds
     from bo1.feature_flags.features import ENABLE_PARALLEL_ROUNDS
+    from bo1.graph.safety.loop_prevention import get_adaptive_max_rounds
 
     contributions = []
     round_summaries = []
-    max_rounds = 6
+    # Issue #11: Use adaptive round limits based on sub-problem complexity
+    max_rounds = get_adaptive_max_rounds(sub_problem.complexity_score)
 
     # Create a minimal graph state for deliberation
     # This allows us to reuse existing parallel_round_node logic
@@ -2380,7 +2569,7 @@ async def _deliberate_subproblem(
         votes=[],
         synthesis=None,
         sub_problem_results=previous_results,
-        sub_problem_index=0,
+        sub_problem_index=sub_problem_index,
         collect_context=False,
         business_context=None,
         pending_clarification=None,
@@ -2653,6 +2842,7 @@ async def parallel_subproblems_node(state: DeliberationGraphState) -> dict[str, 
                 problem=problem,
                 all_personas=all_personas,
                 previous_results=all_results,  # Results from previous batches
+                sub_problem_index=sp_index,
                 user_id=user_id,
             )
             batch_tasks.append((sp_index, task))

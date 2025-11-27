@@ -27,6 +27,7 @@ export const STATUS_NOISE_EVENTS = [
 	'voting_complete',
 	'convergence',
 	'complete', // Hidden - redundant with SynthesisComplete (renders empty card otherwise)
+	'discussion_quality_status', // Hidden - adds noise to timeline
 ];
 
 /**

@@ -203,7 +203,7 @@ def test_extract_subproblem_started_data():
     assert result["sub_problem_id"] == "sp2"
     assert result["total_sub_problems"] == 2
 
-    # Case 2: Single subproblem (should return empty dict)
+    # Case 2: Single subproblem (Issue #4 fix: now returns data for expert panel display)
     output_single = {
         "sub_problem_index": 0,
         "current_sub_problem": type("SubProblem", (), {"id": "sp1", "goal": "Test goal"})(),
@@ -212,7 +212,10 @@ def test_extract_subproblem_started_data():
 
     result_single = registry.extract("subproblem_started", output_single)
 
-    assert result_single == {}
+    # Issue #4 fix: Single sub-problems now return data (expert panel should show)
+    assert result_single["sub_problem_index"] == 0
+    assert result_single["sub_problem_id"] == "sp1"
+    assert result_single["total_sub_problems"] == 1
 
 
 @pytest.mark.unit

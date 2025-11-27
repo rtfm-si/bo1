@@ -340,6 +340,41 @@ class PromptBroker:
         return False
 
 
+def get_model_for_phase(phase: str, round_number: int = 0) -> str:
+    """Select appropriate model for task based on phase and round number.
+
+    Uses Haiku for supporting tasks and early rounds to reduce cost and latency,
+    while using Sonnet for critical synthesis and later rounds.
+
+    Args:
+        phase: The deliberation phase
+        round_number: The current round number (for contribution phase)
+
+    Returns:
+        Model alias ('haiku' or 'sonnet')
+
+    Examples:
+        >>> get_model_for_phase("convergence_check")
+        'haiku'
+        >>> get_model_for_phase("contribution", round_number=1)
+        'haiku'
+        >>> get_model_for_phase("contribution", round_number=3)
+        'sonnet'
+        >>> get_model_for_phase("synthesis")
+        'sonnet'
+    """
+    # Fast phases use Haiku (90% cost savings)
+    if phase in ["convergence_check", "drift_check", "format_validation"]:
+        return "haiku"
+
+    # Early exploration rounds can use Haiku (rounds 1-2)
+    if phase == "contribution" and round_number <= 2:
+        return "haiku"
+
+    # Everything else uses Sonnet (critical synthesis, later rounds, voting)
+    return "sonnet"
+
+
 class RequestTracker:
     """Track and log LLM requests for observability.
 

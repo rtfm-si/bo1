@@ -5,6 +5,7 @@
 	 */
 	import type { SubProblemCompleteEvent } from '$lib/api/sse-events';
 	import Badge from '$lib/components/ui/Badge.svelte';
+	import { parseSynthesisXML, isXMLFormatted } from '$lib/utils/xml-parser';
 
 	interface Props {
 		event: SubProblemCompleteEvent;
@@ -24,6 +25,10 @@
 
 	// State for showing full synthesis
 	let showFullSynthesis = $state(false);
+
+	// Parse XML if needed
+	const isXML = $derived(event.data.synthesis ? isXMLFormatted(event.data.synthesis) : false);
+	const sections = $derived(isXML ? parseSynthesisXML(event.data.synthesis) : null);
 
 	// Truncate synthesis if too long (show first 300 chars)
 	const truncatedSynthesis = $derived(
@@ -81,21 +86,37 @@
 							</svg>
 							Conclusion
 						</h4>
-						<div class="text-sm text-neutral-700 dark:text-neutral-300 prose prose-sm dark:prose-invert max-w-none">
-							{#if showFullSynthesis || !isLongSynthesis}
-								{event.data.synthesis}
-							{:else}
-								{truncatedSynthesis}
+						{#if sections}
+							<!-- Display parsed XML sections -->
+							{#if sections.executive_summary}
+								<div class="text-sm text-neutral-700 dark:text-neutral-300 prose prose-sm dark:prose-invert max-w-none mb-3">
+									{sections.executive_summary}
+								</div>
 							{/if}
-						</div>
-						{#if isLongSynthesis}
-							<button
-								type="button"
-								class="mt-2 text-sm text-success-700 dark:text-success-400 hover:text-success-900 dark:hover:text-success-200 font-medium"
-								onclick={() => showFullSynthesis = !showFullSynthesis}
-							>
-								{showFullSynthesis ? 'Show less' : 'Show more'}
-							</button>
+							{#if sections.recommendation}
+								<div class="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded text-sm border-l-2 border-green-500">
+									<span class="font-medium text-green-800 dark:text-green-300">Recommendation:</span>
+									<div class="text-green-700 dark:text-green-200 mt-1">{sections.recommendation}</div>
+								</div>
+							{/if}
+						{:else}
+							<!-- Fallback for non-XML synthesis -->
+							<div class="text-sm text-neutral-700 dark:text-neutral-300 prose prose-sm dark:prose-invert max-w-none">
+								{#if showFullSynthesis || !isLongSynthesis}
+									{event.data.synthesis}
+								{:else}
+									{truncatedSynthesis}
+								{/if}
+							</div>
+							{#if isLongSynthesis}
+								<button
+									type="button"
+									class="mt-2 text-sm text-success-700 dark:text-success-400 hover:text-success-900 dark:hover:text-success-200 font-medium"
+									onclick={() => showFullSynthesis = !showFullSynthesis}
+								>
+									{showFullSynthesis ? 'Show less' : 'Show more'}
+								</button>
+							{/if}
 						{/if}
 					</div>
 				{/if}
@@ -130,7 +151,7 @@
 
 				<!-- Expert Panel -->
 				<div class="mt-3 flex flex-wrap gap-1">
-					{#each event.data.expert_panel as expert}
+					{#each event.data.expert_panel as expert (expert)}
 						<Badge variant="brand" size="sm">{expert}</Badge>
 					{/each}
 				</div>

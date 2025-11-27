@@ -235,15 +235,11 @@ def calculate_consensus_level(votes: list[dict[str, Any]]) -> tuple[str, float]:
 def extract_subproblem_info(output: dict[str, Any]) -> dict[str, Any]:
     """Extract sub-problem started event data.
 
-    Returns empty dict if not a multi-sub-problem scenario.
+    Returns data for all sub-problem scenarios (single or multi).
     """
     sub_problem_index = output.get("sub_problem_index", 0)
     current_sub_problem = output.get("current_sub_problem")
     problem = output.get("problem")
-
-    # Only return data if this is a multi-sub-problem scenario
-    if not (problem and hasattr(problem, "sub_problems") and len(problem.sub_problems) > 1):
-        return {}
 
     if not current_sub_problem:
         return {}
@@ -252,7 +248,9 @@ def extract_subproblem_info(output: dict[str, Any]) -> dict[str, Any]:
         "sub_problem_index": sub_problem_index,
         "sub_problem_id": get_field_safe(current_sub_problem, "id", ""),
         "goal": get_field_safe(current_sub_problem, "goal", ""),
-        "total_sub_problems": len(problem.sub_problems),
+        "total_sub_problems": len(problem.sub_problems)
+        if problem and hasattr(problem, "sub_problems")
+        else 1,
     }
 
 

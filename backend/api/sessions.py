@@ -33,6 +33,7 @@ from backend.api.utils.validation import validate_session_id
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
 from bo1.state.postgres_manager import (
+    ensure_user_exists,
     get_session_tasks,
     get_user_sessions,
     save_session,
@@ -119,6 +120,15 @@ async def create_session(
 
         # Save session to PostgreSQL for permanent storage
         try:
+            # Ensure user exists in PostgreSQL first (FK constraint requires this)
+            user_email = user.get("email") if user else None
+            ensure_user_exists(
+                user_id=user_id,
+                email=user_email,
+                auth_provider="supertokens",
+                subscription_tier=user.get("subscription_tier", "free") if user else "free",
+            )
+
             save_session(
                 session_id=session_id,
                 user_id=user_id,

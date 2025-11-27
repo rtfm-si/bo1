@@ -20,9 +20,10 @@
 
 	interface Props {
 		event: MetaSynthesisCompleteEvent;
+		subProblemIndex?: number;
 	}
 
-	let { event }: Props = $props();
+	let { event, subProblemIndex }: Props = $props();
 
 	// Parse action plan from event data
 	const actionPlan = $derived.by((): ActionPlanData | null => {
@@ -46,6 +47,33 @@
 	function getPriorityConfig(priority: 'critical' | 'high' | 'medium' | 'low') {
 		return eventTokens.actionPriority[priority];
 	}
+
+	/**
+	 * Filter actions for a specific sub-problem by parsing rationale text.
+	 * Returns actions that mention the sub-problem number in their rationale.
+	 * If no sub-problem index is provided, returns all actions.
+	 */
+	function filterActionsForSubProblem(actions: ActionItem[], subProblemIdx: number | undefined): ActionItem[] {
+		if (subProblemIdx === undefined) {
+			return actions; // Show all actions if no filter
+		}
+
+		return actions.filter(action => {
+			// Match patterns like "sub-problem 1", "sub-problem 2", "(sub-problem 1)"
+			const match = action.rationale.match(/sub-problem\s*(\d+)/gi);
+			if (!match) {
+				return true; // Show actions without sub-problem reference in all tabs
+			}
+			// Check if any match corresponds to the current sub-problem (1-indexed)
+			return match.some(m => parseInt(m.replace(/\D/g, '')) === subProblemIdx + 1);
+		});
+	}
+
+	// Filtered actions for current sub-problem (if applicable)
+	const filteredActions = $derived.by(() => {
+		if (!actionPlan) return [];
+		return filterActionsForSubProblem(actionPlan.recommended_actions, subProblemIndex);
+	});
 </script>
 
 {#if actionPlan}
@@ -78,8 +106,13 @@
 		<div class="space-y-4 mb-6">
 			<h3 class="text-[1.5rem] font-semibold leading-tight text-neutral-900 dark:text-white">
 				Recommended Actions
+				{#if subProblemIndex !== undefined && filteredActions.length < actionPlan.recommended_actions.length}
+					<span class="text-[0.875rem] font-normal text-neutral-600 dark:text-neutral-400">
+						({filteredActions.length} of {actionPlan.recommended_actions.length} for this sub-problem)
+					</span>
+				{/if}
 			</h3>
-			{#each actionPlan.recommended_actions as action, index (index)}
+			{#each filteredActions as action, index (index)}
 				{@const priorityConfig = getPriorityConfig(action.priority)}
 				<div
 					class="p-4 rounded-lg border-2 {priorityConfig.bg} {priorityConfig.border}"

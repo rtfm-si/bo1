@@ -156,6 +156,90 @@ def _has_exit_condition(graph: nx.DiGraph, cycle: list[str]) -> bool:
 # ============================================================================
 
 
+def get_adaptive_max_rounds(complexity_score: int) -> int:
+    """Calculate max rounds based on sub-problem complexity.
+
+    Research finding from CONSENSUS_BUILDING_RESEARCH.md:
+    - Complexity 1-3: 2-3 rounds optimal (simple problems)
+    - Complexity 4-5: 3-4 rounds optimal (moderate complexity)
+    - Complexity 6-7: 4-5 rounds optimal (complex problems)
+    - Complexity 8+: 5-6 rounds optimal (very complex)
+
+    This enables 30-50% reduction in deliberation time for simple problems
+    while maintaining quality for complex ones.
+
+    Args:
+        complexity_score: Problem complexity (1-10 scale)
+
+    Returns:
+        Recommended max rounds for this complexity level
+
+    Example:
+        >>> get_adaptive_max_rounds(complexity_score=3)
+        3  # Simple problem = quick resolution
+        >>> get_adaptive_max_rounds(complexity_score=8)
+        6  # Complex problem = full deliberation
+    """
+    if complexity_score <= 3:
+        return 3  # Simple: quick resolution
+    elif complexity_score <= 5:
+        return 4  # Moderate: standard debate
+    elif complexity_score <= 7:
+        return 5  # Complex: extended discussion
+    else:
+        return 6  # Very complex: full deliberation
+
+
+def should_exit_early(state: DeliberationGraphState) -> bool:
+    """Check if we can safely exit before max rounds.
+
+    Research finding from CONSENSUS_BUILDING_RESEARCH.md:
+    - If convergence > 0.85 AND novelty < 0.30 for 2+ rounds → safe to exit
+    - ~0.5% of discussions benefit from extended debate past convergence
+    - Enables 20-30% reduction in average deliberation time
+
+    Conditions for early exit:
+    - Round >= 2 (minimum exploration phase)
+    - Convergence > 0.85 (high agreement)
+    - Novelty < 0.30 (agents repeating themselves)
+
+    Args:
+        state: Current deliberation state
+
+    Returns:
+        True if early exit recommended, False otherwise
+
+    Example:
+        >>> if should_exit_early(state):
+        ...     print("Experts have converged - safe to end early")
+    """
+    round_num = state.get("round_number", 0)
+
+    # Never exit before round 2 (need minimum exploration)
+    if round_num < 2:
+        return False
+
+    # Get convergence and novelty metrics from state
+    metrics = state.get("metrics")
+    if not metrics:
+        return False
+
+    convergence = metrics.convergence_score if metrics.convergence_score is not None else 0.0
+    novelty = metrics.novelty_score if metrics.novelty_score is not None else 1.0
+
+    # High convergence + low novelty = safe to exit
+    # Convergence >0.85 = experts largely agree
+    # Novelty <0.30 = experts repeating same arguments
+    if convergence > 0.85 and novelty < 0.30:
+        logger.info(
+            f"[EARLY_EXIT] Round {round_num}: convergence={convergence:.2f}, "
+            f"novelty={novelty:.2f} - recommending early termination"
+        )
+        return True
+
+    return False
+
+
 async def check_convergence_node(state: DeliberationGraphState) -> DeliberationGraphState:
     """Check convergence and set stop flags if needed.
 
@@ -265,6 +349,42 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
             f"Quality metrics - Novelty: {novelty:.2f}, Conflict: {conflict:.2f}, "
             f"Drift events: {metrics.drift_events if hasattr(metrics, 'drift_events') else 0}"
         )
+
+    # NEW: Check for early exit (Issue #12 - Speed optimization)
+    # Can safely exit before max rounds if high convergence + low novelty
+    if should_exit_early(state):
+        logger.info(
+            f"Round {round_number}: Early exit triggered "
+            f"(convergence={convergence_score:.2f}, novelty={novelty:.2f})"
+        )
+        state["should_stop"] = True
+        state["stop_reason"] = "early_convergence"
+        return state
+
+    # NEW: Check for deadlock (Issue #14 - Deadlock detection)
+    # Force voting if experts are stuck in circular arguments
+    deadlock_info = detect_deadlock(state)
+    if deadlock_info["deadlock"]:
+        deadlock_type = deadlock_info["type"]
+        resolution = deadlock_info["resolution"]
+        logger.warning(
+            f"Round {round_number}: Deadlock detected (type={deadlock_type}) - {resolution}"
+        )
+
+        if resolution == "force_voting":
+            # Skip remaining rounds, go straight to voting
+            state["should_stop"] = True
+            state["stop_reason"] = "deadlock_detected"
+            return state
+        elif resolution == "facilitator_intervention":
+            # Set guidance for facilitator to break the deadlock
+            state["facilitator_guidance"] = {
+                "type": "deadlock_intervention",
+                "issue": "Circular argument pattern detected among experts",
+                "action": "Call on different experts or ask for new perspectives",
+            }
+            # Continue but with special facilitator guidance
+            state["should_stop"] = False
 
     # Check if convergence threshold is met (Issue #3 fix: increased threshold from 0.85 to 0.90)
     if convergence_score > CONVERGENCE_THRESHOLD and round_number >= 3:
@@ -677,6 +797,210 @@ def should_continue_targeted(state: DeliberationGraphState, config: Any) -> tupl
 
     targeted = len(focus_prompts) > 0
     return targeted, focus_prompts
+
+
+async def check_contribution_relevance(
+    contribution: str,
+    sub_problem_goal: str,
+) -> tuple[bool, float]:
+    """Check if contribution addresses the sub-problem goal (Issue #13 - Problem drift detection).
+
+    Research finding from CONSENSUS_BUILDING_RESEARCH.md:
+    - Problem drift is the #1 cause of diminishing returns (~0.8% of discussions)
+    - Early detection prevents wasted rounds
+
+    Uses Haiku for fast, cheap relevance check (90% cost savings vs Sonnet).
+
+    Args:
+        contribution: The expert's contribution text
+        sub_problem_goal: The current sub-problem goal/question
+
+    Returns:
+        Tuple of (is_relevant: bool, relevance_score: float)
+        - is_relevant: True if score >= 6/10
+        - relevance_score: 0-10 scale (6+ = on topic, <6 = drifting)
+
+    Example:
+        >>> is_relevant, score = await check_contribution_relevance(
+        ...     contribution="The market size is...",
+        ...     sub_problem_goal="What pricing strategy should we use?"
+        ... )
+        >>> if not is_relevant:
+        ...     print(f"Drift warning: score={score}")
+    """
+    try:
+        from bo1.llm.broker import PromptBroker, PromptRequest
+        from bo1.utils.json_parsing import extract_json_with_fallback
+
+        # Truncate contribution to first 500 chars for efficiency
+        contrib_excerpt = contribution[:500] if len(contribution) > 500 else contribution
+
+        prompt = f"""Evaluate if this contribution addresses the sub-problem goal.
+
+Sub-problem goal: {sub_problem_goal}
+
+Contribution excerpt: {contrib_excerpt}
+
+Rate relevance on 0-10 scale:
+- 9-10: Directly addresses the goal with specific insights
+- 7-8: Addresses goal with some tangential context
+- 5-6: Partially addresses goal but includes off-topic content
+- 3-4: Mostly off-topic with minimal relevance
+- 0-2: Completely off-topic
+
+Respond in JSON:
+{{"relevant": true/false, "score": 0-10, "drift_warning": "reason if score < 6"}}"""
+
+        broker = PromptBroker()
+        request = PromptRequest(
+            system="You evaluate discussion relevance for meeting quality.",
+            user_message=prompt,
+            model="haiku",  # Use Haiku for speed and cost
+            max_tokens=100,
+            phase="drift_detection",
+            agent_type="DriftDetector",
+        )
+        response = await broker.call(request)
+
+        # Parse response
+        def create_fallback() -> dict[str, Any]:
+            return {"relevant": True, "score": 7.0, "drift_warning": ""}
+
+        result = extract_json_with_fallback(
+            content=response.content,
+            fallback_factory=create_fallback,
+            logger=logger,
+        )
+
+        is_relevant = result.get("relevant", True)
+        score = float(result.get("score", 7.0))
+
+        if not is_relevant and score < 6:
+            drift_warning = result.get("drift_warning", "Off-topic content detected")
+            logger.warning(f"[DRIFT_DETECTED] Score: {score:.1f}/10 - {drift_warning}")
+
+        return is_relevant, score
+
+    except Exception as e:
+        logger.warning(f"Relevance check failed: {e}, assuming on-topic")
+        return True, 7.0  # Assume on-topic if check fails
+
+
+def detect_deadlock(state: DeliberationGraphState) -> dict[str, Any]:
+    """Detect if deliberation is stuck in deadlock (Issue #14 - Deadlock detection).
+
+    Research finding from CONSENSUS_BUILDING_RESEARCH.md:
+    - Output repetition and circular arguments indicate deadlock
+    - Forcing decision when stuck prevents infinite loops
+
+    Detection methods:
+    1. Repetition: High similarity in last 6 contributions (>60% repetitive)
+    2. Circular refutation: Same arguments being made repeatedly
+
+    Args:
+        state: Current deliberation state
+
+    Returns:
+        Dict with deadlock info:
+        - deadlock: bool (True if deadlock detected)
+        - type: str ("repetition" or "circular")
+        - resolution: str (recommended action)
+
+    Example:
+        >>> deadlock_info = detect_deadlock(state)
+        >>> if deadlock_info["deadlock"]:
+        ...     print(f"Deadlock: {deadlock_info['type']} - {deadlock_info['resolution']}")
+    """
+    contributions = state.get("contributions", [])
+
+    if len(contributions) < 6:
+        return {"deadlock": False}
+
+    recent = contributions[-6:]
+
+    try:
+        from bo1.llm.embeddings import cosine_similarity, generate_embedding
+
+        # Generate embeddings for recent contributions
+        embeddings: list[list[float]] = []
+        for contrib in recent:
+            content = contrib.content if hasattr(contrib, "content") else str(contrib)
+            try:
+                embedding = generate_embedding(content, input_type="document")
+                embeddings.append(embedding)
+            except Exception as e:
+                logger.warning(f"Embedding generation failed during deadlock check: {e}")
+                # If embedding fails, assume no deadlock
+                return {"deadlock": False}
+
+        # Calculate pairwise similarities
+        high_similarity_count = 0
+        total_comparisons = 0
+
+        for i in range(len(embeddings)):
+            for j in range(i + 1, len(embeddings)):
+                similarity = cosine_similarity(embeddings[i], embeddings[j])
+                total_comparisons += 1
+
+                # Similarity >0.75 = likely repetitive argument
+                if similarity > 0.75:
+                    high_similarity_count += 1
+
+        if total_comparisons == 0:
+            return {"deadlock": False}
+
+        repetition_rate = high_similarity_count / total_comparisons
+
+        # If >60% of arguments are highly similar, we're in a deadlock
+        if repetition_rate > 0.6:
+            logger.warning(
+                f"[DEADLOCK_DETECTED] Repetition rate: {repetition_rate:.0%} "
+                f"({high_similarity_count}/{total_comparisons} pairs similar)"
+            )
+            return {
+                "deadlock": True,
+                "type": "repetition",
+                "resolution": "force_voting",  # Skip remaining rounds, go to voting
+                "repetition_rate": repetition_rate,
+            }
+
+        # Check for circular disagreement patterns
+        # Look for alternating positions (A->B->A->B pattern)
+        if len(recent) >= 4:
+            # Get persona codes for recent contributions
+            recent_speakers = [
+                getattr(c, "persona_code", "unknown") if hasattr(c, "persona_code") else "unknown"
+                for c in recent
+            ]
+
+            # Check for ABAB or ABCABC pattern (same speakers repeating)
+            if len(set(recent_speakers)) <= 3:  # Only 2-3 different speakers
+                # Count how many times we see repetition
+                repeats = sum(
+                    1
+                    for i in range(len(recent_speakers) - 2)
+                    if recent_speakers[i] == recent_speakers[i + 2]
+                )
+
+                if repeats >= 2:  # At least 2 repetitions in pattern
+                    logger.warning(
+                        f"[DEADLOCK_DETECTED] Circular pattern: {' -> '.join(recent_speakers[-6:])}"
+                    )
+                    return {
+                        "deadlock": True,
+                        "type": "circular",
+                        "resolution": "facilitator_intervention",
+                        "pattern": recent_speakers,
+                    }
+
+        return {"deadlock": False}
+
+    except ImportError:
+        logger.warning("Embeddings not available for deadlock detection")
+        return {"deadlock": False}
+    except Exception as e:
+        logger.warning(f"Deadlock detection failed: {e}")
+        return {"deadlock": False}
 
 
 def _get_recent_contributors(state: DeliberationGraphState, last_n_rounds: int = 2) -> set[str]:

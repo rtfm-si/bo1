@@ -312,9 +312,10 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
                     # Reset keepalive timer on message
                     last_keepalive = time.time()
 
-                    # If complete event, close stream
+                    # If complete event, send explicit close and then break
                     if event_type == "complete":
                         logger.info(f"Session {session_id} completed, closing stream")
+                        yield format_sse_for_type("stream_closed", {"reason": "session_complete"})
                         break
 
                     # If error event that's not recoverable, close stream

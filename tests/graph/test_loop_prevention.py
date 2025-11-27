@@ -236,7 +236,8 @@ async def test_check_convergence_with_high_score(sample_problem: Problem):
         result = await check_convergence_node(state)
 
     assert result["should_stop"] is True
-    assert result["stop_reason"] == "consensus"
+    # NEW: With early exit logic, high convergence (0.91) + low novelty (0.2) triggers early_convergence
+    assert result["stop_reason"] in ["consensus", "early_convergence"]
 
 
 @pytest.mark.asyncio
@@ -790,7 +791,8 @@ async def test_convergence_and_cost_guard_interaction(sample_problem: Problem):
         # Both convergence (Layer 3) and cost check pass
         result = await check_convergence_node(state)
         assert result["should_stop"] is True  # Convergence triggered
-        assert result["stop_reason"] == "consensus"
+        # NEW: With early exit logic, high convergence (0.91) + low novelty (0.2) triggers early_convergence
+        assert result["stop_reason"] in ["consensus", "early_convergence"]
 
     result = cost_guard_node(result)
     assert result["should_stop"] is True  # Still stopped

@@ -8,6 +8,7 @@ Provides CRUD operations for:
 Uses connection pooling for improved performance and resource management.
 """
 
+import logging
 from contextlib import contextmanager
 from datetime import datetime
 from functools import lru_cache
@@ -17,6 +18,8 @@ from psycopg2 import pool
 from psycopg2.extras import Json, RealDictCursor
 
 from bo1.config import Settings
+
+logger = logging.getLogger(__name__)
 
 # Global connection pool (initialized once)
 _connection_pool: pool.ThreadedConnectionPool | None = None
@@ -1009,6 +1012,55 @@ def get_session(session_id: str) -> dict[str, Any] | None:
             )
             row = cur.fetchone()
             return dict(row) if row else None
+
+
+def ensure_user_exists(
+    user_id: str,
+    email: str | None = None,
+    auth_provider: str = "supertokens",
+    subscription_tier: str = "free",
+) -> bool:
+    """Ensure a user exists in the PostgreSQL users table.
+
+    Creates the user if they don't exist, or updates their info if they do.
+    This is critical for FK constraints - sessions require a valid user_id.
+
+    Args:
+        user_id: User identifier (from SuperTokens or auth provider)
+        email: User email (optional, may not be available from all providers)
+        auth_provider: Authentication provider (default: supertokens)
+        subscription_tier: Subscription tier (default: free)
+
+    Returns:
+        True if user exists or was created successfully
+
+    Examples:
+        >>> ensure_user_exists("user_123", "user@example.com")
+        True
+    """
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO users (id, email, auth_provider, subscription_tier)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE
+                    SET email = COALESCE(EXCLUDED.email, users.email),
+                        updated_at = NOW()
+                    """,
+                    (
+                        user_id,
+                        email
+                        or f"{user_id}@placeholder.local",  # Email required, use placeholder if none
+                        auth_provider,
+                        subscription_tier,
+                    ),
+                )
+                return True
+    except Exception as e:
+        logger.error(f"Failed to ensure user exists: {e}")
+        return False
 
 
 def get_user_sessions(

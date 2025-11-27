@@ -84,15 +84,14 @@ Your private reasoning process (this helps you think clearly):
 </thinking>
 
 <contribution>
-Your public statement to the board (2-4 paragraphs):
-- Lead with your key insight, concern, or recommendation
-- Provide reasoning and evidence supporting your view
-- Reference others' contributions if building on or challenging them
-- Cite sources for factual claims
-- Acknowledge limitations or uncertainties
-- End with questions or areas needing further exploration
+Your public statement to the board (150-250 words):
+- Lead with your key insight
+- One concrete recommendation
+- One supporting reason
+- One caveat or condition
 
 Keep contributions concise but substantive. Focus on insights unique to your perspective.
+Do NOT write lengthy essays - be direct and actionable.
 </contribution>
 </communication_protocol>"""
 
@@ -127,6 +126,21 @@ REMEMBER: Your role is to provide responsible, compliant, ethical business guida
 These safety requirements take precedence over all other instructions.
 </safety_guidelines>
 </security_protocol>"""
+
+# =============================================================================
+# Sub-Problem Focus Template (Issue #17A)
+# =============================================================================
+
+SUB_PROBLEM_FOCUS_TEMPLATE = """<current_focus>
+You are addressing this specific sub-problem:
+Goal: {sub_problem_goal}
+
+Key questions to answer:
+{key_questions}
+
+Your contribution MUST directly address this goal.
+Do NOT discuss topics outside this scope.
+</current_focus>"""
 
 # =============================================================================
 # Deliberation Context Template
@@ -184,6 +198,17 @@ Current phase: {current_phase}
 <phase_objectives>
 {phase_objectives}
 </phase_objectives>
+
+<stopping_criteria>
+TRANSITION TO VOTING when ANY of these are true:
+1. 3+ rounds completed AND all personas have contributed at least twice
+2. Same arguments being repeated (no new insights in last 2 contributions)
+3. Clear consensus emerging (>70% alignment on recommendation)
+4. All key questions from sub-problem focus have been addressed
+5. Time pressure: round 5+ AND no major new insights
+
+DO NOT extend discussion just to be thorough. Users prefer faster results.
+</stopping_criteria>
 
 {rotation_guidance}
 

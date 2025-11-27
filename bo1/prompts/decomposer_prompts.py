@@ -131,6 +131,29 @@ For each sub-problem, identify if it depends on conclusions from other sub-probl
 - Don't create unnecessary dependencies - independence allows parallel execution
 - Circular dependencies are invalid - the system will reject them
 
+## Sub-Problem Focus Structure
+
+For each sub-problem, you must define:
+
+1. **goal**: A clear, specific question that can be answered (not a vague topic)
+   - BAD: "Think about market position"
+   - GOOD: "What pricing strategy maximizes revenue while maintaining competitiveness?"
+
+2. **focus.key_questions**: 3-5 specific questions experts must answer
+   - Example: ["What is the market size?", "Who are the key competitors?", "What's our differentiation?"]
+
+3. **focus.risks_to_mitigate**: 2-4 risks that must be addressed
+   - Example: ["Market saturation risk", "Technology obsolescence", "Regulatory changes"]
+
+4. **focus.alternatives_to_consider**: 2-3 alternatives to evaluate
+   - Example: ["Premium pricing vs volume pricing", "Direct sales vs channel partners"]
+
+5. **focus.required_expertise**: Types of experts needed for this specific sub-problem
+   - Example: ["Financial analyst", "Market researcher", "Legal counsel"]
+
+6. **focus.success_criteria**: How we know this sub-problem is resolved
+   - Example: ["Clear pricing recommendation with rationale", "Risk mitigation plan"]
+
 ## Output Format
 
 Respond with JSON containing:
@@ -146,7 +169,14 @@ Respond with JSON containing:
       "context": "Relevant background for this sub-problem",
       "complexity_score": 1-10,
       "dependencies": ["sp_002"],  // IDs of sub-problems that must be resolved first
-      "rationale": "Why this is a distinct sub-problem"
+      "rationale": "Why this is a distinct sub-problem",
+      "focus": {
+        "key_questions": ["Question 1?", "Question 2?", "Question 3?"],
+        "risks_to_mitigate": ["Risk 1", "Risk 2"],
+        "alternatives_to_consider": ["Alternative A", "Alternative B"],
+        "required_expertise": ["Expert type 1", "Expert type 2"],
+        "success_criteria": ["Criterion 1", "Criterion 2"]
+      }
     }
   ]
 }

@@ -15,6 +15,7 @@ from bo1.agents.moderator import ModeratorAgent, ModeratorType
 from bo1.agents.summarizer import SummarizerAgent
 from bo1.config import MODEL_BY_ROLE
 from bo1.data import get_persona_by_code
+from bo1.llm.broker import get_model_for_phase
 from bo1.llm.client import ClaudeClient
 from bo1.llm.response import LLMResponse
 from bo1.llm.response_parser import ResponseParser
@@ -345,12 +346,15 @@ You MUST engage critically with the discussion:
 
         start_time = datetime.now()
 
+        # Select model based on phase and round (Haiku for early rounds, Sonnet for later)
+        selected_model = get_model_for_phase("contribution", round_number=round_number + 1)
+
         # Create prompt request to use broker (with retry protection)
         broker = PromptBroker(client=self.client)
         request = PromptRequest(
             system=system_prompt,
             user_message=user_message,
-            model=self.model_name,
+            model=selected_model,  # Use phase-based model selection
             cache_system=True,  # Enable prompt caching for cost optimization
             temperature=round_config["temperature"],  # Adaptive temperature
             max_tokens=round_config["max_tokens"],  # Adaptive token limit
@@ -382,7 +386,7 @@ You MUST engage critically with the discussion:
             request_retry = PromptRequest(
                 system=system_prompt,
                 user_message=clarification_msg,
-                model=self.model_name,
+                model=selected_model,  # Use same model as original request
                 cache_system=True,
                 temperature=round_config["temperature"] + 0.1,  # Slightly higher temp
                 max_tokens=round_config["max_tokens"],

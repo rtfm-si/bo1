@@ -179,6 +179,31 @@
 		metaSynthesisEvent !== undefined
 	);
 
+	// Decomposition event (for displaying in Conclusion tab)
+	const decompositionEvent = $derived(
+		events.find(e => e.event_type === 'decomposition_complete')
+	);
+
+	// Detect if we're transitioning between sub-problems
+	const isTransitioningSubProblem = $derived.by(() => {
+		if (session?.status !== 'active') return false;
+
+		// Check if we just finished a sub-problem but haven't started the next one yet
+		const lastSubProblemComplete = events.findLast(e => e.event_type === 'subproblem_complete');
+		const lastSubProblemStarted = events.findLast(e => e.event_type === 'subproblem_started');
+
+		if (!lastSubProblemComplete) return false;
+
+		// If we have a completed sub-problem but no subsequent started event, we're transitioning
+		if (!lastSubProblemStarted) return true;
+
+		// Compare timestamps to see which came last
+		const completeTime = new Date(lastSubProblemComplete.timestamp).getTime();
+		const startTime = new Date(lastSubProblemStarted.timestamp).getTime();
+
+		return completeTime > startTime;
+	});
+
 	/**
 	 * Performance optimization: Memoized sub-problem progress calculation
 	 *
@@ -294,9 +319,16 @@
 				// This ensures all historical events are processed before SSE starts
 				await tick();
 
-				console.log('[Events] Session and history loaded, Svelte tick complete, starting SSE stream...');
+				console.log('[Events] Session and history loaded, Svelte tick complete, checking session status...');
 
-				// STEP 4: NOW start SSE stream (historical events fully processed)
+				// STEP 4: Check if session is already completed - skip SSE if so
+				if (session?.status === 'completed' || session?.status === 'failed') {
+					console.log(`[Events] Session is ${session.status}, skipping SSE connection`);
+					store.setConnectionStatus('connected'); // Show as connected (data is already loaded)
+					return;
+				}
+
+				// STEP 5: NOW start SSE stream (historical events fully processed)
 				// This prevents duplicate detection issues and missing events
 				await startEventStream();
 
@@ -538,9 +570,9 @@
 
 	// ISSUE FIX: Staggered display for expert contributions
 	// This creates a progressive reveal effect where contributions appear one at a time
-	// with random delays (1-3s) to feel more dynamic and natural
-	const MIN_DELAY = 1000; // 1 second minimum
-	const MAX_DELAY = 3000; // 3 seconds maximum
+	// with random delays (400-600ms) to feel more dynamic and natural
+	const MIN_DELAY = 400; // 400ms minimum
+	const MAX_DELAY = 600; // 600ms maximum
 	let visibleContributionCounts = $state<Map<string, number>>(new Map());
 
 	// Track pending experts for "thinking" indicator
@@ -673,12 +705,12 @@
 		return visibleCount >= totalInRound && session?.status === 'active';
 	});
 
-	// Rotate between-rounds message every 3 seconds when waiting
+	// Rotate between-rounds message every 1.5 seconds when waiting
 	$effect(() => {
 		if (isWaitingForNextRound && !betweenRoundsInterval) {
 			betweenRoundsInterval = setInterval(() => {
 				betweenRoundsMessageIndex = (betweenRoundsMessageIndex + 1) % betweenRoundsMessages.length;
-			}, 3000);
+			}, 1500);
 		} else if (!isWaitingForNextRound && betweenRoundsInterval) {
 			clearInterval(betweenRoundsInterval);
 			betweenRoundsInterval = null;
@@ -1159,6 +1191,10 @@
 									{@const tabIndex = parseInt(tab.id.replace('subproblem-', ''))}
 									{@const subGroupedEvents = groupedEvents.filter(group => {
 										if (group.type === 'single' && group.event) {
+											// SKIP decomposition in sub-problem tabs - it belongs on Summary
+											if (group.event.event_type === 'decomposition_complete') {
+												return false;
+											}
 											const eventSubIndex = group.event.data.sub_problem_index as number | undefined;
 											return eventSubIndex === tabIndex;
 										} else if (group.type === 'round' || group.type === 'expert_panel') {
@@ -1344,6 +1380,19 @@
 										inert={!isTabActive}
 										hidden={!isTabActive}
 									>
+										<!-- Problem Decomposition Overview -->
+										{#if decompositionEvent}
+											{#await getComponentForEvent('decomposition_complete')}
+												<EventCardSkeleton />
+											{:then DecompositionComponent}
+												{#if DecompositionComponent}
+													<DecompositionComponent event={decompositionEvent} />
+												{/if}
+											{:catch}
+												<!-- Silently skip if component fails to load -->
+											{/await}
+										{/if}
+
 										<!-- Meta-Synthesis / Overall Conclusion -->
 										<div class="bg-gradient-to-r from-success-50 to-brand-50 dark:from-success-900/20 dark:to-brand-900/20 border-2 border-success-300 dark:border-success-700 rounded-xl p-6">
 											<div class="flex items-start gap-4">
@@ -1412,6 +1461,17 @@
 						{:else}
 							<!-- Single sub-problem or linear view -->
 							<div class="p-4 space-y-4">
+
+							<!-- Sub-problem transition loading state -->
+							{#if isTransitioningSubProblem}
+								<div class="animate-pulse bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+									<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
+									<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
+									<p class="text-sm text-slate-500 dark:text-slate-400 mt-2">
+										Preparing next sub-problem...
+									</p>
+								</div>
+							{/if}
 
 							<!-- Phase-specific waiting indicator (experts being selected / familiarising) -->
 							{#if isWaitingForFirstContributions}

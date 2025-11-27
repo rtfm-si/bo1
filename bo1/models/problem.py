@@ -48,6 +48,26 @@ class Constraint(BaseModel):
     )
 
 
+class SubProblemFocus(BaseModel):
+    """Specific areas to address in this sub-problem."""
+
+    key_questions: list[str] = Field(
+        default_factory=list, description="Specific questions to answer"
+    )
+    risks_to_mitigate: list[str] = Field(
+        default_factory=list, description="Risks that must be addressed"
+    )
+    alternatives_to_consider: list[str] = Field(
+        default_factory=list, description="Options to evaluate"
+    )
+    required_expertise: list[str] = Field(
+        default_factory=list, description="Types of experts needed"
+    )
+    success_criteria: list[str] = Field(
+        default_factory=list, description="How we know this is solved"
+    )
+
+
 class SubProblem(BaseModel):
     """A decomposed sub-problem within a larger problem."""
 
@@ -63,6 +83,9 @@ class SubProblem(BaseModel):
     )
     constraints: list[Constraint] = Field(
         default_factory=list, description="Specific constraints for this sub-problem"
+    )
+    focus: SubProblemFocus | None = Field(
+        default=None, description="Detailed focus areas for this sub-problem"
     )
 
     model_config = ConfigDict(

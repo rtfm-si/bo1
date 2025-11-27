@@ -1,5 +1,6 @@
 # Production Dockerfile for SvelteKit Frontend
-FROM node:20-alpine AS builder
+# Using node:20-slim instead of alpine to avoid lightningcss musl issues
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -36,12 +37,12 @@ RUN npm run build
 RUN npm prune --production
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
 
 WORKDIR /app
 
-# Create non-root user first
-RUN addgroup -S appuser && adduser -S -G appuser appuser
+# Create non-root user (Debian-style commands)
+RUN groupadd --system appuser && useradd --system --gid appuser appuser
 
 # Copy built app and dependencies from builder
 COPY --from=builder --chown=appuser:appuser /app/build ./build
@@ -50,9 +51,9 @@ COPY --from=builder --chown=appuser:appuser /app/package.json ./
 
 USER appuser
 
-# Health check
+# Health check (using node since wget not available on slim image)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1
+    CMD node -e "require('http').get('http://127.0.0.1:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 # Expose port
 EXPOSE 3000

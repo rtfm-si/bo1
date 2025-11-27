@@ -1,4 +1,4 @@
-"""add_session_events_and_tasks_tables
+"""Add session_events and session_tasks tables.
 
 Create session_events and session_tasks tables for persistent storage.
 Enables long-term storage of session events and extracted tasks beyond Redis TTL.
@@ -26,7 +26,6 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-
     # ============================================================================
     # 1. session_events: Store all deliberation events for historical replay
     # ============================================================================
@@ -149,7 +148,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-
     # Remove synthesis_text column from sessions table
     op.execute("""
         DO $$

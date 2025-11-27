@@ -29,10 +29,11 @@ router = APIRouter(prefix="/v1/sessions", tags=["streaming"])
     "/{session_id}/events",
     summary="Get session event history",
     description="""
-    Get all historical events for a session from Redis.
+    Get all historical events for a session.
 
-    This endpoint returns all stored events for reconnection scenarios.
-    Frontend should call this first to get history, then connect to SSE stream.
+    Checks Redis first (for recent/active sessions), falls back to PostgreSQL
+    (for sessions after Redis restart). Frontend should call this first to get
+    history, then connect to SSE stream for live updates.
     """,
     responses={
         200: {"description": "Event history retrieved successfully"},
@@ -46,6 +47,8 @@ async def get_event_history(
 ) -> dict[str, Any]:
     """Get historical events for a session.
 
+    Checks Redis first (transient storage), then PostgreSQL (permanent storage).
+
     Args:
         session_id: Session identifier
         session_data: Verified session (user_id, metadata) from dependency
@@ -56,6 +59,8 @@ async def get_event_history(
     Raises:
         HTTPException: If session not found or retrieval fails
     """
+    from bo1.state.postgres_manager import get_session_events
+
     try:
         # Unpack verified session data
         user_id, metadata = session_data
@@ -66,11 +71,11 @@ async def get_event_history(
         # Get Redis manager (metadata already verified by VerifiedSession dependency)
         redis_manager = get_redis_manager()
 
-        # Load event history
+        # Try Redis first (transient storage for active sessions)
         history_key = f"events_history:{session_id}"
         historical_events = redis_manager.redis.lrange(history_key, 0, -1)
 
-        # Parse events
+        # Parse events from Redis
         events = []
         for event_data in historical_events:
             try:
@@ -79,6 +84,18 @@ async def get_event_history(
             except json.JSONDecodeError:
                 logger.error(f"Failed to parse historical event for {session_id}")
                 continue
+
+        # If Redis is empty, fall back to PostgreSQL (permanent storage)
+        if not events:
+            logger.info(f"Redis empty for {session_id}, falling back to PostgreSQL")
+            pg_events = get_session_events(session_id)
+            for pg_event in pg_events:
+                # PostgreSQL stores the full payload in 'data' column
+                event_data = pg_event.get("data", {})
+                if event_data:
+                    events.append(event_data)
+            if events:
+                logger.info(f"Loaded {len(events)} events from PostgreSQL fallback")
 
         logger.info(f"Retrieved {len(events)} historical events for session {session_id}")
 

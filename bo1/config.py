@@ -128,6 +128,19 @@ class Settings(BaseSettings):
         description="Model to use when AI_OVERRIDE is True (alias or full ID)",
     )
 
+    # Admin Emails (auto-set is_admin=true on login/signup)
+    admin_emails: str = Field(
+        default="si@boardof.one",
+        description="Comma-separated list of emails that should be auto-set as admin on login/signup",
+    )
+
+    @property
+    def admin_email_set(self) -> set[str]:
+        """Parse admin emails into a set of lowercase emails."""
+        if self.admin_emails:
+            return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
+        return set()
+
     # Beta Whitelist (Closed Beta Access Control)
     # DEPRECATED: Use database-managed whitelist instead (see backend/api/admin.py)
     # This environment variable approach will be removed in v2.0

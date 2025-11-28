@@ -1173,6 +1173,7 @@ def ensure_user_exists(
     - Real emails (not @placeholder.local) always replace placeholder emails
     - auth_provider is updated when a real email is provided (OAuth sync)
     - Placeholder emails never overwrite real emails
+    - Admin status is auto-set if email is in ADMIN_EMAILS config
 
     Args:
         user_id: User identifier (from SuperTokens or auth provider)
@@ -1187,27 +1188,42 @@ def ensure_user_exists(
         >>> ensure_user_exists("user_123", "user@example.com", "google")
         True
     """
+    from bo1.config import get_settings
+
+    settings = get_settings()
+
     # Determine if this is a real email or placeholder
     is_real_email = email is not None and not email.endswith("@placeholder.local")
     final_email = email or f"{user_id}@placeholder.local"
+
+    # Check if email should be auto-admin
+    is_admin = is_real_email and final_email.lower() in settings.admin_email_set
 
     try:
         with db_session() as conn:
             with conn.cursor() as cur:
                 if is_real_email:
                     # Real email from OAuth - always update email and auth_provider
+                    # Also set is_admin if email is in admin list
                     cur.execute(
                         """
-                        INSERT INTO users (id, email, auth_provider, subscription_tier)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO users (id, email, auth_provider, subscription_tier, is_admin)
+                        VALUES (%s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE
                         SET email = EXCLUDED.email,
                             auth_provider = EXCLUDED.auth_provider,
+                            is_admin = CASE
+                                WHEN EXCLUDED.is_admin = true THEN true
+                                ELSE users.is_admin
+                            END,
                             updated_at = NOW()
                         """,
-                        (user_id, final_email, auth_provider, subscription_tier),
+                        (user_id, final_email, auth_provider, subscription_tier, is_admin),
                     )
-                    logger.info(f"User {user_id} synced with real email ({auth_provider})")
+                    if is_admin:
+                        logger.info(f"User {user_id} ({final_email}) auto-set as admin")
+                    else:
+                        logger.info(f"User {user_id} synced with real email ({auth_provider})")
                 else:
                     # Placeholder email - only insert, don't overwrite real data
                     cur.execute(

@@ -39,6 +39,7 @@ from bo1.state.postgres_manager import (
     get_user_sessions,
     save_session,
     save_session_tasks,
+    update_session_status,
 )
 from bo1.state.redis_manager import RedisManager
 from bo1.utils.logging import get_logger
@@ -584,6 +585,13 @@ async def delete_session(
 
             # Remove session from user's index for fast listing
             redis_manager.remove_session_from_user_index(user_id, session_id)
+
+            # Also update PostgreSQL status to ensure consistency
+            try:
+                update_session_status(session_id=session_id, status="deleted")
+            except Exception as pg_err:
+                logger.warning(f"Failed to update PostgreSQL status for {session_id}: {pg_err}")
+                # Continue - Redis is the source of truth for active sessions
 
             logger.info(f"Soft deleted session: {session_id} for user: {user_id}")
 

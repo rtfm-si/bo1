@@ -1260,7 +1260,7 @@ def get_user(user_id: str) -> dict[str, Any] | None:
                 cur.execute(
                     """
                     SELECT id, email, auth_provider, subscription_tier,
-                           gdpr_consent_at, created_at, updated_at
+                           is_admin, gdpr_consent_at, created_at, updated_at
                     FROM users
                     WHERE id = %s
                     """,

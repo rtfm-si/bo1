@@ -705,6 +705,7 @@ def synthesis_complete_event(
     session_id: str,
     synthesis: str,
     word_count: int,
+    sub_problem_index: int | None = None,
 ) -> str:
     """Create SSE event for synthesis completion.
 
@@ -712,19 +713,22 @@ def synthesis_complete_event(
         session_id: Session identifier
         synthesis: Full synthesis markdown text
         word_count: Word count of synthesis
+        sub_problem_index: Sub-problem index for tab filtering (None = meta-synthesis)
 
     Returns:
         SSE-formatted event string
     """
-    return format_sse_event(
-        "synthesis_complete",
-        {
-            "session_id": session_id,
-            "synthesis": synthesis,
-            "word_count": word_count,
-            "timestamp": datetime.now(UTC).isoformat(),
-        },
-    )
+    data: dict[str, Any] = {
+        "session_id": session_id,
+        "synthesis": synthesis,
+        "word_count": word_count,
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
+
+    if sub_problem_index is not None:
+        data["sub_problem_index"] = sub_problem_index
+
+    return format_sse_event("synthesis_complete", data)
 
 
 def subproblem_complete_event(

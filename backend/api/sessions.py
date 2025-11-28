@@ -10,7 +10,7 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.dependencies import (
     VerifiedSession,
@@ -19,6 +19,7 @@ from backend.api.dependencies import (
 )
 from backend.api.metrics import track_api_call
 from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.rate_limit import SESSION_RATE_LIMIT, limiter
 from backend.api.models import (
     CreateSessionRequest,
     ErrorResponse,
@@ -59,15 +60,21 @@ router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
             "description": "Invalid request",
             "model": ErrorResponse,
         },
+        429: {
+            "description": "Rate limit exceeded",
+            "model": ErrorResponse,
+        },
         500: {
             "description": "Internal server error",
             "model": ErrorResponse,
         },
     },
 )
+@limiter.limit(SESSION_RATE_LIMIT)
 @handle_api_errors("create session")
 async def create_session(
-    request: CreateSessionRequest,
+    request: Request,
+    session_request: CreateSessionRequest,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> SessionResponse:
     """Create a new deliberation session.
@@ -107,8 +114,8 @@ async def create_session(
             "user_id": user_id,  # SECURITY: Track session ownership
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
-            "problem_statement": request.problem_statement,
-            "problem_context": request.problem_context or {},
+            "problem_statement": session_request.problem_statement,
+            "problem_context": session_request.problem_context or {},
         }
 
         # Save metadata to Redis (for live state and fast lookup)
@@ -135,8 +142,8 @@ async def create_session(
             save_session(
                 session_id=session_id,
                 user_id=user_id,
-                problem_statement=request.problem_statement,
-                problem_context=request.problem_context,
+                problem_statement=session_request.problem_statement,
+                problem_context=session_request.problem_context,
                 status="created",
             )
             logger.info(
@@ -165,7 +172,7 @@ async def create_session(
             phase=None,
             created_at=now,
             updated_at=now,
-            problem_statement=truncate_text(request.problem_statement),
+            problem_statement=truncate_text(session_request.problem_statement),
             cost=None,
         )
 
@@ -673,35 +680,10 @@ async def extract_tasks(
                 logger.info(f"Returning cached tasks from Redis for session {session_id}")
                 return json.loads(cached_tasks)
 
-            # Check if synthesis exists
-            synthesis = metadata.get("synthesis")
-            if not synthesis:
-                # Try to get synthesis from events
-                events_key = f"events_history:{session_id}"
-                events = redis_manager.redis.lrange(events_key, 0, -1)
-
-                # Look for synthesis_complete or meta_synthesis_complete event
-                synthesis = None
-                for event_json in events:
-                    import json
-
-                    event = json.loads(event_json)
-                    if event.get("event_type") in [
-                        "synthesis_complete",
-                        "meta_synthesis_complete",
-                    ]:
-                        synthesis = event.get("data", {}).get("synthesis")
-                        if synthesis:
-                            break
-
-                if not synthesis:
-                    raise HTTPException(
-                        status_code=404,
-                        detail="No synthesis found for this session. Run the deliberation to completion first.",
-                    )
-
-            # Extract tasks using AI
-            logger.info(f"Extracting tasks from synthesis for session {session_id}")
+            # Extract tasks from ALL synthesis events (sub-problems + meta-synthesis)
+            # This ensures tasks are associated with their respective sub-problems
+            events_key = f"events_history:{session_id}"
+            events = redis_manager.redis.lrange(events_key, 0, -1)
 
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if not api_key:
@@ -710,28 +692,87 @@ async def extract_tasks(
                     detail="AI service not configured",
                 )
 
-            result = sync_extract_tasks_from_synthesis(
-                synthesis=synthesis,
-                session_id=session_id,
-                anthropic_api_key=api_key,
+            # Collect all synthesis events
+            synthesis_events: list[tuple[str, int | None]] = []  # (synthesis, sub_problem_index)
+
+            for event_json in events:
+                import json
+
+                event = json.loads(event_json)
+                event_type = event.get("event_type")
+                event_data = event.get("data", {})
+
+                if event_type == "synthesis_complete":
+                    # Sub-problem synthesis
+                    synthesis = event_data.get("synthesis")
+                    sub_problem_index = event_data.get("sub_problem_index")
+                    if synthesis:
+                        synthesis_events.append((synthesis, sub_problem_index))
+
+                elif event_type == "meta_synthesis_complete":
+                    # Meta-synthesis (global actions)
+                    synthesis = event_data.get("synthesis")
+                    if synthesis:
+                        synthesis_events.append((synthesis, None))
+
+            if not synthesis_events:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No synthesis found for this session. Run the deliberation to completion first.",
+                )
+
+            # Extract tasks from each synthesis and tag with sub_problem_index
+            all_tasks: list[dict[str, Any]] = []
+            all_sections_analyzed: list[str] = []
+            total_confidence_sum = 0.0
+
+            for synthesis, sub_problem_index in synthesis_events:
+                logger.info(
+                    f"Extracting tasks from synthesis (sub_problem_index={sub_problem_index}) "
+                    f"for session {session_id}"
+                )
+
+                result = sync_extract_tasks_from_synthesis(
+                    synthesis=synthesis,
+                    session_id=session_id,
+                    anthropic_api_key=api_key,
+                )
+
+                # Tag each task with its sub_problem_index
+                for task in result.tasks:
+                    task_dict = task.model_dump() if hasattr(task, "model_dump") else task
+                    task_dict["sub_problem_index"] = sub_problem_index
+                    all_tasks.append(task_dict)
+
+                all_sections_analyzed.extend(result.synthesis_sections_analyzed)
+                total_confidence_sum += result.extraction_confidence
+
+            # Calculate average confidence across all syntheses
+            avg_confidence = (
+                total_confidence_sum / len(synthesis_events) if synthesis_events else 0.0
             )
 
             logger.info(
-                f"Extracted {result.total_tasks} tasks from session {session_id} "
-                f"(confidence: {result.extraction_confidence:.2f})"
+                f"Extracted {len(all_tasks)} tasks total from {len(synthesis_events)} "
+                f"synthesis events for session {session_id} (avg confidence: {avg_confidence:.2f})"
             )
 
             # Prepare result dictionary
-            result_dict = result.model_dump()
+            result_dict = {
+                "tasks": all_tasks,
+                "total_tasks": len(all_tasks),
+                "extraction_confidence": avg_confidence,
+                "synthesis_sections_analyzed": list(set(all_sections_analyzed)),
+            }
 
             # 1. Save to PostgreSQL for long-term persistence (PRIMARY storage)
             try:
                 save_session_tasks(
                     session_id=session_id,
-                    tasks=result.tasks,
-                    total_tasks=result.total_tasks,
-                    extraction_confidence=result.extraction_confidence,
-                    synthesis_sections_analyzed=result.synthesis_sections_analyzed,
+                    tasks=all_tasks,
+                    total_tasks=len(all_tasks),
+                    extraction_confidence=avg_confidence,
+                    synthesis_sections_analyzed=list(set(all_sections_analyzed)),
                 )
                 logger.info(f"Saved extracted tasks to PostgreSQL for session {session_id}")
             except Exception as e:

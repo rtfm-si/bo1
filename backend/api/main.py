@@ -32,6 +32,7 @@ from backend.api import (
 )
 from backend.api.middleware.auth import require_admin
 from backend.api.middleware.rate_limit import limiter
+from backend.api.middleware.security_headers import add_security_headers_middleware
 from backend.api.supertokens_config import add_supertokens_middleware, init_supertokens
 from bo1.config import get_settings
 
@@ -188,6 +189,11 @@ app.add_middleware(
     GZipMiddleware,
     minimum_size=1000,  # Only compress responses >= 1KB (avoid overhead for tiny responses)
 )
+
+# Add security headers middleware (X-Frame-Options, CSP, HSTS, etc.)
+# IMPORTANT: Add AFTER GZip (middleware executes in reverse order)
+# This ensures security headers are added to all responses including compressed ones
+add_security_headers_middleware(app)
 
 # Include routers
 # IMPORTANT: Register streaming router BEFORE sessions router to avoid

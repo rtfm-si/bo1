@@ -20,7 +20,7 @@ export const INTERNAL_EVENTS = ['node_start', 'node_end'];
 export const STATUS_NOISE_EVENTS = [
 	'decomposition_started',
 	'persona_selection_started',
-	'persona_selection_complete',
+	// NOTE: persona_selection_complete removed - used as flush trigger for expert panel
 	'initial_round_started',
 	'facilitator_decision',
 	'voting_started',
@@ -51,6 +51,28 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 
 	// Single iteration with inline filtering (combine filter + group logic)
 	for (const event of events) {
+		// Handle persona_selection_complete BEFORE filtering (used as flush trigger)
+		if (event.event_type === 'persona_selection_complete') {
+			// CRITICAL FIX: Flush expert panel immediately when selection completes
+			if (currentExpertPanel.length > 0) {
+				console.log('[EXPERT PANEL] Flushing panel on selection_complete:', {
+					expertCount: currentExpertPanel.length,
+					subProblemGoal: currentSubProblemGoal,
+					experts: currentExpertPanel.map(e => (e.data.persona as any)?.code)
+				});
+
+				groups.push({
+					type: 'expert_panel',
+					events: currentExpertPanel,
+					subProblemGoal: currentSubProblemGoal,
+				});
+				currentExpertPanel = [];
+			}
+			// Don't add persona_selection_complete as visible event (reduces noise)
+			// Just use it as a flush trigger
+			continue;
+		}
+
 		// Skip internal/noise events (inline filtering)
 		if (!shouldShowEvent(event.event_type, debugMode)) {
 			continue;
@@ -128,6 +150,11 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 
 	// Flush remaining expert panel
 	if (currentExpertPanel.length > 0) {
+		console.log('[EXPERT PANEL] Flushing remaining panel at end of loop:', {
+			expertCount: currentExpertPanel.length,
+			experts: currentExpertPanel.map(e => (e.data.persona as any)?.code)
+		});
+
 		groups.push({
 			type: 'expert_panel',
 			events: currentExpertPanel,

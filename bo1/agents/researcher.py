@@ -52,6 +52,11 @@ class ResearcherAgent:
     - Cost tracking (embedding + search/summarization)
     - Source citations
 
+    Production Integration:
+    - Used in bo1/graph/nodes.py:research_node() for external research during deliberation
+    - Invoked via facilitator decision when additional context is needed
+    - Supports both Brave Search (basic) and Tavily AI (deep analysis)
+
     Examples:
         >>> agent = ResearcherAgent()
         >>> result = await agent.research_questions([

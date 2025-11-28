@@ -265,6 +265,119 @@ async def health_check_db() -> ComponentHealthResponse:
         ) from e
 
 
+class PoolHealthResponse(BaseModel):
+    """PostgreSQL connection pool health response.
+
+    Attributes:
+        status: Component health status
+        component: Component name (postgresql_pool)
+        healthy: Whether pool is healthy
+        pool_initialized: Whether pool has been created
+        min_connections: Configured minimum connections
+        max_connections: Configured maximum connections
+        test_query_success: Whether test query succeeded
+        message: Status message
+        error: Error message if unhealthy
+        timestamp: ISO 8601 timestamp
+    """
+
+    status: str = Field(..., description="Component health status")
+    component: str = Field(default="postgresql_pool", description="Component name")
+    healthy: bool = Field(..., description="Whether pool is healthy")
+    pool_initialized: bool = Field(..., description="Whether pool has been created")
+    min_connections: int = Field(..., description="Configured minimum connections")
+    max_connections: int = Field(..., description="Configured maximum connections")
+    test_query_success: bool = Field(..., description="Whether test query succeeded")
+    message: str | None = Field(None, description="Status message")
+    error: str | None = Field(None, description="Error message if unhealthy")
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+
+
+@router.get(
+    "/health/db/pool",
+    response_model=PoolHealthResponse,
+    summary="PostgreSQL connection pool health check",
+    description="""
+    Check health of the PostgreSQL connection pool.
+
+    Tests:
+    - Pool initialization status
+    - Connection checkout from pool
+    - Test query execution (SELECT 1)
+
+    **Use Cases:**
+    - Monitor connection pool utilization
+    - Detect stale or exhausted pool
+    - Verify pool configuration
+    """,
+    responses={
+        200: {
+            "description": "Pool health status (may be healthy or unhealthy)",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "healthy": {
+                            "summary": "Healthy pool",
+                            "value": {
+                                "status": "healthy",
+                                "component": "postgresql_pool",
+                                "healthy": True,
+                                "pool_initialized": True,
+                                "min_connections": 1,
+                                "max_connections": 20,
+                                "test_query_success": True,
+                                "message": "Pool functioning correctly",
+                                "error": None,
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                        "unhealthy": {
+                            "summary": "Unhealthy pool",
+                            "value": {
+                                "status": "unhealthy",
+                                "component": "postgresql_pool",
+                                "healthy": False,
+                                "pool_initialized": True,
+                                "min_connections": 1,
+                                "max_connections": 20,
+                                "test_query_success": False,
+                                "message": "Pool health check failed",
+                                "error": "Connection refused",
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+async def health_check_db_pool() -> PoolHealthResponse:
+    """PostgreSQL connection pool health check.
+
+    Returns:
+        Pool health status with configuration and test results
+    """
+    from bo1.state.postgres_manager import get_pool_health
+
+    health = get_pool_health()
+    status = "healthy" if health["healthy"] else "unhealthy"
+    message = "Pool functioning correctly" if health["healthy"] else "Pool health check failed"
+
+    return PoolHealthResponse(
+        status=status,
+        component="postgresql_pool",
+        healthy=health["healthy"],
+        pool_initialized=health["pool_initialized"],
+        min_connections=health["min_connections"],
+        max_connections=health["max_connections"],
+        test_query_success=health["test_query_success"],
+        message=message,
+        error=health.get("error"),
+        timestamp=datetime.utcnow().isoformat(),
+    )
+
+
 @router.get(
     "/health/redis",
     response_model=ComponentHealthResponse,

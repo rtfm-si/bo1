@@ -55,15 +55,92 @@ def get_connection_pool() -> pool.ThreadedConnectionPool:
         if not settings.database_url:
             raise ValueError("DATABASE_URL environment variable is required")
 
-        # Create connection pool with min=1, max=20 connections
+        # Import constants for pool configuration
+        from bo1.constants import DatabaseConfig
+
+        # Create connection pool with configurable limits
         _connection_pool = pool.ThreadedConnectionPool(
-            minconn=1,
-            maxconn=20,
+            minconn=DatabaseConfig.POOL_MIN_CONNECTIONS,
+            maxconn=DatabaseConfig.POOL_MAX_CONNECTIONS,
             dsn=settings.database_url,
             cursor_factory=RealDictCursor,
         )
 
     return _connection_pool
+
+
+def get_pool_health() -> dict[str, Any]:
+    """Get health status of the PostgreSQL connection pool.
+
+    Returns:
+        Dictionary with pool health metrics:
+        - healthy: Whether pool is functioning correctly
+        - pool_initialized: Whether pool exists
+        - min_connections: Configured minimum connections
+        - max_connections: Configured maximum connections
+        - test_query_success: Whether SELECT 1 succeeded
+        - error: Error message if unhealthy
+
+    Examples:
+        >>> health = get_pool_health()
+        >>> print(health['healthy'])
+        True
+        >>> print(health['max_connections'])
+        20
+    """
+    from bo1.constants import DatabaseConfig
+
+    result: dict[str, Any] = {
+        "healthy": False,
+        "pool_initialized": _connection_pool is not None,
+        "min_connections": DatabaseConfig.POOL_MIN_CONNECTIONS,
+        "max_connections": DatabaseConfig.POOL_MAX_CONNECTIONS,
+        "test_query_success": False,
+        "error": None,
+    }
+
+    try:
+        # Ensure pool exists
+        pool_instance = get_connection_pool()
+        result["pool_initialized"] = True
+
+        # Test connection from pool with simple query
+        conn = pool_instance.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 AS health_check")
+                row = cur.fetchone()
+                result["test_query_success"] = row is not None
+                result["healthy"] = True
+        finally:
+            pool_instance.putconn(conn)
+
+    except Exception as e:
+        result["error"] = str(e)
+        logger.warning(f"Pool health check failed: {e}")
+
+    return result
+
+
+def reset_connection_pool() -> None:
+    """Reset the global connection pool.
+
+    Closes all connections and clears the pool.
+    Use after detecting unhealthy state to force reconnection.
+
+    Note:
+        This should be called cautiously as it may interrupt active queries.
+    """
+    global _connection_pool
+
+    if _connection_pool is not None:
+        try:
+            _connection_pool.closeall()
+            logger.info("Connection pool closed and reset")
+        except Exception as e:
+            logger.warning(f"Error closing connection pool: {e}")
+        finally:
+            _connection_pool = None
 
 
 @contextmanager

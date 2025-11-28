@@ -12,7 +12,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from backend.api.dependencies import (
@@ -21,6 +21,7 @@ from backend.api.dependencies import (
     get_session_manager,
 )
 from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.rate_limit import CONTROL_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.validation import validate_session_id
@@ -79,10 +80,13 @@ class KillRequest(BaseModel):
         400: {"description": "Invalid request", "model": ErrorResponse},
         404: {"description": "Session not found", "model": ErrorResponse},
         409: {"description": "Session already running", "model": ErrorResponse},
+        429: {"description": "Rate limit exceeded", "model": ErrorResponse},
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(CONTROL_RATE_LIMIT)
 async def start_deliberation(
+    request: Request,
     session_id: str,
     session_data: VerifiedSession,
     session_manager: SessionManager = Depends(get_session_manager),
@@ -390,12 +394,15 @@ async def resume_deliberation(
         200: {"description": "Deliberation killed successfully"},
         403: {"description": "User does not own this session", "model": ErrorResponse},
         404: {"description": "Session not found", "model": ErrorResponse},
+        429: {"description": "Rate limit exceeded", "model": ErrorResponse},
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(CONTROL_RATE_LIMIT)
 async def kill_deliberation(
+    request: Request,
     session_id: str,
-    request: KillRequest | None = None,
+    kill_request: KillRequest | None = None,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> ControlResponse:
     """Kill a running deliberation (user must own the session).
@@ -420,7 +427,9 @@ async def kill_deliberation(
         user_id = extract_user_id(user)
         session_manager = get_session_manager()
 
-        reason = (request.reason if request and request.reason else None) or "User requested stop"
+        reason = (
+            kill_request.reason if kill_request and kill_request.reason else None
+        ) or "User requested stop"
 
         # Attempt to kill the session (with ownership check)
         killed = await session_manager.kill_session(session_id, user_id, reason)

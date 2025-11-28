@@ -26,6 +26,7 @@ export interface User {
 	email: string;
 	auth_provider: 'google' | 'linkedin' | 'github';
 	subscription_tier: 'free' | 'pro' | 'enterprise';
+	is_admin?: boolean;
 }
 
 export interface AuthState {

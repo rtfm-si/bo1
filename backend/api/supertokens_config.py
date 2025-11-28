@@ -23,9 +23,60 @@ from supertokens_python.recipe.thirdparty.interfaces import RecipeInterface
 from supertokens_python.recipe.thirdparty.provider import ProviderInput
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 
-from bo1.state.postgres_manager import ensure_user_exists
+from bo1.state.postgres_manager import db_session, ensure_user_exists
 
 logger = logging.getLogger(__name__)
+
+
+def check_whitelist_db(email: str) -> bool:
+    """Check if email is in database whitelist.
+
+    Args:
+        email: Email address to check (case-insensitive)
+
+    Returns:
+        True if email is whitelisted in database, False otherwise
+    """
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM beta_whitelist WHERE LOWER(email) = LOWER(%s)",
+                    (email,),
+                )
+                return cur.fetchone() is not None
+    except Exception as e:
+        logger.error(f"Error checking database whitelist: {e}")
+        return False
+
+
+def is_whitelisted(email: str) -> bool:
+    """Check if email is whitelisted (env var or database).
+
+    Checks environment variable first for backwards compatibility,
+    then falls back to database check.
+
+    Args:
+        email: Email address to check (case-insensitive)
+
+    Returns:
+        True if email is whitelisted, False otherwise
+    """
+    email_lower = email.lower()
+
+    # Check env var first (backwards compat)
+    env_whitelist = os.getenv("BETA_WHITELIST", "").split(",")
+    env_whitelist = [e.strip().lower() for e in env_whitelist if e.strip()]
+    if email_lower in env_whitelist:
+        logger.info(f"Email {email_lower} found in env var whitelist")
+        return True
+
+    # Then check database
+    if check_whitelist_db(email):
+        logger.info(f"Email {email_lower} found in database whitelist")
+        return True
+
+    return False
 
 
 def get_app_info() -> InputAppInfo:
@@ -77,14 +128,6 @@ def get_oauth_providers() -> list[ProviderInput]:
                 "Google OAuth enabled but credentials missing (GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET)"
             )
 
-    # LinkedIn OAuth (future implementation)
-    # if os.getenv("LINKEDIN_OAUTH_ENABLED", "false").lower() == "true":
-    #     providers.append(...)
-
-    # GitHub OAuth (future implementation)
-    # if os.getenv("GITHUB_OAUTH_ENABLED", "false").lower() == "true":
-    #     providers.append(...)
-
     return providers
 
 
@@ -109,22 +152,18 @@ def override_thirdparty_functions(
         """Override sign in/up to add closed beta whitelist validation."""
         # Check if closed beta mode is enabled
         if os.getenv("CLOSED_BETA_MODE", "false").lower() == "true":
-            whitelist = os.getenv("BETA_WHITELIST", "").split(",")
-            whitelist = [email_str.strip().lower() for email_str in whitelist if email_str.strip()]
-
-            # Validate against whitelist
-            user_email_lower = email.lower()
-            if user_email_lower not in whitelist:
+            # Validate against whitelist (env var + database)
+            if not is_whitelisted(email):
                 # Reject user - not on whitelist
                 logger.warning(
-                    f"Sign-in attempt rejected: {user_email_lower} not whitelisted for closed beta"
+                    f"Sign-in attempt rejected: {email.lower()} not whitelisted for closed beta"
                 )
                 raise Exception(
                     f"Email {email} is not whitelisted for closed beta access. "
                     f"Please contact support to request access."
                 )
 
-            logger.info(f"Whitelist validation passed for: {user_email_lower}")
+            logger.info(f"Whitelist validation passed for: {email.lower()}")
 
         # Call original sign_in_up
         result = await original_sign_in_up(

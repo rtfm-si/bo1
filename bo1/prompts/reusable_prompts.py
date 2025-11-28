@@ -199,14 +199,36 @@ Current phase: {current_phase}
 {phase_objectives}
 </phase_objectives>
 
+<phase_awareness>
+DELIBERATION PHASES:
+- Rounds 1-2: EXPLORATION - Surface diverse perspectives, encourage divergent thinking
+- Rounds 3-4: CHALLENGE - **CRITICAL**: Stress-test ideas, challenge weak arguments, find flaws
+- Rounds 5-6: CONVERGENCE - Synthesize insights, build consensus, recommend actions
+
+**CHALLENGE ROUNDS (3-4) REQUIREMENT**:
+If currently in rounds 3-4, your speaker prompts MUST explicitly ask experts to:
+- Challenge a specific argument from previous rounds
+- Identify weaknesses or limitations in emerging ideas
+- Provide counterarguments or alternative perspectives
+- Stress-test assumptions being made
+
+DO NOT allow experts to simply agree or build consensus in rounds 3-4.
+Ask them to push back, find holes, and strengthen the analysis through critique.
+</phase_awareness>
+
+{metrics_context}
+
 <stopping_criteria>
 TRANSITION TO VOTING when ANY of these are true:
 1. 3+ rounds completed AND all personas have contributed at least twice
-2. Same arguments being repeated (no new insights in last 2 contributions)
-3. Clear consensus emerging (>70% alignment on recommendation)
-4. All key questions from sub-problem focus have been addressed
-5. Time pressure: round 5+ AND no major new insights
+2. Novelty score low (<0.30) - same arguments being repeated
+3. Convergence score high (>0.70) AND exploration sufficient (>0.60)
+4. Meeting completeness index high (>0.70) - high quality discussion achieved
+5. All key questions from sub-problem focus have been addressed
+6. Time pressure: round 5+ AND no major new insights
 
+Use the metrics provided above to make data-driven decisions about when to end discussion.
+If novelty is dropping but exploration gaps remain, continue with focused prompts on missing aspects.
 DO NOT extend discussion just to be thorough. Users prefer faster results.
 </stopping_criteria>
 
@@ -216,10 +238,16 @@ DO NOT extend discussion just to be thorough. Users prefer faster results.
 Analyze the discussion:
 1. What key themes or insights have emerged?
 2. What disagreements or tensions exist?
-3. What critical aspects haven't been addressed yet?
-4. Is there sufficient depth for this phase, or do we need more discussion?
-5. If continuing: Who should speak next and why? (Consider rotation guidelines)
-6. If transitioning: What should we move to?
+3. What critical aspects haven't been addressed yet (check metrics for weak aspects)?
+4. What do the quality metrics tell us about discussion health?
+   - Is novelty declining (experts repeating themselves)?
+   - Is convergence increasing (alignment emerging)?
+   - Are there exploration gaps (aspects not deeply covered)?
+   - Is the overall completeness index high enough to end?
+5. Is there sufficient depth for this phase, or do we need more discussion?
+6. If continuing: Who should speak next and why? (Consider rotation guidelines)
+   - If exploration gaps exist, prompt an expert to address the weakest aspect
+7. If transitioning: What should we move to?
 </thinking>
 
 <decision>
@@ -1022,6 +1050,31 @@ Generate the JSON action plan now:
 </instructions>"""
 
 # =============================================================================
+# Challenge Phase Protocol (Rounds 3-4)
+# =============================================================================
+
+CHALLENGE_PHASE_PROMPT = """<challenge_mode>
+## MANDATORY CHALLENGE MODE (Rounds 3-4)
+
+Your primary role in this round is to STRESS-TEST ideas, not build consensus.
+
+You MUST:
+1. **Identify the WEAKEST argument** made so far (name it specifically)
+2. **Provide a concrete counterargument** with evidence or reasoning
+3. **Surface limitations** that others may have overlooked
+4. **Challenge emerging consensus** - if everyone agrees too quickly, find the holes
+
+DO NOT:
+- Simply agree or build on ideas without critique
+- Provide generic support ("I think this is great...")
+- Default to comfortable consensus
+
+**If you find yourself agreeing with everything, you are NOT doing your job.**
+
+The best outcomes come from rigorous challenge. Your role is to make the final recommendation MORE robust by finding its weaknesses NOW, not after implementation.
+</challenge_mode>"""
+
+# =============================================================================
 # Enhanced Persona Contribution Prompt (Issue #4 - Deeper Discussion)
 # =============================================================================
 
@@ -1064,15 +1117,18 @@ def compose_persona_contribution_prompt(
         </phase_goals>
         """
     elif round_number <= 4:
-        phase_instruction = """
-        <debate_phase>MIDDLE - DEEP ANALYSIS</debate_phase>
+        # Rounds 3-4: MANDATORY CHALLENGE MODE
+        phase_instruction = f"""
+        <debate_phase>MIDDLE - CRITICAL CHALLENGE PHASE</debate_phase>
         <phase_goals>
-        - Provide evidence for claims
-        - Challenge weak arguments
-        - Request clarification on unclear points
-        - Build on strong ideas from others
-        - Identify trade-offs and constraints
+        - CHALLENGE weak arguments with evidence
+        - STRESS-TEST emerging ideas for hidden flaws
+        - SURFACE counterarguments and limitations
+        - IDENTIFY tradeoffs others are overlooking
+        - PUSH BACK on comfortable consensus
         </phase_goals>
+
+        {CHALLENGE_PHASE_PROMPT}
         """
     else:
         phase_instruction = """
@@ -1325,8 +1381,10 @@ def compose_facilitator_prompt(
     phase_objectives: str,
     contribution_counts: dict[str, int] | None = None,
     last_speakers: list[str] | None = None,
+    metrics: Any | None = None,
+    round_number: int = 1,
 ) -> str:
-    """Compose facilitator decision prompt with rotation guidance.
+    """Compose facilitator decision prompt with rotation guidance and quality metrics.
 
     Args:
         current_phase: Current deliberation phase
@@ -1334,9 +1392,11 @@ def compose_facilitator_prompt(
         phase_objectives: Objectives for current phase
         contribution_counts: Dictionary mapping persona_code to contribution count
         last_speakers: List of last N speakers (most recent first)
+        metrics: DeliberationMetrics object with quality scores
+        round_number: Current round number
 
     Returns:
-        Complete facilitator prompt with rotation guidance
+        Complete facilitator prompt with rotation guidance and metrics context
     """
     # Build rotation guidance if stats provided
     rotation_guidance = ""
@@ -1371,11 +1431,80 @@ ROTATION GUIDELINES:
 </rotation_guidance>
 """
 
+    # Build metrics context if metrics provided
+    metrics_context = ""
+    if metrics:
+        # Extract metric values (use getattr with defaults for safety)
+        novelty = getattr(metrics, "novelty_score", None)
+        convergence = getattr(metrics, "convergence_score", None)
+        exploration = getattr(metrics, "exploration_score", None)
+        focus = getattr(metrics, "focus_score", None)
+        completeness = getattr(metrics, "meeting_completeness_index", None)
+        aspect_coverage = getattr(metrics, "aspect_coverage", [])
+
+        # Build weak aspects list
+        weak_aspects = [
+            a.name
+            for a in aspect_coverage
+            if hasattr(a, "level") and a.level in ("none", "shallow")
+        ]
+
+        # Format metrics section
+        metrics_lines = [
+            f'<quality_metrics round="{round_number}">',
+            "Use these real-time metrics for data-driven steering decisions:",
+            "",
+        ]
+
+        if novelty is not None:
+            metrics_lines.append(
+                f"- Novelty Score: {novelty:.2f} (0=repetitive, 1=novel; target >0.40, vote if <0.30)"
+            )
+
+        if convergence is not None:
+            metrics_lines.append(
+                f"- Convergence Score: {convergence:.2f} (0=divergent, 1=aligned; target >0.70 for voting)"
+            )
+
+        if exploration is not None:
+            metrics_lines.append(
+                f"- Exploration Score: {exploration:.2f}/1.0 (coverage of 8 critical aspects; >0.60 required to end)"
+            )
+
+        if focus is not None:
+            metrics_lines.append(
+                f"- Focus Score: {focus:.2f}/1.0 (on-topic ratio; >0.80 excellent, <0.60 drifting)"
+            )
+
+        if completeness is not None:
+            metrics_lines.append(
+                f"- Meeting Completeness Index: {completeness:.2f}/1.0 (composite quality; >0.70 = high quality)"
+            )
+
+        if weak_aspects:
+            metrics_lines.append("")
+            metrics_lines.append(f"Weak/Missing Aspects: {', '.join(weak_aspects)}")
+            metrics_lines.append(
+                "→ Consider prompting an expert to address these gaps before voting"
+            )
+
+        metrics_lines.append("")
+        metrics_lines.append("INTERPRETATION:")
+        metrics_lines.append(
+            "- Low novelty (<0.30) + High convergence (>0.70) + Good exploration (>0.60) = Ready to vote"
+        )
+        metrics_lines.append("- Low novelty but exploration gaps = Continue with focused prompts")
+        metrics_lines.append("- High novelty + Low convergence = Healthy debate, continue")
+        metrics_lines.append("</quality_metrics>")
+
+        metrics_context = "\n".join(metrics_lines)
+
     return FACILITATOR_SYSTEM_TEMPLATE.format(
         current_phase=current_phase,
         discussion_history=discussion_history,
         phase_objectives=phase_objectives,
         rotation_guidance=rotation_guidance,
+        metrics_context=metrics_context,
         security_protocol=SECURITY_PROTOCOL,
     )
 

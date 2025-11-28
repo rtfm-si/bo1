@@ -37,6 +37,10 @@ class ExtractedTask(BaseModel):
     category: str = Field(description="Category: implementation, research, decision, communication")
     source_section: str = Field(description="Which synthesis section this came from")
     confidence: float = Field(description="AI confidence in task extraction (0-1)", ge=0.0, le=1.0)
+    sub_problem_index: int | None = Field(
+        default=None,
+        description="Which sub-problem this action belongs to (None = applies to all)",
+    )
     # Legacy field for backwards compatibility
     suggested_completion_date: str | None = Field(
         default=None, description="ISO date or relative (e.g., 'Week 1') - use timeline instead"

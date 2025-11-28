@@ -18,6 +18,8 @@ from anthropic import APIError, RateLimitError
 from pydantic import BaseModel, Field
 
 from bo1.config import resolve_model_alias
+from bo1.constants import LLMConfig
+from bo1.llm.circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 from bo1.llm.client import ClaudeClient
 from bo1.llm.response import LLMResponse
 from bo1.utils.logging import get_logger, log_llm_call
@@ -40,9 +42,15 @@ class RetryPolicy(BaseModel):
         >>> delay = policy.calculate_delay(attempt=2)  # Returns ~4s with jitter
     """
 
-    max_retries: int = Field(default=3, description="Maximum number of retry attempts")
-    base_delay: float = Field(default=1.0, description="Initial delay in seconds")
-    max_delay: float = Field(default=60.0, description="Maximum delay in seconds")
+    max_retries: int = Field(
+        default=LLMConfig.MAX_RETRIES, description="Maximum number of retry attempts"
+    )
+    base_delay: float = Field(
+        default=LLMConfig.RETRY_BASE_DELAY, description="Initial delay in seconds"
+    )
+    max_delay: float = Field(
+        default=LLMConfig.RETRY_MAX_DELAY, description="Maximum delay in seconds"
+    )
     jitter: bool = Field(default=True, description="Add random jitter to prevent thundering herd")
 
     def calculate_delay(self, attempt: int) -> float:
@@ -87,8 +95,12 @@ class PromptRequest(BaseModel):
     model: str = Field(default="sonnet", description="Model alias or full ID")
     prefill: str | None = Field(default=None, description="Assistant prefill (e.g., '{' for JSON)")
     cache_system: bool = Field(default=False, description="Enable prompt caching for system prompt")
-    temperature: float = Field(default=1.0, description="Sampling temperature")
-    max_tokens: int = Field(default=4096, description="Maximum output tokens")
+    temperature: float = Field(
+        default=LLMConfig.DEFAULT_TEMPERATURE, description="Sampling temperature"
+    )
+    max_tokens: int = Field(
+        default=LLMConfig.DEFAULT_MAX_TOKENS, description="Maximum output tokens"
+    )
 
     # Metadata for tracking
     phase: str | None = Field(default=None, description="Deliberation phase")
@@ -126,15 +138,18 @@ class PromptBroker:
         self,
         client: ClaudeClient | None = None,
         retry_policy: RetryPolicy | None = None,
+        circuit_breaker: CircuitBreaker | None = None,
     ) -> None:
         """Initialize the Prompt Broker.
 
         Args:
             client: ClaudeClient instance (if None, creates default)
             retry_policy: RetryPolicy config (if None, uses default)
+            circuit_breaker: CircuitBreaker instance (if None, creates default)
         """
         self.client = client or ClaudeClient()
         self.retry_policy = retry_policy or RetryPolicy()
+        self.circuit_breaker = circuit_breaker or CircuitBreaker()
 
     async def call(self, request: PromptRequest) -> LLMResponse:
         """Execute an LLM call with retry/rate-limit handling and caching.
@@ -181,16 +196,19 @@ class PromptBroker:
 
         for attempt in range(self.retry_policy.max_retries + 1):
             try:
-                # Make the LLM call
-                response_text, token_usage = await self.client.call(
-                    model=request.model,
-                    messages=[{"role": "user", "content": request.user_message}],
-                    system=request.system,
-                    cache_system=request.cache_system,
-                    temperature=request.temperature,
-                    max_tokens=request.max_tokens,
-                    prefill=request.prefill,
-                )
+                # Make the LLM call with circuit breaker protection
+                async def _make_api_call() -> tuple[str, Any]:
+                    return await self.client.call(
+                        model=request.model,
+                        messages=[{"role": "user", "content": request.user_message}],
+                        system=request.system,
+                        cache_system=request.cache_system,
+                        temperature=request.temperature,
+                        max_tokens=request.max_tokens,
+                        prefill=request.prefill,
+                    )
+
+                response_text, token_usage = await self.circuit_breaker.call(_make_api_call)
 
                 # Calculate duration
                 duration_ms = int((time.time() - start_time) * 1000)
@@ -287,6 +305,19 @@ class PromptBroker:
                     if metrics:
                         metrics.increment("llm.errors.api_error")
                     raise
+
+            except CircuitBreakerOpenError as e:
+                # Circuit breaker is open - API is experiencing issues
+                logger.error(
+                    f"[{request.request_id}] Circuit breaker OPEN - "
+                    f"API unavailable, skipping retry: {e}"
+                )
+                if metrics:
+                    metrics.increment("llm.errors.circuit_breaker_open")
+                # Re-raise as RuntimeError to avoid retry loop
+                raise RuntimeError(
+                    "Service temporarily unavailable due to repeated failures. Please try again later."
+                ) from e
 
             except Exception as e:
                 # Unexpected error, don't retry

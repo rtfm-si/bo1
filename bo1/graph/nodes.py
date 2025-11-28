@@ -4,11 +4,14 @@ This module contains node functions that wrap existing v1 agents
 and integrate them into the LangGraph execution model.
 """
 
+import asyncio
 import json
 import logging
 import time
 from dataclasses import asdict
 from typing import Any, Literal
+
+from anthropic import APIConnectionError, APITimeoutError
 
 from bo1.agents.decomposer import DecomposerAgent
 from bo1.agents.facilitator import FacilitatorAgent, FacilitatorDecision
@@ -28,6 +31,65 @@ from bo1.state.postgres_manager import load_user_context
 from bo1.utils.json_parsing import extract_json_with_fallback
 
 logger = logging.getLogger(__name__)
+
+
+async def retry_with_backoff(
+    func: Any,
+    *args: Any,
+    max_retries: int = 3,
+    initial_delay: float = 2.0,
+    backoff_factor: float = 2.0,
+    **kwargs: Any,
+) -> Any:
+    """Retry an async function with exponential backoff.
+
+    Args:
+        func: Async function to retry
+        *args: Positional arguments to pass to func
+        max_retries: Maximum number of retry attempts (default: 3)
+        initial_delay: Initial delay in seconds before first retry (default: 2.0)
+        backoff_factor: Multiplier for delay on each retry (default: 2.0)
+        **kwargs: Keyword arguments to pass to func
+
+    Returns:
+        Result from successful function call
+
+    Raises:
+        The last exception if all retries fail
+
+    Example:
+        >>> result = await retry_with_backoff(_deliberate_subproblem, sub_problem, problem, ...)
+        # Tries up to 3 times with delays: 2s, 4s, 8s
+    """
+    last_exception = None
+    delay = initial_delay
+
+    for attempt in range(max_retries + 1):  # +1 for initial attempt
+        try:
+            return await func(*args, **kwargs)
+        except (TimeoutError, APITimeoutError, APIConnectionError) as e:
+            last_exception = e
+
+            if attempt < max_retries:
+                logger.warning(
+                    f"Attempt {attempt + 1}/{max_retries + 1} failed with {type(e).__name__}: {e}. "
+                    f"Retrying in {delay:.1f}s..."
+                )
+                await asyncio.sleep(delay)
+                delay *= backoff_factor
+            else:
+                logger.error(
+                    f"All {max_retries + 1} attempts failed for {func.__name__}. Last error: {e}"
+                )
+                raise
+        except Exception as e:
+            # Don't retry on non-timeout errors (e.g., validation errors, logic errors)
+            logger.error(f"Non-retryable error in {func.__name__}: {type(e).__name__}: {e}")
+            raise
+
+    # Should never reach here, but just in case
+    if last_exception:
+        raise last_exception
 
 
 async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
@@ -98,17 +160,74 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     metrics = ensure_metrics(state)
     track_phase_cost(metrics, "problem_decomposition", response)
 
-    logger.info(
-        f"decompose_node: Complete - {len(sub_problems)} sub-problems "
-        f"(cost: ${response.cost_total:.4f})"
+    # Assess complexity to determine adaptive parameters
+    from bo1.agents.complexity_assessor import ComplexityAssessor, validate_complexity_assessment
+
+    assessor = ComplexityAssessor()
+    complexity_response = await assessor.assess_complexity(
+        problem_description=problem.description,
+        context=problem.context,
+        sub_problems=[
+            {"id": sp.id, "goal": sp.goal, "complexity_score": sp.complexity_score}
+            for sp in sub_problems
+        ],
     )
 
-    # Return state updates
+    # Parse complexity assessment
+    def create_complexity_fallback() -> dict[str, Any]:
+        # Default to moderate complexity if assessment fails
+        return {
+            "scope_breadth": 0.4,
+            "dependencies": 0.4,
+            "ambiguity": 0.4,
+            "stakeholders": 0.3,
+            "novelty": 0.3,
+            "overall_complexity": 0.38,
+            "recommended_rounds": 4,
+            "recommended_experts": 4,
+            "reasoning": "Complexity assessment failed, using moderate defaults",
+        }
+
+    complexity_assessment = extract_json_with_fallback(
+        content=complexity_response.content,
+        fallback_factory=create_complexity_fallback,
+        logger=logger,
+    )
+
+    # Validate and sanitize complexity scores
+    complexity_assessment = validate_complexity_assessment(complexity_assessment)
+
+    # Update metrics with complexity scores
+    metrics.complexity_score = complexity_assessment.get("overall_complexity", 0.4)
+    metrics.scope_breadth = complexity_assessment.get("scope_breadth", 0.4)
+    metrics.dependencies = complexity_assessment.get("dependencies", 0.4)
+    metrics.ambiguity = complexity_assessment.get("ambiguity", 0.4)
+    metrics.stakeholders_complexity = complexity_assessment.get("stakeholders", 0.3)
+    metrics.novelty = complexity_assessment.get("novelty", 0.3)
+    metrics.recommended_rounds = complexity_assessment.get("recommended_rounds", 4)
+    metrics.recommended_experts = complexity_assessment.get("recommended_experts", 4)
+    metrics.complexity_reasoning = complexity_assessment.get(
+        "reasoning", "Complexity assessment completed"
+    )
+
+    # Track complexity assessment cost
+    track_phase_cost(metrics, "complexity_assessment", complexity_response)
+
+    logger.info(
+        f"decompose_node: Complete - {len(sub_problems)} sub-problems, "
+        f"complexity={metrics.complexity_score:.2f}, "
+        f"recommended_rounds={metrics.recommended_rounds}, "
+        f"recommended_experts={metrics.recommended_experts} "
+        f"(cost: ${response.cost_total + complexity_response.cost_total:.4f})"
+    )
+
+    # Return state updates with adaptive max_rounds
     return {
         "problem": problem,
         "current_sub_problem": sub_problems[0] if sub_problems else None,
         "phase": DeliberationPhase.DECOMPOSITION,
         "metrics": metrics,
+        "max_rounds": metrics.recommended_rounds,  # Adaptive based on complexity
         "current_node": "decompose",
     }
 
@@ -741,11 +860,19 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
     This node wraps the collect_recommendations() function from voting.py
     and updates the graph state with the collected recommendations.
 
+    IMPORTANT: Recommendation System (NOT Voting)
+    - Uses free-form text recommendations, NOT binary votes
+    - Legacy "votes" key retained for backward compatibility
+    - Recommendation model: persona_code, persona_name, recommendation (string),
+      reasoning, confidence (0-1), conditions (list), weight
+    - See bo1/models/recommendations.py for Recommendation model
+    - See bo1/orchestration/voting.py:collect_recommendations() for implementation
+
     Args:
         state: Current graph state
 
     Returns:
-        Dictionary with state updates (recommendations, metrics)
+        Dictionary with state updates (votes, recommendations, metrics)
     """
     from bo1.llm.broker import PromptBroker
     from bo1.orchestration.voting import collect_recommendations
@@ -1614,6 +1741,66 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         filtered_contributions = [contributions[0]]
         logger.info(f"Failsafe: Kept contribution from {contributions[0].persona_name}")
 
+    # Lightweight quality check after semantic deduplication
+    quality_results = []
+    if filtered_contributions:
+        from bo1.graph.quality.contribution_check import check_contributions_quality
+
+        problem = state.get("problem")
+        problem_context = problem.description if problem else "No problem context available"
+
+        try:
+            quality_results = await check_contributions_quality(
+                contributions=filtered_contributions,
+                problem_context=problem_context,
+            )
+
+            # Track quality metrics
+            shallow_count = sum(1 for r in quality_results if r.is_shallow)
+            avg_quality = sum(r.quality_score for r in quality_results) / len(quality_results)
+
+            logger.info(
+                f"Quality check: {shallow_count}/{len(quality_results)} shallow, "
+                f"avg score: {avg_quality:.2f}"
+            )
+
+            # If any contributions are shallow, add guidance for next round
+            if shallow_count > 0:
+                shallow_feedback = [
+                    f"{filtered_contributions[i].persona_name}: {quality_results[i].feedback}"
+                    for i in range(len(quality_results))
+                    if quality_results[i].is_shallow
+                ]
+
+                # Update facilitator guidance
+                facilitator_guidance = state.get("facilitator_guidance") or {}
+                if "quality_issues" not in facilitator_guidance:
+                    facilitator_guidance["quality_issues"] = []
+
+                facilitator_guidance["quality_issues"].append(
+                    {
+                        "round": round_number,
+                        "shallow_count": shallow_count,
+                        "total_count": len(quality_results),
+                        "feedback": shallow_feedback,
+                        "guidance": (
+                            f"Round {round_number} had {shallow_count} shallow contributions. "
+                            f"Next round: emphasize concrete details, evidence, and actionable steps."
+                        ),
+                    }
+                )
+
+                # Store updated guidance in state (will be returned at end)
+                # Note: We'll include this in the return dict below
+
+                logger.info(
+                    f"Added quality guidance for next round: {shallow_count} shallow contributions"
+                )
+
+        except Exception as e:
+            logger.warning(f"Quality check failed: {e}. Continuing without quality feedback.")
+            # Don't fail the round if quality check fails - it's a nice-to-have
+
     # Update state
     all_contributions = list(state.get("contributions", []))
     all_contributions.extend(filtered_contributions)
@@ -1677,12 +1864,23 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
             round_summaries.append(fallback_summary)
             logger.info(f"Added fallback summary for round {round_number}")
 
-    logger.info(
-        f"parallel_round_node: Complete - Round {round_number} → {next_round}, "
-        f"{len(filtered_contributions)} contributions added"
-    )
+    # Log quality metrics if available
+    if quality_results:
+        shallow_count = sum(1 for r in quality_results if r.is_shallow)
+        avg_quality = sum(r.quality_score for r in quality_results) / len(quality_results)
+        logger.info(
+            f"parallel_round_node: Complete - Round {round_number} → {next_round}, "
+            f"{len(filtered_contributions)} contributions added "
+            f"(quality: {avg_quality:.2f}, {shallow_count} shallow)"
+        )
+    else:
+        logger.info(
+            f"parallel_round_node: Complete - Round {round_number} → {next_round}, "
+            f"{len(filtered_contributions)} contributions added"
+        )
 
-    return {
+    # Prepare return dict with updated state
+    return_dict = {
         "contributions": all_contributions,
         "round_number": next_round,
         "current_phase": current_phase,
@@ -1693,6 +1891,12 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         "personas": state.get("personas", []),  # Include for event publishing (archetype lookup)
         "sub_problem_index": state.get("sub_problem_index", 0),
     }
+
+    # Include facilitator_guidance if it was updated with quality issues
+    if "facilitator_guidance" in locals():
+        return_dict["facilitator_guidance"] = facilitator_guidance
+
+    return return_dict
 
 
 def _determine_phase(round_number: int, max_rounds: int) -> str:
@@ -2221,6 +2425,7 @@ async def _deliberate_subproblem(
     previous_results: list[SubProblemResult],
     sub_problem_index: int,
     user_id: str | None = None,
+    event_bridge: Any | None = None,  # EventBridge | None (avoid circular import)
 ) -> SubProblemResult:
     """Run complete deliberation for a single sub-problem.
 
@@ -2241,6 +2446,7 @@ async def _deliberate_subproblem(
         previous_results: Results from previously completed sub-problems (for expert memory)
         sub_problem_index: Index of this sub-problem (0-based) for event tracking
         user_id: Optional user ID for context persistence
+        event_bridge: Optional EventBridge for emitting real-time events during parallel execution
 
     Returns:
         SubProblemResult with synthesis, votes, costs, and expert summaries
@@ -2294,6 +2500,33 @@ async def _deliberate_subproblem(
 
     # Track persona selection cost
     track_phase_cost(metrics, "persona_selection", response)
+
+    # Emit persona selection events (one per persona, matching sequential execution)
+    if event_bridge:
+        for i, persona in enumerate(personas):
+            # Find matching rationale from recommendations
+            rationale = ""
+            for rec in recommended_personas:
+                if rec.get("code") == persona.code:
+                    rationale = rec.get("rationale", "")
+                    break
+
+            persona_dict = {
+                "code": persona.code,
+                "name": persona.name,
+                "archetype": persona.archetype,
+                "display_name": persona.display_name,
+                "domain_expertise": persona.domain_expertise,
+            }
+
+            event_bridge.emit(
+                "persona_selected",
+                {
+                    "persona": persona_dict,
+                    "rationale": rationale,
+                    "order": i + 1,
+                },
+            )
 
     logger.info(
         f"_deliberate_subproblem: Selected {len(personas)} personas for {sub_problem.id}: {persona_codes}"
@@ -2366,6 +2599,15 @@ async def _deliberate_subproblem(
     for round_num in range(1, max_rounds + 1):
         mini_state["round_number"] = round_num
 
+        # Emit round start event
+        if event_bridge:
+            event_bridge.emit(
+                "round_started",
+                {
+                    "round_number": round_num,
+                },
+            )
+
         # Run parallel round
         updates = await parallel_round_node(mini_state)
 
@@ -2376,6 +2618,39 @@ async def _deliberate_subproblem(
         mini_state["metrics"] = updates["metrics"]
         mini_state["current_phase"] = updates.get("current_phase", "exploration")
         mini_state["experts_per_round"] = updates.get("experts_per_round", [])
+
+        # Emit individual contribution events (matching sequential execution)
+        if event_bridge:
+            # Get contributions from this round
+            round_contributions = [
+                c for c in mini_state["contributions"] if c.round_number == round_num
+            ]
+
+            # Emit one event per contribution
+            for contrib in round_contributions:
+                # Get persona profile for archetype and domain_expertise
+                contrib_persona: PersonaProfile | None = None
+                for p in personas:
+                    if p.code == contrib.persona_code:
+                        contrib_persona = p
+                        break
+
+                # Note: contribution_summaries are not generated in parallel execution
+                # The summary field is optional in frontend TypeScript types
+                event_bridge.emit(
+                    "contribution",
+                    {
+                        "persona_code": contrib.persona_code,
+                        "persona_name": contrib.persona_name,
+                        "archetype": contrib_persona.archetype if contrib_persona else "",
+                        "domain_expertise": contrib_persona.domain_expertise
+                        if contrib_persona
+                        else [],
+                        "content": contrib.content,
+                        "round": round_num,
+                        "contribution_type": "initial" if round_num == 1 else "followup",
+                    },
+                )
 
         # Check convergence
         from bo1.graph.safety.loop_prevention import check_convergence_node
@@ -2402,6 +2677,16 @@ async def _deliberate_subproblem(
     # Step 4: Collect recommendations
     logger.info(f"_deliberate_subproblem: Collecting recommendations for {sub_problem.id}")
 
+    # Emit voting started event
+    if event_bridge:
+        event_bridge.emit(
+            "voting_started",
+            {
+                "experts": [p.code for p in personas],
+                "count": len(personas),
+            },
+        )
+
     broker = PromptBroker()
     recommendations, llm_responses = await collect_recommendations(state=mini_state, broker=broker)
     track_aggregated_cost(metrics, "voting", llm_responses)
@@ -2424,8 +2709,30 @@ async def _deliberate_subproblem(
         f"_deliberate_subproblem: Collected {len(votes)} recommendations for {sub_problem.id}"
     )
 
+    # Emit voting complete event
+    if event_bridge:
+        # Calculate consensus level based on agreement (simple heuristic)
+        # Could be improved with actual consensus analysis
+        consensus_level = "moderate"
+        if len(votes) >= len(personas) * 0.8:
+            consensus_level = "strong"
+        elif len(votes) < len(personas) * 0.5:
+            consensus_level = "weak"
+
+        event_bridge.emit(
+            "voting_complete",
+            {
+                "votes_count": len(votes),
+                "consensus_level": consensus_level,
+            },
+        )
+
     # Step 5: Generate synthesis
     logger.info(f"_deliberate_subproblem: Generating synthesis for {sub_problem.id}")
+
+    # Emit synthesis started event
+    if event_bridge:
+        event_bridge.emit("synthesis_started", {})
 
     # Format contributions and votes
     all_contributions_and_votes = []
@@ -2475,6 +2782,16 @@ async def _deliberate_subproblem(
     logger.info(
         f"_deliberate_subproblem: Synthesis generated for {sub_problem.id} (cost: ${response.cost_total:.4f})"
     )
+
+    # Emit synthesis complete event
+    if event_bridge:
+        event_bridge.emit(
+            "synthesis_complete",
+            {
+                "synthesis": synthesis,
+                "word_count": len(synthesis.split()),
+            },
+        )
 
     # Step 6: Generate expert summaries for memory
     expert_summaries: dict[str, str] = {}
@@ -2563,6 +2880,19 @@ async def parallel_subproblems_node(state: DeliberationGraphState) -> dict[str, 
     if not problem:
         raise ValueError("parallel_subproblems_node called without problem")
 
+    # Get session_id and event publisher for real-time event emission
+    session_id = state.get("session_id")
+    if not session_id:
+        logger.warning(
+            "No session_id in state - events will not be emitted during parallel execution"
+        )
+        event_publisher = None
+    else:
+        # Import here to avoid circular imports
+        from backend.api.dependencies import get_event_publisher
+
+        event_publisher = get_event_publisher()
+
     execution_batches = state.get("execution_batches", [])
     if not execution_batches:
         logger.warning("No execution_batches in state, creating sequential batches")
@@ -2602,27 +2932,100 @@ async def parallel_subproblems_node(state: DeliberationGraphState) -> dict[str, 
 
             sub_problem = sub_problems[sp_index]
 
-            # Create deliberation task
-            task = _deliberate_subproblem(
+            # Create EventBridge for this sub-problem (if event_publisher available)
+            event_bridge = None
+            if event_publisher and session_id:
+                from backend.api.event_bridge import EventBridge
+
+                event_bridge = EventBridge(session_id, event_publisher)
+                event_bridge.set_sub_problem_index(sp_index)
+
+            # Create deliberation task with retry wrapper
+            # Retries up to 3 times with exponential backoff (2s, 4s, 8s)
+            task = retry_with_backoff(
+                _deliberate_subproblem,
                 sub_problem=sub_problem,
                 problem=problem,
                 all_personas=all_personas,
                 previous_results=all_results,  # Results from previous batches
                 sub_problem_index=sp_index,
                 user_id=user_id,
+                event_bridge=event_bridge,  # Pass EventBridge for real-time events
+                max_retries=3,
+                initial_delay=2.0,
+                backoff_factor=2.0,
             )
             batch_tasks.append((sp_index, task))
 
         # Execute batch in parallel
         logger.info(f"parallel_subproblems_node: Executing {len(batch_tasks)} tasks in parallel")
-        batch_results_raw = await asyncio.gather(*[t[1] for t in batch_tasks])
+        batch_results_raw = await asyncio.gather(
+            *[t[1] for t in batch_tasks], return_exceptions=True
+        )
 
-        # Pair results with indices
-        batch_results = [(batch_tasks[i][0], result) for i, result in enumerate(batch_results_raw)]
+        # Pair results with indices, failing if any sub-problem failed
+        batch_results: list[tuple[int, SubProblemResult]] = []
+        failed_subproblems: list[tuple[int, str, Exception]] = []
+
+        for i, result in enumerate(batch_results_raw):
+            sp_index = batch_tasks[i][0]
+            if isinstance(result, Exception):
+                sub_problem_goal = sub_problems[sp_index].goal
+                logger.error(
+                    f"parallel_subproblems_node: CRITICAL - Sub-problem {sp_index} "
+                    f"('{sub_problem_goal}') failed after all retries: {result}",
+                    exc_info=result,
+                )
+                failed_subproblems.append((sp_index, sub_problem_goal, result))
+            else:
+                # Type assertion: result is SubProblemResult when not an Exception
+                assert isinstance(result, SubProblemResult)
+                batch_results.append((sp_index, result))
+
+        # If any sub-problem failed, fail the entire deliberation with clear error
+        if failed_subproblems:
+            failed_list = "\n".join(
+                f"  - Sub-problem {idx}: '{goal}' - {type(err).__name__}: {err}"
+                for idx, goal, err in failed_subproblems
+            )
+            error_msg = (
+                f"Deliberation failed: {len(failed_subproblems)} critical sub-problem(s) "
+                f"could not be completed after multiple retries.\n{failed_list}\n\n"
+                f"This means the final decision will be incomplete. "
+                f"Please try again or contact support if the issue persists."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
         # Add to all_results in the correct order
         for _sp_index, result in sorted(batch_results, key=lambda x: x[0]):
+            # Type assertion: result should be SubProblemResult (exceptions filtered above)
+            assert isinstance(result, SubProblemResult)
             all_results.append(result)
+
+        # Emit subproblem_complete events for each completed sub-problem in this batch
+        # This ensures frontend receives the same events for parallel as sequential execution
+        if event_publisher and session_id:
+            for sp_index, result in batch_results:
+                event_publisher.publish_event(
+                    session_id,
+                    "subproblem_complete",
+                    {
+                        "sub_problem_index": sp_index,
+                        "goal": result.sub_problem_goal,
+                        "synthesis": result.synthesis,
+                        "recommendations_count": len(result.votes)
+                        if hasattr(result, "votes")
+                        else 0,
+                        "expert_panel": result.expert_panel,
+                        "contribution_count": result.contribution_count,
+                        "cost": result.cost,
+                        "duration_seconds": result.duration_seconds,
+                    },
+                )
+                logger.info(
+                    f"parallel_subproblems_node: Emitted subproblem_complete for sub-problem {sp_index}"
+                )
 
         logger.info(
             f"parallel_subproblems_node: Batch {batch_idx + 1}/{total_batches} complete - "

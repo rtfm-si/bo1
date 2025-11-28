@@ -43,7 +43,13 @@
 					</svg>
 				</div>
 				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-					{isMeta ? 'Decision' : 'Meeting'} Complete
+					{#if isMeta}
+						Decision Complete
+					{:else if event.data.sub_problem_index !== undefined}
+						Sub-Problem Complete
+					{:else}
+						Meeting Complete
+					{/if}
 				</h3>
 			</div>
 		</div>
@@ -227,5 +233,5 @@
 	</div>
 
 	<!-- Actionable Tasks Section (show for both synthesis_complete and meta_synthesis_complete) -->
-	<ActionableTasks sessionId={event.session_id} />
+	<ActionableTasks sessionId={event.session_id} subProblemIndex={event.data.sub_problem_index} />
 </div>

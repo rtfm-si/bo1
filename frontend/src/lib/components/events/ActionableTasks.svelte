@@ -28,19 +28,31 @@
 		suggested_completion_date?: string | null;
 		source_section: string;
 		confidence: number;
+		sub_problem_index?: number | null;
 	}
 
 	interface Props {
 		sessionId: string;
+		subProblemIndex?: number; // undefined = show all (Summary tab)
 	}
 
-	let { sessionId }: Props = $props();
+	let { sessionId, subProblemIndex }: Props = $props();
 
 	// Use data fetch utility for tasks
 	const tasksData = useDataFetch(() => apiClient.extractTasks(sessionId));
 
-	// Derived state
-	const tasks = $derived<Task[]>(tasksData.data?.tasks || []);
+	// Derived state - filter tasks based on sub-problem
+	const allTasks = $derived<Task[]>(tasksData.data?.tasks || []);
+	const tasks = $derived.by(() => {
+		if (subProblemIndex === undefined) {
+			// Summary view - show ALL tasks
+			return allTasks;
+		}
+		// Sub-problem view - show only this sub-problem's tasks + global tasks (sub_problem_index = null)
+		return allTasks.filter(
+			(task) => task.sub_problem_index === subProblemIndex || task.sub_problem_index === null
+		);
+	});
 	const isLoading = $derived(tasksData.isLoading);
 	const error = $derived(tasksData.error);
 

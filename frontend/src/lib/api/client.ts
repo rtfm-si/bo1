@@ -54,14 +54,25 @@ export class ApiClient {
 	): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
 
+		// For admin endpoints, add X-Admin-Key header if available
+		const headers: Record<string, string> = {
+			'Content-Type': 'application/json',
+			...options?.headers
+		};
+
+		// Add admin key for admin endpoints
+		if (endpoint.startsWith('/api/admin/')) {
+			const adminKey = env.PUBLIC_ADMIN_API_KEY;
+			if (adminKey) {
+				headers['X-Admin-Key'] = adminKey;
+			}
+		}
+
 		try {
 			const response = await fetch(url, {
 				...options,
 				credentials: 'include', // Send httpOnly cookies automatically
-				headers: {
-					'Content-Type': 'application/json',
-					...options?.headers
-				}
+				headers
 			});
 
 			// Handle non-2xx responses
@@ -242,6 +253,111 @@ export class ApiClient {
 	}> {
 		return this.fetch(`/api/v1/sessions/${sessionId}/extract-tasks`, {
 			method: 'POST'
+		});
+	}
+
+	/**
+	 * Admin Endpoints
+	 */
+
+	async listUsers(params?: { page?: number; per_page?: number; email?: string }): Promise<{
+		total_count: number;
+		users: Array<{
+			user_id: string;
+			email: string;
+			auth_provider: string;
+			subscription_tier: string;
+			is_admin: boolean;
+			total_meetings: number;
+			total_cost: number | null;
+			last_meeting_at: string | null;
+			last_meeting_id: string | null;
+			created_at: string;
+			updated_at: string;
+		}>;
+		page: number;
+		per_page: number;
+	}> {
+		const searchParams = new URLSearchParams();
+		if (params?.page) searchParams.set('page', params.page.toString());
+		if (params?.per_page) searchParams.set('per_page', params.per_page.toString());
+		if (params?.email) searchParams.set('email', params.email);
+
+		const query = searchParams.toString();
+		const endpoint = query ? `/api/admin/users?${query}` : '/api/admin/users';
+
+		return this.fetch(endpoint);
+	}
+
+	async getUser(userId: string): Promise<{
+		user_id: string;
+		email: string;
+		auth_provider: string;
+		subscription_tier: string;
+		is_admin: boolean;
+		total_meetings: number;
+		total_cost: number | null;
+		last_meeting_at: string | null;
+		last_meeting_id: string | null;
+		created_at: string;
+		updated_at: string;
+	}> {
+		return this.fetch(`/api/admin/users/${userId}`);
+	}
+
+	async updateUser(userId: string, data: { subscription_tier?: string; is_admin?: boolean }): Promise<{
+		user_id: string;
+		email: string;
+		auth_provider: string;
+		subscription_tier: string;
+		is_admin: boolean;
+		total_meetings: number;
+		total_cost: number | null;
+		last_meeting_at: string | null;
+		last_meeting_id: string | null;
+		created_at: string;
+		updated_at: string;
+	}> {
+		return this.fetch(`/api/admin/users/${userId}`, {
+			method: 'PATCH',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async listWhitelist(): Promise<{
+		total_count: number;
+		emails: Array<{
+			id: string;
+			email: string;
+			added_by: string | null;
+			notes: string | null;
+			created_at: string;
+		}>;
+	}> {
+		return this.fetch('/api/admin/beta-whitelist');
+	}
+
+	async addToWhitelist(data: { email: string; notes?: string }): Promise<{
+		id: string;
+		email: string;
+		added_by: string | null;
+		notes: string | null;
+		created_at: string;
+	}> {
+		return this.fetch('/api/admin/beta-whitelist', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async removeFromWhitelist(email: string): Promise<{
+		session_id: string;
+		action: string;
+		status: string;
+		message: string;
+	}> {
+		return this.fetch(`/api/admin/beta-whitelist/${encodeURIComponent(email)}`, {
+			method: 'DELETE'
 		});
 	}
 }

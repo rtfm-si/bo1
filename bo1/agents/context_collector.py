@@ -2,6 +2,12 @@
 
 Collects business information from the user to enhance deliberation quality.
 This context helps personas make more informed, relevant recommendations.
+
+Note: This is currently only used in demo mode (bo1/demo.py).
+Not integrated into production API workflow.
+If you're looking for context handling in production, see:
+- backend/api/streaming.py - SSE event streaming
+- bo1/graph/execution.py - Main execution flow
 """
 
 import logging

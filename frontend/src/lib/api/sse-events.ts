@@ -290,6 +290,7 @@ export interface SynthesisCompleteEvent extends SSEEvent {
 	data: {
 		synthesis: string;
 		word_count: number;
+		sub_problem_index?: number;
 	};
 }
 
@@ -333,6 +334,7 @@ export interface MetaSynthesisCompleteEvent extends SSEEvent {
 	data: {
 		synthesis: string;
 		word_count: number;
+		sub_problem_index?: number;
 	};
 }
 

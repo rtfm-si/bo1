@@ -1,4 +1,14 @@
-"""Tests for vote and synthesis nodes implementation."""
+"""Tests for vote and synthesis nodes implementation.
+
+Note: This test uses "votes" terminology for backward compatibility during the migration
+from binary voting decisions to free-form recommendations.
+
+Migration Details:
+- Old system: VoteDecision enum (SUPPORT/OPPOSE) - DEPRECATED
+- New system: Recommendation model with free-form recommendation text
+- vote_node() now collects recommendations but returns them in "votes" key for compatibility
+- See bo1/orchestration/voting.py:collect_recommendations() for the actual implementation
+"""
 
 import pytest
 

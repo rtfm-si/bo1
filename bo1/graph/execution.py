@@ -12,6 +12,7 @@ import signal
 import time
 from typing import Any
 
+from bo1.state.postgres_manager import save_session_event
 from bo1.state.redis_manager import RedisManager
 
 logger = logging.getLogger(__name__)
@@ -86,10 +87,46 @@ class SessionManager:
                 logger.info(f"[{session_id}] Graph execution was cancelled")
                 raise
             except Exception as e:
+                error_msg = str(e)
+                error_type = type(e).__name__
                 logger.error(f"[{session_id}] Graph execution failed: {e}", exc_info=True)
 
+                # Emit error event for UI display and PostgreSQL logging
+                try:
+                    # Get next sequence number for this session's events
+                    # Error events use sequence 9999 as they're terminal and don't need ordering
+                    save_session_event(
+                        session_id=session_id,
+                        event_type="error",
+                        sequence=9999,  # Special sequence for terminal error events
+                        data={
+                            "error": error_msg,
+                            "error_type": error_type,
+                            "recoverable": False,  # Graph-level failures are not recoverable
+                            "timestamp": time.time(),
+                        },
+                    )
+                    logger.info(f"[{session_id}] Saved error event to database")
+
+                    # Also publish to Redis for real-time UI update
+                    if self.redis_manager.redis:
+                        try:
+                            self.redis_manager.redis.publish(
+                                f"events:{session_id}",
+                                f"data: {{'event_type': 'error', 'data': {{'error': '{error_msg}', 'error_type': '{error_type}', 'recoverable': false}}}}\n\n",
+                            )
+                        except Exception as redis_err:
+                            logger.warning(
+                                f"Failed to publish error to Redis (non-critical): {redis_err}"
+                            )
+                except Exception as event_err:
+                    logger.error(
+                        f"Failed to save error event (non-critical): {event_err}",
+                        exc_info=True,
+                    )
+
                 # Update metadata on failure
-                self._update_session_status(session_id, "failed", error=str(e))
+                self._update_session_status(session_id, "failed", error=error_msg)
                 raise
             finally:
                 # Remove from active executions

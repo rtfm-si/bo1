@@ -2,6 +2,17 @@
 
 This module centralizes magic numbers and thresholds used throughout the codebase,
 making them easier to tune and maintain.
+
+Organized by category:
+- Graph Configuration: Round limits, recursion limits, timeouts
+- LLM Configuration: Retry settings, token limits, model selection
+- Embeddings Configuration: Voyage AI settings
+- Circuit Breaker Configuration: Failure/recovery thresholds
+- Rate Limiting: API rate limits by endpoint type
+- Database Configuration: Connection pooling, Redis settings
+- Cost Thresholds: Per-session cost limits by tier
+- Similarity Thresholds: Various similarity comparisons
+- Quality Metrics: Weights and thresholds for quality scoring
 """
 
 
@@ -107,3 +118,281 @@ class VotingThresholds:
 
     SIMPLE_MAJORITY_THRESHOLD = 0.50
     """Percentage for simple majority (50%+)"""
+
+
+# =============================================================================
+# GRAPH CONFIGURATION
+# =============================================================================
+
+
+class GraphConfig:
+    """Graph execution and round configuration."""
+
+    MAX_ROUNDS_HARD_CAP = 6
+    """Maximum rounds in parallel architecture"""
+
+    EARLY_EXIT_MIN_ROUNDS = 2
+    """Minimum rounds before early exit allowed"""
+
+    CONVERGENCE_CHECK_MIN_ROUNDS = 2
+    """Min rounds before convergence check"""
+
+    RECENT_CONTRIBUTIONS_WINDOW = 6
+    """Number of recent contributions to consider"""
+
+    DELIBERATION_RECURSION_LIMIT = 250
+    """Supports 5 sub-problems with overhead"""
+
+    DEFAULT_TIMEOUT_SECONDS = 3600
+    """1 hour default timeout"""
+
+    CONVERGENCE_THRESHOLD = 0.90
+    """Agreement threshold for convergence"""
+
+    CONVERGENCE_THRESHOLD_LEGACY = 0.85
+    """Previous threshold (for reference)"""
+
+    MIN_PARTICIPATION_RATE = 0.70
+    """Minimum participation for valid convergence"""
+
+    MIN_NOVELTY_THRESHOLD = 0.40
+    """Minimum novelty to continue deliberation"""
+
+    EARLY_EXIT_CONVERGENCE_THRESHOLD = 0.85
+    """High convergence triggers early exit"""
+
+    EARLY_EXIT_NOVELTY_THRESHOLD = 0.30
+    """Low novelty triggers early exit"""
+
+    DEADLOCK_SIMILARITY_THRESHOLD = 0.75
+    """Similarity indicating stuck debate"""
+
+    DEADLOCK_REPETITION_RATE_THRESHOLD = 0.60
+    """Repetition rate for deadlock"""
+
+
+class SemanticSimilarity:
+    """Semantic similarity thresholds for content comparison."""
+
+    EXACT = 0.90
+    """Nearly identical content"""
+
+    PARAPHRASED = 0.85
+    """Same idea, different words"""
+
+    THEME = 0.80
+    """Same general theme/topic"""
+
+
+# =============================================================================
+# LLM CONFIGURATION
+# =============================================================================
+
+
+class LLMConfig:
+    """LLM retry and default parameter settings."""
+
+    MAX_RETRIES = 3
+    """Maximum retry attempts for LLM calls"""
+
+    RETRY_BASE_DELAY = 1.0
+    """Base delay in seconds"""
+
+    RETRY_MAX_DELAY = 60.0
+    """Maximum delay in seconds"""
+
+    DEFAULT_MAX_TOKENS = 4096
+    """Default max output tokens"""
+
+    DEFAULT_TEMPERATURE = 1.0
+    """Default sampling temperature"""
+
+    HAIKU_ROUNDS_THRESHOLD = 2
+    """Use Haiku for early rounds (1-2)"""
+
+
+# =============================================================================
+# EMBEDDINGS CONFIGURATION (Voyage AI)
+# =============================================================================
+
+
+class EmbeddingsConfig:
+    """Voyage AI embedding configuration."""
+
+    MAX_RETRIES = 3
+    """Max retries for embedding API"""
+
+    INITIAL_DELAY = 0.5
+    """Initial retry delay in seconds"""
+
+    BACKOFF_FACTOR = 2.0
+    """Exponential backoff multiplier"""
+
+    REQUEST_TIMEOUT = 30.0
+    """Request timeout in seconds"""
+
+    SIMILARITY_THRESHOLD = 0.85
+    """Default similarity threshold"""
+
+    DIMENSIONS = 1024
+    """Voyage-3 embedding dimensions"""
+
+
+# =============================================================================
+# CIRCUIT BREAKER CONFIGURATION
+# =============================================================================
+
+
+class CircuitBreakerConfig:
+    """Circuit breaker thresholds for API resilience."""
+
+    FAILURE_THRESHOLD = 5
+    """Failures before circuit opens"""
+
+    RECOVERY_TIMEOUT = 60
+    """Seconds before testing recovery"""
+
+    SUCCESS_THRESHOLD = 2
+    """Successes to close circuit"""
+
+
+# =============================================================================
+# RATE LIMITING
+# =============================================================================
+
+
+class RateLimits:
+    """API rate limits by endpoint type."""
+
+    AUTH = "10/minute"
+    """Auth endpoints (login, refresh)"""
+
+    SESSION = "30/minute"
+    """Session creation"""
+
+    STREAMING = "5/minute"
+    """SSE streaming endpoints"""
+
+    GENERAL = "60/minute"
+    """General API endpoints"""
+
+    CONTROL = "20/minute"
+    """Control endpoints (start/kill deliberation)"""
+
+
+# =============================================================================
+# DATABASE CONFIGURATION
+# =============================================================================
+
+
+class DatabaseConfig:
+    """PostgreSQL and Redis configuration."""
+
+    POOL_MIN_CONNECTIONS = 1
+    """Minimum connections in pool"""
+
+    POOL_MAX_CONNECTIONS = 20
+    """Maximum connections in pool"""
+
+    REDIS_DEFAULT_PORT = 6379
+    """Default Redis port"""
+
+    REDIS_DEFAULT_DB = 0
+    """Default Redis database number"""
+
+    CHECKPOINT_TTL_SECONDS = 604800
+    """7 days checkpoint retention"""
+
+
+class ResearchCacheConfig:
+    """Research cache configuration."""
+
+    SIMILARITY_THRESHOLD = 0.85
+    """Similarity for cache hit"""
+
+    QUERY_LIMIT = 10
+    """Max results per cache query"""
+
+    DEFAULT_FRESHNESS_DAYS = 90
+    """Default freshness window"""
+
+    STALE_THRESHOLD_DAYS = 30
+    """Days before cache is stale"""
+
+    HIT_SAVINGS_USD = 0.07
+    """Estimated USD savings per hit"""
+
+
+# =============================================================================
+# COST THRESHOLDS (USD)
+# =============================================================================
+
+
+class CostThresholds:
+    """Per-session cost limits by tier."""
+
+    DEFAULT_MAX_PER_SESSION = 1.00
+    """Default session cost limit"""
+
+    TIER_FREE = 0.50
+    """Free tier limit"""
+
+    TIER_PRO = 2.00
+    """Pro tier limit"""
+
+    TIER_ENTERPRISE = 10.00
+    """Enterprise tier limit"""
+
+    TIER_LIMITS = {
+        "free": TIER_FREE,
+        "pro": TIER_PRO,
+        "enterprise": TIER_ENTERPRISE,
+    }
+
+
+# =============================================================================
+# QUALITY METRIC THRESHOLDS
+# =============================================================================
+
+
+class QualityMetrics:
+    """Quality metric weights and thresholds."""
+
+    FOCUS_CORE_THRESHOLD = 0.80
+    """Core contribution relevance"""
+
+    FOCUS_CONTEXT_THRESHOLD = 0.60
+    """Context contribution relevance"""
+
+    DRIFT_DETECTION_THRESHOLD = 0.60
+    """Problem drift detection"""
+
+    ON_TOPIC_OVERLAP_THRESHOLD = 0.20
+    """Minimum overlap for on-topic"""
+
+    # Meeting completeness weights (must sum to 1.0)
+    COMPLETENESS_WEIGHT_EXPLORATION = 0.35
+    COMPLETENESS_WEIGHT_CONVERGENCE = 0.35
+    COMPLETENESS_WEIGHT_FOCUS = 0.20
+    COMPLETENESS_WEIGHT_NOVELTY = 0.10
+
+
+# =============================================================================
+# CACHE TTL VALUES
+# =============================================================================
+
+
+class CacheTTL:
+    """Cache time-to-live values in seconds."""
+
+    LLM_CACHE = 86400
+    """24 hours for LLM responses"""
+
+    PERSONA_CACHE = 604800
+    """7 days for persona selections"""
+
+    PERSONA_SIMILARITY_THRESHOLD = 0.90
+    """Similarity for persona cache hit"""
+
+    LLM_SIMILARITY_THRESHOLD = 0.85
+    """Similarity for LLM cache hit"""

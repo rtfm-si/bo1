@@ -111,7 +111,11 @@ def create_deliberation_graph(
         route_facilitator_decision,
         route_subproblem_execution,
     )
-    from bo1.graph.safety.loop_prevention import check_convergence_node
+    from bo1.graph.safety.loop_prevention import (
+        check_convergence_node,
+        cost_guard_node,
+        route_cost_guard,
+    )
 
     # Initialize state graph
     workflow = StateGraph(DeliberationGraphState)
@@ -126,6 +130,7 @@ def create_deliberation_graph(
     workflow.add_node("moderator_intervene", moderator_intervene_node)
     workflow.add_node("research", research_node)  # Week 6: External research
     workflow.add_node("check_convergence", check_convergence_node)  # Day 24
+    workflow.add_node("cost_guard", cost_guard_node)  # Cost budget check
     workflow.add_node("vote", vote_node)  # Day 31
     workflow.add_node("synthesize", synthesize_node)  # Day 31
     workflow.add_node("next_subproblem", next_subproblem_node)  # Day 36.5
@@ -192,11 +197,21 @@ def create_deliberation_graph(
     # research -> facilitator_decide (let facilitator decide next action after research)
     workflow.add_edge("research", "facilitator_decide")
 
-    # parallel_round -> check_convergence
-    workflow.add_edge("parallel_round", "check_convergence")
+    # parallel_round -> cost_guard (check budget before convergence)
+    workflow.add_edge("parallel_round", "cost_guard")
 
-    # moderator_intervene -> check_convergence
-    workflow.add_edge("moderator_intervene", "check_convergence")
+    # moderator_intervene -> cost_guard (check budget before convergence)
+    workflow.add_edge("moderator_intervene", "cost_guard")
+
+    # cost_guard -> (check_convergence if OK, vote if budget exceeded)
+    workflow.add_conditional_edges(
+        "cost_guard",
+        route_cost_guard,
+        {
+            "continue": "check_convergence",  # Budget OK, check convergence
+            "force_synthesis": "vote",  # Budget exceeded, skip to voting
+        },
+    )
 
     # check_convergence -> (facilitator_decide if continue, vote if stop)
     workflow.add_conditional_edges(

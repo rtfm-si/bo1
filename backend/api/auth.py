@@ -53,6 +53,7 @@ async def get_user_info(
             "email": user_data["email"],
             "auth_provider": user_data["auth_provider"],
             "subscription_tier": user_data["subscription_tier"],
+            "is_admin": user_data.get("is_admin", False),
             "session_handle": session_handle,
         }
 
@@ -64,5 +65,6 @@ async def get_user_info(
         "email": None,
         "auth_provider": None,
         "subscription_tier": "free",
+        "is_admin": False,
         "session_handle": session_handle,
     }

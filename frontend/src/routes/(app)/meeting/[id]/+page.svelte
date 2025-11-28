@@ -7,7 +7,6 @@
 	import { fade, scale } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
 	import { SSEClient } from '$lib/utils/sse';
-	import { debounce } from '$lib/utils/debounce';
 	import { CheckCircle, AlertCircle, Clock, Pause, Play, Square } from 'lucide-svelte';
 	import { PHASE_PROGRESS_MAP } from '$lib/design/tokens';
 
@@ -169,6 +168,11 @@
 		events.find(e => e.event_type === 'meta_synthesis_complete')
 	);
 
+	// Synthesis complete event (for single-problem conclusions)
+	const synthesisCompleteEvent = $derived(
+		events.find(e => e.event_type === 'synthesis_complete')
+	);
+
 	// All sub-problem complete events (for individual conclusions)
 	const subProblemCompleteEvents = $derived(
 		events.filter(e => e.event_type === 'subproblem_complete')
@@ -176,7 +180,12 @@
 
 	// Whether to show the Conclusion tab (when meta-synthesis exists)
 	const showConclusionTab = $derived(
-		metaSynthesisEvent !== undefined
+		// Show tab if we have any synthesis content or meeting is complete
+		metaSynthesisEvent !== undefined ||
+		synthesisCompleteEvent !== undefined ||
+		(subProblemCompleteEvents.length > 0 &&
+		 subProblemCompleteEvents.some(e => e.data.synthesis)) ||
+		session?.status === 'completed'
 	);
 
 	// Decomposition event (for displaying in Conclusion tab)
@@ -405,6 +414,22 @@
 				// Parse the data payload
 				const payload = JSON.parse(event.data);
 
+				// ADD THIS: Debug persona_selected events specifically
+				if (eventType === 'persona_selected') {
+					console.log('[EXPERT PANEL] Persona selected:', {
+						persona_code: payload.persona?.code,
+						persona_name: payload.persona?.name,
+						order: payload.order,
+						sub_problem_index: payload.sub_problem_index,
+						timestamp: new Date().toISOString()
+					});
+				}
+
+				// ADD THIS: Debug persona_selection_complete for flush trigger
+				if (eventType === 'persona_selection_complete') {
+					console.log('[EXPERT PANEL] Selection complete - triggering panel flush');
+				}
+
 				// Construct SSEEvent by adding event_type from SSE event name
 				const sseEvent: SSEEvent = {
 					event_type: eventType,
@@ -553,16 +578,44 @@
 	let groupedEventsCache = $state<EventGroup[]>([]);
 	let lastEventCountForGrouping = $state(0);
 
-	// Debounced recalculation function
-	const recalculateGroupedEvents = debounce(() => {
-		groupedEventsCache = groupEvents(events, debugMode);
-		lastEventCountForGrouping = events.length;
-	}, 200); // 200ms debounce for rapid event streams
+	// Tiered debouncing for smart UI responsiveness
+	const DEBOUNCE_CRITICAL = 50;   // Expert panel, rounds - needs immediate visibility
+	const DEBOUNCE_NORMAL = 100;    // Contributions - balance UX and performance
+	const DEBOUNCE_RAPID = 200;     // Status updates - can tolerate more delay
+
+	// Debounced recalculation with dynamic delay
+	let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	const recalculateGroupedEvents = (delay: number = DEBOUNCE_NORMAL) => {
+		if (debounceTimeout) clearTimeout(debounceTimeout);
+		debounceTimeout = setTimeout(() => {
+			groupedEventsCache = groupEvents(events, debugMode);
+			lastEventCountForGrouping = events.length;
+		}, delay);
+	};
 
 	$effect(() => {
 		// Only trigger recalculation if events changed
 		if (events.length !== lastEventCountForGrouping) {
-			recalculateGroupedEvents();
+			const lastEvent = events[events.length - 1];
+
+			// Critical events get fastest rendering (50ms)
+			const isCritical = lastEvent?.event_type === 'persona_selection_complete'
+				|| lastEvent?.event_type === 'round_started'
+				|| lastEvent?.event_type === 'persona_selected';
+
+			const delay = isCritical ? DEBOUNCE_CRITICAL : DEBOUNCE_NORMAL;
+
+			// ADD THIS: Log debounce timing for critical events
+			if (isCritical) {
+				console.log('[EXPERT PANEL] Using critical debounce:', {
+					eventType: lastEvent?.event_type,
+					delay: delay + 'ms',
+					eventCount: events.length
+				});
+			}
+
+			recalculateGroupedEvents(delay);
 		}
 	});
 
@@ -880,19 +933,24 @@
 	let lastEventCountForIndex = $state(0);
 
 	// Debounced recalculation function
-	const recalculateEventIndex = debounce(() => {
-		eventsBySubProblemCache = indexEventsBySubProblem(events);
-		lastEventCountForIndex = events.length;
+	let indexDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
-		console.log('[EVENT INDEX DEBUG]', {
-			totalEvents: events.length,
-			indexedSubProblems: Array.from(eventsBySubProblemCache.keys()),
-			eventsPerSubProblem: Array.from(eventsBySubProblemCache.entries()).map(([key, val]) => ({
-				subProblem: key,
-				count: val.length
-			}))
-		});
-	}, 200); // 200ms debounce for rapid event streams
+	const recalculateEventIndex = () => {
+		if (indexDebounceTimeout) clearTimeout(indexDebounceTimeout);
+		indexDebounceTimeout = setTimeout(() => {
+			eventsBySubProblemCache = indexEventsBySubProblem(events);
+			lastEventCountForIndex = events.length;
+
+			console.log('[EVENT INDEX DEBUG]', {
+				totalEvents: events.length,
+				indexedSubProblems: Array.from(eventsBySubProblemCache.keys()),
+				eventsPerSubProblem: Array.from(eventsBySubProblemCache.entries()).map(([key, val]) => ({
+					subProblem: key,
+					count: val.length
+				}))
+			});
+		}, 200);
+	}; // 200ms debounce for rapid event streams
 
 	$effect(() => {
 		if (events.length !== lastEventCountForIndex) {
@@ -908,17 +966,22 @@
 	 *
 	 * Increased from 100ms to 300ms to better handle rapid SSE streams (Issue #2)
 	 */
-	const scrollToLatestEventDebounced = debounce((smooth = true) => {
-		if (!autoScroll) return;
+	let scrollDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
-		const container = document.getElementById('events-container');
-		if (container) {
-			container.scrollTo({
-				top: container.scrollHeight,
-				behavior: smooth ? 'smooth' : 'auto',
-			});
-		}
-	}, 300); // Increased from 100ms for better performance
+	const scrollToLatestEventDebounced = (smooth = true) => {
+		if (scrollDebounceTimeout) clearTimeout(scrollDebounceTimeout);
+		scrollDebounceTimeout = setTimeout(() => {
+			if (!autoScroll) return;
+
+			const container = document.getElementById('events-container');
+			if (container) {
+				container.scrollTo({
+					top: container.scrollHeight,
+					behavior: smooth ? 'smooth' : 'auto',
+				});
+			}
+		}, 300); // Increased from 100ms for better performance
+	};
 
 	// Clean up on component destroy
 	onDestroy(() => {
@@ -1178,7 +1241,7 @@
 												onclick={() => activeSubProblemTab = 'conclusion'}
 											>
 												<div class="flex items-center gap-2">
-													<span>Conclusion</span>
+													<span>Summary</span>
 													<CheckCircle size={14} class="text-success-600 dark:text-success-400" />
 												</div>
 											</button>
@@ -1338,6 +1401,22 @@
 											{/if}
 										{/each}
 
+										<!-- Synthesis preview for this sub-problem (if available) -->
+										{#if subProblemCompleteEvents[tabIndex]?.data?.synthesis}
+											{@const spData = subProblemCompleteEvents[tabIndex].data as { synthesis: string; goal: string }}
+											<div class="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
+												<h4 class="text-md font-semibold mb-3 flex items-center gap-2 text-slate-900 dark:text-white">
+													<svg class="w-5 h-5 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+													</svg>
+													Synthesis
+												</h4>
+												<div class="prose prose-slate dark:prose-invert max-w-none text-sm text-slate-700 dark:text-slate-300">
+													{@html spData.synthesis.replace(/\n/g, '<br />')}
+												</div>
+											</div>
+										{/if}
+
 										<!-- Phase-specific waiting indicator (tabbed view) -->
 										{#if isWaitingForFirstContributions && isTabActive}
 											<div class="flex items-center gap-3 py-4 px-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800" transition:fade={{ duration: 300 }}>
@@ -1393,29 +1472,97 @@
 											{/await}
 										{/if}
 
-										<!-- Meta-Synthesis / Overall Conclusion -->
-										<div class="bg-gradient-to-r from-success-50 to-brand-50 dark:from-success-900/20 dark:to-brand-900/20 border-2 border-success-300 dark:border-success-700 rounded-xl p-6">
-											<div class="flex items-start gap-4">
-												<div class="flex-shrink-0 w-14 h-14 bg-success-500 dark:bg-success-600 text-white rounded-full flex items-center justify-center">
-													<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+										<!-- Progress indicator for multi-problem meetings -->
+										{#if subProblemCompleteEvents.length > 0 && !metaSynthesisEvent && subProblemTabs.length > 1}
+											<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6">
+												<div class="flex items-center gap-2">
+													<svg class="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+														<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+														<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 													</svg>
+													<span class="text-sm font-medium text-blue-900 dark:text-blue-100">
+														{subProblemCompleteEvents.length} of {subProblemTabs.length} sub-problems completed
+													</span>
 												</div>
-												<div class="flex-1 min-w-0">
-													<h2 class="text-xl font-bold text-success-900 dark:text-success-100 mb-3">
-														Final Conclusion
-													</h2>
-													<div class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
-														{#if metaSynthesisEvent?.data?.synthesis}
-															{@const synthesis = metaSynthesisEvent.data.synthesis as string}
-															{@html synthesis.replace(/\n/g, '<br />')}
-														{:else}
-															<p class="text-slate-500 dark:text-slate-400 italic">No synthesis available.</p>
-														{/if}
+												<p class="text-sm text-blue-700 dark:text-blue-300 mt-2">Generating final synthesis...</p>
+											</div>
+										{/if}
+
+										<!-- Meta-Synthesis / Overall Conclusion -->
+										{#if metaSynthesisEvent}
+											<!-- Existing: Show meta-synthesis for multi-problem meetings -->
+											<div class="bg-gradient-to-r from-success-50 to-brand-50 dark:from-success-900/20 dark:to-brand-900/20 border-2 border-success-300 dark:border-success-700 rounded-xl p-6">
+												<div class="flex items-start gap-4">
+													<div class="flex-shrink-0 w-14 h-14 bg-success-500 dark:bg-success-600 text-white rounded-full flex items-center justify-center">
+														<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+														</svg>
+													</div>
+													<div class="flex-1 min-w-0">
+														<h2 class="text-xl font-bold text-success-900 dark:text-success-100 mb-3">
+															Final Conclusion
+														</h2>
+														<div class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
+															{@html (metaSynthesisEvent.data.synthesis as string).replace(/\n/g, '<br />')}
+														</div>
 													</div>
 												</div>
 											</div>
-										</div>
+										{:else if synthesisCompleteEvent}
+											<!-- NEW: Show synthesis for single-problem meetings -->
+											<div class="bg-gradient-to-r from-success-50 to-brand-50 dark:from-success-900/20 dark:to-brand-900/20 border-2 border-success-300 dark:border-success-700 rounded-xl p-6">
+												<div class="flex items-start gap-4">
+													<div class="flex-shrink-0 w-14 h-14 bg-success-500 dark:bg-success-600 text-white rounded-full flex items-center justify-center">
+														<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+														</svg>
+													</div>
+													<div class="flex-1 min-w-0">
+														<h2 class="text-xl font-bold text-success-900 dark:text-success-100 mb-3">
+															Final Synthesis
+														</h2>
+														<div class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
+															{@html (synthesisCompleteEvent.data.synthesis as string).replace(/\n/g, '<br />')}
+														</div>
+													</div>
+												</div>
+											</div>
+										{:else if subProblemCompleteEvents.length > 0 && subProblemCompleteEvents.some(e => e.data.synthesis)}
+											<!-- NEW: Show individual sub-problem syntheses if no meta-synthesis yet -->
+											<div class="space-y-6">
+												<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Sub-Problem Syntheses</h3>
+												{#each subProblemCompleteEvents.filter(e => e.data.synthesis) as spEvent}
+													{@const spData = spEvent.data as { goal: string; synthesis: string; sub_problem_index: number }}
+													<div class="border-l-4 border-blue-500 pl-4">
+														<h4 class="font-medium mb-2">{spData.goal}</h4>
+														<div class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
+															{@html spData.synthesis.replace(/\n/g, '<br />')}
+														</div>
+													</div>
+												{/each}
+											</div>
+										{:else}
+											<!-- Fallback: Meeting complete but no synthesis yet -->
+											<div class="text-center py-12">
+												{#if session?.status === 'running' || session?.status === 'created' || session?.status === 'active'}
+													<div class="flex flex-col items-center gap-4">
+														<svg class="animate-spin h-8 w-8 text-slate-400 dark:text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+															<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+															<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+														</svg>
+														<p class="text-slate-600 dark:text-slate-400">Deliberation in progress...</p>
+														<p class="text-sm text-slate-500 dark:text-slate-500">The final synthesis will appear here when complete</p>
+													</div>
+												{:else if session?.status === 'failed'}
+													<div class="text-red-600 dark:text-red-400">
+														<p class="font-medium">Synthesis generation failed</p>
+														<p class="text-sm mt-2">Please check the logs or retry the meeting</p>
+													</div>
+												{:else}
+													<p class="text-slate-500 dark:text-slate-400">No synthesis available</p>
+												{/if}
+											</div>
+										{/if}
 
 										<!-- Individual Sub-Problem Conclusions -->
 										{#if subProblemCompleteEvents.length > 0}

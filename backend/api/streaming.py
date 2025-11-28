@@ -221,7 +221,10 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
         ),
         "synthesis_started": lambda: events.synthesis_started_event(session_id),
         "synthesis_complete": lambda: events.synthesis_complete_event(
-            session_id, data.get("synthesis", ""), data.get("word_count", 0)
+            session_id,
+            data.get("synthesis", ""),
+            data.get("word_count", 0),
+            data.get("sub_problem_index"),
         ),
         "subproblem_complete": lambda: events.subproblem_complete_event(
             session_id,

@@ -368,13 +368,18 @@ class FacilitatorAgent(BaseAgent):
             # Get last N speakers (most recent last)
             last_speakers = [c.persona_code for c in contributions[-5:]]
 
-        # Compose facilitator prompt with rotation guidance
+        # Get metrics from state for data-driven decisions
+        metrics = state.get("metrics")
+
+        # Compose facilitator prompt with rotation guidance and metrics
         system_prompt = compose_facilitator_prompt(
             current_phase=phase,
             discussion_history=discussion_history,
             phase_objectives=phase_objectives,
             contribution_counts=contribution_counts if contribution_counts else None,
             last_speakers=last_speakers if last_speakers else None,
+            metrics=metrics,
+            round_number=round_number,
         )
 
         # Build user message

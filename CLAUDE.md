@@ -240,6 +240,18 @@ graph_state = v1_to_state(v1_state)  # For graph updates
 
 ---
 
+## Known Issues & Implementation Plans
+
+**⚠️ Parallel Sub-Problems Event Emission (High Priority)**
+- **Problem**: Users see no UI updates for 3-5 minutes during parallel deliberation (appears stuck/failed)
+- **Root Cause**: `_deliberate_subproblem()` doesn't emit real-time events to SSE stream
+- **Impact**: Poor UX - users think meeting failed when it's actually running
+- **Plan**: See `PARALLEL_SUBPROBLEMS_EVENT_EMISSION_FIX.md` for detailed implementation plan
+- **Workaround**: Set `ENABLE_PARALLEL_SUBPROBLEMS=false` for better UX (loses 50-70% speed)
+- **Estimated Fix**: 8-12 hours (EventBridge pattern)
+
+---
+
 ## Key Files
 
 - `bo1/graph/config.py` - Graph construction
@@ -250,4 +262,6 @@ graph_state = v1_to_state(v1_state)  # For graph updates
 - `bo1/state/postgres_manager.py` - DB operations
 - `backend/api/main.py` - FastAPI entry
 - `backend/api/streaming.py` - SSE endpoints (polling-based)
+- `backend/api/event_publisher.py` - Event publishing (Redis + PostgreSQL)
+- `backend/api/event_collector.py` - Wraps graph execution, emits events
 - `backend/api/middleware/auth.py` - SuperTokens auth

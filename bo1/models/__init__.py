@@ -18,7 +18,6 @@ from .state import (
     ContributionType,
     DeliberationMetrics,
     DeliberationPhase,
-    DeliberationState,
 )
 
 __all__ = [
@@ -34,7 +33,6 @@ __all__ = [
     "Constraint",
     "ConstraintType",
     # State models
-    "DeliberationState",
     "DeliberationPhase",
     "DeliberationMetrics",
     "ContributionMessage",

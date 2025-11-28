@@ -36,9 +36,9 @@ from dotenv import load_dotenv
 from bo1.agents.decomposer import DecomposerAgent
 from bo1.agents.researcher import ResearcherAgent
 from bo1.agents.selector import PersonaSelectorAgent
+from bo1.graph.state import create_initial_state
 from bo1.llm.broker import PromptBroker
 from bo1.llm.response import DeliberationMetrics
-from bo1.models.state import DeliberationState
 from bo1.orchestration.deliberation import DeliberationEngine
 from bo1.ui.console import Console
 
@@ -253,15 +253,14 @@ async def run_complete_demo(interactive: bool = False) -> None:
         ],
     )
 
-    state = DeliberationState(
+    state = create_initial_state(
         session_id="demo-session",
         problem=problem,
-        current_sub_problem=problem.sub_problems[0],
-        selected_personas=personas,  # Add selected personas
-        business_context=business_context,
-        internal_context=internal_answers,
-        research_context=research_results,
+        personas=personas,
+        max_rounds=6,
     )
+    state["current_sub_problem"] = problem.sub_problems[0]
+    state["business_context"] = business_context
 
     # Initialize deliberation engine
     engine = DeliberationEngine(state=state)
@@ -272,11 +271,12 @@ async def run_complete_demo(interactive: bool = False) -> None:
     for response in llm_responses:
         all_metrics.add_response(response)
 
-    console.print(f"[green]✓ Collected {len(state.contributions)} initial contributions[/green]\n")
+    contributions = state.get("contributions", [])
+    console.print(f"[green]✓ Collected {len(contributions)} initial contributions[/green]\n")
 
     # Show sample contribution
-    if state.contributions:
-        sample = state.contributions[0]
+    if contributions:
+        sample = contributions[0]
         console.print(f"[yellow]Sample from {sample.persona_name}:[/yellow]")
         preview = sample.content[:200] + "..." if len(sample.content) > 200 else sample.content
         console.print(f"[dim]{preview}[/dim]\n")
@@ -285,7 +285,7 @@ async def run_complete_demo(interactive: bool = False) -> None:
     console.print("\n[bold cyan]═══ Step 5: Multi-Round Deliberation ═══[/bold cyan]\n")
 
     console.print(
-        f"[dim]Running up to {state.max_rounds} rounds with facilitator orchestration...[/dim]\n"
+        f"[dim]Running up to {state.get('max_rounds', 6)} rounds with facilitator orchestration...[/dim]\n"
     )
 
     # Note: Full multi-round would happen here, but we'll show structure
@@ -329,7 +329,7 @@ async def run_complete_demo(interactive: bool = False) -> None:
 
     # Aggregate recommendations using AI
     console.print("\n[dim]Synthesizing recommendations using AI (Haiku)...[/dim]\n")
-    discussion_context = "\n".join([c.content for c in state.contributions[:3]])  # Sample
+    discussion_context = "\n".join([c.content for c in contributions[:3]])  # Sample
     rec_agg, agg_response = await aggregate_recommendations_ai(
         recommendations=recommendations, discussion_context=discussion_context, broker=broker
     )

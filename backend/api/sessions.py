@@ -119,6 +119,7 @@ async def create_session(
         redis_manager.add_session_to_user_index(user_id, session_id)
 
         # Save session to PostgreSQL for permanent storage
+        # CRITICAL: PostgreSQL is the primary storage - failure should abort the request
         try:
             # Safety net: Ensure user exists in PostgreSQL (FK constraint requires this)
             # Primary sync happens in SuperTokens sign_in_up() override (supertokens_config.py)
@@ -142,8 +143,20 @@ async def create_session(
                 f"Created session: {session_id} for user: {user_id} (saved to both Redis and PostgreSQL)"
             )
         except Exception as e:
-            # Log error but don't fail the request - Redis is sufficient for session to continue
-            logger.error(f"Failed to save session to PostgreSQL (Redis saved successfully): {e}")
+            # PostgreSQL is primary storage - propagate error to client
+            logger.error(f"Failed to save session to PostgreSQL: {e}", exc_info=True)
+            # Clean up Redis state since PostgreSQL failed
+            try:
+                redis_manager.delete_session(session_id)
+                redis_manager.remove_session_from_user_index(user_id, session_id)
+            except Exception as cleanup_error:
+                logger.warning(
+                    f"Failed to clean up Redis after PostgreSQL failure: {cleanup_error}"
+                )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create session. Please try again.",
+            ) from e
 
         # Return session response
         return SessionResponse(

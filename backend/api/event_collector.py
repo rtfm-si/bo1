@@ -173,9 +173,6 @@ class EventCollector:
                     elif event_name == "facilitator_decide" and isinstance(output, dict):
                         await self._handle_facilitator_decision(session_id, output)
 
-                    elif event_name == "persona_contribute" and isinstance(output, dict):
-                        await self._handle_contribution(session_id, output)
-
                     elif event_name == "parallel_round" and isinstance(output, dict):
                         await self._handle_parallel_round(session_id, output)
 
@@ -360,24 +357,6 @@ class EventCollector:
     async def _handle_facilitator_decision(self, session_id: str, output: dict) -> None:
         """Handle facilitator_decide node completion."""
         await self._publish_node_event(session_id, output, "facilitator_decision")
-
-    async def _handle_contribution(self, session_id: str, output: dict) -> None:
-        """Handle persona_contribute node completion.
-
-        Args:
-            session_id: Session identifier
-            output: Node output state
-        """
-        contributions = output.get("contributions", [])
-        round_number = output.get("round_number", 1)
-        sub_problem_index = output.get("sub_problem_index", 0)
-        personas = output.get("personas", [])
-
-        # Publish the newest contribution (last in list)
-        if contributions:
-            await self._publish_contribution(
-                session_id, contributions[-1], round_number, sub_problem_index, personas
-            )
 
     async def _handle_parallel_round(self, session_id: str, output: dict) -> None:
         """Handle parallel_round node completion events.

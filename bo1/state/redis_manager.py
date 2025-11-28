@@ -15,7 +15,6 @@ from typing import Any, cast
 import redis
 
 from bo1.config import get_settings
-from bo1.models.state import DeliberationState
 
 logger = logging.getLogger(__name__)
 
@@ -141,14 +140,14 @@ class RedisManager:
     def save_state(
         self,
         session_id: str,
-        state: DeliberationState | dict[str, Any],
+        state: dict[str, Any],
         ttl: int | None = None,
     ) -> bool:
         """Save deliberation state to Redis.
 
         Args:
             session_id: Session identifier (can include "session:" or "deliberation:" prefix)
-            state: Deliberation state to save (Pydantic model or dict)
+            state: Deliberation state to save (dict)
             ttl: Optional TTL in seconds (overrides default)
 
         Returns:
@@ -156,9 +155,8 @@ class RedisManager:
 
         Examples:
             >>> manager = RedisManager()
-            >>> state = DeliberationState(...)
-            >>> success = manager.save_state("bo1_abc123", state)
-            >>> # Or with dict
+            >>> success = manager.save_state("bo1_abc123", state_dict)
+            >>> # Or with custom TTL
             >>> success = manager.save_state("deliberation:test", state_dict, ttl=3600)
         """
         if not self.is_available:
@@ -167,10 +165,7 @@ class RedisManager:
 
         try:
             # Serialize state to JSON
-            if isinstance(state, dict):
-                state_json = json.dumps(state)
-            else:
-                state_json = state.model_dump_json()
+            state_json = json.dumps(state, default=str)
 
             # Save to Redis with TTL
             key = self._get_key(session_id)
@@ -198,7 +193,7 @@ class RedisManager:
             logger.error(f"Failed to save state to Redis: {e}")
             return False
 
-    def load_state(self, session_id: str) -> dict[str, Any] | DeliberationState | None:
+    def load_state(self, session_id: str) -> dict[str, Any] | None:
         """Load deliberation state from Redis.
 
         Args:
@@ -206,7 +201,6 @@ class RedisManager:
 
         Returns:
             Deliberation state as dict if found, None otherwise
-            (Returns dict for backward compatibility with tests)
 
         Examples:
             >>> manager = RedisManager()

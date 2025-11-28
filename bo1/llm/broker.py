@@ -152,7 +152,7 @@ class PromptBroker:
         from bo1.llm.cache import get_llm_cache
 
         cache = get_llm_cache()
-        cached_response = await cache.get_cached_response(request)
+        cached_response = await cache.get(request)
         if cached_response:
             logger.info(
                 f"[{request.request_id}] Cache hit: "
@@ -232,7 +232,7 @@ class PromptBroker:
                     metrics.observe("llm.duration_ms", duration_ms)
 
                 # Cache the response for future use
-                await cache.cache_response(request, llm_response)
+                await cache.set(request, llm_response)
 
                 return llm_response
 

@@ -7,8 +7,8 @@ import logging
 import re
 from typing import Any
 
+from bo1.graph.state import DeliberationGraphState
 from bo1.models.recommendations import Recommendation
-from bo1.models.state import DeliberationState
 from bo1.utils.extraction import ResponseExtractor
 from bo1.utils.vote_parsing import (
     parse_conditions,
@@ -166,7 +166,7 @@ class ResponseParser:
         )
 
     @staticmethod
-    def parse_facilitator_decision(content: str, state: DeliberationState) -> dict[str, Any]:
+    def parse_facilitator_decision(content: str, state: DeliberationGraphState) -> dict[str, Any]:
         """Parse facilitator decision from response content.
 
         This extracts the decision action and associated parameters.
@@ -219,14 +219,13 @@ class ResponseParser:
             "phase_summary": None,
         }
 
+        personas = state.get("personas", [])
         if action == "continue":
-            next_speaker = ResponseExtractor.extract_persona_code(
-                content, state.selected_personas, logger=logger
-            )
+            next_speaker = ResponseExtractor.extract_persona_code(content, personas, logger=logger)
             # Fallback: If extraction failed, pick first available persona
             if not next_speaker:
-                if state.selected_personas:
-                    next_speaker = state.selected_personas[0].code
+                if personas:
+                    next_speaker = personas[0].code
                     logger.warning(
                         f"Failed to extract next_speaker from facilitator response, "
                         f"defaulting to {next_speaker}"

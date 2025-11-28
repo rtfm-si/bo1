@@ -16,6 +16,7 @@ Research Strategy:
 - Premium: Tavily ($1/1000 = $0.001/query) for in-depth analysis requiring context
 """
 
+import asyncio
 import logging
 import time
 from datetime import datetime
@@ -115,12 +116,13 @@ class ResearcherAgent:
             # No consolidation - each question is its own batch
             batches = [[q] for q in questions]
 
-        results = []
         total_cost = 0.0
 
-        # Process each batch
-        for batch in batches:
-            # If batch has multiple questions, merge them
+        # Process all batches in parallel for maximum throughput
+        async def process_batch(
+            batch: list[dict[str, Any]],
+        ) -> tuple[list[dict[str, Any]], float]:
+            """Process a single batch (possibly merged questions)."""
             if len(batch) > 1:
                 merged_question = merge_batch_questions(batch)
                 logger.info(
@@ -133,17 +135,23 @@ class ResearcherAgent:
                     question_data, category, industry, research_depth
                 )
                 # Split result back to individual questions
-                batch_results = split_batch_results(batch_result, batch)
-                results.extend(batch_results)
-                total_cost += batch_result.get("cost", 0.0)
+                return split_batch_results(batch_result, batch), batch_result.get("cost", 0.0)
             else:
                 # Single question - process normally
                 question_data = batch[0]
                 result = await self._research_single_question(
                     question_data, category, industry, research_depth
                 )
-                results.append(result)
-                total_cost += result.get("cost", 0.0)
+                return [result], result.get("cost", 0.0)
+
+        # Run all batches in parallel
+        batch_results = await asyncio.gather(*[process_batch(batch) for batch in batches])
+
+        # Aggregate results
+        results = []
+        for batch_items, cost in batch_results:
+            results.extend(batch_items)
+            total_cost += cost
 
         logger.info(f"Research complete - Total cost: ${total_cost:.4f}")
         return results

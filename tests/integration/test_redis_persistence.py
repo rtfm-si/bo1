@@ -18,9 +18,9 @@ from bo1.models.state import ContributionMessage, ContributionType, Deliberation
 
 @pytest.mark.integration
 @pytest.mark.requires_redis
-def test_redis_connection_success(redis_manager_or_skip):
+def test_redis_connection_success(redis_manager):
     """Test: Redis manager connects successfully when Redis is available."""
-    manager = redis_manager_or_skip
+    manager = redis_manager
 
     # Verify connection works
     assert manager.client.ping() is True
@@ -35,16 +35,13 @@ def test_redis_connection_success(redis_manager_or_skip):
 
 
 @pytest.mark.unit
-def test_redis_connection_failure_handling(redis_manager_or_none):
+def test_redis_connection_failure_handling(redis_manager):
     """Test: System handles Redis unavailability gracefully."""
-    if redis_manager_or_none is None:
-        # This is the expected case when Redis is unavailable
-        # Test should pass, validating that the fixture returns None
-        # instead of crashing
-        assert redis_manager_or_none is None
-    else:
-        # Redis is available, test normal behavior
-        assert redis_manager_or_none.client.ping() is True
+    # With standard fixture, Redis should be available in test environment
+    # This test validates the connection works
+    if redis_manager is None:
+        pytest.skip("Redis not available")
+    assert redis_manager.client.ping() is True
 
 
 # ============================================================================
@@ -55,9 +52,9 @@ def test_redis_connection_failure_handling(redis_manager_or_none):
 @pytest.mark.integration
 @pytest.mark.requires_redis
 @pytest.mark.skip(reason="Needs PersonaProfile fixture - complex model")
-def test_state_persistence_round_trip(redis_manager_or_skip):
+def test_state_persistence_round_trip(redis_manager):
     """Test: State can be saved to and loaded from Redis without data loss."""
-    manager = redis_manager_or_skip
+    manager = redis_manager
 
     # Create complex state with all fields populated
     from bo1.models.persona import PersonaCategory, PersonaType, ResponseStyle
@@ -167,11 +164,11 @@ def test_state_persistence_round_trip(redis_manager_or_skip):
 @pytest.mark.integration
 @pytest.mark.requires_redis
 @pytest.mark.skip(reason="Needs PersonaProfile fixture - complex model")
-def test_state_with_nested_objects_persists_correctly(redis_manager_or_skip):
+def test_state_with_nested_objects_persists_correctly(redis_manager):
     """Test: Complex nested objects (personas, contributions) persist correctly."""
     from bo1.models.persona import PersonaCategory, PersonaType, ResponseStyle
 
-    manager = redis_manager_or_skip
+    manager = redis_manager
 
     problem = Problem(title="Test", description="Test", context="Test")
 
@@ -243,9 +240,9 @@ def test_state_with_nested_objects_persists_correctly(redis_manager_or_skip):
 
 @pytest.mark.integration
 @pytest.mark.requires_redis
-def test_state_with_none_optional_fields_persists(redis_manager_or_skip):
+def test_state_with_none_optional_fields_persists(redis_manager):
     """Test: State with None optional fields persists correctly."""
-    manager = redis_manager_or_skip
+    manager = redis_manager
 
     problem = Problem(title="Test", description="Test", context="Test")
 
@@ -283,9 +280,9 @@ def test_state_with_none_optional_fields_persists(redis_manager_or_skip):
 
 @pytest.mark.integration
 @pytest.mark.requires_redis
-def test_concurrent_sessions_isolated(redis_manager_or_skip):
+def test_concurrent_sessions_isolated(redis_manager):
     """Test: Multiple concurrent sessions maintain isolation."""
-    manager = redis_manager_or_skip
+    manager = redis_manager
 
     problem = Problem(title="Test", description="Test", context="Test")
 
@@ -316,9 +313,9 @@ def test_concurrent_sessions_isolated(redis_manager_or_skip):
 
 @pytest.mark.integration
 @pytest.mark.requires_redis
-def test_session_updates_dont_affect_other_sessions(redis_manager_or_skip):
+def test_session_updates_dont_affect_other_sessions(redis_manager):
     """Test: Updating one session doesn't affect others."""
-    manager = redis_manager_or_skip
+    manager = redis_manager
 
     problem = Problem(title="Test", description="Test", context="Test")
 
@@ -354,9 +351,9 @@ def test_session_updates_dont_affect_other_sessions(redis_manager_or_skip):
 
 @pytest.mark.integration
 @pytest.mark.requires_redis
-def test_session_ttl_is_set(redis_manager_or_skip):
+def test_session_ttl_is_set(redis_manager):
     """Test: Sessions have TTL (Time To Live) configured."""
-    manager = redis_manager_or_skip
+    manager = redis_manager
 
     problem = Problem(title="Test", description="Test", context="Test")
 
@@ -383,9 +380,9 @@ def test_session_ttl_is_set(redis_manager_or_skip):
 
 @pytest.mark.integration
 @pytest.mark.requires_redis
-def test_loading_nonexistent_session_returns_none(redis_manager_or_skip):
+def test_loading_nonexistent_session_returns_none(redis_manager):
     """Test: Loading a non-existent session returns None."""
-    manager = redis_manager_or_skip
+    manager = redis_manager
 
     loaded = manager.load_state("deliberation:nonexistent-session")
     assert loaded is None
@@ -393,9 +390,9 @@ def test_loading_nonexistent_session_returns_none(redis_manager_or_skip):
 
 @pytest.mark.integration
 @pytest.mark.requires_redis
-def test_corrupted_data_handling(redis_manager_or_skip):
+def test_corrupted_data_handling(redis_manager):
     """Test: Corrupted session data is handled gracefully."""
-    manager = redis_manager_or_skip
+    manager = redis_manager
 
     # Store invalid JSON
     session_key = "deliberation:test-corrupted"
@@ -421,9 +418,9 @@ def test_corrupted_data_handling(redis_manager_or_skip):
 
 @pytest.mark.integration
 @pytest.mark.requires_redis
-def test_metrics_persist_correctly(redis_manager_or_skip):
+def test_metrics_persist_correctly(redis_manager):
     """Test: DeliberationMetrics with all fields persist correctly."""
-    manager = redis_manager_or_skip
+    manager = redis_manager
 
     problem = Problem(title="Test", description="Test", context="Test")
 

@@ -1,52 +1,7 @@
-"""Utilities for parsing vote decisions and confidence from LLM responses.
+"""Utilities for parsing confidence levels and conditions from LLM responses.
 
-DEPRECATED: The parse_vote_decision function is no longer used in the recommendation system.
-Only parse_confidence_level and parse_conditions are still actively used.
+These utilities are used in the recommendation system for parsing expert recommendations.
 """
-
-
-def parse_vote_decision(decision_str: str | None) -> str:
-    """Parse vote decision from string.
-
-    DEPRECATED: This function is no longer used in the recommendation system.
-    Kept for backward compatibility with old tests only.
-
-    Args:
-        decision_str: Decision string from vote (e.g., "Yes", "No", "Conditional")
-                     Can be None or empty.
-
-    Returns:
-        String decision value ("yes", "no", "conditional", "abstain")
-    """
-    if not decision_str:
-        return "abstain"
-
-    decision_lower = decision_str.lower().strip()
-
-    # Check for conditional FIRST (to catch "Yes, if..." before plain "Yes")
-    if any(
-        keyword in decision_lower for keyword in ["conditional", " if ", "only if", "provided that"]
-    ):
-        return "conditional"
-
-    # Check for yes/approve/support
-    if any(keyword in decision_lower for keyword in ["yes", "approve", "support", "accept"]):
-        return "yes"
-
-    # Check for no/reject/oppose
-    # Use word boundaries and handle standalone "no" or "no" with punctuation
-    if (
-        decision_lower == "no"
-        or decision_lower.startswith("no ")
-        or decision_lower.startswith("no,")
-        or decision_lower.startswith("no.")
-        or decision_lower.endswith(" no")
-        or any(keyword in decision_lower for keyword in ["reject", "oppose", "decline"])
-    ):
-        return "no"
-
-    # Default to abstain for unclear responses
-    return "abstain"
 
 
 def parse_confidence_level(confidence_str: str | None) -> float:

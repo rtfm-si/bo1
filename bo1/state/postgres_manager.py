@@ -467,6 +467,73 @@ def save_research_result(
             return dict(result) if result else {}
 
 
+def save_research_results_batch(
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Batch save multiple research results in a single transaction.
+
+    More efficient than individual save_research_result() calls when
+    saving multiple results (e.g., from parallel research).
+
+    Args:
+        results: List of research result dicts, each containing:
+            - question: str
+            - embedding: list[float] (1536 dimensions)
+            - summary: str
+            - sources: list[dict] (optional)
+            - confidence: str (default "medium")
+            - category: str (optional)
+            - industry: str (optional)
+            - freshness_days: int (default 90)
+            - tokens_used: int (optional)
+            - research_cost_usd: float (optional)
+
+    Returns:
+        List of saved research records with IDs
+    """
+    if not results:
+        return []
+
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Use executemany with RETURNING for batch insert
+            saved_results = []
+            for result in results:
+                sources = result.get("sources")
+                cur.execute(
+                    """
+                    INSERT INTO research_cache (
+                        question, question_embedding, answer_summary, confidence,
+                        sources, source_count, category, industry, freshness_days,
+                        tokens_used, research_cost_usd
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id, question, answer_summary, confidence, sources,
+                              source_count, category, industry, research_date,
+                              access_count, last_accessed_at, freshness_days,
+                              tokens_used, research_cost_usd
+                    """,
+                    (
+                        result.get("question"),
+                        result.get("embedding"),
+                        result.get("summary"),
+                        result.get("confidence", "medium"),
+                        Json(sources) if sources else None,
+                        len(sources) if sources else 0,
+                        result.get("category"),
+                        result.get("industry"),
+                        result.get("freshness_days", 90),
+                        result.get("tokens_used"),
+                        result.get("research_cost_usd"),
+                    ),
+                )
+                row = cur.fetchone()
+                if row:
+                    saved_results.append(dict(row))
+
+            return saved_results
+
+
 def update_research_access(cache_id: str) -> None:
     """Update access count and last_accessed_at for cached research.
 
@@ -1221,3 +1288,213 @@ def get_session_metadata(session_id: str) -> dict[str, Any] | None:
     except Exception as e:
         logger.error(f"Failed to get session metadata for {session_id}: {e}")
         return None
+
+
+# =============================================================================
+# Contribution Persistence Functions
+# =============================================================================
+
+
+def save_contribution(
+    session_id: str,
+    persona_code: str,
+    content: str,
+    round_number: int,
+    phase: str,
+    cost: float = 0.0,
+    tokens: int = 0,
+    model: str = "unknown",
+) -> dict[str, Any]:
+    """Save a persona contribution to PostgreSQL.
+
+    Args:
+        session_id: Session identifier
+        persona_code: Persona code (e.g., 'growth_hacker')
+        content: Contribution text content
+        round_number: Round number when contribution was made
+        phase: Phase (initial_round, deliberation, moderator_intervention)
+        cost: Cost in USD
+        tokens: Token count
+        model: Model used
+
+    Returns:
+        Saved contribution record with id and created_at
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO contributions (
+                    session_id, persona_code, content, round_number, phase,
+                    cost, tokens, model
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, session_id, persona_code, round_number, phase, created_at
+                """,
+                (session_id, persona_code, content, round_number, phase, cost, tokens, model),
+            )
+            result = cur.fetchone()
+            return dict(result) if result else {}
+
+
+def save_recommendation(
+    session_id: str,
+    persona_code: str,
+    recommendation: str,
+    reasoning: str | None = None,
+    confidence: float | None = None,
+    conditions: list[str] | None = None,
+    weight: float | None = None,
+    sub_problem_index: int | None = None,
+    persona_name: str | None = None,
+) -> dict[str, Any]:
+    """Save an expert recommendation to PostgreSQL.
+
+    Args:
+        session_id: Session identifier
+        persona_code: Persona code
+        recommendation: Free-form recommendation text
+        reasoning: Reasoning behind recommendation
+        confidence: Confidence score (0.0-1.0)
+        conditions: List of conditions for the recommendation
+        weight: Weight/importance of recommendation
+        sub_problem_index: Sub-problem index (optional)
+        persona_name: Display name of persona
+
+    Returns:
+        Saved recommendation record
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO recommendations (
+                    session_id, sub_problem_index, persona_code, persona_name,
+                    recommendation, reasoning, confidence, conditions, weight
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, session_id, persona_code, created_at
+                """,
+                (
+                    session_id,
+                    sub_problem_index,
+                    persona_code,
+                    persona_name,
+                    recommendation,
+                    reasoning,
+                    confidence,
+                    Json(conditions) if conditions else None,
+                    weight,
+                ),
+            )
+            result = cur.fetchone()
+            return dict(result) if result else {}
+
+
+def save_sub_problem_result(
+    session_id: str,
+    sub_problem_index: int,
+    goal: str,
+    synthesis: str | None = None,
+    expert_summaries: dict[str, str] | None = None,
+    cost: float | None = None,
+    duration_seconds: int | None = None,
+    contribution_count: int | None = None,
+) -> dict[str, Any]:
+    """Save sub-problem result to PostgreSQL.
+
+    Args:
+        session_id: Session identifier
+        sub_problem_index: Index of sub-problem
+        goal: Sub-problem goal text
+        synthesis: Synthesis text for this sub-problem
+        expert_summaries: Dict of persona_code -> summary
+        cost: Total cost for this sub-problem
+        duration_seconds: Time taken
+        contribution_count: Number of contributions
+
+    Returns:
+        Saved result record
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO sub_problem_results (
+                    session_id, sub_problem_index, goal, synthesis,
+                    expert_summaries, cost, duration_seconds, contribution_count
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (session_id, sub_problem_index) DO UPDATE
+                SET goal = EXCLUDED.goal,
+                    synthesis = EXCLUDED.synthesis,
+                    expert_summaries = EXCLUDED.expert_summaries,
+                    cost = EXCLUDED.cost,
+                    duration_seconds = EXCLUDED.duration_seconds,
+                    contribution_count = EXCLUDED.contribution_count
+                RETURNING id, session_id, sub_problem_index, created_at
+                """,
+                (
+                    session_id,
+                    sub_problem_index,
+                    goal,
+                    synthesis,
+                    Json(expert_summaries) if expert_summaries else None,
+                    cost,
+                    duration_seconds,
+                    contribution_count,
+                ),
+            )
+            result = cur.fetchone()
+            return dict(result) if result else {}
+
+
+def save_facilitator_decision(
+    session_id: str,
+    round_number: int,
+    action: str,
+    reasoning: str | None = None,
+    next_speaker: str | None = None,
+    moderator_type: str | None = None,
+    research_query: str | None = None,
+    sub_problem_index: int | None = None,
+) -> dict[str, Any]:
+    """Save facilitator decision to PostgreSQL.
+
+    Args:
+        session_id: Session identifier
+        round_number: Round when decision was made
+        action: Decision action (continue, vote, moderator, research, clarify)
+        reasoning: Reasoning behind decision
+        next_speaker: Next persona to speak (if action=continue)
+        moderator_type: Type of moderator intervention (if action=moderator)
+        research_query: Research query (if action=research)
+        sub_problem_index: Current sub-problem index
+
+    Returns:
+        Saved decision record
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO facilitator_decisions (
+                    session_id, round_number, sub_problem_index, action,
+                    reasoning, next_speaker, moderator_type, research_query
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, session_id, round_number, action, created_at
+                """,
+                (
+                    session_id,
+                    round_number,
+                    sub_problem_index,
+                    action,
+                    reasoning,
+                    next_speaker,
+                    moderator_type,
+                    research_query,
+                ),
+            )
+            result = cur.fetchone()
+            return dict(result) if result else {}

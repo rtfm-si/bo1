@@ -257,12 +257,20 @@ async def run_console_deliberation(
                     round_num = output.get("round_number", 1)
                     if decision:
                         _display_facilitator_decision(console, decision, round_num)
-                elif event_name == "persona_contribute" and isinstance(output, dict):
+                elif event_name == "parallel_round" and isinstance(output, dict):
                     contributions = output.get("contributions", [])
                     round_num = output.get("round_number", 1)
-                    if contributions:
-                        # Display the newest contribution
-                        _display_contribution(console, contributions[-1], round_num)
+                    # Get contributions from this round (round_num-1 since it's incremented)
+                    completed_round = round_num - 1
+                    round_contributions = [
+                        c for c in contributions if c.round_number == completed_round
+                    ]
+                    if round_contributions:
+                        console.print(
+                            f"\n[cyan]═══ Round {completed_round} ({len(round_contributions)} experts) ═══[/cyan]"
+                        )
+                        for contrib in round_contributions:
+                            _display_contribution(console, contrib, completed_round)
                 elif event_name == "check_convergence" and isinstance(output, dict):
                     _display_convergence_check(console, output)
                 elif event_name == "moderator_intervene" and isinstance(output, dict):
@@ -653,18 +661,10 @@ async def _export_deliberation(console: Console, state: Any, include_logs: bool 
     import os
     from datetime import datetime
 
-    from bo1.graph.state import graph_state_to_deliberation_state
     from bo1.state.serialization import to_json, to_markdown
 
     console.print("\n")
     console.print_header("Exporting Deliberation")
-
-    # Convert graph state to v1 DeliberationState for export
-    try:
-        v1_state = graph_state_to_deliberation_state(state)
-    except Exception as e:
-        console.print(f"[red]✗ Export failed: Could not convert state ({e})[/red]")
-        return
 
     # Create exports directory if it doesn't exist
     exports_dir = "exports"
@@ -675,10 +675,10 @@ async def _export_deliberation(console: Console, state: Any, include_logs: bool 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_filename = f"{session_id}_{timestamp}"
 
-    # Export markdown transcript
+    # Export markdown transcript (directly with v2 state)
     try:
         md_path = os.path.join(exports_dir, f"{base_filename}.md")
-        markdown_content = to_markdown(v1_state, include_metadata=include_logs)
+        markdown_content = to_markdown(state, include_metadata=include_logs)
         with open(md_path, "w") as f:
             f.write(markdown_content)
         console.print(f"[green]✓[/green] Markdown transcript: {md_path}")
@@ -688,7 +688,7 @@ async def _export_deliberation(console: Console, state: Any, include_logs: bool 
     # Export JSON (full state)
     try:
         json_path = os.path.join(exports_dir, f"{base_filename}.json")
-        json_content = to_json(v1_state, indent=2)
+        json_content = to_json(state, indent=2)
         with open(json_path, "w") as f:
             f.write(json_content)
         console.print(f"[green]✓[/green] JSON state: {json_path}")

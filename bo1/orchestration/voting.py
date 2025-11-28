@@ -6,11 +6,11 @@ Handles the final recommendation phase and synthesis of deliberation results.
 import logging
 from typing import Any
 
+from bo1.graph.state import DeliberationGraphState
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
 from bo1.llm.response_parser import ResponseParser
 from bo1.models.recommendations import ConsensusLevel, Recommendation, RecommendationAggregation
-from bo1.models.state import DeliberationState
 from bo1.prompts.reusable_prompts import RECOMMENDATION_SYSTEM_PROMPT, RECOMMENDATION_USER_MESSAGE
 from bo1.utils.error_logger import ErrorLogger
 from bo1.utils.json_parsing import parse_json_with_fallback
@@ -19,13 +19,13 @@ logger = logging.getLogger(__name__)
 
 
 async def collect_recommendations(
-    state: DeliberationState,
+    state: DeliberationGraphState,
     broker: PromptBroker,
 ) -> tuple[list[Recommendation], list[LLMResponse]]:
     """Collect recommendations from all personas in parallel.
 
     Args:
-        state: Current deliberation state
+        state: Current deliberation state (v2 graph state)
         broker: PromptBroker for LLM calls
 
     Returns:
@@ -33,9 +33,8 @@ async def collect_recommendations(
     """
     import asyncio
 
-    logger.info(
-        f"Collecting recommendations from {len(state.selected_personas)} personas (parallel)"
-    )
+    personas = state.get("personas", [])
+    logger.info(f"Collecting recommendations from {len(personas)} personas (parallel)")
 
     # Build discussion history once
     discussion_history = _format_discussion_history(state)
@@ -98,23 +97,21 @@ async def collect_recommendations(
 
     # Collect recommendations using sequential-then-parallel pattern for cache optimization
     # First recommendation creates cache, remaining recommendations hit cache (90% cost savings)
-    personas_list = state.selected_personas
-
-    if not personas_list:
+    if not personas:
         logger.warning("No personas to collect recommendations from")
         return [], []
 
     # Collect first recommendation to create prompt cache
-    logger.info(f"Collecting first recommendation from {personas_list[0].name} (creates cache)")
-    first_result = await _collect_single_recommendation(personas_list[0])
+    logger.info(f"Collecting first recommendation from {personas[0].name} (creates cache)")
+    first_result = await _collect_single_recommendation(personas[0])
 
     # Collect remaining recommendations in parallel (all hit cache)
-    if len(personas_list) > 1:
+    if len(personas) > 1:
         logger.info(
-            f"Collecting remaining {len(personas_list) - 1} recommendations in parallel (cache hits)"
+            f"Collecting remaining {len(personas) - 1} recommendations in parallel (cache hits)"
         )
         remaining_results = await asyncio.gather(
-            *[_collect_single_recommendation(persona) for persona in personas_list[1:]]
+            *[_collect_single_recommendation(persona) for persona in personas[1:]]
         )
         results = [first_result] + remaining_results
     else:
@@ -124,16 +121,16 @@ async def collect_recommendations(
     recommendations = [rec for rec, _ in results if rec is not None]
     llm_responses = [resp for _, resp in results if resp is not None]
 
-    logger.info(f"Collected {len(recommendations)}/{len(state.selected_personas)} recommendations")
+    logger.info(f"Collected {len(recommendations)}/{len(personas)} recommendations")
 
     return recommendations, llm_responses
 
 
-def _format_discussion_history(state: DeliberationState) -> str:
+def _format_discussion_history(state: DeliberationGraphState) -> str:
     """Format full discussion history for voting context.
 
     Args:
-        state: Current deliberation state
+        state: Current deliberation state (v2 graph state)
 
     Returns:
         Formatted discussion history string
@@ -141,14 +138,19 @@ def _format_discussion_history(state: DeliberationState) -> str:
     lines = []
 
     # Add problem statement
+    problem = state.get("problem")
     lines.append("PROBLEM STATEMENT:")
-    lines.append(state.problem.description)
+    lines.append(problem.description if problem else "No problem defined")
     lines.append("")
 
-    # Add all contributions using state method
+    # Add all contributions
     lines.append("FULL DISCUSSION:")
     lines.append("")
-    lines.append(state.format_discussion_history())
+    contributions = state.get("contributions", [])
+    for msg in contributions:
+        lines.append(f"--- {msg.persona_name} (Round {msg.round_number}) ---")
+        lines.append(msg.content)
+        lines.append("")
 
     return "\n".join(lines)
 

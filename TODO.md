@@ -69,3 +69,7 @@ actions from all sub problems
 needs to be faster
 needs to be more 'to the point', focussed
 the more a problem is decomposed
+
+### apply the same 'responsiveness' or presence or whatever to 'Expert Panel Assembled' as we do the meeting expert contributionsnand sub problem title card.
+
+same with 'discussion quality' do we need some kind of 'tick' event to update this every 2s?

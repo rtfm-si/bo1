@@ -261,27 +261,6 @@ def redis_manager(request) -> Any:
         return None
 
 
-# Legacy aliases for backward compatibility
-@pytest.fixture
-def redis_manager_or_skip(redis_manager) -> Any:
-    """Legacy alias for redis_manager with requires_redis marker.
-
-    DEPRECATED: Use @pytest.mark.requires_redis with redis_manager instead.
-    """
-    if redis_manager is None:
-        pytest.skip("Redis not available")
-    return redis_manager
-
-
-@pytest.fixture
-def redis_manager_or_none(redis_manager) -> Any:
-    """Legacy alias for redis_manager without marker.
-
-    DEPRECATED: Use redis_manager directly instead.
-    """
-    return redis_manager
-
-
 # Common test fixtures for LLM responses and requests
 
 

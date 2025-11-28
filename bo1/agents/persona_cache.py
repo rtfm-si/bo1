@@ -198,23 +198,6 @@ class PersonaSelectionCache(BaseCache[SubProblem, list[PersonaProfile]]):
         base_stats["ttl_days"] = self.ttl_seconds / (24 * 60 * 60)
         return base_stats
 
-    # Backward compatibility methods
-    async def get_cached_personas(self, problem: SubProblem) -> list[PersonaProfile] | None:
-        """Get cached persona selection (backward compatibility alias).
-
-        Deprecated: Use get() instead.
-        """
-        return await self.get(problem)
-
-    async def cache_persona_selection(
-        self, problem: SubProblem, personas: list[PersonaProfile]
-    ) -> None:
-        """Cache persona selection (backward compatibility alias).
-
-        Deprecated: Use set() instead.
-        """
-        await self.set(problem, personas)
-
 
 @singleton
 def get_persona_cache() -> PersonaSelectionCache:

@@ -13,10 +13,7 @@ from typing import Any, Literal
 from bo1.agents.decomposer import DecomposerAgent
 from bo1.agents.facilitator import FacilitatorAgent, FacilitatorDecision
 from bo1.agents.selector import PersonaSelectorAgent
-from bo1.graph.state import (
-    DeliberationGraphState,
-    graph_state_to_deliberation_state,
-)
+from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import (
     ensure_metrics,
     track_accumulated_cost,
@@ -201,11 +198,8 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     """
     logger.info("initial_round_node: Starting initial round")
 
-    # Convert graph state to v1 DeliberationState for engine
-    v1_state = graph_state_to_deliberation_state(state)
-
-    # Create deliberation engine
-    engine = DeliberationEngine(state=v1_state)
+    # Create deliberation engine with v2 state
+    engine = DeliberationEngine(state=state)
 
     # Run initial round
     contributions, llm_responses = await engine.run_initial_round()
@@ -248,9 +242,6 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     """
     logger.info("facilitator_decide_node: Making facilitator decision")
 
-    # Convert graph state to v1 DeliberationState for facilitator
-    v1_state = graph_state_to_deliberation_state(state)
-
     # Create facilitator agent
     facilitator = FacilitatorAgent()
 
@@ -258,9 +249,9 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     round_number = state.get("round_number", 1)
     max_rounds = state.get("max_rounds", 6)
 
-    # Call facilitator to decide next action
+    # Call facilitator to decide next action with v2 state
     decision, llm_response = await facilitator.decide_next_action(
-        state=v1_state,
+        state=state,
         round_number=round_number,
         max_rounds=max_rounds,
     )
@@ -457,212 +448,6 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         "metrics": metrics,
         "current_node": "facilitator_decide",
         "sub_problem_index": sub_problem_index,  # CRITICAL: Always preserve sub_problem_index (Issue #3 fix)
-    }
-
-
-async def persona_contribute_node(state: DeliberationGraphState) -> dict[str, Any]:
-    """Single persona contributes in a multi-round deliberation.
-
-    This node is called when the facilitator decides to continue the deliberation
-    with a specific persona speaking. It:
-    1. Extracts the speaker from the facilitator decision
-    2. Gets the persona profile
-    3. Calls the persona to contribute
-    4. Adds the contribution to state
-    5. Increments round number
-    6. Tracks cost
-
-    Args:
-        state: Current graph state (must have facilitator_decision)
-
-    Returns:
-        Dictionary with state updates (new contribution, incremented round)
-    """
-    from bo1.models.state import ContributionType
-    from bo1.orchestration.deliberation import DeliberationEngine
-
-    logger.info("persona_contribute_node: Processing persona contribution")
-
-    # Get facilitator decision (must exist)
-    decision = state.get("facilitator_decision")
-    if not decision:
-        raise ValueError("persona_contribute_node called without facilitator_decision in state")
-
-    # Extract speaker from decision (correct field name is 'next_speaker')
-    speaker_code = decision.get("next_speaker")
-    if not speaker_code:
-        raise ValueError("Facilitator decision missing next_speaker for 'continue' action")
-
-    logger.info(f"persona_contribute_node: Speaker={speaker_code}")
-
-    # Get persona profile
-    personas = state.get("personas", [])
-    persona = next((p for p in personas if p.code == speaker_code), None)
-    if not persona:
-        raise ValueError(f"Persona {speaker_code} not found in selected personas")
-
-    # Get problem and contribution context
-    problem = state.get("problem")
-    contributions = list(state.get("contributions", []))
-    round_number = state.get("round_number", 1)
-
-    # Build participant list
-    participant_list = ", ".join([p.name for p in personas])
-
-    # Check if expert has memory from previous sub-problems
-    expert_memory: str | None = None
-    sub_problem_results = state.get("sub_problem_results", [])
-
-    if sub_problem_results:
-        # Collect memory from all previous sub-problems where this expert contributed
-        memory_parts = []
-        for result in sub_problem_results:
-            if speaker_code in result.expert_summaries:
-                prev_summary = result.expert_summaries[speaker_code]
-                prev_goal = result.sub_problem_goal
-                memory_parts.append(f"Sub-problem: {prev_goal}\nYour position: {prev_summary}")
-
-        if memory_parts:
-            expert_memory = "\n\n".join(memory_parts)
-            logger.info(
-                f"{persona.display_name} has memory from {len(memory_parts)} previous sub-problem(s)"
-            )
-
-    # Create deliberation engine (constructor takes state argument)
-    v1_state = graph_state_to_deliberation_state(state)
-    engine = DeliberationEngine(state=v1_state)
-
-    # Call persona with correct signature (including expert_memory)
-    contribution_msg, llm_response = await engine._call_persona_async(
-        persona_profile=persona,
-        problem_statement=problem.description if problem else "",
-        problem_context=problem.context if problem else "",
-        participant_list=participant_list,
-        round_number=round_number,
-        contribution_type=ContributionType.RESPONSE,
-        previous_contributions=contributions,
-        expert_memory=expert_memory,
-    )
-
-    # Track cost in metrics
-    metrics = ensure_metrics(state)
-    phase_key = f"round_{round_number}_deliberation"
-    track_accumulated_cost(metrics, phase_key, llm_response)
-
-    # Validate contribution and retry if malformed
-    from bo1.llm.response_parser import ResponseParser
-
-    is_valid, reason = ResponseParser.validate_contribution_content(
-        contribution_msg.content, persona.display_name
-    )
-
-    if not is_valid:
-        logger.warning(f"Malformed contribution from {persona.display_name}: {reason}. Retrying...")
-        # Retry with simplified prompt
-        retry_guidance = (
-            "RETRY - Please provide your expert analysis directly. "
-            "DO NOT apologize or discuss the prompt structure. "
-            "Focus on: the problem at hand."
-        )
-
-        contribution_msg, retry_response = await engine._call_persona_async(
-            persona_profile=persona,
-            problem_statement=problem.description if problem else "",
-            problem_context=problem.context if problem else "",
-            participant_list=participant_list,
-            round_number=round_number,
-            contribution_type=ContributionType.RESPONSE,
-            previous_contributions=contributions,
-            expert_memory=retry_guidance,
-        )
-
-        # Track retry cost
-        track_accumulated_cost(metrics, f"{phase_key}_retry", retry_response)
-
-        # Check if retry was successful
-        is_valid_retry, _ = ResponseParser.validate_contribution_content(
-            contribution_msg.content, persona.display_name
-        )
-        if is_valid_retry:
-            logger.info(f"Retry successful for {persona.display_name}")
-        else:
-            logger.error(f"Retry FAILED for {persona.display_name}. Using fallback.")
-
-    # Drift detection
-    from bo1.graph.quality_metrics import detect_contribution_drift
-
-    contribution_text = contribution_msg.content
-    problem_statement = problem.description if problem else ""
-
-    if detect_contribution_drift(contribution_text, problem_statement):
-        # Increment drift counter
-        if not hasattr(metrics, "drift_events"):
-            metrics.drift_events = 0
-        metrics.drift_events += 1
-        logger.warning(f"Drift detected in contribution from {speaker_code}")
-
-    # Add new contribution to state
-    contributions.append(contribution_msg)
-
-    # Increment round number for next round
-    next_round = round_number + 1
-
-    # Trigger summarization for completed round
-    round_summaries = list(state.get("round_summaries", []))
-
-    if round_number > 0:  # Don't summarize round 0
-        # Get all contributions from the just-completed round
-        round_contributions = [
-            {"persona": c.persona_name, "content": c.content}
-            for c in contributions
-            if c.round_number == round_number
-        ]
-
-        if round_contributions:  # Only summarize if there were contributions
-            from bo1.agents.summarizer import SummarizerAgent
-
-            summarizer = SummarizerAgent()
-            # Reuse problem from earlier in the function
-            summary_problem_stmt = problem.description if problem else None
-
-            try:
-                summary_response = await summarizer.summarize_round(
-                    round_number=round_number,
-                    contributions=round_contributions,
-                    problem_statement=summary_problem_stmt,
-                )
-
-                round_summaries.append(summary_response.content)
-                track_accumulated_cost(metrics, "summarization", summary_response)
-
-                logger.info(
-                    f"Round {round_number} summarized: {summary_response.token_usage.output_tokens} tokens"
-                )
-            except Exception as e:
-                logger.warning(f"Failed to summarize round {round_number}: {e}")
-                # Add minimal fallback summary to preserve hierarchical mode
-                expert_names = ", ".join([c.get("persona", "Unknown") for c in round_contributions])
-                fallback_summary = (
-                    f"Round {round_number}: {len(round_contributions)} contributions from {expert_names}. "
-                    f"(Detailed summary unavailable)"
-                )
-                round_summaries.append(fallback_summary)
-                logger.info(f"Added fallback summary for round {round_number}")
-
-    logger.info(
-        f"persona_contribute_node: Complete - {speaker_code} contributed "
-        f"(round {round_number} → {next_round}, cost: ${llm_response.cost_total:.4f})"
-    )
-
-    # Return state updates
-    return {
-        "contributions": contributions,
-        "round_number": next_round,
-        "round_summaries": round_summaries,
-        "metrics": metrics,
-        "current_node": "persona_contribute",
-        "personas": state.get("personas", []),  # Include for event publishing (archetype lookup)
-        "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
     }
 
 
@@ -967,14 +752,11 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     logger.info("vote_node: Starting recommendation collection phase")
 
-    # Convert graph state to v1 DeliberationState
-    v1_state = graph_state_to_deliberation_state(state)
-
     # Create broker for LLM calls
     broker = PromptBroker()
 
-    # Collect recommendations from all personas
-    recommendations, llm_responses = await collect_recommendations(state=v1_state, broker=broker)
+    # Collect recommendations from all personas with v2 state
+    recommendations, llm_responses = await collect_recommendations(state=state, broker=broker)
 
     # Track cost in metrics
     metrics = ensure_metrics(state)
@@ -2071,9 +1853,8 @@ async def _generate_parallel_contributions(
     from bo1.models.state import ContributionType
     from bo1.orchestration.deliberation import DeliberationEngine
 
-    # Convert graph state to v1 for engine
-    v1_state = graph_state_to_deliberation_state(state)
-    engine = DeliberationEngine(state=v1_state)
+    # Create engine with v2 state
+    engine = DeliberationEngine(state=state)
 
     # Get problem context
     problem = state.get("problem")
@@ -2539,7 +2320,6 @@ async def _deliberate_subproblem(
         )
 
     # Step 3: Run deliberation rounds
-    from bo1.feature_flags.features import ENABLE_PARALLEL_ROUNDS
     from bo1.graph.safety.loop_prevention import get_adaptive_max_rounds
 
     contributions = []
@@ -2582,46 +2362,33 @@ async def _deliberate_subproblem(
         completed_research_queries=[],
     )
 
-    # Run rounds until convergence or max rounds
-    if ENABLE_PARALLEL_ROUNDS:
-        # Use parallel multi-expert architecture
-        for round_num in range(1, max_rounds + 1):
-            mini_state["round_number"] = round_num
+    # Run rounds until convergence or max rounds (parallel multi-expert architecture)
+    for round_num in range(1, max_rounds + 1):
+        mini_state["round_number"] = round_num
 
-            # Run parallel round
-            updates = await parallel_round_node(mini_state)
+        # Run parallel round
+        updates = await parallel_round_node(mini_state)
 
-            # Update mini_state with results
-            mini_state["contributions"] = updates["contributions"]
-            mini_state["round_number"] = updates["round_number"]
-            mini_state["round_summaries"] = updates["round_summaries"]
-            mini_state["metrics"] = updates["metrics"]
-            mini_state["current_phase"] = updates.get("current_phase", "exploration")
-            mini_state["experts_per_round"] = updates.get("experts_per_round", [])
+        # Update mini_state with results
+        mini_state["contributions"] = updates["contributions"]
+        mini_state["round_number"] = updates["round_number"]
+        mini_state["round_summaries"] = updates["round_summaries"]
+        mini_state["metrics"] = updates["metrics"]
+        mini_state["current_phase"] = updates.get("current_phase", "exploration")
+        mini_state["experts_per_round"] = updates.get("experts_per_round", [])
 
-            # Check convergence
-            from bo1.graph.safety.loop_prevention import check_convergence_node
+        # Check convergence
+        from bo1.graph.safety.loop_prevention import check_convergence_node
 
-            convergence_updates = await check_convergence_node(mini_state)
-            mini_state["should_stop"] = convergence_updates.get("should_stop", False)
-            mini_state["stop_reason"] = convergence_updates.get("stop_reason")
+        convergence_updates = await check_convergence_node(mini_state)
+        mini_state["should_stop"] = convergence_updates.get("should_stop", False)
+        mini_state["stop_reason"] = convergence_updates.get("stop_reason")
 
-            if mini_state["should_stop"]:
-                logger.info(
-                    f"_deliberate_subproblem: Convergence reached at round {round_num} for {sub_problem.id}"
-                )
-                break
-    else:
-        # Legacy serial architecture (fallback)
-        logger.warning(
-            "_deliberate_subproblem: Using legacy serial architecture for sub-problem deliberation"
-        )
-        # Use existing initial_round + persona_contribute pattern
-        # (Simplified for parallel sub-problems - full implementation would need initial_round_node)
-        engine = DeliberationEngine(state=graph_state_to_deliberation_state(mini_state))
-        contrib_list, llm_responses = await engine.run_initial_round()
-        mini_state["contributions"] = contrib_list
-        track_aggregated_cost(metrics, "initial_round", llm_responses)
+        if mini_state["should_stop"]:
+            logger.info(
+                f"_deliberate_subproblem: Convergence reached at round {round_num} for {sub_problem.id}"
+            )
+            break
 
     # Extract final contributions and summaries
     contributions = mini_state["contributions"]
@@ -2635,9 +2402,8 @@ async def _deliberate_subproblem(
     # Step 4: Collect recommendations
     logger.info(f"_deliberate_subproblem: Collecting recommendations for {sub_problem.id}")
 
-    v1_state = graph_state_to_deliberation_state(mini_state)
     broker = PromptBroker()
-    recommendations, llm_responses = await collect_recommendations(state=v1_state, broker=broker)
+    recommendations, llm_responses = await collect_recommendations(state=mini_state, broker=broker)
     track_aggregated_cost(metrics, "voting", llm_responses)
 
     # Convert recommendations to dicts

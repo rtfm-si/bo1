@@ -5,12 +5,16 @@ components for prompt inclusion.
 """
 
 import re
+from typing import TYPE_CHECKING
 
-from bo1.models.state import ContributionMessage, DeliberationState
+from bo1.models.state import ContributionMessage
+
+if TYPE_CHECKING:
+    from bo1.graph.state import DeliberationGraphState
 
 
 def format_discussion_history(
-    state: DeliberationState,
+    state: "DeliberationGraphState",
     include_round_numbers: bool = True,
     include_thinking: bool = False,
     max_contributions: int | None = None,
@@ -19,7 +23,7 @@ def format_discussion_history(
     r"""Format discussion history for prompt inclusion.
 
     Args:
-        state: The deliberation state containing contributions
+        state: The deliberation state containing contributions (v2 graph state)
         include_round_numbers: Include round number in header
         include_thinking: Include <thinking> tags in output
         max_contributions: Limit to last N contributions (None = all)
@@ -35,7 +39,7 @@ def format_discussion_history(
         >>> formatted = format_discussion_history(state, max_contributions=5)
         # Only last 5 contributions
     """
-    contributions = state.contributions
+    contributions = state.get("contributions", [])
     if max_contributions:
         contributions = contributions[-max_contributions:]
 

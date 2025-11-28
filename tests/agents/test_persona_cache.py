@@ -123,7 +123,7 @@ async def test_persona_cache_miss_no_entries(redis_manager, enabled_cache_settin
         complexity_score=6,
     )
 
-    cached = await cache.get_cached_personas(problem)
+    cached = await cache.get(problem)
 
     assert cached is None
     assert cache._misses == 1
@@ -155,7 +155,7 @@ async def test_persona_cache_disabled(redis_manager, monkeypatch):
         complexity_score=5,
     )
 
-    cached = await cache.get_cached_personas(problem)
+    cached = await cache.get(problem)
 
     assert cached is None
     assert cache.enabled is False
@@ -199,7 +199,7 @@ async def test_persona_cache_error_handling(redis_manager, enabled_cache_setting
     )
 
     # Should return None and not crash
-    cached = await cache.get_cached_personas(problem)
+    cached = await cache.get(problem)
 
     assert cached is None
     assert cache._misses == 1  # Counted as miss

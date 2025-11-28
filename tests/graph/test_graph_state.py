@@ -1,11 +1,9 @@
-"""Tests for graph state models and conversion functions."""
+"""Tests for graph state models."""
 
 import pytest
 
 from bo1.graph.state import (
     create_initial_state,
-    deliberation_state_to_graph_state,
-    graph_state_to_deliberation_state,
     state_to_dict,
     validate_state,
 )
@@ -14,7 +12,6 @@ from bo1.models.problem import Constraint, ConstraintType, Problem
 from bo1.models.state import (
     ContributionMessage,
     DeliberationPhase,
-    DeliberationState,
 )
 
 
@@ -171,96 +168,6 @@ def test_state_to_dict(sample_problem: Problem, sample_personas: list[PersonaPro
     assert isinstance(result["metrics"], dict)
 
 
-def test_v1_to_v2_conversion(
-    sample_problem: Problem, sample_personas: list[PersonaProfile]
-) -> None:
-    """Test converting v1 DeliberationState to v2 DeliberationGraphState."""
-    v1_state = DeliberationState(
-        session_id="v1-test",
-        problem=sample_problem,
-        selected_personas=sample_personas,
-        current_round=2,
-        max_rounds=6,
-        phase=DeliberationPhase.DISCUSSION,
-    )
-
-    v2_state = deliberation_state_to_graph_state(v1_state)
-
-    assert v2_state["session_id"] == "v1-test"
-    assert v2_state["problem"] == sample_problem
-    assert v2_state["personas"] == sample_personas
-    assert v2_state["round_number"] == 2
-    assert v2_state["max_rounds"] == 6
-    assert v2_state["phase"] == DeliberationPhase.DISCUSSION
-    # New v2 fields
-    assert v2_state["should_stop"] is False
-    assert v2_state["facilitator_decision"] is None
-
-
-def test_v2_to_v1_conversion(
-    sample_problem: Problem, sample_personas: list[PersonaProfile]
-) -> None:
-    """Test converting v2 DeliberationGraphState to v1 DeliberationState."""
-    v2_state = create_initial_state(
-        session_id="v2-test",
-        problem=sample_problem,
-        personas=sample_personas,
-        max_rounds=6,
-    )
-    v2_state["round_number"] = 3
-    v2_state["phase"] = DeliberationPhase.VOTING
-
-    v1_state = graph_state_to_deliberation_state(v2_state)
-
-    assert v1_state.session_id == "v2-test"
-    assert v1_state.problem == sample_problem
-    assert v1_state.selected_personas == sample_personas
-    assert v1_state.current_round == 3
-    assert v1_state.max_rounds == 6
-    assert v1_state.phase == DeliberationPhase.VOTING
-
-
-def test_round_trip_conversion_no_data_loss(
-    sample_problem: Problem, sample_personas: list[PersonaProfile]
-) -> None:
-    """Test v1 → v2 → v1 round-trip conversion preserves data."""
-    # Create v1 state with contributions
-    v1_original = DeliberationState(
-        session_id="round-trip",
-        problem=sample_problem,
-        selected_personas=sample_personas,
-        current_round=5,
-        max_rounds=6,
-        phase=DeliberationPhase.DISCUSSION,
-    )
-
-    # Add a contribution
-    contribution = ContributionMessage(
-        persona_code="growth_hacker",
-        persona_name="Zara",
-        content="I think we should focus on growth...",
-        round_number=1,
-    )
-    v1_original.add_contribution(contribution)
-
-    # Convert v1 → v2
-    v2_state = deliberation_state_to_graph_state(v1_original)
-
-    # Convert v2 → v1
-    v1_final = graph_state_to_deliberation_state(v2_state)
-
-    # Verify no data loss
-    assert v1_final.session_id == v1_original.session_id
-    assert v1_final.problem == v1_original.problem
-    assert v1_final.selected_personas == v1_original.selected_personas
-    assert v1_final.current_round == v1_original.current_round
-    assert v1_final.max_rounds == v1_original.max_rounds
-    assert v1_final.phase == v1_original.phase
-    assert len(v1_final.contributions) == len(v1_original.contributions)
-    assert v1_final.contributions[0].persona_code == contribution.persona_code
-    assert v1_final.contributions[0].content == contribution.content
-
-
 def test_graph_state_with_contributions(
     sample_problem: Problem, sample_personas: list[PersonaProfile]
 ) -> None:
@@ -291,12 +198,10 @@ def test_graph_state_with_contributions(
     # Validate state still valid
     validate_state(state)
 
-    # Convert to v1 and back
-    v1_state = graph_state_to_deliberation_state(state)
-    assert len(v1_state.contributions) == 2
-
-    v2_state = deliberation_state_to_graph_state(v1_state)
-    assert len(v2_state["contributions"]) == 2
+    # Verify contributions are present
+    assert len(state["contributions"]) == 2
+    assert state["contributions"][0].persona_code == "growth_hacker"
+    assert state["contributions"][1].persona_code == "tech_lead"
 
 
 def test_graph_state_with_stop_flags(sample_problem: Problem) -> None:

@@ -76,7 +76,7 @@ def test_event_collector_handler_methods_exist(event_collector):
         "_handle_persona_selection",
         "_handle_initial_round",
         "_handle_facilitator_decision",
-        "_handle_contribution",
+        "_handle_parallel_round",
         "_handle_moderator",
         "_handle_convergence",
         "_handle_voting",

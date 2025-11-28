@@ -89,20 +89,16 @@ def create_deliberation_graph(
         logger.info(f"Using provided checkpointer: {type(checkpointer).__name__}")
 
     # Import nodes and routers
-    from bo1.feature_flags import ENABLE_PARALLEL_ROUNDS, ENABLE_PARALLEL_SUBPROBLEMS
+    from bo1.feature_flags import ENABLE_PARALLEL_SUBPROBLEMS
     from bo1.graph.nodes import (
         facilitator_decide_node,
         meta_synthesize_node,
         moderator_intervene_node,
         next_subproblem_node,
-        persona_contribute_node,
+        parallel_round_node,
         synthesize_node,
         vote_node,
     )
-
-    # NEW PARALLEL ARCHITECTURE: Conditional import
-    if ENABLE_PARALLEL_ROUNDS:
-        from bo1.graph.nodes import parallel_round_node
 
     # PARALLEL SUB-PROBLEMS: Conditional import
     if ENABLE_PARALLEL_SUBPROBLEMS:
@@ -122,20 +118,12 @@ def create_deliberation_graph(
 
     # Add nodes
     workflow.add_node("decompose", decompose_node)
-    workflow.add_node("context_collection", context_collection_node)  # Day 37
+    workflow.add_node("context_collection", context_collection_node)
     workflow.add_node("select_personas", select_personas_node)
     workflow.add_node("initial_round", initial_round_node)
-    workflow.add_node("facilitator_decide", facilitator_decide_node)  # Day 29
-
-    # NEW PARALLEL ARCHITECTURE: Conditional node addition (Day 38)
-    if ENABLE_PARALLEL_ROUNDS:
-        workflow.add_node("parallel_round", parallel_round_node)  # Multi-expert parallel
-        logger.info("Using PARALLEL multi-expert architecture")
-    else:
-        workflow.add_node("persona_contribute", persona_contribute_node)  # Legacy serial
-        logger.info("Using LEGACY serial architecture")
-
-    workflow.add_node("moderator_intervene", moderator_intervene_node)  # Day 30
+    workflow.add_node("facilitator_decide", facilitator_decide_node)
+    workflow.add_node("parallel_round", parallel_round_node)  # Multi-expert parallel rounds
+    workflow.add_node("moderator_intervene", moderator_intervene_node)
     workflow.add_node("research", research_node)  # Week 6: External research
     workflow.add_node("check_convergence", check_convergence_node)  # Day 24
     workflow.add_node("vote", vote_node)  # Day 31
@@ -178,45 +166,34 @@ def create_deliberation_graph(
 
     # Add conditional edges - Multi-round deliberation loop (Week 5 Day 30-31)
     # facilitator_decide -> (continue/vote/moderator/research/clarify)
-    # NEW PARALLEL ARCHITECTURE: Route to parallel_round or persona_contribute based on feature flag
-    contribute_node_name = "parallel_round" if ENABLE_PARALLEL_ROUNDS else "persona_contribute"
-
     workflow.add_conditional_edges(
         "facilitator_decide",
         route_facilitator_decision,
         {
-            "persona_contribute": contribute_node_name,  # Routes to parallel_round OR persona_contribute
+            "persona_contribute": "parallel_round",  # Always use parallel multi-expert rounds
             "moderator_intervene": "moderator_intervene",
-            "vote": "vote",  # Day 31: Route to vote node
-            "research": "research",  # Week 6: Route to research node
-            "clarification": "clarification",  # Day 37: Route to clarification node
+            "vote": "vote",
+            "research": "research",
+            "clarification": "clarification",
             "END": END,
         },
     )
 
-    # clarification -> (persona_contribute/parallel_round if answered/skipped, END if paused) (Day 37)
-    # NEW PARALLEL ARCHITECTURE: Route to appropriate node based on feature flag
+    # clarification -> (parallel_round if answered/skipped, END if paused)
     workflow.add_conditional_edges(
         "clarification",
         route_clarification,
         {
-            "persona_contribute": contribute_node_name,  # Routes to parallel_round OR persona_contribute
+            "persona_contribute": "parallel_round",  # Always use parallel multi-expert rounds
             "END": END,
         },
     )
 
-    # research -> facilitator_decide (Week 6: Let facilitator decide next action after research)
-    # Previously routed directly to persona_contribute, which caused crashes because
-    # facilitator_decision still had action="research" with no next_speaker
+    # research -> facilitator_decide (let facilitator decide next action after research)
     workflow.add_edge("research", "facilitator_decide")
 
-    # NEW PARALLEL ARCHITECTURE: Conditional edges based on feature flag
-    if ENABLE_PARALLEL_ROUNDS:
-        # parallel_round -> check_convergence
-        workflow.add_edge("parallel_round", "check_convergence")
-    else:
-        # persona_contribute -> check_convergence (legacy)
-        workflow.add_edge("persona_contribute", "check_convergence")
+    # parallel_round -> check_convergence
+    workflow.add_edge("parallel_round", "check_convergence")
 
     # moderator_intervene -> check_convergence
     workflow.add_edge("moderator_intervene", "check_convergence")

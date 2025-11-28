@@ -171,21 +171,6 @@ class LLMResponseCache(BaseCache[PromptRequest, LLMResponse]):
         except Exception as e:
             logger.error(f"LLM cache write error: {e}")
 
-    # Backward compatibility methods
-    async def get_cached_response(self, request: PromptRequest) -> LLMResponse | None:
-        """Get cached LLM response (backward compatibility alias).
-
-        Deprecated: Use get() instead.
-        """
-        return await self.get(request)
-
-    async def cache_response(self, request: PromptRequest, response: LLMResponse) -> None:
-        """Cache LLM response (backward compatibility alias).
-
-        Deprecated: Use set() instead.
-        """
-        await self.set(request, response)
-
 
 @singleton
 def get_llm_cache() -> LLMResponseCache:

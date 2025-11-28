@@ -16,8 +16,6 @@ from bo1.models.state import (
     ContributionMessage,
     ContributionType,
     DeliberationMetrics,
-    DeliberationPhase,
-    DeliberationState,
 )
 
 # ============================================================================
@@ -164,81 +162,6 @@ def test_deliberation_metrics_model_round_trip():
     json_str = original.model_dump_json()
     restored_json = DeliberationMetrics.model_validate_json(json_str)
     assert restored_json.total_cost == original.total_cost
-
-
-@pytest.mark.unit
-def test_deliberation_state_model_round_trip():
-    """Test: DeliberationState model serializes and deserializes correctly."""
-    from bo1.models.persona import PersonaCategory, PersonaType, ResponseStyle
-
-    problem = Problem(title="Test problem", description="Test description", context="Test context")
-
-    personas = [
-        PersonaProfile(
-            id="test-id-123",
-            code="test_expert",
-            name="Test Expert",
-            archetype="Test Archetype",
-            category=PersonaCategory.STRATEGY,
-            description="Test description",
-            emoji="🧪",
-            color_hex="#FF0000",
-            traits={
-                "creative": 0.5,
-                "analytical": 0.8,
-                "optimistic": 0.6,
-                "risk_averse": 0.4,
-                "detail_oriented": 0.7,
-            },
-            default_weight=1.0,
-            temperature=0.7,
-            system_prompt="You are a test expert.",
-            response_style=ResponseStyle.ANALYTICAL,
-            display_name="Test",
-            domain_expertise=["testing"],
-            persona_type=PersonaType.STANDARD,
-        )
-    ]
-
-    contribution = ContributionMessage(
-        persona_code="test_expert",
-        persona_name="Test Expert",
-        content="Test contribution",
-        contribution_type=ContributionType.INITIAL,
-        thinking=None,
-        token_count=None,
-        cost=None,
-        round_number=0,
-    )
-
-    original = DeliberationState(
-        session_id="test-session-123",
-        problem=problem,
-        current_sub_problem=None,
-        selected_personas=personas,
-        contributions=[contribution],
-        round_summaries=["Round 0: Initial contributions collected"],
-        phase=DeliberationPhase.DISCUSSION,
-        current_round=1,
-        max_rounds=5,
-        metrics=DeliberationMetrics(total_cost=0.05, total_tokens=1000),
-    )
-
-    # Round trip through dict
-    data = original.model_dump()
-    restored = DeliberationState.model_validate(data)
-
-    assert restored.session_id == original.session_id
-    assert restored.problem.title == original.problem.title
-    assert len(restored.selected_personas) == 1
-    assert restored.selected_personas[0].code == "test_expert"
-    assert len(restored.contributions) == 1
-    assert restored.contributions[0].content == "Test contribution"
-    assert len(restored.round_summaries) == 1
-    assert restored.phase == original.phase
-    assert restored.current_round == original.current_round
-    assert restored.max_rounds == original.max_rounds
-    assert restored.metrics.total_cost == original.metrics.total_cost
 
 
 @pytest.mark.unit
@@ -417,26 +340,6 @@ def test_models_handle_empty_lists():
     )
     assert persona.domain_expertise == []
 
-    state = DeliberationState(
-        session_id="test",
-        problem=Problem(
-            title="Test",
-            description="",
-            context="",
-        ),
-        current_sub_problem=None,
-        selected_personas=[],  # Empty list
-        contributions=[],  # Empty list
-        round_summaries=[],  # Empty list
-        phase=DeliberationPhase.INTAKE,
-        current_round=0,
-        max_rounds=5,
-        metrics=DeliberationMetrics(),
-    )
-    assert state.selected_personas == []
-    assert state.contributions == []
-    assert state.round_summaries == []
-
 
 @pytest.mark.unit
 def test_models_handle_none_optional_fields():
@@ -460,25 +363,6 @@ def test_models_handle_none_optional_fields():
     assert metrics.convergence_score is None
     assert metrics.novelty_score is None
     assert metrics.conflict_score is None
-
-    # DeliberationState with no sub-problem
-    state = DeliberationState(
-        session_id="test",
-        problem=Problem(
-            title="Test",
-            description="",
-            context="",
-        ),
-        current_sub_problem=None,
-        selected_personas=[],
-        contributions=[],
-        round_summaries=[],
-        phase=DeliberationPhase.INTAKE,
-        current_round=0,
-        max_rounds=5,
-        metrics=DeliberationMetrics(),
-    )
-    assert state.current_sub_problem is None
 
 
 @pytest.mark.unit
@@ -598,23 +482,4 @@ def test_models_reject_incompatible_types():
             token_count=None,
             cost=None,
             round_number=0,
-        )
-
-    # Invalid phase enum
-    with pytest.raises(ValidationError):
-        DeliberationState(
-            session_id="test",
-            problem=Problem(
-                title="Test",
-                description="",
-                context="",
-            ),
-            current_sub_problem=None,
-            selected_personas=[],
-            contributions=[],
-            round_summaries=[],
-            phase="invalid_phase",  # type: ignore[arg-type]
-            current_round=0,
-            max_rounds=5,
-            metrics=DeliberationMetrics(),
         )

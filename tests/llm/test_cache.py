@@ -118,8 +118,8 @@ class TestLLMResponseCache:
         # Setup mock to return cached data
         cache.redis.get.return_value = sample_response.model_dump_json()
 
-        # Get cached response
-        cached = await cache.get_cached_response(sample_request)
+        # Get cached response (using get() method)
+        cached = await cache.get(sample_request)
 
         # Verify
         assert cached is not None
@@ -138,8 +138,8 @@ class TestLLMResponseCache:
         # Setup mock to return no data
         cache.redis.get.return_value = None
 
-        # Get cached response
-        cached = await cache.get_cached_response(sample_request)
+        # Get cached response (using get() method)
+        cached = await cache.get(sample_request)
 
         # Verify
         assert cached is None
@@ -155,8 +155,8 @@ class TestLLMResponseCache:
         sample_response: LLMResponse,
     ) -> None:
         """Test caching response stores in Redis with TTL."""
-        # Cache response
-        await cache.cache_response(sample_request, sample_response)
+        # Cache response (using set() method)
+        await cache.set(sample_request, sample_response)
 
         # Verify setex was called with correct parameters
         cache.redis.setex.assert_called_once()
@@ -190,8 +190,8 @@ class TestLLMResponseCache:
 
             cache = LLMResponseCache(mock_redis_manager)
 
-            # Get should return None without checking Redis
-            cached = await cache.get_cached_response(sample_request)
+            # Get should return None without checking Redis (using get() method)
+            cached = await cache.get(sample_request)
             assert cached is None
             cache.redis.get.assert_not_called()
 
@@ -205,8 +205,8 @@ class TestLLMResponseCache:
         # Setup mock to raise error
         cache.redis.get.side_effect = Exception("Redis connection failed")
 
-        # Get should return None (cache miss)
-        cached = await cache.get_cached_response(sample_request)
+        # Get should return None (cache miss) (using get() method)
+        cached = await cache.get(sample_request)
         assert cached is None
         assert cache._misses == 1
 
@@ -221,8 +221,8 @@ class TestLLMResponseCache:
         # Setup mock to raise error
         cache.redis.setex.side_effect = Exception("Redis connection failed")
 
-        # Cache should not raise exception
-        await cache.cache_response(sample_request, sample_response)
+        # Cache should not raise exception (using set() method)
+        await cache.set(sample_request, sample_response)
         # No assertion needed - just verify no exception raised
 
     def test_hit_rate_calculation(self, cache: LLMResponseCache) -> None:

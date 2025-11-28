@@ -31,6 +31,8 @@ export function createSessionStore() {
 
 	// Event deduplication tracking (bounded to prevent memory leaks)
 	const MAX_SEEN_EVENTS = 500;
+	// Maximum events to retain in memory (prevents unbounded growth)
+	const MAX_EVENTS = 5000;
 	let seenEventKeys = $state(new Set<string>());
 	let eventSequence = $state(0);
 
@@ -90,7 +92,16 @@ export function createSessionStore() {
 			}
 
 			seenEventKeys.add(eventKey);
-			events = [...events, newEvent];
+
+			// Enforce max events limit to prevent unbounded memory growth
+			if (events.length >= MAX_EVENTS) {
+				// Keep the most recent events, prune oldest 10%
+				const pruneCount = Math.floor(MAX_EVENTS * 0.1);
+				events = [...events.slice(pruneCount), newEvent];
+				console.debug(`[Events] Pruned ${pruneCount} oldest events to maintain max size of ${MAX_EVENTS}`);
+			} else {
+				events = [...events, newEvent];
+			}
 
 			// Debug convergence events
 			if (newEvent.event_type === 'convergence') {

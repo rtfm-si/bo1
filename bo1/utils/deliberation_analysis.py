@@ -8,10 +8,13 @@ Provides reusable pattern detection methods to identify:
 - Research needs
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from bo1.constants import ThresholdValues
-from bo1.models.state import ContributionMessage, DeliberationState
+from bo1.models.state import ContributionMessage
+
+if TYPE_CHECKING:
+    from bo1.graph.state import DeliberationGraphState
 
 
 class DeliberationAnalyzer:
@@ -175,14 +178,14 @@ class DeliberationAnalyzer:
         return (unique_phrases / total_phrases) < 0.40
 
     @staticmethod
-    def check_research_needed(state: DeliberationState) -> dict[str, Any] | None:
+    def check_research_needed(state: "DeliberationGraphState") -> dict[str, Any] | None:
         """Check if research or external information is needed using semantic similarity.
 
         Uses Voyage AI embeddings to detect semantically similar research queries
         and avoid re-triggering research for questions that have already been answered.
 
         Args:
-            state: Current deliberation state
+            state: Current deliberation state (v2 graph state)
 
         Returns:
             dict with "query", "reason", and "embedding" if research needed, None otherwise
@@ -192,13 +195,14 @@ class DeliberationAnalyzer:
             >>> if research:
             ...     trigger_researcher(research['query'])
         """
-        if len(state.contributions) < 2:
+        contributions = state.get("contributions", [])
+        if len(contributions) < 2:
             return None
 
         # Get completed research queries to avoid re-triggering (with embeddings)
-        completed_queries: list[dict[str, Any]] = getattr(state, "completed_research_queries", [])
+        completed_queries: list[dict[str, Any]] = state.get("completed_research_queries", [])
 
-        recent = state.contributions[-3:]  # Last round
+        recent = contributions[-3:]  # Last round
 
         # Look for questions or information gaps
         question_patterns = [

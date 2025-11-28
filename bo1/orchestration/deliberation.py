@@ -15,6 +15,7 @@ from bo1.agents.moderator import ModeratorAgent, ModeratorType
 from bo1.agents.summarizer import SummarizerAgent
 from bo1.config import MODEL_BY_ROLE
 from bo1.data import get_persona_by_code
+from bo1.graph.state import DeliberationGraphState
 from bo1.llm.broker import get_model_for_phase
 from bo1.llm.client import ClaudeClient
 from bo1.llm.response import LLMResponse
@@ -23,7 +24,6 @@ from bo1.models.state import (
     ContributionMessage,
     ContributionType,
     DeliberationPhase,
-    DeliberationState,
 )
 from bo1.prompts.reusable_prompts import get_round_phase_config
 from bo1.utils.logging_helpers import LogHelper
@@ -45,7 +45,7 @@ class DeliberationEngine:
 
     def __init__(
         self,
-        state: DeliberationState,
+        state: DeliberationGraphState,
         client: ClaudeClient | None = None,
         facilitator: FacilitatorAgent | None = None,
         moderator: ModeratorAgent | None = None,
@@ -54,7 +54,7 @@ class DeliberationEngine:
         """Initialize the deliberation engine.
 
         Args:
-            state: Current deliberation state
+            state: Current deliberation state (v2 graph state)
             client: Optional ClaudeClient instance. If None, creates a new one.
             facilitator: Optional facilitator agent. If None, creates a new one.
             moderator: Optional moderator agent. If None, creates a new one.
@@ -62,7 +62,7 @@ class DeliberationEngine:
         """
         from bo1.config import resolve_model_alias
 
-        self.state = state
+        self.state: DeliberationGraphState = state
         self.client = client or ClaudeClient()
         self.facilitator = facilitator or FacilitatorAgent()
         self.moderator = moderator or ModeratorAgent()
@@ -94,29 +94,31 @@ class DeliberationEngine:
             >>> len(llm_responses)
             5
         """
-        logger.info(f"Starting initial round with {len(self.state.selected_personas)} personas")
+        personas = self.state.get("personas", [])
+        logger.info(f"Starting initial round with {len(personas)} personas")
 
         # Update state phase
-        self.state.phase = DeliberationPhase.INITIAL_ROUND
+        self.state["phase"] = DeliberationPhase.INITIAL_ROUND
 
         # Get current sub-problem
-        current_sp = self.state.current_sub_problem
+        current_sp = self.state.get("current_sub_problem")
         if not current_sp:
             raise ValueError("No current sub-problem set in deliberation state")
 
         # Build participant list
-        participant_names = [persona.display_name for persona in self.state.selected_personas]
+        participant_names = [persona.display_name for persona in personas]
         participant_list = ", ".join(participant_names)
 
         # Create tasks for parallel execution
         tasks = []
-        for persona_profile in self.state.selected_personas:
+        sub_problem_results = self.state.get("sub_problem_results", [])
+        for persona_profile in personas:
             # Check if expert has memory from previous sub-problems
             expert_memory: str | None = None
-            if hasattr(self.state, "sub_problem_results") and self.state.sub_problem_results:
+            if sub_problem_results:
                 # Collect memory from all previous sub-problems where this expert contributed
                 memory_parts = []
-                for result in self.state.sub_problem_results:
+                for result in sub_problem_results:
                     if persona_profile.code in result.expert_summaries:
                         prev_summary = result.expert_summaries[persona_profile.code]
                         prev_goal = result.sub_problem_goal
@@ -151,13 +153,15 @@ class DeliberationEngine:
         llm_responses = [r[1] for r in results]
 
         # Add contributions to state
+        contributions_list = self.state.get("contributions", [])
         for contribution in contributions:
-            self.state.add_contribution(contribution)
+            contributions_list.append(contribution)
+        self.state["contributions"] = contributions_list
 
         logger.info(f"Initial round complete: {len(contributions)} contributions collected")
 
         # Update phase
-        self.state.phase = DeliberationPhase.DISCUSSION
+        self.state["phase"] = DeliberationPhase.DISCUSSION
 
         return contributions, llm_responses
 
@@ -191,7 +195,7 @@ class DeliberationEngine:
 
         # Get adaptive round configuration
         # Use estimated max_rounds based on complexity (default to 10 for moderate complexity)
-        max_rounds = getattr(self.state, "max_rounds", 10) if hasattr(self, "state") else 10
+        max_rounds = self.state.get("max_rounds", 10) if self.state else 10
         round_config = get_round_phase_config(
             round_number + 1, max_rounds
         )  # +1 because round_number is 0-indexed
@@ -207,9 +211,7 @@ class DeliberationEngine:
             raise ValueError(f"Persona not found: {persona_profile.code}")
 
         # Check if we have round summaries for hierarchical context
-        round_summaries = (
-            self.state.round_summaries if hasattr(self.state, "round_summaries") else []
-        )
+        round_summaries = self.state.get("round_summaries", [])
 
         if round_summaries and round_number > 1:
             # Use hierarchical prompts (summaries + recent contributions)
@@ -217,7 +219,8 @@ class DeliberationEngine:
             from bo1.prompts.reusable_prompts import compose_persona_prompt_hierarchical
 
             # Get participant list
-            participant_list = ", ".join([p.display_name for p in self.state.selected_personas])
+            personas = self.state.get("personas", [])
+            participant_list = ", ".join([p.display_name for p in personas])
 
             # Get current round contributions (last round, for full detail)
             # We want the most recent round's contributions in full
@@ -239,7 +242,8 @@ class DeliberationEngine:
 
             # MERGE: Inject critical thinking protocol
             # Get the protocol from enhanced prompts
-            phase_config = get_round_phase_config(round_number + 1, self.state.max_rounds)
+            state_max_rounds = self.state.get("max_rounds", 10)
+            phase_config = get_round_phase_config(round_number + 1, state_max_rounds)
 
             # Determine debate phase based on round number
             if round_number <= 1:
@@ -443,7 +447,8 @@ You MUST engage critically with the discussion:
             Formatted string with participant names and roles
         """
         lines = ["## Participants"]
-        for persona in self.state.selected_personas:
+        personas = self.state.get("personas", [])
+        for persona in personas:
             lines.append(f"- **{persona.display_name}**: {persona.archetype}")
         return "\n".join(lines)
 
@@ -456,7 +461,8 @@ You MUST engage critically with the discussion:
         Returns:
             List of contributions from that round
         """
-        return [msg for msg in self.state.contributions if msg.round_number == round_number]
+        contributions = self.state.get("contributions", [])
+        return [msg for msg in contributions if msg.round_number == round_number]
 
     def get_total_cost(self) -> float:
         """Calculate total cost of deliberation so far.
@@ -464,7 +470,8 @@ You MUST engage critically with the discussion:
         Returns:
             Total cost in USD
         """
-        return sum(msg.cost or 0.0 for msg in self.state.contributions)
+        contributions = self.state.get("contributions", [])
+        return sum(msg.cost or 0.0 for msg in contributions)
 
     def get_total_tokens(self) -> int:
         """Calculate total tokens used so far.
@@ -472,7 +479,8 @@ You MUST engage critically with the discussion:
         Returns:
             Total token count
         """
-        return sum(msg.token_count or 0 for msg in self.state.contributions)
+        contributions = self.state.get("contributions", [])
+        return sum(msg.token_count or 0 for msg in contributions)
 
     async def run_round(
         self,
@@ -509,8 +517,11 @@ You MUST engage critically with the discussion:
         """
         logger.info(f"Starting round {round_number}/{max_rounds}")
 
+        # Get personas from state
+        personas = self.state.get("personas", [])
+
         # Get current sub-problem
-        current_sp = self.state.current_sub_problem
+        current_sp = self.state.get("current_sub_problem")
         if not current_sp:
             raise ValueError("No current sub-problem set in deliberation state")
 
@@ -524,7 +535,7 @@ You MUST engage critically with the discussion:
             # Handle facilitator decision
             if decision.action == "vote":
                 logger.info("Facilitator decided to transition to voting phase")
-                self.state.phase = DeliberationPhase.VOTING
+                self.state["phase"] = DeliberationPhase.VOTING
                 # Only include facilitator_response if it's not None
                 return [], [facilitator_response] if facilitator_response else []
 
@@ -567,7 +578,9 @@ You MUST engage critically with the discussion:
                 )
 
                 # Add to state
-                self.state.add_contribution(moderator_contrib)
+                contributions_list = self.state.get("contributions", [])
+                contributions_list.append(moderator_contrib)
+                self.state["contributions"] = contributions_list
                 self.used_moderators.append(mod_type)
 
                 logger.info(
@@ -580,9 +593,7 @@ You MUST engage critically with the discussion:
                 # TODO: Implement research tool (Week 4)
                 logger.warning("Research requested but not yet implemented")
                 # For now, fall through to continue with first persona
-                speaker_code = (
-                    self.state.selected_personas[0].code if self.state.selected_personas else None
-                )
+                speaker_code = personas[0].code if personas else None
 
             if decision.action == "continue":
                 speaker_code = decision.next_speaker
@@ -590,16 +601,12 @@ You MUST engage critically with the discussion:
 
             if not speaker_code:
                 # Fallback: use first persona
-                speaker_code = (
-                    self.state.selected_personas[0].code if self.state.selected_personas else None
-                )
+                speaker_code = personas[0].code if personas else None
                 if not speaker_code:
                     raise ValueError("No personas available for deliberation")
 
         # Get speaker persona profile
-        speaker_profile = next(
-            (p for p in self.state.selected_personas if p.code == speaker_code), None
-        )
+        speaker_profile = next((p for p in personas if p.code == speaker_code), None)
         if not speaker_profile:
             raise ValueError(f"Speaker persona not found: {speaker_code}")
 
@@ -608,11 +615,11 @@ You MUST engage critically with the discussion:
         # Build context for this round
         problem_statement = current_sp.goal
         problem_context = current_sp.context or ""
-        participant_list = ", ".join([p.display_name for p in self.state.selected_personas])
+        participant_list = ", ".join([p.display_name for p in personas])
 
         # Get previous contributions for context (all contributions so far)
         # NOTE: In Week 3, we'll optimize this with hierarchical summarization
-        previous_contributions = self.state.contributions
+        previous_contributions = self.state.get("contributions", [])
 
         # Call the persona
         contribution, llm_response = await self._call_persona_async(
@@ -626,7 +633,9 @@ You MUST engage critically with the discussion:
         )
 
         # Add contribution to state
-        self.state.add_contribution(contribution)
+        contributions_list = self.state.get("contributions", [])
+        contributions_list.append(contribution)
+        self.state["contributions"] = contributions_list
 
         # Calculate and log consensus metrics (if round > 1)
         if round_number > 1:
@@ -699,7 +708,8 @@ You MUST engage critically with the discussion:
         await self.await_pending_summary()
 
         # Get contributions for this round
-        round_contributions = self.state.get_contributions_for_round(round_number)
+        contributions = self.state.get("contributions", [])
+        round_contributions = [c for c in contributions if c.round_number == round_number]
         if not round_contributions:
             logger.warning(
                 f"No contributions found for round {round_number}, skipping summarization"
@@ -713,8 +723,9 @@ You MUST engage critically with the discussion:
 
         # Get problem statement for context (especially helpful for Round 1)
         problem_statement = None
-        if round_number == 1 and self.state.current_sub_problem:
-            problem_statement = self.state.current_sub_problem.goal
+        current_sp = self.state.get("current_sub_problem")
+        if round_number == 1 and current_sp:
+            problem_statement = current_sp.goal
 
         # Create background task
         logger.info(f"Triggering background summarization for Round {round_number}")
@@ -745,7 +756,9 @@ You MUST engage critically with the discussion:
             response = await self.pending_summary_task
 
             # Add summary to state
-            self.state.round_summaries.append(response.content)
+            round_summaries = self.state.get("round_summaries", [])
+            round_summaries.append(response.content)
+            self.state["round_summaries"] = round_summaries
 
             logger.info(
                 f"Summary added to state (tokens: {response.token_usage.output_tokens}, "
@@ -771,13 +784,14 @@ You MUST engage critically with the discussion:
         Returns:
             Formatted discussion history string
         """
-        if not self.state.contributions:
+        contributions = self.state.get("contributions", [])
+        if not contributions:
             return "No contributions yet."
 
         lines = []
         current_round = -1
 
-        for msg in self.state.contributions:
+        for msg in contributions:
             # Add round header if new round
             if msg.round_number != current_round:
                 current_round = msg.round_number
@@ -813,7 +827,8 @@ You MUST engage critically with the discussion:
             - should_stop: bool (recommendation to stop deliberation)
             - stop_reason: str or None (explanation if should_stop is True)
         """
-        if len(self.state.contributions) < 2:
+        contributions = self.state.get("contributions", [])
+        if len(contributions) < 2:
             return {
                 "convergence": 0.0,
                 "novelty": 1.0,
@@ -823,7 +838,7 @@ You MUST engage critically with the discussion:
             }
 
         # Analyze recent contributions (last 2 rounds = ~6 contributions)
-        recent_contributions = self.state.contributions[-6:]
+        recent_contributions = contributions[-6:]
 
         convergence = self._calculate_convergence(recent_contributions)
         novelty = self._calculate_novelty(recent_contributions)

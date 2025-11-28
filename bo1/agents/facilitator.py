@@ -12,10 +12,10 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from bo1.agents.base import BaseAgent
+from bo1.graph.state import DeliberationGraphState
 from bo1.llm.broker import PromptBroker
 from bo1.llm.response import LLMResponse
 from bo1.llm.response_parser import ResponseParser
-from bo1.models.state import DeliberationState
 from bo1.prompts.reusable_prompts import compose_facilitator_prompt
 from bo1.utils.deliberation_analysis import DeliberationAnalyzer
 from bo1.utils.error_logger import ErrorLogger
@@ -74,17 +74,18 @@ class FacilitatorAgent(BaseAgent):
         return "haiku"
 
     def _should_trigger_moderator(
-        self, state: DeliberationState, round_number: int
+        self, state: DeliberationGraphState, round_number: int
     ) -> dict[str, str] | None:
         """Check if moderator intervention is needed.
 
         Returns:
             dict with "type" and "reason" if moderator needed, None otherwise
         """
-        if len(state.contributions) < 4:
+        contributions = state.get("contributions", [])
+        if len(contributions) < 4:
             return None  # Need at least 4 contributions to analyze
 
-        recent = state.contributions[-6:]  # Last 2 rounds (~6 contributions)
+        recent = contributions[-6:]  # Last 2 rounds (~6 contributions)
 
         # Early rounds (1-4): Watch for premature consensus
         if round_number <= 4:
@@ -119,7 +120,7 @@ class FacilitatorAgent(BaseAgent):
 
         return None
 
-    def _check_research_needed(self, state: DeliberationState) -> dict[str, str] | None:
+    def _check_research_needed(self, state: DeliberationGraphState) -> dict[str, str] | None:
         """Check if research/information is needed.
 
         Delegates to DeliberationAnalyzer for pattern detection.
@@ -144,7 +145,7 @@ class FacilitatorAgent(BaseAgent):
             counts[persona_code] = counts.get(persona_code, 0) + 1
         return counts
 
-    def _check_rotation_limits(self, state: DeliberationState) -> dict[str, str] | None:
+    def _check_rotation_limits(self, state: DeliberationGraphState) -> dict[str, str] | None:
         """Check if rotation rules require overriding facilitator decision.
 
         Issue #5 fix: Enforces hard rotation limits to prevent expert dominance.
@@ -162,8 +163,8 @@ class FacilitatorAgent(BaseAgent):
         Returns:
             dict with rotation override info if limits exceeded, None otherwise
         """
-        contributions = state.contributions
-        personas = state.selected_personas
+        contributions = state.get("contributions", [])
+        personas = state.get("personas", [])
 
         if not contributions or not personas:
             return None
@@ -277,12 +278,12 @@ class FacilitatorAgent(BaseAgent):
         return None  # No rotation override needed
 
     async def decide_next_action(
-        self, state: DeliberationState, round_number: int, max_rounds: int
+        self, state: DeliberationGraphState, round_number: int, max_rounds: int
     ) -> tuple[FacilitatorDecision, LLMResponse | None]:
         """Decide what should happen next in the deliberation.
 
         Args:
-            state: Current deliberation state
+            state: Current deliberation state (v2 graph state)
             round_number: Current round number (1-indexed)
             max_rounds: Maximum rounds allowed based on complexity
 
@@ -349,24 +350,27 @@ class FacilitatorAgent(BaseAgent):
         discussion_history = self._format_discussion_history(state)
 
         # Build phase objectives
-        phase_objectives = self._get_phase_objectives(state.phase, round_number, max_rounds)
+        phase = state.get("phase", "discussion")
+        phase_objectives = self._get_phase_objectives(phase, round_number, max_rounds)
 
         # Compute contribution statistics for rotation guidance
         contribution_counts: dict[str, int] = {}
         last_speakers: list[str] = []
+        contributions = state.get("contributions", [])
+        personas = state.get("personas", [])
 
-        if state.contributions:
+        if contributions:
             # Count contributions per persona
-            for contrib in state.contributions:
+            for contrib in contributions:
                 persona_code = contrib.persona_code
                 contribution_counts[persona_code] = contribution_counts.get(persona_code, 0) + 1
 
             # Get last N speakers (most recent last)
-            last_speakers = [c.persona_code for c in state.contributions[-5:]]
+            last_speakers = [c.persona_code for c in contributions[-5:]]
 
         # Compose facilitator prompt with rotation guidance
         system_prompt = compose_facilitator_prompt(
-            current_phase=state.phase,
+            current_phase=phase,
             discussion_history=discussion_history,
             phase_objectives=phase_objectives,
             contribution_counts=contribution_counts if contribution_counts else None,
@@ -375,8 +379,8 @@ class FacilitatorAgent(BaseAgent):
 
         # Build user message
         user_message = f"""Current round: {round_number} of {max_rounds}
-Total contributions so far: {len(state.contributions)}
-Personas participating: {", ".join([p.code for p in state.selected_personas])}
+Total contributions so far: {len(contributions)}
+Personas participating: {", ".join([p.code for p in personas])}
 
 Analyze the discussion and decide the next action."""
 
@@ -414,14 +418,15 @@ Analyze the discussion and decide the next action."""
 
         return decision, response
 
-    def _format_discussion_history(self, state: DeliberationState) -> str:
+    def _format_discussion_history(self, state: DeliberationGraphState) -> str:
         """Format discussion history for facilitator context."""
-        if not state.contributions:
+        contributions = state.get("contributions", [])
+        if not contributions:
             return "No contributions yet (initial round)."
 
         # Add persona code prefix for facilitator context
         lines = []
-        for msg in state.contributions:
+        for msg in contributions:
             lines.append(f"[Round {msg.round_number}] {msg.persona_code}:")
             lines.append(msg.content)
             lines.append("")
@@ -460,14 +465,14 @@ Consider:
 
     async def synthesize_deliberation(
         self,
-        state: DeliberationState,
+        state: DeliberationGraphState,
         votes: list[Any],
         vote_aggregation: Any,
     ) -> tuple[str, LLMResponse]:
         """Synthesize the full deliberation into a comprehensive report.
 
         Args:
-            state: Current deliberation state
+            state: Current deliberation state (v2 graph state)
             votes: List of Vote objects
             vote_aggregation: VoteAggregation object
 
@@ -482,8 +487,9 @@ Consider:
         all_contributions_and_votes = self._format_full_deliberation(state, votes)
 
         # Compose synthesis prompt
+        problem = state.get("problem")
         synthesis_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(
-            problem_statement=state.problem.description,
+            problem_statement=problem.description if problem else "",
             all_contributions_and_votes=all_contributions_and_votes,
         )
 
@@ -509,11 +515,11 @@ Consider:
 
         return synthesis_report, response
 
-    def _format_full_deliberation(self, state: DeliberationState, votes: list[Any]) -> str:
+    def _format_full_deliberation(self, state: DeliberationGraphState, votes: list[Any]) -> str:
         """Format full deliberation history including contributions and votes.
 
         Args:
-            state: Current deliberation state
+            state: Current deliberation state (v2 graph state)
             votes: List of Vote objects
 
         Returns:
@@ -521,10 +527,10 @@ Consider:
         """
         lines = []
 
-        # Add all contributions using state method
+        # Add all contributions
         lines.append("DELIBERATION HISTORY:")
         lines.append("")
-        lines.append(state.format_discussion_history())
+        lines.append(self._format_discussion_history(state))
 
         # Add recommendations
         lines.append("FINAL RECOMMENDATIONS:")
@@ -543,7 +549,7 @@ Consider:
     async def validate_synthesis_quality(
         self,
         synthesis_report: str,
-        state: DeliberationState,
+        state: DeliberationGraphState,
         votes: list[Any],
     ) -> tuple[bool, str | None, LLMResponse]:
         """Validate synthesis quality using AI (Haiku).
@@ -667,7 +673,7 @@ Output JSON only."""
         self,
         original_synthesis: str,
         feedback: str,
-        state: DeliberationState,
+        state: DeliberationGraphState,
         votes: list[Any],
     ) -> tuple[str, LLMResponse]:
         """Revise synthesis based on quality feedback.
@@ -675,7 +681,7 @@ Output JSON only."""
         Args:
             original_synthesis: Original synthesis report
             feedback: Feedback from validation
-            state: Deliberation state
+            state: Deliberation state (v2 graph state)
             votes: List of votes
 
         Returns:
@@ -689,6 +695,8 @@ Your task: Improve the synthesis by addressing specific quality issues.
 
 Output the revised <synthesis_report> with all required sections."""
 
+        problem = state.get("problem")
+        problem_description = problem.description if problem else ""
         user_message = f"""Revise this synthesis report to address the feedback:
 
 <original_synthesis>
@@ -700,7 +708,7 @@ Output the revised <synthesis_report> with all required sections."""
 </quality_feedback>
 
 <problem_statement>
-{state.problem.description}
+{problem_description}
 </problem_statement>
 
 Ensure the revised report:

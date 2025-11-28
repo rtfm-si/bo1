@@ -172,7 +172,7 @@ class PersonaSelectorAgent(BaseAgent):
 
         # Step 1: Check semantic cache for similar problems
         cache = get_persona_cache()
-        cached_personas = await cache.get_cached_personas(sub_problem)
+        cached_personas = await cache.get(sub_problem)
 
         if cached_personas:
             # CACHE HIT - Return cached personas without LLM call
@@ -310,7 +310,7 @@ Provide your recommendation as JSON following the format in your system prompt.
 
             # Store in cache (async, don't block on errors)
             try:
-                await cache.cache_persona_selection(sub_problem, selected_personas)
+                await cache.set(sub_problem, selected_personas)
             except Exception as e:
                 logger.warning(f"Failed to cache persona selection: {e}")
 

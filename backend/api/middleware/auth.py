@@ -36,8 +36,22 @@ logger = logging.getLogger(__name__)
 # Feature flag for SuperTokens auth (enabled for production)
 ENABLE_SUPERTOKENS_AUTH = os.getenv("ENABLE_SUPERTOKENS_AUTH", "true").lower() == "true"
 
-# MVP: Hardcoded user ID for development
+# Debug mode check - MVP mode only allowed if DEBUG is true
+DEBUG_MODE = os.getenv("DEBUG", "false").lower() == "true"
+
+# MVP: Hardcoded user ID for development (only when DEBUG=true)
 DEFAULT_USER_ID = "test_user_1"
+
+# Security check on import: warn if MVP mode enabled in non-debug
+if not ENABLE_SUPERTOKENS_AUTH:
+    if not DEBUG_MODE:
+        logger.critical(
+            "SECURITY WARNING: SuperTokens auth disabled but DEBUG mode is OFF. "
+            "This should NEVER happen in production. Set ENABLE_SUPERTOKENS_AUTH=true "
+            "or DEBUG=true for development."
+        )
+    else:
+        logger.warning("MVP mode: SuperTokens auth disabled (DEBUG=true)")
 
 
 def require_production_auth() -> None:
@@ -79,9 +93,15 @@ async def get_current_user(
     Raises:
         HTTPException: 401 if session is invalid (SuperTokens handles this)
     """
-    # MVP: Skip authentication, return hardcoded user
+    # MVP: Skip authentication, return hardcoded user (only in DEBUG mode)
     if not ENABLE_SUPERTOKENS_AUTH:
-        logger.debug("SuperTokens auth disabled (MVP mode), using hardcoded user")
+        if not DEBUG_MODE:
+            logger.error("Auth bypass attempted in non-DEBUG mode - rejecting")
+            raise HTTPException(
+                status_code=500,
+                detail="Authentication misconfigured. Contact support.",
+            )
+        logger.debug("SuperTokens auth disabled (MVP/DEBUG mode), using hardcoded user")
         return {
             "user_id": DEFAULT_USER_ID,
             "email": f"{DEFAULT_USER_ID}@test.com",

@@ -10,8 +10,6 @@ from bo1.agents.facilitator import FacilitatorDecision
 from bo1.graph.state import (
     DeliberationGraphState,
     create_initial_state,
-    deliberation_state_to_graph_state,
-    graph_state_to_deliberation_state,
     state_to_dict,
     validate_state,
 )
@@ -22,7 +20,6 @@ from bo1.models.state import (
     ContributionType,
     DeliberationMetrics,
     DeliberationPhase,
-    DeliberationState,
 )
 
 # ============================================================================
@@ -275,53 +272,6 @@ def test_state_serialization_preserves_types(sample_problem, sample_personas):
     assert isinstance(serialized["contributions"], list)
     assert isinstance(serialized["contributions"][0], dict)
     assert isinstance(serialized["metrics"], dict)
-
-
-@pytest.mark.unit
-def test_v1_v2_state_conversion_preserves_types(sample_problem, sample_personas):
-    """Test: Converting between v1 and v2 state preserves all fields."""
-    problem = sample_problem
-    personas = sample_personas
-
-    # Create v1 state
-    v1_state = DeliberationState(
-        session_id="test-123",
-        problem=problem,
-        current_sub_problem=None,
-        selected_personas=personas,
-        contributions=[],
-        round_summaries=[],
-        phase=DeliberationPhase.INITIAL_ROUND,
-        current_round=1,
-        max_rounds=5,
-        metrics=DeliberationMetrics(),
-    )
-
-    # Convert to v2
-    v2_state = deliberation_state_to_graph_state(v1_state)
-
-    # Verify v2 has correct types
-    assert isinstance(v2_state, dict)
-    assert isinstance(v2_state["session_id"], str)
-    assert isinstance(v2_state["problem"], Problem)
-    assert isinstance(v2_state["personas"], list)
-    assert isinstance(v2_state["round_number"], int)
-
-    # Convert back to v1
-    v1_restored = graph_state_to_deliberation_state(v2_state)
-
-    # Verify v1 has correct types
-    assert isinstance(v1_restored, DeliberationState)
-    assert isinstance(v1_restored.session_id, str)
-    assert isinstance(v1_restored.problem, Problem)
-    assert isinstance(v1_restored.selected_personas, list)
-    assert isinstance(v1_restored.current_round, int)
-
-    # Verify data preserved
-    assert v1_restored.session_id == v1_state.session_id
-    assert v1_restored.current_round == v1_state.current_round
-    assert v1_restored.max_rounds == v1_state.max_rounds
-    assert v1_restored.phase == v1_state.phase
 
 
 # ============================================================================

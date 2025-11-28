@@ -6,59 +6,175 @@ Provides functions to convert deliberation state into various formats:
 - Summary reports
 """
 
+import json
 from typing import Any
 
-from bo1.models.state import DeliberationState
+from bo1.graph.state import DeliberationGraphState
 
 
-def to_json(state: DeliberationState, indent: int = 2) -> str:
+def to_json(state: DeliberationGraphState, indent: int = 2) -> str:
     """Export deliberation state as JSON.
 
     Args:
-        state: Deliberation state to export
+        state: Deliberation state to export (v2 graph state)
         indent: JSON indentation (default: 2 spaces)
 
     Returns:
         JSON string representation
 
     Examples:
-        >>> state = DeliberationState(...)
         >>> json_str = to_json(state)
         >>> with open("session.json", "w") as f:
         ...     f.write(json_str)
     """
-    return state.model_dump_json(indent=indent)
+    # Convert state to serializable dict
+    serializable = _state_to_serializable(state)
+    return json.dumps(serializable, indent=indent, default=str)
 
 
-def from_json(json_str: str) -> DeliberationState:
+def from_json(json_str: str) -> DeliberationGraphState:
     """Import deliberation state from JSON.
 
     Args:
         json_str: JSON string
 
     Returns:
-        Deliberation state object
+        Deliberation state object (v2 graph state)
 
     Examples:
         >>> with open("session.json") as f:
         ...     json_str = f.read()
         >>> state = from_json(json_str)
     """
-    return DeliberationState.model_validate_json(json_str)
+    data = json.loads(json_str)
+    # Convert back to DeliberationGraphState (TypedDict)
+    return _dict_to_state(data)
 
 
-def to_markdown(state: DeliberationState, include_metadata: bool = True) -> str:
+def _state_to_serializable(state: DeliberationGraphState) -> dict[str, Any]:
+    """Convert state to a JSON-serializable dictionary."""
+    result: dict[str, Any] = {}
+
+    # Copy simple fields
+    result["session_id"] = state.get("session_id", "")
+    result["phase"] = str(state.get("phase", "")) if state.get("phase") else None
+    result["round_number"] = state.get("round_number", 0)
+    result["max_rounds"] = state.get("max_rounds", 10)
+    result["synthesis"] = state.get("synthesis")
+    result["should_stop"] = state.get("should_stop", False)
+    result["stop_reason"] = state.get("stop_reason")
+
+    # Serialize problem
+    problem = state.get("problem")
+    if problem:
+        result["problem"] = (
+            problem.model_dump() if hasattr(problem, "model_dump") else dict(problem)
+        )
+
+    # Serialize current_sub_problem
+    current_sp = state.get("current_sub_problem")
+    if current_sp:
+        result["current_sub_problem"] = (
+            current_sp.model_dump() if hasattr(current_sp, "model_dump") else dict(current_sp)
+        )
+
+    # Serialize personas
+    personas = state.get("personas", [])
+    result["personas"] = [p.model_dump() if hasattr(p, "model_dump") else dict(p) for p in personas]
+
+    # Serialize contributions
+    contributions = state.get("contributions", [])
+    result["contributions"] = [
+        c.model_dump() if hasattr(c, "model_dump") else dict(c) for c in contributions
+    ]
+
+    # Serialize votes/recommendations
+    result["votes"] = state.get("votes", [])
+
+    # Serialize metrics
+    metrics = state.get("metrics")
+    if metrics:
+        result["metrics"] = (
+            metrics.model_dump() if hasattr(metrics, "model_dump") else dict(metrics)
+        )
+
+    # Serialize round_summaries
+    result["round_summaries"] = state.get("round_summaries", [])
+
+    return result
+
+
+def _dict_to_state(data: dict[str, Any]) -> DeliberationGraphState:
+    """Convert a dictionary back to DeliberationGraphState."""
+    from bo1.graph.state import create_initial_state
+    from bo1.models.persona import PersonaProfile
+    from bo1.models.problem import Problem, SubProblem
+    from bo1.models.state import ContributionMessage, DeliberationMetrics, DeliberationPhase
+
+    # Recreate problem
+    problem = (
+        Problem(**data["problem"])
+        if data.get("problem")
+        else Problem(title="Unknown", description="Unknown", context="")
+    )
+
+    # Create initial state
+    state = create_initial_state(
+        session_id=data.get("session_id", ""),
+        problem=problem,
+        max_rounds=data.get("max_rounds", 10),
+    )
+
+    # Set phase
+    phase_str = data.get("phase")
+    if phase_str:
+        try:
+            state["phase"] = DeliberationPhase(phase_str)
+        except (ValueError, KeyError):
+            pass
+
+    # Set round_number
+    state["round_number"] = data.get("round_number", 0)
+
+    # Restore current_sub_problem
+    if data.get("current_sub_problem"):
+        state["current_sub_problem"] = SubProblem(**data["current_sub_problem"])
+
+    # Restore personas
+    if data.get("personas"):
+        state["personas"] = [PersonaProfile(**p) for p in data["personas"]]
+
+    # Restore contributions
+    if data.get("contributions"):
+        state["contributions"] = [ContributionMessage(**c) for c in data["contributions"]]
+
+    # Restore votes
+    state["votes"] = data.get("votes", [])
+
+    # Restore synthesis
+    state["synthesis"] = data.get("synthesis")
+
+    # Restore metrics
+    if data.get("metrics"):
+        state["metrics"] = DeliberationMetrics(**data["metrics"])
+
+    # Restore round_summaries
+    state["round_summaries"] = data.get("round_summaries", [])
+
+    return state
+
+
+def to_markdown(state: DeliberationGraphState, include_metadata: bool = True) -> str:
     """Export deliberation as human-readable Markdown transcript.
 
     Args:
-        state: Deliberation state to export
+        state: Deliberation state to export (v2 graph state)
         include_metadata: Include session metadata (timestamps, costs, etc.)
 
     Returns:
         Markdown-formatted transcript
 
     Examples:
-        >>> state = DeliberationState(...)
         >>> markdown = to_markdown(state)
         >>> with open("transcript.md", "w") as f:
         ...     f.write(markdown)
@@ -68,57 +184,62 @@ def to_markdown(state: DeliberationState, include_metadata: bool = True) -> str:
     # Header
     lines.append("# Board of One Deliberation Transcript\n")
 
+    session_id = state.get("session_id", "unknown")
+    phase = state.get("phase")
+    round_number = state.get("round_number", 0)
+    problem = state.get("problem")
+    current_sp = state.get("current_sub_problem")
+    personas = state.get("personas", [])
+    contributions = state.get("contributions", [])
+    votes = state.get("votes", [])
+    synthesis = state.get("synthesis")
+    metrics = state.get("metrics")
+
     if include_metadata:
         lines.append("## Session Metadata\n")
-        lines.append(f"- **Session ID**: `{state.session_id}`")
-        lines.append(f"- **Created**: {state.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
-        if state.completed_at:
-            duration = (state.completed_at - state.created_at).total_seconds()
-            minutes = int(duration // 60)
-            seconds = int(duration % 60)
-            lines.append(f"- **Completed**: {state.completed_at.strftime('%Y-%m-%d %H:%M:%S')}")
-            lines.append(f"- **Duration**: {minutes}m {seconds}s")
-        lines.append(f"- **Phase**: {state.phase.value}")
-        lines.append(f"- **Current Round**: {state.current_round}\n")
+        lines.append(f"- **Session ID**: `{session_id}`")
+        lines.append(f"- **Phase**: {phase.value if phase else 'unknown'}")
+        lines.append(f"- **Current Round**: {round_number}\n")
 
     # Problem
-    lines.append("## Problem Statement\n")
-    lines.append(f"**{state.problem.title}**\n")
-    lines.append(f"{state.problem.description}\n")
+    if problem:
+        lines.append("## Problem Statement\n")
+        lines.append(f"**{problem.title}**\n")
+        lines.append(f"{problem.description}\n")
 
-    if state.problem.context:
-        lines.append("### Context\n")
-        lines.append(f"{state.problem.context}\n")
+        if problem.context:
+            lines.append("### Context\n")
+            lines.append(f"{problem.context}\n")
 
-    if state.problem.constraints:
-        lines.append("### Constraints\n")
-        for constraint in state.problem.constraints:
-            value_str = f" ({constraint.value})" if constraint.value else ""
-            lines.append(f"- **{constraint.type.value}**: {constraint.description}{value_str}")
-        lines.append("")
+        if problem.constraints:
+            lines.append("### Constraints\n")
+            for constraint in problem.constraints:
+                value_str = f" ({constraint.value})" if constraint.value else ""
+                lines.append(f"- **{constraint.type.value}**: {constraint.description}{value_str}")
+            lines.append("")
 
     # Sub-problems
-    if state.sub_problem:
+    if current_sp:
         lines.append("## Sub-Problem Under Deliberation\n")
-        lines.append(f"**ID**: `{state.sub_problem.id}`")
-        lines.append(f"**Goal**: {state.sub_problem.goal}")
-        lines.append(f"**Complexity**: {state.sub_problem.complexity_score}/10\n")
+        lines.append(f"**ID**: `{current_sp.id}`")
+        lines.append(f"**Goal**: {current_sp.goal}")
+        lines.append(f"**Complexity**: {current_sp.complexity_score}/10\n")
 
-        if state.sub_problem.context:
-            lines.append(f"**Context**: {state.sub_problem.context}\n")
+        if current_sp.context:
+            lines.append(f"**Context**: {current_sp.context}\n")
 
     # Participants
-    if state.selected_personas:
+    if personas:
         lines.append("## Participants\n")
-        for persona in state.selected_personas:
+        for persona in personas:
             lines.append(f"- **{persona.name}** (`{persona.code}`) - {persona.domain}")
         lines.append("")
 
     # Contributions
-    if state.contributions:
+    if contributions:
         lines.append("## Deliberation Transcript\n")
 
-        for contrib in state.contributions:
+        for contrib in contributions:
             lines.append(f"### Round {contrib.round_number}: {contrib.persona_name}\n")
 
             # Parse contribution content (assuming XML format)
@@ -146,93 +267,123 @@ def to_markdown(state: DeliberationState, include_metadata: bool = True) -> str:
                 lines.append(f"{content}\n")
 
             # Metadata
-            lines.append(f"_Tokens: {contrib.tokens_used} | Cost: ${contrib.cost:.6f}_\n")
+            tokens_used = (
+                contrib.tokens_used
+                if hasattr(contrib, "tokens_used")
+                else (contrib.token_count or 0)
+            )
+            cost = contrib.cost or 0.0
+            lines.append(f"_Tokens: {tokens_used} | Cost: ${cost:.6f}_\n")
             lines.append("---\n")
 
-    # Votes
-    if state.votes:
+    # Votes/Recommendations
+    if votes:
         lines.append("## Voting Results\n")
 
-        for vote in state.votes:
-            lines.append(f"### {vote.persona_name} (`{vote.persona_code}`)\n")
-            lines.append(f"**Recommendation**: {vote.recommendation}")
-            lines.append(f"**Confidence**: {vote.confidence * 100:.0f}%\n")
+        for vote in votes:
+            # Handle both dict and object formats
+            if isinstance(vote, dict):
+                persona_name = vote.get("persona_name", "Unknown")
+                persona_code = vote.get("persona_code", "unknown")
+                recommendation = vote.get("recommendation", "")
+                confidence = vote.get("confidence", 0)
+                reasoning = vote.get("reasoning", "")
+                conditions = vote.get("conditions", [])
+            else:
+                persona_name = vote.persona_name
+                persona_code = vote.persona_code
+                recommendation = vote.recommendation
+                confidence = vote.confidence
+                reasoning = vote.reasoning
+                conditions = vote.conditions
 
-            if vote.reasoning:
-                lines.append(f"**Reasoning**: {vote.reasoning}\n")
+            lines.append(f"### {persona_name} (`{persona_code}`)\n")
+            lines.append(f"**Recommendation**: {recommendation}")
+            lines.append(f"**Confidence**: {confidence * 100:.0f}%\n")
 
-            if vote.conditions:
+            if reasoning:
+                lines.append(f"**Reasoning**: {reasoning}\n")
+
+            if conditions:
                 lines.append("**Conditions:**")
-                for condition in vote.conditions:
+                for condition in conditions:
                     lines.append(f"- {condition}")
                 lines.append("")
 
             lines.append("---\n")
 
     # Synthesis
-    if state.synthesis:
+    if synthesis:
         lines.append("## Final Synthesis\n")
-        lines.append(f"{state.synthesis}\n")
+        lines.append(f"{synthesis}\n")
 
     # Cost summary
-    if include_metadata:
+    if include_metadata and metrics:
         lines.append("## Cost Summary\n")
-        lines.append(f"- **Total Tokens**: {state.total_tokens:,}")
-        lines.append(f"- **Total Cost**: ${state.total_cost:.6f}")
+        total_tokens = metrics.total_tokens
+        total_cost = metrics.total_cost
+        lines.append(f"- **Total Tokens**: {total_tokens:,}")
+        lines.append(f"- **Total Cost**: ${total_cost:.6f}")
 
-        if state.total_cost > 0:
-            cost_per_round = state.total_cost / max(state.current_round, 1)
+        if total_cost > 0:
+            cost_per_round = total_cost / max(round_number, 1)
             lines.append(f"- **Cost per Round**: ${cost_per_round:.6f}")
 
     return "\n".join(lines)
 
 
-def to_summary_dict(state: DeliberationState) -> dict[str, Any]:
+def to_summary_dict(state: DeliberationGraphState) -> dict[str, Any]:
     """Export deliberation summary as a dictionary.
 
     Useful for analytics, dashboards, or API responses.
 
     Args:
-        state: Deliberation state
+        state: Deliberation state (v2 graph state)
 
     Returns:
         Dictionary with summary metrics
 
     Examples:
-        >>> state = DeliberationState(...)
         >>> summary = to_summary_dict(state)
         >>> print(f"Completed in {summary['duration_seconds']}s")
     """
-    duration_seconds = None
-    if state.completed_at:
-        duration_seconds = (state.completed_at - state.created_at).total_seconds()
+    problem = state.get("problem")
+    current_sp = state.get("current_sub_problem")
+    phase = state.get("phase")
+    round_number = state.get("round_number", 0)
+    contributions = state.get("contributions", [])
+    votes = state.get("votes", [])
+    personas = state.get("personas", [])
+    synthesis = state.get("synthesis")
+    metrics = state.get("metrics")
+
+    total_tokens = 0
+    total_cost = 0.0
+    if metrics:
+        total_tokens = metrics.total_tokens
+        total_cost = metrics.total_cost
 
     return {
-        "session_id": state.session_id,
-        "problem_title": state.problem.title,
-        "sub_problem_id": state.sub_problem.id if state.sub_problem else None,
-        "sub_problem_goal": state.sub_problem.goal if state.sub_problem else None,
-        "phase": state.phase.value,
-        "current_round": state.current_round,
-        "total_contributions": len(state.contributions),
-        "total_votes": len(state.votes),
-        "participants": [p.code for p in state.selected_personas]
-        if state.selected_personas
-        else [],
-        "created_at": state.created_at.isoformat(),
-        "completed_at": state.completed_at.isoformat() if state.completed_at else None,
-        "duration_seconds": duration_seconds,
-        "total_tokens": state.total_tokens,
-        "total_cost": state.total_cost,
-        "has_synthesis": state.synthesis is not None,
+        "session_id": state.get("session_id", ""),
+        "problem_title": problem.title if problem else None,
+        "sub_problem_id": current_sp.id if current_sp else None,
+        "sub_problem_goal": current_sp.goal if current_sp else None,
+        "phase": phase.value if phase else None,
+        "current_round": round_number,
+        "total_contributions": len(contributions),
+        "total_votes": len(votes),
+        "participants": [p.code for p in personas],
+        "total_tokens": total_tokens,
+        "total_cost": total_cost,
+        "has_synthesis": synthesis is not None,
     }
 
 
-def export_to_file(state: DeliberationState, filepath: str, format: str = "markdown") -> None:
+def export_to_file(state: DeliberationGraphState, filepath: str, format: str = "markdown") -> None:
     """Export deliberation to a file.
 
     Args:
-        state: Deliberation state
+        state: Deliberation state (v2 graph state)
         filepath: Path to output file
         format: Export format ('json' or 'markdown')
 
@@ -240,7 +391,6 @@ def export_to_file(state: DeliberationState, filepath: str, format: str = "markd
         ValueError: If format is not supported
 
     Examples:
-        >>> state = DeliberationState(...)
         >>> export_to_file(state, "transcript.md", format="markdown")
         >>> export_to_file(state, "session.json", format="json")
     """

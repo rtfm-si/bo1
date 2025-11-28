@@ -84,6 +84,7 @@
 				<a
 					href="/dashboard"
 					class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors duration-200"
+					aria-label="Back to dashboard"
 				>
 					<svg class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -123,7 +124,7 @@
 						required
 						minlength="20"
 						maxlength="5000"
-					/>
+					></textarea>
 					<div class="flex items-center justify-between mt-2">
 						<p class="text-xs text-slate-500 dark:text-slate-400">
 							{problemStatement.length}/5000 characters

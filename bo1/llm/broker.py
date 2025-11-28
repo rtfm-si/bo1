@@ -21,6 +21,8 @@ from bo1.config import resolve_model_alias
 from bo1.constants import LLMConfig
 from bo1.llm.circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 from bo1.llm.client import ClaudeClient
+from bo1.llm.context import get_cost_context
+from bo1.llm.cost_tracker import CostTracker
 from bo1.llm.response import LLMResponse
 from bo1.utils.logging import get_logger, log_llm_call
 
@@ -194,21 +196,44 @@ class PromptBroker:
             f"model={model_id}, phase={request.phase}, agent={request.agent_type}"
         )
 
+        # Get cost tracking context from thread-local storage
+        cost_ctx = get_cost_context()
+
         for attempt in range(self.retry_policy.max_retries + 1):
             try:
-                # Make the LLM call with circuit breaker protection
-                async def _make_api_call() -> tuple[str, Any]:
-                    return await self.client.call(
-                        model=request.model,
-                        messages=[{"role": "user", "content": request.user_message}],
-                        system=request.system,
-                        cache_system=request.cache_system,
-                        temperature=request.temperature,
-                        max_tokens=request.max_tokens,
-                        prefill=request.prefill,
-                    )
+                # Track cost with context manager (wraps the entire API call)
+                with CostTracker.track_call(
+                    provider="anthropic",
+                    operation_type="completion",
+                    model_name=model_id,
+                    session_id=cost_ctx.get("session_id"),
+                    user_id=cost_ctx.get("user_id"),
+                    node_name=cost_ctx.get("node_name"),
+                    phase=cost_ctx.get("phase") or request.phase,
+                    persona_name=cost_ctx.get("persona_name"),
+                    round_number=cost_ctx.get("round_number"),
+                    sub_problem_index=cost_ctx.get("sub_problem_index"),
+                ) as cost_record:
+                    # Make the LLM call with circuit breaker protection
+                    async def _make_api_call() -> tuple[str, Any]:
+                        return await self.client.call(
+                            model=request.model,
+                            messages=[{"role": "user", "content": request.user_message}],
+                            system=request.system,
+                            cache_system=request.cache_system,
+                            temperature=request.temperature,
+                            max_tokens=request.max_tokens,
+                            prefill=request.prefill,
+                        )
 
-                response_text, token_usage = await self.circuit_breaker.call(_make_api_call)
+                    response_text, token_usage = await self.circuit_breaker.call(_make_api_call)
+
+                    # Populate cost record with token usage from response
+                    cost_record.input_tokens = token_usage.input_tokens
+                    cost_record.output_tokens = token_usage.output_tokens
+                    cost_record.cache_creation_tokens = token_usage.cache_creation_tokens
+                    cost_record.cache_read_tokens = token_usage.cache_read_tokens
+                    # Cost is automatically calculated and logged on context exit
 
                 # Calculate duration
                 duration_ms = int((time.time() - start_time) * 1000)

@@ -2,6 +2,13 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { isAuthenticated, isLoading } from '$lib/stores/auth';
+	import type { Snippet } from 'svelte';
+
+	interface Props {
+		children: Snippet;
+	}
+
+	let { children }: Props = $props();
 
 	let authChecked = $state(false);
 
@@ -54,5 +61,5 @@
 	</div>
 {:else}
 	<!-- Auth verified - show protected content -->
-	<slot />
+	{@render children()}
 {/if}

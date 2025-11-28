@@ -33,6 +33,8 @@ from bo1.agents.research_consolidation import (
 from bo1.agents.research_metrics import ResearchMetric, track_research_metric
 from bo1.agents.research_rate_limiter import get_rate_limiter
 from bo1.config import get_settings
+from bo1.llm.context import get_cost_context
+from bo1.llm.cost_tracker import CostTracker
 from bo1.llm.embeddings import generate_embedding
 from bo1.state.postgres_manager import (
     find_cached_research,
@@ -189,10 +191,14 @@ class ResearcherAgent:
         deep_keywords = ["competitor", "market", "landscape", "regulation", "policy", "analysis"]
         keywords_matched = [kw for kw in deep_keywords if kw in question.lower()]
 
+        # Get cost context for attribution
+        ctx = get_cost_context()
+
         # Step 1: Generate embedding for semantic search (~$0.00006)
+        # Note: embedding cost is already tracked by generate_embedding()
         try:
             embedding = generate_embedding(question, input_type="query")
-            embedding_cost = 0.00006  # Voyage AI voyage-3 cost estimate
+            embedding_cost = 0.00006  # Voyage AI voyage-3 cost estimate (for local tracking)
         except Exception as e:
             logger.warning(f"Failed to generate embedding for '{question[:50]}...': {e}")
             # Fall back to placeholder
@@ -220,7 +226,7 @@ class ResearcherAgent:
             cached_result = None
 
         if cached_result:
-            # CACHE HIT - Return cached result
+            # CACHE HIT - Track semantic cache savings
             try:
                 update_research_access(str(cached_result["id"]))
             except Exception as e:
@@ -236,6 +242,38 @@ class ResearcherAgent:
                 age_days = 0
 
             response_time_ms = (time.time() - start_time) * 1000
+
+            # Calculate what it would have cost without semantic cache
+            # Estimate: Brave search ($0.003) + Haiku summarization (~$0.02) + embedding ($0.00006)
+            estimated_cost_without_cache = 0.003 + 0.02 + embedding_cost
+
+            # Track semantic cache hit using Voyage provider (since we used embedding for lookup)
+            # This is essentially a "free" research result - only embedding cost
+            from bo1.llm.cost_tracker import CostRecord
+
+            cache_hit_record = CostRecord(
+                provider="voyage",  # Use voyage since we used embeddings for lookup
+                model_name="voyage-3",
+                operation_type="semantic_cache_hit",
+                session_id=ctx.get("session_id"),
+                user_id=ctx.get("user_id"),
+                node_name=ctx.get("node_name", "research_node"),
+                phase=ctx.get("phase"),
+                input_tokens=len(question.split()),  # Approximate embedding tokens
+                total_cost=embedding_cost,  # Only embedding cost
+                optimization_type="semantic_cache",
+                cost_without_optimization=estimated_cost_without_cache,
+                latency_ms=int(response_time_ms),
+                status="success",
+                metadata={
+                    "query": question[:100],
+                    "cache_age_days": age_days,
+                    "similarity_threshold": 0.85,
+                    "confidence": cached_result.get("confidence", "medium"),
+                    "cache_hit": True,
+                },
+            )
+            CostTracker.log_cost(cache_hit_record)
 
             # Track metrics (P2-RESEARCH-5)
             metric = ResearchMetric(
@@ -253,7 +291,8 @@ class ResearcherAgent:
 
             logger.info(
                 f"✓ Cache hit for '{question[:50]}...' "
-                f"(age: {age_days} days, cost: ${embedding_cost:.6f})"
+                f"(age: {age_days} days, cost: ${embedding_cost:.6f}, "
+                f"saved: ${estimated_cost_without_cache - embedding_cost:.4f})"
             )
 
             return {
@@ -450,17 +489,30 @@ class ResearcherAgent:
         if wait_time > 0:
             logger.info(f"Rate limited: waited {wait_time:.2f}s for Brave API")
 
+        # Get cost context for attribution
+        ctx = get_cost_context()
+
         try:
-            # Step 1: Brave Search
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    "https://api.search.brave.com/res/v1/web/search",
-                    headers={"X-Subscription-Token": brave_api_key},
-                    params={"q": question, "count": 5},
-                    timeout=10.0,
-                )
-                response.raise_for_status()
-                results_data = response.json()
+            # Step 1: Brave Search - Track cost
+            with CostTracker.track_call(
+                provider="brave",
+                operation_type="web_search",
+                session_id=ctx.get("session_id"),
+                user_id=ctx.get("user_id"),
+                node_name=ctx.get("node_name", "research_node"),
+                phase=ctx.get("phase"),
+                metadata={"query": question[:100]},
+            ) as search_cost_record:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        "https://api.search.brave.com/res/v1/web/search",
+                        headers={"X-Subscription-Token": brave_api_key},
+                        params={"q": question, "count": 5},
+                        timeout=10.0,
+                    )
+                    response.raise_for_status()
+                    results_data = response.json()
+                # Cost is calculated automatically by CostTracker
 
             search_results = [
                 {
@@ -478,10 +530,10 @@ class ResearcherAgent:
                     "sources": [],
                     "confidence": "low",
                     "tokens_used": 0,
-                    "cost": 0.005,  # Brave search cost only
+                    "cost": search_cost_record.total_cost,
                 }
 
-            # Step 2: Summarize with Haiku
+            # Step 2: Summarize with Haiku - Track cost
             context = "\n\n".join(
                 [f"**{r['title']}**\n{r['snippet']}\nSource: {r['url']}" for r in search_results]
             )
@@ -497,26 +549,42 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
 
             from bo1.config import resolve_model_alias
 
+            model_name = resolve_model_alias("haiku")
             anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-            message = await anthropic_client.messages.create(
-                model=resolve_model_alias("haiku"),
-                max_tokens=500,
-                messages=[{"role": "user", "content": prompt}],
-            )
+
+            with CostTracker.track_call(
+                provider="anthropic",
+                operation_type="summarization",
+                model_name=model_name,
+                session_id=ctx.get("session_id"),
+                user_id=ctx.get("user_id"),
+                node_name=ctx.get("node_name", "research_node"),
+                phase=ctx.get("phase"),
+                metadata={"query": question[:100], "search_provider": "brave"},
+            ) as llm_cost_record:
+                message = await anthropic_client.messages.create(
+                    model=model_name,
+                    max_tokens=500,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+
+                # Record token usage
+                llm_cost_record.input_tokens = message.usage.input_tokens
+                llm_cost_record.output_tokens = message.usage.output_tokens
+                llm_cost_record.cache_creation_tokens = getattr(
+                    message.usage, "cache_creation_input_tokens", 0
+                )
+                llm_cost_record.cache_read_tokens = getattr(
+                    message.usage, "cache_read_input_tokens", 0
+                )
+                # Cost is calculated automatically by CostTracker
 
             # Extract text from first content block (guaranteed to be TextBlock for text responses)
             first_block = message.content[0]
             summary = first_block.text if hasattr(first_block, "text") else str(first_block)
             tokens_used = message.usage.input_tokens + message.usage.output_tokens
 
-            # Calculate costs
-            search_cost = 0.005  # $5/1000 queries
-            # Haiku pricing: $1/M input tokens, $5/M output tokens
-            llm_cost = (
-                message.usage.input_tokens / 1_000_000 * 1.0
-                + message.usage.output_tokens / 1_000_000 * 5.0
-            )
-            total_cost = search_cost + llm_cost
+            total_cost = search_cost_record.total_cost + llm_cost_record.total_cost
 
             logger.info(
                 f"[BRAVE] Researched '{question[:50]}...' - "
@@ -556,7 +624,7 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
         Tavily provides AI-powered search with built-in summarization and context.
         Use for: competitor analysis, market landscape, regulatory research.
 
-        Cost: ~$0.001 per query (10x cheaper than Brave+Haiku, but different use case)
+        Cost: ~$0.002 per query for advanced search
 
         Args:
             question: Research question requiring deep analysis
@@ -577,33 +645,49 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
         if wait_time > 0:
             logger.info(f"Rate limited: waited {wait_time:.2f}s for Tavily API")
 
+        # Get cost context for attribution
+        ctx = get_cost_context()
+
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://api.tavily.com/search",
-                    json={
-                        "api_key": tavily_api_key,
-                        "query": question,
-                        "search_depth": "advanced",  # Premium deep search
-                        "include_answer": True,  # Get AI-generated answer
-                        "include_raw_content": False,  # Don't need full HTML
-                        "max_results": 5,
-                    },
-                    timeout=15.0,  # Longer timeout for deep search
-                )
-                response.raise_for_status()
-                data = response.json()
+            # Track Tavily API call cost
+            with (
+                CostTracker.track_call(
+                    provider="tavily",
+                    operation_type="advanced_search",  # Using advanced depth
+                    session_id=ctx.get("session_id"),
+                    user_id=ctx.get("user_id"),
+                    node_name=ctx.get("node_name", "research_node"),
+                    phase=ctx.get("phase"),
+                    metadata={"query": question[:100], "depth": "advanced"},
+                ) as cost_record
+            ):
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        "https://api.tavily.com/search",
+                        json={
+                            "api_key": tavily_api_key,
+                            "query": question,
+                            "search_depth": "advanced",  # Premium deep search
+                            "include_answer": True,  # Get AI-generated answer
+                            "include_raw_content": False,  # Don't need full HTML
+                            "max_results": 5,
+                        },
+                        timeout=15.0,  # Longer timeout for deep search
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                # Cost is calculated automatically by CostTracker
 
             summary = data.get("answer", "[No answer provided]")
             results = data.get("results", [])
 
             sources = [f"{r.get('title', 'Untitled')} - {r.get('url', '')}" for r in results]
 
-            cost = 0.001  # $1/1000 queries
             tokens_used = len(summary.split())  # Approximate
 
             logger.info(
-                f"[TAVILY] Deep research '{question[:50]}...' - {len(results)} sources, ${cost:.4f}"
+                f"[TAVILY] Deep research '{question[:50]}...' - "
+                f"{len(results)} sources, ${cost_record.total_cost:.4f}"
             )
 
             return {
@@ -611,7 +695,7 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
                 "sources": sources,
                 "confidence": "high" if len(results) >= 3 else "medium",
                 "tokens_used": tokens_used,
-                "cost": cost,
+                "cost": cost_record.total_cost,
             }
 
         except httpx.HTTPStatusError as e:

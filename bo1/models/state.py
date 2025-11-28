@@ -195,3 +195,34 @@ class DeliberationMetrics(BaseModel):
         default_factory=list,
         description="Detailed coverage assessment for each of the 8 critical aspects",
     )
+
+    # Complexity scoring (Adaptive deliberation parameters)
+    complexity_score: OptionalScore = Field(
+        default=None,
+        description="Overall problem complexity (0-1). Drives adaptive round limits and expert selection.",
+    )
+    scope_breadth: OptionalScore = Field(
+        default=None,
+        description="Scope breadth dimension (0-1). How many distinct domains involved?",
+    )
+    dependencies: OptionalScore = Field(
+        default=None, description="Dependencies dimension (0-1). How interconnected are factors?"
+    )
+    ambiguity: OptionalScore = Field(
+        default=None, description="Ambiguity dimension (0-1). How clear are requirements?"
+    )
+    stakeholders_complexity: OptionalScore = Field(
+        default=None, description="Stakeholders dimension (0-1). How many parties affected?"
+    )
+    novelty: OptionalScore = Field(
+        default=None, description="Novelty dimension (0-1). How novel/unprecedented is the problem?"
+    )
+    recommended_rounds: int | None = Field(
+        default=None, description="Recommended max rounds based on complexity (3-6)"
+    )
+    recommended_experts: int | None = Field(
+        default=None, description="Recommended experts per round based on complexity (3-5)"
+    )
+    complexity_reasoning: str | None = Field(
+        default=None, description="Brief explanation of complexity assessment"
+    )

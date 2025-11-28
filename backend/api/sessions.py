@@ -84,7 +84,8 @@ async def create_session(
     /start endpoint.
 
     Args:
-        request: Session creation request
+        request: FastAPI request object for rate limiting
+        session_request: Session creation request with problem statement
         user: Authenticated user data
 
     Returns:

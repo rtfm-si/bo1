@@ -14,6 +14,8 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from bo1.constants import EmbeddingsConfig
+from bo1.llm.context import get_cost_context
+from bo1.llm.cost_tracker import CostTracker
 
 if TYPE_CHECKING:
     import voyageai
@@ -38,7 +40,7 @@ def _call_voyage_api_with_retry(
     model: str,
     input_type: str | None,
 ) -> list[float]:
-    """Call Voyage AI API with retry logic.
+    """Call Voyage AI API with retry logic and cost tracking.
 
     Args:
         client: Voyage AI client
@@ -52,49 +54,71 @@ def _call_voyage_api_with_retry(
     Raises:
         Exception: If all retries exhausted
     """
-    last_exception: Exception | None = None
-    delay = EMBEDDING_INITIAL_DELAY
+    # Get cost context for attribution
+    ctx = get_cost_context()
 
-    for attempt in range(EMBEDDING_MAX_RETRIES + 1):
-        try:
-            result = client.embed(
-                texts=[text.strip()],
-                model=model,
-                input_type=input_type,
-            )
-            # Convert to list[float] to satisfy type checker
-            embedding = [float(x) for x in result.embeddings[0]]
+    # Start cost tracking
+    with CostTracker.track_call(
+        provider="voyage",
+        operation_type="embedding",
+        model_name=model,
+        session_id=ctx.get("session_id"),
+        user_id=ctx.get("user_id"),
+        node_name=ctx.get("node_name"),
+        phase=ctx.get("phase"),
+        persona_name=ctx.get("persona_name"),
+        round_number=ctx.get("round_number"),
+        sub_problem_index=ctx.get("sub_problem_index"),
+    ) as cost_record:
+        last_exception: Exception | None = None
+        delay = EMBEDDING_INITIAL_DELAY
 
-            if attempt > 0:
-                logger.info(f"Voyage AI embedding succeeded on attempt {attempt + 1}")
-
-            return embedding
-
-        except Exception as e:
-            last_exception = e
-            error_type = type(e).__name__
-
-            # Check if this is a rate limit error (retry)
-            is_rate_limit = "rate" in str(e).lower() or "429" in str(e)
-            # Check if this is a server error (retry)
-            is_server_error = "500" in str(e) or "502" in str(e) or "503" in str(e)
-
-            if attempt < EMBEDDING_MAX_RETRIES and (is_rate_limit or is_server_error):
-                logger.warning(
-                    f"Voyage AI embedding attempt {attempt + 1}/{EMBEDDING_MAX_RETRIES + 1} "
-                    f"failed ({error_type}): {e}. Retrying in {delay:.1f}s..."
+        for attempt in range(EMBEDDING_MAX_RETRIES + 1):
+            try:
+                result = client.embed(
+                    texts=[text.strip()],
+                    model=model,
+                    input_type=input_type,
                 )
-                time.sleep(delay)
-                delay *= EMBEDDING_BACKOFF_FACTOR
-            else:
-                # Non-retryable error or max retries reached
-                if attempt > 0:
-                    logger.error(f"Voyage AI embedding failed after {attempt + 1} attempts: {e}")
-                break
+                # Convert to list[float] to satisfy type checker
+                embedding = [float(x) for x in result.embeddings[0]]
 
-    raise Exception(
-        f"Failed to generate embedding after {EMBEDDING_MAX_RETRIES + 1} attempts"
-    ) from last_exception
+                # Estimate tokens (Voyage doesn't return token count)
+                # Approximation: ~1.3 tokens per word
+                cost_record.input_tokens = int(len(text.split()) * 1.3)
+
+                if attempt > 0:
+                    logger.info(f"Voyage AI embedding succeeded on attempt {attempt + 1}")
+
+                return embedding
+
+            except Exception as e:
+                last_exception = e
+                error_type = type(e).__name__
+
+                # Check if this is a rate limit error (retry)
+                is_rate_limit = "rate" in str(e).lower() or "429" in str(e)
+                # Check if this is a server error (retry)
+                is_server_error = "500" in str(e) or "502" in str(e) or "503" in str(e)
+
+                if attempt < EMBEDDING_MAX_RETRIES and (is_rate_limit or is_server_error):
+                    logger.warning(
+                        f"Voyage AI embedding attempt {attempt + 1}/{EMBEDDING_MAX_RETRIES + 1} "
+                        f"failed ({error_type}): {e}. Retrying in {delay:.1f}s..."
+                    )
+                    time.sleep(delay)
+                    delay *= EMBEDDING_BACKOFF_FACTOR
+                else:
+                    # Non-retryable error or max retries reached
+                    if attempt > 0:
+                        logger.error(
+                            f"Voyage AI embedding failed after {attempt + 1} attempts: {e}"
+                        )
+                    break
+
+        raise Exception(
+            f"Failed to generate embedding after {EMBEDDING_MAX_RETRIES + 1} attempts"
+        ) from last_exception
 
 
 def generate_embedding(

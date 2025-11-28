@@ -134,12 +134,19 @@ decompose_node → select_personas_node → initial_round_node
 ```
 
 **Parallel Multi-Expert Architecture** (Day 38+):
-- **Round Limit**: 6 rounds (down from 15)
+- **Round Limit**: 3-6 rounds (adaptive based on complexity)
 - **Recursion Limit**: 20 steps (down from 55)
-- **Experts per Round**: 3-5 (parallel execution via asyncio.gather)
+- **Experts per Round**: 3-5 (adaptive, parallel execution via asyncio.gather)
 - **Semantic Deduplication**: 0.80 similarity threshold (Voyage AI embeddings)
 - **Hierarchical Context**: Round summaries + recent contributions
 - **Feature Flag**: `ENABLE_PARALLEL_ROUNDS` (default: true)
+
+**Adaptive Complexity Scoring** (NEW):
+- **Complexity Assessment**: 5-dimension scoring (scope, dependencies, ambiguity, stakeholders, novelty)
+- **Adaptive Rounds**: 3 rounds for simple problems, 6 for complex strategic decisions
+- **Adaptive Experts**: 3 experts for focused problems, 5 for diverse perspectives
+- **Time Savings**: 30-50% reduction on simple problems, full depth on complex ones
+- **See**: `COMPLEXITY_SCORING.md` for detailed documentation
 
 **Phase-Based Deliberation**:
 - **Exploration** (rounds 1-2): Divergent thinking, surface all perspectives

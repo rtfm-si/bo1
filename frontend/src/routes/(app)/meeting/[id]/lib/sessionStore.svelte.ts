@@ -22,7 +22,9 @@ export interface SessionData {
  */
 export function createSessionStore() {
 	let session = $state<SessionData | null>(null);
-	let events = $state<SSEEvent[]>([]);
+	// Use $state.raw for events - they're immutable (only appended/replaced)
+	// This avoids deep proxy overhead for potentially 1000s of event objects
+	let events = $state.raw<SSEEvent[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let autoScroll = $state(true);
@@ -33,7 +35,8 @@ export function createSessionStore() {
 	const MAX_SEEN_EVENTS = 500;
 	// Maximum events to retain in memory (prevents unbounded growth)
 	const MAX_EVENTS = 5000;
-	let seenEventKeys = $state(new Set<string>());
+	// Use $state.raw for Set - it's reassigned, not mutated in place
+	let seenEventKeys = $state.raw(new Set<string>());
 	let eventSequence = $state(0);
 
 	return {
@@ -162,13 +165,13 @@ export function createSessionStore() {
 
 		reset() {
 			session = null;
-			events = [];
+			events = [];  // $state.raw allows direct assignment
 			isLoading = true;
 			error = null;
 			autoScroll = true;
 			retryCount = 0;
 			connectionStatus = 'connecting';
-			seenEventKeys = new Set<string>();
+			seenEventKeys = new Set<string>();  // $state.raw allows direct assignment
 			eventSequence = 0;
 		}
 	};

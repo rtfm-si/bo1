@@ -13,6 +13,7 @@
 	import { fade, slide } from 'svelte/transition';
 	import { ChevronDown, ChevronUp, Download } from 'lucide-svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
+	import { getTaskStatusColor } from '$lib/utils/color-helpers';
 
 	interface Task {
 		id: string;
@@ -119,11 +120,6 @@
 		URL.revokeObjectURL(url);
 
 		isExporting = false;
-	}
-
-	function getStatusColor(status: string): string {
-		const option = statusOptions.find(s => s.value === status);
-		return option?.color || statusOptions[0].color;
 	}
 
 	function getStatusLabel(status: string): string {
@@ -306,7 +302,7 @@
 							<select
 								value={status}
 								onchange={(e) => updateStatus(task.id, e.currentTarget.value)}
-								class="px-3 py-2 text-sm font-medium rounded-lg border-0 {getStatusColor(status)} cursor-pointer focus:ring-2 focus:ring-blue-500"
+								class="px-3 py-2 text-sm font-medium rounded-lg border-0 {getTaskStatusColor(status)} cursor-pointer focus:ring-2 focus:ring-blue-500"
 							>
 								{#each statusOptions as option}
 									<option value={option.value}>{option.label}</option>

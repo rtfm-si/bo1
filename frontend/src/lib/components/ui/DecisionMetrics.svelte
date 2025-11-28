@@ -12,6 +12,12 @@
 		getConflictLabel,
 		type QualityLabel
 	} from '$lib/utils/quality-labels';
+	import {
+		filterEventsByType,
+		filterEventsBySubProblem,
+		getLatestEvent
+	} from '$lib/utils/event-filters';
+	import { getConfidenceColor } from '$lib/utils/color-helpers';
 
 	interface Props {
 		events: SSEEvent[];
@@ -29,56 +35,22 @@
 		totalSubProblems = 1
 	}: Props = $props();
 
-	// Filter events by active sub-problem
-	// IMPORTANT: Do NOT filter convergence events - they're needed for metrics!
-	// Convergence events are hidden from main UI but should still drive metrics
-	const filteredEvents = $derived.by(() => {
-		// If single sub-problem OR no active tab, show all events
-		if (totalSubProblems <= 1 || activeSubProblemIndex === null) {
-			return events;
-		}
+	// Filter events by active sub-problem using utility
+	const filteredEvents = $derived(
+		filterEventsBySubProblem(events, activeSubProblemIndex, totalSubProblems)
+	);
 
-		// Filter to active sub-problem only
-		return events.filter(e => {
-			const eventSubIndex = e.data.sub_problem_index as number | undefined;
-			return eventSubIndex === activeSubProblemIndex;
-		});
-	});
-
-	// Discussion quality status events (NEW - for early UX feedback)
+	// Discussion quality status events using utility
 	const statusEvents = $derived(
-		events.filter(e => {
-			if (e.event_type !== 'discussion_quality_status') return false;
-
-			// Filter by active sub-problem if applicable
-			if (totalSubProblems <= 1 || activeSubProblemIndex === null) {
-				return true;
-			}
-
-			const eventSubIndex = e.data.sub_problem_index as number | undefined;
-			return eventSubIndex === activeSubProblemIndex;
-		})
+		filterEventsByType(events, 'discussion_quality_status', activeSubProblemIndex, totalSubProblems)
 	);
 	const latestStatus = $derived(
 		statusEvents.length > 0 ? statusEvents[statusEvents.length - 1] : null
 	);
 
-	// Convergence metrics (from convergence events)
-	// Use ALL events (not filteredEvents) to ensure convergence events are included
+	// Convergence metrics using utility
 	const convergenceEvents = $derived(
-		events.filter(e => {
-			// Filter by event type
-			if (e.event_type !== 'convergence') return false;
-
-			// If single sub-problem OR no active tab, include all convergence events
-			if (totalSubProblems <= 1 || activeSubProblemIndex === null) {
-				return true;
-			}
-
-			// Filter to active sub-problem only
-			const eventSubIndex = e.data.sub_problem_index as number | undefined;
-			return eventSubIndex === activeSubProblemIndex;
-		})
+		filterEventsByType(events, 'convergence', activeSubProblemIndex, totalSubProblems)
 	);
 	const latestConvergence = $derived(
 		convergenceEvents.length > 0 ? convergenceEvents[convergenceEvents.length - 1] : null
@@ -205,16 +177,10 @@
 			: null
 	);
 
-	// Moderator interventions
+	// Moderator interventions using utility
 	const interventions = $derived(
-		filteredEvents.filter(e => e.event_type === 'moderator_intervention').length
+		filterEventsByType(filteredEvents, 'moderator_intervention', activeSubProblemIndex, totalSubProblems).length
 	);
-
-	function getConfidenceColor(confidence: number): string {
-		if (confidence >= 0.8) return 'text-green-600 dark:text-green-400';
-		if (confidence >= 0.6) return 'text-yellow-600 dark:text-yellow-400';
-		return 'text-red-600 dark:text-red-400';
-	}
 </script>
 
 <div class="space-y-4">

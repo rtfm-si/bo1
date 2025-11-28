@@ -44,9 +44,4 @@ risks mitigated
 challenges resolved
 etc...
 
-research best practice for our meeting flow management: facilitator steers and direct the meetings, with checks for novelty, consensus, challenge, drift etc. we utilise research tools (brave / tavily), embeddings (voyage ai), summarizers (anthropic), 'judges' on return content for accuracy and relevance (anthropic) etc. we use parallelisation wherever possible.
-we want to ensure that experts produce the absolue best content, in as few steps as possible - the apex of cost vs quality - maybe edging towards slightly higher cost for better quality.
-
-how well does our current implementation work? how could it be improved. what gaps do we have? what doesnt work well? what are we missing?
-
 inject business context

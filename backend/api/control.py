@@ -98,6 +98,7 @@ async def start_deliberation(
     The task is tracked in SessionManager.active_executions.
 
     Args:
+        request: FastAPI request object for rate limiting
         session_id: Session identifier
         session_data: Verified session (user_id, metadata) from dependency
         session_manager: Session manager instance
@@ -410,8 +411,9 @@ async def kill_deliberation(
     This cancels the background task and logs the termination in an audit trail.
 
     Args:
+        request: FastAPI request object for rate limiting
         session_id: Session identifier
-        request: Optional kill request with reason
+        kill_request: Optional kill request with reason
         user: Authenticated user data
 
     Returns:

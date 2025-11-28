@@ -353,6 +353,9 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     This node wraps the FacilitatorAgent.decide_next_action() method
     and updates the graph state with the facilitator's decision.
 
+    NEW: Checks for pending_research_queries from proactive detection and
+    automatically triggers research before making facilitator decision.
+
     Args:
         state: Current graph state
 
@@ -360,6 +363,38 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         Dictionary with state updates
     """
     logger.info("facilitator_decide_node: Making facilitator decision")
+
+    # PROACTIVE RESEARCH EXECUTION: Check for pending research queries from previous round
+    # If queries exist, automatically trigger research node without facilitator decision
+    pending_queries = state.get("pending_research_queries", [])
+    if pending_queries:
+        logger.info(
+            f"facilitator_decide_node: {len(pending_queries)} pending research queries detected. "
+            f"Triggering proactive research."
+        )
+
+        # Create a facilitator decision to trigger research
+        # Use the first query's reason as the decision reasoning
+        research_decision = FacilitatorDecision(
+            action="research",
+            reasoning=f"Proactive research triggered: {pending_queries[0].get('reason', 'Information gap detected')}",
+            next_speaker=None,
+            speaker_prompt=None,
+            research_query="; ".join(
+                [q.get("question", "") for q in pending_queries[:3]]
+            ),  # Batch up to 3 queries
+        )
+
+        # Return decision to route to research node
+        # Clear pending queries so they're processed by research_node
+        return {
+            "facilitator_decision": asdict(research_decision),
+            "round_number": state.get("round_number", 1),
+            "phase": DeliberationPhase.DISCUSSION,
+            "current_node": "facilitator_decide",
+            "sub_problem_index": state.get("sub_problem_index", 0),
+            # Note: pending_research_queries will be consumed by research_node
+        }
 
     # Create facilitator agent
     facilitator = FacilitatorAgent()
@@ -669,14 +704,15 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
 
 
 async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
-    """Execute external research requested by facilitator.
+    """Execute external research requested by facilitator or triggered proactively.
 
     Flow:
-    1. Extract research query from facilitator decision
-    2. Check semantic cache (PostgreSQL + Voyage embeddings)
-    3. If cache miss: Brave Search (default) or Tavily (premium) + summarization
-    4. Add research to deliberation context
-    5. Continue to next round with enriched context
+    1. Check for pending_research_queries from proactive detection
+    2. If none, extract research query from facilitator decision
+    3. Check semantic cache (PostgreSQL + Voyage embeddings)
+    4. If cache miss: Brave Search (default) or Tavily (premium) + summarization
+    5. Add research to deliberation context
+    6. Continue to next round with enriched context
 
     Research Strategy:
     - Default: Brave Search + Haiku (~$0.025/query) for facts/statistics
@@ -690,7 +726,73 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     """
     from bo1.agents.researcher import ResearcherAgent
 
-    # Extract research query from facilitator decision
+    # PROACTIVE RESEARCH: Check for pending queries first
+    pending_queries = state.get("pending_research_queries", [])
+
+    if pending_queries:
+        logger.info(f"[RESEARCH] Processing {len(pending_queries)} proactive research queries")
+
+        # Execute all pending queries
+        researcher = ResearcherAgent()
+
+        # Convert pending queries to research format
+        research_questions = []
+        for query_data in pending_queries:
+            research_questions.append(
+                {
+                    "question": query_data.get("question", ""),
+                    "priority": query_data.get("priority", "MEDIUM"),
+                    "reason": query_data.get("reason", ""),
+                }
+            )
+
+        # Determine research depth based on query priorities
+        has_high_priority = any(q.get("priority") == "HIGH" for q in pending_queries)
+        research_depth: Literal["basic", "deep"] = "deep" if has_high_priority else "basic"
+
+        # Perform research (uses cache if available)
+        results = await researcher.research_questions(
+            questions=research_questions,
+            category="general",
+            research_depth=research_depth,
+        )
+
+        # Add to state context
+        research_results_obj = state.get("research_results", [])
+        research_results = (
+            list(research_results_obj) if isinstance(research_results_obj, list) else []
+        )
+
+        for result in results:
+            research_results.append(
+                {
+                    "query": result["question"],
+                    "summary": result["summary"],
+                    "sources": result.get("sources", []),
+                    "cached": result.get("cached", False),
+                    "cost": result.get("cost", 0.0),
+                    "round": state.get("round_number", 0),
+                    "depth": research_depth,
+                    "proactive": True,  # Mark as proactively triggered
+                }
+            )
+
+        total_cost = sum(r.get("cost", 0.0) for r in results)
+        logger.info(
+            f"[RESEARCH] Proactive research complete - {len(results)} queries, "
+            f"Total cost: ${total_cost:.4f}"
+        )
+
+        # Clear pending queries
+        return {
+            "research_results": research_results,
+            "pending_research_queries": [],  # Clear after processing
+            "facilitator_decision": None,  # Clear decision to prevent loops
+            "current_node": "research",
+            "sub_problem_index": state.get("sub_problem_index", 0),
+        }
+
+    # FALLBACK: Extract research query from facilitator decision
     facilitator_decision = state.get("facilitator_decision")
 
     if not facilitator_decision:
@@ -745,13 +847,13 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Determine research depth based on keywords in reasoning
     deep_keywords = ["competitor", "market", "landscape", "regulation", "policy", "analysis"]
-    research_depth: Literal["basic", "deep"] = (
+    facilitator_research_depth: Literal["basic", "deep"] = (
         "deep"
         if any(keyword in decision_reasoning.lower() for keyword in deep_keywords)
         else "basic"
     )
 
-    logger.info(f"[RESEARCH] Depth: {research_depth}")
+    logger.info(f"[RESEARCH] Depth: {facilitator_research_depth}")
 
     # P1-RESEARCH-2: Early cache check for cross-session deduplication
     # Check if similar research exists in cache before calling ResearcherAgent
@@ -783,7 +885,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
             }
         ],
         category="general",
-        research_depth=research_depth,
+        research_depth=facilitator_research_depth,
     )
 
     if not results:
@@ -808,13 +910,13 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
             "cached": result.get("cached", False),
             "cost": result.get("cost", 0.0),
             "round": state.get("round_number", 0),
-            "depth": research_depth,
+            "depth": facilitator_research_depth,
         }
     )
 
     logger.info(
         f"[RESEARCH] Complete - Cached: {result.get('cached', False)}, "
-        f"Depth: {research_depth}, Cost: ${result.get('cost', 0):.4f}"
+        f"Depth: {facilitator_research_depth}, Cost: ${result.get('cost', 0):.4f}"
     )
 
     # Mark this research query as completed to prevent infinite loops
@@ -1742,7 +1844,7 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         logger.info(f"Failsafe: Kept contribution from {contributions[0].persona_name}")
 
     # Lightweight quality check after semantic deduplication
-    quality_results = []
+    quality_results: list[Any] = []
     if filtered_contributions:
         from bo1.graph.quality.contribution_check import check_contributions_quality
 
@@ -1750,10 +1852,16 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         problem_context = problem.description if problem else "No problem context available"
 
         try:
-            quality_results = await check_contributions_quality(
+            quality_results, quality_responses = await check_contributions_quality(
                 contributions=filtered_contributions,
                 problem_context=problem_context,
             )
+
+            # Track cost for quality checks (before metrics might be used elsewhere)
+            metrics = ensure_metrics(state)
+            for response in quality_responses:
+                if response:  # Skip None responses (heuristic fallbacks)
+                    track_accumulated_cost(metrics, f"round_{round_number}_quality_check", response)
 
             # Track quality metrics
             shallow_count = sum(1 for r in quality_results if r.is_shallow)
@@ -1864,6 +1972,43 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
             round_summaries.append(fallback_summary)
             logger.info(f"Added fallback summary for round {round_number}")
 
+    # PROACTIVE RESEARCH DETECTION: Analyze contributions for research opportunities
+    # This runs after deduplication but before returning, allowing research to inform next round
+    pending_research_queries = []
+    if filtered_contributions:
+        from bo1.agents.research_detector import detect_and_trigger_research
+
+        problem = state.get("problem")
+        problem_context = problem.description if problem else "No problem context available"
+
+        try:
+            # Detect research needs in contributions (uses Haiku, ~$0.001 per contribution)
+            detected_queries = await detect_and_trigger_research(
+                contributions=filtered_contributions,
+                problem_context=problem_context,
+                min_confidence=0.75,  # Only trigger for high-confidence detections
+            )
+
+            if detected_queries:
+                logger.info(
+                    f"Proactive research detected: {len(detected_queries)} queries from "
+                    f"{len(filtered_contributions)} contributions"
+                )
+                pending_research_queries = detected_queries
+
+                # Track detection cost (approximate)
+                detection_cost = len(filtered_contributions) * 0.001  # ~$0.001 per contribution
+                metrics.total_cost += detection_cost
+                logger.debug(f"Research detection cost: ${detection_cost:.4f}")
+            else:
+                logger.debug("No proactive research triggers detected in this round")
+
+        except Exception as e:
+            logger.warning(
+                f"Proactive research detection failed: {e}. Continuing without detection."
+            )
+            # Don't fail the round if detection fails - it's a nice-to-have
+
     # Log quality metrics if available
     if quality_results:
         shallow_count = sum(1 for r in quality_results if r.is_shallow)
@@ -1890,6 +2035,7 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         "current_node": "parallel_round",
         "personas": state.get("personas", []),  # Include for event publishing (archetype lookup)
         "sub_problem_index": state.get("sub_problem_index", 0),
+        "pending_research_queries": pending_research_queries,  # Proactive research from this round
     }
 
     # Include facilitator_guidance if it was updated with quality issues
@@ -1933,10 +2079,11 @@ async def _select_experts_for_round(
 ) -> list[Any]:  # Returns list[PersonaProfile]
     """Select 2-5 experts for this round based on phase and balance.
 
-    Selection Strategy:
-    - Exploration: 3-5 experts (broad exploration, prioritize unheard voices)
-    - Challenge: 2-3 experts (focused debate, avoid recent speakers)
-    - Convergence: 2-3 experts (synthesis, balanced representation)
+    Selection Strategy (Adaptive based on complexity):
+    - Uses metrics.recommended_experts as baseline (3-5 based on complexity)
+    - Exploration: recommended_experts (broad exploration, prioritize unheard voices)
+    - Challenge: max(2, recommended_experts - 1) (focused debate, avoid recent speakers)
+    - Convergence: max(2, recommended_experts - 1) (synthesis, balanced representation)
 
     Balancing Rules:
     - No expert in >50% of recent 4 rounds
@@ -1958,6 +2105,13 @@ async def _select_experts_for_round(
         logger.warning("No personas available for selection")
         return []
 
+    # Get adaptive expert count from complexity assessment
+    metrics = state.get("metrics")
+    recommended_experts = 4  # Default fallback
+    if metrics and hasattr(metrics, "recommended_experts") and metrics.recommended_experts:
+        recommended_experts = metrics.recommended_experts
+    logger.info(f"Using recommended_experts={recommended_experts} from complexity assessment")
+
     # Count contributions per expert
     contribution_counts: dict[str, int] = {}
     for contrib in contributions:
@@ -1971,10 +2125,10 @@ async def _select_experts_for_round(
         for round_experts in experts_per_round[-4:]:
             recent_speakers.extend(round_experts)
 
-    # Phase-specific selection
+    # Phase-specific selection (adaptive based on complexity)
     if phase == "exploration":
-        # Select 3-4 experts, prioritize those who haven't spoken much
-        target_count = min(4, len(personas))
+        # Select recommended_experts, prioritize those who haven't spoken much
+        target_count = min(recommended_experts, len(personas))
 
         # Sort by contribution count (fewest first)
         candidates = sorted(
@@ -1988,8 +2142,8 @@ async def _select_experts_for_round(
         selected = candidates[:target_count]
 
     elif phase == "challenge":
-        # Select 2-3 experts who haven't spoken recently
-        target_count = min(3, len(personas))
+        # Select fewer experts for focused debate (recommended - 1, minimum 2)
+        target_count = min(max(2, recommended_experts - 1), len(personas))
 
         # Filter out recent speakers
         candidates = [
@@ -2008,15 +2162,16 @@ async def _select_experts_for_round(
         selected = candidates[:target_count]
 
     elif phase == "convergence":
-        # Select 2-3 experts representing different viewpoints
-        target_count = min(3, len(personas))
+        # Select fewer experts for synthesis (recommended - 1, minimum 2)
+        target_count = min(max(2, recommended_experts - 1), len(personas))
 
         # Select balanced set (least-contributing experts to ensure all voices heard)
         selected = sorted(personas, key=lambda p: contribution_counts.get(p.code, 0))[:target_count]
 
     else:
-        # Default: select first 3
-        selected = personas[: min(3, len(personas))]
+        # Default: use recommended_experts
+        target_count = min(recommended_experts, len(personas))
+        selected = personas[:target_count]
 
     logger.info(
         f"Expert selection ({phase}): {[p.code for p in selected]} "
@@ -2101,6 +2256,18 @@ async def _generate_parallel_contributions(
             memory_parts.append(subproblem_context)
             logger.debug(f"Added sub-problem context for {expert.display_name}")
 
+        # Add research results if available (proactive or facilitator-requested)
+        research_results = state.get("research_results", [])
+        if research_results:
+            from bo1.agents.researcher import ResearcherAgent
+
+            researcher = ResearcherAgent()
+            research_context = researcher.format_research_context(research_results)
+            memory_parts.append(research_context)
+            logger.debug(
+                f"Added {len(research_results)} research results to context for {expert.display_name}"
+            )
+
         expert_memory = "\n\n".join(memory_parts)
 
         task = engine._call_persona_async(
@@ -2156,6 +2323,14 @@ async def _generate_parallel_contributions(
                 retry_memory_parts.append(dependency_context)
             if subproblem_context:
                 retry_memory_parts.append(subproblem_context)
+
+            # Add research results to retry context
+            if research_results:
+                from bo1.agents.researcher import ResearcherAgent
+
+                researcher = ResearcherAgent()
+                research_context = researcher.format_research_context(research_results)
+                retry_memory_parts.append(research_context)
 
             retry_guidance = "\n\n".join(retry_memory_parts)
 

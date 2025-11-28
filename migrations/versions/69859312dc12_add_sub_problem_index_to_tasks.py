@@ -1,4 +1,4 @@
-"""add_sub_problem_index_to_tasks
+"""Add sub_problem_index to tasks.
 
 Revision ID: 69859312dc12
 Revises: 80cf34f1b577

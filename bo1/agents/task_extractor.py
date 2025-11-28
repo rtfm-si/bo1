@@ -9,6 +9,8 @@ from anthropic import Anthropic
 from pydantic import BaseModel, Field
 
 from bo1.config import get_model_for_role
+from bo1.llm.context import get_cost_context
+from bo1.llm.cost_tracker import CostTracker
 
 
 class ExtractedTask(BaseModel):
@@ -178,12 +180,27 @@ async def extract_tasks_from_synthesis(
     # Use haiku for fast, cheap structured extraction (like summarizer)
     model = get_model_for_role("SUMMARIZER")
 
-    response = await client.messages.create(
-        model=model,
-        max_tokens=4000,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.0,  # Deterministic extraction
-    )
+    ctx = get_cost_context()
+
+    with CostTracker.track_call(
+        provider="anthropic",
+        operation_type="completion",
+        model_name=model,
+        session_id=ctx.get("session_id") or session_id,
+        user_id=ctx.get("user_id"),
+        node_name="task_extractor",
+        phase="synthesis",
+    ) as cost_record:
+        response = await client.messages.create(
+            model=model,
+            max_tokens=4000,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,  # Deterministic extraction
+        )
+
+        # Track token usage
+        cost_record.input_tokens = response.usage.input_tokens
+        cost_record.output_tokens = response.usage.output_tokens
 
     # Parse JSON response
     first_block = response.content[0]
@@ -221,12 +238,27 @@ def sync_extract_tasks_from_synthesis(
     # Use haiku for fast, cheap structured extraction (like summarizer)
     model = get_model_for_role("SUMMARIZER")
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=4000,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.0,
-    )
+    ctx = get_cost_context()
+
+    with CostTracker.track_call(
+        provider="anthropic",
+        operation_type="completion",
+        model_name=model,
+        session_id=ctx.get("session_id") or session_id,
+        user_id=ctx.get("user_id"),
+        node_name="task_extractor",
+        phase="synthesis",
+    ) as cost_record:
+        response = client.messages.create(
+            model=model,
+            max_tokens=4000,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+        )
+
+        # Track token usage
+        cost_record.input_tokens = response.usage.input_tokens
+        cost_record.output_tokens = response.usage.output_tokens
 
     first_block = response.content[0]
     if not hasattr(first_block, "text"):

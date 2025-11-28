@@ -82,6 +82,10 @@ class DeliberationGraphState(TypedDict, total=False):
     completed_research_queries: list[
         dict[str, Any]
     ]  # List of {"query": str, "embedding": list[float]}
+    pending_research_queries: list[
+        dict[str, Any]
+    ]  # Proactive research queries from contribution analysis
+    research_results: list[dict[str, Any]]  # Research results from completed queries
 
     # NEW FIELDS FOR PARALLEL ARCHITECTURE (Day 38)
     current_phase: str  # "exploration", "challenge", "convergence"
@@ -133,6 +137,8 @@ def create_initial_state(
         stop_reason=None,
         user_input=None,
         completed_research_queries=[],  # Track completed research
+        pending_research_queries=[],  # Proactive research from contribution analysis
+        research_results=[],  # Research results from completed queries
         user_id=user_id,
         current_node="start",
         votes=[],

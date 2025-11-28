@@ -7,6 +7,7 @@
 	import { DashboardCardSkeleton } from '$lib/components/ui/skeletons';
 	import { Button } from '$lib/components/ui';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
+	import { getSessionStatusColor } from '$lib/utils/color-helpers';
 
 	// Use data fetch utility for sessions
 	const sessionsData = useDataFetch(() => apiClient.listSessions());
@@ -27,17 +28,6 @@
 		console.log('[Dashboard] Loading sessions...');
 		await sessionsData.fetch();
 		console.log('[Dashboard] Sessions loaded:', sessionsData.data);
-	}
-
-	function getStatusColor(status: string): string {
-		const colors = {
-			active: 'bg-info-100 text-info-800 dark:bg-info-900/20 dark:text-info-300',
-			paused: 'bg-warning-100 text-warning-800 dark:bg-warning-900/20 dark:text-warning-300',
-			completed: 'bg-success-100 text-success-800 dark:bg-success-900/20 dark:text-success-300',
-			failed: 'bg-error-100 text-error-800 dark:bg-error-900/20 dark:text-error-300',
-			killed: 'bg-neutral-100 text-neutral-800 dark:bg-neutral-900/20 dark:text-neutral-300'
-		};
-		return colors[status as keyof typeof colors] || 'bg-neutral-100 text-neutral-800';
 	}
 
 	function formatDate(dateString: string): string {
@@ -155,7 +145,7 @@
 						<div class="flex items-start justify-between gap-4">
 							<div class="flex-1 min-w-0">
 								<div class="flex items-center gap-3 mb-2">
-									<span class="px-2.5 py-1 text-xs font-medium rounded-full {getStatusColor(session.status)}">
+									<span class="px-2.5 py-1 text-xs font-medium rounded-full {getSessionStatusColor(session.status)}">
 										{session.status}
 									</span>
 									<span class="text-xs text-neutral-500 dark:text-neutral-400" title="Created">

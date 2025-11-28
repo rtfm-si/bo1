@@ -6,6 +6,14 @@
 	import type { ConvergenceEvent } from '$lib/api/sse-events';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import { fade } from 'svelte/transition';
+	import {
+		getProgressColor,
+		getProgressTextColor,
+		getProgressStatusMessage,
+		getNoveltyColor,
+		getConflictColor,
+		getDriftColor
+	} from '$lib/utils/color-helpers';
 
 	interface Props {
 		event: ConvergenceEvent;
@@ -16,7 +24,10 @@
 	// Default threshold to 0.85 if not provided
 	const threshold = $derived(event.data.threshold ?? 0.85);
 	const score = $derived(event.data.score);
-	const percentage = $derived(Math.round((score / threshold) * 100));
+
+	// Calculate ratio once - used by multiple derived values
+	const ratio = $derived(score / threshold);
+	const percentage = $derived(Math.round(ratio * 100));
 	const progressWidth = $derived(Math.min(percentage, 100));
 
 	// Debug convergence rendering
@@ -33,46 +44,14 @@
 		});
 	});
 
-	// Color coding based on score
-	function getProgressColor(score: number, threshold: number): string {
-		const ratio = score / threshold;
-		if (ratio >= 0.9) return 'bg-green-500 dark:bg-green-600';
-		if (ratio >= 0.7) return 'bg-yellow-500 dark:bg-yellow-600';
-		if (ratio >= 0.4) return 'bg-orange-500 dark:bg-orange-600';
-		return 'bg-red-500 dark:bg-red-600';
-	}
-
-	function getProgressTextColor(score: number, threshold: number): string {
-		const ratio = score / threshold;
-		if (ratio >= 0.9) return 'text-green-700 dark:text-green-300';
-		if (ratio >= 0.7) return 'text-yellow-700 dark:text-yellow-300';
-		if (ratio >= 0.4) return 'text-orange-700 dark:text-orange-300';
-		return 'text-red-700 dark:text-red-300';
-	}
-
-	function getStatusMessage(score: number, threshold: number): string {
-		const ratio = score / threshold;
-		if (ratio >= 1.0) return 'Strong consensus achieved';
-		if (ratio >= 0.9) return 'Nearly converged';
-		if (ratio >= 0.7) return 'Good progress';
-		if (ratio >= 0.4) return 'Building consensus';
-		return 'Early discussion';
-	}
-
-	const progressColor = $derived(getProgressColor(score, threshold));
-	const textColor = $derived(getProgressTextColor(score, threshold));
-	const statusMessage = $derived(getStatusMessage(score, threshold));
+	// Color coding based on pre-computed ratio
+	const progressColor = $derived(getProgressColor(ratio));
+	const textColor = $derived(getProgressTextColor(ratio));
+	const statusMessage = $derived(getProgressStatusMessage(ratio));
 
 	// Quality metrics helper functions
 	function formatScore(score: number | null): string {
 		return score !== null && score !== undefined ? Math.round(score * 100) + '%' : 'N/A';
-	}
-
-	function getNoveltyColor(score: number | null): string {
-		if (score === null || score === undefined) return 'text-neutral-400 dark:text-neutral-500';
-		if (score >= 0.7) return 'text-green-600 dark:text-green-400';
-		if (score >= 0.4) return 'text-yellow-600 dark:text-yellow-400';
-		return 'text-red-600 dark:text-red-400';
 	}
 
 	function getNoveltyLabel(score: number | null): string {
@@ -82,24 +61,11 @@
 		return 'Repetitive';
 	}
 
-	function getConflictColor(score: number | null): string {
-		if (score === null || score === undefined) return 'text-neutral-400 dark:text-neutral-500';
-		if (score >= 0.7) return 'text-orange-600 dark:text-orange-400';
-		if (score >= 0.4) return 'text-yellow-600 dark:text-yellow-400';
-		return 'text-green-600 dark:text-green-400';
-	}
-
 	function getConflictLabel(score: number | null): string {
 		if (score === null || score === undefined) return 'Not calculated';
 		if (score >= 0.7) return 'High debate';
 		if (score >= 0.4) return 'Moderate';
 		return 'Low conflict';
-	}
-
-	function getDriftColor(events: number): string {
-		if (events === 0) return 'text-green-600 dark:text-green-400';
-		if (events <= 2) return 'text-yellow-600 dark:text-yellow-400';
-		return 'text-red-600 dark:text-red-400';
 	}
 
 	function getDriftLabel(events: number): string {

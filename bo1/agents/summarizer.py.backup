@@ -214,129 +214,6 @@ class SummarizerAgent(BaseAgent):
             logger.error(f"Validation failed: {e}")
             raise
 
-    async def summarize_with_validation(
-        self,
-        round_number: int,
-        contributions: list[dict[str, str]],
-        problem_statement: str | None = None,
-        target_tokens: int | None = None,
-        quality_threshold: float = 0.6,
-        max_retries: int = 1,
-    ) -> tuple[LLMResponse, dict[str, Any]]:
-        """Summarize a round with automatic quality validation and regeneration.
-
-        This is the recommended high-level method for summarization. It will:
-        1. Generate an initial summary
-        2. Validate the summary quality
-        3. If quality is below threshold, regenerate with specific instructions
-        4. Return the summary and validation metrics
-
-        Args:
-            round_number: Round number (1-based)
-            contributions: List of dicts with 'persona' and 'content' keys
-            problem_statement: Optional problem context (helpful for Round 1)
-            target_tokens: Target summary length (default: TokenLimits.SUMMARY_TARGET)
-            quality_threshold: Minimum acceptable quality score (default: 0.6)
-            max_retries: Maximum regeneration attempts (default: 1)
-
-        Returns:
-            Tuple of (LLMResponse with summary, validation metrics dict)
-
-        Raises:
-            Exception: If summarization or validation fails
-
-        Examples:
-            >>> response, quality = await summarizer.summarize_with_validation(
-            ...     round_number=1,
-            ...     contributions=contributions,
-            ...     problem_statement="Should we invest in SEO?"
-            ... )
-            >>> if quality['quality_score'] >= 0.6:
-            ...     print(f"High quality summary: {response.content}")
-        """
-        # Generate initial summary
-        response = await self.summarize_round(
-            round_number=round_number,
-            contributions=contributions,
-            problem_statement=problem_statement,
-            target_tokens=target_tokens,
-        )
-
-        # Validate quality
-        quality = await self.validate_summary_quality(
-            summary=response.content,
-            original_contributions=contributions,
-        )
-
-        # If quality is below threshold, try to regenerate with specific instructions
-        retries = 0
-        while quality["quality_score"] < quality_threshold and retries < max_retries:
-            logger.warning(
-                f"Summary quality {quality['quality_score']:.2f} below threshold "
-                f"{quality_threshold}. Regenerating with focused instructions. "
-                f"(Attempt {retries + 1}/{max_retries})"
-            )
-
-            # Build focused instructions based on what's missing
-            focus_instructions = []
-            if not quality["preserves_dissent"]:
-                focus_instructions.append(
-                    "CRITICAL: Include all disagreements and opposing viewpoints"
-                )
-            if not quality["preserves_evidence"]:
-                focus_instructions.append(
-                    "CRITICAL: Preserve all specific numbers, data points, and timeframes"
-                )
-            if not quality["captures_key_points"]:
-                focus_instructions.append(
-                    "CRITICAL: Ensure each persona's main position is represented"
-                )
-            if quality["missing_elements"]:
-                missing_str = ", ".join(quality["missing_elements"][:3])  # Top 3
-                focus_instructions.append(f"MUST INCLUDE: {missing_str}")
-
-            # Regenerate with enhanced prompt
-            user_message = compose_summarization_request(
-                round_number=round_number,
-                contributions=contributions,
-                problem_statement=problem_statement,
-            )
-
-            # Add focused instructions
-            enhanced_message = (
-                f"{user_message}\n\n"
-                f"<quality_requirements>\n"
-                f"{chr(10).join(f'- {instr}' for instr in focus_instructions)}\n"
-                f"</quality_requirements>"
-            )
-
-            target = target_tokens or TokenLimits.SUMMARY_TARGET
-            response = await self._create_and_call_prompt(
-                system=SUMMARIZER_SYSTEM_PROMPT,
-                user_message=enhanced_message,
-                phase="summarization_retry",
-                temperature=0.3,
-                max_tokens=target + 50,
-            )
-
-            # Revalidate
-            quality = await self.validate_summary_quality(
-                summary=response.content,
-                original_contributions=contributions,
-            )
-
-            retries += 1
-
-        if quality["quality_score"] >= quality_threshold:
-            logger.info(f"Summary accepted with quality score {quality['quality_score']:.2f}")
-        else:
-            logger.warning(
-                f"Summary quality {quality['quality_score']:.2f} still below threshold "
-                f"after {retries} retries. Using best available summary."
-            )
-
-        return response, quality
-
 
 # Example usage and testing
 if __name__ == "__main__":
@@ -411,11 +288,8 @@ if __name__ == "__main__":
             print("\nQUALITY VALIDATION:")
             print(f"  Preserves dissent:   {quality['preserves_dissent']}")
             print(f"  Preserves evidence:  {quality['preserves_evidence']}")
-            print(f"  Captures key points: {quality['captures_key_points']}")
             print(f"  Within token budget: {quality['within_token_budget']}")
             print(f"  Quality score:       {quality['quality_score']:.2f}")
-            if quality["missing_elements"]:
-                print(f"  Missing elements:    {', '.join(quality['missing_elements'])}")
 
         except Exception as e:
             print(f"ERROR: {e}")

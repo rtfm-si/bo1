@@ -13,6 +13,8 @@ from anthropic import AsyncAnthropic
 from backend.api.event_extractors import get_event_registry
 from backend.api.event_publisher import EventPublisher
 from bo1.config import get_settings, resolve_model_alias
+from bo1.llm.context import get_cost_context
+from bo1.llm.cost_tracker import CostTracker
 from bo1.state.postgres_manager import save_session_synthesis, update_session_status
 
 logger = logging.getLogger(__name__)
@@ -657,14 +659,33 @@ Generate VALID JSON in this EXACT format (no markdown, no code blocks, just pure
 Be specific, extract concrete insights, avoid generic statements.
 </instructions>"""
 
-            response = await self.anthropic_client.messages.create(
-                model=resolve_model_alias("haiku"),
-                max_tokens=500,
-                messages=[
-                    {"role": "user", "content": prompt},
-                    {"role": "assistant", "content": "{"},  # Prefill to force JSON
-                ],
-            )
+            ctx = get_cost_context()
+            model = resolve_model_alias("haiku")
+
+            with CostTracker.track_call(
+                provider="anthropic",
+                operation_type="completion",
+                model_name=model,
+                session_id=ctx.get("session_id"),
+                user_id=ctx.get("user_id"),
+                node_name="contribution_summarizer",
+                phase=ctx.get("phase"),
+                persona_name=persona_name,
+                round_number=ctx.get("round_number"),
+                sub_problem_index=ctx.get("sub_problem_index"),
+            ) as cost_record:
+                response = await self.anthropic_client.messages.create(
+                    model=model,
+                    max_tokens=500,
+                    messages=[
+                        {"role": "user", "content": prompt},
+                        {"role": "assistant", "content": "{"},  # Prefill to force JSON
+                    ],
+                )
+
+                # Track token usage
+                cost_record.input_tokens = response.usage.input_tokens
+                cost_record.output_tokens = response.usage.output_tokens
 
             # Extract JSON from response - prepend opening brace from prefill
             response_text = "{" + response.content[0].text

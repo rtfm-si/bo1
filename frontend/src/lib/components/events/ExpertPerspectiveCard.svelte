@@ -39,11 +39,11 @@
 	const hasSimpleSummary = $derived(hasSummary && event.data.summary?.concise);
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_tabindex -->
-<div
-	class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-all shadow-sm hover:shadow-md {onToggle ? 'cursor-pointer' : ''}"
+<svelte:element
+	this={onToggle ? 'button' : 'div'}
+	class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 {onToggle ? 'hover:border-brand-300 dark:hover:border-brand-600 cursor-pointer' : ''} transition-all shadow-sm {onToggle ? 'hover:shadow-md w-full text-left' : ''}"
 	onclick={onToggle}
-	onkeydown={(e) => e.key === 'Enter' && onToggle?.()}
+	onkeydown={onToggle ? (e: KeyboardEvent) => e.key === 'Enter' && onToggle?.() : undefined}
 	role={onToggle ? 'button' : undefined}
 	tabindex={onToggle ? 0 : undefined}
 >
@@ -161,4 +161,4 @@
 			{event.data.content}
 		</p>
 	{/if}
-</div>
+</svelte:element>

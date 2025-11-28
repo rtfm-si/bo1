@@ -19,10 +19,15 @@ __all__ = [
     "CacheConfig",
     "MODEL_ALIASES",
     "MODEL_BY_ROLE",
+    "ANTHROPIC_PRICING",
+    "VOYAGE_PRICING",
+    "BRAVE_PRICING",
+    "TAVILY_PRICING",
     "MODEL_PRICING",
     "resolve_model_alias",
     "get_model_for_role",
     "calculate_cost",
+    "get_service_pricing",
 ]
 
 
@@ -262,39 +267,105 @@ MODEL_BY_ROLE = {
 # NOTE: When updating to new model versions, update MODEL_ALIASES above,
 # then add pricing for the new model ID here.
 
-MODEL_PRICING = {
+# =============================================================================
+# AI SERVICE PRICING - Anthropic Models (per 1M tokens)
+# Last updated: 2025-11-28
+# Source: https://docs.claude.com/en/docs/about-claude/models/overview
+# =============================================================================
+
+ANTHROPIC_PRICING = {
     "claude-sonnet-4-5-20250929": {
         "input": 3.00,  # $3 per 1M input tokens
         "output": 15.00,  # $15 per 1M output tokens
-        "cache_creation": 3.75,  # $3.75 per 1M cache write (≤200K prompts)
-        "cache_read": 0.30,  # $0.30 per 1M cache read (90% cheaper!)
-        "context_window": 200_000,  # 200K tokens
-        "max_output": 64_000,  # 64K tokens
+        "cache_write": 3.75,  # $3.75 per 1M cache write (25% of input)
+        "cache_read": 0.30,  # $0.30 per 1M cache read (90% cheaper)
     },
     "claude-haiku-4-5-20251001": {
         "input": 1.00,  # $1 per 1M input tokens
         "output": 5.00,  # $5 per 1M output tokens
-        "cache_creation": 1.25,  # $1.25 per 1M cache write
-        "cache_read": 0.10,  # $0.10 per 1M cache read
-        "context_window": 200_000,  # 200K tokens
-        "max_output": 64_000,  # 64K tokens
+        "cache_write": 1.25,  # $1.25 per 1M cache write (25% of input)
+        "cache_read": 0.10,  # $0.10 per 1M cache read (90% cheaper)
     },
-    "claude-opus-4-1-20250805": {
+    "claude-opus-4-20250514": {
         "input": 15.00,  # $15 per 1M input tokens
         "output": 75.00,  # $75 per 1M output tokens
-        "cache_creation": 18.75,  # $18.75 per 1M cache write
-        "cache_read": 1.50,  # $1.50 per 1M cache read
-        "context_window": 200_000,  # 200K tokens
-        "max_output": 32_000,  # 32K tokens
+        "cache_write": 18.75,  # $18.75 per 1M cache write (25% of input)
+        "cache_read": 1.50,  # $1.50 per 1M cache read (90% cheaper)
     },
     # Claude 3.5 models (for testing - faster and cheaper than 4.5)
     "claude-3-5-haiku-20241022": {
         "input": 0.80,  # $0.80 per 1M input tokens
         "output": 4.00,  # $4.00 per 1M output tokens
-        "cache_creation": 1.00,  # $1.00 per 1M cache write
-        "cache_read": 0.08,  # $0.08 per 1M cache read
-        "context_window": 200_000,  # 200K tokens
-        "max_output": 8_000,  # 8K tokens
+        "cache_write": 1.00,  # $1.00 per 1M cache write (25% of input)
+        "cache_read": 0.08,  # $0.08 per 1M cache read (90% cheaper)
+    },
+}
+
+# =============================================================================
+# AI SERVICE PRICING - Voyage AI Embeddings (per 1M tokens)
+# Last updated: 2025-11-28
+# Source: https://www.voyageai.com/pricing
+# =============================================================================
+
+VOYAGE_PRICING = {
+    "voyage-3": {"embedding": 0.06},  # $0.06 per 1M tokens
+    "voyage-3-lite": {"embedding": 0.02},  # $0.02 per 1M tokens (cheapest)
+    "voyage-3-large": {"embedding": 0.18},  # $0.18 per 1M tokens (most capable)
+}
+
+# =============================================================================
+# AI SERVICE PRICING - Web Search APIs
+# Last updated: 2025-11-28
+# =============================================================================
+
+BRAVE_PRICING = {
+    "web_search": 0.003,  # $0.003 per query
+    "ai_search": 0.005,  # $0.005 per query
+}
+
+TAVILY_PRICING = {
+    "basic_search": 0.001,  # $0.001 per query
+    "advanced_search": 0.002,  # $0.002 per query
+}
+
+# =============================================================================
+# MODEL PRICING - Backward compatibility (maps to ANTHROPIC_PRICING with metadata)
+# =============================================================================
+# Used by calculate_cost() and existing code. Includes context_window and max_output
+# for reference. New code should use ANTHROPIC_PRICING and get_service_pricing().
+
+MODEL_PRICING = {
+    "claude-sonnet-4-5-20250929": {
+        "input": 3.00,
+        "output": 15.00,
+        "cache_creation": 3.75,
+        "cache_read": 0.30,
+        "context_window": 200_000,
+        "max_output": 64_000,
+    },
+    "claude-haiku-4-5-20251001": {
+        "input": 1.00,
+        "output": 5.00,
+        "cache_creation": 1.25,
+        "cache_read": 0.10,
+        "context_window": 200_000,
+        "max_output": 64_000,
+    },
+    "claude-opus-4-1-20250805": {
+        "input": 15.00,
+        "output": 75.00,
+        "cache_creation": 18.75,
+        "cache_read": 1.50,
+        "context_window": 200_000,
+        "max_output": 32_000,
+    },
+    "claude-3-5-haiku-20241022": {
+        "input": 0.80,
+        "output": 4.00,
+        "cache_creation": 1.00,
+        "cache_read": 0.08,
+        "context_window": 200_000,
+        "max_output": 8_000,
     },
 }
 
@@ -416,3 +487,86 @@ def calculate_cost(
     )
 
     return cost
+
+
+def get_service_pricing(provider: str, model: str | None = None, operation: str = "") -> float:
+    """Get price per unit for any AI service.
+
+    Supports pricing lookup across all AI services: Anthropic, Voyage, Brave, Tavily.
+
+    Args:
+        provider: Service provider ('anthropic', 'voyage', 'brave', 'tavily')
+        model: Model identifier (e.g., 'claude-sonnet-4-5-20250929', 'voyage-3')
+               Required for 'anthropic' and 'voyage', optional for others
+        operation: Operation type ('input', 'output', 'cache_write', 'cache_read', 'embedding', etc.)
+
+    Returns:
+        Price per unit (usually per 1M tokens or per query) in USD
+
+    Raises:
+        ValueError: If provider/model/operation combination is not recognized
+
+    Examples:
+        >>> get_service_pricing("anthropic", "claude-haiku-4-5-20251001", "input")
+        1.00
+        >>> get_service_pricing("voyage", "voyage-3-lite", "embedding")
+        0.02
+        >>> get_service_pricing("brave", operation="web_search")
+        0.003
+        >>> get_service_pricing("tavily", operation="advanced_search")
+        0.002
+    """
+    provider_lower = provider.lower()
+
+    if provider_lower == "anthropic":
+        if not model:
+            raise ValueError("'model' is required for anthropic provider")
+        # Resolve alias to full model ID
+        full_model_id = resolve_model_alias(model)
+        if full_model_id not in ANTHROPIC_PRICING:
+            raise ValueError(
+                f"Unknown Anthropic model: {model} (resolved to: {full_model_id}). "
+                f"Available models: {list(ANTHROPIC_PRICING.keys())}"
+            )
+        if operation not in ANTHROPIC_PRICING[full_model_id]:
+            raise ValueError(
+                f"Unknown operation '{operation}' for model {full_model_id}. "
+                f"Available operations: {list(ANTHROPIC_PRICING[full_model_id].keys())}"
+            )
+        return ANTHROPIC_PRICING[full_model_id][operation]
+
+    elif provider_lower == "voyage":
+        if not model:
+            raise ValueError("'model' is required for voyage provider")
+        if model not in VOYAGE_PRICING:
+            raise ValueError(
+                f"Unknown Voyage model: {model}. Available models: {list(VOYAGE_PRICING.keys())}"
+            )
+        if operation not in VOYAGE_PRICING[model]:
+            raise ValueError(
+                f"Unknown operation '{operation}' for model {model}. "
+                f"Available operations: {list(VOYAGE_PRICING[model].keys())}"
+            )
+        return VOYAGE_PRICING[model][operation]
+
+    elif provider_lower == "brave":
+        if operation not in BRAVE_PRICING:
+            raise ValueError(
+                f"Unknown Brave operation: {operation}. "
+                f"Available operations: {list(BRAVE_PRICING.keys())}"
+            )
+        return BRAVE_PRICING[operation]
+
+    elif provider_lower == "tavily":
+        if operation not in TAVILY_PRICING:
+            raise ValueError(
+                f"Unknown Tavily operation: {operation}. "
+                f"Available operations: {list(TAVILY_PRICING.keys())}"
+            )
+        return TAVILY_PRICING[operation]
+
+    else:
+        raise ValueError(
+            f"Unknown provider: {provider}. "
+            f"Available providers: ['anthropic', 'voyage', 'brave', 'tavily']"
+        )

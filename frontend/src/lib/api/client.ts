@@ -56,9 +56,24 @@ export class ApiClient {
 
 		// For admin endpoints, add X-Admin-Key header if available
 		const headers: Record<string, string> = {
-			'Content-Type': 'application/json',
-			...options?.headers
+			'Content-Type': 'application/json'
 		};
+
+		// Merge in any additional headers from options
+		if (options?.headers) {
+			const optHeaders = options.headers;
+			if (optHeaders instanceof Headers) {
+				optHeaders.forEach((value, key) => {
+					headers[key] = value;
+				});
+			} else if (Array.isArray(optHeaders)) {
+				optHeaders.forEach(([key, value]) => {
+					headers[key] = value;
+				});
+			} else {
+				Object.assign(headers, optHeaders);
+			}
+		}
 
 		// Add admin key for admin endpoints
 		if (endpoint.startsWith('/api/admin/')) {

@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.dependencies import get_redis_manager, get_session_manager
 from backend.api.metrics import metrics
-from backend.api.middleware.admin import require_admin
+from backend.api.middleware.admin import require_admin_any
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.validation import validate_session_id
 from bo1.utils.logging import get_logger
@@ -154,7 +154,7 @@ async def list_users(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(10, ge=1, le=100, description="Users per page (1-100)"),
     email: str | None = Query(None, description="Search by email (partial match)"),
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> UserListResponse:
     """List all users with metrics.
 
@@ -279,7 +279,7 @@ async def list_users(
 )
 async def get_user(
     user_id: str,
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> UserInfo:
     """Get detailed information about a user.
 
@@ -372,7 +372,7 @@ async def get_user(
 async def update_user(
     user_id: str,
     request: UpdateUserRequest,
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> UserInfo:
     """Update user subscription tier or admin status.
 
@@ -650,7 +650,7 @@ class KillAllResponse(BaseModel):
 )
 async def list_active_sessions(
     top_n: int = Query(10, ge=1, le=100, description="Number of top sessions to return"),
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> ActiveSessionsResponse:
     """List all active sessions with stats.
 
@@ -743,7 +743,7 @@ async def list_active_sessions(
 )
 async def get_full_session(
     session_id: str,
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> FullSessionResponse:
     """Get full session details including all metadata and state.
 
@@ -822,7 +822,7 @@ async def get_full_session(
 async def admin_kill_session(
     session_id: str,
     reason: str = Query("Admin terminated", description="Reason for killing session"),
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> ControlResponse:
     """Admin kill any session (no ownership check).
 
@@ -886,7 +886,7 @@ async def admin_kill_session(
 async def admin_kill_all_sessions(
     confirm: bool = Query(False, description="Must be true to confirm kill-all"),
     reason: str = Query("System maintenance", description="Reason for emergency shutdown"),
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> KillAllResponse:
     """Emergency shutdown - kill all active sessions.
 
@@ -980,7 +980,7 @@ class StaleEntriesResponse(BaseModel):
     },
 )
 async def get_research_cache_stats(
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> ResearchCacheStats:
     """Get research cache analytics and statistics.
 
@@ -1027,7 +1027,7 @@ async def get_research_cache_stats(
 )
 async def delete_research_cache_entry(
     cache_id: str,
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> ControlResponse:
     """Delete a specific research cache entry.
 
@@ -1085,7 +1085,7 @@ async def delete_research_cache_entry(
 )
 async def get_stale_research_cache_entries(
     days_old: int = Query(90, ge=1, le=365, description="Number of days to consider stale"),
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> StaleEntriesResponse:
     """Get research cache entries older than specified days.
 
@@ -1187,7 +1187,7 @@ class AddWhitelistRequest(BaseModel):
     },
 )
 async def list_beta_whitelist(
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> BetaWhitelistResponse:
     """List all whitelisted emails for closed beta.
 
@@ -1257,7 +1257,7 @@ async def list_beta_whitelist(
 )
 async def add_to_beta_whitelist(
     request: AddWhitelistRequest,
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> BetaWhitelistEntry:
     """Add email to beta whitelist.
 
@@ -1342,7 +1342,7 @@ async def add_to_beta_whitelist(
 )
 async def remove_from_beta_whitelist(
     email: str,
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> ControlResponse:
     """Remove email from beta whitelist.
 
@@ -1416,7 +1416,7 @@ async def remove_from_beta_whitelist(
     },
 )
 async def get_metrics(
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> dict[str, Any]:
     """Get all system metrics (admin only).
 
@@ -1460,7 +1460,7 @@ async def get_metrics(
     },
 )
 async def reset_metrics(
-    _admin_key: str = Depends(require_admin),
+    _admin: str = Depends(require_admin_any),
 ) -> ControlResponse:
     """Reset all metrics to zero (admin only).
 

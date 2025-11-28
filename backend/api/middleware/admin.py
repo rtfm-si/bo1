@@ -1,25 +1,30 @@
 """Admin authentication middleware for Board of One API.
 
-Provides simple API key-based authentication for admin endpoints.
-For MVP: Uses environment variable ADMIN_API_KEY
-For v2+: Will use role-based auth with Supabase
+Provides two authentication methods for admin endpoints:
+1. Session-based: Uses SuperTokens session + is_admin flag from database
+2. API key-based: Uses X-Admin-Key header (for scripts/automation)
 
-SECURITY: Uses constant-time comparison to prevent timing attacks.
+SECURITY: Uses constant-time comparison to prevent timing attacks on API keys.
 """
 
 import logging
 import os
 import secrets
+from typing import Annotated
 
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
+from supertokens_python.recipe.session import SessionContainer
+from supertokens_python.recipe.session.framework.fastapi import verify_session
+
+from bo1.state.postgres_manager import get_user
 
 logger = logging.getLogger(__name__)
 
-# Load admin API key from environment
+# Load admin API key from environment (for script/automation access)
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
 
 if not ADMIN_API_KEY:
-    logger.warning("ADMIN_API_KEY not set - admin endpoints will be disabled")
+    logger.info("ADMIN_API_KEY not set - API key auth disabled, session auth still works")
 
 
 def verify_admin_key_secure(provided_key: str, expected_key: str) -> bool:
@@ -42,13 +47,54 @@ def verify_admin_key_secure(provided_key: str, expected_key: str) -> bool:
     return secrets.compare_digest(provided_key, expected_key)
 
 
-def require_admin(x_admin_key: str = Header(...)) -> str:
-    """Dependency to require admin authentication.
+async def require_admin_session(
+    session: Annotated[SessionContainer, Depends(verify_session())],
+) -> str:
+    """Dependency to require admin authentication via session.
 
-    Checks the X-Admin-Key header against the ADMIN_API_KEY environment variable.
+    Checks if the authenticated user has is_admin=true in the database.
 
     Args:
-        x_admin_key: Admin API key from X-Admin-Key header
+        session: SuperTokens session container
+
+    Returns:
+        User ID if admin
+
+    Raises:
+        HTTPException: 403 if user is not an admin
+    """
+    user_id = session.get_user_id()
+
+    # Get user from database to check admin status
+    user_data = get_user(user_id)
+
+    if not user_data:
+        logger.warning(f"Admin access attempted by unknown user: {user_id}")
+        raise HTTPException(
+            status_code=403,
+            detail="User not found",
+        )
+
+    if not user_data.get("is_admin", False):
+        logger.warning(f"Non-admin user attempted admin access: {user_id}")
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required",
+        )
+
+    logger.debug(f"Admin session access granted for user: {user_id}")
+    return user_id
+
+
+def require_admin(x_admin_key: str = Header(default=None)) -> str:
+    """Dependency to require admin authentication via API key.
+
+    Checks the X-Admin-Key header against the ADMIN_API_KEY environment variable.
+    Use this for script/automation access. For browser-based access, use
+    require_admin_session instead.
+
+    Args:
+        x_admin_key: Admin API key from X-Admin-Key header (optional)
 
     Returns:
         Admin API key if valid
@@ -57,10 +103,10 @@ def require_admin(x_admin_key: str = Header(...)) -> str:
         HTTPException: 401 if key not provided, 403 if key invalid
     """
     if not ADMIN_API_KEY:
-        logger.error("Admin API key not configured - access denied")
+        logger.error("Admin API key not configured - API key access denied")
         raise HTTPException(
             status_code=500,
-            detail="Admin API not configured",
+            detail="Admin API key not configured",
         )
 
     if not x_admin_key:
@@ -72,12 +118,56 @@ def require_admin(x_admin_key: str = Header(...)) -> str:
 
     # Use constant-time comparison to prevent timing attacks
     if not verify_admin_key_secure(x_admin_key, ADMIN_API_KEY):
-        # Security: Don't log the actual API key, even partially
         logger.warning("Invalid admin API key attempted")
         raise HTTPException(
             status_code=403,
             detail="Invalid admin API key",
         )
 
-    logger.debug("Admin access granted")  # Changed from INFO to DEBUG for reduced verbosity
+    logger.debug("Admin API key access granted")
     return x_admin_key
+
+
+async def require_admin_any(
+    request: Request,
+    x_admin_key: str = Header(default=None),
+) -> str:
+    """Flexible admin auth - accepts either session or API key.
+
+    Tries session-based auth first (for browser), falls back to API key (for scripts).
+
+    Args:
+        request: FastAPI request object
+        x_admin_key: Optional API key from header
+
+    Returns:
+        User ID (session) or "api_key" (API key auth)
+
+    Raises:
+        HTTPException: 401/403 if neither auth method succeeds
+    """
+    # Try API key first (simpler check)
+    if x_admin_key and ADMIN_API_KEY:
+        if verify_admin_key_secure(x_admin_key, ADMIN_API_KEY):
+            logger.debug("Admin access granted via API key")
+            return "api_key"
+
+    # Try session-based auth
+    try:
+        session = await verify_session()(request)
+        if session:
+            user_id = session.get_user_id()
+            user_data = get_user(user_id)
+
+            if user_data and user_data.get("is_admin", False):
+                logger.debug(f"Admin access granted via session for user: {user_id}")
+                return user_id
+    except Exception as e:
+        logger.debug(f"Session auth failed: {e}")  # Will try other methods or raise below
+
+    # Neither auth method succeeded
+    logger.warning("Admin access denied - no valid session or API key")
+    raise HTTPException(
+        status_code=403,
+        detail="Admin access required. Please log in as an admin user.",
+    )

@@ -1262,6 +1262,7 @@ def get_user_sessions(
     limit: int = 50,
     offset: int = 0,
     status_filter: str | None = None,
+    include_deleted: bool = False,
 ) -> list[dict[str, Any]]:
     """Get all sessions for a user, ordered by created_at DESC.
 
@@ -1270,6 +1271,7 @@ def get_user_sessions(
         limit: Maximum number of sessions to return (default: 50)
         offset: Number of sessions to skip for pagination (default: 0)
         status_filter: Optional status filter (e.g., 'completed', 'running')
+        include_deleted: If False (default), excludes deleted sessions
 
     Returns:
         List of session records, ordered by created_at DESC (most recent first)
@@ -1292,6 +1294,10 @@ def get_user_sessions(
                 WHERE user_id = %s
             """
             params: list[Any] = [user_id]
+
+            # Exclude deleted sessions by default
+            if not include_deleted:
+                query += " AND status != 'deleted'"
 
             if status_filter:
                 query += " AND status = %s"

@@ -1148,12 +1148,16 @@ class BetaWhitelistResponse(BaseModel):
     """Response model for beta whitelist list.
 
     Attributes:
-        total_count: Total number of whitelisted emails
-        emails: List of whitelist entries
+        total_count: Total number of whitelisted emails (db + env)
+        emails: List of whitelist entries from database
+        env_emails: List of emails from BETA_WHITELIST env var (read-only)
     """
 
-    total_count: int = Field(..., description="Total number of whitelisted emails")
-    emails: list[BetaWhitelistEntry] = Field(..., description="List of whitelist entries")
+    total_count: int = Field(..., description="Total number of whitelisted emails (db + env)")
+    emails: list[BetaWhitelistEntry] = Field(
+        ..., description="List of whitelist entries from database"
+    )
+    env_emails: list[str] = Field(default=[], description="Emails from BETA_WHITELIST env var")
 
 
 class AddWhitelistRequest(BaseModel):
@@ -1191,19 +1195,25 @@ async def list_beta_whitelist(
 ) -> BetaWhitelistResponse:
     """List all whitelisted emails for closed beta.
 
-    Returns all emails in the beta whitelist with metadata.
+    Returns all emails in the beta whitelist (database + env var).
 
     Args:
-        _admin_key: Admin API key (injected by dependency)
+        _admin: Admin user ID or "api_key" (injected by dependency)
 
     Returns:
-        BetaWhitelistResponse with all whitelist entries
+        BetaWhitelistResponse with database entries and env emails
 
     Raises:
         HTTPException: If retrieval fails
     """
     try:
+        import os
+
         from bo1.state.postgres_manager import db_session
+
+        # Get env-based whitelist
+        env_whitelist = os.getenv("BETA_WHITELIST", "")
+        env_emails = [e.strip().lower() for e in env_whitelist.split(",") if e.strip()]
 
         with db_session() as conn:
             with conn.cursor() as cur:
@@ -1227,11 +1237,21 @@ async def list_beta_whitelist(
                     for row in rows
                 ]
 
-        logger.info(f"Admin: Retrieved {len(entries)} beta whitelist entries")
+        # Get unique db emails for deduplication
+        db_emails = {e.email.lower() for e in entries}
+        # Only count env emails not already in db
+        unique_env_emails = [e for e in env_emails if e not in db_emails]
+
+        total_count = len(entries) + len(unique_env_emails)
+
+        logger.info(
+            f"Admin: Retrieved {len(entries)} db + {len(unique_env_emails)} env whitelist entries"
+        )
 
         return BetaWhitelistResponse(
-            total_count=len(entries),
+            total_count=total_count,
             emails=entries,
+            env_emails=env_emails,  # Return all env emails (UI can show which are duplicates)
         )
 
     except Exception as e:

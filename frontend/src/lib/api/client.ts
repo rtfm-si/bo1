@@ -348,6 +348,7 @@ export class ApiClient {
 			notes: string | null;
 			created_at: string;
 		}>;
+		env_emails: string[];
 	}> {
 		return this.fetch('/api/admin/beta-whitelist');
 	}

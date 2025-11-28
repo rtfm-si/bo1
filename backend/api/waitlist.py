@@ -43,8 +43,24 @@ def is_valid_email(email: str) -> bool:
 
 
 def is_whitelisted(email: str) -> bool:
-    """Check if email is in closed beta whitelist."""
-    return email.lower() in [e.strip().lower() for e in BETA_WHITELIST if e.strip()]
+    """Check if email is in closed beta whitelist (env OR database)."""
+    email_lower = email.lower()
+
+    # Check env-based whitelist first (fast)
+    if email_lower in [e.strip().lower() for e in BETA_WHITELIST if e.strip()]:
+        return True
+
+    # Check database whitelist
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT 1 FROM beta_whitelist WHERE LOWER(email) = %s LIMIT 1",
+                    (email_lower,),
+                )
+                return cursor.fetchone() is not None
+    except Exception:
+        return False  # Fail closed - if DB error, don't grant access
 
 
 @router.post("", response_model=WaitlistResponse, status_code=status.HTTP_200_OK)

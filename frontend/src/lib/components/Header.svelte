@@ -72,6 +72,14 @@
 					>
 						Settings
 					</a>
+					{#if $user?.is_admin}
+						<a
+							href="/admin"
+							class="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors font-medium"
+						>
+							Admin
+						</a>
+					{/if}
 				{:else}
 					<a
 						href="/#how-it-works"

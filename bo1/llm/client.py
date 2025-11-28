@@ -1,6 +1,6 @@
 """Claude LLM client with prompt caching and token tracking.
 
-This module provides a high-level interface to Claude via LangChain,
+This module provides a high-level interface to Claude via the Anthropic SDK,
 with support for prompt caching, token usage tracking, and cost calculation.
 """
 
@@ -9,7 +9,6 @@ from typing import Any
 
 from anthropic import RateLimitError
 from anthropic.types import MessageParam, TextBlockParam
-from langchain_anthropic import ChatAnthropic
 from pydantic import BaseModel, Field
 
 from bo1.config import calculate_cost, get_model_for_role, resolve_model_alias
@@ -69,7 +68,7 @@ class TokenUsage(BaseModel):
 class ClaudeClient:
     """High-level Claude client with caching and token tracking.
 
-    This class wraps LangChain's ChatAnthropic to provide:
+    This class provides:
     - Prompt caching support with cache_control markers
     - Detailed token usage tracking
     - Automatic retries with exponential backoff
@@ -95,32 +94,6 @@ class ClaudeClient:
         """
         self.api_key = api_key
         self.max_retries = max_retries
-        self._clients: dict[str, ChatAnthropic] = {}
-
-    def _get_client(self, model_id: str) -> ChatAnthropic:
-        """Get or create a ChatAnthropic client for a model.
-
-        Args:
-            model_id: Model identifier (alias or full ID)
-
-        Returns:
-            ChatAnthropic instance
-        """
-        full_model_id = resolve_model_alias(model_id)
-
-        if full_model_id not in self._clients:
-            kwargs: dict[str, Any] = {
-                "model": full_model_id,
-                "max_retries": self.max_retries,
-                # Enable prompt caching via default_headers
-                "default_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
-            }
-            if self.api_key:
-                kwargs["api_key"] = self.api_key
-
-            self._clients[full_model_id] = ChatAnthropic(**kwargs)
-
-        return self._clients[full_model_id]
 
     async def call(
         self,
@@ -165,11 +138,9 @@ class ClaudeClient:
             ...     prefill="{"
             ... )
         """
-        self._get_client(model)  # Ensure client is initialized
         full_model_id = resolve_model_alias(model)
 
         # Use Anthropic SDK directly for caching support
-        # LangChain doesn't properly pass cache_control to the API
         from anthropic import AsyncAnthropic
 
         # Initialize with beta header for prompt caching

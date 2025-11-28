@@ -66,7 +66,6 @@ def test_claude_client_initialization():
 
     # Verify internal state types
     assert isinstance(client.max_retries, int)
-    assert isinstance(client._clients, dict)
     assert client.api_key is None or isinstance(client.api_key, str)
 
 

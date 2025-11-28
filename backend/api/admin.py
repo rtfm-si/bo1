@@ -231,17 +231,19 @@ async def list_users(
 
                 users = [
                     UserInfo(
-                        user_id=row[0],
-                        email=row[1],
-                        auth_provider=row[2],
-                        subscription_tier=row[3],
-                        is_admin=row[4],
-                        created_at=row[5].isoformat() if row[5] else "",
-                        updated_at=row[6].isoformat() if row[6] else "",
-                        total_meetings=row[7] or 0,
-                        total_cost=float(row[8]) if row[8] else None,
-                        last_meeting_at=row[9].isoformat() if row[9] else None,
-                        last_meeting_id=row[10],
+                        user_id=row["id"],
+                        email=row["email"],
+                        auth_provider=row["auth_provider"],
+                        subscription_tier=row["subscription_tier"],
+                        is_admin=row["is_admin"],
+                        created_at=row["created_at"].isoformat() if row["created_at"] else "",
+                        updated_at=row["updated_at"].isoformat() if row["updated_at"] else "",
+                        total_meetings=row["total_meetings"] or 0,
+                        total_cost=float(row["total_cost"]) if row["total_cost"] else None,
+                        last_meeting_at=row["last_meeting_at"].isoformat()
+                        if row["last_meeting_at"]
+                        else None,
+                        last_meeting_id=row["last_meeting_id"],
                     )
                     for row in rows
                 ]
@@ -329,17 +331,19 @@ async def get_user(
                     )
 
                 user = UserInfo(
-                    user_id=row[0],
-                    email=row[1],
-                    auth_provider=row[2],
-                    subscription_tier=row[3],
-                    is_admin=row[4],
-                    created_at=row[5].isoformat() if row[5] else "",
-                    updated_at=row[6].isoformat() if row[6] else "",
-                    total_meetings=row[7] or 0,
-                    total_cost=float(row[8]) if row[8] else None,
-                    last_meeting_at=row[9].isoformat() if row[9] else None,
-                    last_meeting_id=row[10],
+                    user_id=row["id"],
+                    email=row["email"],
+                    auth_provider=row["auth_provider"],
+                    subscription_tier=row["subscription_tier"],
+                    is_admin=row["is_admin"],
+                    created_at=row["created_at"].isoformat() if row["created_at"] else "",
+                    updated_at=row["updated_at"].isoformat() if row["updated_at"] else "",
+                    total_meetings=row["total_meetings"] or 0,
+                    total_cost=float(row["total_cost"]) if row["total_cost"] else None,
+                    last_meeting_at=row["last_meeting_at"].isoformat()
+                    if row["last_meeting_at"]
+                    else None,
+                    last_meeting_id=row["last_meeting_id"],
                 )
 
         logger.info(f"Admin: Retrieved user {user_id}")
@@ -473,17 +477,19 @@ async def update_user(
                     )
 
                 user = UserInfo(
-                    user_id=row[0],
-                    email=row[1],
-                    auth_provider=row[2],
-                    subscription_tier=row[3],
-                    is_admin=row[4],
-                    created_at=row[5].isoformat() if row[5] else "",
-                    updated_at=row[6].isoformat() if row[6] else "",
-                    total_meetings=row[7] or 0,
-                    total_cost=float(row[8]) if row[8] else None,
-                    last_meeting_at=row[9].isoformat() if row[9] else None,
-                    last_meeting_id=row[10],
+                    user_id=row["id"],
+                    email=row["email"],
+                    auth_provider=row["auth_provider"],
+                    subscription_tier=row["subscription_tier"],
+                    is_admin=row["is_admin"],
+                    created_at=row["created_at"].isoformat() if row["created_at"] else "",
+                    updated_at=row["updated_at"].isoformat() if row["updated_at"] else "",
+                    total_meetings=row["total_meetings"] or 0,
+                    total_cost=float(row["total_cost"]) if row["total_cost"] else None,
+                    last_meeting_at=row["last_meeting_at"].isoformat()
+                    if row["last_meeting_at"]
+                    else None,
+                    last_meeting_id=row["last_meeting_id"],
                 )
 
         logger.info(f"Admin: Updated user {user_id} - {request}")
@@ -1229,11 +1235,11 @@ async def list_beta_whitelist(
 
                 entries = [
                     BetaWhitelistEntry(
-                        id=str(row[0]),
-                        email=row[1],
-                        added_by=row[2],
-                        notes=row[3],
-                        created_at=row[4].isoformat() if row[4] else "",
+                        id=str(row["id"]),
+                        email=row["email"],
+                        added_by=row["added_by"],
+                        notes=row["notes"],
+                        created_at=row["created_at"].isoformat() if row["created_at"] else "",
                     )
                     for row in rows
                 ]
@@ -1327,11 +1333,11 @@ async def add_to_beta_whitelist(
                 row = cur.fetchone()
 
         entry = BetaWhitelistEntry(
-            id=str(row[0]),
-            email=row[1],
-            added_by=row[2],
-            notes=row[3],
-            created_at=row[4].isoformat() if row[4] else "",
+            id=str(row["id"]),
+            email=row["email"],
+            added_by=row["added_by"],
+            notes=row["notes"],
+            created_at=row["created_at"].isoformat() if row["created_at"] else "",
         )
 
         logger.info(f"Admin: Added {email} to beta whitelist")
@@ -1398,7 +1404,7 @@ async def remove_from_beta_whitelist(
         logger.info(f"Admin: Removed {email} from beta whitelist")
 
         return ControlResponse(
-            session_id=str(row[0]),  # Using session_id field for whitelist ID
+            session_id=str(row["id"]),  # Using session_id field for whitelist ID
             action="remove_whitelist",
             status="success",
             message=f"Removed {email} from beta whitelist",

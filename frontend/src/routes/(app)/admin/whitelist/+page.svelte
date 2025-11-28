@@ -171,13 +171,13 @@
 						<p class="text-sm text-amber-700 dark:text-amber-300 mb-3">
 							These emails are set via BETA_WHITELIST environment variable and cannot be edited here.
 						</p>
-						<div class="flex flex-wrap gap-2">
+						<ul class="space-y-1">
 							{#each envEmails as email}
-								<span class="px-3 py-1 bg-amber-100 dark:bg-amber-800 text-amber-800 dark:text-amber-200 rounded-full text-sm">
+								<li class="text-amber-900 dark:text-amber-100 font-mono text-sm">
 									{email}
-								</span>
+								</li>
 							{/each}
-						</div>
+						</ul>
 					</div>
 				</div>
 			{/if}

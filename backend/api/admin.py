@@ -190,7 +190,8 @@ async def list_users(
 
                 # Get total count
                 cur.execute(count_query, params)
-                total_count = cur.fetchone()[0] if cur.fetchone() else 0
+                count_row = cur.fetchone()
+                total_count = count_row[0] if count_row else 0
 
                 # Get paginated users with metrics
                 offset = (page - 1) * per_page

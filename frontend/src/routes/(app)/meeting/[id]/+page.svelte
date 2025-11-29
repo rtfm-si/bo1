@@ -440,9 +440,9 @@
 
 				addEvent(sseEvent);
 
-				// Force immediate grouping for expert panel completion (bypass debounce)
-				// This ensures expert panels appear instantly without waiting for next event
-				if (eventType === 'persona_selection_complete' || eventType === 'persona_selected') {
+				// Force immediate grouping for critical events (bypass debounce)
+				// This ensures expert panels and round markers appear instantly without waiting for next event
+				if (eventType === 'persona_selection_complete' || eventType === 'persona_selected' || eventType === 'round_started') {
 					// Cancel any pending debounced recalculation to prevent race condition
 					if (debounceTimeout) clearTimeout(debounceTimeout);
 					groupedEventsCache = groupEvents(store.events, debugMode);
@@ -1578,45 +1578,6 @@
 												{:else}
 													<p class="text-slate-500 dark:text-slate-400">No synthesis available</p>
 												{/if}
-											</div>
-										{/if}
-
-										<!-- Individual Sub-Problem Conclusions -->
-										{#if subProblemCompleteEvents.length > 0}
-											<div class="space-y-4">
-												<h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-													<svg class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-													</svg>
-													Individual Sub-Problem Conclusions
-												</h3>
-
-												{#each subProblemCompleteEvents as spEvent, index}
-													{@const spData = spEvent.data as { goal: string; synthesis: string; sub_problem_index: number; expert_panel: string[]; contribution_count: number }}
-													<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
-														<div class="flex items-start gap-3">
-															<div class="flex-shrink-0 w-8 h-8 bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 rounded-full flex items-center justify-center text-sm font-semibold">
-																{spData.sub_problem_index + 1}
-															</div>
-															<div class="flex-1 min-w-0">
-																<h4 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">
-																	{spData.goal}
-																</h4>
-																{#if spData.synthesis}
-																	<p class="text-sm text-slate-700 dark:text-slate-300 mb-2">
-																		{spData.synthesis}
-																	</p>
-																{:else}
-																	<p class="text-sm text-slate-500 dark:text-slate-400 italic">No synthesis available.</p>
-																{/if}
-																<div class="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mt-2">
-																	<span>{spData.expert_panel?.length || 0} experts</span>
-																	<span>{spData.contribution_count || 0} contributions</span>
-																</div>
-															</div>
-														</div>
-													</div>
-												{/each}
 											</div>
 										{/if}
 									</div>

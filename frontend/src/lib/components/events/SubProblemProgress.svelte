@@ -23,6 +23,41 @@
 		return `$${cost.toFixed(4)}`;
 	};
 
+	/**
+	 * Clean synthesis text by removing XML tags and LLM thinking markers
+	 */
+	function cleanSynthesisText(text: string): string {
+		if (!text) return '';
+
+		return text
+			// Remove common LLM thinking tags
+			.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+			.replace(/<analysis>[\s\S]*?<\/analysis>/gi, '')
+			.replace(/<reflection>[\s\S]*?<\/reflection>/gi, '')
+			// Remove XML-like tags but preserve their content
+			.replace(/<[^>]+>/g, '')
+			// Clean up excessive whitespace
+			.replace(/\n{3,}/g, '\n\n')
+			.trim();
+	}
+
+	/**
+	 * Convert markdown-like patterns to HTML for basic formatting
+	 */
+	function renderMarkdown(text: string): string {
+		if (!text) return '';
+
+		return text
+			// Bold: **text** or __text__
+			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+			.replace(/__([^_]+)__/g, '<strong>$1</strong>')
+			// Italic: *text* or _text_
+			.replace(/\*([^*]+)\*/g, '<em>$1</em>')
+			.replace(/(?<!\w)_([^_]+)_(?!\w)/g, '<em>$1</em>')
+			// Line breaks
+			.replace(/\n/g, '<br />');
+	}
+
 	// State for showing full synthesis
 	let showFullSynthesis = $state(false);
 
@@ -30,15 +65,22 @@
 	const isXML = $derived(event.data.synthesis ? isXMLFormatted(event.data.synthesis) : false);
 	const sections = $derived(isXML ? parseSynthesisXML(event.data.synthesis) : null);
 
-	// Truncate synthesis if too long (show first 300 chars)
-	const truncatedSynthesis = $derived(
-		event.data.synthesis && event.data.synthesis.length > 300
-			? event.data.synthesis.slice(0, 300) + '...'
-			: event.data.synthesis
+	// Clean and prepare synthesis text
+	const cleanedSynthesis = $derived(
+		event.data.synthesis
+			? cleanSynthesisText(event.data.synthesis)
+			: ''
 	);
 
-	const hasSynthesis = $derived(event.data.synthesis && event.data.synthesis.length > 0);
-	const isLongSynthesis = $derived(event.data.synthesis && event.data.synthesis.length > 300);
+	// Truncate synthesis if too long (show first 300 chars)
+	const truncatedSynthesis = $derived(
+		cleanedSynthesis && cleanedSynthesis.length > 300
+			? cleanedSynthesis.slice(0, 300) + '...'
+			: cleanedSynthesis
+	);
+
+	const hasSynthesis = $derived(cleanedSynthesis && cleanedSynthesis.length > 0);
+	const isLongSynthesis = $derived(cleanedSynthesis && cleanedSynthesis.length > 300);
 </script>
 
 <div class="space-y-3">
@@ -103,9 +145,9 @@
 							<!-- Fallback for non-XML synthesis -->
 							<div class="text-sm text-neutral-700 dark:text-neutral-300 prose prose-sm dark:prose-invert max-w-none">
 								{#if showFullSynthesis || !isLongSynthesis}
-									{event.data.synthesis}
+									{@html renderMarkdown(cleanedSynthesis)}
 								{:else}
-									{truncatedSynthesis}
+									{@html renderMarkdown(truncatedSynthesis)}
 								{/if}
 							</div>
 							{#if isLongSynthesis}

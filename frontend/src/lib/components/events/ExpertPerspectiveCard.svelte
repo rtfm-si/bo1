@@ -5,10 +5,10 @@
 
 	interface ExpertPerspectiveSummary {
 		concise?: string;
-		looking_for: string;
-		value_added: string;
-		concerns: string[];
-		questions: string[];
+		looking_for?: string;
+		value_added?: string;
+		concerns?: string[];
+		questions?: string[];
 	}
 
 	interface Props {
@@ -34,20 +34,59 @@
 
 	let { event, viewMode = 'simple', showFull = false, onToggle }: Props = $props();
 
-	// Fallback if no summary available
-	const hasSummary = $derived(event.data.summary !== null && event.data.summary !== undefined);
+	// Check if summary has useful structured data (not just exists, but has actual content)
+	const hasSummary = $derived.by(() => {
+		const summary = event.data.summary;
+		if (!summary) return false;
+		// Check if any structured field has content
+		return !!(
+			summary.concise ||
+			summary.looking_for ||
+			summary.value_added ||
+			(summary.concerns && summary.concerns.length > 0) ||
+			(summary.questions && summary.questions.length > 0)
+		);
+	});
 	const hasSimpleSummary = $derived(hasSummary && event.data.summary?.concise);
+
+	/**
+	 * Extract a clean summary from raw content
+	 * - Removes XML tags like <thinking>, <recommendation>
+	 * - Takes first meaningful sentence(s)
+	 */
+	function extractCleanSummary(content: string, maxLength: number = 250): string {
+		// Remove XML-like tags and their content
+		let cleaned = content
+			.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+			.replace(/<[^>]+>[\s\S]*?<\/[^>]+>/gi, '')
+			.replace(/<[^>]+>/g, '')
+			.replace(/\n+/g, ' ')
+			.trim();
+
+		// Try to end on a sentence boundary
+		if (cleaned.length > maxLength) {
+			const truncated = cleaned.slice(0, maxLength);
+			const lastPeriod = truncated.lastIndexOf('.');
+			const lastQuestion = truncated.lastIndexOf('?');
+			const lastExclaim = truncated.lastIndexOf('!');
+			const lastSentenceEnd = Math.max(lastPeriod, lastQuestion, lastExclaim);
+
+			if (lastSentenceEnd > maxLength * 0.5) {
+				return truncated.slice(0, lastSentenceEnd + 1);
+			}
+			return truncated + '...';
+		}
+		return cleaned;
+	}
 
 	// Fallback: Generate simple summary from value_added or content if concise not available
 	const simpleFallback = $derived.by(() => {
 		if (hasSimpleSummary) return event.data.summary?.concise;
 		if (event.data.summary?.value_added) {
-			const text = event.data.summary.value_added;
-			return text.length > 250 ? text.slice(0, 250) + '...' : text;
+			return extractCleanSummary(event.data.summary.value_added, 250);
 		}
 		if (event.data.content) {
-			// Take first 250 chars of content as fallback
-			return event.data.content.length > 250 ? event.data.content.slice(0, 250) + '...' : event.data.content;
+			return extractCleanSummary(event.data.content, 250);
 		}
 		return null;
 	});
@@ -171,14 +210,14 @@
 			</div>
 		{/if}
 	{:else}
-		<!-- Fallback: Show truncated or full content based on viewMode -->
-		{#if viewMode === 'simple' && event.data.content.length > 250}
-			<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
-				{event.data.content.slice(0, 250)}...
+		<!-- Fallback: Show cleaned and truncated content when no summary available -->
+		{#if viewMode === 'simple'}
+			<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300">
+				{simpleFallback || extractCleanSummary(event.data.content, 250)}
 			</p>
 		{:else}
 			<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
-				{event.data.content}
+				{extractCleanSummary(event.data.content, 1000)}
 			</p>
 		{/if}
 	{/if}

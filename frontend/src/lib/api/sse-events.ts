@@ -146,11 +146,12 @@ export interface ContributionEvent extends SSEEvent {
 		round: number;
 		contribution_type: 'initial' | 'followup';
 		archetype?: string;
+		domain_expertise?: string[];
 		sub_problem_index?: number;
 		summary?: {
 			concise?: string;
-			analysis?: string;
-			key_insight?: string;
+			looking_for?: string;
+			value_added?: string;
 			concerns?: string[];
 			questions?: string[];
 		};

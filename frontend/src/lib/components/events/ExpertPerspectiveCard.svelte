@@ -37,6 +37,21 @@
 	// Fallback if no summary available
 	const hasSummary = $derived(event.data.summary !== null && event.data.summary !== undefined);
 	const hasSimpleSummary = $derived(hasSummary && event.data.summary?.concise);
+
+	// Fallback: Generate simple summary from value_added or content if concise not available
+	const simpleFallback = $derived.by(() => {
+		if (hasSimpleSummary) return event.data.summary?.concise;
+		if (event.data.summary?.value_added) {
+			const text = event.data.summary.value_added;
+			return text.length > 250 ? text.slice(0, 250) + '...' : text;
+		}
+		if (event.data.content) {
+			// Take first 250 chars of content as fallback
+			return event.data.content.length > 250 ? event.data.content.slice(0, 250) + '...' : event.data.content;
+		}
+		return null;
+	});
+	const canShowSimple = $derived(simpleFallback !== null);
 </script>
 
 <svelte:element
@@ -63,10 +78,10 @@
 
 	<!-- Content Display -->
 	{#if hasSummary && event.data.summary}
-		<!-- Simple View: 1-2 sentence summary -->
-		{#if viewMode === 'simple' && hasSimpleSummary}
+		<!-- Simple View: 1-2 sentence summary (with fallback generation) -->
+		{#if viewMode === 'simple' && canShowSimple}
 			<p class="text-[0.9375rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300">
-				{event.data.summary.concise}
+				{simpleFallback}
 			</p>
 		{:else}
 			<!-- Full View: Structured breakdown -->
@@ -156,9 +171,15 @@
 			</div>
 		{/if}
 	{:else}
-		<!-- Fallback: Show full content if no summary -->
-		<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
-			{event.data.content}
-		</p>
+		<!-- Fallback: Show truncated or full content based on viewMode -->
+		{#if viewMode === 'simple' && event.data.content.length > 250}
+			<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
+				{event.data.content.slice(0, 250)}...
+			</p>
+		{:else}
+			<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
+				{event.data.content}
+			</p>
+		{/if}
 	{/if}
 </svelte:element>

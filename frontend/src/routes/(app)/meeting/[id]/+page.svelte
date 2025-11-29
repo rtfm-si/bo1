@@ -440,6 +440,13 @@
 
 				addEvent(sseEvent);
 
+				// Force immediate grouping for expert panel completion (bypass debounce)
+				// This ensures expert panels appear instantly without waiting for next event
+				if (eventType === 'persona_selection_complete' || eventType === 'persona_selected') {
+					groupedEventsCache = groupEvents(store.events, debugMode);
+					lastEventCountForGrouping = store.events.length;
+				}
+
 				// Auto-scroll to bottom with smooth animation (debounced)
 				scrollToLatestEventDebounced(true);
 
@@ -1403,17 +1410,26 @@
 
 										<!-- Synthesis preview for this sub-problem (if available) -->
 										{#if subProblemCompleteEvents[tabIndex]?.data?.synthesis}
-											{@const spData = subProblemCompleteEvents[tabIndex].data as { synthesis: string; goal: string }}
 											<div class="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
-												<h4 class="text-md font-semibold mb-3 flex items-center gap-2 text-slate-900 dark:text-white">
-													<svg class="w-5 h-5 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-													</svg>
-													Synthesis
-												</h4>
-												<div class="prose prose-slate dark:prose-invert max-w-none text-sm text-slate-700 dark:text-slate-300">
-													{@html spData.synthesis.replace(/\n/g, '<br />')}
-												</div>
+												{#await getComponentForEvent('subproblem_complete')}
+													<EventCardSkeleton />
+												{:then SubProblemComponent}
+													{#if SubProblemComponent}
+														<SubProblemComponent event={subProblemCompleteEvents[tabIndex]} />
+													{/if}
+												{:catch}
+													<!-- Fallback to raw display -->
+													{@const spData = subProblemCompleteEvents[tabIndex].data as { synthesis: string; goal: string }}
+													<h4 class="text-md font-semibold mb-3 flex items-center gap-2 text-slate-900 dark:text-white">
+														<svg class="w-5 h-5 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+														</svg>
+														Synthesis
+													</h4>
+													<div class="prose prose-slate dark:prose-invert max-w-none text-sm text-slate-700 dark:text-slate-300">
+														{@html spData.synthesis.replace(/\n/g, '<br />')}
+													</div>
+												{/await}
 											</div>
 										{/if}
 
@@ -1490,55 +1506,54 @@
 
 										<!-- Meta-Synthesis / Overall Conclusion -->
 										{#if metaSynthesisEvent}
-											<!-- Existing: Show meta-synthesis for multi-problem meetings -->
-											<div class="bg-gradient-to-r from-success-50 to-brand-50 dark:from-success-900/20 dark:to-brand-900/20 border-2 border-success-300 dark:border-success-700 rounded-xl p-6">
-												<div class="flex items-start gap-4">
-													<div class="flex-shrink-0 w-14 h-14 bg-success-500 dark:bg-success-600 text-white rounded-full flex items-center justify-center">
-														<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-														</svg>
-													</div>
-													<div class="flex-1 min-w-0">
-														<h2 class="text-xl font-bold text-success-900 dark:text-success-100 mb-3">
-															Final Conclusion
-														</h2>
-														<div class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
-															{@html (metaSynthesisEvent.data.synthesis as string).replace(/\n/g, '<br />')}
-														</div>
-													</div>
+											<!-- Use SynthesisComplete component for proper XML parsing and card rendering -->
+											{#await getComponentForEvent('synthesis_complete')}
+												<EventCardSkeleton />
+											{:then SynthesisComponent}
+												{#if SynthesisComponent}
+													<SynthesisComponent event={metaSynthesisEvent} />
+												{/if}
+											{:catch}
+												<!-- Fallback to raw display if component fails -->
+												<div class="prose prose-slate dark:prose-invert max-w-none">
+													{@html (metaSynthesisEvent.data.synthesis as string).replace(/\n/g, '<br />')}
 												</div>
-											</div>
+											{/await}
 										{:else if synthesisCompleteEvent}
-											<!-- NEW: Show synthesis for single-problem meetings -->
-											<div class="bg-gradient-to-r from-success-50 to-brand-50 dark:from-success-900/20 dark:to-brand-900/20 border-2 border-success-300 dark:border-success-700 rounded-xl p-6">
-												<div class="flex items-start gap-4">
-													<div class="flex-shrink-0 w-14 h-14 bg-success-500 dark:bg-success-600 text-white rounded-full flex items-center justify-center">
-														<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-														</svg>
-													</div>
-													<div class="flex-1 min-w-0">
-														<h2 class="text-xl font-bold text-success-900 dark:text-success-100 mb-3">
-															Final Synthesis
-														</h2>
-														<div class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
-															{@html (synthesisCompleteEvent.data.synthesis as string).replace(/\n/g, '<br />')}
-														</div>
-													</div>
+											<!-- Use SynthesisComplete component for proper XML parsing and card rendering -->
+											{#await getComponentForEvent('synthesis_complete')}
+												<EventCardSkeleton />
+											{:then SynthesisComponent}
+												{#if SynthesisComponent}
+													<SynthesisComponent event={synthesisCompleteEvent} />
+												{/if}
+											{:catch}
+												<!-- Fallback to raw display if component fails -->
+												<div class="prose prose-slate dark:prose-invert max-w-none">
+													{@html (synthesisCompleteEvent.data.synthesis as string).replace(/\n/g, '<br />')}
 												</div>
-											</div>
+											{/await}
 										{:else if subProblemCompleteEvents.length > 0 && subProblemCompleteEvents.some(e => e.data.synthesis)}
-											<!-- NEW: Show individual sub-problem syntheses if no meta-synthesis yet -->
+											<!-- Show individual sub-problem syntheses using SubProblemProgress component -->
 											<div class="space-y-6">
 												<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Sub-Problem Syntheses</h3>
 												{#each subProblemCompleteEvents.filter(e => e.data.synthesis) as spEvent}
-													{@const spData = spEvent.data as { goal: string; synthesis: string; sub_problem_index: number }}
-													<div class="border-l-4 border-blue-500 pl-4">
-														<h4 class="font-medium mb-2">{spData.goal}</h4>
-														<div class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
-															{@html spData.synthesis.replace(/\n/g, '<br />')}
+													{#await getComponentForEvent('subproblem_complete')}
+														<EventCardSkeleton />
+													{:then SubProblemComponent}
+														{#if SubProblemComponent}
+															<SubProblemComponent event={spEvent} />
+														{/if}
+													{:catch}
+														<!-- Fallback to simple display -->
+														{@const spData = spEvent.data as { goal: string; synthesis: string; sub_problem_index: number }}
+														<div class="border-l-4 border-blue-500 pl-4">
+															<h4 class="font-medium mb-2">{spData.goal}</h4>
+															<div class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
+																{@html spData.synthesis.replace(/\n/g, '<br />')}
+															</div>
 														</div>
-													</div>
+													{/await}
 												{/each}
 											</div>
 										{:else}

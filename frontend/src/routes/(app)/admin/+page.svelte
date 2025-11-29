@@ -2,13 +2,14 @@
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
 	import { Button } from '$lib/components/ui';
-	import { Users, List, TrendingUp, DollarSign } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock } from 'lucide-svelte';
 
 	let stats = $state({
 		totalUsers: 0,
 		totalMeetings: 0,
 		totalCost: 0,
-		whitelistCount: 0
+		whitelistCount: 0,
+		waitlistPending: 0
 	});
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
@@ -17,16 +18,18 @@
 		try {
 			isLoading = true;
 			// Fetch stats from API
-			const [usersResponse, whitelistResponse] = await Promise.all([
+			const [usersResponse, whitelistResponse, waitlistResponse] = await Promise.all([
 				apiClient.listUsers({ page: 1, per_page: 1 }),
-				apiClient.listWhitelist()
+				apiClient.listWhitelist(),
+				apiClient.listWaitlist({ status: 'pending' })
 			]);
 
 			stats = {
 				totalUsers: usersResponse.total_count,
 				totalMeetings: usersResponse.users[0]?.total_meetings || 0,
 				totalCost: usersResponse.users.reduce((sum, u) => sum + (u.total_cost || 0), 0),
-				whitelistCount: whitelistResponse.total_count
+				whitelistCount: whitelistResponse.total_count,
+				waitlistPending: waitlistResponse.pending_count
 			};
 		} catch (err) {
 			console.error('Failed to load admin stats:', err);
@@ -83,7 +86,7 @@
 			</div>
 		{:else}
 			<!-- Stats Cards -->
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
 				<!-- Total Users -->
 				<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
 					<div class="flex items-center justify-between">
@@ -123,6 +126,22 @@
 					</div>
 				</div>
 
+				<!-- Waitlist Pending -->
+				<a
+					href="/admin/waitlist"
+					class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-amber-300 dark:hover:border-amber-700 transition-all duration-200"
+				>
+					<div class="flex items-center justify-between">
+						<div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Waitlist</p>
+							<p class="text-2xl font-semibold text-neutral-900 dark:text-white">{stats.waitlistPending}</p>
+						</div>
+						<div class="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+							<Clock class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+						</div>
+					</div>
+				</a>
+
 				<!-- Whitelist Count -->
 				<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
 					<div class="flex items-center justify-between">
@@ -139,7 +158,32 @@
 		{/if}
 
 		<!-- Quick Links -->
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+			<!-- Waitlist Card -->
+			<a
+				href="/admin/waitlist"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-amber-300 dark:hover:border-amber-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+						<Clock class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+					</div>
+					<div>
+						<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Waitlist</h2>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Approve beta access requests</p>
+					</div>
+				</div>
+				<div class="flex items-center justify-between">
+					<span class="text-sm text-amber-600 dark:text-amber-400">
+						{#if stats.waitlistPending > 0}
+							{stats.waitlistPending} pending →
+						{:else}
+							View waitlist →
+						{/if}
+					</span>
+				</div>
+			</a>
+
 			<!-- Users Card -->
 			<a
 				href="/admin/users"

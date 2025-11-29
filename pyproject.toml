@@ -10,47 +10,48 @@ authors = [
 
 dependencies = [
     # LLM & Orchestration - Updated to tested versions with major version caps
-    "anthropic>=0.74.1,<1.0",  # Latest stable (0.74.1), cap before 1.0
-    "langchain>=1.0.8,<2.0",  # 1.0.8 stable API
+    "anthropic>=0.74.1,<1.0", # Latest stable (0.74.1), cap before 1.0
+    "langchain>=1.0.8,<2.0", # 1.0.8 stable API
     # langchain-anthropic removed - code uses raw Anthropic SDK directly
-    "langchain-community>=0.4.0,<1.0",  # Current stable
+    "langchain-community>=0.4.0,<1.0", # Current stable
     # State & Embeddings
-    "redis>=6.4.0,<7.0",  # BLOCKER: langgraph-checkpoint-redis 0.2.1 requires redis<7.0 (awaiting 0.3.0)
-    "voyageai>=0.3.0",  # Voyage AI embeddings API
+    "redis>=6.4.0,<7.0", # BLOCKER: langgraph-checkpoint-redis 0.2.1 requires redis<7.0 (awaiting 0.3.0)
+    "voyageai>=0.3.0", # Voyage AI embeddings API
     # Database (v2+)
-    "alembic>=1.17.0",  # Latest migration tool
-    "psycopg2-binary>=2.9.9",  # Stable postgres driver
-    "sqlalchemy>=2.0.0,<3.0",  # 2.x is stable, cap before 3.0
+    "alembic>=1.17.0", # Latest migration tool
+    "psycopg2-binary>=2.9.9", # Stable postgres driver
+    "sqlalchemy>=2.0.0,<3.0", # 2.x is stable, cap before 3.0
     # asyncpg removed - not used (psycopg2-binary is the active driver)
-    "pgvector>=0.2.0",  # PostgreSQL vector extension
+    "pgvector>=0.2.0", # PostgreSQL vector extension
     # Data & Config
-    "pydantic>=2.12.0,<3.0",  # 2.12+ has latest validation features
-    "pydantic-settings>=2.12.0,<3.0",  # Aligned with pydantic
-    "email-validator>=2.0.0",  # Email validation for Pydantic EmailStr
-    "python-dotenv>=1.0.0",  # Stable env loading
+    "pydantic>=2.12.0,<3.0", # 2.12+ has latest validation features
+    "pydantic-settings>=2.12.0,<3.0", # Aligned with pydantic
+    "email-validator>=2.0.0", # Email validation for Pydantic EmailStr
+    "python-dotenv>=1.0.0", # Stable env loading
     # Web API
-    "fastapi>=0.121.3,<1.0",  # Web API framework (0.121.3)
-    "uvicorn[standard]>=0.27.0,<1.0",  # ASGI server
-    "sse-starlette>=3.0.3,<4.0",  # SSE streaming support (3.0.3 - automatic event loop management)
-    "python-multipart>=0.0.9",  # Form data parsing
-    "slowapi>=0.1.9,<1.0",  # Rate limiting for FastAPI
+    "fastapi>=0.121.3,<1.0", # Web API framework (0.121.3)
+    "uvicorn[standard]>=0.27.0,<1.0", # ASGI server
+    "sse-starlette>=3.0.3,<4.0", # SSE streaming support (3.0.3 - automatic event loop management)
+    "python-multipart>=0.0.9", # Form data parsing
+    "slowapi>=0.1.9,<1.0", # Rate limiting for FastAPI
     # supabase removed - SuperTokens used for auth instead
-    "pyjwt>=2.8.0,<3.0",  # JWT token verification
-    "httpx>=0.27.0,<1.0",  # HTTP client for API calls
-    "supertokens-python>=0.29.0,<0.30.0",  # SuperTokens SDK for BFF auth pattern (Core 9.3.0 uses CDI 5.2)
+    "pyjwt>=2.8.0,<3.0", # JWT token verification
+    "httpx>=0.27.0,<1.0", # HTTP client for API calls
+    "supertokens-python>=0.29.0,<0.30.0", # SuperTokens SDK for BFF auth pattern (Core 9.3.0 uses CDI 5.2)
     # Console UI
-    "rich>=14.0.0",  # 14.x current stable
+    "rich>=14.0.0", # 14.x current stable
     # Utilities
-    "numpy>=2.3.5,<3.0",  # 2.3.5 stable, cap before 3.0 breaking changes
-    "scikit-learn>=1.7.0,<2.0",  # Current stable ML library
-    "scipy>=1.16.0,<2.0",  # Current stable scientific computing
-    "langgraph>=1.0.3,<2.0",  # Graph orchestration, cap before 2.0
-    "langgraph-checkpoint-redis>=0.2.1,<1.0",  # Redis checkpointing (0.2.1 requires redis>=6.4.0)
-    "langgraph-prebuilt>=1.0.5,<2.0",  # LangGraph prebuilt nodes (1.0.5)
-    "langchain-core>=1.0.7,<2.0",  # LangChain core (1.0.7)
-    "langsmith>=0.4.44,<1.0",  # LangSmith tracing (0.4.44)
-    "starlette>=0.50.0,<1.0",  # Starlette ASGI framework (0.50.0)
-    "networkx>=3.5",  # Graph library
+    "numpy>=2.3.5,<3.0", # 2.3.5 stable, cap before 3.0 breaking changes
+    "scikit-learn>=1.7.0,<2.0", # Current stable ML library
+    "scipy>=1.16.0,<2.0", # Current stable scientific computing
+    "langgraph>=1.0.3,<2.0", # Graph orchestration, cap before 2.0
+    "langgraph-checkpoint-redis>=0.2.1,<1.0", # Redis checkpointing (0.2.1 requires redis>=6.4.0)
+    "langgraph-prebuilt>=1.0.5,<2.0", # LangGraph prebuilt nodes (1.0.5)
+    "langchain-core>=1.0.7,<2.0", # LangChain core (1.0.7)
+    "langsmith>=0.4.44,<1.0", # LangSmith tracing (0.4.44)
+    "starlette>=0.50.0,<1.0", # Starlette ASGI framework (0.50.0)
+    "networkx>=3.5", # Graph library
+    "resend>=2.19.0",
 ]
 
 [project.optional-dependencies]

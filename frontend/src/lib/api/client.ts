@@ -376,6 +376,42 @@ export class ApiClient {
 			method: 'DELETE'
 		});
 	}
+
+	/**
+	 * Waitlist Admin Endpoints
+	 */
+
+	async listWaitlist(params?: { status?: string }): Promise<{
+		total_count: number;
+		pending_count: number;
+		entries: Array<{
+			id: string;
+			email: string;
+			status: string;
+			source: string | null;
+			notes: string | null;
+			created_at: string;
+		}>;
+	}> {
+		const searchParams = new URLSearchParams();
+		if (params?.status) searchParams.set('status', params.status);
+
+		const query = searchParams.toString();
+		const endpoint = query ? `/api/admin/waitlist?${query}` : '/api/admin/waitlist';
+
+		return this.fetch(endpoint);
+	}
+
+	async approveWaitlistEntry(email: string): Promise<{
+		email: string;
+		whitelist_added: boolean;
+		email_sent: boolean;
+		message: string;
+	}> {
+		return this.fetch(`/api/admin/waitlist/${encodeURIComponent(email)}/approve`, {
+			method: 'POST'
+		});
+	}
 }
 
 /**

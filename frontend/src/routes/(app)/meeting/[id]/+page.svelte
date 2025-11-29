@@ -443,6 +443,8 @@
 				// Force immediate grouping for expert panel completion (bypass debounce)
 				// This ensures expert panels appear instantly without waiting for next event
 				if (eventType === 'persona_selection_complete' || eventType === 'persona_selected') {
+					// Cancel any pending debounced recalculation to prevent race condition
+					if (debounceTimeout) clearTimeout(debounceTimeout);
 					groupedEventsCache = groupEvents(store.events, debugMode);
 					lastEventCountForGrouping = store.events.length;
 				}

@@ -439,6 +439,7 @@ def persona_selected_event(
     persona: dict[str, Any],
     rationale: str,
     order: int,
+    sub_problem_index: int | None = None,
 ) -> str:
     """Create SSE event for individual persona selection.
 
@@ -447,44 +448,47 @@ def persona_selected_event(
         persona: Persona dict with code, name, display_name, domain_expertise
         rationale: Why this expert was chosen
         order: Selection order (1-indexed)
+        sub_problem_index: Sub-problem index for multi-problem meetings
 
     Returns:
         SSE-formatted event string
     """
-    return format_sse_event(
-        "persona_selected",
-        {
-            "session_id": session_id,
-            "persona": persona,
-            "rationale": rationale,
-            "order": order,
-            "timestamp": datetime.now(UTC).isoformat(),
-        },
-    )
+    data = {
+        "session_id": session_id,
+        "persona": persona,
+        "rationale": rationale,
+        "order": order,
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
+    if sub_problem_index is not None:
+        data["sub_problem_index"] = sub_problem_index
+    return format_sse_event("persona_selected", data)
 
 
 def persona_selection_complete_event(
     session_id: str,
     personas: list[str],
+    sub_problem_index: int | None = None,
 ) -> str:
     """Create SSE event for persona selection completion.
 
     Args:
         session_id: Session identifier
         personas: List of selected persona codes
+        sub_problem_index: Sub-problem index for multi-problem meetings
 
     Returns:
         SSE-formatted event string
     """
-    return format_sse_event(
-        "persona_selection_complete",
-        {
-            "session_id": session_id,
-            "personas": personas,
-            "count": len(personas),
-            "timestamp": datetime.now(UTC).isoformat(),
-        },
-    )
+    data = {
+        "session_id": session_id,
+        "personas": personas,
+        "count": len(personas),
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
+    if sub_problem_index is not None:
+        data["sub_problem_index"] = sub_problem_index
+    return format_sse_event("persona_selection_complete", data)
 
 
 def subproblem_started_event(

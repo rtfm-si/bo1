@@ -150,9 +150,12 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
             data.get("persona", {}),
             data.get("rationale", ""),
             data.get("order", 1),
+            sub_problem_index=data.get("sub_problem_index"),
         ),
         "persona_selection_complete": lambda: events.persona_selection_complete_event(
-            session_id, data.get("personas", [])
+            session_id,
+            data.get("personas", []),
+            sub_problem_index=data.get("sub_problem_index"),
         ),
         "subproblem_started": lambda: events.subproblem_started_event(
             session_id,

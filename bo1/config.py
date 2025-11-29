@@ -90,6 +90,9 @@ class Settings(BaseSettings):
     tavily_api_key: str = Field(default="", description="Tavily API key for web search")
     brave_api_key: str = Field(default="", description="Brave Search API key")
 
+    # Email Configuration (Resend)
+    resend_api_key: str = Field(default="", description="Resend API key for transactional emails")
+
     # Redis Configuration
     redis_host: str = Field(default="localhost", description="Redis host")
     redis_port: int = Field(default=6379, description="Redis port")

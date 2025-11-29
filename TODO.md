@@ -45,3 +45,6 @@ challenges resolved
 etc...
 
 inject business context
+
+add delete user to admin
+add 'lock accohnt' to admin

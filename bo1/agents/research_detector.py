@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from bo1.config import get_settings, resolve_model_alias
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
-from bo1.models.contribution import ContributionMessage
+from bo1.models.state import ContributionMessage
 
 logger = logging.getLogger(__name__)
 

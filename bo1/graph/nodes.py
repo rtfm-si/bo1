@@ -2703,6 +2703,25 @@ async def _deliberate_subproblem(
                 },
             )
 
+        # CRITICAL: Emit persona_selection_complete to trigger frontend expert panel flush
+        # Without this, expert panel only appears after page refresh (Issue #1)
+        event_bridge.emit(
+            "persona_selection_complete",
+            {
+                "personas": [
+                    {
+                        "code": p.code,
+                        "name": p.name,
+                        "archetype": p.archetype,
+                        "display_name": p.display_name,
+                        "domain_expertise": p.domain_expertise,
+                    }
+                    for p in personas
+                ],
+                "count": len(personas),
+            },
+        )
+
     logger.info(
         f"_deliberate_subproblem: Selected {len(personas)} personas for {sub_problem.id}: {persona_codes}"
     )

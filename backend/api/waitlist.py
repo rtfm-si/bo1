@@ -6,15 +6,18 @@ Handles:
 - Duplicate prevention
 """
 
+import logging
 import os
 import re
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 
 from bo1.state.postgres_manager import db_session
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/waitlist", tags=["waitlist"])
 
@@ -42,6 +45,16 @@ def is_valid_email(email: str) -> bool:
     return re.match(pattern, email) is not None
 
 
+async def _send_waitlist_notification(email: str) -> None:
+    """Send ntfy notification for waitlist signup (background task)."""
+    try:
+        from backend.api.ntfy import notify_waitlist_signup
+
+        await notify_waitlist_signup(email)
+    except Exception as e:
+        logger.warning(f"Failed to send waitlist notification for {email}: {e}")
+
+
 def is_whitelisted(email: str) -> bool:
     """Check if email is in closed beta whitelist (env OR database)."""
     email_lower = email.lower()
@@ -64,11 +77,14 @@ def is_whitelisted(email: str) -> bool:
 
 
 @router.post("", response_model=WaitlistResponse, status_code=status.HTTP_200_OK)
-async def add_to_waitlist(request: WaitlistRequest) -> WaitlistResponse:
+async def add_to_waitlist(
+    request: WaitlistRequest, background_tasks: BackgroundTasks
+) -> WaitlistResponse:
     """Add email to waitlist.
 
     Args:
         request: Waitlist signup request with email
+        background_tasks: FastAPI background tasks for async notifications
 
     Returns:
         WaitlistResponse with status and message
@@ -116,6 +132,9 @@ async def add_to_waitlist(request: WaitlistRequest) -> WaitlistResponse:
                     """,
                     (email, "pending", datetime.now(UTC)),
                 )
+
+                # Send ntfy notification in background
+                background_tasks.add_task(_send_waitlist_notification, email)
 
                 return WaitlistResponse(
                     status="added",

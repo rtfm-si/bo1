@@ -85,10 +85,35 @@ services:
       - bo1-network
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # ntfy: Push notifications for admin alerts
+  # ---------------------------------------------------------------------------
+  ntfy:
+    image: binwiederhier/ntfy:v2.11.0
+    command:
+      - serve
+    environment:
+      - TZ=UTC
+    volumes:
+      - ntfy-cache:/var/cache/ntfy
+    ports:
+      - "127.0.0.1:2586:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - bo1-network
+    restart: unless-stopped
+
 volumes:
   postgres-data:
     driver: local
   redis-data:
+    driver: local
+  ntfy-cache:
     driver: local
 
 networks:

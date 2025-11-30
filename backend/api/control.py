@@ -189,6 +189,13 @@ async def start_deliberation(
         # Start background task
         await session_manager.start_session(session_id, user_id, coro)
 
+        # Send ntfy notification (fire and forget)
+        import asyncio
+
+        from backend.api.ntfy import notify_meeting_started
+
+        asyncio.create_task(notify_meeting_started(session_id, problem_statement))
+
         # Update session status to 'running' in PostgreSQL
         try:
             update_session_status(session_id=session_id, status="running")

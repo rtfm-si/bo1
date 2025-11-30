@@ -94,6 +94,15 @@ class Settings(BaseSettings):
     # Email Configuration (Resend)
     resend_api_key: str = Field(default="", description="Resend API key for transactional emails")
 
+    # ntfy Push Notifications
+    ntfy_server: str = Field(default="https://ntfy.boardof.one", description="ntfy server URL")
+    ntfy_topic_waitlist: str = Field(
+        default="", description="ntfy topic for waitlist signup notifications"
+    )
+    ntfy_topic_meeting: str = Field(
+        default="", description="ntfy topic for meeting start notifications"
+    )
+
     # Redis Configuration
     redis_host: str = Field(default="localhost", description="Redis host")
     redis_port: int = Field(default=6379, description="Redis port")

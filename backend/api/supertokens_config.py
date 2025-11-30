@@ -23,6 +23,7 @@ from supertokens_python.recipe.thirdparty.interfaces import RecipeInterface
 from supertokens_python.recipe.thirdparty.provider import ProviderInput
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 
+from bo1.feature_flags import GOOGLE_OAUTH_ENABLED
 from bo1.state.postgres_manager import db_session, ensure_user_exists
 
 logger = logging.getLogger(__name__)
@@ -103,7 +104,7 @@ def get_oauth_providers() -> list[ProviderInput]:
     providers = []
 
     # Google OAuth
-    if os.getenv("GOOGLE_OAUTH_ENABLED", "true").lower() == "true":
+    if GOOGLE_OAUTH_ENABLED:
         client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
         client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
 

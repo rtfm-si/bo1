@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { env } from '$env/dynamic/public';
 	import { apiClient } from '$lib/api/client';
-	import type { SSEEvent } from '$lib/api/sse-events';
+	import type { SSEEvent, ContributionEvent, ExpertInfo } from '$lib/api/sse-events';
 	import { fade, scale } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
 	import { SSEClient } from '$lib/utils/sse';
@@ -800,10 +800,13 @@
 					const toReveal = totalContributions - currentVisible;
 
 					// Update pending experts list
-					const newPending = group.events.slice(currentVisible).map(e => ({
-						name: (e.data as any).persona_name || 'Expert',
-						roundKey
-					}));
+					const newPending = group.events.slice(currentVisible).map(e => {
+						const contribEvent = e as ContributionEvent;
+						return {
+							name: contribEvent.data.persona_name || 'Expert',
+							roundKey
+						};
+					});
 					pendingExperts = newPending;
 
 					// Stage the reveals with random delays
@@ -1302,8 +1305,14 @@
 														<ExpertPanelSkeleton expertCount={group.events.length} />
 													{:then ExpertPanelComponent}
 														<ExpertPanelComponent
-															experts={group.events.map((e) => ({
-																persona: e.data.persona as any,
+															experts={group.events.map((e): ExpertInfo => ({
+																persona: e.data.persona as {
+																	code: string;
+																	name: string;
+																	display_name: string;
+																	archetype: string;
+																	domain_expertise: string[];
+																},
 																rationale: e.data.rationale as string,
 																order: e.data.order as number,
 															}))}
@@ -1317,21 +1326,22 @@
 												{@const roundKey = `round-${group.roundNumber}`}
 												{@const visibleCount = visibleContributionCounts.get(roundKey) || 0}
 												{@const hasMoreToReveal = visibleCount < group.events.length}
-												{@const nextExpert = hasMoreToReveal ? group.events[visibleCount]?.data?.persona_name as string : null}
+												{@const nextExpert = hasMoreToReveal ? (group.events[visibleCount] as ContributionEvent | undefined)?.data?.persona_name : null}
 												<div transition:fade={{ duration: 300, delay: 50 }}>
 													<div class="space-y-3">
 														<h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
 															<span>Round {group.roundNumber} Contributions</span>
 														</h3>
 														{#each getVisibleContributions(group.roundNumber, group.events) as contrib}
+															{@const contribEvent = contrib as ContributionEvent}
 															{#await getComponentForEvent('contribution')}
 																<!-- Loading skeleton with timeout fallback -->
 																<ContributionSkeleton />
 															{:then ExpertPerspectiveCardComponent}
 																{#if ExpertPerspectiveCardComponent}
-																	{@const cardId = `${(contrib.data as any).persona_code}-${(contrib.data as any).round}`}
+																	{@const cardId = `${contribEvent.data.persona_code}-${contribEvent.data.round}`}
 																	<ExpertPerspectiveCardComponent
-																		event={contrib as any}
+																		event={contribEvent}
 																		viewMode={getCardViewMode(cardId)}
 																		showFull={showFullTranscripts}
 																		onToggle={() => toggleCardViewMode(cardId)}
@@ -1389,7 +1399,7 @@
 																<EventCardSkeleton hasAvatar={false} />
 															{:then EventComponent}
 																{#if EventComponent}
-																	<EventComponent event={event as any} />
+																	<EventComponent {event} />
 																{:else}
 																	<!-- Component loaded but null - use GenericEvent -->
 																	<GenericEvent event={event} />
@@ -1703,8 +1713,14 @@
 										{:then ExpertPanelComponent}
 											{#if ExpertPanelComponent}
 												<ExpertPanelComponent
-													experts={group.events.map((e) => ({
-														persona: e.data.persona as any,
+													experts={group.events.map((e): ExpertInfo => ({
+														persona: e.data.persona as {
+															code: string;
+															name: string;
+															display_name: string;
+															archetype: string;
+															domain_expertise: string[];
+														},
 														rationale: e.data.rationale as string,
 														order: e.data.order as number,
 													}))}
@@ -1730,21 +1746,22 @@
 									{@const roundKey = `round-${group.roundNumber}`}
 									{@const visibleCount = visibleContributionCounts.get(roundKey) || 0}
 									{@const hasMoreToReveal = visibleCount < group.events.length}
-									{@const nextExpert = hasMoreToReveal ? group.events[visibleCount]?.data?.persona_name as string : null}
+									{@const nextExpert = hasMoreToReveal ? (group.events[visibleCount] as ContributionEvent | undefined)?.data?.persona_name : null}
 									<div transition:fade={{ duration: 300, delay: 50 }}>
 										<div class="space-y-3">
 											<h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
 												<span>Round {group.roundNumber} Contributions</span>
 											</h3>
 											{#each getVisibleContributions(group.roundNumber, group.events) as contrib}
+												{@const contribEvent = contrib as ContributionEvent}
 												{#await getComponentForEvent('contribution')}
 													<!-- Loading skeleton with timeout fallback -->
 													<ContributionSkeleton />
 												{:then ExpertPerspectiveCardComponent}
 													{#if ExpertPerspectiveCardComponent}
-														{@const cardId = `${(contrib.data as any).persona_code}-${(contrib.data as any).round}`}
+														{@const cardId = `${contribEvent.data.persona_code}-${contribEvent.data.round}`}
 														<ExpertPerspectiveCardComponent
-															event={contrib as any}
+															event={contribEvent}
 															viewMode={getCardViewMode(cardId)}
 															showFull={showFullTranscripts}
 															onToggle={() => toggleCardViewMode(cardId)}
@@ -1806,7 +1823,7 @@
 													<EventCardSkeleton hasAvatar={false} />
 												{:then EventComponent}
 													{#if EventComponent}
-														<EventComponent event={event as any} />
+														<EventComponent {event} />
 													{:else}
 														<!-- Component loaded but null - use GenericEvent -->
 														<GenericEvent event={event} />

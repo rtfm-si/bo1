@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { apiClient } from '$lib/api/client';
+	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
 	import { Plus, Trash2, Mail, Lock } from 'lucide-svelte';
 
@@ -12,71 +11,28 @@
 		created_at: string;
 	}
 
-	let entries = $state<WhitelistEntry[]>([]);
-	let envEmails = $state<string[]>([]);
-	let totalCount = $state(0);
-	let isLoading = $state(true);
-	let error = $state<string | null>(null);
+	let { data, form } = $props();
+
+	let entries = $state<WhitelistEntry[]>(data.entries || []);
+	let envEmails = $state<string[]>(data.envEmails || []);
+	let totalCount = $state(data.totalCount || 0);
 	let newEmail = $state('');
 	let newNotes = $state('');
 	let isAdding = $state(false);
-	let addError = $state<string | null>(null);
+	let isRemoving = $state(false);
+
+	// Update local state when data changes
+	$effect(() => {
+		entries = data.entries || [];
+		envEmails = data.envEmails || [];
+		totalCount = data.totalCount || 0;
+	});
 
 	// Check if an email is only in env (not in db)
 	function isEnvOnly(email: string): boolean {
 		const dbEmails = entries.map(e => e.email.toLowerCase());
 		return envEmails.includes(email.toLowerCase()) && !dbEmails.includes(email.toLowerCase());
 	}
-
-	async function loadWhitelist() {
-		try {
-			isLoading = true;
-			error = null;
-			const response = await apiClient.listWhitelist();
-			entries = response.emails;
-			envEmails = response.env_emails || [];
-			totalCount = response.total_count;
-		} catch (err) {
-			console.error('Failed to load whitelist:', err);
-			error = err instanceof Error ? err.message : 'Failed to load whitelist';
-		} finally {
-			isLoading = false;
-		}
-	}
-
-	async function addToWhitelist() {
-		if (!newEmail.trim()) return;
-
-		try {
-			isAdding = true;
-			addError = null;
-			await apiClient.addToWhitelist({ email: newEmail.trim(), notes: newNotes.trim() || undefined });
-			newEmail = '';
-			newNotes = '';
-			await loadWhitelist();
-		} catch (err) {
-			console.error('Failed to add to whitelist:', err);
-			addError = err instanceof Error ? err.message : 'Failed to add email';
-		} finally {
-			isAdding = false;
-		}
-	}
-
-	async function removeFromWhitelist(email: string) {
-		if (!confirm(`Remove ${email} from whitelist?`)) return;
-
-		try {
-			await apiClient.removeFromWhitelist(email);
-			await loadWhitelist();
-		} catch (err) {
-			console.error('Failed to remove from whitelist:', err);
-			error = err instanceof Error ? err.message : 'Failed to remove email';
-		}
-	}
-
-	onMount(() => {
-		loadWhitelist();
-	});
 </script>
 
 <svelte:head>
@@ -109,7 +65,22 @@
 		<!-- Add New Email Form -->
 		<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 mb-8">
 			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Add to Whitelist</h2>
-			<form onsubmit={(e) => { e.preventDefault(); addToWhitelist(); }} class="space-y-4">
+			<form
+				method="POST"
+				action="?/add"
+				use:enhance={() => {
+					isAdding = true;
+					return async ({ result, update }) => {
+						isAdding = false;
+						if (result.type === 'success') {
+							newEmail = '';
+							newNotes = '';
+							await update();
+						}
+					};
+				}}
+				class="space-y-4"
+			>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<div>
 						<label for="email" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
@@ -118,6 +89,7 @@
 						<input
 							type="email"
 							id="email"
+							name="email"
 							bind:value={newEmail}
 							placeholder="user@example.com"
 							class="w-full px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white placeholder-neutral-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
@@ -131,33 +103,24 @@
 						<input
 							type="text"
 							id="notes"
+							name="notes"
 							bind:value={newNotes}
 							placeholder="YC batch W25, referred by..."
 							class="w-full px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white placeholder-neutral-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
 						/>
 					</div>
 				</div>
-				{#if addError}
-					<p class="text-sm text-error-600 dark:text-error-400">{addError}</p>
+				{#if form?.error}
+					<p class="text-sm text-error-600 dark:text-error-400">{form.error}</p>
 				{/if}
 				<Button type="submit" variant="brand" disabled={isAdding || !newEmail.trim()}>
-					<Plus class="w-4 h-4 mr-2" />
-					{isAdding ? 'Adding...' : 'Add to Whitelist'}
+					{#snippet children()}
+						<Plus class="w-4 h-4 mr-2" />
+						{isAdding ? 'Adding...' : 'Add to Whitelist'}
+					{/snippet}
 				</Button>
 			</form>
 		</div>
-
-		{#if isLoading}
-			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-8 text-center">
-				<div class="animate-spin w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full mx-auto"></div>
-				<p class="mt-2 text-neutral-600 dark:text-neutral-400">Loading...</p>
-			</div>
-		{:else if error}
-			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-8 text-center">
-				<p class="text-error-600 dark:text-error-400">{error}</p>
-				<Button onclick={loadWhitelist} variant="ghost" class="mt-2">Retry</Button>
-			</div>
-		{:else}
 			<!-- Env-based Whitelist (if any) -->
 			{#if envEmails.length > 0}
 				<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 overflow-hidden mb-6">
@@ -214,18 +177,34 @@
 										Added {new Date(entry.created_at).toLocaleDateString()}
 									</p>
 								</div>
-								<button
-									onclick={() => removeFromWhitelist(entry.email)}
-									class="p-2 text-neutral-400 hover:text-error-500 dark:hover:text-error-400 transition-colors"
-									aria-label="Remove from whitelist"
+								<form
+									method="POST"
+									action="?/remove"
+									use:enhance={() => {
+										if (!confirm(`Remove ${entry.email} from whitelist?`)) {
+											return () => {};
+										}
+										isRemoving = true;
+										return async ({ update }) => {
+											isRemoving = false;
+											await update();
+										};
+									}}
 								>
-									<Trash2 class="w-5 h-5" />
-								</button>
+									<input type="hidden" name="email" value={entry.email} />
+									<button
+										type="submit"
+										disabled={isRemoving}
+										class="p-2 text-neutral-400 hover:text-error-500 dark:hover:text-error-400 transition-colors disabled:opacity-50"
+										aria-label="Remove from whitelist"
+									>
+										<Trash2 class="w-5 h-5" />
+									</button>
+								</form>
 							</div>
 						{/each}
 					</div>
 				{/if}
 			</div>
-		{/if}
 	</main>
 </div>

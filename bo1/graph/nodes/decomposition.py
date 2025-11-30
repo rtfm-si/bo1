@@ -1,0 +1,157 @@
+"""Problem decomposition node.
+
+This module contains the decompose_node function that breaks down
+complex problems into manageable sub-problems and assesses complexity.
+"""
+
+import logging
+from typing import Any
+
+from bo1.agents.decomposer import DecomposerAgent
+from bo1.graph.state import DeliberationGraphState
+from bo1.graph.utils import ensure_metrics, track_phase_cost
+from bo1.models.problem import SubProblem
+from bo1.models.state import DeliberationPhase
+from bo1.utils.json_parsing import extract_json_with_fallback
+
+logger = logging.getLogger(__name__)
+
+
+async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Decompose problem into sub-problems using DecomposerAgent.
+
+    This node wraps the existing DecomposerAgent and updates the graph state
+    with the decomposition results.
+
+    Args:
+        state: Current graph state
+
+    Returns:
+        Dictionary with state updates
+    """
+    logger.info("decompose_node: Starting problem decomposition")
+
+    # Create decomposer agent
+    decomposer = DecomposerAgent()
+
+    # Get problem from state
+    problem = state["problem"]
+
+    # Call decomposer
+    response = await decomposer.decompose_problem(
+        problem_description=problem.description,
+        context=problem.context,
+        constraints=[],  # TODO: Add constraints from problem model
+    )
+
+    # Parse decomposition using utility function
+    def create_fallback() -> dict[str, Any]:
+        return {
+            "analysis": "JSON parsing failed",
+            "is_atomic": True,
+            "sub_problems": [
+                {
+                    "id": "sp_001",
+                    "goal": problem.description,
+                    "context": problem.context,
+                    "complexity_score": 5,
+                    "dependencies": [],
+                }
+            ],
+        }
+
+    decomposition = extract_json_with_fallback(
+        content=response.content,
+        fallback_factory=create_fallback,
+        logger=logger,
+    )
+
+    # Convert sub-problem dicts to SubProblem models
+    sub_problems = [
+        SubProblem(
+            id=sp["id"],
+            goal=sp["goal"],
+            context=sp.get("context", ""),
+            complexity_score=sp["complexity_score"],
+            dependencies=sp.get("dependencies", []),
+        )
+        for sp in decomposition.get("sub_problems", [])
+    ]
+
+    # Update problem with sub-problems
+    problem.sub_problems = sub_problems
+
+    # Track cost in metrics
+    metrics = ensure_metrics(state)
+    track_phase_cost(metrics, "problem_decomposition", response)
+
+    # Assess complexity to determine adaptive parameters
+    from bo1.agents.complexity_assessor import ComplexityAssessor, validate_complexity_assessment
+
+    assessor = ComplexityAssessor()
+    complexity_response = await assessor.assess_complexity(
+        problem_description=problem.description,
+        context=problem.context,
+        sub_problems=[
+            {"id": sp.id, "goal": sp.goal, "complexity_score": sp.complexity_score}
+            for sp in sub_problems
+        ],
+    )
+
+    # Parse complexity assessment
+    def create_complexity_fallback() -> dict[str, Any]:
+        # Default to moderate complexity if assessment fails
+        return {
+            "scope_breadth": 0.4,
+            "dependencies": 0.4,
+            "ambiguity": 0.4,
+            "stakeholders": 0.3,
+            "novelty": 0.3,
+            "overall_complexity": 0.38,
+            "recommended_rounds": 4,
+            "recommended_experts": 4,
+            "reasoning": "Complexity assessment failed, using moderate defaults",
+        }
+
+    complexity_assessment = extract_json_with_fallback(
+        content=complexity_response.content,
+        fallback_factory=create_complexity_fallback,
+        logger=logger,
+    )
+
+    # Validate and sanitize complexity scores
+    complexity_assessment = validate_complexity_assessment(complexity_assessment)
+
+    # Update metrics with complexity scores
+    metrics.complexity_score = complexity_assessment.get("overall_complexity", 0.4)
+    metrics.scope_breadth = complexity_assessment.get("scope_breadth", 0.4)
+    metrics.dependencies = complexity_assessment.get("dependencies", 0.4)
+    metrics.ambiguity = complexity_assessment.get("ambiguity", 0.4)
+    metrics.stakeholders_complexity = complexity_assessment.get("stakeholders", 0.3)
+    metrics.novelty = complexity_assessment.get("novelty", 0.3)
+    metrics.recommended_rounds = complexity_assessment.get("recommended_rounds", 4)
+    metrics.recommended_experts = complexity_assessment.get("recommended_experts", 4)
+    metrics.complexity_reasoning = complexity_assessment.get(
+        "reasoning", "Complexity assessment completed"
+    )
+
+    # Track complexity assessment cost
+    track_phase_cost(metrics, "complexity_assessment", complexity_response)
+
+    logger.info(
+        f"decompose_node: Complete - {len(sub_problems)} sub-problems, "
+        f"complexity={metrics.complexity_score:.2f}, "
+        f"recommended_rounds={metrics.recommended_rounds}, "
+        f"recommended_experts={metrics.recommended_experts} "
+        f"(cost: ${response.cost_total + complexity_response.cost_total:.4f})"
+    )
+
+    # Return state updates with adaptive max_rounds
+    return {
+        "problem": problem,
+        "current_sub_problem": sub_problems[0] if sub_problems else None,
+        "phase": DeliberationPhase.DECOMPOSITION,
+        "metrics": metrics,
+        "max_rounds": metrics.recommended_rounds,  # Adaptive based on complexity
+        "current_node": "decompose",
+    }

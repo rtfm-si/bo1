@@ -48,3 +48,5 @@ inject business context
 
 add delete user to admin
 add 'lock accohnt' to admin
+
+https://temporal.io/how-it-works

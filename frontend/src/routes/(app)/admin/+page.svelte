@@ -1,42 +1,29 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { apiClient } from '$lib/api/client';
-	import { Button } from '$lib/components/ui';
 	import { Users, List, TrendingUp, DollarSign, Clock } from 'lucide-svelte';
 
-	let stats = $state({
+	interface AdminStats {
+		totalUsers: number;
+		totalMeetings: number;
+		totalCost: number;
+		whitelistCount: number;
+		waitlistPending: number;
+	}
+
+	let { data } = $props<{ stats?: AdminStats }>();
+
+	const defaultStats: AdminStats = {
 		totalUsers: 0,
 		totalMeetings: 0,
 		totalCost: 0,
 		whitelistCount: 0,
 		waitlistPending: 0
-	});
-	let isLoading = $state(true);
-	let error = $state<string | null>(null);
+	};
 
-	onMount(async () => {
-		try {
-			isLoading = true;
-			// Fetch stats from API
-			const [usersResponse, whitelistResponse, waitlistResponse] = await Promise.all([
-				apiClient.listUsers({ page: 1, per_page: 1 }),
-				apiClient.listWhitelist(),
-				apiClient.listWaitlist({ status: 'pending' })
-			]);
+	let stats = $state<AdminStats>(data.stats || defaultStats);
 
-			stats = {
-				totalUsers: usersResponse.total_count,
-				totalMeetings: usersResponse.users[0]?.total_meetings || 0,
-				totalCost: usersResponse.users.reduce((sum, u) => sum + (u.total_cost || 0), 0),
-				whitelistCount: whitelistResponse.total_count,
-				waitlistPending: waitlistResponse.pending_count
-			};
-		} catch (err) {
-			console.error('Failed to load admin stats:', err);
-			error = err instanceof Error ? err.message : 'Failed to load stats';
-		} finally {
-			isLoading = false;
-		}
+	// Update local state when data changes
+	$effect(() => {
+		stats = data.stats || defaultStats;
 	});
 </script>
 
@@ -69,23 +56,7 @@
 
 	<!-- Main Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-		{#if isLoading}
-			<!-- Loading State -->
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-				{#each Array(4) as _}
-					<div class="animate-pulse bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
-						<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-24 mb-4"></div>
-						<div class="h-8 bg-neutral-200 dark:bg-neutral-700 rounded w-16"></div>
-					</div>
-				{/each}
-			</div>
-		{:else if error}
-			<!-- Error State -->
-			<div class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg p-6 mb-8">
-				<p class="text-error-700 dark:text-error-300">{error}</p>
-			</div>
-		{:else}
-			<!-- Stats Cards -->
+		<!-- Stats Cards -->
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
 				<!-- Total Users -->
 				<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
@@ -155,7 +126,6 @@
 					</div>
 				</div>
 			</div>
-		{/if}
 
 		<!-- Quick Links -->
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-6">

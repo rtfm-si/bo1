@@ -1,62 +1,56 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { apiClient } from '$lib/api/client';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
 	import { Search, ChevronLeft, ChevronRight } from 'lucide-svelte';
 	import { getTierColor } from '$lib/utils/color-helpers';
 
-	let users = $state<any[]>([]);
-	let isLoading = $state(true);
-	let error = $state<string | null>(null);
-	let searchEmail = $state('');
-	let currentPage = $state(1);
-	let totalCount = $state(0);
-	let perPage = $state(20);
+	let { data } = $props();
+
+	let users = $state(data.users || []);
+	let totalCount = $state(data.totalCount || 0);
+	let currentPage = $state(data.page || 1);
+	let perPage = $state(data.perPage || 20);
+	let searchEmail = $state($page.url.searchParams.get('email') || '');
 
 	// Edit state
 	let editingUserId = $state<string | null>(null);
 	let editForm = $state<{ subscription_tier?: string; is_admin?: boolean }>({});
+	let isSubmitting = $state(false);
 
-	async function loadUsers() {
-		try {
-			isLoading = true;
-			error = null;
-			const response = await apiClient.listUsers({
-				page: currentPage,
-				per_page: perPage,
-				email: searchEmail || undefined
-			});
-
-			users = response.users;
-			totalCount = response.total_count;
-		} catch (err) {
-			console.error('Failed to load users:', err);
-			error = err instanceof Error ? err.message : 'Failed to load users';
-		} finally {
-			isLoading = false;
-		}
-	}
-
-	onMount(() => {
-		loadUsers();
+	// Update local state when data changes
+	$effect(() => {
+		users = data.users || [];
+		totalCount = data.totalCount || 0;
+		currentPage = data.page || 1;
+		perPage = data.perPage || 20;
 	});
 
-	async function handleSearch() {
-		currentPage = 1; // Reset to first page when searching
-		await loadUsers();
+	function handleSearch() {
+		const url = new URL($page.url);
+		url.searchParams.set('page', '1');
+		if (searchEmail) {
+			url.searchParams.set('email', searchEmail);
+		} else {
+			url.searchParams.delete('email');
+		}
+		goto(url.toString());
 	}
 
-	async function nextPage() {
+	function nextPage() {
 		if (currentPage * perPage < totalCount) {
-			currentPage++;
-			await loadUsers();
+			const url = new URL($page.url);
+			url.searchParams.set('page', (currentPage + 1).toString());
+			goto(url.toString());
 		}
 	}
 
-	async function prevPage() {
+	function prevPage() {
 		if (currentPage > 1) {
-			currentPage--;
-			await loadUsers();
+			const url = new URL($page.url);
+			url.searchParams.set('page', (currentPage - 1).toString());
+			goto(url.toString());
 		}
 	}
 
@@ -71,18 +65,6 @@
 	function cancelEdit() {
 		editingUserId = null;
 		editForm = {};
-	}
-
-	async function saveEdit(userId: string) {
-		try {
-			await apiClient.updateUser(userId, editForm);
-			editingUserId = null;
-			editForm = {};
-			await loadUsers();
-		} catch (err) {
-			console.error('Failed to update user:', err);
-			alert(err instanceof Error ? err.message : 'Failed to update user');
-		}
 	}
 
 	function formatDate(dateString: string | null): string {
@@ -142,26 +124,7 @@
 			</div>
 		</div>
 
-		{#if isLoading}
-			<!-- Loading State -->
-			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-6">
-				<div class="animate-pulse space-y-4">
-					{#each Array(5) as _}
-						<div class="h-16 bg-neutral-200 dark:bg-neutral-700 rounded"></div>
-					{/each}
-				</div>
-			</div>
-		{:else if error}
-			<!-- Error State -->
-			<div class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg p-6">
-				<p class="text-error-700 dark:text-error-300">{error}</p>
-				<Button variant="danger" size="md" onclick={loadUsers} class="mt-4">
-					{#snippet children()}
-						Retry
-					{/snippet}
-				</Button>
-			</div>
-		{:else if users.length === 0}
+		{#if users.length === 0}
 			<!-- Empty State -->
 			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-12 text-center">
 				<p class="text-neutral-600 dark:text-neutral-400">No users found</p>
@@ -239,20 +202,43 @@
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap text-sm">
 										{#if editingUserId === user.user_id}
-											<div class="flex gap-2">
-												<button
-													onclick={() => saveEdit(user.user_id)}
-													class="text-success-600 dark:text-success-400 hover:underline"
-												>
-													Save
-												</button>
-												<button
-													onclick={cancelEdit}
-													class="text-neutral-600 dark:text-neutral-400 hover:underline"
-												>
-													Cancel
-												</button>
-											</div>
+											<form
+												method="POST"
+												action="?/updateUser"
+												use:enhance={() => {
+													isSubmitting = true;
+													return async ({ result }) => {
+														isSubmitting = false;
+														if (result.type === 'success') {
+															editingUserId = null;
+															editForm = {};
+														} else if (result.type === 'failure') {
+															alert(result.data?.error || 'Failed to update user');
+														}
+													};
+												}}
+											>
+												<input type="hidden" name="userId" value={user.user_id} />
+												<input type="hidden" name="subscription_tier" value={editForm.subscription_tier || user.subscription_tier} />
+												<input type="hidden" name="is_admin" value={editForm.is_admin?.toString() || user.is_admin.toString()} />
+												<div class="flex gap-2">
+													<button
+														type="submit"
+														disabled={isSubmitting}
+														class="text-success-600 dark:text-success-400 hover:underline disabled:opacity-50"
+													>
+														{isSubmitting ? 'Saving...' : 'Save'}
+													</button>
+													<button
+														type="button"
+														onclick={cancelEdit}
+														disabled={isSubmitting}
+														class="text-neutral-600 dark:text-neutral-400 hover:underline disabled:opacity-50"
+													>
+														Cancel
+													</button>
+												</div>
+											</form>
 										{:else}
 											<button
 												onclick={() => startEdit(user.user_id, user.subscription_tier, user.is_admin)}

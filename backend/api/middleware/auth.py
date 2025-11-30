@@ -30,11 +30,9 @@ from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from bo1.config import get_settings
+from bo1.feature_flags import ENABLE_SUPERTOKENS_AUTH
 
 logger = logging.getLogger(__name__)
-
-# Feature flag for SuperTokens auth (enabled for production)
-ENABLE_SUPERTOKENS_AUTH = os.getenv("ENABLE_SUPERTOKENS_AUTH", "true").lower() == "true"
 
 # Debug mode check - MVP mode only allowed if DEBUG is true
 DEBUG_MODE = os.getenv("DEBUG", "false").lower() == "true"

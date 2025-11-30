@@ -138,6 +138,10 @@ class EventCollector:
         This method wraps LangGraph's astream_events() and intercepts
         node completions to publish events to Redis PubSub.
 
+        When USE_SUBGRAPH_DELIBERATION is enabled, uses astream() with
+        stream_mode=["updates", "custom"] to capture custom events from
+        get_stream_writer() in subgraph nodes.
+
         Args:
             session_id: Session identifier
             graph: Compiled LangGraph instance
@@ -149,6 +153,114 @@ class EventCollector:
 
         Raises:
             Exception: Re-raises any exception from graph execution
+        """
+        from bo1.feature_flags import USE_SUBGRAPH_DELIBERATION
+
+        if USE_SUBGRAPH_DELIBERATION:
+            return await self._collect_with_custom_events(session_id, graph, initial_state, config)
+        else:
+            return await self._collect_with_astream_events(session_id, graph, initial_state, config)
+
+    async def _collect_with_custom_events(
+        self,
+        session_id: str,
+        graph: Any,
+        initial_state: Any,
+        config: dict[str, Any],
+    ) -> Any:
+        """Execute graph with custom event streaming for subgraph support.
+
+        Uses astream(stream_mode=["updates", "custom"]) to capture:
+        - State updates from nodes (updates)
+        - Custom events from get_stream_writer() (custom)
+
+        This enables real-time per-expert streaming from subgraph nodes.
+        """
+        final_state = None
+
+        try:
+            async for chunk in graph.astream(
+                initial_state,
+                config=config,
+                stream_mode=["updates", "custom"],
+                subgraphs=True,
+            ):
+                namespace, data = chunk
+
+                # Handle custom events from get_stream_writer()
+                if isinstance(data, dict) and "event_type" in data:
+                    event_type = data.pop("event_type")
+                    logger.info(
+                        f"[CUSTOM EVENT] {event_type} | sub_problem_index={data.get('sub_problem_index')}"
+                    )
+                    self.publisher.publish_event(session_id, event_type, data)
+
+                # Handle state updates from nodes
+                elif isinstance(data, dict):
+                    # Check for specific node updates
+                    node_name = namespace[-1] if namespace else None
+
+                    # Map node outputs to event handlers
+                    if node_name == "decompose":
+                        await self._handle_decomposition(session_id, data)
+                    elif node_name == "select_personas":
+                        await self._handle_persona_selection(session_id, data)
+                    elif node_name == "initial_round":
+                        await self._handle_initial_round(session_id, data)
+                    elif node_name == "facilitator_decide":
+                        await self._handle_facilitator_decision(session_id, data)
+                    elif node_name == "parallel_round":
+                        await self._handle_parallel_round(session_id, data)
+                    elif node_name == "moderator_intervene":
+                        await self._handle_moderator(session_id, data)
+                    elif node_name == "check_convergence":
+                        await self._handle_convergence(session_id, data)
+                    elif node_name == "vote":
+                        await self._handle_voting(session_id, data)
+                    elif node_name == "synthesize":
+                        await self._handle_synthesis(session_id, data)
+                    elif node_name == "next_subproblem":
+                        await self._handle_subproblem_complete(session_id, data)
+                    elif node_name == "meta_synthesize":
+                        await self._handle_meta_synthesis(session_id, data)
+
+                    # Update final state
+                    final_state = data
+
+            # Publish completion event
+            if final_state:
+                await self._handle_completion(session_id, final_state)
+
+        except Exception as e:
+            logger.error(f"Error in custom event collection for session {session_id}: {e}")
+            self.publisher.publish_event(
+                session_id,
+                "error",
+                {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+
+            try:
+                update_session_status(session_id=session_id, status="failed")
+            except Exception as db_error:
+                logger.error(f"Failed to update session status: {db_error}")
+
+            raise
+
+        return final_state
+
+    async def _collect_with_astream_events(
+        self,
+        session_id: str,
+        graph: Any,
+        initial_state: Any,
+        config: dict[str, Any],
+    ) -> Any:
+        """Execute graph using legacy astream_events() method.
+
+        This is the original implementation using astream_events(version="v2").
         """
         final_state = None
 

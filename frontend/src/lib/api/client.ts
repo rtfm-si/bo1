@@ -54,7 +54,6 @@ export class ApiClient {
 	): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
 
-		// For admin endpoints, add X-Admin-Key header if available
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/json'
 		};
@@ -72,14 +71,6 @@ export class ApiClient {
 				});
 			} else {
 				Object.assign(headers, optHeaders);
-			}
-		}
-
-		// Add admin key for admin endpoints
-		if (endpoint.startsWith('/api/admin/')) {
-			const adminKey = env.PUBLIC_ADMIN_API_KEY;
-			if (adminKey) {
-				headers['X-Admin-Key'] = adminKey;
 			}
 		}
 

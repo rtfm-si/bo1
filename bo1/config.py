@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "Settings",
     "get_settings",
+    "reset_settings",
     "CacheConfig",
     "MODEL_ALIASES",
     "MODEL_BY_ROLE",
@@ -386,9 +387,26 @@ MODEL_PRICING = {
 }
 
 
+# Global singleton instance
+_settings: Settings | None = None
+
+
 def get_settings() -> Settings:
-    """Get settings instance (lazy loaded)."""
-    return Settings()
+    """Get settings instance (singleton, lazy loaded)."""
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings
+
+
+def reset_settings() -> None:
+    """Reset settings singleton (for testing only).
+
+    This allows tests to reload settings with different environment variables
+    or to ensure a clean state between tests.
+    """
+    global _settings
+    _settings = None
 
 
 def resolve_model_alias(model_name: str) -> str:

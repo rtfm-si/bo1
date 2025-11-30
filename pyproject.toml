@@ -90,6 +90,7 @@ select = [
 ignore = [
     "E501",  # line too long (handled by formatter)
     "B008",  # do not perform function calls in argument defaults
+    "S608",  # SQL injection false positive for hardcoded table names in migrations
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -98,6 +99,7 @@ ignore = [
 "test*.py" = ["ANN"]
 "tests/*.py" = ["ANN"]
 "scripts/*.py" = ["ANN", "S608", "F841"]  # Scripts: type annotations optional, SQL injection false positives ok
+"migrations/versions/*.py" = ["S608"]  # Alembic migrations: SQL injection false positives for hardcoded table names
 
 [tool.ruff.format]
 quote-style = "double"

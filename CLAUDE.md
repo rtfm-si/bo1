@@ -37,6 +37,47 @@ python scripts/check_migration_history.py  # Verify migrations applied
 
 ---
 
+## Feature Flags
+
+**Active feature flags** (all others removed as unused):
+
+### Authentication & Authorization
+- **`ENABLE_SUPERTOKENS_AUTH`** (default: true)
+  - When true: Full SuperTokens session verification required
+  - When false: MVP mode with hardcoded test_user_1 (only if DEBUG=true)
+  - Used in: `backend/api/middleware/auth.py`
+
+### OAuth Providers
+- **`GOOGLE_OAUTH_ENABLED`** (default: true)
+  - Controls Google OAuth provider availability in SuperTokens
+  - Used in: `backend/api/supertokens_config.py`
+
+### Parallel Processing
+- **`ENABLE_PARALLEL_ROUNDS`** (default: true)
+  - When true: Multi-expert rounds run in parallel via `asyncio.gather`
+  - When false: Experts contribute sequentially
+  - Used in: `bo1/graph/nodes/subproblems.py`, `bo1/graph/config.py`
+
+- **`ENABLE_PARALLEL_SUBPROBLEMS`** (default: false)
+  - When true: Independent sub-problems execute concurrently (50-70% time reduction)
+  - When false: Sequential execution (safer, better UX due to event emission issues)
+  - Used in: `bo1/graph/nodes/subproblems.py`, `bo1/graph/config.py`
+  - **Warning**: See Known Issues section - causes poor UX due to missing event emission
+
+### Sub-Problem Deliberation
+- **`USE_SUBGRAPH_DELIBERATION`** (default: false)
+  - When true: Uses LangGraph subgraph with `get_stream_writer()` for real-time streaming
+  - When false: Uses legacy `astream_events()` method
+  - Used in: `backend/api/event_collector.py`
+  - Requires: `ENABLE_PARALLEL_SUBPROBLEMS=true` to have effect
+
+**Note**: Model selection (previously `FACILITATOR_MODEL`/`PERSONA_MODEL`) is now controlled via:
+- `AI_OVERRIDE=true/false` in `.env`
+- `AI_OVERRIDE_MODEL=<alias>` in `.env`
+- See `bo1/config.py` for model aliases and role assignments
+
+---
+
 ## Database Migrations
 
 ### Automatic Migration Deployment
@@ -139,7 +180,10 @@ decompose_node → select_personas_node → initial_round_node
 - **Experts per Round**: 3-5 (adaptive, parallel execution via asyncio.gather)
 - **Semantic Deduplication**: 0.80 similarity threshold (Voyage AI embeddings)
 - **Hierarchical Context**: Round summaries + recent contributions
-- **Feature Flag**: `ENABLE_PARALLEL_ROUNDS` (default: true)
+- **Feature Flags**:
+  - `ENABLE_PARALLEL_ROUNDS` (default: true) - Multi-expert rounds run in parallel
+  - `ENABLE_PARALLEL_SUBPROBLEMS` (default: false) - Sub-problems execute concurrently (see Known Issues)
+  - `USE_SUBGRAPH_DELIBERATION` (default: false) - LangGraph subgraph for real-time event streaming
 
 **Adaptive Complexity Scoring** (NEW):
 - **Complexity Assessment**: 5-dimension scoring (scope, dependencies, ambiguity, stakeholders, novelty)
@@ -176,12 +220,24 @@ decompose_node → select_personas_node → initial_round_node
 - Haiku 4.5 for summarization
 - Cost target: ~$0.10 per deliberation
 
-### Optimizations (Jan 2025 Sprint)
+### Model Selection
 
-- **LLM Response Caching**: 60% hit rate, Redis, 24h TTL
-- **Persona Selection Caching**: Voyage AI embeddings, 40-60% hit rate
+**Model selection is controlled via `bo1/config.py`**:
+- `AI_OVERRIDE=true/false` - Override all model calls with cheaper model (for testing)
+- `AI_OVERRIDE_MODEL=<model_alias>` - Which model to use when override is enabled
+- Aliases: `sonnet`, `haiku`, `opus` (see `MODEL_ALIASES` in config.py)
+
+**Default models by role** (when `AI_OVERRIDE=false`):
+- Personas: Sonnet 4.5 (benefits from prompt caching)
+- Facilitator: Sonnet 4.5 (complex orchestration decisions)
+- Summarizer: Haiku 4.5 (simple compression task)
+- Decomposer: Sonnet 4.5 (complex problem analysis)
+
+### Optimizations
+
 - **Database Connection Pooling**: Use `db_session()` context manager
-- **Parallel async gather**: All expert calls simultaneous
+- **Parallel async gather**: All expert calls simultaneous via `asyncio.gather`
+- **Prompt Caching**: Sonnet 4.5 with prompt caching (90% savings on cache hits)
 
 ### Loop Prevention
 

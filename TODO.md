@@ -49,4 +49,14 @@ inject business context
 add delete user to admin
 add 'lock accohnt' to admin
 
-https://temporal.io/how-it-works
+is graph too complicated
+simpplfy?
+problems decomposed too much?
+sub problems must be direct and relevant to solving problem
+
+summarization needs to work better
+sub problems fail and summary generated
+
+'still working' messages are crap and inconsistent
+
+still displaying multiple 'completed' messages

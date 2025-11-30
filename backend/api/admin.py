@@ -138,6 +138,105 @@ class UpdateUserRequest(BaseModel):
     is_admin: bool | None = Field(None, description="New admin status", examples=[True, False])
 
 
+class AdminStatsResponse(BaseModel):
+    """Response model for admin dashboard statistics.
+
+    Attributes:
+        total_users: Total number of registered users
+        total_meetings: Total number of meetings across all users
+        total_cost: Total cost across all users (USD)
+        whitelist_count: Number of whitelisted emails
+        waitlist_pending: Number of pending waitlist entries
+    """
+
+    total_users: int = Field(..., description="Total number of registered users")
+    total_meetings: int = Field(..., description="Total number of meetings across all users")
+    total_cost: float = Field(..., description="Total cost across all users (USD)")
+    whitelist_count: int = Field(..., description="Number of whitelisted emails")
+    waitlist_pending: int = Field(..., description="Number of pending waitlist entries")
+
+
+@router.get(
+    "/stats",
+    response_model=AdminStatsResponse,
+    summary="Get admin dashboard statistics",
+    description="Get aggregated statistics for the admin dashboard.",
+    responses={
+        200: {"description": "Statistics retrieved successfully"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+async def get_admin_stats(
+    _admin: str = Depends(require_admin_any),
+) -> AdminStatsResponse:
+    """Get aggregated statistics for the admin dashboard.
+
+    Returns:
+        AdminStatsResponse with total users, meetings, cost, whitelist, and waitlist counts
+
+    Raises:
+        HTTPException: If retrieval fails
+    """
+    try:
+        import os
+
+        from bo1.state.postgres_manager import db_session
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Get total users
+                cur.execute("SELECT COUNT(*) as count FROM users")
+                total_users = cur.fetchone()["count"]
+
+                # Get total meetings and cost from sessions
+                cur.execute(
+                    """
+                    SELECT
+                        COUNT(*) as total_meetings,
+                        COALESCE(SUM(total_cost), 0) as total_cost
+                    FROM sessions
+                    """
+                )
+                session_stats = cur.fetchone()
+                total_meetings = session_stats["total_meetings"]
+                total_cost = float(session_stats["total_cost"])
+
+                # Get whitelist count (db + env)
+                cur.execute("SELECT COUNT(*) as count FROM beta_whitelist")
+                db_whitelist_count = cur.fetchone()["count"]
+
+                env_whitelist = os.getenv("BETA_WHITELIST", "")
+                env_emails = [e.strip().lower() for e in env_whitelist.split(",") if e.strip()]
+                # For simplicity, just add env count (may have overlap but that's fine for stats)
+                whitelist_count = db_whitelist_count + len(env_emails)
+
+                # Get pending waitlist count
+                cur.execute("SELECT COUNT(*) as count FROM waitlist WHERE status = 'pending'")
+                waitlist_pending = cur.fetchone()["count"]
+
+        logger.info(
+            f"Admin: Retrieved stats - users: {total_users}, meetings: {total_meetings}, "
+            f"cost: ${total_cost:.2f}, whitelist: {whitelist_count}, waitlist: {waitlist_pending}"
+        )
+
+        return AdminStatsResponse(
+            total_users=total_users,
+            total_meetings=total_meetings,
+            total_cost=total_cost,
+            whitelist_count=whitelist_count,
+            waitlist_pending=waitlist_pending,
+        )
+
+    except Exception as e:
+        logger.error(f"Admin: Failed to get stats: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get admin stats: {str(e)}",
+        ) from e
+
+
 @router.get(
     "/users",
     response_model=UserListResponse,

@@ -119,3 +119,93 @@ async def notify_meeting_started(session_id: str, problem_statement: str) -> boo
         priority="default",
         tags=["rocket", "brain"],
     )
+
+
+async def notify_database_report(
+    report_type: Literal["daily", "weekly"],
+    summary: str,
+    details: str | None = None,
+    priority: Literal["min", "low", "default", "high", "urgent"] = "default",
+) -> bool:
+    """Send database monitoring report via ntfy.
+
+    Args:
+        report_type: Type of report (daily or weekly)
+        summary: Brief summary of database health
+        details: Optional detailed information
+        priority: Notification priority (default: "default")
+
+    Returns:
+        True if notification sent successfully
+
+    Example:
+        >>> await notify_database_report(
+        ...     report_type="daily",
+        ...     summary="✅ All systems healthy",
+        ...     details="api_costs: 3,048 rows\\nsession_events: 445 rows",
+        ...     priority="low"
+        ... )
+    """
+    settings = get_settings()
+
+    # Determine tags and title based on report type
+    if report_type == "daily":
+        title = "📊 Daily Database Report"
+        tags = ["bar_chart", "calendar"]
+    else:
+        title = "📈 Weekly Database Report"
+        tags = ["chart_with_upwards_trend", "calendar"]
+
+    # Build message
+    message = summary
+    if details:
+        message += f"\n\n{details}"
+
+    return await send_ntfy_alert(
+        topic=settings.ntfy_topic_reports,
+        title=title,
+        message=message,
+        priority=priority,
+        tags=tags,
+    )
+
+
+async def notify_database_alert(
+    alert_type: Literal["warning", "critical"],
+    title: str,
+    message: str,
+) -> bool:
+    """Send urgent database alert via ntfy to dedicated alerts topic.
+
+    Args:
+        alert_type: Severity of alert
+        title: Alert title
+        message: Alert message
+
+    Returns:
+        True if notification sent successfully
+
+    Example:
+        >>> await notify_database_alert(
+        ...     alert_type="critical",
+        ...     title="Table Growth Alert",
+        ...     message="api_costs table exceeded 500K rows - partitioning recommended"
+        ... )
+    """
+    settings = get_settings()
+
+    # Determine priority and tags based on alert type
+    if alert_type == "critical":
+        priority = "urgent"
+        tags = ["rotating_light", "warning"]
+    else:
+        priority = "high"
+        tags = ["warning"]
+
+    return await send_ntfy_alert(
+        topic=settings.ntfy_topic_alerts,  # Use dedicated alerts topic
+        title=f"⚠️ {title}",
+        message=message,
+        priority=priority,
+        tags=tags,
+    )

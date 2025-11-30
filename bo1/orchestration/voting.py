@@ -89,6 +89,29 @@ async def collect_recommendations(
                 f"{recommendation.recommendation[:80]}... (confidence: {recommendation.confidence:.2f})"
             )
 
+            # CRITICAL FIX: Save recommendation to database (Phase 1.2)
+            try:
+                from bo1.state.postgres_manager import save_recommendation as save_rec_db
+
+                session_id = state.get("session_id", "unknown")
+                sub_problem_index = state.get("sub_problem_index")
+
+                save_rec_db(
+                    session_id=session_id,
+                    persona_code=persona.code,
+                    recommendation=recommendation.recommendation,
+                    reasoning=recommendation.reasoning,
+                    confidence=recommendation.confidence,
+                    conditions=recommendation.conditions,
+                    weight=recommendation.weight,
+                    sub_problem_index=sub_problem_index,
+                    persona_name=persona.name,
+                )
+                logger.debug(f"Saved recommendation from {persona.name} to database")
+            except Exception as e:
+                # Log error but don't block recommendation collection
+                logger.error(f"Failed to save recommendation to database: {e}")
+
             return recommendation, response
 
         except Exception as e:

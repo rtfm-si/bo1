@@ -438,6 +438,31 @@ You MUST engage critically with the discussion:
             f"({contrib_msg.token_count} tokens, ${contrib_msg.cost:.4f})"
         )
 
+        # CRITICAL FIX: Save contribution to database (Phase 1.1)
+        # This ensures contributions are persisted for analytics and recovery
+        try:
+            from bo1.state.postgres_manager import save_contribution
+
+            session_id = self.state.get("session_id", "unknown")
+            phase_name = self.state.get("phase", "unknown")
+            if hasattr(phase_name, "value"):
+                phase_name = phase_name.value  # Extract enum value if DeliberationPhase
+
+            save_contribution(
+                session_id=session_id,
+                persona_code=persona_profile.code,
+                content=contribution,
+                round_number=round_number,
+                phase=phase_name,
+                cost=cost,
+                tokens=token_usage.total_tokens,
+                model=self.model_id,
+            )
+            logger.debug(f"Saved contribution from {persona_profile.display_name} to database")
+        except Exception as e:
+            # Log error but don't block deliberation if save fails
+            logger.error(f"Failed to save contribution to database: {e}")
+
         return contrib_msg, llm_response
 
     def get_participant_summary(self) -> str:

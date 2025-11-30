@@ -7,7 +7,6 @@ All feature flags are centralized here - DO NOT create feature flags in other fi
 """
 
 import os
-from typing import Literal
 
 
 def _parse_bool(value: str | None, default: bool = False) -> bool:
@@ -85,56 +84,19 @@ USE_SUBGRAPH_DELIBERATION = _parse_bool(os.getenv("USE_SUBGRAPH_DELIBERATION"), 
 
 
 # ============================================================================
-# Caching & Optimization
+# REMOVED: Unused Feature Flags (2025-11-30)
 # ============================================================================
-
-# Enable LLM response caching with Redis backend
-# Expected 60-80% cost reduction on repeated queries
-ENABLE_LLM_RESPONSE_CACHE = _parse_bool(os.getenv("ENABLE_LLM_RESPONSE_CACHE"), default=False)
-
-# Enable semantic persona selection caching
-# Expected 40-60% hit rate, $200-400/month savings
-ENABLE_PERSONA_SELECTION_CACHE = _parse_bool(
-    os.getenv("ENABLE_PERSONA_SELECTION_CACHE"), default=False
-)
-
-# Enable semantic research cache with pgvector
-ENABLE_SEMANTIC_RESEARCH_CACHE = _parse_bool(
-    os.getenv("ENABLE_SEMANTIC_RESEARCH_CACHE"), default=True
-)
-
-
+# The following flags were removed as they had no implementation:
+# - ENABLE_LLM_RESPONSE_CACHE (no caching logic wired up)
+# - ENABLE_PERSONA_SELECTION_CACHE (no caching logic wired up)
+# - ENABLE_SEMANTIC_RESEARCH_CACHE (no caching logic wired up)
+# - ENABLE_ENHANCED_QUALITY_METRICS (no quality metrics implementation)
+# - ENABLE_CONTEXT_COLLECTION (no context collection implementation)
+# - ENABLE_SSE_STREAMING (superseded by USE_SUBGRAPH_DELIBERATION)
+# - FACILITATOR_MODEL (model selection handled via AI_OVERRIDE in config.py)
+# - PERSONA_MODEL (model selection handled via AI_OVERRIDE in config.py)
+#
+# Model selection is now controlled via bo1/config.py:
+# - AI_OVERRIDE=true/false
+# - AI_OVERRIDE_MODEL=<model_alias>
 # ============================================================================
-# Quality & Analysis
-# ============================================================================
-
-# Enable enhanced quality metrics (exploration, focus, completeness)
-ENABLE_ENHANCED_QUALITY_METRICS = _parse_bool(
-    os.getenv("ENABLE_ENHANCED_QUALITY_METRICS"), default=True
-)
-
-# Enable business context collection and information gap analysis
-# Improves recommendations by 40%
-ENABLE_CONTEXT_COLLECTION = _parse_bool(os.getenv("ENABLE_CONTEXT_COLLECTION"), default=True)
-
-
-# ============================================================================
-# Streaming & Real-time Updates
-# ============================================================================
-
-# Enable real-time SSE streaming via LangGraph astream_events (vs polling)
-# See STREAMING_IMPLEMENTATION_PLAN.md
-ENABLE_SSE_STREAMING = _parse_bool(os.getenv("ENABLE_SSE_STREAMING"), default=False)
-
-
-# ============================================================================
-# Model Selection
-# ============================================================================
-
-# Model selection for facilitator
-# Options: "haiku" (fast, cheap) or "sonnet" (slower, higher quality)
-# These aliases are resolved to full model IDs in bo1/config.py
-FACILITATOR_MODEL: Literal["haiku", "sonnet"] = os.getenv("FACILITATOR_MODEL", "haiku")  # type: ignore[assignment]
-
-# Model selection for personas
-PERSONA_MODEL: Literal["sonnet", "haiku"] = os.getenv("PERSONA_MODEL", "sonnet")  # type: ignore[assignment]

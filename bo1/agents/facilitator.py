@@ -421,6 +421,28 @@ Analyze the discussion and decide the next action."""
             details=details if details else None,
         )
 
+        # CRITICAL FIX: Save facilitator decision to database (Phase 1.3)
+        try:
+            from bo1.state.postgres_manager import save_facilitator_decision
+
+            session_id = state.get("session_id", "unknown")
+            sub_problem_index = state.get("sub_problem_index")
+
+            save_facilitator_decision(
+                session_id=session_id,
+                round_number=round_number,
+                action=decision.action,
+                reasoning=decision.reasoning,
+                next_speaker=decision.next_speaker,
+                moderator_type=decision.moderator_type,
+                research_query=decision.research_query,
+                sub_problem_index=sub_problem_index,
+            )
+            logger.debug(f"Saved facilitator decision to database: action={decision.action}")
+        except Exception as e:
+            # Log error but don't block facilitation
+            logger.error(f"Failed to save facilitator decision to database: {e}")
+
         return decision, response
 
     def _format_discussion_history(self, state: DeliberationGraphState) -> str:

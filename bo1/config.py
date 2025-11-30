@@ -102,6 +102,12 @@ class Settings(BaseSettings):
     ntfy_topic_meeting: str = Field(
         default="", description="ntfy topic for meeting start notifications"
     )
+    ntfy_topic_reports: str = Field(
+        default="", description="ntfy topic for daily/weekly database reports"
+    )
+    ntfy_topic_alerts: str = Field(
+        default="", description="ntfy topic for critical database alerts (high priority)"
+    )
 
     # Redis Configuration
     redis_host: str = Field(default="localhost", description="Redis host")

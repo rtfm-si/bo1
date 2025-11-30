@@ -144,21 +144,33 @@ def reset_connection_pool() -> None:
 
 
 @contextmanager
-def db_session() -> (
-    Any
-):  # Generator[connection, None, None] would be ideal but psycopg2 typing is complex
-    """Context manager for database transactions.
+def db_session(
+    user_id: str | None = None,
+) -> Any:  # Generator[connection, None, None] would be ideal but psycopg2 typing is complex
+    """Context manager for database transactions with RLS support.
 
-    Provides automatic connection pooling, commit/rollback, and cleanup.
+    Provides automatic connection pooling, commit/rollback, cleanup, and
+    Row-Level Security (RLS) context setting.
+
+    Args:
+        user_id: Optional user ID for RLS policies. When provided, sets
+                 app.current_user_id session variable for RLS enforcement.
 
     Yields:
         psycopg2.extensions.connection: PostgreSQL connection from pool
 
     Examples:
+        >>> # Without RLS context (admin operations)
         >>> with db_session() as conn:
         ...     with conn.cursor() as cur:
         ...         cur.execute("SELECT * FROM user_context WHERE user_id = %s", (user_id,))
         ...         result = cur.fetchone()
+
+        >>> # With RLS context (user-scoped queries)
+        >>> with db_session(user_id="user_123") as conn:
+        ...     with conn.cursor() as cur:
+        ...         cur.execute("SELECT * FROM sessions")  # RLS automatically filters to user_123
+        ...         result = cur.fetchall()
 
     Note:
         Return type is Any due to psycopg2's complex typing. The actual type is
@@ -168,6 +180,12 @@ def db_session() -> (
     conn = pool_instance.getconn()
 
     try:
+        # Set RLS context if user_id provided
+        if user_id:
+            with conn.cursor() as cur:
+                cur.execute("SET LOCAL app.current_user_id = %s", (user_id,))
+                logger.debug(f"RLS context set for user: {user_id}")
+
         yield conn
         conn.commit()
     except Exception:
@@ -1403,6 +1421,8 @@ def save_contribution(
     cost: float = 0.0,
     tokens: int = 0,
     model: str = "unknown",
+    embedding: list[float] | None = None,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     """Save a persona contribution to PostgreSQL.
 
@@ -1415,25 +1435,114 @@ def save_contribution(
         cost: Cost in USD
         tokens: Token count
         model: Model used
+        embedding: Optional embedding vector (1024 dimensions for Voyage AI)
+        user_id: User ID (optional - will be fetched from session if not provided)
 
     Returns:
         Saved contribution record with id and created_at
     """
+    # Fetch user_id from session if not provided
+    if user_id is None:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT user_id FROM sessions WHERE id = %s", (session_id,))
+                result = cur.fetchone()
+                if result:
+                    user_id = result[0]
+                else:
+                    logger.warning(
+                        f"Session {session_id} not found, cannot fetch user_id for contribution"
+                    )
+                    user_id = "unknown"
+
     with db_session() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO contributions (
                     session_id, persona_code, content, round_number, phase,
-                    cost, tokens, model
+                    cost, tokens, model, embedding, user_id
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, session_id, persona_code, round_number, phase, created_at
                 """,
-                (session_id, persona_code, content, round_number, phase, cost, tokens, model),
+                (
+                    session_id,
+                    persona_code,
+                    content,
+                    round_number,
+                    phase,
+                    cost,
+                    tokens,
+                    model,
+                    embedding,
+                    user_id,
+                ),
             )
             result = cur.fetchone()
             return dict(result) if result else {}
+
+
+def save_contribution_embedding(contribution_id: str, embedding: list[float]) -> bool:
+    """Update a contribution's embedding vector.
+
+    This function is called after generating an embedding for semantic deduplication.
+    Saves ~$0.0001 per contribution on repeat analysis.
+
+    Args:
+        contribution_id: Contribution record ID (UUID as string)
+        embedding: Embedding vector (1024 dimensions for Voyage AI voyage-3)
+
+    Returns:
+        True if updated successfully, False otherwise
+
+    Examples:
+        >>> from bo1.llm.embeddings import generate_embedding
+        >>> embedding = generate_embedding("We should focus on user experience", input_type="document")
+        >>> save_contribution_embedding("contrib_uuid", embedding)
+        True
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE contributions
+                SET embedding = %s
+                WHERE id = %s
+                """,
+                (embedding, contribution_id),
+            )
+            return bool(cur.rowcount and cur.rowcount > 0)
+
+
+def get_contribution_embedding(contribution_id: str) -> list[float] | None:
+    """Get a contribution's embedding vector if it exists.
+
+    Used by semantic deduplication to avoid regenerating embeddings.
+
+    Args:
+        contribution_id: Contribution record ID (UUID as string)
+
+    Returns:
+        Embedding vector if exists, None otherwise
+
+    Examples:
+        >>> embedding = get_contribution_embedding("contrib_uuid")
+        >>> if embedding:
+        ...     print(f"Found cached embedding ({len(embedding)} dimensions)")
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT embedding
+                FROM contributions
+                WHERE id = %s AND embedding IS NOT NULL
+                """,
+                (contribution_id,),
+            )
+            row = cur.fetchone()
+            return row["embedding"] if row and row.get("embedding") else None
 
 
 def save_recommendation(

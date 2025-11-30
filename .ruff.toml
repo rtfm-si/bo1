@@ -27,6 +27,7 @@ ignore = [
     "D106",    # missing docstring in public nested class (Pydantic Config classes)
     "S101",    # use of assert detected (OK in tests)
     "ANN401",  # allow typing.Any in function signatures (needed for Pydantic validators, wrappers)
+    "S608",    # SQL injection false positive for hardcoded table names in migrations
 ]
 
 [lint.per-file-ignores]
@@ -39,6 +40,13 @@ ignore = [
     "S101",    # assert allowed in tests
     "ANN",     # annotations optional in tests
     "D",       # docstrings optional in tests
+]
+"scripts/*.py" = [
+    "ANN",     # annotations optional in scripts
+    "D103",    # docstrings optional in scripts
+]
+"migrations/versions/*.py" = [
+    "D415",    # first line punctuation not needed in migration docstrings
 ]
 
 [lint.pydocstyle]

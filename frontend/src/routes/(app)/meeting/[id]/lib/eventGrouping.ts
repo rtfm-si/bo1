@@ -28,6 +28,9 @@ export const STATUS_NOISE_EVENTS = [
 	'convergence',
 	'complete', // Hidden - redundant with SynthesisComplete (renders empty card otherwise)
 	'discussion_quality_status', // Hidden - adds noise to timeline
+	'working_status', // Hidden - real-time status only, not for historical view
+	'synthesis_started', // Hidden - synthesis_complete provides the actual content
+	'meta_synthesis_started', // Hidden - meta_synthesis_complete provides the actual content
 ];
 
 /**

@@ -35,6 +35,7 @@ from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
 from bo1.state.postgres_manager import (
     ensure_user_exists,
+    get_session_events,
     get_session_tasks,
     get_user_sessions,
     save_session,
@@ -691,8 +692,9 @@ async def extract_tasks(
 
             # Extract tasks from ALL synthesis events (sub-problems + meta-synthesis)
             # This ensures tasks are associated with their respective sub-problems
+            # Try Redis first (for active sessions), fall back to PostgreSQL (for completed sessions)
             events_key = f"events_history:{session_id}"
-            events = redis_manager.redis.lrange(events_key, 0, -1)
+            redis_events = redis_manager.redis.lrange(events_key, 0, -1)
 
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if not api_key:
@@ -704,25 +706,44 @@ async def extract_tasks(
             # Collect all synthesis events
             synthesis_events: list[tuple[str, int | None]] = []  # (synthesis, sub_problem_index)
 
-            for event_json in events:
-                import json
+            # Parse events from Redis (JSON strings) or PostgreSQL (dicts)
+            if redis_events:
+                logger.info(
+                    f"Reading {len(redis_events)} events from Redis for session {session_id}"
+                )
+                for event_json in redis_events:
+                    import json
 
-                event = json.loads(event_json)
-                event_type = event.get("event_type")
-                event_data = event.get("data", {})
-
-                if event_type == "synthesis_complete":
-                    # Sub-problem synthesis
-                    synthesis = event_data.get("synthesis")
-                    sub_problem_index = event_data.get("sub_problem_index")
-                    if synthesis:
-                        synthesis_events.append((synthesis, sub_problem_index))
-
-                elif event_type == "meta_synthesis_complete":
-                    # Meta-synthesis (global actions)
-                    synthesis = event_data.get("synthesis")
-                    if synthesis:
-                        synthesis_events.append((synthesis, None))
+                    event = json.loads(event_json)
+                    event_type = event.get("event_type")
+                    event_data = event.get("data", {})
+                    if event_type == "synthesis_complete":
+                        synthesis = event_data.get("synthesis")
+                        sub_problem_index = event_data.get("sub_problem_index")
+                        if synthesis:
+                            synthesis_events.append((synthesis, sub_problem_index))
+                    elif event_type == "meta_synthesis_complete":
+                        synthesis = event_data.get("synthesis")
+                        if synthesis:
+                            synthesis_events.append((synthesis, None))
+            else:
+                # Fall back to PostgreSQL for completed sessions where Redis expired
+                logger.info(f"Redis empty, reading events from PostgreSQL for session {session_id}")
+                pg_events = get_session_events(session_id)
+                for event in pg_events:
+                    event_type = event.get("event_type")
+                    # PostgreSQL data column has nested structure: {"data": {...payload...}, ...}
+                    full_data = event.get("data", {})
+                    event_data = full_data.get("data", {}) if isinstance(full_data, dict) else {}
+                    if event_type == "synthesis_complete":
+                        synthesis = event_data.get("synthesis")
+                        sub_problem_index = event_data.get("sub_problem_index")
+                        if synthesis:
+                            synthesis_events.append((synthesis, sub_problem_index))
+                    elif event_type == "meta_synthesis_complete":
+                        synthesis = event_data.get("synthesis")
+                        if synthesis:
+                            synthesis_events.append((synthesis, None))
 
             if not synthesis_events:
                 raise HTTPException(

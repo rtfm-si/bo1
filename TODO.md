@@ -1,74 +1,3 @@
-## COMPLETED (2025-12-01) - Meeting System Audit Fixes
-
-### Priority 1: Critical UX Fixes ✓
-
-- [x] USE_SUBGRAPH_DELIBERATION enabled (was already active in .env)
-- [x] Remove duplicate event emission (event_collector.py:569-596)
-- [x] Fix premature meta-synthesis (routers.py:128-177 with validation)
-
-### Priority 2: "Still Working" Messages ✓
-
-- [x] Create WorkingStatus.svelte component (sticky prominent indicator)
-- [x] Emit working_status events (voting, synthesis, rounds, meta-synthesis)
-- [x] Integrate WorkingStatus in meeting page
-
-**Impact**: Zero UI blackouts, no duplicates, no incomplete syntheses, prominent status indicators
-
----
-
-### Priority 3: Summarization Improvements ✓
-
-- [x] Use round summaries in synthesis_node (hierarchical approach - 60-70% token reduction)
-- [x] Display expert summaries in SubProblemProgress component
-- [x] Create SYNTHESIS_HIERARCHICAL_TEMPLATE prompt
-
-### Priority 4: Graph Simplification ✓
-
-- [x] Remove rarely-used nodes (moderator_intervene, research archived)
-- [x] Remove legacy parallel code (\_parallel_subproblems_legacy deleted, -187 lines)
-- [x] Move removed code to bo1/graph/nodes/archived/
-- [ ] DEFERRED: Refactor check_convergence_node (future task, 4-6 hours)
-
-### Priority 5: Decomposition Quality ✓
-
-- [x] Decomposition prompt already optimal (existing implementation superior to audit)
-- [x] Add complexity-based limits with hard cap (max 4 sub-problems enforced)
-
-**Total Impact**:
-
-- Code: -874 lines removed (12% reduction)
-- Cost: $0.08 → $0.03 per synthesis (60% reduction)
-- Graph: 17 → ~13 effective nodes
-- Quality: Target 2.5 avg sub-problems (down from 4.2)
-
----
-
-## ALL AUDIT REPORT PRIORITIES COMPLETED ✅
-
-**Implemented (2025-12-01)**:
-
-- ✅ Priority 1: Critical UX Fixes (Issues #1-3)
-- ✅ Priority 2: "Still Working" Messages (Issue #4)
-- ✅ Priority 3: Summarization Improvements (Issue #6)
-- ✅ Priority 4: Graph Simplification (Issue #7, partial)
-- ✅ Priority 5: Sub-Problem Quality (Issue #5, Issue #8)
-
-**Ready for Production Testing** ✓
-
----
-
-## FUTURE WORK
-
-### Check Convergence Refactoring (Deferred from Priority 4.3)
-
-- [ ] Extract quality metrics to bo1/graph/quality/metrics.py
-- [ ] Extract stopping rules to bo1/graph/quality/stopping_rules.py
-- [ ] Reduce 600-line check_convergence_node to ~100 lines
-- Estimated effort: 4-6 hours
-- Benefits: Better testability, cleaner code organization
-
----
-
 ## BACKLOG
 
 feature request
@@ -115,6 +44,7 @@ topics explored
 research performed
 risks mitigated
 challenges resolved
+options discussed
 etc...
 
 inject business context
@@ -143,3 +73,18 @@ you are running a virtual meeting, but using all of the existing code. dont use 
 - is the graph too complicated? should we simplify this? are we calling for research, challenging, making sure we dont repeat, and drift etc?
 - are we generating / decomposing into too many sub problems? are the sub problems relevant and required for asnwering the main problem?
 - all the 'still working...' messages seem to be not triggered, or triggered too late, or triggered inconsistently, or formatted/displayed inconsistently. they should trigger immediately after the previous message and display more prominantly (but not over the top of, like a pop up) - mayeb in a sticky somewhere?
+
+design a test (or chain of tests) that confirms a meeting can complete e2e.
+
+add experts that are able to contribute to meetings at a more informal level, more sole trader level
+would adding 'business style', or 'revenue', customers, employees etc etc help?
+
+we should do more proactive research if the queston is ever 'this' vs 'that', so we can consider demand, costs, risks etc etc
+
+we use deliberation, meeting, discussion
+
+we should standardise the language throught the app: app taxonomy
+
+remove the --- from the meeting complete blocks (crerates a faint line)
+
+tidy up the action card

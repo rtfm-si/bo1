@@ -1,6 +1,7 @@
 """Integration tests for SSE event streaming infrastructure."""
 
 import json
+from unittest.mock import patch
 
 import pytest
 
@@ -92,7 +93,8 @@ def test_event_collector_handler_methods_exist(event_collector):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_event_collector_decomposition_handler(redis_manager, event_collector):
+@patch("backend.api.event_publisher.save_session_event")
+async def test_event_collector_decomposition_handler(mock_save, redis_manager, event_collector):
     """Test that decomposition handler publishes correct events."""
     session_id = "test_decomp_123"
     channel = f"events:{session_id}"

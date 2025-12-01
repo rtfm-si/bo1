@@ -832,12 +832,16 @@ def save_session_event(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO session_events (session_id, event_type, sequence, data)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO session_events (
+                    session_id, event_type, sequence, data, user_id
+                )
+                VALUES (%s, %s, %s, %s, (
+                    SELECT user_id FROM sessions WHERE id = %s
+                ))
                 ON CONFLICT (session_id, sequence, created_at) DO NOTHING
                 RETURNING id, session_id, event_type, sequence, created_at
                 """,
-                (session_id, event_type, sequence, Json(data)),
+                (session_id, event_type, sequence, Json(data), session_id),
             )
             result = cur.fetchone()
             return dict(result) if result else {}

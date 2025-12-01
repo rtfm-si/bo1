@@ -110,17 +110,63 @@ class EventPublisher:
             logger.debug(f"Published {event_type} to {channel} and stored in history")
 
             # Persist to PostgreSQL (permanent storage)
-            # This is non-blocking - don't let DB failures stop event streaming
-            try:
-                save_session_event(
-                    session_id=session_id,
-                    event_type=event_type,
-                    sequence=sequence,
-                    data=payload,  # Store full payload including timestamp
-                )
-            except Exception as db_error:
-                logger.warning(f"Failed to persist event to PostgreSQL: {db_error}")
-                # Continue - Redis has the event, PostgreSQL persistence is best-effort
+            # CRITICAL: Events MUST be persisted for meeting replay
+            # Retry with exponential backoff if persistence fails
+            persistence_success = False
+            last_error = None
+
+            for attempt in range(3):  # 3 attempts with exponential backoff
+                try:
+                    save_session_event(
+                        session_id=session_id,
+                        event_type=event_type,
+                        sequence=sequence,
+                        data=payload,  # Store full payload including timestamp
+                    )
+                    persistence_success = True
+                    if attempt > 0:
+                        logger.info(
+                            f"Event persistence succeeded on attempt {attempt + 1} "
+                            f"for {event_type} (session {session_id})"
+                        )
+                    break
+                except Exception as db_error:
+                    last_error = db_error
+                    if attempt < 2:  # Don't sleep on last attempt
+                        wait_time = 0.1 * (2**attempt)  # 0.1s, 0.2s
+                        logger.warning(
+                            f"Event persistence attempt {attempt + 1}/3 failed for "
+                            f"{event_type}: {db_error}. Retrying in {wait_time}s..."
+                        )
+                        import time
+
+                        time.sleep(wait_time)
+                    else:
+                        logger.error(
+                            f"CRITICAL: Event persistence failed after 3 attempts for "
+                            f"{event_type} (session {session_id}): {db_error}\n"
+                            f"This event will be LOST when Redis expires!"
+                        )
+
+            # If all attempts failed, emit error event to frontend
+            if not persistence_success:
+                try:
+                    error_payload = {
+                        "event_type": "persistence_error",
+                        "session_id": session_id,
+                        "timestamp": payload.get("timestamp"),
+                        "data": {
+                            "failed_event_type": event_type,
+                            "failed_sequence": sequence,
+                            "error": str(last_error),
+                            "message": "Event was published but failed to persist to database",
+                        },
+                    }
+                    error_message = json.dumps(error_payload)
+                    self.redis.publish(channel, error_message)
+                    logger.error(f"Emitted persistence_error event for failed {event_type}")
+                except Exception as emit_error:
+                    logger.error(f"Failed to emit persistence error event: {emit_error}")
 
         except Exception as e:
             logger.error(f"Failed to publish {event_type} to {channel}: {e}")

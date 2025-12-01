@@ -653,26 +653,107 @@ class EventCollector:
         self.publisher.publish_event(session_id, "complete", completion_data)
 
         # Update session status in PostgreSQL for permanent record
-        try:
-            # Extract final data
-            synthesis_text = final_state.get("synthesis") or final_state.get("meta_synthesis")
-            final_recommendation = None  # Could extract from synthesis if needed
-            round_number = final_state.get("round_number", 0)
-            phase = final_state.get("current_phase")
+        # CRITICAL: This must succeed - retry with exponential backoff
+        synthesis_text = final_state.get("synthesis") or final_state.get("meta_synthesis")
+        final_recommendation = None  # Could extract from synthesis if needed
+        round_number = final_state.get("round_number", 0)
+        phase = final_state.get("current_phase")
 
-            # Update session with final status
-            update_session_status(
-                session_id=session_id,
-                status="completed",
-                phase=phase,
-                total_cost=total_cost,
-                round_number=round_number,
-                synthesis_text=synthesis_text,
-                final_recommendation=final_recommendation,
-            )
-            logger.info(f"Updated session {session_id} status to 'completed' in PostgreSQL")
-        except Exception as e:
-            logger.error(f"Failed to update session status in PostgreSQL for {session_id}: {e}")
+        status_update_success = False
+        last_error = None
+
+        for attempt in range(3):  # 3 attempts with exponential backoff
+            try:
+                update_session_status(
+                    session_id=session_id,
+                    status="completed",
+                    phase=phase,
+                    total_cost=total_cost,
+                    round_number=round_number,
+                    synthesis_text=synthesis_text,
+                    final_recommendation=final_recommendation,
+                )
+                status_update_success = True
+                if attempt > 0:
+                    logger.info(
+                        f"Session status update succeeded on attempt {attempt + 1} for {session_id}"
+                    )
+                else:
+                    logger.info(f"Updated session {session_id} status to 'completed' in PostgreSQL")
+                break
+            except Exception as e:
+                last_error = e
+                if attempt < 2:  # Don't sleep on last attempt
+                    wait_time = 0.1 * (2**attempt)  # 0.1s, 0.2s
+                    logger.warning(
+                        f"Session status update attempt {attempt + 1}/3 failed for "
+                        f"{session_id}: {e}. Retrying in {wait_time}s..."
+                    )
+                    import time
+
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"CRITICAL: Failed to update session status after 3 attempts for "
+                        f"{session_id}: {e}\n"
+                        f"Session completed but status may be inconsistent!"
+                    )
+
+        # If status update failed, emit error event to frontend
+        if not status_update_success:
+            try:
+                self.publisher.publish_event(
+                    session_id=session_id,
+                    event_type="session_status_error",
+                    data={
+                        "error": str(last_error),
+                        "message": "Meeting completed but failed to update database status",
+                        "synthesis_available": bool(synthesis_text),
+                    },
+                )
+            except Exception as emit_error:
+                logger.error(f"Failed to emit status error event: {emit_error}")
+
+        # VERIFICATION: Check that events were actually persisted to PostgreSQL
+        # Compare Redis vs PostgreSQL event counts to detect persistence failures
+        try:
+            from bo1.state.postgres_manager import get_session_events
+
+            redis_event_count = self.publisher.redis.llen(f"events_history:{session_id}")
+            pg_events = get_session_events(session_id)
+            pg_event_count = len(pg_events)
+
+            if pg_event_count < redis_event_count:
+                logger.error(
+                    f"EVENT PERSISTENCE VERIFICATION FAILED for {session_id}:\n"
+                    f"  Redis: {redis_event_count} events\n"
+                    f"  PostgreSQL: {pg_event_count} events\n"
+                    f"  MISSING: {redis_event_count - pg_event_count} events\n"
+                    f"This session will have incomplete history after Redis expires!"
+                )
+                # Emit warning event to frontend
+                self.publisher.publish_event(
+                    session_id=session_id,
+                    event_type="persistence_verification_warning",
+                    data={
+                        "redis_events": redis_event_count,
+                        "postgres_events": pg_event_count,
+                        "missing_events": redis_event_count - pg_event_count,
+                        "message": "Some events may not have persisted to database",
+                    },
+                )
+            elif pg_event_count == 0 and redis_event_count > 0:
+                logger.critical(
+                    f"CRITICAL: Session {session_id} has {redis_event_count} events in "
+                    f"Redis but ZERO in PostgreSQL! All events will be lost!"
+                )
+            else:
+                logger.info(
+                    f"Event persistence verified for {session_id}: "
+                    f"{pg_event_count} events in PostgreSQL"
+                )
+        except Exception as verify_error:
+            logger.error(f"Failed to verify event persistence for {session_id}: {verify_error}")
 
     async def _summarize_contribution(self, content: str, persona_name: str) -> dict | None:
         """Summarize expert contribution into structured insights using Haiku 4.5.

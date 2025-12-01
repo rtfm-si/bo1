@@ -46,16 +46,13 @@ def route_phase(
 
 def route_facilitator_decision(
     state: DeliberationGraphState,
-) -> Literal["vote", "persona_contribute", "clarification", "END"]:
+) -> Literal["vote", "persona_contribute", "research", "END"]:
     """Route based on facilitator's decision.
-
-    AUDIT FIX (Priority 4, Task 4.1): Simplified routing by removing rarely-used paths.
-    Removed: moderator_intervene (12% usage), research (5% usage)
 
     Routes to different nodes based on the facilitator's action:
     - "vote" → Move to voting phase
     - "continue" → Persona contributes next round
-    - "clarify" → Request clarification from user (Day 37)
+    - "research" → Execute external research
 
     Args:
         state: Current graph state with facilitator_decision
@@ -79,14 +76,15 @@ def route_facilitator_decision(
     elif action == "continue":
         logger.info("route_facilitator_decision: Routing to persona_contribute")
         return "persona_contribute"
-    elif action == "clarify":
-        logger.info("route_facilitator_decision: Routing to clarification (Day 37)")
-        return "clarification"
-    # AUDIT FIX (Priority 4, Task 4.1): Removed moderator and research routing
-    # These branches were rarely used and added complexity
+    elif action == "research":
+        logger.info("route_facilitator_decision: Routing to research")
+        return "research"
     else:
-        logger.warning(f"route_facilitator_decision: Unknown action {action}, routing to END")
-        return "END"
+        # Fallback: continue deliberation instead of terminating
+        logger.error(
+            f"route_facilitator_decision: Unknown action {action}, falling back to persona_contribute"
+        )
+        return "persona_contribute"
 
 
 def route_convergence_check(

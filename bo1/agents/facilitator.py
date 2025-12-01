@@ -25,7 +25,7 @@ from bo1.utils.xml_parsing import extract_xml_tag_with_fallback
 
 logger = logging.getLogger(__name__)
 
-FacilitatorAction = Literal["continue", "vote", "research", "moderator"]
+FacilitatorAction = Literal["continue", "vote", "research"]
 
 
 @dataclass
@@ -324,27 +324,25 @@ class FacilitatorAgent(BaseAgent):
                 None,  # Skip LLM call, use rule-based override
             )
 
+        # DISABLED: Moderator functionality removed (audit decision reversed)
         # Check if moderator should intervene BEFORE calling LLM (saves time and cost)
-        moderator_trigger = self._should_trigger_moderator(state, round_number)
-
-        if moderator_trigger:
-            logger.info(f"🎭 Auto-triggering {moderator_trigger['type']} moderator")
-            logger.info(f"   Reason: {moderator_trigger['reason']}")
-
-            # Cast moderator_type to correct Literal type
-            mod_type = moderator_trigger["type"]
-            if mod_type not in ("contrarian", "skeptic", "optimist"):
-                mod_type = "contrarian"  # Default fallback
-
-            return (
-                FacilitatorDecision(
-                    action="moderator",
-                    reasoning=moderator_trigger["reason"],
-                    moderator_type=mod_type,  # type: ignore[arg-type]
-                    moderator_focus=moderator_trigger["reason"],
-                ),
-                None,  # Skip LLM call, return None for response
-            )
+        # moderator_trigger = self._should_trigger_moderator(state, round_number)
+        # if moderator_trigger:
+        #     logger.info(f"🎭 Auto-triggering {moderator_trigger['type']} moderator")
+        #     logger.info(f"   Reason: {moderator_trigger['reason']}")
+        #     # Cast moderator_type to correct Literal type
+        #     mod_type = moderator_trigger["type"]
+        #     if mod_type not in ("contrarian", "skeptic", "optimist"):
+        #         mod_type = "contrarian"  # Default fallback
+        #     return (
+        #         FacilitatorDecision(
+        #             action="moderator",
+        #             reasoning=moderator_trigger["reason"],
+        #             moderator_type=mod_type,  # type: ignore[arg-type]
+        #             moderator_focus=moderator_trigger["reason"],
+        #         ),
+        #         None,  # Skip LLM call, return None for response
+        #     )
 
         # Build discussion history
         discussion_history = self._format_discussion_history(state)

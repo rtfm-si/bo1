@@ -567,55 +567,48 @@ You MUST engage critically with the discussion:
                 # Only include facilitator_response if it's not None
                 return [], [facilitator_response] if facilitator_response else []
 
-            if decision.action == "moderator":
-                # Facilitator requested moderator intervention
-                mod_type = decision.moderator_type or "contrarian"
-                logger.info(f"Facilitator requested {mod_type} moderator intervention")
-
-                # Get discussion excerpt for moderator
-                discussion_excerpt = self.build_discussion_context(include_thinking=False)[-2000:]
-                trigger_reason = decision.moderator_focus or decision.reasoning
-
-                # Get moderator intervention
-                intervention_text, mod_response = await self.moderator.intervene(
-                    moderator_type=mod_type,
-                    problem_statement=current_sp.goal,
-                    discussion_excerpt=discussion_excerpt,
-                    trigger_reason=trigger_reason,
-                )
-
-                # Create contribution message for moderator
-                moderator_name = {
-                    "contrarian": "The Contrarian",
-                    "skeptic": "The Skeptic",
-                    "optimist": "The Optimist",
-                }[mod_type]
-
-                # Calculate cost from mod_response
-                cost = mod_response.cost_total
-
-                moderator_contrib = ContributionMessage(
-                    persona_code=f"moderator_{mod_type}",
-                    persona_name=moderator_name,
-                    content=intervention_text,
-                    thinking=None,
-                    contribution_type=ContributionType.MODERATOR,
-                    round_number=round_number,
-                    token_count=mod_response.total_tokens,
-                    cost=cost,
-                )
-
-                # Add to state
-                contributions_list = self.state.get("contributions", [])
-                contributions_list.append(moderator_contrib)
-                self.state["contributions"] = contributions_list
-                self.used_moderators.append(mod_type)
-
-                logger.info(
-                    f"Moderator intervention complete ({moderator_contrib.token_count} tokens, ${cost:.4f})"
-                )
-
-                return [moderator_contrib], [mod_response]
+            # DISABLED: Moderator functionality removed (keeping research only)
+            # if decision.action == "moderator":
+            #     # Facilitator requested moderator intervention
+            #     mod_type = decision.moderator_type or "contrarian"
+            #     logger.info(f"Facilitator requested {mod_type} moderator intervention")
+            #     # Get discussion excerpt for moderator
+            #     discussion_excerpt = self.build_discussion_context(include_thinking=False)[-2000:]
+            #     trigger_reason = decision.moderator_focus or decision.reasoning
+            #     # Get moderator intervention
+            #     intervention_text, mod_response = await self.moderator.intervene(
+            #         moderator_type=mod_type,
+            #         problem_statement=current_sp.goal,
+            #         discussion_excerpt=discussion_excerpt,
+            #         trigger_reason=trigger_reason,
+            #     )
+            #     # Create contribution message for moderator
+            #     moderator_name = {
+            #         "contrarian": "The Contrarian",
+            #         "skeptic": "The Skeptic",
+            #         "optimist": "The Optimist",
+            #     }[mod_type]
+            #     # Calculate cost from mod_response
+            #     cost = mod_response.cost_total
+            #     moderator_contrib = ContributionMessage(
+            #         persona_code=f"moderator_{mod_type}",
+            #         persona_name=moderator_name,
+            #         content=intervention_text,
+            #         thinking=None,
+            #         contribution_type=ContributionType.MODERATOR,
+            #         round_number=round_number,
+            #         token_count=mod_response.total_tokens,
+            #         cost=cost,
+            #     )
+            #     # Add to state
+            #     contributions_list = self.state.get("contributions", [])
+            #     contributions_list.append(moderator_contrib)
+            #     self.state["contributions"] = contributions_list
+            #     self.used_moderators.append(mod_type)
+            #     logger.info(
+            #         f"Moderator intervention complete ({moderator_contrib.token_count} tokens, ${cost:.4f})"
+            #     )
+            #     return [moderator_contrib], [mod_response]
 
             if decision.action == "research":
                 # TODO: Implement research tool (Week 4)

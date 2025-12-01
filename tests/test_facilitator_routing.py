@@ -85,5 +85,5 @@ def test_route_facilitator_decision_unknown_action(sample_state):
     # Test routing
     next_node = route_facilitator_decision(sample_state)
 
-    # Should default to END for unknown actions
-    assert next_node == "END"
+    # Should fall back to persona_contribute for unknown actions (graceful degradation)
+    assert next_node == "persona_contribute"

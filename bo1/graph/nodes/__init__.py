@@ -39,6 +39,9 @@ from bo1.graph.nodes.context import (
 )
 from bo1.graph.nodes.decomposition import decompose_node
 
+# Research
+from bo1.graph.nodes.research import research_node
+
 # Rounds
 from bo1.graph.nodes.rounds import (
     _determine_phase,

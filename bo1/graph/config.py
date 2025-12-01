@@ -11,14 +11,12 @@ from typing import Any
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 from langgraph.graph import END, StateGraph
 
-# AUDIT FIX (Priority 4, Task 4.1): Removed rarely-used imports
-# - research_node: 5% usage (archived to bo1/graph/nodes/archived/)
-# - clarification_node: Kept for context collection (different from 8% usage clarification mentioned in audit)
 from bo1.graph.nodes import (
-    clarification_node,  # Context collection, not the low-usage clarification
+    clarification_node,  # Pre-meeting context collection
     context_collection_node,
     decompose_node,
     initial_round_node,
+    research_node,  # Mid-meeting automated research (RESTORED)
     select_personas_node,
 )
 from bo1.graph.safety.loop_prevention import DELIBERATION_RECURSION_LIMIT
@@ -130,9 +128,7 @@ def create_deliberation_graph(
     workflow.add_node("initial_round", initial_round_node)
     workflow.add_node("facilitator_decide", facilitator_decide_node)
     workflow.add_node("parallel_round", parallel_round_node)  # Multi-expert parallel rounds
-    # AUDIT FIX (Priority 4, Task 4.1): Removed rarely-used nodes
-    # - moderator_intervene (12% usage) - archived
-    # - research (5% usage) - archived
+    workflow.add_node("research", research_node)  # Mid-meeting automated research (RESTORED)
     workflow.add_node("check_convergence", check_convergence_node)  # Day 24
     workflow.add_node("cost_guard", cost_guard_node)  # Cost budget check
     workflow.add_node("vote", vote_node)  # Day 31
@@ -174,15 +170,14 @@ def create_deliberation_graph(
     workflow.add_edge("initial_round", "facilitator_decide")
 
     # Add conditional edges - Multi-round deliberation loop (Week 5 Day 30-31)
-    # AUDIT FIX (Priority 4, Task 4.1): Simplified routing - removed moderator/research branches
-    # facilitator_decide -> (continue/vote/clarify)
+    # facilitator_decide -> (continue/vote/research)
     workflow.add_conditional_edges(
         "facilitator_decide",
         route_facilitator_decision,
         {
             "persona_contribute": "parallel_round",  # Always use parallel multi-expert rounds
             "vote": "vote",
-            "clarification": "clarification",
+            "research": "research",  # Mid-meeting automated research (RESTORED)
             "END": END,
         },
     )
@@ -197,7 +192,8 @@ def create_deliberation_graph(
         },
     )
 
-    # AUDIT FIX (Priority 4, Task 4.1): Removed research edge (node archived)
+    # research -> parallel_round (continue deliberation with research results)
+    workflow.add_edge("research", "parallel_round")
 
     # parallel_round -> cost_guard (check budget before convergence)
     workflow.add_edge("parallel_round", "cost_guard")

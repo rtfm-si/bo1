@@ -332,15 +332,14 @@ Early voting (rounds 1-2) produces shallow recommendations. Explore the problem 
 - Reason: [Why we're ready to move on]
 - Next phase: voting
 
-OPTION C - Invoke Research Tool
-- Information needed: [What we need to know]
-- Tool: web_researcher | doc_researcher
-- Query: [Specific research question]
+OPTION C - Invoke Research
+Use when experts need external data that cannot be inferred from knowledge:
+- Market size, competitor analysis, regulatory requirements
+- Recent trends, statistics, or technical specifications
+- Information that would resolve factual disagreements
 
-OPTION D - Trigger Moderator
-- Moderator: contrarian | skeptic | optimist
-- Reason: [Why moderator intervention needed]
-- Focus: [What moderator should address]
+- Information needed: [What specific data is required]
+- Query: [Specific research question for web search]
 </decision>
 
 <decision_examples>
@@ -383,45 +382,6 @@ OPTION B - Transition to Next Phase (Voting)
 - Next phase: voting
 </decision>
 
----
-
-Example 3 - OPTION C (Invoke Research Tool):
-
-<scenario>Round 3 of 5. Experts disagree on market size. Marketing expert claims "$2B TAM" while financial expert questions the data source. Multiple references to "industry reports" without specific citations.</scenario>
-
-<thinking>
-- Central disagreement: Market size estimates vary wildly ($500M to $5B)
-- No authoritative source cited - just "industry reports" and "analyst estimates"
-- This is resolvable with research - not a judgment call
-- Continuing debate without data will waste rounds
-</thinking>
-
-<decision>
-OPTION C - Invoke Research Tool
-- Information needed: Authoritative market size data for [specific market segment]
-- Tool: web_researcher
-- Query: "What is the total addressable market (TAM) for B2B SaaS project management tools in North America? Find 2024 reports from Gartner, Forrester, or IDC with specific dollar figures."
-</decision>
-
----
-
-Example 4 - OPTION D (Trigger Moderator):
-
-<scenario>Round 2 of 5. All three experts (finance, marketing, operations) have converged on Option A within first 2 contributions. No dissent, no alternatives explored. Convergence score: 0.85 (premature).</scenario>
-
-<thinking>
-- Suspiciously fast consensus: All experts agreed by Round 2
-- No alternatives explored: Only Option A discussed, no comparison to Option B/C
-- Early convergence risk: Framework warns against premature consensus (exploration phase should be divergent)
-- Contrarian needed to stress-test assumptions
-</thinking>
-
-<decision>
-OPTION D - Trigger Moderator
-- Moderator: contrarian
-- Reason: Premature consensus detected. All experts agreed on Option A without exploring alternatives or surfacing risks.
-- Focus: "Challenge the assumption that Option A is optimal. What alternatives haven't been considered? What could go wrong with Option A that the group is overlooking?"
-</decision>
 </decision_examples>
 </instructions>
 

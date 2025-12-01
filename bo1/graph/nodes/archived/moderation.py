@@ -105,7 +105,7 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
             decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
             decision.reasoning = f"ERROR RECOVERY: Selected {decision.next_speaker} because original speaker was invalid"
 
-    elif decision.action == "moderator":
+    elif decision.action == "moderator":  # type: ignore[comparison-overlap]
         # Validate moderator_type exists
         if not decision.moderator_type:
             logger.error(

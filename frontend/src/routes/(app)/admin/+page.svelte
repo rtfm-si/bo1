@@ -9,8 +9,6 @@
 		waitlistPending: number;
 	}
 
-	let { data } = $props<{ stats?: AdminStats }>();
-
 	const defaultStats: AdminStats = {
 		totalUsers: 0,
 		totalMeetings: 0,
@@ -19,11 +17,13 @@
 		waitlistPending: 0
 	};
 
-	let stats = $state<AdminStats>(data.stats || defaultStats);
+	let { data } = $props<{ data: { stats?: AdminStats } }>();
+
+	let stats = $state<AdminStats>(data?.stats ?? defaultStats);
 
 	// Update local state when data changes
 	$effect(() => {
-		stats = data.stats || defaultStats;
+		stats = data?.stats ?? defaultStats;
 	});
 </script>
 

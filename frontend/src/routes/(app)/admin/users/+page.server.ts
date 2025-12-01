@@ -3,7 +3,7 @@ import type { PageServerLoad, Actions } from './$types';
 
 const API_BASE_URL = process.env.INTERNAL_API_URL || 'http://api:8000';
 
-export const load: PageServerLoad = async ({ url, cookies }) => {
+export const load: PageServerLoad = async ({ url, request }) => {
 	const page = parseInt(url.searchParams.get('page') || '1');
 	const per_page = parseInt(url.searchParams.get('per_page') || '20');
 	const email = url.searchParams.get('email') || '';
@@ -15,10 +15,12 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	if (email) searchParams.set('email', email);
 
 	try {
-		// Call backend API with cookies (session auth)
+		// Forward all cookies from the incoming request
+		const cookieHeader = request.headers.get('cookie') || '';
+
 		const response = await fetch(`${API_BASE_URL}/api/admin/users?${searchParams}`, {
 			headers: {
-				'Cookie': cookies.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+				'Cookie': cookieHeader
 			}
 		});
 
@@ -42,7 +44,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 };
 
 export const actions: Actions = {
-	updateUser: async ({ request, cookies }) => {
+	updateUser: async ({ request }) => {
 		const formData = await request.formData();
 		const userId = formData.get('userId') as string;
 		const subscriptionTier = formData.get('subscription_tier') as string | null;
@@ -57,11 +59,14 @@ export const actions: Actions = {
 		updateData.is_admin = isAdmin;
 
 		try {
+			// Forward all cookies from the incoming request
+			const cookieHeader = request.headers.get('cookie') || '';
+
 			const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
 				method: 'PATCH',
 				headers: {
 					'Content-Type': 'application/json',
-					'Cookie': cookies.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+					'Cookie': cookieHeader
 				},
 				body: JSON.stringify(updateData)
 			});

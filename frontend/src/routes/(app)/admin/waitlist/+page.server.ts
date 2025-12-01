@@ -3,16 +3,19 @@ import type { PageServerLoad, Actions } from './$types';
 
 const API_BASE_URL = process.env.INTERNAL_API_URL || 'http://api:8000';
 
-export const load: PageServerLoad = async ({ url, cookies }) => {
+export const load: PageServerLoad = async ({ url, request }) => {
 	const status = url.searchParams.get('status') || 'pending';
 
 	const searchParams = new URLSearchParams();
 	if (status) searchParams.set('status', status);
 
 	try {
+		// Forward all cookies from the incoming request
+		const cookieHeader = request.headers.get('cookie') || '';
+
 		const response = await fetch(`${API_BASE_URL}/api/admin/waitlist?${searchParams}`, {
 			headers: {
-				'Cookie': cookies.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+				'Cookie': cookieHeader
 			}
 		});
 
@@ -36,7 +39,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 };
 
 export const actions: Actions = {
-	approve: async ({ request, cookies }) => {
+	approve: async ({ request }) => {
 		const formData = await request.formData();
 		const email = formData.get('email') as string;
 
@@ -45,10 +48,13 @@ export const actions: Actions = {
 		}
 
 		try {
+			// Forward all cookies from the incoming request
+			const cookieHeader = request.headers.get('cookie') || '';
+
 			const response = await fetch(`${API_BASE_URL}/api/admin/waitlist/${encodeURIComponent(email)}/approve`, {
 				method: 'POST',
 				headers: {
-					'Cookie': cookies.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+					'Cookie': cookieHeader
 				}
 			});
 

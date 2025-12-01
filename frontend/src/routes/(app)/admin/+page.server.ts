@@ -3,31 +3,43 @@ import type { PageServerLoad } from './$types';
 
 const API_BASE_URL = process.env.INTERNAL_API_URL || 'http://api:8000';
 
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ cookies, request }) => {
 	try {
-		// Fetch aggregated stats from dedicated endpoint
+		// Forward all cookies from the incoming request
+		const cookieHeader = request.headers.get('cookie') || '';
+		console.log('Loading admin stats with cookies:', cookieHeader ? 'present' : 'missing');
+
 		const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
 			headers: {
-				'Cookie': cookies.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+				'Cookie': cookieHeader
 			}
 		});
 
+		console.log('Admin stats API status:', response.status);
+
 		if (!response.ok) {
-			console.error('Admin stats API returned:', response.status, await response.text());
-			throw error(500, 'Failed to load admin stats');
+			const errorText = await response.text();
+			console.error('Admin stats API returned:', response.status, errorText);
+			throw error(response.status, `Failed to load admin stats: ${errorText}`);
 		}
 
 		const statsData = await response.json();
 
-		return {
+		console.log('Admin stats response:', JSON.stringify(statsData));
+
+		const result = {
 			stats: {
-				totalUsers: statsData.total_users,
-				totalMeetings: statsData.total_meetings,
-				totalCost: statsData.total_cost,
-				whitelistCount: statsData.whitelist_count,
-				waitlistPending: statsData.waitlist_pending
+				totalUsers: statsData.total_users || 0,
+				totalMeetings: statsData.total_meetings || 0,
+				totalCost: statsData.total_cost || 0,
+				whitelistCount: statsData.whitelist_count || 0,
+				waitlistPending: statsData.waitlist_pending || 0
 			}
 		};
+
+		console.log('Returning stats:', JSON.stringify(result));
+
+		return result;
 	} catch (err) {
 		console.error('Failed to load admin stats:', err);
 		throw error(500, 'Failed to load admin stats');

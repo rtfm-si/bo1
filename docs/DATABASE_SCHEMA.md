@@ -267,6 +267,88 @@ DATABASE_URL=postgresql://bo1:STRONG_PASSWORD@hostname:5432/boardofone
 
 ---
 
+## Session Persistence Architecture
+
+Board of One uses a **dual storage strategy** for session management:
+
+### Storage Layers
+
+```
+Session Lifecycle → Dual Storage Strategy:
+├── Redis: Live state cache (24h TTL)
+│   ├── Fast access for active sessions
+│   ├── Real-time metadata (last_activity_at, live cost)
+│   └── Automatic cleanup after 24 hours
+│
+└── PostgreSQL: Permanent record (infinite retention)
+    ├── Primary source of truth
+    ├── Historical session data
+    ├── Status tracking (created → running → completed/failed/killed)
+    └── Synthesis and final results
+```
+
+### Key Behavior
+
+| Action | Redis | PostgreSQL |
+|--------|-------|------------|
+| Create session | Metadata + live state (24h TTL) | Permanent record |
+| List sessions | Enriches with live state | Primary query source |
+| After restart | Cache cleared | Sessions persist |
+| After 24 hours | Expired and removed | Sessions persist |
+| Status updates | Live state updated | Status persisted |
+
+### Database Functions
+
+**Located in:** `bo1/state/postgres_manager.py`
+
+```python
+# Create new session
+save_session(session_id, user_id, problem_statement, problem_context, status='created')
+
+# Update session status
+update_session_status(session_id, status, **kwargs)
+# Supports: phase, total_cost, round_number, synthesis_text, final_recommendation
+
+# Retrieve single session
+get_session(session_id)
+
+# List user sessions with pagination
+get_user_sessions(user_id, limit=50, offset=0, status_filter=None)
+```
+
+### Quick Start
+
+**Apply migrations:**
+```bash
+# Ensure database schema is up to date
+uv run alembic upgrade head
+```
+
+**Verify persistence:**
+```bash
+# Run verification script
+python scripts/verify_session_persistence.py
+```
+
+**Test flow:**
+1. Create session via API → Saved to both Redis AND PostgreSQL
+2. Start deliberation → Status updated to 'running' in PostgreSQL
+3. Complete deliberation → Status updated to 'completed' with synthesis
+4. Restart containers (`make down && make up`) → Sessions persist
+5. Wait 24+ hours (or clear Redis) → Sessions still appear in dashboard
+
+### Monitoring
+
+Watch logs for:
+- ✅ `"Created session: {id} for user: {user_id} (saved to both Redis and PostgreSQL)"`
+- ✅ `"Loaded {N} sessions from PostgreSQL for user {user_id}"`
+- ✅ `"Updated session {id} status to 'completed' in PostgreSQL"`
+- ⚠️  `"Failed to save to PostgreSQL (Redis saved successfully)"` - Non-fatal
+
+**Important:** PostgreSQL failures are non-fatal. Sessions continue with Redis-only storage if PostgreSQL is unavailable.
+
+---
+
 ## Future Enhancements
 
 - **Week 4**: Add LangGraph-specific tables (checkpoints)

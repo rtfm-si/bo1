@@ -3,11 +3,14 @@ import type { PageServerLoad, Actions } from './$types';
 
 const API_BASE_URL = process.env.INTERNAL_API_URL || 'http://api:8000';
 
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ request }) => {
 	try {
+		// Forward all cookies from the incoming request
+		const cookieHeader = request.headers.get('cookie') || '';
+
 		const response = await fetch(`${API_BASE_URL}/api/admin/beta-whitelist`, {
 			headers: {
-				'Cookie': cookies.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+				'Cookie': cookieHeader
 			}
 		});
 
@@ -30,7 +33,7 @@ export const load: PageServerLoad = async ({ cookies }) => {
 };
 
 export const actions: Actions = {
-	add: async ({ request, cookies }) => {
+	add: async ({ request }) => {
 		const formData = await request.formData();
 		const email = formData.get('email') as string;
 		const notes = formData.get('notes') as string | null;
@@ -40,11 +43,14 @@ export const actions: Actions = {
 		}
 
 		try {
+			// Forward all cookies from the incoming request
+			const cookieHeader = request.headers.get('cookie') || '';
+
 			const response = await fetch(`${API_BASE_URL}/api/admin/beta-whitelist`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					'Cookie': cookies.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+					'Cookie': cookieHeader
 				},
 				body: JSON.stringify({
 					email,
@@ -64,7 +70,7 @@ export const actions: Actions = {
 		}
 	},
 
-	remove: async ({ request, cookies }) => {
+	remove: async ({ request }) => {
 		const formData = await request.formData();
 		const email = formData.get('email') as string;
 
@@ -73,10 +79,13 @@ export const actions: Actions = {
 		}
 
 		try {
+			// Forward all cookies from the incoming request
+			const cookieHeader = request.headers.get('cookie') || '';
+
 			const response = await fetch(`${API_BASE_URL}/api/admin/beta-whitelist/${encodeURIComponent(email)}`, {
 				method: 'DELETE',
 				headers: {
-					'Cookie': cookies.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+					'Cookie': cookieHeader
 				}
 			});
 

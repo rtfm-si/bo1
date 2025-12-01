@@ -834,9 +834,7 @@ def save_session_event(
                 """
                 INSERT INTO session_events (session_id, event_type, sequence, data)
                 VALUES (%s, %s, %s, %s)
-                ON CONFLICT (session_id, sequence) DO UPDATE
-                SET event_type = EXCLUDED.event_type,
-                    data = EXCLUDED.data
+                ON CONFLICT (session_id, sequence, created_at) DO NOTHING
                 RETURNING id, session_id, event_type, sequence, created_at
                 """,
                 (session_id, event_type, sequence, Json(data)),

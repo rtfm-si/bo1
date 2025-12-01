@@ -170,7 +170,30 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
 
         # Validate JSON structure
         try:
-            decomposition = json.loads(response.content)
+            # Extract JSON even if there's extra text after
+            # The LLM sometimes adds commentary after the JSON
+            content = response.content.strip()
+
+            # Find the closing brace of the JSON object
+            # Start from the beginning (we use prefill="{")
+            brace_count = 0
+            json_end = -1
+            for i, char in enumerate(content):
+                if char == "{":
+                    brace_count += 1
+                elif char == "}":
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_end = i + 1
+                        break
+
+            # Extract just the JSON portion
+            if json_end > 0:
+                json_str = content[:json_end]
+            else:
+                json_str = content
+
+            decomposition = json.loads(json_str)
 
             # Validate structure
             if "sub_problems" not in decomposition:

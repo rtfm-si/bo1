@@ -123,7 +123,8 @@ def test_find_cached_research_stale_result():
     # we'll test the max_age_days parameter
 
     # Save a research result (will use freshness_days=90 by default)
-    embedding = [0.5] * 1024
+    # Use unique embedding pattern to avoid collision with other tests
+    embedding = [0.5 if i % 2 == 0 else 0.4 for i in range(1024)]
     save_research_result(
         question="What is SaaS magic number?",
         embedding=embedding,
@@ -134,7 +135,8 @@ def test_find_cached_research_stale_result():
     )
 
     # Find with max_age_days=1 (only results from last day)
-    query_embedding = [0.5] * 1024
+    # Use same embedding pattern
+    query_embedding = [0.5 if i % 2 == 0 else 0.4 for i in range(1024)]
     cached = find_cached_research(
         question_embedding=query_embedding,
         category="saas_metrics",

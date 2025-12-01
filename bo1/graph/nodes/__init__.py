@@ -26,11 +26,10 @@ from bo1.graph.deliberation import (
     extract_recommendation_from_synthesis,
 )
 
-# Moderation (archived but still used)
-from bo1.graph.nodes.archived.moderation import (
-    facilitator_decide_node,
-    moderator_intervene_node,
-)
+# Moderation
+# facilitator_decide_node still in archived (will be consolidated later)
+# moderator_intervene_node restored for premature consensus detection
+from bo1.graph.nodes.archived.moderation import facilitator_decide_node
 
 # Context
 from bo1.graph.nodes.context import (
@@ -38,6 +37,7 @@ from bo1.graph.nodes.context import (
     context_collection_node,
 )
 from bo1.graph.nodes.decomposition import decompose_node
+from bo1.graph.nodes.moderation import moderator_intervene_node
 
 # Research
 from bo1.graph.nodes.research import research_node

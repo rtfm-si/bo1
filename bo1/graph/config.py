@@ -91,10 +91,11 @@ def create_deliberation_graph(
     # Import nodes and routers
     from bo1.feature_flags import ENABLE_PARALLEL_SUBPROBLEMS
 
-    # AUDIT FIX (Priority 4, Task 4.1): Removed moderator_intervene_node (12% usage)
+    # TARGETED MODERATOR: Restored for premature consensus detection (rounds 1-2 only)
     from bo1.graph.nodes import (
         facilitator_decide_node,
         meta_synthesize_node,
+        moderator_intervene_node,  # RESTORED: Premature consensus detection only
         next_subproblem_node,
         parallel_round_node,
         synthesize_node,
@@ -128,6 +129,9 @@ def create_deliberation_graph(
     workflow.add_node("initial_round", initial_round_node)
     workflow.add_node("facilitator_decide", facilitator_decide_node)
     workflow.add_node("parallel_round", parallel_round_node)  # Multi-expert parallel rounds
+    workflow.add_node(
+        "moderator_intervene", moderator_intervene_node
+    )  # RESTORED: Premature consensus detection
     workflow.add_node("research", research_node)  # Mid-meeting automated research (RESTORED)
     workflow.add_node("check_convergence", check_convergence_node)  # Day 24
     workflow.add_node("cost_guard", cost_guard_node)  # Cost budget check
@@ -170,13 +174,14 @@ def create_deliberation_graph(
     workflow.add_edge("initial_round", "facilitator_decide")
 
     # Add conditional edges - Multi-round deliberation loop (Week 5 Day 30-31)
-    # facilitator_decide -> (continue/vote/research)
+    # facilitator_decide -> (continue/vote/research/moderator)
     workflow.add_conditional_edges(
         "facilitator_decide",
         route_facilitator_decision,
         {
             "persona_contribute": "parallel_round",  # Always use parallel multi-expert rounds
             "vote": "vote",
+            "moderator_intervene": "moderator_intervene",  # RESTORED: Premature consensus detection
             "research": "research",  # Mid-meeting automated research (RESTORED)
             "END": END,
         },
@@ -198,7 +203,8 @@ def create_deliberation_graph(
     # parallel_round -> cost_guard (check budget before convergence)
     workflow.add_edge("parallel_round", "cost_guard")
 
-    # AUDIT FIX (Priority 4, Task 4.1): Removed moderator edge (node archived)
+    # moderator_intervene -> cost_guard (RESTORED: check budget after moderator intervention)
+    workflow.add_edge("moderator_intervene", "cost_guard")
 
     # cost_guard -> (check_convergence if OK, vote if budget exceeded)
     workflow.add_conditional_edges(

@@ -25,7 +25,7 @@ from bo1.utils.xml_parsing import extract_xml_tag_with_fallback
 
 logger = logging.getLogger(__name__)
 
-FacilitatorAction = Literal["continue", "vote", "research"]
+FacilitatorAction = Literal["continue", "vote", "research", "moderator"]
 
 
 @dataclass
@@ -76,46 +76,30 @@ class FacilitatorAgent(BaseAgent):
     def _should_trigger_moderator(
         self, state: DeliberationGraphState, round_number: int
     ) -> dict[str, str] | None:
-        """Check if moderator intervention is needed.
+        """Check if moderator intervention is needed for premature consensus.
+
+        TARGETED USE: Only triggers for unanimous agreement BEFORE round 3.
+        This prevents groupthink in early deliberation without adding noise
+        to mature discussions.
 
         Returns:
             dict with "type" and "reason" if moderator needed, None otherwise
         """
+        # ONLY check for premature consensus in rounds 1-2 (before round 3)
+        if round_number >= 3:
+            return None  # No moderator after round 2
+
         contributions = state.get("contributions", [])
         if len(contributions) < 4:
             return None  # Need at least 4 contributions to analyze
 
         recent = contributions[-6:]  # Last 2 rounds (~6 contributions)
 
-        # Early rounds (1-4): Watch for premature consensus
-        if round_number <= 4:
-            if DeliberationAnalyzer.detect_premature_consensus(recent):
-                return {
-                    "type": "contrarian",
-                    "reason": "Group converging too early without exploring alternatives",
-                }
-
-        # Middle rounds (5-7): Watch for unverified claims
-        if 5 <= round_number <= 7:
-            if DeliberationAnalyzer.detect_unverified_claims(recent):
-                return {
-                    "type": "skeptic",
-                    "reason": "Claims made without evidence or verification",
-                }
-
-        # Late rounds (8+): Watch for negativity spiral
-        if round_number >= 8:
-            if DeliberationAnalyzer.detect_negativity_spiral(recent):
-                return {
-                    "type": "optimist",
-                    "reason": "Discussion stuck in problems without exploring solutions",
-                }
-
-        # Any round: Watch for circular arguments
-        if DeliberationAnalyzer.detect_circular_arguments(recent):
+        # Check for premature consensus ONLY
+        if DeliberationAnalyzer.detect_premature_consensus(recent):
             return {
                 "type": "contrarian",
-                "reason": "Circular arguments detected, need fresh perspective",
+                "reason": "Group converging too early without exploring alternatives (round 1-2)",
             }
 
         return None
@@ -324,25 +308,27 @@ class FacilitatorAgent(BaseAgent):
                 None,  # Skip LLM call, use rule-based override
             )
 
-        # DISABLED: Moderator functionality removed (audit decision reversed)
-        # Check if moderator should intervene BEFORE calling LLM (saves time and cost)
-        # moderator_trigger = self._should_trigger_moderator(state, round_number)
-        # if moderator_trigger:
-        #     logger.info(f"🎭 Auto-triggering {moderator_trigger['type']} moderator")
-        #     logger.info(f"   Reason: {moderator_trigger['reason']}")
-        #     # Cast moderator_type to correct Literal type
-        #     mod_type = moderator_trigger["type"]
-        #     if mod_type not in ("contrarian", "skeptic", "optimist"):
-        #         mod_type = "contrarian"  # Default fallback
-        #     return (
-        #         FacilitatorDecision(
-        #             action="moderator",
-        #             reasoning=moderator_trigger["reason"],
-        #             moderator_type=mod_type,  # type: ignore[arg-type]
-        #             moderator_focus=moderator_trigger["reason"],
-        #         ),
-        #         None,  # Skip LLM call, return None for response
-        #     )
+        # TARGETED MODERATOR: Check for premature consensus BEFORE round 3 only
+        # Triggers contrarian moderator to challenge groupthink in early rounds
+        moderator_trigger = self._should_trigger_moderator(state, round_number)
+        if moderator_trigger:
+            logger.info(
+                f"🎭 Auto-triggering {moderator_trigger['type']} moderator (premature consensus)"
+            )
+            logger.info(f"   Reason: {moderator_trigger['reason']}")
+            # Cast moderator_type to correct Literal type
+            mod_type = moderator_trigger["type"]
+            if mod_type not in ("contrarian", "skeptic", "optimist"):
+                mod_type = "contrarian"  # Default fallback
+            return (
+                FacilitatorDecision(
+                    action="moderator",
+                    reasoning=moderator_trigger["reason"],
+                    moderator_type=mod_type,  # type: ignore[arg-type]
+                    moderator_focus=moderator_trigger["reason"],
+                ),
+                None,  # Skip LLM call, return None for response
+            )
 
         # Build discussion history
         discussion_history = self._format_discussion_history(state)

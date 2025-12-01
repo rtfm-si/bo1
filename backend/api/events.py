@@ -745,8 +745,11 @@ def subproblem_complete_event(
     duration_seconds: float,
     expert_panel: list[str],
     contribution_count: int,
+    expert_summaries: dict[str, str] | None = None,
 ) -> str:
     """Create SSE event for sub-problem completion.
+
+    AUDIT FIX (Priority 3, Task 3.2): Added expert_summaries parameter.
 
     Args:
         session_id: Session identifier
@@ -758,6 +761,7 @@ def subproblem_complete_event(
         duration_seconds: Time taken in seconds
         expert_panel: List of expert codes who deliberated
         contribution_count: Number of contributions made
+        expert_summaries: Per-expert contribution summaries (persona_code → summary text)
 
     Returns:
         SSE-formatted event string
@@ -774,6 +778,7 @@ def subproblem_complete_event(
             "duration_seconds": duration_seconds,
             "expert_panel": expert_panel,
             "contribution_count": contribution_count,
+            "expert_summaries": expert_summaries or {},
             "timestamp": datetime.now(UTC).isoformat(),
         },
     )

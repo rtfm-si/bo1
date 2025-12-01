@@ -74,6 +74,8 @@ class TestRouteAfterSynthesis:
 
     def test_route_to_meta_synthesis_when_all_complete(self):
         """Should route to meta_synthesis when all sub-problems complete."""
+        from bo1.models.state import SubProblemResult
+
         # Create problem with 2 sub-problems
         problem = Problem(
             title="Test Problem",
@@ -88,6 +90,30 @@ class TestRouteAfterSynthesis:
                 ),
             ],
         )
+
+        # Create mock results for both sub-problems
+        sub_problem_results = [
+            SubProblemResult(
+                sub_problem_id="sp_001",
+                sub_problem_goal="SP1",
+                synthesis="Synthesis for SP1",
+                votes=[],
+                contribution_count=5,
+                cost=0.50,
+                duration_seconds=30.0,
+                expert_panel=["expert1", "expert2"],
+            ),
+            SubProblemResult(
+                sub_problem_id="sp_002",
+                sub_problem_goal="SP2",
+                synthesis="Synthesis for SP2",
+                votes=[],
+                contribution_count=6,
+                cost=0.60,
+                duration_seconds=35.0,
+                expert_panel=["expert1", "expert2"],
+            ),
+        ]
 
         # State after completing second (last) sub-problem (index=1)
         state = DeliberationGraphState(
@@ -108,7 +134,7 @@ class TestRouteAfterSynthesis:
             current_node="synthesize",
             votes=[],
             synthesis="Test synthesis",
-            sub_problem_results=[],
+            sub_problem_results=sub_problem_results,
             sub_problem_index=1,  # Just finished second (last) sub-problem
         )
 

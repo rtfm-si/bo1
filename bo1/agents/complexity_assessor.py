@@ -100,6 +100,7 @@ class ComplexityAssessor:
             max_tokens=500,
             phase="complexity_assessment",
             agent_type="ComplexityAssessor",
+            cache_system=True,  # TASK 1 FIX: Enable prompt caching (system prompt is static assessment framework)
         )
 
         # Call LLM

@@ -1,4 +1,4 @@
-"""add_user_id_and_rls_session_events_tasks
+"""add_user_id_and_rls_session_events_tasks.
 
 Add user_id column to session_events and session_tasks tables with RLS policies.
 Critical security fix to prevent cross-user data leakage.

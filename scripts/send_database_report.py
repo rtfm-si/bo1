@@ -266,7 +266,7 @@ def get_weekly_report() -> tuple[str, str, str]:
         conn.close()
 
 
-async def send_report(report_type: str):
+async def send_report(report_type: str) -> None:
     """Generate and send database report via ntfy.
 
     Args:

@@ -26,21 +26,18 @@ from bo1.graph.deliberation import (
     extract_recommendation_from_synthesis,
 )
 
+# Moderation (archived but still used)
+from bo1.graph.nodes.archived.moderation import (
+    facilitator_decide_node,
+    moderator_intervene_node,
+)
+
 # Context
 from bo1.graph.nodes.context import (
     clarification_node,
     context_collection_node,
 )
 from bo1.graph.nodes.decomposition import decompose_node
-
-# Moderation
-from bo1.graph.nodes.moderation import (
-    facilitator_decide_node,
-    moderator_intervene_node,
-)
-
-# Research
-from bo1.graph.nodes.research import research_node
 
 # Rounds
 from bo1.graph.nodes.rounds import (
@@ -56,7 +53,6 @@ from bo1.graph.nodes.selection import select_personas_node
 # Subproblems
 from bo1.graph.nodes.subproblems import (
     _deliberate_subproblem,
-    _parallel_subproblems_legacy,
     _parallel_subproblems_subgraph,
     analyze_dependencies_node,
     parallel_subproblems_node,

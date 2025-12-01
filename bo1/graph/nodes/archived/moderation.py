@@ -291,8 +291,9 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
     Returns:
         Dictionary with state updates (intervention contribution added)
     """
-    from bo1.agents.moderator import ModeratorAgent
     from bo1.models.contribution import ContributionMessage, ContributionType
+
+    from bo1.agents.moderator import ModeratorAgent
 
     logger.info("moderator_intervene_node: Moderator intervening")
 

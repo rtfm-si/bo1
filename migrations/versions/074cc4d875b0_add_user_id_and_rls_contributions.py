@@ -1,4 +1,4 @@
-"""add_user_id_and_rls_contributions
+"""add_user_id_and_rls_contributions.
 
 Add user_id column to contributions table with RLS policies.
 Critical security fix to prevent cross-user data leakage.

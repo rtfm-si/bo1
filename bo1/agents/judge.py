@@ -180,6 +180,49 @@ Missing critical aspects: ["risks_failure_modes", "constraints", "stakeholders_i
 Recommendation: continue_targeted (insufficient exploration, missing critical risks)
 </examples>
 
+<focus_prompt_examples>
+Example 1 - Missing "risks_failure_modes" aspect:
+
+❌ WEAK FOCUS PROMPT:
+"Please discuss risks."
+
+✅ STRONG FOCUS PROMPT:
+"We've identified the opportunity and approach, but haven't discussed what could go wrong. From your domain expertise:
+1. What are the top 3 risks if we proceed with Option A?
+2. What failure scenarios should we plan for?
+3. What early warning signs would indicate things are going off track?
+
+For each risk, estimate likelihood and impact. Suggest mitigation strategies."
+
+---
+
+Example 2 - Missing "stakeholders_impact" aspect:
+
+❌ WEAK FOCUS PROMPT:
+"Think about stakeholders."
+
+✅ STRONG FOCUS PROMPT:
+"We've focused on the business case but haven't analyzed stakeholder impact. Please assess:
+1. Who will be affected by this decision? (customers, team, partners, investors)
+2. What's the specific impact on each group? (positive and negative)
+3. Which stakeholders might resist? Why? How do we mitigate?
+4. Are there communication or change management needs we've overlooked?"
+
+---
+
+Example 3 - Missing "constraints" aspect:
+
+❌ WEAK FOCUS PROMPT:
+"What are the constraints?"
+
+✅ STRONG FOCUS PROMPT:
+"The discussion has been aspirational but hasn't addressed real-world constraints. From your perspective:
+1. What are the hard constraints? (budget, timeline, resources, regulations)
+2. What trade-offs do these constraints force? (e.g., if budget is fixed, what's deprioritized?)
+3. Are there deal-breakers? (constraints that would kill the project)
+4. How do we maximize impact within these constraints?"
+</focus_prompt_examples>
+
 <thinking_process>
 Before your assessment:
 1. Review all contributions in this round carefully
@@ -301,10 +344,12 @@ Remember:
         request = PromptRequest(
             system=JUDGE_SYSTEM_PROMPT,
             user_message=user_prompt,
+            prefill="{",  # Force JSON output format
             model=config.get("model", "haiku") if config else "haiku",
             temperature=config.get("temperature", 0.0) if config else 0.0,
             max_tokens=config.get("max_tokens", 2000) if config else 2000,
             phase="judge",
+            cache_system=True,  # TASK 1 FIX: Enable prompt caching (system prompt = static evaluation framework)
         )
 
         response = await broker.call(request)

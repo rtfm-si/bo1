@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fix partition migration issues"""
+"""Fix partition migration issues."""
 
 import os
 import sys

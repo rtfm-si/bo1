@@ -239,6 +239,7 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
             data.get("duration_seconds", 0.0),
             data.get("expert_panel", []),
             data.get("contribution_count", 0),
+            data.get("expert_summaries", {}),  # AUDIT FIX (Priority 3, Task 3.2)
         ),
         "meta_synthesis_started": lambda: events.meta_synthesis_started_event(
             session_id,

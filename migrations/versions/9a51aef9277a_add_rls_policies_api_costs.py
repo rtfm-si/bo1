@@ -1,4 +1,4 @@
-"""add_rls_policies_api_costs
+"""add_rls_policies_api_costs.
 
 Add Row Level Security (RLS) policies to api_costs table to prevent
 cross-user data leakage. Critical security fix.

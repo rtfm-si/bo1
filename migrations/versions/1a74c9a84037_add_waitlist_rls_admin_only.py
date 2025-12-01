@@ -1,4 +1,4 @@
-"""add_waitlist_rls_admin_only
+"""add_waitlist_rls_admin_only.
 
 Add Row Level Security to waitlist table (admin-only access).
 Waitlist contains PII (emails) and should only be accessible by admins.

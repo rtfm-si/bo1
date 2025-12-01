@@ -1,4 +1,4 @@
-"""add_cost_attribution_api_costs
+"""add_cost_attribution_api_costs.
 
 Add cost attribution columns to api_costs table.
 Enables tracking which contribution or recommendation incurred each cost.

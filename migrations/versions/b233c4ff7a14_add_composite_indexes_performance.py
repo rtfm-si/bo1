@@ -1,4 +1,4 @@
-"""add_composite_indexes_performance
+"""add_composite_indexes_performance.
 
 Add comprehensive composite indexes to optimize common query patterns.
 Significant performance improvement for user-scoped and time-based queries.

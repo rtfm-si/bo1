@@ -46,17 +46,16 @@ def route_phase(
 
 def route_facilitator_decision(
     state: DeliberationGraphState,
-) -> Literal[
-    "vote", "moderator_intervene", "persona_contribute", "clarification", "research", "END"
-]:
+) -> Literal["vote", "persona_contribute", "clarification", "END"]:
     """Route based on facilitator's decision.
+
+    AUDIT FIX (Priority 4, Task 4.1): Simplified routing by removing rarely-used paths.
+    Removed: moderator_intervene (12% usage), research (5% usage)
 
     Routes to different nodes based on the facilitator's action:
     - "vote" → Move to voting phase
-    - "moderator" → Trigger moderator intervention
     - "continue" → Persona contributes next round
     - "clarify" → Request clarification from user (Day 37)
-    - "research" → External research node (Week 6)
 
     Args:
         state: Current graph state with facilitator_decision
@@ -77,18 +76,14 @@ def route_facilitator_decision(
     if action == "vote":
         logger.info("route_facilitator_decision: Routing to vote")
         return "vote"
-    elif action == "moderator":
-        logger.info("route_facilitator_decision: Routing to moderator_intervene")
-        return "moderator_intervene"
     elif action == "continue":
         logger.info("route_facilitator_decision: Routing to persona_contribute")
         return "persona_contribute"
     elif action == "clarify":
         logger.info("route_facilitator_decision: Routing to clarification (Day 37)")
         return "clarification"
-    elif action == "research":
-        logger.info("route_facilitator_decision: Routing to research node")
-        return "research"
+    # AUDIT FIX (Priority 4, Task 4.1): Removed moderator and research routing
+    # These branches were rarely used and added complexity
     else:
         logger.warning(f"route_facilitator_decision: Unknown action {action}, routing to END")
         return "END"
@@ -135,16 +130,21 @@ def route_after_synthesis(
     - Perform meta-synthesis (if all sub-problems complete and >1 sub-problem)
     - End directly (if only 1 sub-problem - atomic problem)
 
+    AUDIT FIX (Issue #3): Added validation to check that ALL sub-problems have
+    completed successfully before proceeding to meta-synthesis. Without this check,
+    failures in some sub-problems could lead to incomplete syntheses.
+
     Args:
         state: Current graph state
 
     Returns:
         - "next_subproblem" if more sub-problems exist
         - "meta_synthesis" if all complete and multiple sub-problems
-        - "END" if atomic problem (only 1 sub-problem)
+        - "END" if atomic problem (only 1 sub-problem) OR if sub-problems failed
     """
     problem = state.get("problem")
     sub_problem_index = state.get("sub_problem_index", 0)
+    sub_problem_results = state.get("sub_problem_results", [])
 
     if not problem:
         logger.error("route_after_synthesis: No problem in state!")
@@ -153,7 +153,8 @@ def route_after_synthesis(
     total_sub_problems = len(problem.sub_problems)
 
     logger.info(
-        f"route_after_synthesis: Sub-problem {sub_problem_index + 1}/{total_sub_problems} complete"
+        f"route_after_synthesis: Sub-problem {sub_problem_index + 1}/{total_sub_problems} complete, "
+        f"total results collected: {len(sub_problem_results)}"
     )
 
     # Atomic optimization: If only 1 sub-problem, skip meta-synthesis
@@ -168,13 +169,58 @@ def route_after_synthesis(
             f"-> routing to next_subproblem"
         )
         return "next_subproblem"
-    else:
-        # All complete → meta-synthesis
-        logger.info(
-            f"route_after_synthesis: All {total_sub_problems} sub-problems complete "
-            f"-> routing to meta_synthesis"
+
+    # All sub-problems have been processed. Now validate we have results for ALL of them.
+    # CRITICAL: This prevents incomplete syntheses when some sub-problems fail
+    if len(sub_problem_results) < total_sub_problems:
+        failed_count = total_sub_problems - len(sub_problem_results)
+        completed_ids = {r.sub_problem_id for r in sub_problem_results}
+        expected_ids = [sp.id for sp in problem.sub_problems]
+        failed_ids = [sp_id for sp_id in expected_ids if sp_id not in completed_ids]
+
+        logger.error(
+            f"route_after_synthesis: Cannot proceed to meta-synthesis - "
+            f"{failed_count} sub-problem(s) failed. "
+            f"Failed sub-problem IDs: {failed_ids}. "
+            f"Expected {total_sub_problems} results, got {len(sub_problem_results)}."
         )
-        return "meta_synthesis"
+
+        # Emit error event to UI so user knows what happened
+        from backend.api.dependencies import get_event_publisher
+
+        try:
+            event_publisher = get_event_publisher()
+            session_id = state.get("session_id")
+
+            if event_publisher and session_id:
+                # Get goals for failed sub-problems by ID
+                failed_goals = [sp.goal for sp in problem.sub_problems if sp.id in failed_ids]
+
+                event_publisher.publish_event(
+                    session_id,
+                    "meeting_failed",
+                    {
+                        "reason": f"{failed_count} sub-problem(s) failed to complete",
+                        "failed_count": failed_count,
+                        "failed_ids": failed_ids,
+                        "failed_goals": failed_goals,
+                        "completed_count": len(sub_problem_results),
+                        "total_count": total_sub_problems,
+                    },
+                )
+                logger.info(f"Published meeting_failed event for session {session_id}")
+        except Exception as e:
+            logger.error(f"Failed to publish meeting_failed event: {e}")
+
+        # Stop the graph - don't proceed with incomplete data
+        return "END"
+
+    # All sub-problems complete with results → meta-synthesis
+    logger.info(
+        f"route_after_synthesis: All {total_sub_problems} sub-problems complete "
+        f"-> routing to meta_synthesis"
+    )
+    return "meta_synthesis"
 
 
 def route_clarification(

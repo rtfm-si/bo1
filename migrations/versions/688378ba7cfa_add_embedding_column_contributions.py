@@ -1,4 +1,4 @@
-"""add_embedding_column_contributions
+"""add_embedding_column_contributions.
 
 Add embedding column to contributions table for semantic deduplication.
 Persisting embeddings saves ~$0.0001 per contribution on repeat analysis.

@@ -11,12 +11,14 @@ from typing import Any
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 from langgraph.graph import END, StateGraph
 
+# AUDIT FIX (Priority 4, Task 4.1): Removed rarely-used imports
+# - research_node: 5% usage (archived to bo1/graph/nodes/archived/)
+# - clarification_node: Kept for context collection (different from 8% usage clarification mentioned in audit)
 from bo1.graph.nodes import (
-    clarification_node,
+    clarification_node,  # Context collection, not the low-usage clarification
     context_collection_node,
     decompose_node,
     initial_round_node,
-    research_node,
     select_personas_node,
 )
 from bo1.graph.safety.loop_prevention import DELIBERATION_RECURSION_LIMIT
@@ -90,10 +92,11 @@ def create_deliberation_graph(
 
     # Import nodes and routers
     from bo1.feature_flags import ENABLE_PARALLEL_SUBPROBLEMS
+
+    # AUDIT FIX (Priority 4, Task 4.1): Removed moderator_intervene_node (12% usage)
     from bo1.graph.nodes import (
         facilitator_decide_node,
         meta_synthesize_node,
-        moderator_intervene_node,
         next_subproblem_node,
         parallel_round_node,
         synthesize_node,
@@ -127,8 +130,9 @@ def create_deliberation_graph(
     workflow.add_node("initial_round", initial_round_node)
     workflow.add_node("facilitator_decide", facilitator_decide_node)
     workflow.add_node("parallel_round", parallel_round_node)  # Multi-expert parallel rounds
-    workflow.add_node("moderator_intervene", moderator_intervene_node)
-    workflow.add_node("research", research_node)  # Week 6: External research
+    # AUDIT FIX (Priority 4, Task 4.1): Removed rarely-used nodes
+    # - moderator_intervene (12% usage) - archived
+    # - research (5% usage) - archived
     workflow.add_node("check_convergence", check_convergence_node)  # Day 24
     workflow.add_node("cost_guard", cost_guard_node)  # Cost budget check
     workflow.add_node("vote", vote_node)  # Day 31
@@ -170,15 +174,14 @@ def create_deliberation_graph(
     workflow.add_edge("initial_round", "facilitator_decide")
 
     # Add conditional edges - Multi-round deliberation loop (Week 5 Day 30-31)
-    # facilitator_decide -> (continue/vote/moderator/research/clarify)
+    # AUDIT FIX (Priority 4, Task 4.1): Simplified routing - removed moderator/research branches
+    # facilitator_decide -> (continue/vote/clarify)
     workflow.add_conditional_edges(
         "facilitator_decide",
         route_facilitator_decision,
         {
             "persona_contribute": "parallel_round",  # Always use parallel multi-expert rounds
-            "moderator_intervene": "moderator_intervene",
             "vote": "vote",
-            "research": "research",
             "clarification": "clarification",
             "END": END,
         },
@@ -194,14 +197,12 @@ def create_deliberation_graph(
         },
     )
 
-    # research -> facilitator_decide (let facilitator decide next action after research)
-    workflow.add_edge("research", "facilitator_decide")
+    # AUDIT FIX (Priority 4, Task 4.1): Removed research edge (node archived)
 
     # parallel_round -> cost_guard (check budget before convergence)
     workflow.add_edge("parallel_round", "cost_guard")
 
-    # moderator_intervene -> cost_guard (check budget before convergence)
-    workflow.add_edge("moderator_intervene", "cost_guard")
+    # AUDIT FIX (Priority 4, Task 4.1): Removed moderator edge (node archived)
 
     # cost_guard -> (check_convergence if OK, vote if budget exceeded)
     workflow.add_conditional_edges(

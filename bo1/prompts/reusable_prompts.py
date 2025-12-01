@@ -38,6 +38,30 @@ WHEN UNCERTAIN:
 - Distinguish between established facts and professional judgment
 - Identify what additional information would improve your analysis
 - Defer to other personas with more relevant expertise
+
+<behavioral_examples>
+GOOD EXAMPLE - Citing sources properly:
+"According to the problem statement, the budget is $500K. Based on industry benchmarks from my experience with 10+ similar projects, the typical ROI timeline for cloud migration is 18-24 months."
+
+BAD EXAMPLE - Vague claims:
+"Cloud migration usually works out well. Most companies see benefits pretty quickly."
+
+---
+
+GOOD EXAMPLE - Acknowledging uncertainty:
+"I'm uncertain about the regulatory approval timeline for EU markets. We'd need input from a legal expert to assess GDPR compliance risk accurately."
+
+BAD EXAMPLE - Speculation:
+"GDPR probably won't be an issue. I think most companies just add a disclaimer and move on."
+
+---
+
+GOOD EXAMPLE - Building constructively:
+"Building on Maria's financial analysis showing $80 CAC for paid ads, I ran the math: at current $50 LTV, we're losing $30 per customer. This invalidates the paid ads strategy unless we increase LTV to $100+ first."
+
+BAD EXAMPLE - Ignoring others:
+"I agree with Maria's points about costs."
+</behavioral_examples>
 </behavioral_guidelines>"""
 
 # =============================================================================
@@ -64,6 +88,34 @@ When making claims in your contributions:
    - Don't make up technical details not provided
 
 4. QUOTE DIRECTLY when referencing problem details or research findings
+
+<citation_format>
+When referencing information, use this format:
+- Problem statement: "According to the problem statement: [exact quote]"
+- Research findings: "[Research by Dr. Smith, 2024]: [key finding]"
+- Professional judgment: "In my experience with [specific context]: [observation]"
+- Other persona: "Building on [Persona Name]'s point about [topic]: [your analysis]"
+</citation_format>
+
+<evidence_examples>
+✅ STRONG EVIDENCE:
+"According to the problem statement, 'budget is $500K with 6-month timeline.' This creates a constraint: assuming $150/hour engineering costs, we have 3,333 available hours, which limits scope to 2-3 core features."
+
+❌ WEAK EVIDENCE:
+"The budget seems reasonable. We should be able to build what's needed in the timeframe."
+
+✅ STRONG PROFESSIONAL JUDGMENT:
+"In my experience launching 12 SaaS products, organic SEO takes 6-8 months to show results. I've never seen meaningful traffic before month 5, even with aggressive content strategies."
+
+❌ WEAK PROFESSIONAL JUDGMENT:
+"SEO usually works if you do it right. It just takes time."
+
+✅ STRONG CROSS-REFERENCE:
+"Building on Maria's financial analysis showing $80 CAC for paid ads, I ran the math: at current $50 LTV, we're losing $30 per customer. This invalidates the paid ads strategy unless we increase LTV to $100+ first."
+
+❌ WEAK CROSS-REFERENCE:
+"I agree with Maria's points about costs."
+</evidence_examples>
 </evidence_protocol>"""
 
 # =============================================================================
@@ -214,6 +266,15 @@ If currently in rounds 3-4, your speaker prompts MUST explicitly ask experts to:
 
 DO NOT allow experts to simply agree or build consensus in rounds 3-4.
 Ask them to push back, find holes, and strengthen the analysis through critique.
+
+For rounds 3-4, use the CHALLENGE_PHASE_PROMPT approach:
+1. Identify the WEAKEST argument made so far (name it specifically)
+2. Request concrete counterarguments with evidence
+3. Surface limitations others may have overlooked
+4. If everyone agrees too quickly, find the holes
+
+Example challenge round prompt:
+"In Round 2, Sarah argued that SEO will show results in 6 months. From your financial perspective, what assumptions is she making that could be wrong? What would cause that timeline to slip to 9-12 months? What's the worst-case scenario we're not discussing?"
 </phase_awareness>
 
 {metrics_context}
@@ -281,6 +342,87 @@ OPTION D - Trigger Moderator
 - Reason: [Why moderator intervention needed]
 - Focus: [What moderator should address]
 </decision>
+
+<decision_examples>
+Example 1 - OPTION A (Continue Discussion):
+
+<scenario>Round 2 of 5. Three experts have contributed. Financial expert raised budget concerns, but technical expert hasn't addressed implementation feasibility. Exploration score: 0.45 (missing technical details).</scenario>
+
+<thinking>
+- Financial concerns well-articulated (budget: $500K, ROI: 18 months)
+- Technical feasibility not yet explored (no estimates on development time, team size)
+- Marketing expert mentioned customer acquisition but didn't quantify
+- Gap: Implementation details needed before we can synthesize
+</thinking>
+
+<decision>
+OPTION A - Continue Discussion
+- Next speaker: technical_lead
+- Reason: Technical feasibility is a critical gap. Need estimates on development timeline, team requirements, and technical debt implications.
+- Prompt: "The financial analysis shows $500K budget with 18-month ROI target. From a technical perspective, what development timeline and team size would be required? What technical risks could derail this estimate?"
+</decision>
+
+---
+
+Example 2 - OPTION B (Transition to Voting):
+
+<scenario>Round 5 of 6. All 5 experts have contributed 2-3 times. Convergence score: 0.75. Novelty score: 0.25 (repeating arguments). Exploration score: 0.72 (all 8 aspects covered).</scenario>
+
+<thinking>
+- All critical aspects addressed: objectives (clear), risks (identified), constraints (defined)
+- Strong consensus: 4/5 experts favor Option A with minor conditions
+- Novelty declining: Round 5 contributions restated Round 3-4 points
+- Exploration sufficient: 0.72 exceeds 0.60 threshold
+- Stopping criteria met: convergence + low novelty + sufficient exploration
+</thinking>
+
+<decision>
+OPTION B - Transition to Next Phase (Voting)
+- Summary: Consensus emerged around Option A (phased implementation) with emphasis on upfront technical feasibility study. Key tension: timeline (marketing wants 6 months, engineering needs 9 months). Resolved via phased approach: MVP in 6 months, full feature set in 9 months.
+- Reason: High convergence (0.75), declining novelty (0.25), and sufficient exploration (0.72) indicate readiness to decide. All experts have had multiple chances to raise concerns.
+- Next phase: voting
+</decision>
+
+---
+
+Example 3 - OPTION C (Invoke Research Tool):
+
+<scenario>Round 3 of 5. Experts disagree on market size. Marketing expert claims "$2B TAM" while financial expert questions the data source. Multiple references to "industry reports" without specific citations.</scenario>
+
+<thinking>
+- Central disagreement: Market size estimates vary wildly ($500M to $5B)
+- No authoritative source cited - just "industry reports" and "analyst estimates"
+- This is resolvable with research - not a judgment call
+- Continuing debate without data will waste rounds
+</thinking>
+
+<decision>
+OPTION C - Invoke Research Tool
+- Information needed: Authoritative market size data for [specific market segment]
+- Tool: web_researcher
+- Query: "What is the total addressable market (TAM) for B2B SaaS project management tools in North America? Find 2024 reports from Gartner, Forrester, or IDC with specific dollar figures."
+</decision>
+
+---
+
+Example 4 - OPTION D (Trigger Moderator):
+
+<scenario>Round 2 of 5. All three experts (finance, marketing, operations) have converged on Option A within first 2 contributions. No dissent, no alternatives explored. Convergence score: 0.85 (premature).</scenario>
+
+<thinking>
+- Suspiciously fast consensus: All experts agreed by Round 2
+- No alternatives explored: Only Option A discussed, no comparison to Option B/C
+- Early convergence risk: Framework warns against premature consensus (exploration phase should be divergent)
+- Contrarian needed to stress-test assumptions
+</thinking>
+
+<decision>
+OPTION D - Trigger Moderator
+- Moderator: contrarian
+- Reason: Premature consensus detected. All experts agreed on Option A without exploring alternatives or surfacing risks.
+- Focus: "Challenge the assumption that Option A is optimal. What alternatives haven't been considered? What could go wrong with Option A that the group is overlooking?"
+</decision>
+</decision_examples>
 </instructions>
 
 {security_protocol}
@@ -522,6 +664,74 @@ If none, write "No conditions."
 </recommendation_block>
 
 Remember: Use ONLY the XML tags shown above. Do NOT use markdown headings like ## Recommendation or # Decision.
+
+<recommendation_examples>
+Example 1 - STRONG RECOMMENDATION (specific, actionable):
+
+<recommendation>
+Approve $300K investment in SEO, but structure as 3 phases: (1) $80K technical SEO audit and fixes in Months 1-2; (2) $120K content production in Months 3-6 (30 articles, 10 guides); (3) $100K link building in Months 7-12. Include kill switch: if organic traffic growth <30% by Month 6, reallocate remaining $100K to paid ads.
+</recommendation>
+
+<reasoning>
+Maria's financial analysis showed $80 CAC via paid ads vs $15-20 via SEO (long-term). However, Sarah's point about 6-month lag is valid - we can't wait that long with current runway. My phased approach addresses both concerns: front-load technical fixes (fastest impact), then content (medium-term), then links (long-term). The kill switch protects against SEO underperformance - if we're not seeing traction by Month 6, we pivot to paid. This balances Zara's growth urgency with Maria's cost efficiency.
+</reasoning>
+
+<confidence>medium</confidence>
+<confidence_rationale>High confidence in SEO's long-term ROI, but medium confidence in timeline. 6-month checkpoint provides data-driven decision point.</confidence_rationale>
+
+<conditions>
+- Engineering allocates 40 hours/month for technical SEO implementation
+- Content quality maintained: hire experienced writer, not junior contractor
+- Organic traffic monitored weekly; alert if <10% growth by Month 3
+</conditions>
+
+---
+
+Example 2 - WEAK RECOMMENDATION (vague, not actionable):
+
+<recommendation>
+We should probably invest in SEO because it's good long-term. Maybe start with some content and see what happens.
+</recommendation>
+
+<reasoning>
+SEO is generally a good strategy for growth. Other companies have had success with it. We should try it and adjust as we go.
+</reasoning>
+
+<confidence>medium</confidence>
+<confidence_rationale>It seems reasonable.</confidence_rationale>
+
+<conditions>
+No conditions.
+</conditions>
+
+PROBLEMS WITH WEAK EXAMPLE:
+- No specific dollar amounts or timelines
+- "Some content" is not actionable (how much? what type?)
+- "See what happens" has no success metrics
+- Reasoning doesn't reference other experts' concerns
+- Confidence rationale is vague ("seems reasonable")
+
+---
+
+Example 3 - ADDRESSING DISAGREEMENTS:
+
+<recommendation>
+Reject pure SEO strategy. Recommend 60/40 split: $200K paid ads (immediate pipeline) + $130K SEO (future moat). Prioritize paid ads in Q1-Q2 for revenue targets, then shift to 40/60 in Q3-Q4 once SEO momentum builds.
+</recommendation>
+
+<reasoning>
+I disagree with Zara's 70/30 SEO-heavy split. Maria's cash flow concerns (6-month ROI lag) are valid - we can't starve the pipeline for 2 quarters. However, I also disagree with Sarah's 50/50 split as too conservative on SEO. My 60/40 (paid/SEO) addresses Maria's runway anxiety while still making meaningful SEO investment. The Q3 rebalance to 40/60 recognizes Zara's point that SEO compounds - by Q3, organic traffic should be ramping, allowing us to reduce paid spend.
+</reasoning>
+
+<confidence>high</confidence>
+<confidence_rationale>High confidence based on 8 years of marketing experience across 15 companies. The phased rebalancing approach mitigates both short-term (cash flow) and long-term (CAC) risks.</confidence_rationale>
+
+<conditions>
+- Marketing bandwidth: 20 hours/week minimum for SEO execution
+- Paid ads performance monitored weekly; pause if CAC exceeds $100
+- SEO metrics reviewed monthly; accelerate Q3 transition if traffic growth exceeds 40%
+</conditions>
+</recommendation_examples>
 </instructions>"""
 
 # User message template for recommendations (includes persona identity - NOT cached)
@@ -639,6 +849,229 @@ DO NOT use numerical percentages or scores. Use natural language to describe con
 What remains uncertain or requires further investigation?
 </open_questions>
 </synthesis_report>
+</instructions>"""
+
+
+# AUDIT FIX (Priority 3, Task 3.1): Hierarchical Synthesis Template
+# This template uses round summaries for old rounds and full detail for final round only
+# Expected impact: 60-70% token reduction (3500 avg → 1200 avg)
+SYNTHESIS_HIERARCHICAL_TEMPLATE = """<system_role>
+You are the Facilitator synthesizing the deliberation's conclusion.
+</system_role>
+
+<instructions>
+Generate a comprehensive synthesis report for the user.
+
+<problem_statement>
+{problem_statement}
+</problem_statement>
+
+<evolution_of_thinking>
+This section shows how the deliberation evolved across rounds (summarized):
+
+{round_summaries}
+</evolution_of_thinking>
+
+<final_round_detail>
+Full detail from the final round of discussion:
+
+{final_round_contributions}
+</final_round_detail>
+
+<expert_recommendations>
+{votes}
+</expert_recommendations>
+
+<thinking>
+Analyze the deliberation:
+1. What consensus emerged across personas?
+2. What disagreements remain and why?
+3. What evidence was most compelling?
+4. What risks were identified by domain experts?
+5. What conditions affect the recommendation?
+6. How confident is the board overall?
+</thinking>
+
+<language_style>
+CRITICAL: Use plain, direct language throughout this synthesis.
+
+DO NOT use:
+- Abstract business jargon: "asymmetric capabilities", "value proposition", "leverage synergies"
+- Academic hedging: "it could be argued that", "one might consider"
+- Consultant-speak: "prioritize strategic alignment", "optimize operational efficiency"
+- Intellectual signaling: "probabilistic forecasting", "predictive market modeling"
+
+DO use:
+- Concrete, specific terms anyone can understand
+- Short sentences with clear subjects and verbs
+- Everyday words: "focus on" not "prioritize", "use" not "leverage", "test" not "validate"
+- Direct statements: "Do X" not "It may be beneficial to consider doing X"
+
+Example of BAD language:
+"Prioritizing asymmetric technological capabilities over incremental improvements"
+
+Example of GOOD language:
+"Focus on unique technology strengths instead of small improvements"
+</language_style>
+
+<synthesis_report>
+<executive_summary>
+One paragraph: problem, recommendation, key rationale (2-3 sentences).
+Use SIMPLE, CLEAR language - avoid technical jargon and complex terminology.
+Write as if explaining to a smart friend who isn't an expert. Be direct and concise.
+If you catch yourself using abstract nouns, replace them with plain-language equivalents.
+</executive_summary>
+
+<recommendation>
+Clear, actionable statement of recommended course of action.
+Use everyday language - no business jargon.
+</recommendation>
+
+<rationale>
+3-5 paragraphs covering:
+- Key arguments supporting the recommendation (in plain language)
+- Evidence and real-world examples cited by experts
+- How different perspectives aligned or disagreed
+- Main risks and how to handle them
+- Key assumptions that need to be true for this to work
+</rationale>
+
+<vote_breakdown>
+Summary of each expert's recommendation with their confidence level (use "very high", "high", "medium", or "low" - NOT numerical percentages).
+For each expert, present their actual recommendation text and reasoning, not just their role description.
+
+Format:
+- [Expert Name]: [Their specific recommendation] with [confidence level]
+  Key reasoning: [Their main argument in 1-2 sentences]
+</vote_breakdown>
+
+<dissenting_views>
+Perspectives that disagreed and their reasoning (if any)
+</dissenting_views>
+
+<implementation_considerations>
+Practical next steps and conditions for success identified by the board
+</implementation_considerations>
+
+<confidence_assessment>
+Overall confidence level with justification. Express confidence using descriptive terms:
+- "Very high confidence" (near certainty, strong evidence)
+- "High confidence" (strong conviction, good evidence)
+- "Medium confidence" (reasonable certainty, moderate evidence)
+- "Low confidence" (significant uncertainty, limited evidence)
+
+Base your assessment on:
+- Strength of consensus
+- Quality of evidence
+- Known unknowns
+- Complexity of implementation
+
+DO NOT use numerical percentages or scores. Use natural language to describe confidence.
+</confidence_assessment>
+
+<open_questions>
+What remains uncertain or requires further investigation?
+</open_questions>
+</synthesis_report>
+
+<synthesis_examples>
+Example 1 - HIGH-QUALITY SYNTHESIS:
+
+<executive_summary>
+The board recommends a phased SEO investment: $80K upfront for technical fixes (Months 1-2), then $220K for content and links (Months 3-12). This balances Maria's cash flow concerns with Zara's long-term growth vision. Kill switch at Month 6 protects against underperformance.
+</executive_summary>
+
+<recommendation>
+Invest $300K in SEO using a 3-phase approach with a Month 6 performance checkpoint. If organic traffic growth is <30% by Month 6, reallocate remaining budget to paid ads.
+</recommendation>
+
+<rationale>
+The financial analysis (Maria) showed clear long-term ROI advantage: SEO achieves $15-20 CAC vs $80 for paid ads. However, the 6-month lag creates pipeline risk given our 9-month runway. The phased approach addresses this by front-loading quick wins (technical SEO fixes typically show impact in 2-3 months) while building long-term assets (content, links).
+
+Key tension: Zara prioritized long-term moat (70% SEO budget), while Maria emphasized cash flow protection. The board resolved this via the kill switch mechanism - we commit to SEO but validate traction at Month 6 before full investment.
+
+Sarah's concern about execution capacity was addressed: the phased timeline spreads work across 12 months, requiring only 40 hours/month from engineering (feasible with current team size of 5).
+</rationale>
+
+<vote_breakdown>
+- Zara Morales (Growth): "Invest 70% in SEO for long-term moat" with high confidence
+  Key reasoning: $15-20 CAC via SEO vs $80 via paid ads creates compounding advantage
+- Maria Santos (Finance): "Test SEO with $100K pilot, then scale based on results" with medium confidence
+  Key reasoning: 6-month lag creates cash flow risk; pilot reduces exposure
+- Sarah Kim (Marketing): "60/40 split (paid/SEO) balances short and long-term" with high confidence
+  Key reasoning: Paid ads maintain pipeline while SEO ramps; rebalance in Q3
+</vote_breakdown>
+
+<dissenting_views>
+Maria dissented from the full $300K investment upfront, recommending a smaller pilot. The board addressed this by including the Month 6 checkpoint, which provides a data-driven decision point similar to her pilot concept.
+</dissenting_views>
+
+<implementation_considerations>
+Critical success factors:
+1. Engineering allocation: 40 hours/month committed for technical SEO (non-negotiable)
+2. Content quality: Hire experienced B2B SaaS writer ($80/hour), not junior contractor
+3. Weekly monitoring: Track organic traffic, alert if <10% growth by Month 3
+4. Month 6 checkpoint: Kill switch decision requires formal review of metrics
+</implementation_considerations>
+
+<confidence_assessment>
+High confidence in the phased approach and kill switch mechanism. Medium confidence in timeline - SEO results can vary by 2-3 months depending on competition and content quality. The Month 6 checkpoint mitigates timeline risk.
+</confidence_assessment>
+
+<open_questions>
+- Who owns SEO execution? Need dedicated owner for technical fixes and content calendar.
+- Contractor vs hire? If we hire, need to account for 2-month ramp time.
+- What if competitors launch SEO offensive during our ramp? How do we stay differentiated?
+</open_questions>
+
+---
+
+Example 2 - LOW-QUALITY SYNTHESIS (AVOID THIS):
+
+<executive_summary>
+The board discussed SEO vs paid ads. Most people think SEO is good long-term but there are concerns about timeline. We should probably invest in SEO with some paid ads too.
+</executive_summary>
+
+<recommendation>
+Invest in SEO and paid ads.
+</recommendation>
+
+<rationale>
+SEO is generally good for growth. Some people raised concerns about timing and cash flow. Paid ads are faster. We should probably do both.
+</rationale>
+
+<vote_breakdown>
+- Zara: Recommended SEO
+- Maria: Had concerns about costs
+- Sarah: Suggested a balanced approach
+</vote_breakdown>
+
+<dissenting_views>
+Some disagreements existed.
+</dissenting_views>
+
+<implementation_considerations>
+We need to execute the plan carefully.
+</implementation_considerations>
+
+<confidence_assessment>
+Medium confidence overall.
+</confidence_assessment>
+
+<open_questions>
+More research might be needed.
+</open_questions>
+
+PROBLEMS WITH LOW-QUALITY EXAMPLE:
+- No specific dollar amounts or timelines
+- Doesn't cite experts by name or reference their arguments
+- "Most people think" - which people? What's the vote breakdown?
+- "Probably" suggests uncertainty; synthesis should be confident
+- No dissenting views mentioned (just "some disagreements")
+- No implementation details
+- No specific open questions identified
+- Vague language throughout ("generally good", "some concerns")
+</synthesis_examples>
 </instructions>"""
 
 

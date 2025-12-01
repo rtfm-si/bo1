@@ -21,7 +21,6 @@ from bo1.graph.deliberation import (
 from bo1.graph.deliberation.subgraph.state import (
     SubProblemGraphState,
 )
-from bo1.graph.nodes.utils import retry_with_backoff
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics
 from bo1.models.persona import PersonaProfile
@@ -404,206 +403,17 @@ async def _parallel_subproblems_subgraph(state: DeliberationGraphState) -> dict[
     }
 
 
-async def _parallel_subproblems_legacy(state: DeliberationGraphState) -> dict[str, Any]:
-    """Legacy implementation using EventBridge for event emission.
-
-    This is the original implementation that will be deprecated once
-    the subgraph approach is validated in production.
-    """
-    # This is the original parallel_subproblems_node implementation
-    # Moved here to allow dispatching between legacy and new approaches
-    logger.info("_parallel_subproblems_legacy: Starting legacy parallel execution")
-
-    problem = state.get("problem")
-    if not problem:
-        raise ValueError("_parallel_subproblems_legacy called without problem")
-
-    # Get session_id and event publisher for real-time event emission
-    session_id = state.get("session_id")
-    if not session_id:
-        logger.error(
-            "CRITICAL: No session_id in state - events will not be emitted during parallel execution."
-        )
-        event_publisher = None
-    else:
-        from backend.api.dependencies import get_event_publisher
-
-        try:
-            event_publisher = get_event_publisher()
-            if event_publisher is None:
-                logger.error(
-                    f"CRITICAL: get_event_publisher() returned None for session {session_id}."
-                )
-        except Exception as e:
-            logger.error(
-                f"CRITICAL: Failed to create event publisher for session {session_id}: {e}",
-                exc_info=True,
-            )
-            event_publisher = None
-
-    execution_batches = state.get("execution_batches", [])
-    if not execution_batches:
-        logger.warning("No execution_batches in state, creating sequential batches")
-        execution_batches = [[i] for i in range(len(problem.sub_problems))]
-
-    sub_problems = problem.sub_problems
-    user_id = state.get("user_id")
-
-    from bo1.data import get_active_personas
-
-    all_personas_dicts = get_active_personas()
-    all_personas = [PersonaProfile.model_validate(p) for p in all_personas_dicts]
-
-    all_results: list[SubProblemResult] = []
-    total_batches = len(execution_batches)
-
-    logger.info(
-        f"_parallel_subproblems_legacy: Executing {total_batches} batches for {len(sub_problems)} sub-problems"
-    )
-
-    for batch_idx, batch in enumerate(execution_batches):
-        logger.info(
-            f"_parallel_subproblems_legacy: Starting batch {batch_idx + 1}/{total_batches} with {len(batch)} sub-problems"
-        )
-
-        batch_tasks = []
-        for sp_index in batch:
-            if sp_index >= len(sub_problems):
-                logger.error(f"Invalid sub-problem index {sp_index}")
-                continue
-
-            sub_problem = sub_problems[sp_index]
-
-            event_bridge = None
-            if event_publisher and session_id:
-                from backend.api.event_bridge import EventBridge
-
-                try:
-                    event_bridge = EventBridge(session_id, event_publisher)
-                    event_bridge.set_sub_problem_index(sp_index)
-
-                    event_publisher.publish_event(
-                        session_id,
-                        "subproblem_started",
-                        {
-                            "sub_problem_index": sp_index,
-                            "sub_problem_id": sub_problem.id,
-                            "goal": sub_problem.goal,
-                            "total_sub_problems": len(sub_problems),
-                        },
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to create EventBridge: {e}", exc_info=True)
-
-            task = retry_with_backoff(
-                _deliberate_subproblem,
-                sub_problem=sub_problem,
-                problem=problem,
-                all_personas=all_personas,
-                previous_results=all_results,
-                sub_problem_index=sp_index,
-                user_id=user_id,
-                event_bridge=event_bridge,
-                max_retries=3,
-                initial_delay=2.0,
-                backoff_factor=2.0,
-            )
-            batch_tasks.append((sp_index, task))
-
-        batch_results_raw = await asyncio.gather(
-            *[t[1] for t in batch_tasks], return_exceptions=True
-        )
-
-        batch_results: list[tuple[int, SubProblemResult]] = []
-        failed_subproblems: list[tuple[int, str, Exception]] = []
-
-        for i, result in enumerate(batch_results_raw):
-            sp_index = batch_tasks[i][0]
-
-            if isinstance(result, Exception):
-                sub_problem_goal = sub_problems[sp_index].goal
-                logger.error(f"Sub-problem {sp_index} failed: {result}", exc_info=result)
-                failed_subproblems.append((sp_index, sub_problem_goal, result))
-
-                if event_publisher and session_id:
-                    try:
-                        event_publisher.publish_event(
-                            session_id,
-                            "error",
-                            {
-                                "error": f"Sub-problem {sp_index} failed: {str(result)[:200]}",
-                                "error_type": type(result).__name__,
-                                "node": "parallel_subproblems",
-                                "recoverable": False,
-                                "sub_problem_index": sp_index,
-                            },
-                        )
-                    except Exception as emit_err:
-                        logger.warning(f"Failed to emit error event: {emit_err}")
-            else:
-                assert isinstance(result, SubProblemResult)
-                batch_results.append((sp_index, result))
-
-        if failed_subproblems:
-            failed_list = "\n".join(
-                f"  - Sub-problem {idx}: '{goal}' - {type(err).__name__}: {err}"
-                for idx, goal, err in failed_subproblems
-            )
-            error_msg = f"Deliberation failed: {len(failed_subproblems)} sub-problem(s) failed.\n{failed_list}"
-            raise RuntimeError(error_msg)
-
-        for _sp_index, result in sorted(batch_results, key=lambda x: x[0]):
-            assert isinstance(result, SubProblemResult)
-            all_results.append(result)
-
-        if event_publisher and session_id:
-            for sp_index, result in batch_results:
-                event_publisher.publish_event(
-                    session_id,
-                    "subproblem_complete",
-                    {
-                        "sub_problem_index": sp_index,
-                        "goal": result.sub_problem_goal,
-                        "synthesis": result.synthesis,
-                        "recommendations_count": len(result.votes)
-                        if hasattr(result, "votes")
-                        else 0,
-                        "expert_panel": result.expert_panel,
-                        "contribution_count": result.contribution_count,
-                        "cost": result.cost,
-                        "duration_seconds": result.duration_seconds,
-                    },
-                )
-
-    total_cost = sum(r.cost for r in all_results)
-    total_contributions = sum(r.contribution_count for r in all_results)
-
-    logger.info(
-        f"_parallel_subproblems_legacy: Complete - {len(all_results)} sub-problems, "
-        f"{total_contributions} contributions, ${total_cost:.4f}"
-    )
-
-    metrics = ensure_metrics(state)
-    for result in all_results:
-        metrics.total_cost += result.cost
-
-    return {
-        "sub_problem_results": all_results,
-        "current_sub_problem": None,
-        "phase": DeliberationPhase.SYNTHESIS,
-        "metrics": metrics,
-        "current_node": "parallel_subproblems",
-    }
+# AUDIT FIX (Priority 4, Task 4.2): Deleted _parallel_subproblems_legacy function (lines 407-597)
+# Legacy implementation removed - USE_SUBGRAPH_DELIBERATION is now always enabled
 
 
+# AUDIT FIX (Priority 4, Task 4.2): Removed router and legacy implementation
+# Directly use subgraph implementation (USE_SUBGRAPH_DELIBERATION confirmed stable)
 async def parallel_subproblems_node(state: DeliberationGraphState) -> dict[str, Any]:
-    """Execute independent sub-problems in parallel.
+    """Execute independent sub-problems in parallel using subgraph implementation.
 
-    Dispatches to either:
-    - _parallel_subproblems_subgraph: New implementation with get_stream_writer()
-    - _parallel_subproblems_legacy: Legacy implementation with EventBridge
-
-    Based on USE_SUBGRAPH_DELIBERATION feature flag.
+    AUDIT FIX (Priority 4, Task 4.2): Renamed from _parallel_subproblems_subgraph
+    and removed legacy fallback. USE_SUBGRAPH_DELIBERATION is now always enabled.
 
     This node implements the core parallel sub-problem execution strategy:
     1. Reads execution_batches from state (computed by analyze_dependencies_node)
@@ -629,13 +439,5 @@ async def parallel_subproblems_node(state: DeliberationGraphState) -> dict[str, 
         - Batch 1: Deliberate sub-problem 2 (can reference results from 0, 1)
         - Return all 3 results
     """
-    from bo1.feature_flags import USE_SUBGRAPH_DELIBERATION
-
-    logger.info(
-        f"parallel_subproblems_node: Starting (USE_SUBGRAPH_DELIBERATION={USE_SUBGRAPH_DELIBERATION})"
-    )
-
-    if USE_SUBGRAPH_DELIBERATION:
-        return await _parallel_subproblems_subgraph(state)
-    else:
-        return await _parallel_subproblems_legacy(state)
+    # AUDIT FIX (Priority 4, Task 4.2): Direct implementation without router
+    return await _parallel_subproblems_subgraph(state)

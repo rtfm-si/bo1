@@ -127,7 +127,7 @@ async def notify_database_report(
     details: str | None = None,
     priority: Literal["min", "low", "default", "high", "urgent"] = "default",
 ) -> bool:
-    """Send database monitoring report via ntfy.
+    r"""Send database monitoring report via ntfy.
 
     Args:
         report_type: Type of report (daily or weekly)

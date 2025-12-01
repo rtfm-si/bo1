@@ -315,6 +315,39 @@ graph_state = v1_to_state(v1_state)  # For graph updates
 
 ---
 
+## Recent Audit Fixes (2025-12-01)
+
+**Comprehensive fixes implemented from MEETING_SYSTEM_AUDIT_REPORT.md**:
+
+### Priority 1: Critical UX Fixes (COMPLETED)
+1. **USE_SUBGRAPH_DELIBERATION enabled** - Already active in `.env`, provides real-time event streaming during parallel sub-problems (eliminates 3-5 min UI blackouts)
+2. **Duplicate event emission removed** - `event_collector.py:569-596` converted to no-op to prevent duplicate "Sub-Problem Complete" messages
+3. **Premature meta-synthesis prevention** - `routers.py:128-177` now validates ALL sub-problems completed before meta-synthesis, emits `meeting_failed` event if any sub-problems fail
+
+### Priority 2: "Still Working" Messages (COMPLETED)
+1. **WorkingStatus component created** - `frontend/src/lib/components/ui/WorkingStatus.svelte` provides sticky, prominent status indicator with elapsed time
+2. **Working status events emitted** - `event_collector.py` now emits `working_status` events before:
+   - Voting phase
+   - Synthesis phase
+   - Each parallel round
+   - Meta-synthesis phase
+3. **WorkingStatus integrated** - Meeting page (`frontend/src/routes/(app)/meeting/[id]/+page.svelte`) displays WorkingStatus component, clears on event completion
+
+**Impact**:
+- Zero UI blackouts (continuous updates every 5-10s)
+- No duplicate event messages
+- No incomplete syntheses
+- Prominent working status at all times
+- Better user experience during long operations
+
+**Next Priorities** (Priority 3-5 pending):
+- Hierarchical summarization (use round summaries in synthesis)
+- Display expert summaries in UI
+- Graph simplification (remove rarely-used nodes)
+- Decomposition improvements (fewer, more relevant sub-problems)
+
+---
+
 ## Key Files
 
 - `bo1/graph/config.py` - Graph construction

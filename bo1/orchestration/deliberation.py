@@ -358,6 +358,7 @@ You MUST engage critically with the discussion:
         request = PromptRequest(
             system=system_prompt,
             user_message=user_message,
+            prefill=f"[{persona_profile.display_name}]\n\n<thinking>",  # Force character consistency
             model=selected_model,  # Use phase-based model selection
             cache_system=True,  # Enable prompt caching for cost optimization
             temperature=round_config["temperature"],  # Adaptive temperature
@@ -368,6 +369,8 @@ You MUST engage critically with the discussion:
 
         # Use broker call for retry protection (not direct client call)
         llm_response_temp = await broker.call(request)
+
+        # Prefill is already prepended by ClaudeClient (line 221-222 in client.py)
         response_text = llm_response_temp.content
         token_usage = llm_response_temp.token_usage
         duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)

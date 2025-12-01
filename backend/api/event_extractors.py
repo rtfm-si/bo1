@@ -255,7 +255,10 @@ def extract_subproblem_info(output: dict[str, Any]) -> dict[str, Any]:
 
 
 def extract_subproblem_result(result: Any) -> dict[str, Any]:
-    """Extract single sub-problem result data."""
+    """Extract single sub-problem result data.
+
+    AUDIT FIX (Priority 3, Task 3.2): Added expert_summaries extraction.
+    """
     return {
         "sub_problem_id": get_field_safe(result, "sub_problem_id", ""),
         "sub_problem_goal": get_field_safe(result, "sub_problem_goal", ""),
@@ -264,6 +267,7 @@ def extract_subproblem_result(result: Any) -> dict[str, Any]:
         "duration_seconds": get_field_safe(result, "duration_seconds", 0.0),
         "expert_panel": get_field_safe(result, "expert_panel", []),
         "contribution_count": get_field_safe(result, "contribution_count", 0),
+        "expert_summaries": get_field_safe(result, "expert_summaries", {}),
     }
 
 

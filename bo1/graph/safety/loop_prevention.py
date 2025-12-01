@@ -241,15 +241,21 @@ def should_exit_early(state: DeliberationGraphState) -> bool:
 
 
 async def check_convergence_node(state: DeliberationGraphState) -> DeliberationGraphState:
-    """Check convergence and set stop flags if needed.
+    """Check convergence and set stop flags if needed (simplified orchestration).
+
+    AUDIT FIX (Priority 4.3): Refactored from 600-line monolith into focused modules:
+    - Quality metrics: bo1/graph/quality/metrics.py
+    - Stopping rules: bo1/graph/quality/stopping_rules.py
 
     This node implements Layer 3 of loop prevention by enforcing round limits.
 
     Stopping conditions:
     1. round_number >= max_rounds (user-configured limit)
-    2. round_number >= 15 (absolute hard cap)
-    3. Convergence detected (semantic similarity > 0.85)
-    4. Consensus reached (voting complete)
+    2. round_number >= 6 (absolute hard cap for parallel architecture)
+    3. Convergence detected (semantic similarity > 0.90)
+    4. Quality thresholds met (exploration, focus, completeness)
+    5. Early exit (high convergence + low novelty)
+    6. Deadlock detected (circular arguments)
 
     Args:
         state: Current deliberation state
@@ -257,180 +263,25 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
     Returns:
         Updated state with should_stop and stop_reason set if applicable
     """
-    round_number = state["round_number"]
-    max_rounds = state["max_rounds"]
+    from bo1.graph.quality.metrics import QualityMetricsCalculator
+    from bo1.graph.quality.stopping_rules import StoppingRulesEvaluator
 
-    # Absolute hard cap (Layer 3a) - UPDATED for parallel architecture
-    # NEW: 6 rounds max (3-5 experts per round = 18-30 total contributions)
-    hard_cap_rounds = 6
-    if round_number >= hard_cap_rounds:
-        logger.warning(
-            f"Round {round_number}: Hit absolute hard cap ({hard_cap_rounds} rounds) "
-            f"for parallel architecture"
-        )
-        state["should_stop"] = True
-        state["stop_reason"] = f"hard_cap_{hard_cap_rounds}_rounds"
-        return state
+    round_number = state.get("round_number", 1)
+    max_rounds = state.get("max_rounds", 10)
 
-    # User-configured max (Layer 3b)
-    if round_number >= max_rounds:
-        logger.info(f"Round {round_number}: Hit max_rounds limit ({max_rounds})")
-        state["should_stop"] = True
-        state["stop_reason"] = "max_rounds"
-        return state
+    # Get problem statement for context
+    problem = state.get("problem")
+    problem_statement = ""
+    if problem:
+        if hasattr(problem, "description"):
+            problem_statement = problem.description
+        elif isinstance(problem, dict):
+            problem_statement = problem.get("description", "")
 
-    # Convergence detection (Layer 3c)
-    # ALWAYS recalculate convergence score each round to track actual progress
-    # (Previous bug: only calculated when == 0.0, so score stayed static after round 2)
-    from bo1.models.state import DeliberationMetrics
-
-    metrics = state.get("metrics")
-    # CRITICAL: Ensure metrics object exists AND is a Pydantic model (not dict from checkpoint)
-    # When state is loaded from Redis checkpoint, metrics may be deserialized as a dict
-    if not metrics:
-        logger.warning(f"Round {round_number}: Metrics object missing, creating new one")
-        metrics = DeliberationMetrics()
-        state["metrics"] = metrics
-    elif isinstance(metrics, dict):
-        # Convert dict back to Pydantic model (happens after checkpoint restoration)
-        logger.info(f"Round {round_number}: Converting metrics dict to DeliberationMetrics model")
-        metrics = DeliberationMetrics(**metrics)
-        state["metrics"] = metrics
-
-    contributions = state.get("contributions", [])
-    convergence_score = 0.0
-
-    # Calculate convergence from recent contributions using semantic similarity
-    if len(contributions) >= 3:
-        # Use last 6 contributions or all if fewer available
-        recent_contributions = contributions[-6:] if len(contributions) >= 6 else contributions
-        convergence_score = await _calculate_convergence_score_semantic(recent_contributions)
-        # Update metrics with freshly calculated convergence
-        if metrics:
-            metrics.convergence_score = convergence_score
-        logger.info(
-            f"Round {round_number}: Convergence score recalculated: {convergence_score:.2f} "
-            f"(from {len(recent_contributions)} recent contributions)"
-        )
-
-    # NEW: Calculate novelty, conflict, and drift metrics
-    contributions = state.get("contributions", [])
-
-    # Set fallback values for novelty/conflict before they can be calculated
-    if metrics and len(contributions) < 6:
-        if not hasattr(metrics, "novelty_score") or metrics.novelty_score is None:
-            metrics.novelty_score = 0.5  # Neutral until calculated
-        if not hasattr(metrics, "conflict_score") or metrics.conflict_score is None:
-            metrics.conflict_score = 0.5  # Neutral until calculated
-
-    if len(contributions) >= 6 and metrics:
-        from bo1.graph.quality_metrics import (
-            calculate_conflict_score,
-            calculate_novelty_score_semantic,
-        )
-
-        # Convert contributions to dict format for quality metrics
-        contrib_dicts = []
-        for contrib in contributions:
-            if hasattr(contrib, "content"):
-                contrib_dicts.append({"content": contrib.content})
-            else:
-                contrib_dicts.append({"content": str(contrib)})
-
-        # Calculate novelty (semantic uniqueness)
-        novelty = calculate_novelty_score_semantic(contrib_dicts[-6:])
-        metrics.novelty_score = novelty
-
-        # Calculate conflict (disagreement vs agreement)
-        conflict = calculate_conflict_score(contrib_dicts[-6:])
-        metrics.conflict_score = conflict
-
-        logger.info(
-            f"Quality metrics - Novelty: {novelty:.2f}, Conflict: {conflict:.2f}, "
-            f"Drift events: {metrics.drift_events if hasattr(metrics, 'drift_events') else 0}"
-        )
-
-    # NEW: Check for early exit (Issue #12 - Speed optimization)
-    # Can safely exit before max rounds if high convergence + low novelty
-    if should_exit_early(state):
-        logger.info(
-            f"Round {round_number}: Early exit triggered "
-            f"(convergence={convergence_score:.2f}, novelty={novelty:.2f})"
-        )
-        state["should_stop"] = True
-        state["stop_reason"] = "early_convergence"
-        return state
-
-    # NEW: Check for deadlock (Issue #14 - Deadlock detection)
-    # Force voting if experts are stuck in circular arguments
-    deadlock_info = detect_deadlock(state)
-    if deadlock_info["deadlock"]:
-        deadlock_type = deadlock_info["type"]
-        resolution = deadlock_info["resolution"]
-        logger.warning(
-            f"Round {round_number}: Deadlock detected (type={deadlock_type}) - {resolution}"
-        )
-
-        if resolution == "force_voting":
-            # Skip remaining rounds, go straight to voting
-            state["should_stop"] = True
-            state["stop_reason"] = "deadlock_detected"
-            return state
-        elif resolution == "facilitator_intervention":
-            # Set guidance for facilitator to break the deadlock
-            state["facilitator_guidance"] = {
-                "type": "deadlock_intervention",
-                "issue": "Circular argument pattern detected among experts",
-                "action": "Call on different experts or ask for new perspectives",
-            }
-            # Continue but with special facilitator guidance
-            state["should_stop"] = False
-
-    # Check if convergence threshold is met (Issue #3 fix: increased threshold from 0.85 to 0.90)
-    if convergence_score > CONVERGENCE_THRESHOLD and round_number >= 3:
-        # Before stopping, check diversity metrics to prevent premature convergence
-
-        # Check 1: Recent participation rate (are all personas still contributing?)
-        recent_contributors = _get_recent_contributors(state, last_n_rounds=2)
-        personas = state.get("personas", [])
-        # Handle both PersonaProfile objects and dicts (for tests)
-        all_personas = {
-            p.code if hasattr(p, "code") else p["code"]  # type: ignore[index]
-            for p in personas
-        }
-        participation_rate = len(recent_contributors) / len(all_personas) if all_personas else 0
-
-        if participation_rate < MIN_PARTICIPATION_RATE:
-            logger.info(
-                f"Round {round_number}: Convergence high ({convergence_score:.2f}) but low participation "
-                f"({participation_rate:.0%} < {MIN_PARTICIPATION_RATE:.0%}) - continuing"
-            )
-            state["should_stop"] = False
-            return state
-
-        # Check 2: Novelty trend (are we still getting new ideas?)
-        if novelty > MIN_NOVELTY_THRESHOLD:
-            logger.info(
-                f"Round {round_number}: Convergence high ({convergence_score:.2f}) but novelty still present "
-                f"({novelty:.2f} > {MIN_NOVELTY_THRESHOLD:.2f}) - continuing"
-            )
-            state["should_stop"] = False
-            return state
-
-        # Both checks passed - safe to stop
-        logger.info(
-            f"Round {round_number}: Convergence detected "
-            f"(score: {convergence_score:.2f}, threshold: {CONVERGENCE_THRESHOLD:.2f}, "
-            f"participation: {participation_rate:.0%}, novelty: {novelty:.2f})"
-        )
-        state["should_stop"] = True
-        state["stop_reason"] = "consensus"
-        return state
-    else:
-        logger.debug(
-            f"Round {round_number}: Convergence score {convergence_score:.2f} "
-            f"(threshold: {CONVERGENCE_THRESHOLD:.2f}, min rounds: 3)"
-        )
+    # Calculate quality metrics
+    calculator = QualityMetricsCalculator()
+    metrics = await calculator.calculate_all(state, problem_statement)
+    state["metrics"] = metrics
 
     # ALWAYS determine and set current_phase based on round number
     # This ensures phase is available for UI display even on early rounds
@@ -440,158 +291,34 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
     state["current_phase"] = current_phase
     logger.info(f"Round {round_number}: Phase set to {current_phase}")
 
-    # NEW: Calculate enhanced quality metrics (exploration, focus, completeness)
-    # This enables multi-criteria stopping rules based on meeting quality
+    # DEBUG: Log all quality metrics for verification
     logger.info(
-        f"Round {round_number}: Quality metrics check - "
-        f"contributions={len(contributions)}, metrics_exists={metrics is not None}"
+        f"Round {round_number}: Quality metrics SET - "
+        f"exploration={metrics.exploration_score}, "
+        f"focus={metrics.focus_score}, "
+        f"completeness={metrics.meeting_completeness_index}, "
+        f"novelty={metrics.novelty_score}, "
+        f"conflict={metrics.conflict_score}, "
+        f"convergence={metrics.convergence_score}, "
+        f"phase={current_phase}"
     )
 
-    # Set fallback values for early rounds (before enough contributions for calculation)
-    if metrics and len(contributions) < 3:
-        # Set placeholder values to avoid undefined in frontend
-        if not hasattr(metrics, "exploration_score") or metrics.exploration_score is None:
-            metrics.exploration_score = 0.0  # Will be calculated properly later
-        if not hasattr(metrics, "focus_score") or metrics.focus_score is None:
-            metrics.focus_score = 1.0  # Assume on-topic until proven otherwise
-        if (
-            not hasattr(metrics, "meeting_completeness_index")
-            or metrics.meeting_completeness_index is None
-        ):
-            metrics.meeting_completeness_index = 0.0  # Low completeness early on
-        logger.info(
-            f"Round {round_number}: Set fallback quality metrics (contributions={len(contributions)})"
-        )
+    # Evaluate stopping rules
+    evaluator = StoppingRulesEvaluator()
+    decision = evaluator.evaluate(state)
 
-    if len(contributions) >= 3 and metrics:
-        from bo1.graph.meeting_config import get_meeting_config
-        from bo1.graph.quality_metrics import (
-            calculate_exploration_score_llm,
-            calculate_focus_score,
-            calculate_meeting_completeness_index,
-        )
+    # Apply decision to state
+    state["should_stop"] = decision.should_stop
+    if decision.stop_reason:
+        state["stop_reason"] = decision.stop_reason
+    if decision.facilitator_guidance:
+        state["facilitator_guidance"] = decision.facilitator_guidance
 
-        # Get meeting config (tactical vs strategic thresholds)
-        # TypedDict is compatible with dict[str, Any]
-        config = get_meeting_config(dict(state))
+    if decision.should_stop:
+        logger.info(f"Round {round_number}: Stopping deliberation - Reason: {decision.stop_reason}")
+    else:
+        logger.debug(f"Round {round_number}/{max_rounds}: Convergence check passed, continuing")
 
-        # Get problem statement for context
-        problem = state.get("problem")
-        problem_statement = ""
-        if problem:
-            if hasattr(problem, "description"):
-                problem_statement = problem.description
-            elif isinstance(problem, dict):
-                problem_statement = problem.get("description", "")
-
-        # Calculate exploration score (coverage of 8 critical aspects)
-        try:
-            exploration_score, aspect_coverage = await calculate_exploration_score_llm(
-                contributions=contributions[-6:],  # Recent contributions
-                problem_statement=problem_statement,
-                round_number=round_number,
-            )
-            metrics.exploration_score = exploration_score
-            metrics.aspect_coverage = aspect_coverage
-            logger.info(
-                f"Round {round_number}: Exploration score calculated: {exploration_score:.2f}"
-            )
-        except Exception as e:
-            logger.warning(f"Exploration score calculation failed: {e}", exc_info=True)
-            exploration_score = 0.5  # Fallback to neutral
-            metrics.exploration_score = exploration_score  # Store fallback value
-
-        # Calculate focus score (on-topic ratio)
-        try:
-            focus_score = await calculate_focus_score(
-                contributions=contributions[-6:],
-                problem_statement=problem_statement,
-            )
-            metrics.focus_score = focus_score
-            logger.info(f"Round {round_number}: Focus score calculated: {focus_score:.2f}")
-        except Exception as e:
-            logger.warning(f"Focus score calculation failed: {e}", exc_info=True)
-            focus_score = 0.8  # Fallback to assume on-topic
-            metrics.focus_score = focus_score  # Store fallback value
-
-        # Calculate meeting completeness index (composite metric)
-        try:
-            meeting_completeness = calculate_meeting_completeness_index(
-                exploration_score=exploration_score,
-                convergence_score=convergence_score,
-                focus_score=focus_score,
-                novelty_score_recent=novelty if "novelty" in locals() else 0.5,
-                weights=config.weights,
-            )
-            metrics.meeting_completeness_index = meeting_completeness
-            logger.info(
-                f"Round {round_number}: Meeting completeness index calculated: {meeting_completeness:.2f}"
-            )
-        except Exception as e:
-            logger.warning(f"Completeness index calculation failed: {e}", exc_info=True)
-            meeting_completeness = 0.5  # Fallback
-            metrics.meeting_completeness_index = meeting_completeness  # Store fallback value
-
-        # NOTE: current_phase is now set unconditionally at the start of this function
-        # (lines ~297-303) to ensure phase is always available for UI display
-
-        # DEBUG: Log all quality metrics for verification
-        logger.info(
-            f"Round {round_number}: Quality metrics SET - "
-            f"exploration={metrics.exploration_score}, "
-            f"focus={metrics.focus_score}, "
-            f"completeness={metrics.meeting_completeness_index}, "
-            f"novelty={metrics.novelty_score}, "
-            f"conflict={metrics.conflict_score}, "
-            f"phase={current_phase}"
-        )
-
-        # Apply multi-criteria stopping rules
-        can_end, blockers = should_allow_end(state, config)
-        should_recommend, rationale = should_recommend_end(state, config)
-        should_target, focus_prompts = should_continue_targeted(state, config)
-
-        if not can_end:
-            # Cannot end yet - guardrails violated
-            logger.info(f"Round {round_number}: Cannot end yet - Blockers: {blockers}")
-            state["should_stop"] = False
-            # Store facilitator guidance for next round
-            state["facilitator_guidance"] = {
-                "type": "must_continue",
-                "blockers": blockers,
-                "focus_prompts": focus_prompts[:3] if focus_prompts else [],
-            }
-            return state
-
-        if should_recommend:
-            # High quality threshold met - recommend ending
-            logger.info(
-                f"Round {round_number}: Recommend ending - Meeting quality high "
-                f"(completeness={meeting_completeness:.2f}, exploration={exploration_score:.2f}, convergence={convergence_score:.2f})"
-            )
-            state["should_stop"] = True
-            state["stop_reason"] = "quality_threshold_met"
-            return state
-
-        if should_target:
-            # Continue with targeted exploration
-            logger.info(
-                f"Round {round_number}: Continuing with targeted focus - "
-                f"Missing aspects or low exploration (E={exploration_score:.2f})"
-            )
-            state["should_stop"] = False
-            state["facilitator_guidance"] = {
-                "type": "targeted_exploration",
-                "focus_prompts": focus_prompts[:3] if focus_prompts else [],
-                "missing_aspects": [
-                    a.name for a in aspect_coverage if a.level in ["none", "shallow"]
-                ],
-            }
-            return state
-
-    # Continue deliberation
-    logger.debug(f"Round {round_number}/{max_rounds}: Convergence check passed, continuing")
-    state["should_stop"] = False
     return state
 
 
@@ -859,6 +586,7 @@ Respond in JSON:
             max_tokens=100,
             phase="drift_detection",
             agent_type="DriftDetector",
+            cache_system=True,  # TASK 1 FIX: Enable prompt caching (system prompt is simple and static)
         )
         response = await broker.call(request)
 

@@ -37,11 +37,48 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Get problem from state
     problem = state["problem"]
 
-    # Call decomposer
+    # AUDIT FIX (Priority 5, Task 5.2): Determine complexity-based limits BEFORE decomposition
+    # This helps the LLM understand expected decomposition count
+    # Rough initial complexity estimate based on problem length and keywords
+    problem_text = problem.description + " " + (problem.context or "")
+    problem_length = len(problem_text.split())
+
+    # Simple heuristic for initial complexity estimate
+    if problem_length < 20:
+        estimated_complexity = 3  # Simple, likely atomic
+    elif problem_length < 50:
+        estimated_complexity = 5  # Moderate
+    elif problem_length < 100:
+        estimated_complexity = 7  # Complex
+    else:
+        estimated_complexity = 8  # Very complex
+
+    # Strategic decision keywords indicate higher complexity
+    strategic_keywords = [
+        "pivot",
+        "acquisition",
+        "expansion",
+        "founder",
+        "co-founder",
+        "series",
+        "funding",
+    ]
+    if any(keyword in problem_text.lower() for keyword in strategic_keywords):
+        estimated_complexity = min(9, estimated_complexity + 2)
+
+    logger.info(
+        f"decompose_node: Initial complexity estimate = {estimated_complexity} "
+        f"(problem length: {problem_length} words)"
+    )
+
+    # Call decomposer with complexity hint in constraints
     response = await decomposer.decompose_problem(
         problem_description=problem.description,
         context=problem.context,
-        constraints=[],  # TODO: Add constraints from problem model
+        constraints=[
+            f"Estimated complexity: {estimated_complexity}/10",
+            "Target: Minimize sub-problems (prefer 1-3, avoid 4+)",
+        ],
     )
 
     # Parse decomposition using utility function
@@ -77,6 +114,23 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
         )
         for sp in decomposition.get("sub_problems", [])
     ]
+
+    # AUDIT FIX (Priority 5, Task 5.2): Enforce complexity-based limits
+    # Truncate if LLM generated too many sub-problems (Quality > Quantity)
+    max_subproblems_allowed = 4  # Hard cap based on audit findings (avg was 4.2)
+
+    if len(sub_problems) > max_subproblems_allowed:
+        logger.warning(
+            f"decompose_node: Truncating {len(sub_problems)} sub-problems to {max_subproblems_allowed} "
+            f"(audit finding: too many sub-problems reduces quality)"
+        )
+        # Keep the most important ones (highest complexity or first N)
+        sub_problems = sub_problems[:max_subproblems_allowed]
+
+    logger.info(
+        f"decompose_node: Created {len(sub_problems)} sub-problems "
+        f"(target: 1-3, max: {max_subproblems_allowed})"
+    )
 
     # Update problem with sub-problems
     problem.sub_problems = sub_problems

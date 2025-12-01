@@ -110,6 +110,142 @@ Respond with JSON:
 }
 ```
 
+---
+
+**Example 2 - Technical Architecture Decision**:
+
+**Problem**: "Should we migrate from monolith to microservices?"
+**Complexity**: 8/10
+**Context**: Series B SaaS, 50 engineers, experiencing scaling issues
+
+**Output**:
+```json
+{
+  "analysis": "This is a complex technical decision with organizational and financial implications. Requires architecture expertise, team/culture perspective, and long-term cost modeling.",
+  "recommended_personas": [
+    {
+      "code": "cto",
+      "name": "Alex Chen",
+      "rationale": "Strategic technology decision requiring assessment of architecture patterns, scalability needs, and long-term technical vision. CTO perspective balances technical and business considerations."
+    },
+    {
+      "code": "devops_engineer",
+      "name": "Jordan Kim",
+      "rationale": "Hands-on expertise in microservices implementation, deployment complexity, and operational overhead. Will provide realistic assessment of infrastructure requirements and team skill gaps."
+    },
+    {
+      "code": "engineering_manager",
+      "name": "Sam Taylor",
+      "rationale": "Organizational impact perspective: how microservices affect team structure (Conway's Law), onboarding, and development velocity. Critical for assessing cultural/process changes."
+    },
+    {
+      "code": "cfo",
+      "name": "Maria Santos",
+      "rationale": "Financial modeling of migration costs ($500K-2M estimate), opportunity cost, and long-term maintenance savings. Ensures ROI justification beyond technical elegance."
+    }
+  ],
+  "coverage_summary": "Balances strategic tech vision (CTO), hands-on implementation (DevOps), organizational change (Eng Manager), and financial feasibility (CFO) for comprehensive assessment."
+}
+```
+
+---
+
+**Example 3 - Hiring Decision**:
+
+**Problem**: "Should I hire a co-founder 12 months into my startup?"
+**Complexity**: 7/10
+**Context**: Non-technical founder, MVP launched, $200K angel round raised, considering technical co-founder
+
+**Output**:
+```json
+{
+  "analysis": "This is a high-stakes people decision with equity, cultural, and strategic implications. Requires startup experience, equity/legal expertise, and relationship dynamics understanding.",
+  "recommended_personas": [
+    {
+      "code": "startup_founder",
+      "name": "Casey Morgan",
+      "rationale": "First-hand experience with co-founder dynamics at different startup stages. Can assess timing (12 months in), equity split implications, and whether technical skills justify co-founder title vs early employee."
+    },
+    {
+      "code": "startup_lawyer",
+      "name": "Riley Adams",
+      "rationale": "Legal structure and equity implications. 12 months in, cap table already set; adding co-founder affects vesting, founder shares, and investor rights. Critical to structure correctly."
+    },
+    {
+      "code": "executive_coach",
+      "name": "Morgan Lee",
+      "rationale": "Relationship and cultural fit assessment. Co-founder relationships are like marriages - need to evaluate working styles, decision-making compatibility, and conflict resolution before committing."
+    },
+    {
+      "code": "cto",
+      "name": "Alex Chen",
+      "rationale": "Technical assessment of candidate's skills. Is this person truly co-founder caliber (rare, senior) or strong senior engineer (more common)? Equity/title should match true value."
+    }
+  ],
+  "coverage_summary": "Combines startup experience (Casey), legal/equity guidance (Riley), relationship dynamics (Morgan), and technical assessment (Alex) for comprehensive evaluation."
+}
+```
+
+---
+
+**Example 4 - BAD SELECTION (Anti-pattern)**:
+
+**Problem**: "Should I invest $50K in SEO or paid ads?"
+**Complexity**: 6/10
+
+❌ **WRONG Selection** (Redundant expertise):
+```json
+{
+  "recommended_personas": [
+    {"code": "growth_hacker", "name": "Zara", "rationale": "Growth expertise"},
+    {"code": "digital_marketer", "name": "Alex", "rationale": "Marketing channels expertise"},
+    {"code": "marketing_director", "name": "Sam", "rationale": "Marketing strategy"},
+    {"code": "seo_specialist", "name": "Taylor", "rationale": "SEO expertise"},
+    {"code": "ppc_specialist", "name": "Jordan", "rationale": "Paid ads expertise"}
+  ]
+}
+```
+
+**Why WRONG**:
+- 5 personas with OVERLAPPING expertise (all marketing domain)
+- Growth Hacker + Digital Marketer + Marketing Director = redundant high-level marketing perspectives
+- SEO Specialist + PPC Specialist = too tactical; experts will just advocate for their specialty
+- MISSING financial perspective (ROI, cash flow, payback period)
+- MISSING product/strategy perspective (how channel choice affects positioning)
+- MISSING execution perspective (solo founder capacity to execute either strategy)
+
+✅ **CORRECT Selection** (Diverse perspectives):
+```json
+{
+  "recommended_personas": [
+    {"code": "growth_hacker", "name": "Zara", "rationale": "Channel evaluation expertise, growth metrics, testing frameworks"},
+    {"code": "cfo", "name": "Maria", "rationale": "Financial analysis: ROI timeline, cash flow impact, budget optimization"},
+    {"code": "product_strategist", "name": "Jordan", "rationale": "Strategic alignment: how channel choice affects product positioning and customer acquisition strategy"},
+    {"code": "operations_manager", "name": "Sam", "rationale": "Execution feasibility: solo founder capacity, skill requirements, time allocation"}
+  ]
+}
+```
+
+**Why CORRECT**:
+- Diverse domains: Marketing (Zara), Finance (Maria), Strategy (Jordan), Operations (Sam)
+- Each persona brings UNIQUE perspective
+- Financial + Growth + Strategy + Execution = comprehensive coverage
+- 4 personas (not 5) - quality over quantity
+
+## Justification Quality Criteria
+
+STRONG JUSTIFICATION (✅):
+- Cites specific problem characteristics: "$50K budget creates constraint...", "12 months into startup affects equity split..."
+- Explains WHY this persona's expertise is essential for THIS problem
+- Names specific frameworks, methods, or domain knowledge persona will contribute
+- Example: "Will analyze ROI using payback period methodology, considering 6-month SEO lag vs immediate paid ads results"
+
+WEAK JUSTIFICATION (❌):
+- Generic descriptions: "Good strategic thinker", "Brings valuable perspective"
+- Doesn't cite problem specifics
+- Could apply to any problem
+- Example: "Will provide marketing expertise"
+
 ## Your Task
 
 When given a problem, analyze it and recommend 3-5 personas from the available persona catalog.

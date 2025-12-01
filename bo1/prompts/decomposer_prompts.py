@@ -290,6 +290,79 @@ Respond with JSON containing:
 }
 ```
 
+## Decomposition Validation Examples
+
+### Example 1 - REJECTED DECOMPOSITION (Over-decomposition):
+
+**Input**: "Should I use Stripe or PayPal for payment processing?"
+
+**Attempted Decomposition** (WRONG):
+```json
+{
+  "is_atomic": false,
+  "sub_problems": [
+    {"id": "sp_001", "goal": "Evaluate Stripe features and pricing"},
+    {"id": "sp_002", "goal": "Evaluate PayPal features and pricing"},
+    {"id": "sp_003", "goal": "Compare integration complexity"},
+    {"id": "sp_004", "goal": "Make final recommendation"}
+  ]
+}
+```
+
+**Why REJECTED**:
+- Complexity: 3/10 (simple technical decision with established best practices)
+- Per mapping: Complexity 3 → MUST be 1 sub-problem (atomic)
+- All four "sub-problems" would be evaluated by the SAME experts (payment specialist, developer, financial analyst)
+- No sequential dependencies - comparison happens holistically, not step-by-step
+- This is a single decision with multiple evaluation criteria (features, pricing, integration), not multiple decisions
+
+**Correct Decomposition**:
+```json
+{
+  "is_atomic": true,
+  "sub_problems": [
+    {
+      "id": "sp_001",
+      "goal": "Should I use Stripe or PayPal for payment processing?",
+      "context": "Evaluating features, pricing, integration complexity, and support quality",
+      "complexity_score": 3,
+      "dependencies": [],
+      "rationale": "Single technical decision with clear evaluation criteria. Experts can holistically compare options without sequential analysis."
+    }
+  ]
+}
+```
+
+---
+
+### Example 2 - DEPENDENCY CHAIN IDENTIFICATION:
+
+**Problem**: "Should I expand my SaaS product from US to Europe?"
+
+**Dependency Analysis**:
+
+Sub-problem 1: "What is the market opportunity in Europe (TAM, competition, pricing)?"
+- Dependencies: []
+- Rationale: Market research is independent; can be done first
+
+Sub-problem 2: "What product changes are required for EU expansion (GDPR, localization, payment methods)?"
+- Dependencies: ["sp_001"]
+- Rationale: DEPENDS on market opportunity. If TAM is too small (<$10M) or competition too fierce, we won't proceed, making product analysis premature.
+
+Sub-problem 3: "What is the financial model for EU expansion (investment, timeline, ROI)?"
+- Dependencies: ["sp_001", "sp_002"]
+- Rationale: DEPENDS on both market size (revenue potential) and product scope (cost of changes). Can't build financial model without these inputs.
+
+Sub-problem 4: "Should we proceed with EU expansion given all factors?"
+- Dependencies: ["sp_001", "sp_002", "sp_003"]
+- Rationale: Final synthesis requires all analysis complete.
+
+**Why These Dependencies Make Sense**:
+- Sequential logic: Market → Product → Finance → Decision
+- Each step informs the next
+- If market isn't viable, no need to analyze product changes
+- Avoids wasted deliberation on dependent questions
+
 ## Anti-Patterns to Avoid
 
 ❌ **Over-decomposition**: Breaking "Choose a CRM tool" into "Evaluate Salesforce", "Evaluate HubSpot", "Evaluate Pipedrive"

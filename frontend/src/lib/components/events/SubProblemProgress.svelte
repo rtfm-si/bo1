@@ -61,6 +61,15 @@
 	// State for showing full synthesis
 	let showFullSynthesis = $state(false);
 
+	// AUDIT FIX (Priority 3, Task 3.2): State for showing expert summaries
+	let showExpertSummaries = $state(false);
+
+	// Check if expert_summaries exists and is non-empty
+	const hasExpertSummaries = $derived(
+		event.data.expert_summaries &&
+		Object.keys(event.data.expert_summaries).length > 0
+	);
+
 	// Parse XML if needed
 	const isXML = $derived(event.data.synthesis ? isXMLFormatted(event.data.synthesis) : false);
 	const sections = $derived(isXML ? parseSynthesisXML(event.data.synthesis) : null);
@@ -197,6 +206,43 @@
 						<Badge variant="brand" size="sm">{expert}</Badge>
 					{/each}
 				</div>
+
+				<!-- AUDIT FIX (Priority 3, Task 3.2): Expert Summaries Section -->
+				{#if hasExpertSummaries}
+					<div class="mt-4 border-t border-success-200 dark:border-success-700 pt-4">
+						<button
+							type="button"
+							class="flex items-center gap-2 text-sm font-medium text-success-700 dark:text-success-400 hover:text-success-900 dark:hover:text-success-200 transition-colors"
+							onclick={() => showExpertSummaries = !showExpertSummaries}
+						>
+							<svg
+								class="w-4 h-4 transition-transform duration-200"
+								class:rotate-90={showExpertSummaries}
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+							</svg>
+							<span>Expert Panel Summary ({Object.keys(event.data.expert_summaries).length} experts)</span>
+						</button>
+
+						{#if showExpertSummaries}
+							<div class="mt-3 space-y-2">
+								{#each Object.entries(event.data.expert_summaries) as [personaCode, summary] (personaCode)}
+									<div class="p-3 bg-white/70 dark:bg-neutral-800/70 rounded border border-success-100 dark:border-success-800">
+										<div class="flex items-center gap-2 mb-1">
+											<Badge variant="brand" size="sm">{personaCode}</Badge>
+										</div>
+										<p class="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">
+											{summary}
+										</p>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
 			</div>
 		</div>
 	</div>

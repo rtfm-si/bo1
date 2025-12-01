@@ -88,8 +88,13 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
 async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     """Synthesize final recommendation from deliberation.
 
+    AUDIT FIX (Priority 3, Task 3.1): Uses hierarchical summarization to reduce token usage.
+    - Uses round_summaries for context (rounds 1 to N-1)
+    - Uses full contributions ONLY for the final round
+    - Expected impact: 60-70% token reduction (3500 avg → 1200 avg)
+
     This node creates a comprehensive synthesis report using the
-    SYNTHESIS_PROMPT_TEMPLATE and updates the graph state.
+    SYNTHESIS_HIERARCHICAL_TEMPLATE and updates the graph state.
 
     Args:
         state: Current graph state (must have votes and contributions)
@@ -98,49 +103,71 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates (synthesis report, phase=COMPLETE)
     """
     from bo1.llm.broker import PromptBroker, PromptRequest
-    from bo1.prompts.reusable_prompts import SYNTHESIS_PROMPT_TEMPLATE
+    from bo1.prompts.reusable_prompts import SYNTHESIS_HIERARCHICAL_TEMPLATE
 
-    logger.info("synthesize_node: Starting synthesis")
+    logger.info("synthesize_node: Starting synthesis with hierarchical context")
 
     # Get problem and contributions
     problem = state.get("problem")
     contributions = state.get("contributions", [])
     votes = state.get("votes", [])
+    round_summaries = state.get("round_summaries", [])
+    current_round = state.get("round_number", 1)
 
     if not problem:
         raise ValueError("synthesize_node called without problem in state")
 
-    # Format all contributions and votes for synthesis
-    all_contributions_and_votes = []
+    # AUDIT FIX (Priority 3, Task 3.1): Hierarchical context composition
+    # Build round summaries section (rounds 1 to N-1)
+    round_summaries_text = []
+    if round_summaries:
+        for i, summary in enumerate(round_summaries, start=1):
+            round_summaries_text.append(f"Round {i}: {summary}")
+    else:
+        round_summaries_text.append("(No round summaries available)")
 
-    # Add discussion history
-    all_contributions_and_votes.append("=== DISCUSSION ===\n")
-    for contrib in contributions:
-        all_contributions_and_votes.append(
-            f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
-        )
+    # Build final round contributions (only contributions from final round)
+    final_round_contributions = []
+    final_round_num = current_round  # Current round is the final one
 
-    # Add votes
-    all_contributions_and_votes.append("\n=== RECOMMENDATIONS ===\n")
+    # Get contributions from final round only
+    final_round_contribs = [c for c in contributions if c.round_number == final_round_num]
+
+    if final_round_contribs:
+        for contrib in final_round_contribs:
+            final_round_contributions.append(f"{contrib.persona_name}:\n{contrib.content}\n")
+    else:
+        # Fallback: if no final round contributions, use last 5 contributions
+        logger.warning("synthesize_node: No final round contributions found, using last 5")
+        for contrib in contributions[-5:]:
+            final_round_contributions.append(
+                f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
+            )
+
+    # Format votes/recommendations
+    votes_text = []
     for vote in votes:
-        all_contributions_and_votes.append(
+        votes_text.append(
             f"{vote['persona_name']}: {vote['recommendation']} "
             f"(confidence: {vote['confidence']:.2f})\n"
             f"Reasoning: {vote['reasoning']}\n"
         )
         conditions = vote.get("conditions")
         if conditions and isinstance(conditions, list):
-            all_contributions_and_votes.append(
-                f"Conditions: {', '.join(str(c) for c in conditions)}\n"
-            )
-        all_contributions_and_votes.append("\n")
+            votes_text.append(f"Conditions: {', '.join(str(c) for c in conditions)}\n")
+        votes_text.append("\n")
 
-    full_context = "".join(all_contributions_and_votes)
-
-    # Compose synthesis prompt
-    synthesis_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(
+    # Compose synthesis prompt using hierarchical template
+    synthesis_prompt = SYNTHESIS_HIERARCHICAL_TEMPLATE.format(
         problem_statement=problem.description,
-        all_contributions_and_votes=full_context,
+        round_summaries="\n".join(round_summaries_text),
+        final_round_contributions="\n".join(final_round_contributions),
+        votes="\n".join(votes_text),
+    )
+
+    logger.info(
+        f"synthesize_node: Context built - {len(round_summaries)} round summaries, "
+        f"{len(final_round_contribs)} final round contributions, {len(votes)} votes"
     )
 
     # Create broker and request
@@ -154,6 +181,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         max_tokens=1500,  # Reduced from 3000 to force conciseness
         phase="synthesis",
         agent_type="synthesizer",
+        cache_system=True,  # TASK 1 FIX: Enable prompt caching (system prompt = static template, reused per sub-problem)
     )
 
     # Call LLM
@@ -426,6 +454,7 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         max_tokens=4000,
         phase="meta_synthesis",
         agent_type="meta_synthesizer",
+        cache_system=True,  # TASK 1 FIX: Enable prompt caching (system prompt = static meta-synthesis template)
     )
 
     # Call LLM

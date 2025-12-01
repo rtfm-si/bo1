@@ -394,6 +394,7 @@ Analyze the discussion and decide the next action."""
             system=system_prompt,
             user_message=user_message,
             phase="facilitator_decision",
+            prefill="<thinking>",  # Force character consistency and proper XML structure
             temperature=1.0,
             max_tokens=800,
         )

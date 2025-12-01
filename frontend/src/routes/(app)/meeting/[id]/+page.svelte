@@ -114,6 +114,7 @@
 		Button,
 	} from '$lib/components/ui';
 	import type { Tab } from '$lib/components/ui';
+	import WorkingStatus from '$lib/components/ui/WorkingStatus.svelte';
 	import {
 		EventCardSkeleton,
 		ExpertPanelSkeleton,
@@ -230,6 +231,28 @@
 	});
 
 	const subProblemProgress = $derived(subProblemProgressCache);
+
+	// AUDIT FIX (Issue #4): Working status tracking for prominent UI feedback
+	let currentWorkingPhase = $state<string | null>(null);
+	let workingStatusStartTime = $state<number | null>(null);
+	let workingElapsedSeconds = $state(0);
+	let estimatedDuration = $state<string | undefined>(undefined);
+
+	// Track working status updates
+	$effect(() => {
+		if (currentWorkingPhase) {
+			workingStatusStartTime = Date.now();
+			const interval = setInterval(() => {
+				if (workingStatusStartTime) {
+					workingElapsedSeconds = Math.floor((Date.now() - workingStatusStartTime) / 1000);
+				}
+			}, 1000);
+			return () => clearInterval(interval);
+		} else {
+			workingStatusStartTime = null;
+			workingElapsedSeconds = 0;
+		}
+	});
 
 	// Heartbeat tracking for long operations
 	let synthesisStartTime = $state<number | null>(null);
@@ -414,6 +437,20 @@
 				// Parse the data payload
 				const payload = JSON.parse(event.data);
 
+				// AUDIT FIX (Issue #4): Handle working_status events
+				if (eventType === 'working_status') {
+					currentWorkingPhase = payload.phase || null;
+					estimatedDuration = payload.estimated_duration || undefined;
+					workingElapsedSeconds = 0; // Reset elapsed time for new phase
+					console.log('[WORKING STATUS]', payload.phase, estimatedDuration);
+					return; // Don't add to event stream, just update UI state
+				}
+
+				// Clear working status when other significant events arrive
+				if (['contribution', 'convergence', 'voting_complete', 'synthesis_complete', 'meta_synthesis_complete', 'subproblem_complete'].includes(eventType)) {
+					currentWorkingPhase = null;
+				}
+
 				// ADD THIS: Debug persona_selected events specifically
 				if (eventType === 'persona_selected') {
 					console.log('[EXPERT PANEL] Persona selected:', {
@@ -488,6 +525,7 @@
 			'complete',
 			'error',
 			'clarification_requested',
+			'working_status', // AUDIT FIX (Issue #4): Add working status events
 		];
 
 		// Build event handlers map
@@ -1063,6 +1101,15 @@
 
 	<!-- Main Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- AUDIT FIX (Issue #4): Prominent working status indicator -->
+		{#if currentWorkingPhase}
+			<WorkingStatus
+				currentPhase={currentWorkingPhase}
+				elapsedSeconds={workingElapsedSeconds}
+				estimatedDuration={estimatedDuration}
+			/>
+		{/if}
+
 		<!-- ARIA Live Region for Event Updates (A11Y: Announce new events to screen readers) -->
 		<div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
 			{#if events.length > 0}

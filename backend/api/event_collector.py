@@ -476,6 +476,7 @@ class EventCollector:
         """Handle parallel_round node completion events.
 
         Publishes events for:
+        - Working status (before round starts)
         - Round start (phase, experts selected)
         - Each contribution generated in this round
         - Round summary
@@ -495,6 +496,17 @@ class EventCollector:
         # round_number has already been incremented, so we look at -1
         completed_round = round_number - 1
         experts_this_round = experts_per_round[-1] if experts_per_round else []
+
+        # AUDIT FIX (Issue #4): Emit working status BEFORE round starts
+        self.publisher.publish_event(
+            session_id,
+            "working_status",
+            {
+                "phase": f"Round {completed_round}: Experts deliberating...",
+                "estimated_duration": "8-12 seconds",
+                "sub_problem_index": sub_problem_index,
+            },
+        )
 
         # Emit parallel round start event
         self.publisher.publish_event(
@@ -539,18 +551,27 @@ class EventCollector:
 
     async def _handle_voting(self, session_id: str, output: dict) -> None:
         """Handle vote node completion."""
+        # AUDIT FIX (Issue #4): Emit working status BEFORE voting starts
+        self.publisher.publish_event(
+            session_id,
+            "working_status",
+            {
+                "phase": "Experts finalizing recommendations...",
+                "estimated_duration": "10-15 seconds",
+                "sub_problem_index": output.get("sub_problem_index", 0),
+            },
+        )
         await self._publish_node_event(session_id, output, "voting_complete", registry_key="voting")
 
     async def _handle_synthesis(self, session_id: str, output: dict) -> None:
         """Handle synthesize node completion."""
-        # ISSUE FIX: Add status message for synthesis phase
+        # AUDIT FIX (Issue #4): Emit working status BEFORE synthesis starts
         self.publisher.publish_event(
             session_id,
-            "discussion_quality_status",
+            "working_status",
             {
-                "status": "synthesizing",
-                "message": "Synthesizing insights...",
-                "round": output.get("round_number", 1),
+                "phase": "Synthesizing insights from deliberation...",
+                "estimated_duration": "5-8 seconds",
                 "sub_problem_index": output.get("sub_problem_index", 0),
             },
         )
@@ -567,36 +588,30 @@ class EventCollector:
                 logger.error(f"Failed to save synthesis to PostgreSQL for {session_id}: {e}")
 
     async def _handle_subproblem_complete(self, session_id: str, output: dict) -> None:
-        """Handle next_subproblem node completion - includes duration calculation."""
-        sub_problem_results = output.get("sub_problem_results", [])
+        """Handle next_subproblem node completion - NO-OP to avoid duplicate events.
 
-        if not sub_problem_results:
-            return
+        AUDIT FIX (Issue #2): The subproblem_complete event is already published by
+        the parallel_subproblems_node itself. Publishing here creates duplicate
+        "Sub-Problem X Complete" messages in the UI.
 
-        # Extract data using registry
-        registry = get_event_registry()
-        data = registry.extract("subproblem_complete", output)
-
-        # Calculate actual duration if we have start time
-        completed_index = data["sub_problem_index"]
-        subproblem_key = f"subproblem:{session_id}:{completed_index}:start_time"
-        start_time_str = self.publisher.redis.get(subproblem_key)
-
-        if start_time_str and data["duration_seconds"] == 0.0:
-            # Calculate duration from stored start time
-            from datetime import UTC, datetime
-
-            start_time = datetime.fromisoformat(start_time_str)
-            end_time = datetime.now(UTC)
-            data["duration_seconds"] = (end_time - start_time).total_seconds()
-
-            # Clean up the start time key
-            self.publisher.redis.delete(subproblem_key)
-
-        self.publisher.publish_event(session_id, "subproblem_complete", data)
+        This handler is kept as a no-op for clarity and to maintain the handler
+        structure in case we need to add future logic here.
+        """
+        # NO-OP: Event already published by parallel_subproblems_node
+        # See: bo1/graph/nodes/subproblems.py (event publishing in node)
+        pass
 
     async def _handle_meta_synthesis(self, session_id: str, output: dict) -> None:
         """Handle meta_synthesize node completion."""
+        # AUDIT FIX (Issue #4): Emit working status BEFORE meta-synthesis starts
+        self.publisher.publish_event(
+            session_id,
+            "working_status",
+            {
+                "phase": "Synthesizing final recommendation...",
+                "estimated_duration": "8-12 seconds",
+            },
+        )
         # Publish event
         await self._publish_node_event(session_id, output, "meta_synthesis_complete")
 

@@ -189,6 +189,90 @@ Respond with JSON:
 }
 ```
 
+## Boundary Case Examples
+
+### Example 4: Boundary - Simple vs Moderate (0.28 complexity)
+
+**Problem**: "Should I offer monthly or annual pricing for my SaaS?"
+
+**Assessment**:
+```json
+{
+  "scope_breadth": 0.3,
+  "dependencies": 0.2,
+  "ambiguity": 0.3,
+  "stakeholders": 0.2,
+  "novelty": 0.3,
+  "overall_complexity": 0.28,
+  "recommended_rounds": 3,
+  "recommended_experts": 3,
+  "reasoning": "Just below moderate threshold (0.30). Clear decision with some uncertainty about customer behavior, but well-established SaaS pricing patterns exist. 3 rounds sufficient."
+}
+```
+
+**Calculation**: (0.3 * 0.25) + (0.2 * 0.25) + (0.3 * 0.20) + (0.2 * 0.15) + (0.3 * 0.15) = 0.075 + 0.05 + 0.06 + 0.03 + 0.045 = 0.26 ≈ 0.28
+
+**Analysis**:
+- 2 domains: finance (revenue model), marketing (customer preference)
+- Loosely coupled - pricing affects churn but factors mostly independent
+- Some unknowns about customer preference but clear constraints
+- Small team + customers affected
+- Common problem with established patterns
+
+### Example 5: Boundary - Moderate vs Complex (0.49 complexity)
+
+**Problem**: "Should I add a freemium tier to my paid SaaS product?"
+
+**Assessment**:
+```json
+{
+  "scope_breadth": 0.5,
+  "dependencies": 0.6,
+  "ambiguity": 0.5,
+  "stakeholders": 0.4,
+  "novelty": 0.4,
+  "overall_complexity": 0.49,
+  "recommended_rounds": 4,
+  "recommended_experts": 4,
+  "reasoning": "Just below complex threshold (0.50). Multiple interconnected factors with some uncertainty. 4 rounds allows thorough exploration without over-deliberation."
+}
+```
+
+**Calculation**: (0.5 * 0.25) + (0.6 * 0.25) + (0.5 * 0.20) + (0.4 * 0.15) + (0.4 * 0.15) = 0.125 + 0.15 + 0.10 + 0.06 + 0.06 = 0.495 ≈ 0.49
+
+**Analysis**:
+- 3 domains: product (feature gating), finance (revenue impact), marketing (funnel)
+- Tightly coupled - freemium affects conversion, support costs, brand perception
+- Moderate unknowns: conversion rate from free to paid, support burden
+- Multiple stakeholders: existing customers (may feel cheated), prospects, support team, sales
+- Common pattern but execution varies widely; no one-size-fits-all
+
+## Validation Criteria
+
+<validation_criteria>
+SANITY CHECKS:
+
+1. **Novelty Check**: If novelty > 0.7 (novel/unprecedented), verify the problem is truly novel
+   - "Should I use PostgreSQL?" cannot have novelty 0.8 (well-established technology)
+   - "Should I accept Bitcoin for B2B payments?" can have novelty 0.8 (limited precedent in 2024)
+
+2. **Scope-Complexity Alignment**: If scope_breadth > 0.7 (4+ domains), overall_complexity should be ≥ 0.5
+   - Cross-domain problems are inherently complex
+   - If scope is high but overall is low, re-assess dependencies and ambiguity
+
+3. **Stakeholder-Scope Correlation**: High stakeholders (>0.6) usually implies high scope (>0.5)
+   - If many parties affected, multiple domains usually involved
+   - Exception: Organizational changes (high stakeholders, narrow scope)
+
+4. **Complexity-Recommendations Match**:
+   - Complexity 0.0-0.3 → 3 rounds, 3 experts (if recommending 5 rounds for complexity 0.2, re-assess)
+   - Complexity 0.7-1.0 → 6 rounds, 5 experts (if recommending 3 rounds for complexity 0.8, re-assess)
+
+5. **Common Problem Check**: If problem matches well-known patterns, cap novelty at 0.5 max
+   - Pricing strategy, hiring decisions, tech stack choices = common patterns (novelty ≤ 0.5)
+   - Market pivots, acquisition decisions, major org restructures = less common (novelty ≥ 0.6)
+</validation_criteria>
+
 Your task is to assess the complexity accurately using the dimension framework and provide
 recommended deliberation parameters that match the problem's true complexity.
 """

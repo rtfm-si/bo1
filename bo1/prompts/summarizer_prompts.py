@@ -42,6 +42,38 @@ Open question: What's acceptable timeline for break-even?"
 Bad summary:
 "The team discussed various perspectives on the problem. Some people had concerns
 while others were optimistic. More discussion needed."
+
+ADDITIONAL EXAMPLES:
+
+Example 2 - Disagreement-Heavy Round:
+Round 3 Contributions:
+- DevOps: "Microservices will solve scaling issues. I've seen 10x throughput gains."
+- CTO: "Disagree strongly. Microservices add operational complexity we can't handle with 5 engineers. Optimize monolith first."
+- CFO: "Migration costs $800K-2M. ROI unclear if we can optimize monolith for $100K."
+- Product Manager: "Customer pain is performance, not architecture. They don't care if it's monolith or microservices."
+
+GOOD SUMMARY (125 tokens):
+"Sharp divide: DevOps advocates microservices (10x throughput gains from experience), CTO opposes (5-engineer team lacks capacity for operational complexity). CFO flags $800K-2M migration cost vs $100K monolith optimization, questions ROI. PM reframes: customers care about performance outcome, not architecture choice. Key tension: technical elegance vs pragmatic constraints. Consensus on performance problem, disagreement on solution path. Open: Can monolith optimization deliver required performance? What's the 18-month cost comparison?"
+
+Example 3 - Research-Heavy Round:
+Round 4 Contributions:
+- Research findings: "Gartner 2024 report: B2B SaaS project management TAM is $8.2B in North America, CAGR 12%. Top 3 players: Asana (18% share), Monday (15%), ClickUp (9%)."
+- Market Analyst: "Our target (construction vertical) is 8% of overall TAM = $656M. Current penetration in construction is weak: Asana 5%, Monday 3%."
+- Sales Expert: "Construction companies hate generic tools. Verticalization opportunity: 12 construction-specific features could capture 10-15% share = $65M-$98M opportunity."
+- CFO: "At 10% share, we'd need 820 customers at $8K ACV. Current conversion rate (2%) means 41K leads. Can we generate that volume?"
+
+GOOD SUMMARY (140 tokens):
+"Research validated TAM: $8.2B overall, $656M in construction vertical (8%). Weak incumbent penetration (Asana 5%, Monday 3%) creates verticalization opportunity. Sales identified 12 construction-specific features as differentiators. CFO modeled 10% share = $65M revenue = 820 customers at $8K ACV. Bottleneck: requires 41K leads at 2% conversion. Consensus: market opportunity exists ($656M addressable) and incumbents vulnerable in vertical. Open question: Can marketing generate 41K qualified leads? Lead gen becomes critical constraint."
+
+Example 4 - Convergence Round:
+Round 5 Contributions:
+- All experts now align on phased approach: pilot in UK (Months 1-6), then EU expansion (Months 7-18)
+- Finance: "UK pilot de-risks with $150K investment vs $500K full EU. Break-even at 30 customers."
+- Marketing: "UK shares language/culture, reduces localization complexity. GDPR compliance roadmap established."
+- Product: "Feature parity with US version achievable in 3 months. UK-specific payment methods added."
+
+GOOD SUMMARY (110 tokens):
+"Convergence achieved on phased UK-first approach. Consensus: UK pilot ($150K) de-risks vs full EU launch ($500K). Break-even: 30 UK customers (Finance). Rationale: shared language reduces localization complexity (Marketing), 3-month feature parity timeline (Product), GDPR compliance path established. Full EU expansion contingent on UK pilot success metrics (30+ customers, <6 month payback). No major dissent; shifted from broad EU launch to focused UK validation. Remaining: define UK pilot success criteria explicitly."
 </output_format>
 
 <guidelines>
@@ -56,7 +88,31 @@ NEVER:
 - Omit dissenting views
 - Make up details not in the contributions
 - Exceed 150 tokens significantly
-</guidelines>"""
+</guidelines>
+
+<context_quality_criteria>
+WHAT MAKES A GOOD SUMMARY FOR FUTURE CONTEXT:
+
+1. **Decisions Made**: Explicit choices or consensus points
+   - "Group agreed on phased approach: pilot first, then scale"
+   - NOT: "Different approaches discussed"
+
+2. **Quantitative Anchors**: Specific numbers that ground discussion
+   - "$500K budget, 18-month timeline, break-even at 30 customers"
+   - NOT: "Budget constraints mentioned"
+
+3. **Key Tensions**: Disagreements that shape debate
+   - "CTO prioritizes stability (monolith), DevOps prioritizes scalability (microservices)"
+   - NOT: "Some disagreement exists"
+
+4. **Open Questions**: What remains unresolved
+   - "Can marketing generate 41K qualified leads?" (specific, answerable)
+   - NOT: "More research needed" (vague)
+
+5. **Attribution When Critical**: Name expert only if their unique perspective matters
+   - "CFO flagged $2M hidden cost that others missed"
+   - NOT: "Maria discussed finances" (content matters more than name)
+</context_quality_criteria>"""
 
 
 def compose_summarization_request(

@@ -315,6 +315,7 @@ export interface SynthesisCompleteEvent extends SSEEvent {
 // Event 19: Sub-Problem Complete
 // ============================================================================
 
+// AUDIT FIX (Priority 3, Task 3.2): Added expert_summaries field
 export interface SubProblemCompleteEvent extends SSEEvent {
 	event_type: 'subproblem_complete';
 	data: {
@@ -326,6 +327,7 @@ export interface SubProblemCompleteEvent extends SSEEvent {
 		duration_seconds: number;
 		expert_panel: string[];
 		contribution_count: number;
+		expert_summaries: Record<string, string>; // persona_code → summary text
 	};
 }
 

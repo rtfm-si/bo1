@@ -154,19 +154,53 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     logger.info(f"[RESEARCH] Query extracted: {research_query[:80]}...")
 
-    # Determine research depth based on keywords in reasoning
-    deep_keywords = ["competitor", "market", "landscape", "regulation", "policy", "analysis"]
-    facilitator_research_depth: Literal["basic", "deep"] = (
-        "deep"
-        if any(keyword in decision_reasoning.lower() for keyword in deep_keywords)
-        else "basic"
-    )
+    # Determine research depth using semantic similarity (not keywords)
+    # Deep research examples: competitor analysis, market sizing, regulatory compliance
+    deep_research_examples = [
+        "competitor analysis and market positioning",
+        "market size and total addressable market research",
+        "regulatory requirements and compliance analysis",
+        "industry landscape and trends analysis",
+        "strategic partnerships and acquisition targets",
+    ]
 
-    logger.info(f"[RESEARCH] Depth: {facilitator_research_depth}")
+    import numpy as np
+
+    from bo1.llm.embeddings import generate_embedding
+
+    try:
+        # Generate embeddings for query and examples
+        query_embedding = generate_embedding(research_query, input_type="query")
+        example_embeddings = [
+            generate_embedding(example, input_type="document") for example in deep_research_examples
+        ]
+
+        # Calculate cosine similarity with each example
+        query_array = np.array(query_embedding)
+        similarities = [
+            np.dot(query_array, np.array(ex_emb))
+            / (np.linalg.norm(query_array) * np.linalg.norm(ex_emb))
+            for ex_emb in example_embeddings
+        ]
+        max_similarity = max(similarities)
+
+        # Threshold: 0.75+ similarity = deep research (Tavily)
+        facilitator_research_depth: Literal["basic", "deep"] = (
+            "deep" if max_similarity >= 0.75 else "basic"
+        )
+
+        logger.info(
+            f"[RESEARCH] Depth: {facilitator_research_depth} (similarity: {max_similarity:.3f}, "
+            f"matched: '{deep_research_examples[similarities.index(max_similarity)]}')"
+        )
+    except Exception as e:
+        logger.warning(
+            f"[RESEARCH] Embedding-based depth selection failed: {e}, defaulting to basic"
+        )
+        facilitator_research_depth = "basic"
 
     # P1-RESEARCH-2: Early cache check for cross-session deduplication
     # Check if similar research exists in cache before calling ResearcherAgent
-    from bo1.llm.embeddings import generate_embedding
     from bo1.state.postgres_manager import find_similar_research
 
     try:

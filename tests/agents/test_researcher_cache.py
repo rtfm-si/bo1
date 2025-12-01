@@ -48,7 +48,8 @@ def test_save_research_result_basic():
 def test_find_cached_research_by_category():
     """Test finding cached research by category."""
     # Save a research result
-    embedding = [0.2] * 1024
+    # Use unique embedding pattern to avoid collision with other tests
+    embedding = [0.2 if i % 3 == 0 else 0.3 for i in range(1024)]
     save_research_result(
         question="What is typical SaaS CAC payback period?",
         embedding=embedding,
@@ -58,8 +59,8 @@ def test_find_cached_research_by_category():
         industry="saas",
     )
 
-    # Find by category
-    query_embedding = [0.2] * 1024  # Same embedding
+    # Find by category using same embedding pattern
+    query_embedding = [0.2 if i % 3 == 0 else 0.3 for i in range(1024)]
     cached = find_cached_research(
         question_embedding=query_embedding,
         category="saas_metrics",

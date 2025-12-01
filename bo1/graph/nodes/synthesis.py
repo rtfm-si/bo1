@@ -9,6 +9,7 @@ This module contains nodes for the final stages of deliberation:
 
 import json
 import logging
+import re
 from typing import Any
 
 from bo1.graph.state import DeliberationGraphState
@@ -187,8 +188,12 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Call LLM
     response = await broker.call(request)
 
-    # Prepend prefill for complete content
-    synthesis_report = "<thinking>" + response.content
+    # Strip <thinking> tags - the prefill causes duplicate tags and they're not needed in output
+    # Pattern handles both: <thinking>content</thinking> and orphaned <thinking> or </thinking> tags
+    raw_content = response.content.strip()
+    synthesis_report = re.sub(r"<thinking>[\s\S]*?</thinking>", "", raw_content).strip()
+    # Also strip any orphaned opening/closing thinking tags
+    synthesis_report = re.sub(r"</?thinking>", "", synthesis_report).strip()
 
     # Add AI-generated content disclaimer
     disclaimer = (

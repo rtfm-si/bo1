@@ -17,16 +17,148 @@ export interface SynthesisSection {
 	success_metrics?: string;
 	timeline?: string;
 	resources_required?: string;
+	convergence_point?: string;
+	dissenting_views?: string;
+	warning?: string; // AI-generated content disclaimer
 }
 
 /**
- * Parse synthesis XML output into structured sections
+ * Strip <thinking> tags from synthesis content
+ * These are internal LLM reasoning that shouldn't be displayed to users
  */
-export function parseSynthesisXML(xmlString: string): SynthesisSection {
+function stripThinkingTags(content: string): string {
+	// Remove complete <thinking>...</thinking> blocks
+	let cleaned = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+	// Remove any orphaned opening/closing thinking tags
+	cleaned = cleaned.replace(/<\/?thinking>/gi, '');
+	return cleaned.trim();
+}
+
+/**
+ * Extract and remove the AI warning/disclaimer from content
+ */
+function extractWarning(content: string): { content: string; warning: string | undefined } {
+	// Look for the warning pattern at the end
+	const warningPatterns = [
+		/---\s*\n\s*Warning:[\s\S]*$/i,
+		/\n\s*Warning:\s*This content is AI-generated[\s\S]*$/i,
+	];
+
+	for (const pattern of warningPatterns) {
+		const match = content.match(pattern);
+		if (match) {
+			const warning = match[0]
+				.replace(/^---\s*\n\s*/, '')
+				.replace(/^Warning:\s*/i, '')
+				.trim();
+			return {
+				content: content.replace(pattern, '').trim(),
+				warning,
+			};
+		}
+	}
+
+	return { content, warning: undefined };
+}
+
+/**
+ * Map common markdown header names to our section keys
+ */
+const MARKDOWN_TO_SECTION_KEY: Record<string, keyof SynthesisSection> = {
+	'executive summary': 'executive_summary',
+	recommendation: 'recommendation',
+	rationale: 'rationale',
+	'implementation considerations': 'implementation_considerations',
+	'confidence assessment': 'confidence_assessment',
+	'open questions': 'open_questions',
+	'vote breakdown': 'vote_breakdown',
+	'risks & mitigations': 'risks_and_mitigations',
+	'risks and mitigations': 'risks_and_mitigations',
+	'success metrics': 'success_metrics',
+	timeline: 'timeline',
+	'resources required': 'resources_required',
+	'the convergence point': 'convergence_point',
+	'convergence point': 'convergence_point',
+	'dissenting views': 'dissenting_views',
+	// Handle variations
+	'the real problem': 'rationale',
+	'why community infrastructure matters more': 'rationale',
+};
+
+/**
+ * Parse markdown-formatted synthesis into sections
+ * Handles ## Section Name format
+ */
+function parseMarkdownSections(content: string): SynthesisSection {
 	const sections: SynthesisSection = {};
 
-	// Try to extract each known section
-	const sectionNames = [
+	// Split by ## headers (level 2)
+	const headerRegex = /^##\s+(.+?)$/gm;
+	const parts: { header: string; content: string }[] = [];
+
+	let lastIndex = 0;
+	let lastHeader = '';
+	let match;
+
+	// Find all headers and their positions
+	const matches: { header: string; index: number }[] = [];
+	while ((match = headerRegex.exec(content)) !== null) {
+		matches.push({ header: match[1].trim(), index: match.index });
+	}
+
+	// Extract content between headers
+	for (let i = 0; i < matches.length; i++) {
+		const current = matches[i];
+		const nextIndex = i < matches.length - 1 ? matches[i + 1].index : content.length;
+
+		// Get content after the header line
+		const headerLineEnd = content.indexOf('\n', current.index);
+		const sectionContent = content.slice(headerLineEnd + 1, nextIndex).trim();
+
+		parts.push({ header: current.header, content: sectionContent });
+	}
+
+	// Map headers to section keys
+	for (const part of parts) {
+		const normalizedHeader = part.header.toLowerCase();
+		const sectionKey = MARKDOWN_TO_SECTION_KEY[normalizedHeader];
+
+		if (sectionKey) {
+			// If we already have content for this section (like rationale), append
+			if (sections[sectionKey]) {
+				sections[sectionKey] += '\n\n### ' + part.header + '\n\n' + part.content;
+			} else {
+				sections[sectionKey] = part.content;
+			}
+		}
+	}
+
+	return sections;
+}
+
+/**
+ * Check if content appears to be markdown-formatted (has ## headers)
+ */
+export function isMarkdownFormatted(content: string): boolean {
+	return /^##\s+/m.test(content);
+}
+
+/**
+ * Parse synthesis output into structured sections
+ * Handles both XML format (<executive_summary>) and Markdown format (## Executive Summary)
+ */
+export function parseSynthesisXML(xmlString: string): SynthesisSection {
+	// First, strip any thinking tags (defense in depth - backend should do this too)
+	let cleanedContent = stripThinkingTags(xmlString);
+
+	// Extract warning/disclaimer (will be displayed separately)
+	const { content: contentWithoutWarning, warning } = extractWarning(cleanedContent);
+	cleanedContent = contentWithoutWarning;
+
+	let sections: SynthesisSection = {};
+
+	// Try XML parsing first
+	const xmlSectionNames = [
 		'executive_summary',
 		'recommendation',
 		'rationale',
@@ -38,10 +170,12 @@ export function parseSynthesisXML(xmlString: string): SynthesisSection {
 		'success_metrics',
 		'timeline',
 		'resources_required',
+		'convergence_point',
+		'dissenting_views',
 	] as const;
 
-	for (const sectionName of sectionNames) {
-		const content = extractXMLSection(xmlString, sectionName);
+	for (const sectionName of xmlSectionNames) {
+		const content = extractXMLSection(cleanedContent, sectionName);
 		if (content) {
 			sections[sectionName] = content;
 		}
@@ -49,7 +183,7 @@ export function parseSynthesisXML(xmlString: string): SynthesisSection {
 
 	// Fallback: Try unified_recommendation for meta-synthesis (maps to recommendation)
 	if (!sections.recommendation) {
-		const unifiedRec = extractXMLSection(xmlString, 'unified_recommendation');
+		const unifiedRec = extractXMLSection(cleanedContent, 'unified_recommendation');
 		if (unifiedRec) {
 			sections.recommendation = unifiedRec;
 		}
@@ -57,7 +191,7 @@ export function parseSynthesisXML(xmlString: string): SynthesisSection {
 
 	// Fallback: Try unified_action_plan for meta-synthesis (maps to implementation_considerations)
 	if (!sections.implementation_considerations) {
-		const actionPlan = extractXMLSection(xmlString, 'unified_action_plan');
+		const actionPlan = extractXMLSection(cleanedContent, 'unified_action_plan');
 		if (actionPlan) {
 			sections.implementation_considerations = actionPlan;
 		}
@@ -65,15 +199,25 @@ export function parseSynthesisXML(xmlString: string): SynthesisSection {
 
 	// Fallback: Try integrated_risk_assessment for meta-synthesis (maps to risks_and_mitigations)
 	if (!sections.risks_and_mitigations) {
-		const riskAssessment = extractXMLSection(xmlString, 'integrated_risk_assessment');
+		const riskAssessment = extractXMLSection(cleanedContent, 'integrated_risk_assessment');
 		if (riskAssessment) {
 			sections.risks_and_mitigations = riskAssessment;
 		}
 	}
 
-	// If no sections were extracted, return the raw content as executive_summary
+	// If no XML sections found, try markdown parsing
+	if (Object.keys(sections).length === 0 && isMarkdownFormatted(cleanedContent)) {
+		sections = parseMarkdownSections(cleanedContent);
+	}
+
+	// If still no sections, return the cleaned content as executive_summary
 	if (Object.keys(sections).length === 0) {
-		sections.executive_summary = xmlString.trim();
+		sections.executive_summary = cleanedContent;
+	}
+
+	// Always include warning if present
+	if (warning) {
+		sections.warning = warning;
 	}
 
 	return sections;

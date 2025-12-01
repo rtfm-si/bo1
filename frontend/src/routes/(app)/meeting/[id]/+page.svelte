@@ -115,6 +115,7 @@
 	} from '$lib/components/ui';
 	import type { Tab } from '$lib/components/ui';
 	import WorkingStatus from '$lib/components/ui/WorkingStatus.svelte';
+	import AiDisclaimer from '$lib/components/ui/AiDisclaimer.svelte';
 	import {
 		EventCardSkeleton,
 		ExpertPanelSkeleton,
@@ -1958,5 +1959,8 @@
 				{/if}
 			</div>
 		</div>
+
+		<!-- Subtle AI disclaimer at bottom of page -->
+		<AiDisclaimer class="mt-8" />
 	</main>
 </div>

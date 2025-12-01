@@ -1,12 +1,13 @@
 <script lang="ts">
 	/**
 	 * SynthesisComplete Event Component
-	 * Displays the synthesis report with parsed XML sections
+	 * Displays the synthesis report with parsed XML/Markdown sections
 	 */
 	import type { SynthesisCompleteEvent, MetaSynthesisCompleteEvent } from '$lib/api/sse-events';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import ActionableTasks from './ActionableTasks.svelte';
-	import { parseSynthesisXML, isXMLFormatted, type SynthesisSection } from '$lib/utils/xml-parser';
+	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
+	import { parseSynthesisXML, isXMLFormatted, isMarkdownFormatted, type SynthesisSection } from '$lib/utils/xml-parser';
 
 	interface Props {
 		event: SynthesisCompleteEvent | MetaSynthesisCompleteEvent;
@@ -15,8 +16,17 @@
 	let { event }: Props = $props();
 
 	const isMeta = $derived(event.event_type === 'meta_synthesis_complete');
-	const isXML = $derived(isXMLFormatted(event.data.synthesis));
-	const sections = $derived(isXML ? parseSynthesisXML(event.data.synthesis) : null);
+	// Always try to parse - supports both XML (<tag>) and Markdown (## Header) formats
+	const sections = $derived(parseSynthesisXML(event.data.synthesis));
+	// Check if we got meaningful parsed sections (not just raw content dumped in executive_summary)
+	const hasParsedSections = $derived(
+		sections &&
+			(sections.recommendation ||
+				sections.rationale ||
+				sections.convergence_point ||
+				sections.vote_breakdown ||
+				Object.keys(sections).length > 2) // More than just executive_summary + warning
+	);
 </script>
 
 <div class="space-y-3">
@@ -55,7 +65,7 @@
 		</div>
 
 		<!-- Parsed Synthesis Content -->
-		{#if sections}
+		{#if hasParsedSections && sections}
 			<!-- Executive Summary - Prominent -->
 			{#if sections.executive_summary}
 				<div class="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600 p-4 rounded-r-lg mb-4">
@@ -65,9 +75,7 @@
 						</svg>
 						Executive Summary
 					</h4>
-					<div class="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
-						{sections.executive_summary}
-					</div>
+					<MarkdownContent content={sections.executive_summary} class="text-sm text-blue-800 dark:text-blue-200" />
 				</div>
 			{/if}
 
@@ -80,9 +88,7 @@
 						</svg>
 						Recommendation
 					</h4>
-					<div class="text-sm text-green-800 dark:text-green-200 whitespace-pre-wrap">
-						{sections.recommendation}
-					</div>
+					<MarkdownContent content={sections.recommendation} class="text-sm text-green-800 dark:text-green-200" />
 				</div>
 			{/if}
 
@@ -96,8 +102,8 @@
 							</svg>
 							Rationale
 						</summary>
-						<div class="px-4 pb-4 pt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-							{sections.rationale}
+						<div class="px-4 pb-4 pt-2">
+							<MarkdownContent content={sections.rationale} class="text-sm text-slate-600 dark:text-slate-400" />
 						</div>
 					</details>
 				{/if}
@@ -110,8 +116,8 @@
 							</svg>
 							Implementation Considerations
 						</summary>
-						<div class="px-4 pb-4 pt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-							{sections.implementation_considerations}
+						<div class="px-4 pb-4 pt-2">
+							<MarkdownContent content={sections.implementation_considerations} class="text-sm text-slate-600 dark:text-slate-400" />
 						</div>
 					</details>
 				{/if}
@@ -124,8 +130,8 @@
 							</svg>
 							Confidence Assessment
 						</summary>
-						<div class="px-4 pb-4 pt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-							{sections.confidence_assessment}
+						<div class="px-4 pb-4 pt-2">
+							<MarkdownContent content={sections.confidence_assessment} class="text-sm text-slate-600 dark:text-slate-400" />
 						</div>
 					</details>
 				{/if}
@@ -138,8 +144,8 @@
 							</svg>
 							Risks & Mitigations
 						</summary>
-						<div class="px-4 pb-4 pt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-							{sections.risks_and_mitigations}
+						<div class="px-4 pb-4 pt-2">
+							<MarkdownContent content={sections.risks_and_mitigations} class="text-sm text-slate-600 dark:text-slate-400" />
 						</div>
 					</details>
 				{/if}
@@ -152,8 +158,8 @@
 							</svg>
 							Success Metrics
 						</summary>
-						<div class="px-4 pb-4 pt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-							{sections.success_metrics}
+						<div class="px-4 pb-4 pt-2">
+							<MarkdownContent content={sections.success_metrics} class="text-sm text-slate-600 dark:text-slate-400" />
 						</div>
 					</details>
 				{/if}
@@ -166,8 +172,8 @@
 							</svg>
 							Timeline
 						</summary>
-						<div class="px-4 pb-4 pt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-							{sections.timeline}
+						<div class="px-4 pb-4 pt-2">
+							<MarkdownContent content={sections.timeline} class="text-sm text-slate-600 dark:text-slate-400" />
 						</div>
 					</details>
 				{/if}
@@ -180,8 +186,8 @@
 							</svg>
 							Resources Required
 						</summary>
-						<div class="px-4 pb-4 pt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-							{sections.resources_required}
+						<div class="px-4 pb-4 pt-2">
+							<MarkdownContent content={sections.resources_required} class="text-sm text-slate-600 dark:text-slate-400" />
 						</div>
 					</details>
 				{/if}
@@ -194,8 +200,8 @@
 							</svg>
 							Open Questions
 						</summary>
-						<div class="px-4 pb-4 pt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-							{sections.open_questions}
+						<div class="px-4 pb-4 pt-2">
+							<MarkdownContent content={sections.open_questions} class="text-sm text-slate-600 dark:text-slate-400" />
 						</div>
 					</details>
 				{/if}
@@ -208,21 +214,60 @@
 							</svg>
 							Vote Breakdown
 						</summary>
-						<div class="px-4 pb-4 pt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-							{sections.vote_breakdown}
+						<div class="px-4 pb-4 pt-2">
+							<MarkdownContent content={sections.vote_breakdown} class="text-sm text-slate-600 dark:text-slate-400" />
+						</div>
+					</details>
+				{/if}
+
+				{#if sections.convergence_point}
+					<details class="bg-slate-50 dark:bg-slate-800/50 rounded-lg overflow-hidden" open>
+						<summary class="cursor-pointer font-medium text-slate-700 dark:text-slate-300 p-4 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+							</svg>
+							Convergence Point
+						</summary>
+						<div class="px-4 pb-4 pt-2">
+							<MarkdownContent content={sections.convergence_point} class="text-sm text-slate-600 dark:text-slate-400" />
+						</div>
+					</details>
+				{/if}
+
+				{#if sections.dissenting_views}
+					<details class="bg-slate-50 dark:bg-slate-800/50 rounded-lg overflow-hidden">
+						<summary class="cursor-pointer font-medium text-slate-700 dark:text-slate-300 p-4 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+							</svg>
+							Dissenting Views
+						</summary>
+						<div class="px-4 pb-4 pt-2">
+							<MarkdownContent content={sections.dissenting_views} class="text-sm text-slate-600 dark:text-slate-400" />
 						</div>
 					</details>
 				{/if}
 			</div>
 		{:else}
-			<!-- Fallback: Display raw content if not XML -->
-			<div
-				class="prose prose-sm dark:prose-invert max-w-none bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
-			>
-				<div class="whitespace-pre-wrap text-neutral-700 dark:text-neutral-300">
-					{event.data.synthesis}
+			<!-- Fallback: Display parsed content (even if only executive_summary) -->
+			{#if sections?.executive_summary}
+				<div class="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600 p-4 rounded-r-lg mb-4">
+					<h4 class="font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+						</svg>
+						Synthesis
+					</h4>
+					<MarkdownContent content={sections.executive_summary} class="text-sm text-blue-800 dark:text-blue-200" />
 				</div>
-			</div>
+			{:else}
+				<!-- Raw fallback if parsing completely failed -->
+				<div
+					class="prose prose-sm dark:prose-invert max-w-none bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
+				>
+					<MarkdownContent content={event.data.synthesis} class="text-neutral-700 dark:text-neutral-300" />
+				</div>
+			{/if}
 		{/if}
 
 		{#if isMeta}

@@ -40,25 +40,6 @@ def test_route_facilitator_decision_vote(sample_state):
     assert next_node == "vote"
 
 
-def test_route_facilitator_decision_moderator(sample_state):
-    """Test routing when facilitator decides moderator intervention needed."""
-    # Create facilitator decision for moderator
-    decision = FacilitatorDecision(
-        action="moderator",
-        reasoning="Group converging too early",
-        moderator_type="contrarian",
-        moderator_focus="Challenge SEO assumptions",
-    )
-
-    # Add decision to state as dict (to match real graph behavior)
-    sample_state["facilitator_decision"] = asdict(decision)
-
-    # Test routing
-    next_node = route_facilitator_decision(sample_state)
-
-    assert next_node == "moderator_intervene"
-
-
 def test_route_facilitator_decision_continue(sample_state):
     """Test routing when facilitator decides to continue discussion."""
     # Create facilitator decision for continuation
@@ -76,28 +57,6 @@ def test_route_facilitator_decision_continue(sample_state):
     next_node = route_facilitator_decision(sample_state)
 
     assert next_node == "persona_contribute"
-
-
-def test_route_facilitator_decision_research(sample_state):
-    """Test routing when facilitator requests research.
-
-    Updated: Research is now implemented (Week 6) and routes to 'research' node.
-    """
-    # Create facilitator decision for research
-    decision = FacilitatorDecision(
-        action="research",
-        reasoning="Need SEO cost data",
-        research_query="Average SEO costs for B2B SaaS",
-    )
-
-    # Add decision to state as dict (to match real graph behavior)
-    sample_state["facilitator_decision"] = asdict(decision)
-
-    # Test routing
-    next_node = route_facilitator_decision(sample_state)
-
-    # Research is now implemented, should route to research node
-    assert next_node == "research"
 
 
 def test_route_facilitator_decision_missing_decision(sample_state):

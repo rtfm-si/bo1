@@ -20,8 +20,21 @@ from bo1.llm import ClaudeClient
 
 
 @pytest.fixture
-def settings():
-    """Load settings from environment."""
+def settings(monkeypatch):
+    """Load settings from environment.
+
+    For prompt caching tests, we need to use actual Sonnet (not override with Haiku)
+    because Sonnet has a 1024-token caching threshold while Haiku requires 4096 tokens.
+    The test prompts are designed for Sonnet's threshold.
+    """
+    from bo1.config import reset_settings
+
+    # Disable AI_OVERRIDE for these tests to use real Sonnet
+    monkeypatch.setenv("AI_OVERRIDE", "false")
+
+    # Reset the settings singleton to pick up the new environment variable
+    reset_settings()
+
     return get_settings()
 
 

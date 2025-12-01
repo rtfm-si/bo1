@@ -196,8 +196,8 @@ async def test_synthesize_node_generates_synthesis(state_with_contributions):
     assert "AI-generated" in synthesis
     assert "professional advisory" in synthesis
 
-    # Verify phase updated to COMPLETE
-    assert synthesis_updates["phase"] == DeliberationPhase.COMPLETE
+    # Verify phase updated to SYNTHESIS (not COMPLETE - that's set by meta_synthesis for multi-subproblem flow)
+    assert synthesis_updates["phase"] == DeliberationPhase.SYNTHESIS
 
     # Verify cost tracked
     metrics = synthesis_updates["metrics"]
@@ -230,7 +230,9 @@ async def test_vote_and_synthesis_end_to_end(state_with_contributions):
 
     # Verify synthesis completed
     assert state_with_contributions["synthesis"] is not None
-    assert state_with_contributions["phase"] == DeliberationPhase.COMPLETE
+    assert (
+        state_with_contributions["phase"] == DeliberationPhase.SYNTHESIS
+    )  # SYNTHESIS, not COMPLETE (for multi-subproblem flow)
 
     # Verify total cost accumulated across both phases
     metrics = state_with_contributions["metrics"]

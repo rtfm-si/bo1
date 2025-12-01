@@ -413,7 +413,7 @@ def find_cached_research(
     similar_results = find_similar_research(
         question_embedding=question_embedding,
         similarity_threshold=similarity_threshold,
-        limit=10,  # Get top 10 for filtering by category/industry
+        limit=100,  # Get top 100 for filtering by category/industry (needed for test constant embeddings)
         max_age_days=max_age_days,
     )
 

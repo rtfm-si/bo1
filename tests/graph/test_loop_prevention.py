@@ -228,8 +228,9 @@ async def test_check_convergence_with_high_score(sample_problem: Problem):
     state["metrics"] = DeliberationMetrics(novelty_score=0.2)
 
     # Mock the semantic convergence calculation to return high score
+    # AUDIT FIX (Priority 4.3): Function moved to bo1.graph.quality.metrics
     with patch(
-        "bo1.graph.safety.loop_prevention._calculate_convergence_score_semantic",
+        "bo1.graph.quality.metrics._calculate_convergence_score_semantic",
         new_callable=AsyncMock,
         return_value=0.91,
     ):
@@ -783,8 +784,9 @@ async def test_convergence_and_cost_guard_interaction(sample_problem: Problem):
     state["metrics"] = DeliberationMetrics(total_cost=0.80, novelty_score=0.2)
 
     # Mock the semantic convergence calculation to return high score
+    # AUDIT FIX (Priority 4.3): Function moved to bo1.graph.quality.metrics
     with patch(
-        "bo1.graph.safety.loop_prevention._calculate_convergence_score_semantic",
+        "bo1.graph.quality.metrics._calculate_convergence_score_semantic",
         new_callable=AsyncMock,
         return_value=0.91,
     ):
@@ -812,7 +814,9 @@ async def test_semantic_convergence_detects_repetition():
     This test verifies that the semantic similarity approach catches
     repetition that keyword matching would miss.
     """
-    from bo1.graph.safety.loop_prevention import _calculate_convergence_score_semantic
+    from bo1.graph.quality.metrics import (
+        _calculate_convergence_score_semantic,  # AUDIT FIX (Priority 4.3): Moved
+    )
     from bo1.models.state import ContributionMessage
 
     # Create contributions with semantically identical content (paraphrased)
@@ -859,7 +863,9 @@ async def test_semantic_convergence_detects_repetition():
 @pytest.mark.requires_llm
 async def test_semantic_convergence_diverse_content():
     """Test semantic convergence correctly identifies diverse contributions."""
-    from bo1.graph.safety.loop_prevention import _calculate_convergence_score_semantic
+    from bo1.graph.quality.metrics import (
+        _calculate_convergence_score_semantic,  # AUDIT FIX (Priority 4.3): Moved
+    )
     from bo1.models.state import ContributionMessage
 
     # Create contributions with diverse content
@@ -904,7 +910,9 @@ async def test_semantic_convergence_diverse_content():
 @pytest.mark.asyncio
 async def test_semantic_convergence_fallback_on_error():
     """Test that semantic convergence falls back to keyword method on error."""
-    from bo1.graph.safety.loop_prevention import _calculate_convergence_score_semantic
+    from bo1.graph.quality.metrics import (
+        _calculate_convergence_score_semantic,  # AUDIT FIX (Priority 4.3): Moved
+    )
     from bo1.models.state import ContributionMessage
 
     # Create contributions with agreement keywords for fallback test

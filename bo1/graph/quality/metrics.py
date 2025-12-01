@@ -150,8 +150,6 @@ class QualityMetricsCalculator:
         Returns:
             Convergence score (0.0 to 1.0)
         """
-        from bo1.graph.safety.loop_prevention import _calculate_convergence_score_semantic
-
         # Use last 6 contributions or all if fewer available
         recent_contributions = contributions[-6:] if len(contributions) >= 6 else contributions
         return await _calculate_convergence_score_semantic(recent_contributions)
@@ -272,3 +270,161 @@ class QualityMetricsCalculator:
             novelty_score_recent=novelty_score,
             weights=weights,
         )
+
+
+# ============================================================================
+# Convergence Calculation Helpers (Moved from loop_prevention.py)
+# ============================================================================
+
+
+async def _calculate_convergence_score_semantic(contributions: list[Any]) -> float:
+    """Calculate convergence score using semantic similarity (PREFERRED).
+
+    AUDIT FIX (Priority 4.3): Moved from loop_prevention.py to metrics.py.
+    This is a quality metric calculation, not loop prevention logic.
+
+    Uses Voyage AI embeddings to detect semantic repetition in contributions.
+    This approach catches paraphrased content that keyword matching misses.
+
+    Algorithm:
+    1. Generate embeddings for recent contributions (last 6)
+    2. Compare each contribution to all previous ones
+    3. High similarity (>0.90) = likely repetition
+    4. Return average repetition rate as convergence score
+
+    Args:
+        contributions: List of recent ContributionMessage objects
+
+    Returns:
+        Convergence score between 0.0 and 1.0
+        - 1.0 = high convergence (lots of repetition)
+        - 0.0 = no convergence (diverse contributions)
+    """
+    if len(contributions) < 3:
+        return 0.0
+
+    try:
+        from bo1.llm.embeddings import cosine_similarity, generate_embedding
+
+        # Extract content from contributions
+        texts = []
+        for contrib in contributions:
+            content = contrib.content if hasattr(contrib, "content") else str(contrib)
+            texts.append(content)
+
+        # Generate embeddings for all contributions
+        embeddings: list[list[float]] = []
+        for text in texts:
+            try:
+                embedding = generate_embedding(text, input_type="document")
+                embeddings.append(embedding)
+            except Exception as e:
+                logger.warning(f"Failed to generate embedding: {e}, falling back to keyword method")
+                return _calculate_convergence_score_keyword(contributions)
+
+        # Compare each contribution to all previous ones
+        repetition_scores: list[float] = []
+        for i in range(1, len(embeddings)):
+            max_similarity = 0.0
+            for j in range(i):
+                # Cosine similarity between contribution i and j
+                similarity = cosine_similarity(embeddings[i], embeddings[j])
+                max_similarity = max(max_similarity, similarity)
+
+            # Similarity thresholds:
+            # >0.90 = likely exact repetition (score: 1.0)
+            # 0.85-0.90 = paraphrased content (score: 0.7)
+            # 0.80-0.85 = similar theme (score: 0.4)
+            # <0.80 = new content (score: 0.0)
+            if max_similarity > 0.90:
+                repetition_scores.append(1.0)
+            elif max_similarity > 0.85:
+                repetition_scores.append(0.7)
+            elif max_similarity > 0.80:
+                repetition_scores.append(0.4)
+            else:
+                repetition_scores.append(0.0)
+
+        # Convergence = average repetition rate
+        convergence = sum(repetition_scores) / len(repetition_scores) if repetition_scores else 0.0
+
+        logger.debug(
+            f"Semantic convergence: {convergence:.2f} "
+            f"(similarities: {[f'{s:.2f}' for s in repetition_scores]})"
+        )
+
+        return convergence
+
+    except ImportError:
+        logger.warning("voyageai not installed, falling back to keyword method")
+        return _calculate_convergence_score_keyword(contributions)
+    except Exception as e:
+        logger.warning(
+            f"Semantic convergence calculation failed: {e}, falling back to keyword method"
+        )
+        return _calculate_convergence_score_keyword(contributions)
+
+
+def _calculate_convergence_score_keyword(contributions: list[Any]) -> float:
+    """Calculate convergence score using keyword matching (FALLBACK).
+
+    AUDIT FIX (Priority 4.3): Moved from loop_prevention.py to metrics.py.
+    This is a quality metric calculation, not loop prevention logic.
+
+    Uses keyword-based heuristic: count agreement vs. total words.
+    Higher score = more convergence/agreement.
+
+    This is a FALLBACK method when semantic similarity is unavailable.
+    Keyword matching has high false negative rate (misses paraphrasing).
+
+    Args:
+        contributions: List of recent ContributionMessage objects
+
+    Returns:
+        Convergence score between 0.0 and 1.0
+    """
+    if not contributions:
+        return 0.0
+
+    # Agreement keywords that indicate convergence
+    agreement_keywords = [
+        "agree",
+        "yes",
+        "correct",
+        "exactly",
+        "support",
+        "aligned",
+        "consensus",
+        "concur",
+        "same",
+        "similarly",
+        "indeed",
+        "right",
+    ]
+
+    # Count agreement keywords across all contributions
+    total_words = 0
+    agreement_count = 0
+
+    for contrib in contributions:
+        # Get content from ContributionMessage
+        content = contrib.content.lower() if hasattr(contrib, "content") else str(contrib).lower()
+        words = content.split()
+        total_words += len(words)
+
+        # Count agreement keywords
+        for keyword in agreement_keywords:
+            agreement_count += content.count(keyword)
+
+    if total_words == 0:
+        return 0.0
+
+    # Calculate ratio and normalize to 0-1 scale
+    # We expect ~1-2% agreement keywords for high convergence
+    # So we scale: 2% agreement = 1.0 convergence
+    raw_score = (agreement_count / total_words) * 50.0  # 2% * 50 = 1.0
+    convergence = min(1.0, max(0.0, raw_score))
+
+    logger.debug(f"Keyword convergence: {convergence:.2f} (fallback method)")
+
+    return convergence

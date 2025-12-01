@@ -59,11 +59,11 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     )
 
     # Return state updates (include personas for event collection)
-    # Set round_number=2 so next parallel_round will be round 2 (not duplicate round 1)
+    # Set round_number=1 since initial_round IS round 1
     return {
         "contributions": contributions,
         "phase": DeliberationPhase.DISCUSSION,
-        "round_number": 2,  # Increment to 2 (initial round complete, next is round 2)
+        "round_number": 1,  # Initial round is round 1
         "metrics": metrics,
         "current_node": "initial_round",
         "personas": state.get("personas", []),  # Include for event publishing

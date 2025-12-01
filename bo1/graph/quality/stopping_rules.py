@@ -142,8 +142,6 @@ class StoppingRulesEvaluator:
         Returns:
             StoppingDecision if early exit warranted, None otherwise
         """
-        from bo1.graph.safety.loop_prevention import should_exit_early
-
         if should_exit_early(state):
             round_number = state.get("round_number", 1)
             metrics = state.get("metrics")
@@ -169,8 +167,6 @@ class StoppingRulesEvaluator:
         Returns:
             StoppingDecision if deadlock detected, None otherwise
         """
-        from bo1.graph.safety.loop_prevention import detect_deadlock
-
         deadlock_info = detect_deadlock(state)
         if deadlock_info["deadlock"]:
             round_number = state.get("round_number", 1)
@@ -221,8 +217,6 @@ class StoppingRulesEvaluator:
             # Diversity safeguards before stopping
 
             # Check 1: Recent participation rate
-            from bo1.graph.safety.loop_prevention import _get_recent_contributors
-
             recent_contributors = _get_recent_contributors(state, last_n_rounds=2)
             personas = state.get("personas", [])
             all_personas = {
@@ -274,11 +268,6 @@ class StoppingRulesEvaluator:
             StoppingDecision if quality thresholds indicate stopping, None otherwise
         """
         from bo1.graph.meeting_config import get_meeting_config
-        from bo1.graph.safety.loop_prevention import (
-            should_allow_end,
-            should_continue_targeted,
-            should_recommend_end,
-        )
 
         round_number = state.get("round_number", 1)
         metrics = state.get("metrics")
@@ -342,3 +331,417 @@ class StoppingRulesEvaluator:
             )
 
         return None
+
+
+# ============================================================================
+# Stopping Rule Helper Functions (Moved from loop_prevention.py)
+# ============================================================================
+
+
+def should_exit_early(state: DeliberationGraphState) -> bool:
+    """Check if we can safely exit before max rounds.
+
+    AUDIT FIX (Priority 4.3): Moved from loop_prevention.py to stopping_rules.py.
+    This is a stopping rule evaluation, not loop prevention logic.
+
+    Research finding from CONSENSUS_BUILDING_RESEARCH.md:
+    - If convergence > 0.85 AND novelty < 0.30 for 2+ rounds → safe to exit
+    - ~0.5% of discussions benefit from extended debate past convergence
+    - Enables 20-30% reduction in average deliberation time
+
+    Conditions for early exit:
+    - Round >= 2 (minimum exploration phase)
+    - Convergence > 0.85 (high agreement)
+    - Novelty < 0.30 (agents repeating themselves)
+
+    Args:
+        state: Current deliberation state
+
+    Returns:
+        True if early exit recommended, False otherwise
+
+    Example:
+        >>> if should_exit_early(state):
+        ...     print("Experts have converged - safe to end early")
+    """
+    round_num = state.get("round_number", 0)
+
+    # Never exit before round 2 (need minimum exploration)
+    if round_num < 2:
+        return False
+
+    # Get convergence and novelty metrics from state
+    metrics = state.get("metrics")
+    if not metrics:
+        return False
+
+    convergence = metrics.convergence_score if metrics.convergence_score is not None else 0.0
+    novelty = metrics.novelty_score if metrics.novelty_score is not None else 1.0
+
+    # High convergence + low novelty = safe to exit
+    # Convergence >0.85 = experts largely agree
+    # Novelty <0.30 = experts repeating same arguments
+    if convergence > 0.85 and novelty < 0.30:
+        logger.info(
+            f"[EARLY_EXIT] Round {round_num}: convergence={convergence:.2f}, "
+            f"novelty={novelty:.2f} - recommending early termination"
+        )
+        return True
+
+    return False
+
+
+def detect_deadlock(state: DeliberationGraphState) -> dict[str, Any]:
+    """Detect if deliberation is stuck in deadlock (Issue #14 - Deadlock detection).
+
+    AUDIT FIX (Priority 4.3): Moved from loop_prevention.py to stopping_rules.py.
+    This is a stopping condition detection, not loop prevention logic.
+
+    Research finding from CONSENSUS_BUILDING_RESEARCH.md:
+    - Output repetition and circular arguments indicate deadlock
+    - Forcing decision when stuck prevents infinite loops
+
+    Detection methods:
+    1. Repetition: High similarity in last 6 contributions (>60% repetitive)
+    2. Circular refutation: Same arguments being made repeatedly
+
+    Args:
+        state: Current deliberation state
+
+    Returns:
+        Dict with deadlock info:
+        - deadlock: bool (True if deadlock detected)
+        - type: str ("repetition" or "circular")
+        - resolution: str (recommended action)
+
+    Example:
+        >>> deadlock_info = detect_deadlock(state)
+        >>> if deadlock_info["deadlock"]:
+        ...     print(f"Deadlock: {deadlock_info['type']} - {deadlock_info['resolution']}")
+    """
+    contributions = state.get("contributions", [])
+
+    if len(contributions) < 6:
+        return {"deadlock": False}
+
+    recent = contributions[-6:]
+
+    try:
+        from bo1.llm.embeddings import cosine_similarity, generate_embedding
+
+        # Generate embeddings for recent contributions
+        embeddings: list[list[float]] = []
+        for contrib in recent:
+            content = contrib.content if hasattr(contrib, "content") else str(contrib)
+            try:
+                embedding = generate_embedding(content, input_type="document")
+                embeddings.append(embedding)
+            except Exception as e:
+                logger.warning(f"Embedding generation failed during deadlock check: {e}")
+                # If embedding fails, assume no deadlock
+                return {"deadlock": False}
+
+        # Calculate pairwise similarities
+        high_similarity_count = 0
+        total_comparisons = 0
+
+        for i in range(len(embeddings)):
+            for j in range(i + 1, len(embeddings)):
+                similarity = cosine_similarity(embeddings[i], embeddings[j])
+                total_comparisons += 1
+
+                # Similarity >0.75 = likely repetitive argument
+                if similarity > 0.75:
+                    high_similarity_count += 1
+
+        if total_comparisons == 0:
+            return {"deadlock": False}
+
+        repetition_rate = high_similarity_count / total_comparisons
+
+        # If >60% of arguments are highly similar, we're in a deadlock
+        if repetition_rate > 0.6:
+            logger.warning(
+                f"[DEADLOCK_DETECTED] Repetition rate: {repetition_rate:.0%} "
+                f"({high_similarity_count}/{total_comparisons} pairs similar)"
+            )
+            return {
+                "deadlock": True,
+                "type": "repetition",
+                "resolution": "force_voting",  # Skip remaining rounds, go to voting
+                "repetition_rate": repetition_rate,
+            }
+
+        # Check for circular disagreement patterns
+        # Look for alternating positions (A->B->A->B pattern)
+        if len(recent) >= 4:
+            # Get persona codes for recent contributions
+            recent_speakers = [
+                getattr(c, "persona_code", "unknown") if hasattr(c, "persona_code") else "unknown"
+                for c in recent
+            ]
+
+            # Check for ABAB or ABCABC pattern (same speakers repeating)
+            if len(set(recent_speakers)) <= 3:  # Only 2-3 different speakers
+                # Count how many times we see repetition
+                repeats = sum(
+                    1
+                    for i in range(len(recent_speakers) - 2)
+                    if recent_speakers[i] == recent_speakers[i + 2]
+                )
+
+                if repeats >= 2:  # At least 2 repetitions in pattern
+                    logger.warning(
+                        f"[DEADLOCK_DETECTED] Circular pattern: {' -> '.join(recent_speakers[-6:])}"
+                    )
+                    return {
+                        "deadlock": True,
+                        "type": "circular",
+                        "resolution": "facilitator_intervention",
+                        "pattern": recent_speakers,
+                    }
+
+        return {"deadlock": False}
+
+    except ImportError:
+        logger.warning("Embeddings not available for deadlock detection")
+        return {"deadlock": False}
+    except Exception as e:
+        logger.warning(f"Deadlock detection failed: {e}")
+        return {"deadlock": False}
+
+
+def _get_recent_contributors(state: DeliberationGraphState, last_n_rounds: int = 2) -> set[str]:
+    """Get set of persona codes that contributed in the last N rounds.
+
+    AUDIT FIX (Priority 4.3): Moved from loop_prevention.py to stopping_rules.py.
+    This is a helper for participation rate check in stopping rules.
+
+    Args:
+        state: Current deliberation state
+        last_n_rounds: Number of recent rounds to check
+
+    Returns:
+        Set of persona codes (e.g., {"CFO", "CMO", "CEO"})
+    """
+    current_round = state.get("round_number", 1)
+    min_round = max(1, current_round - last_n_rounds + 1)
+
+    contributors = set()
+    for contribution in state.get("contributions", []):
+        # Check if contribution is from recent rounds
+        contrib_round = getattr(contribution, "round_number", None)
+        if contrib_round is not None and contrib_round >= min_round:
+            persona_code = getattr(contribution, "persona_code", None)
+            if persona_code:
+                contributors.add(persona_code)
+
+    return contributors
+
+
+def should_allow_end(state: DeliberationGraphState, config: Any) -> tuple[bool, list[str]]:
+    """Check if deliberation is ALLOWED to end (guardrails).
+
+    AUDIT FIX (Priority 4.3): Moved from loop_prevention.py to stopping_rules.py.
+    This is a stopping rule, not loop prevention logic.
+
+    This enforces minimum quality standards before ending is permitted.
+
+    Args:
+        state: Current deliberation state
+        config: MeetingConfig with thresholds
+
+    Returns:
+        Tuple of (allowed: bool, blockers: list[str])
+        - allowed: True if minimum standards met
+        - blockers: List of reasons why ending is blocked
+
+    Example:
+        >>> can_end, blockers = should_allow_end(state, config)
+        >>> if not can_end:
+        ...     print(f"Blocked: {blockers}")
+    """
+    blockers = []
+    metrics = state.get("metrics")
+    if not metrics:
+        return False, ["No metrics available"]
+
+    round_number = state.get("round_number", 1)
+    # NEW PARALLEL ARCHITECTURE: Adjust min_rounds if needed (was 3, now 2)
+    min_rounds = max(2, config.round_limits.get("min_rounds", 2))
+
+    # Check 1: Minimum rounds
+    if round_number < min_rounds:
+        blockers.append(f"Only {round_number} rounds (need {min_rounds} minimum)")
+
+    # Check 2: Minimum exploration
+    exploration_score = (
+        metrics.exploration_score
+        if hasattr(metrics, "exploration_score") and metrics.exploration_score is not None
+        else 0.0
+    )
+    min_exploration = config.thresholds["exploration"]["min_to_allow_end"]
+    if exploration_score < min_exploration:
+        blockers.append(f"Exploration too low ({exploration_score:.2f} < {min_exploration:.2f})")
+
+    # Check 3: Minimum convergence
+    convergence_score = metrics.convergence_score if metrics.convergence_score is not None else 0.0
+    min_convergence = config.thresholds["convergence"]["min_to_allow_end"]
+    if convergence_score < min_convergence:
+        blockers.append(f"Convergence too low ({convergence_score:.2f} < {min_convergence:.2f})")
+
+    # Check 4: Minimum focus (not drifting)
+    focus_score = (
+        metrics.focus_score
+        if hasattr(metrics, "focus_score") and metrics.focus_score is not None
+        else 0.8
+    )
+    min_focus = config.thresholds["focus"]["min_acceptable"]
+    if focus_score < min_focus:
+        blockers.append(f"Focus too low - drifting off topic ({focus_score:.2f} < {min_focus:.2f})")
+
+    # Check 5: Critical aspects must be at least shallow
+    if hasattr(metrics, "aspect_coverage") and metrics.aspect_coverage:
+        aspect_coverage = metrics.aspect_coverage
+        critical_missing = []
+        for aspect in aspect_coverage:
+            if aspect.name == "risks_failure_modes" and aspect.level == "none":
+                critical_missing.append("risks")
+            if aspect.name == "objectives" and aspect.level == "none":
+                critical_missing.append("objectives")
+
+        if critical_missing:
+            blockers.append(f"Critical aspects not addressed: {', '.join(critical_missing)}")
+
+    allowed = len(blockers) == 0
+    return allowed, blockers
+
+
+def should_recommend_end(state: DeliberationGraphState, config: Any) -> tuple[bool, str]:
+    """Check if deliberation should be RECOMMENDED to end (quality threshold).
+
+    AUDIT FIX (Priority 4.3): Moved from loop_prevention.py to stopping_rules.py.
+    This is a stopping rule, not loop prevention logic.
+
+    This is the positive signal that quality is high enough to conclude.
+
+    Args:
+        state: Current deliberation state
+        config: MeetingConfig with thresholds
+
+    Returns:
+        Tuple of (recommend: bool, rationale: str)
+
+    Example:
+        >>> should_end, reason = should_recommend_end(state, config)
+        >>> if should_end:
+        ...     print(f"Recommend ending: {reason}")
+    """
+    metrics = state.get("metrics")
+    if not metrics:
+        return False, "No metrics available"
+
+    # Check meeting completeness index
+    meeting_completeness = (
+        metrics.meeting_completeness_index
+        if hasattr(metrics, "meeting_completeness_index")
+        and metrics.meeting_completeness_index is not None
+        else 0.0
+    )
+    threshold = config.thresholds["composite"]["min_index_to_recommend_end"]
+
+    if meeting_completeness < threshold:
+        return (
+            False,
+            f"Meeting quality below threshold ({meeting_completeness:.2f} < {threshold:.2f})",
+        )
+
+    # Check low novelty (repetition = ready to end)
+    novelty_score = metrics.novelty_score if metrics.novelty_score is not None else 0.5
+    novelty_floor = config.thresholds["novelty"]["novelty_floor_recent"]
+
+    if novelty_score > novelty_floor:
+        return (
+            False,
+            f"Still generating new ideas (novelty {novelty_score:.2f} > {novelty_floor:.2f})",
+        )
+
+    # All checks passed - recommend ending
+    rationale = f"Meeting quality high (completeness={meeting_completeness:.2f}), novelty low (novelty={novelty_score:.2f}), ready to conclude"
+    return True, rationale
+
+
+def should_continue_targeted(state: DeliberationGraphState, config: Any) -> tuple[bool, list[str]]:
+    """Check if deliberation should continue with TARGETED focus.
+
+    AUDIT FIX (Priority 4.3): Moved from loop_prevention.py to stopping_rules.py.
+    This is a stopping rule guidance, not loop prevention logic.
+
+    This identifies missing aspects or premature consensus scenarios.
+
+    Args:
+        state: Current deliberation state
+        config: MeetingConfig with thresholds
+
+    Returns:
+        Tuple of (targeted: bool, focus_prompts: list[str])
+
+    Example:
+        >>> should_target, prompts = should_continue_targeted(state, config)
+        >>> if should_target:
+        ...     print(f"Target these aspects: {prompts}")
+    """
+    metrics = state.get("metrics")
+    if not metrics:
+        return False, []
+
+    focus_prompts = []
+
+    # Check 1: Premature consensus (high convergence but low exploration)
+    exploration_score = (
+        metrics.exploration_score
+        if hasattr(metrics, "exploration_score") and metrics.exploration_score is not None
+        else 0.0
+    )
+    convergence_score = metrics.convergence_score if metrics.convergence_score is not None else 0.0
+    round_number = state.get("round_number", 1)
+
+    if "early_consensus_requires_extra_check" in config.rules:
+        rule = config.rules["early_consensus_requires_extra_check"]
+        if rule.get("enabled", False):
+            early_cutoff = rule["early_round_cutoff"]
+            if (
+                round_number <= early_cutoff
+                and convergence_score > rule["convergence_high"]
+                and exploration_score < rule["exploration_low"]
+            ):
+                focus_prompts.append(
+                    "We're converging quickly but haven't explored all aspects. "
+                    "Let's ensure we've considered risks, alternatives, and stakeholder impact."
+                )
+
+    # Check 2: Missing critical aspects
+    if hasattr(metrics, "aspect_coverage") and metrics.aspect_coverage:
+        missing_aspects = [a for a in metrics.aspect_coverage if a.level in ["none", "shallow"]]
+
+        for aspect in missing_aspects[:3]:  # Top 3 missing
+            prompt_templates = {
+                "risks_failure_modes": "What are the top 3 risks if we proceed? What could go wrong?",
+                "stakeholders_impact": "Who will be affected by this decision? How will they be impacted?",
+                "options_alternatives": "What alternative approaches should we consider? Have we compared options?",
+                "constraints": "What are the specific constraints (budget, time, resources)?",
+                "dependencies_unknowns": "What dependencies or unknowns could block this?",
+                "key_assumptions": "What key assumptions are we making? How can we validate them?",
+                "objectives": "What are our specific, measurable success criteria?",
+            }
+            if aspect.name in prompt_templates:
+                focus_prompts.append(prompt_templates[aspect.name])
+
+    # Check 3: High novelty = still generating ideas
+    novelty_score = metrics.novelty_score if metrics.novelty_score is not None else 0.5
+    if novelty_score > 0.6:
+        # Let it continue naturally, novelty is good
+        pass
+
+    targeted = len(focus_prompts) > 0
+    return targeted, focus_prompts

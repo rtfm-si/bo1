@@ -3,6 +3,10 @@ import type { PageServerLoad } from './$types';
 
 const API_BASE_URL = process.env.INTERNAL_API_URL || 'http://api:8000';
 
+// Disable client-side preloading for this page to ensure fresh data
+export const ssr = true;
+export const prerender = false;
+
 export const load: PageServerLoad = async ({ cookies, request }) => {
 	try {
 		// Forward all cookies from the incoming request

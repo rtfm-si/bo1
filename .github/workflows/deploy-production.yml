@@ -315,9 +315,47 @@ jobs:
             # =================================================================
             echo "🏗️  Starting shared infrastructure..."
 
+            # Retry function for transient Docker errors (port allocation, networking)
+            retry_docker_compose() {
+              local max_attempts=5
+              local wait_time=5
+              local attempt=1
+              local cmd="$@"
+
+              while [ $attempt -le $max_attempts ]; do
+                echo "Attempt $attempt/$max_attempts: Starting infrastructure..."
+
+                if $cmd 2>&1 | tee /tmp/docker-compose-output.log; then
+                  echo "✅ Infrastructure started successfully"
+                  return 0
+                fi
+
+                # Check if error is transient (port allocation, networking)
+                if grep -q "port is already allocated\|failed programming external connectivity\|address already in use" /tmp/docker-compose-output.log; then
+                  echo "⚠️  Transient Docker error detected (port/network). Retrying in ${wait_time}s..."
+                  sleep $wait_time
+                  wait_time=$((wait_time * 2))  # Exponential backoff
+                  attempt=$((attempt + 1))
+
+                  # Try to clean up stale port bindings
+                  docker network disconnect bo1-network infrastructure-ntfy-1 2>/dev/null || true
+                  sleep 2
+                else
+                  # Non-transient error, fail immediately
+                  echo "❌ Non-transient error occurred"
+                  cat /tmp/docker-compose-output.log
+                  return 1
+                fi
+              done
+
+              echo "❌ Failed after $max_attempts attempts"
+              cat /tmp/docker-compose-output.log
+              return 1
+            }
+
             # Start shared infrastructure using separate compose file
             # Use --no-recreate to prevent recreating existing containers (preserves data)
-            docker-compose -f docker-compose.infrastructure.yml -p infrastructure up -d --no-recreate
+            retry_docker_compose docker-compose -f docker-compose.infrastructure.yml -p infrastructure up -d --no-recreate
 
             # Wait for shared services to be healthy
             echo "⏳ Waiting for shared infrastructure to be healthy..."

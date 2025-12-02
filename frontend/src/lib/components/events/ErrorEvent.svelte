@@ -2,10 +2,11 @@
 	/**
 	 * ErrorEvent Component
 	 * Displays friendly, in-universe error messages to users
-	 * (Technical details hidden but accessible for debugging)
+	 * (Technical details only visible to admins)
 	 */
 	import type { ErrorEvent } from '$lib/api/sse-events';
 	import { ChevronDown, ChevronUp } from 'lucide-svelte';
+	import { user } from '$lib/stores/auth';
 
 	interface Props {
 		event: ErrorEvent;
@@ -13,6 +14,7 @@
 
 	let { event }: Props = $props();
 	let showTechnicalDetails = $state(false);
+	const isAdmin = $derived($user?.is_admin ?? false);
 
 	// Friendly, in-universe error messages that fit the "Board of One" theme
 	const friendlyMessages = [
@@ -86,42 +88,45 @@
 					</p>
 				</div>
 
-				<!-- Collapsible Technical Details (for debugging) -->
-				<button
-					onclick={() => (showTechnicalDetails = !showTechnicalDetails)}
-					class="mt-3 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 transition-colors"
-				>
-					{#if showTechnicalDetails}
-						<ChevronUp size={14} />
-					{:else}
-						<ChevronDown size={14} />
-					{/if}
-					{showTechnicalDetails ? 'Hide' : 'Show'} technical details
-				</button>
-
-				{#if showTechnicalDetails}
-					<div
-						class="mt-2 p-3 bg-neutral-100 dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-700 text-xs font-mono"
+				<!-- Technical Details (admin-only) -->
+				{#if isAdmin}
+					<button
+						onclick={() => (showTechnicalDetails = !showTechnicalDetails)}
+						class="mt-3 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 transition-colors"
 					>
-						<div class="mb-2">
-							<span class="text-neutral-600 dark:text-neutral-400">Error Type:</span>
-							<span class="text-neutral-900 dark:text-neutral-100 ml-2"
-								>{event.data.error_type}</span
-							>
-						</div>
-						<div class="mb-2">
-							<span class="text-neutral-600 dark:text-neutral-400">Message:</span>
-							<div class="text-neutral-900 dark:text-neutral-100 mt-1 whitespace-pre-wrap">
-								{event.data.error}
-							</div>
-						</div>
-						{#if event.data.node}
-							<div>
-								<span class="text-neutral-600 dark:text-neutral-400">Node:</span>
-								<span class="text-neutral-900 dark:text-neutral-100 ml-2">{event.data.node}</span>
-							</div>
+						{#if showTechnicalDetails}
+							<ChevronUp size={14} />
+						{:else}
+							<ChevronDown size={14} />
 						{/if}
-					</div>
+						{showTechnicalDetails ? 'Hide' : 'Show'} technical details
+					</button>
+
+					{#if showTechnicalDetails}
+						<div
+							class="mt-2 p-3 bg-neutral-100 dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-700 text-xs font-mono"
+						>
+							<div class="mb-2">
+								<span class="text-neutral-600 dark:text-neutral-400">Error Type:</span>
+								<span class="text-neutral-900 dark:text-neutral-100 ml-2"
+									>{event.data.error_type}</span
+								>
+							</div>
+							<div class="mb-2">
+								<span class="text-neutral-600 dark:text-neutral-400">Message:</span>
+								<div class="text-neutral-900 dark:text-neutral-100 mt-1 whitespace-pre-wrap">
+									{event.data.error}
+								</div>
+							</div>
+							{#if event.data.node}
+								<div>
+									<span class="text-neutral-600 dark:text-neutral-400">Node:</span>
+									<span class="text-neutral-900 dark:text-neutral-100 ml-2">{event.data.node}</span
+									>
+								</div>
+							{/if}
+						</div>
+					{/if}
 				{/if}
 			</div>
 		</div>

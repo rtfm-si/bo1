@@ -9,7 +9,6 @@ This module contains nodes for the final stages of deliberation:
 
 import json
 import logging
-import re
 from typing import Any
 
 from bo1.graph.state import DeliberationGraphState
@@ -87,15 +86,14 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
 
 
 async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
-    """Synthesize final recommendation from deliberation.
+    """Synthesize final recommendation from deliberation using lean McKinsey-style template.
 
-    AUDIT FIX (Priority 3, Task 3.1): Uses hierarchical summarization to reduce token usage.
-    - Uses round_summaries for context (rounds 1 to N-1)
-    - Uses full contributions ONLY for the final round
-    - Expected impact: 60-70% token reduction (3500 avg → 1200 avg)
-
-    This node creates a comprehensive synthesis report using the
-    SYNTHESIS_HIERARCHICAL_TEMPLATE and updates the graph state.
+    Uses hierarchical summarization + lean output format for complete, premium results:
+    - Round summaries provide deliberation evolution (already condensed)
+    - Final round contributions provide detail
+    - Output follows Pyramid Principle: answer first, then support
+    - Structured sections: Bottom Line, Why It Matters, Next Steps, Risks, Confidence
+    - Expected output: ~800-1000 tokens (fits within 1500 limit with headroom)
 
     Args:
         state: Current graph state (must have votes and contributions)
@@ -104,9 +102,9 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates (synthesis report, phase=COMPLETE)
     """
     from bo1.llm.broker import PromptBroker, PromptRequest
-    from bo1.prompts.reusable_prompts import SYNTHESIS_HIERARCHICAL_TEMPLATE
+    from bo1.prompts.reusable_prompts import SYNTHESIS_LEAN_TEMPLATE
 
-    logger.info("synthesize_node: Starting synthesis with hierarchical context")
+    logger.info("synthesize_node: Starting synthesis with lean McKinsey-style template")
 
     # Get problem and contributions
     problem = state.get("problem")
@@ -158,8 +156,8 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
             votes_text.append(f"Conditions: {', '.join(str(c) for c in conditions)}\n")
         votes_text.append("\n")
 
-    # Compose synthesis prompt using hierarchical template
-    synthesis_prompt = SYNTHESIS_HIERARCHICAL_TEMPLATE.format(
+    # Compose synthesis prompt using lean McKinsey-style template
+    synthesis_prompt = SYNTHESIS_LEAN_TEMPLATE.format(
         problem_statement=problem.description,
         round_summaries="\n".join(round_summaries_text),
         final_round_contributions="\n".join(final_round_contributions),
@@ -175,25 +173,23 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     broker = PromptBroker()
     request = PromptRequest(
         system=synthesis_prompt,
-        user_message="Generate the synthesis report now.",
-        prefill="<thinking>",
+        user_message="Generate the executive brief now. Follow the output format exactly.",
+        prefill="## The Bottom Line",  # Force immediate answer-first structure (no trailing whitespace)
         model="sonnet",  # Use Sonnet for high-quality synthesis
         temperature=0.7,
-        max_tokens=1500,  # Reduced from 3000 to force conciseness
+        max_tokens=1500,  # Lean template produces ~800-1000 tokens, leaving headroom
         phase="synthesis",
         agent_type="synthesizer",
-        cache_system=True,  # TASK 1 FIX: Enable prompt caching (system prompt = static template, reused per sub-problem)
+        cache_system=True,  # Enable prompt caching (system prompt = static template)
     )
 
     # Call LLM
     response = await broker.call(request)
 
-    # Strip <thinking> tags - the prefill causes duplicate tags and they're not needed in output
-    # Pattern handles both: <thinking>content</thinking> and orphaned <thinking> or </thinking> tags
+    # Clean up response - ensure proper markdown structure
     raw_content = response.content.strip()
-    synthesis_report = re.sub(r"<thinking>[\s\S]*?</thinking>", "", raw_content).strip()
-    # Also strip any orphaned opening/closing thinking tags
-    synthesis_report = re.sub(r"</?thinking>", "", synthesis_report).strip()
+    # Prepend the prefill since it's not included in response
+    synthesis_report = "## The Bottom Line\n\n" + raw_content
 
     # Add AI-generated content disclaimer
     disclaimer = (

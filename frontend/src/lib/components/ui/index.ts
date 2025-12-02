@@ -29,6 +29,8 @@ export { default as DualProgress } from './DualProgress.svelte';
 export { default as DecisionMetrics } from './DecisionMetrics.svelte';
 export { default as MeetingStatusBar } from './MeetingStatusBar.svelte';
 export { default as SubProblemMetrics } from './SubProblemMetrics.svelte';
+export { default as ConnectionStatus } from './ConnectionStatus.svelte';
+export { default as SynthesisProgress } from './SynthesisProgress.svelte';
 
 // Type exports for TypeScript consumers
 export type { DropdownItem } from './Dropdown.svelte';

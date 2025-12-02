@@ -95,34 +95,33 @@
 
 <svelte:element
 	this={onToggle ? 'button' : 'div'}
-	class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 {onToggle ? 'hover:border-brand-300 dark:hover:border-brand-600 cursor-pointer' : ''} transition-all shadow-sm {onToggle ? 'hover:shadow-md w-full text-left' : ''}"
+	class="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 {onToggle ? 'hover:border-brand-300 dark:hover:border-brand-600 cursor-pointer' : ''} transition-all shadow-sm {onToggle ? 'hover:shadow-md w-full text-left' : ''} overflow-hidden"
 	onclick={onToggle}
 	onkeydown={onToggle ? (e: KeyboardEvent) => e.key === 'Enter' && onToggle?.() : undefined}
 	role={onToggle ? 'button' : undefined}
 	tabindex={onToggle ? 0 : undefined}
 >
-	<!-- Expert Header -->
-	<div class="flex items-center justify-between mb-3">
-		<div>
-			<h4 class="text-[1.25rem] font-medium leading-snug text-neutral-800 dark:text-neutral-100">
+	<div class="border-l-4 border-brand-500 dark:border-brand-400 p-5">
+		<!-- Expert Header - Two-line layout for better scanning -->
+		<div class="mb-3">
+			<h4 class="text-lg font-bold text-neutral-900 dark:text-white leading-tight tracking-tight">
 				{event.data.persona_name}
-				{#if event.data.archetype}
-					<span class="text-[0.875rem] font-normal text-neutral-600 dark:text-neutral-400">
-						— {event.data.archetype}
-					</span>
-				{/if}
 			</h4>
+			{#if event.data.archetype}
+				<p class="text-sm font-medium text-brand-600 dark:text-brand-400 mt-1">
+					{event.data.archetype}
+				</p>
+			{/if}
 		</div>
-	</div>
 
-	<!-- Content Display -->
-	{#if hasSummary && event.data.summary}
-		<!-- Simple View: 1-2 sentence summary (with fallback generation) -->
-		{#if viewMode === 'simple' && canShowSimple}
-			<p class="text-[0.9375rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300">
-				{simpleFallback}
-			</p>
-		{:else}
+		<!-- Content Display -->
+		{#if hasSummary && event.data.summary}
+			<!-- Simple View: 1-2 sentence summary (with fallback generation) -->
+			{#if viewMode === 'simple' && canShowSimple}
+				<p class="text-[0.9375rem] leading-relaxed text-neutral-600 dark:text-neutral-300">
+					{simpleFallback}
+				</p>
+			{:else}
 			<!-- Full View: Structured breakdown -->
 			<div class="space-y-3">
 				<!-- Looking For -->
@@ -212,13 +211,14 @@
 	{:else}
 		<!-- Fallback: Show cleaned and truncated content when no summary available -->
 		{#if viewMode === 'simple'}
-			<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300">
+			<p class="text-[0.9375rem] leading-relaxed text-neutral-600 dark:text-neutral-300">
 				{simpleFallback || extractCleanSummary(event.data.content, 250)}
 			</p>
 		{:else}
-			<p class="text-[0.875rem] font-normal leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
+			<p class="text-[0.9375rem] leading-relaxed text-neutral-600 dark:text-neutral-300 whitespace-pre-wrap">
 				{extractCleanSummary(event.data.content, 1000)}
 			</p>
 		{/if}
 	{/if}
+	</div>
 </svelte:element>

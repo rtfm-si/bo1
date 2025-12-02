@@ -24,11 +24,111 @@ from backend.api.metrics import metrics
 from backend.api.middleware.admin import require_admin_any
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.validation import validate_session_id
+from bo1.state.postgres_manager import db_session
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+# ==============================================================================
+# Helper Functions
+# ==============================================================================
+
+
+def _get_user_with_metrics_sql() -> str:
+    """Get SQL query for fetching user with metrics.
+
+    Returns a SQL query that joins users with sessions to calculate:
+    - Total number of meetings per user
+    - Total cost across all meetings
+    - Most recent meeting timestamp
+    - Most recent meeting ID
+
+    Returns:
+        SQL query string with placeholders for WHERE clause parameters
+    """
+    return """
+        SELECT
+            u.id,
+            u.email,
+            u.auth_provider,
+            u.subscription_tier,
+            u.is_admin,
+            u.created_at,
+            u.updated_at,
+            COUNT(s.id) as total_meetings,
+            SUM(s.total_cost) as total_cost,
+            MAX(s.created_at) as last_meeting_at,
+            (SELECT id FROM sessions WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_meeting_id
+        FROM users u
+        LEFT JOIN sessions s ON u.id = s.user_id
+    """
+
+
+def _row_to_user_info(row: dict[str, Any]) -> "UserInfo":
+    """Convert database row to UserInfo model.
+
+    Takes a row returned from _get_user_with_metrics_sql() and converts
+    it to a UserInfo model instance with proper type conversions.
+
+    Args:
+        row: Database row dict with user and metrics data
+
+    Returns:
+        UserInfo model instance
+    """
+    return UserInfo(
+        user_id=row["id"],
+        email=row["email"],
+        auth_provider=row["auth_provider"],
+        subscription_tier=row["subscription_tier"],
+        is_admin=row["is_admin"],
+        created_at=row["created_at"].isoformat() if row["created_at"] else "",
+        updated_at=row["updated_at"].isoformat() if row["updated_at"] else "",
+        total_meetings=row["total_meetings"] or 0,
+        total_cost=float(row["total_cost"]) if row["total_cost"] else None,
+        last_meeting_at=row["last_meeting_at"].isoformat() if row["last_meeting_at"] else None,
+        last_meeting_id=row["last_meeting_id"],
+    )
+
+
+def _row_to_whitelist_entry(row: dict[str, Any]) -> "BetaWhitelistEntry":
+    """Convert database row to BetaWhitelistEntry model.
+
+    Args:
+        row: Database row dict with beta_whitelist data
+
+    Returns:
+        BetaWhitelistEntry model instance
+    """
+    return BetaWhitelistEntry(
+        id=str(row["id"]),
+        email=row["email"],
+        added_by=row["added_by"],
+        notes=row["notes"],
+        created_at=row["created_at"].isoformat() if row["created_at"] else "",
+    )
+
+
+def _row_to_waitlist_entry(row: dict[str, Any]) -> "WaitlistEntry":
+    """Convert database row to WaitlistEntry model.
+
+    Args:
+        row: Database row dict with waitlist data
+
+    Returns:
+        WaitlistEntry model instance
+    """
+    return WaitlistEntry(
+        id=str(row["id"]),
+        email=row["email"],
+        status=row["status"],
+        source=row["source"],
+        notes=row["notes"],
+        created_at=row["created_at"].isoformat() if row["created_at"] else "",
+    )
 
 
 # ==============================================================================
@@ -182,8 +282,6 @@ async def get_admin_stats(
     try:
         import os
 
-        from bo1.state.postgres_manager import db_session
-
         with db_session() as conn:
             with conn.cursor() as cur:
                 # Get total users
@@ -272,8 +370,6 @@ async def list_users(
         HTTPException: If retrieval fails
     """
     try:
-        from bo1.state.postgres_manager import db_session
-
         with db_session() as conn:
             with conn.cursor() as cur:
                 # Build query with optional email filter
@@ -294,22 +390,7 @@ async def list_users(
 
                 # Get paginated users with metrics
                 offset = (page - 1) * per_page
-                users_query = """
-                    SELECT
-                        u.id,
-                        u.email,
-                        u.auth_provider,
-                        u.subscription_tier,
-                        u.is_admin,
-                        u.created_at,
-                        u.updated_at,
-                        COUNT(s.id) as total_meetings,
-                        SUM(s.total_cost) as total_cost,
-                        MAX(s.created_at) as last_meeting_at,
-                        (SELECT id FROM sessions WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_meeting_id
-                    FROM users u
-                    LEFT JOIN sessions s ON u.id = s.user_id
-                """
+                users_query = _get_user_with_metrics_sql()
 
                 if email:
                     users_query += " WHERE LOWER(u.email) LIKE LOWER(%s)"
@@ -328,24 +409,7 @@ async def list_users(
                 cur.execute(users_query, params_users)
                 rows = cur.fetchall()
 
-                users = [
-                    UserInfo(
-                        user_id=row["id"],
-                        email=row["email"],
-                        auth_provider=row["auth_provider"],
-                        subscription_tier=row["subscription_tier"],
-                        is_admin=row["is_admin"],
-                        created_at=row["created_at"].isoformat() if row["created_at"] else "",
-                        updated_at=row["updated_at"].isoformat() if row["updated_at"] else "",
-                        total_meetings=row["total_meetings"] or 0,
-                        total_cost=float(row["total_cost"]) if row["total_cost"] else None,
-                        last_meeting_at=row["last_meeting_at"].isoformat()
-                        if row["last_meeting_at"]
-                        else None,
-                        last_meeting_id=row["last_meeting_id"],
-                    )
-                    for row in rows
-                ]
+                users = [_row_to_user_info(row) for row in rows]
 
         logger.info(
             f"Admin: Listed {len(users)} users (page {page}, per_page {per_page}, total {total_count})"
@@ -396,31 +460,14 @@ async def get_user(
         HTTPException: If user not found or retrieval fails
     """
     try:
-        from bo1.state.postgres_manager import db_session
-
         with db_session() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        u.id,
-                        u.email,
-                        u.auth_provider,
-                        u.subscription_tier,
-                        u.is_admin,
-                        u.created_at,
-                        u.updated_at,
-                        COUNT(s.id) as total_meetings,
-                        SUM(s.total_cost) as total_cost,
-                        MAX(s.created_at) as last_meeting_at,
-                        (SELECT id FROM sessions WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_meeting_id
-                    FROM users u
-                    LEFT JOIN sessions s ON u.id = s.user_id
+                query = _get_user_with_metrics_sql()
+                query += """
                     WHERE u.id = %s
                     GROUP BY u.id, u.email, u.auth_provider, u.subscription_tier, u.is_admin, u.created_at, u.updated_at
-                    """,
-                    (user_id,),
-                )
+                """
+                cur.execute(query, (user_id,))
                 row = cur.fetchone()
 
                 if not row:
@@ -429,21 +476,7 @@ async def get_user(
                         detail=f"User not found: {user_id}",
                     )
 
-                user = UserInfo(
-                    user_id=row["id"],
-                    email=row["email"],
-                    auth_provider=row["auth_provider"],
-                    subscription_tier=row["subscription_tier"],
-                    is_admin=row["is_admin"],
-                    created_at=row["created_at"].isoformat() if row["created_at"] else "",
-                    updated_at=row["updated_at"].isoformat() if row["updated_at"] else "",
-                    total_meetings=row["total_meetings"] or 0,
-                    total_cost=float(row["total_cost"]) if row["total_cost"] else None,
-                    last_meeting_at=row["last_meeting_at"].isoformat()
-                    if row["last_meeting_at"]
-                    else None,
-                    last_meeting_id=row["last_meeting_id"],
-                )
+                user = _row_to_user_info(row)
 
         logger.info(f"Admin: Retrieved user {user_id}")
 
@@ -492,8 +525,6 @@ async def update_user(
         HTTPException: If user not found, invalid request, or update fails
     """
     try:
-        from bo1.state.postgres_manager import db_session
-
         # Validate at least one field is provided
         if request.subscription_tier is None and request.is_admin is None:
             raise HTTPException(
@@ -546,27 +577,12 @@ async def update_user(
                 cur.execute(query, params)
 
                 # Fetch updated user with metrics
-                cur.execute(
-                    """
-                    SELECT
-                        u.id,
-                        u.email,
-                        u.auth_provider,
-                        u.subscription_tier,
-                        u.is_admin,
-                        u.created_at,
-                        u.updated_at,
-                        COUNT(s.id) as total_meetings,
-                        SUM(s.total_cost) as total_cost,
-                        MAX(s.created_at) as last_meeting_at,
-                        (SELECT id FROM sessions WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_meeting_id
-                    FROM users u
-                    LEFT JOIN sessions s ON u.id = s.user_id
+                query = _get_user_with_metrics_sql()
+                query += """
                     WHERE u.id = %s
                     GROUP BY u.id, u.email, u.auth_provider, u.subscription_tier, u.is_admin, u.created_at, u.updated_at
-                    """,
-                    (user_id,),
-                )
+                """
+                cur.execute(query, (user_id,))
                 row = cur.fetchone()
 
                 if not row:
@@ -575,21 +591,7 @@ async def update_user(
                         detail="Failed to fetch updated user",
                     )
 
-                user = UserInfo(
-                    user_id=row["id"],
-                    email=row["email"],
-                    auth_provider=row["auth_provider"],
-                    subscription_tier=row["subscription_tier"],
-                    is_admin=row["is_admin"],
-                    created_at=row["created_at"].isoformat() if row["created_at"] else "",
-                    updated_at=row["updated_at"].isoformat() if row["updated_at"] else "",
-                    total_meetings=row["total_meetings"] or 0,
-                    total_cost=float(row["total_cost"]) if row["total_cost"] else None,
-                    last_meeting_at=row["last_meeting_at"].isoformat()
-                    if row["last_meeting_at"]
-                    else None,
-                    last_meeting_id=row["last_meeting_id"],
-                )
+                user = _row_to_user_info(row)
 
         logger.info(f"Admin: Updated user {user_id} - {request}")
 
@@ -1315,8 +1317,6 @@ async def list_beta_whitelist(
     try:
         import os
 
-        from bo1.state.postgres_manager import db_session
-
         # Get env-based whitelist
         env_whitelist = os.getenv("BETA_WHITELIST", "")
         env_emails = [e.strip().lower() for e in env_whitelist.split(",") if e.strip()]
@@ -1332,16 +1332,7 @@ async def list_beta_whitelist(
                 )
                 rows = cur.fetchall()
 
-                entries = [
-                    BetaWhitelistEntry(
-                        id=str(row["id"]),
-                        email=row["email"],
-                        added_by=row["added_by"],
-                        notes=row["notes"],
-                        created_at=row["created_at"].isoformat() if row["created_at"] else "",
-                    )
-                    for row in rows
-                ]
+                entries = [_row_to_whitelist_entry(row) for row in rows]
 
         # Get unique db emails for deduplication
         db_emails = {e.email.lower() for e in entries}
@@ -1398,8 +1389,6 @@ async def add_to_beta_whitelist(
         HTTPException: If email is invalid or already exists
     """
     try:
-        from bo1.state.postgres_manager import db_session
-
         # Normalize email
         email = request.email.strip().lower()
 
@@ -1431,13 +1420,7 @@ async def add_to_beta_whitelist(
                 )
                 row = cur.fetchone()
 
-        entry = BetaWhitelistEntry(
-            id=str(row["id"]),
-            email=row["email"],
-            added_by=row["added_by"],
-            notes=row["notes"],
-            created_at=row["created_at"].isoformat() if row["created_at"] else "",
-        )
+        entry = _row_to_whitelist_entry(row)
 
         logger.info(f"Admin: Added {email} to beta whitelist")
 
@@ -1483,8 +1466,6 @@ async def remove_from_beta_whitelist(
         HTTPException: If email not found or removal fails
     """
     try:
-        from bo1.state.postgres_manager import db_session
-
         # Normalize email
         email = email.strip().lower()
 
@@ -1701,8 +1682,6 @@ async def list_waitlist(
         HTTPException: If retrieval fails
     """
     try:
-        from bo1.state.postgres_manager import db_session
-
         with db_session() as conn:
             with conn.cursor() as cur:
                 # Get total and pending counts
@@ -1735,17 +1714,7 @@ async def list_waitlist(
                     )
                 rows = cur.fetchall()
 
-                entries = [
-                    WaitlistEntry(
-                        id=str(row["id"]),
-                        email=row["email"],
-                        status=row["status"],
-                        source=row["source"],
-                        notes=row["notes"],
-                        created_at=row["created_at"].isoformat() if row["created_at"] else "",
-                    )
-                    for row in rows
-                ]
+                entries = [_row_to_waitlist_entry(row) for row in rows]
 
         logger.info(f"Admin: Listed {len(entries)} waitlist entries (total: {total_count})")
 
@@ -1800,7 +1769,6 @@ async def approve_waitlist_entry(
     """
     try:
         from backend.api.email import send_beta_welcome_email
-        from bo1.state.postgres_manager import db_session
 
         email = email.strip().lower()
         whitelist_added = False

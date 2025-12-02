@@ -135,6 +135,10 @@ class SessionResponse(BaseModel):
         last_activity_at: Last activity timestamp (state change, API call, etc.)
         problem_statement: Truncated problem statement
         cost: Total cost so far (if available)
+        expert_count: Number of experts consulted (for dashboard cards)
+        contribution_count: Total contributions (for dashboard cards)
+        task_count: Number of extracted tasks (for dashboard cards)
+        focus_area_count: Number of focus areas/sub-problems (for dashboard cards)
     """
 
     id: str = Field(..., description="Unique session identifier (UUID)")
@@ -155,6 +159,11 @@ class SessionResponse(BaseModel):
     )
     problem_statement: str = Field(..., description="Problem statement (truncated for list view)")
     cost: float | None = Field(None, description="Total cost so far (USD)")
+    # Summary counts for dashboard cards
+    expert_count: int | None = Field(None, description="Number of experts consulted")
+    contribution_count: int | None = Field(None, description="Total expert contributions")
+    task_count: int | None = Field(None, description="Number of extracted action items")
+    focus_area_count: int | None = Field(None, description="Number of focus areas analyzed")
 
 
 class SessionListResponse(BaseModel):

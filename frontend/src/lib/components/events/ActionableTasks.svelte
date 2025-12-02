@@ -262,112 +262,150 @@
 			</p>
 		</div>
 	{:else}
-		<div class="space-y-3">
+		<div class="space-y-4">
 			{#each tasks as task, index (task.id)}
 				{@const status = taskStatuses.get(task.id) || 'pending'}
 				{@const isExpanded = expandedTasks.has(task.id)}
 				<div
-					class="bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 p-4"
+					class="bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"
 					transition:slide={{ duration: 200 }}
 				>
-					<!-- Task Header (Always Visible) -->
-					<div class="flex items-start justify-between gap-4 mb-3">
-						<div class="flex-1">
-							<!-- Title -->
-							<div class="flex items-center gap-2 mb-3">
-								<span class="flex-shrink-0 w-6 h-6 bg-slate-600 text-white rounded-full flex items-center justify-center text-xs font-semibold">
+					<!-- Task Header -->
+					<div class="p-5 sm:p-6">
+						<!-- Top row: Number + Title + Status -->
+						<div class="flex flex-col sm:flex-row sm:items-start gap-4 mb-4">
+							<div class="flex items-start gap-3 flex-1 min-w-0">
+								<span class="flex-shrink-0 w-8 h-8 bg-slate-700 dark:bg-slate-600 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-sm">
 									{index + 1}
 								</span>
-								<h4 class="text-base font-semibold text-slate-900 dark:text-white">
+								<h4 class="text-base sm:text-lg font-semibold text-slate-900 dark:text-white leading-snug pt-0.5">
 									{getTaskTitle(task)}
 								</h4>
 							</div>
 
-							<!-- Metadata: Timeline, Priority, Status (Always Visible) -->
-							<div class="ml-8 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-								<div>
-									<span class="font-medium text-slate-700 dark:text-slate-300">Timeline:</span>
-									<span class="text-slate-600 dark:text-slate-400"> {task.timeline || task.suggested_completion_date || 'TBD'}</span>
-								</div>
-								<div>
-									<span class="font-medium text-slate-700 dark:text-slate-300">Priority:</span>
-									<span class="text-slate-600 dark:text-slate-400 capitalize"> {task.priority}</span>
-								</div>
-								<!-- Status is shown via dropdown, no need for duplicate label -->
+							<!-- Status Dropdown - Full width on mobile, auto on desktop -->
+							<div class="flex-shrink-0 w-full sm:w-auto">
+								<select
+									value={status}
+									onchange={(e) => updateStatus(task.id, e.currentTarget.value)}
+									class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium rounded-lg border-0 {getTaskStatusColor(status)} cursor-pointer focus:ring-2 focus:ring-blue-500 shadow-sm"
+								>
+									{#each statusOptions as option}
+										<option value={option.value}>{option.label}</option>
+									{/each}
+								</select>
 							</div>
 						</div>
 
-						<!-- Status Dropdown -->
-						<div class="flex-shrink-0">
-							<select
-								value={status}
-								onchange={(e) => updateStatus(task.id, e.currentTarget.value)}
-								class="px-3 py-2 text-sm font-medium rounded-lg border-0 {getTaskStatusColor(status)} cursor-pointer focus:ring-2 focus:ring-blue-500"
-							>
-								{#each statusOptions as option}
-									<option value={option.value}>{option.label}</option>
-								{/each}
-							</select>
+						<!-- Metadata pills -->
+						<div class="flex flex-wrap gap-2 mb-4">
+							<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+								<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+								</svg>
+								{task.timeline || task.suggested_completion_date || 'Timeline TBD'}
+							</span>
+							<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium capitalize
+								{task.priority === 'high' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+								 task.priority === 'medium' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' :
+								 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}">
+								<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+								</svg>
+								{task.priority} priority
+							</span>
 						</div>
-					</div>
 
-					<!-- Expand/Collapse Details -->
-					<button
-						onclick={() => toggleDetails(task.id)}
-						class="ml-8 text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1"
-					>
-						{isExpanded ? 'Hide' : 'Show'} details
-						{#if isExpanded}
-							<ChevronUp class="w-4 h-4" />
-						{:else}
-							<ChevronDown class="w-4 h-4" />
-						{/if}
-					</button>
+						<!-- Expand/Collapse Details -->
+						<button
+							onclick={() => toggleDetails(task.id)}
+							class="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors"
+						>
+							{isExpanded ? 'Hide details' : 'Show details'}
+							{#if isExpanded}
+								<ChevronUp class="w-4 h-4" />
+							{:else}
+								<ChevronDown class="w-4 h-4" />
+							{/if}
+						</button>
+					</div>
 
 					<!-- Expanded Details -->
 					{#if isExpanded}
-						<div class="ml-8 mt-3 pt-3 border-t border-slate-300 dark:border-slate-600 space-y-4 text-sm">
-							<!-- What & How -->
-							<div>
-								<p class="font-semibold text-slate-700 dark:text-slate-300 mb-2">What & How</p>
-								<ul class="list-disc list-inside text-slate-600 dark:text-slate-400 space-y-1">
-									{#each getWhatAndHow(task) as item}
-										<li>{item}</li>
-									{/each}
-								</ul>
-							</div>
-
-							<!-- Success Criteria -->
-							<div>
-								<p class="font-semibold text-slate-700 dark:text-slate-300 mb-2">Success Criteria</p>
-								<ul class="list-disc list-inside text-slate-600 dark:text-slate-400 space-y-1">
-									{#each getSuccessCriteria(task) as criterion}
-										<li>{criterion}</li>
-									{/each}
-								</ul>
-							</div>
-
-							<!-- Kill Criteria -->
-							<div>
-								<p class="font-semibold text-slate-700 dark:text-slate-300 mb-2">Kill Criteria</p>
-								<ul class="list-disc list-inside text-slate-600 dark:text-slate-400 space-y-1">
-									{#each getKillCriteria(task) as criterion}
-										<li>{criterion}</li>
-									{/each}
-								</ul>
-							</div>
-
-							<!-- Dependencies -->
-							{#if task.dependencies && task.dependencies.length > 0}
+						<div class="px-5 sm:px-6 pb-5 sm:pb-6 pt-0 border-t border-slate-200 dark:border-slate-700">
+							<div class="pt-5 space-y-5">
+								<!-- What & How -->
 								<div>
-									<p class="font-semibold text-slate-700 dark:text-slate-300 mb-2">Dependencies</p>
-									<ul class="list-disc list-inside text-slate-600 dark:text-slate-400 space-y-1">
-										{#each task.dependencies as dep}
-											<li>{dep}</li>
+									<h5 class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2.5">What & How</h5>
+									<ul class="space-y-2">
+										{#each getWhatAndHow(task) as item}
+											<li class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+												<span class="text-slate-400 dark:text-slate-500 mt-1.5">•</span>
+												<span>{item}</span>
+											</li>
 										{/each}
 									</ul>
 								</div>
-							{/if}
+
+								<!-- Success & Kill Criteria - Side by side on larger screens -->
+								<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+									<!-- Success Criteria -->
+									<div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+										<h5 class="text-sm font-semibold text-green-800 dark:text-green-200 mb-2.5 flex items-center gap-2">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+											</svg>
+											Success Criteria
+										</h5>
+										<ul class="space-y-2">
+											{#each getSuccessCriteria(task) as criterion}
+												<li class="flex items-start gap-2 text-sm text-green-700 dark:text-green-300 leading-relaxed">
+													<span class="text-green-500 dark:text-green-400 mt-1">✓</span>
+													<span>{criterion}</span>
+												</li>
+											{/each}
+										</ul>
+									</div>
+
+									<!-- Kill Criteria -->
+									<div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+										<h5 class="text-sm font-semibold text-red-800 dark:text-red-200 mb-2.5 flex items-center gap-2">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+											</svg>
+											Kill Criteria
+										</h5>
+										<ul class="space-y-2">
+											{#each getKillCriteria(task) as criterion}
+												<li class="flex items-start gap-2 text-sm text-red-700 dark:text-red-300 leading-relaxed">
+													<span class="text-red-500 dark:text-red-400 mt-1">✗</span>
+													<span>{criterion}</span>
+												</li>
+											{/each}
+										</ul>
+									</div>
+								</div>
+
+								<!-- Dependencies -->
+								{#if task.dependencies && task.dependencies.length > 0}
+									<div class="bg-slate-100 dark:bg-slate-800 rounded-lg p-4">
+										<h5 class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2.5 flex items-center gap-2">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+											</svg>
+											Dependencies
+										</h5>
+										<ul class="space-y-2">
+											{#each task.dependencies as dep}
+												<li class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+													<span class="text-slate-400 dark:text-slate-500 mt-1">→</span>
+													<span>{dep}</span>
+												</li>
+											{/each}
+										</ul>
+									</div>
+								{/if}
+							</div>
 						</div>
 					{/if}
 				</div>

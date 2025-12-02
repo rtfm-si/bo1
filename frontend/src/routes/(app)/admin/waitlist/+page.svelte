@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { enhance } from '$app/forms';
-	import { Button } from '$lib/components/ui';
+	import { Button, Spinner } from '$lib/components/ui';
 	import { Check, Clock, Mail, UserCheck, AlertCircle } from 'lucide-svelte';
 
 	interface WaitlistEntry {
@@ -230,7 +230,7 @@
 										>
 											{#snippet children()}
 												{#if approvingEmail === entry.email}
-													<div class="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+													<Spinner size="xs" variant="neutral" ariaLabel="Approving" />
 													Approving...
 												{:else}
 													<UserCheck class="w-4 h-4 mr-2" />

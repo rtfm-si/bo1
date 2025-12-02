@@ -67,7 +67,7 @@ export const EVENT_DESCRIPTIONS: Record<string, string | ((data: any) => string)
 	complete: (data: any) => {
 		const rounds = data.total_rounds || 0;
 		const contributions = data.total_contributions || 0;
-		return `Deliberation completed after ${rounds} round${rounds !== 1 ? 's' : ''} with ${contributions} expert contribution${contributions !== 1 ? 's' : ''}.`;
+		return `Meeting completed after ${rounds} round${rounds !== 1 ? 's' : ''} with ${contributions} expert contribution${contributions !== 1 ? 's' : ''}.`;
 	},
 
 	// Decomposition phase
@@ -179,10 +179,10 @@ export const EVENT_DESCRIPTIONS: Record<string, string | ((data: any) => string)
 		return `Generated a comprehensive ${words}-word strategic plan.`;
 	},
 
-	// Cost tracking
+	// Cost tracking (admin-only, filtered in UI)
 	phase_cost_breakdown: (data: any) => {
 		const total = data.total_cost || 0;
-		return `Deliberation cost: $${total.toFixed(2)}`;
+		return `Meeting cost: $${total.toFixed(2)}`;
 	},
 
 	// Error handling

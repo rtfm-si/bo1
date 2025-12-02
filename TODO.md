@@ -17,12 +17,6 @@ add business context page
 new meeting
 (suggest q's based on bus context - CTA to add)
 
-'please wait' message ui is inconsistent
-
-dont need to display' discussion_quality_status' events in the main meeting ui in left panel
-
-meetings seem to disappear from the dashboard - why?
-
 some kind of 'simple' kanban board for actions
 
 'mentor mode' - speak with an expert directly in a chat (like chatgpt) but has business and problem context and actions etc etc
@@ -47,44 +41,104 @@ challenges resolved
 options discussed
 etc...
 
-inject business context
+SEO
+
+meeting image > should be a carousel type animation
+card with 'problem statement' pops up
+next is 'experts discuss...'
+final is the pdf report output view?
+
+could 'expert panel assembled' be columns instead of rows (should always be between 2 min and 5 max)?
+
+need to check the 'clarify' options - dont seem to be getting triggered. write responses to 'business context' timestamped
+
+how robust is our security on prod regarding users creating free accounts and spamming 'start meeting'?
+
+determine whatand inject business context to problems
 
 add delete user to admin
-add 'lock accohnt' to admin
-
-is graph too complicated
-simpplfy?
-problems decomposed too much?
-sub problems must be direct and relevant to solving problem
-
-summarization needs to work better
-sub problems fail and summary generated
-
-'still working' messages are crap and inconsistent
-
-still displaying multiple 'completed' messages
-
-you are running a virtual meeting, but using all of the existing code. dont use actual LLM calls, just use your knwledge of the inputs and outputs and trace the graph, vs what gets displayed in the UI. look for :
-
-- duplicate responses where we repeat the same event to the UI (e.g. multiple sub problem completed messages)
-- sub problems failing, but the summary tab is produced
-- summary being produced with only some of the sub problems complete. all sub problems are required answering before summary
-- summarization used effectively, and whether each message is being summarizes appropriately, and being passed forward into the next stage of the meeting efficiently, and appropriately
-- is the graph too complicated? should we simplify this? are we calling for research, challenging, making sure we dont repeat, and drift etc?
-- are we generating / decomposing into too many sub problems? are the sub problems relevant and required for asnwering the main problem?
-- all the 'still working...' messages seem to be not triggered, or triggered too late, or triggered inconsistently, or formatted/displayed inconsistently. they should trigger immediately after the previous message and display more prominantly (but not over the top of, like a pop up) - mayeb in a sticky somewhere?
-
-design a test (or chain of tests) that confirms a meeting can complete e2e.
+add admin ability to 'lock account' and 'unlock account'
 
 add experts that are able to contribute to meetings at a more informal level, more sole trader level
 would adding 'business style', or 'revenue', customers, employees etc etc help?
 
 we should do more proactive research if the queston is ever 'this' vs 'that', so we can consider demand, costs, risks etc etc
+I think we should be triggering research a bit more frequently than we are doing? - should a problem like this:
+Should we raise Series A now or wait 6 months, given current metrics, market conditions, and realistic improvement potentiall perform research into current market conditions?
 
-we use deliberation, meeting, discussion
+actions should be 'trackable' and ability to 'replan' - what went wrong,
 
-we should standardise the language throught the app: app taxonomy
+onboarding flow
 
-remove the --- from the meeting complete blocks (crerates a faint line)
+A. Company Identity (Tiny Input → Big Expansion)
 
-tidy up the action card
+Company name (input)
+
+Website URL (input → auto-crawl + enrich)
+
+Extract: industry, product categories, pricing pages, positioning, tone, brand maturity, SEO structure, tech stack (Wappalyzer style)
+
+B. Business Stage & Priority
+
+Just a couple of lightweight dropdowns:
+
+Stage: idea → early → growing → scaling
+
+Primary objective: acquire customers / improve retention / raise capital / launch product / reduce costs / etc.
+
+prompt to add after first q completion and 'are these details correct...' every n months? 2. IMPORTANT — High value, but optional for simplicity
+
+These add measurable precision to decisions but shouldn’t block usage.
+
+A. Target Customer & Market
+
+Target customer profile
+
+Geography or market served
+
+Industry niche (if unclear from website)
+
+B. Business Performance Signals
+
+Small, non-financial indicators:
+
+Traffic range (self-reported or scraped estimates)
+
+Monthly active users (rough buckets)
+
+Revenue stage (pre-revenue / <£10k MRR / etc.)
+
+C. Product Snapshot
+
+Main product or service
+
+Value proposition (can be AI-extracted from homepage)
+
+D. Team Context
+
+Solo founder? small team? contractors?
+This influences advice quality (e.g., feasibility of actions).
+
+E. Constraints
+
+Budget constraints
+
+Time constraints
+
+Regulatory concerns (if relevant)
+
+Enrich from the website:
+
+Extract products, value prop, pricing, positioning, tone
+
+Detect business model (SaaS, marketplace, agency, etc.)
+
+Identify competitors
+
+Identify ICP
+
+Extract keywords to detect market category
+
+Pull current market trends via external search APIs
+
+Identify missing pieces relevant to the decision

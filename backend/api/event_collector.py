@@ -4,6 +4,7 @@ Provides:
 - EventCollector: Wraps graph execution and publishes all events to Redis PubSub
 """
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -15,7 +16,11 @@ from backend.api.event_publisher import EventPublisher
 from bo1.config import get_settings, resolve_model_alias
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
-from bo1.state.postgres_manager import save_session_synthesis, update_session_status
+from bo1.state.postgres_manager import (
+    save_session_synthesis,
+    update_session_phase,
+    update_session_status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +44,22 @@ class EventCollector:
         ... )
     """
 
+    # Node handler registry: maps node names to handler method names
+    NODE_HANDLERS: dict[str, str] = {
+        "decompose": "_handle_decomposition",
+        "select_personas": "_handle_persona_selection",
+        "initial_round": "_handle_initial_round",
+        "facilitator_decide": "_handle_facilitator_decision",
+        "parallel_round": "_handle_parallel_round",
+        "moderator_intervene": "_handle_moderator",
+        "check_convergence": "_handle_convergence",
+        "vote": "_handle_voting",
+        "synthesize": "_handle_synthesis",
+        "next_subproblem": "_handle_subproblem_complete",
+        "meta_synthesis": "_handle_meta_synthesis",
+        "meta_synthesize": "_handle_meta_synthesis",  # Support both node names
+    }
+
     def __init__(self, publisher: EventPublisher) -> None:
         """Initialize EventCollector.
 
@@ -49,6 +70,88 @@ class EventCollector:
         # Initialize Anthropic client for AI summarization
         settings = get_settings()
         self.anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+    def _emit_working_status(
+        self,
+        session_id: str,
+        phase: str,
+        estimated_duration: str,
+        sub_problem_index: int = 0,
+    ) -> None:
+        """Emit a working_status event to indicate ongoing processing.
+
+        Helper method to eliminate duplication of working status event emission.
+        Used before long-running operations (voting, synthesis, rounds) to provide
+        user feedback that the system is actively processing.
+
+        Args:
+            session_id: Session identifier
+            phase: Human-readable description of current phase (e.g., "Experts finalizing recommendations...")
+            estimated_duration: Estimated time for this phase (e.g., "10-15 seconds")
+            sub_problem_index: Sub-problem index for tab filtering (default: 0)
+        """
+        self.publisher.publish_event(
+            session_id,
+            "working_status",
+            {
+                "phase": phase,
+                "estimated_duration": estimated_duration,
+                "sub_problem_index": sub_problem_index,
+            },
+        )
+
+    def _emit_quality_status(
+        self,
+        session_id: str,
+        status: str,
+        message: str,
+        round_number: int,
+        sub_problem_index: int = 0,
+    ) -> None:
+        """Emit a discussion_quality_status event for quality tracking.
+
+        Helper method to eliminate duplication of quality status event emission.
+        Used to indicate quality analysis phases (analyzing, selecting, gathering).
+
+        Args:
+            session_id: Session identifier
+            status: Status type (e.g., "analyzing", "selecting", "gathering")
+            message: Human-readable status message
+            round_number: Current round number
+            sub_problem_index: Sub-problem index for tab filtering (default: 0)
+        """
+        self.publisher.publish_event(
+            session_id,
+            "discussion_quality_status",
+            {
+                "status": status,
+                "message": message,
+                "round": round_number,
+                "sub_problem_index": sub_problem_index,
+            },
+        )
+
+    def _extract_persona_dict(self, persona: Any) -> dict[str, Any]:
+        """Extract persona fields into a dictionary.
+
+        Helper method to eliminate duplication of persona attribute extraction.
+        Handles both Pydantic models (via hasattr/getattr) and dicts (via .get()).
+
+        Args:
+            persona: Persona object (Pydantic model or dict)
+
+        Returns:
+            Dictionary with persona fields (code, name, archetype, display_name, domain_expertise)
+        """
+        from backend.api.event_extractors import get_field_safe
+
+        return {
+            "code": get_field_safe(persona, "code"),
+            "name": get_field_safe(persona, "name"),
+            "archetype": get_field_safe(persona, "archetype", ""),
+            "display_name": get_field_safe(persona, "display_name", ""),
+            "domain_expertise": get_field_safe(persona, "domain_expertise", []),
+        }
 
     async def _publish_node_event(
         self,
@@ -126,6 +229,46 @@ class EventCollector:
                 },
             )
 
+    async def _dispatch_node_handler(
+        self,
+        node_name: str,
+        session_id: str,
+        node_data: dict[str, Any],
+    ) -> bool:
+        """Dispatch node completion to the appropriate handler method.
+
+        Args:
+            node_name: Name of the completed node
+            session_id: Session identifier
+            node_data: Node output data
+
+        Returns:
+            True if handler was found and called, False if no handler exists
+
+        Note:
+            This method looks up the handler in NODE_HANDLERS registry and
+            calls it via getattr. If no handler exists for the node, it logs
+            and returns False gracefully (not all nodes need handlers).
+        """
+        handler_name = self.NODE_HANDLERS.get(node_name)
+
+        if handler_name:
+            # Get the handler method from this instance
+            handler = getattr(self, handler_name, None)
+            if handler and callable(handler):
+                await handler(session_id, node_data)
+                return True
+            else:
+                logger.warning(
+                    f"Handler '{handler_name}' not found for node '{node_name}' "
+                    f"(registered but method missing)"
+                )
+                return False
+        else:
+            # Not all nodes need handlers - this is expected
+            logger.debug(f"No handler registered for node '{node_name}' (skipping)")
+            return False
+
     async def collect_and_publish(
         self,
         session_id: str,
@@ -185,10 +328,27 @@ class EventCollector:
                 stream_mode=["updates", "custom"],
                 subgraphs=True,
             ):
-                namespace, data = chunk
+                # LangGraph 1.x with subgraphs=True returns (namespace, mode, data)
+                # namespace: tuple of node path (empty for main graph)
+                # mode: "updates" or "custom"
+                # data: dict with node_name as key for updates, or custom event data
+                namespace, mode, data = chunk
+
+                # For "updates" mode, data is {node_name: state_update}
+                # For "custom" mode, data is the custom event dict directly
+                if mode == "updates" and isinstance(data, dict):
+                    # Get the node name from the data keys
+                    node_names = list(data.keys())
+                    node_name = node_names[0] if node_names else None
+                    node_data = data.get(node_name, {}) if node_name else {}
+                else:
+                    node_name = None
+                    node_data = data
+
+                logger.debug(f"[STREAM] namespace={namespace}, mode={mode}, node={node_name}")
 
                 # Handle custom events from get_stream_writer()
-                if isinstance(data, dict) and "event_type" in data:
+                if mode == "custom" and isinstance(data, dict) and "event_type" in data:
                     event_type = data.pop("event_type")
                     logger.info(
                         f"[CUSTOM EVENT] {event_type} | sub_problem_index={data.get('sub_problem_index')}"
@@ -196,36 +356,12 @@ class EventCollector:
                     self.publisher.publish_event(session_id, event_type, data)
 
                 # Handle state updates from nodes
-                elif isinstance(data, dict):
-                    # Check for specific node updates
-                    node_name = namespace[-1] if namespace else None
+                elif mode == "updates" and node_name:
+                    # Dispatch to appropriate handler via registry
+                    await self._dispatch_node_handler(node_name, session_id, node_data)
 
-                    # Map node outputs to event handlers
-                    if node_name == "decompose":
-                        await self._handle_decomposition(session_id, data)
-                    elif node_name == "select_personas":
-                        await self._handle_persona_selection(session_id, data)
-                    elif node_name == "initial_round":
-                        await self._handle_initial_round(session_id, data)
-                    elif node_name == "facilitator_decide":
-                        await self._handle_facilitator_decision(session_id, data)
-                    elif node_name == "parallel_round":
-                        await self._handle_parallel_round(session_id, data)
-                    elif node_name == "moderator_intervene":
-                        await self._handle_moderator(session_id, data)
-                    elif node_name == "check_convergence":
-                        await self._handle_convergence(session_id, data)
-                    elif node_name == "vote":
-                        await self._handle_voting(session_id, data)
-                    elif node_name == "synthesize":
-                        await self._handle_synthesis(session_id, data)
-                    elif node_name == "next_subproblem":
-                        await self._handle_subproblem_complete(session_id, data)
-                    elif node_name == "meta_synthesize":
-                        await self._handle_meta_synthesis(session_id, data)
-
-                    # Update final state
-                    final_state = data
+                    # Update final state with the node data
+                    final_state = node_data
 
             # Publish completion event
             if final_state:
@@ -274,42 +410,10 @@ class EventCollector:
                 if event_type == "on_chain_end" and "data" in event:
                     output = event.get("data", {}).get("output", {})
 
-                    # Map node names to event handlers
-                    if event_name == "decompose" and isinstance(output, dict):
-                        await self._handle_decomposition(session_id, output)
-
-                    elif event_name == "select_personas" and isinstance(output, dict):
-                        await self._handle_persona_selection(session_id, output)
-
-                    elif event_name == "initial_round" and isinstance(output, dict):
-                        await self._handle_initial_round(session_id, output)
-
-                    elif event_name == "facilitator_decide" and isinstance(output, dict):
-                        await self._handle_facilitator_decision(session_id, output)
-
-                    elif event_name == "parallel_round" and isinstance(output, dict):
-                        await self._handle_parallel_round(session_id, output)
-
-                    elif event_name == "moderator_intervene" and isinstance(output, dict):
-                        await self._handle_moderator(session_id, output)
-
-                    elif event_name == "check_convergence" and isinstance(output, dict):
-                        await self._handle_convergence(session_id, output)
-
-                    elif event_name == "vote" and isinstance(output, dict):
-                        await self._handle_voting(session_id, output)
-
-                    elif event_name == "synthesize" and isinstance(output, dict):
-                        await self._handle_synthesis(session_id, output)
-
-                    elif event_name == "next_subproblem" and isinstance(output, dict):
-                        await self._handle_subproblem_complete(session_id, output)
-
-                    elif event_name == "meta_synthesize" and isinstance(output, dict):
-                        await self._handle_meta_synthesis(session_id, output)
-
-                    # Capture final state
+                    # Dispatch to appropriate handler via registry
                     if isinstance(output, dict):
+                        await self._dispatch_node_handler(event_name, session_id, output)
+                        # Capture final state
                         final_state = output
 
             # Publish completion event
@@ -343,58 +447,40 @@ class EventCollector:
 
     async def _handle_decomposition(self, session_id: str, output: dict) -> None:
         """Handle decompose node completion."""
+        # Update phase in database for dashboard display
+        update_session_phase(session_id, "decomposition")
+
         # ISSUE FIX: Add status message for problem analysis phase
-        self.publisher.publish_event(
+        self._emit_quality_status(
             session_id,
-            "discussion_quality_status",
-            {
-                "status": "analyzing",
-                "message": "Analyzing problem structure...",
-                "round": 0,
-                "sub_problem_index": output.get("sub_problem_index", 0),
-            },
+            status="analyzing",
+            message="Analyzing problem structure...",
+            round_number=0,
+            sub_problem_index=output.get("sub_problem_index", 0),
         )
         await self._publish_node_event(session_id, output, "decomposition_complete")
 
     async def _handle_persona_selection(self, session_id: str, output: dict) -> None:
         """Handle select_personas node completion - publishes multiple events."""
+        # Update phase in database for dashboard display
+        update_session_phase(session_id, "selection")
+
         personas = output.get("personas", [])
         persona_recommendations = output.get("persona_recommendations", [])
         sub_problem_index = output.get("sub_problem_index", 0)
 
         # ISSUE FIX: Add status message for expert selection phase
-        self.publisher.publish_event(
+        self._emit_quality_status(
             session_id,
-            "discussion_quality_status",
-            {
-                "status": "selecting",
-                "message": "Selecting expert panel...",
-                "round": 0,
-                "sub_problem_index": sub_problem_index,
-            },
+            status="selecting",
+            message="Selecting expert panel...",
+            round_number=0,
+            sub_problem_index=sub_problem_index,
         )
 
         # Publish individual persona selected events
         for i, persona in enumerate(personas):
-            persona_dict = {
-                "code": persona.code if hasattr(persona, "code") else persona.get("code"),
-                "name": persona.name if hasattr(persona, "name") else persona.get("name"),
-                "archetype": (
-                    persona.archetype
-                    if hasattr(persona, "archetype")
-                    else persona.get("archetype", "")
-                ),
-                "display_name": (
-                    persona.display_name
-                    if hasattr(persona, "display_name")
-                    else persona.get("display_name", "")
-                ),
-                "domain_expertise": (
-                    persona.domain_expertise
-                    if hasattr(persona, "domain_expertise")
-                    else persona.get("domain_expertise", [])
-                ),
-            }
+            persona_dict = self._extract_persona_dict(persona)
 
             # Find matching rationale from persona_recommendations
             rationale = ""
@@ -438,6 +524,9 @@ class EventCollector:
             session_id: Session identifier
             output: Node output state
         """
+        # Update phase in database for dashboard display
+        update_session_phase(session_id, "exploration")
+
         # Extract sub_problem_index for tab filtering
         sub_problem_index = output.get("sub_problem_index", 0)
 
@@ -446,15 +535,12 @@ class EventCollector:
 
         # ISSUE FIX: Emit initial discussion quality status at START of round 1
         # This provides early UX feedback that quality tracking has begun
-        self.publisher.publish_event(
+        self._emit_quality_status(
             session_id,
-            "discussion_quality_status",
-            {
-                "status": "analyzing",
-                "message": "Gathering expert perspectives...",
-                "round": 1,
-                "sub_problem_index": sub_problem_index,
-            },
+            status="analyzing",
+            message="Gathering expert perspectives...",
+            round_number=1,
+            sub_problem_index=sub_problem_index,
         )
 
         # Publish individual contributions
@@ -490,6 +576,9 @@ class EventCollector:
         current_phase = output.get("current_phase", "exploration")
         experts_per_round = output.get("experts_per_round", [])
         sub_problem_index = output.get("sub_problem_index", 0)
+
+        # Update phase in database for dashboard display
+        update_session_phase(session_id, current_phase)
         personas = output.get("personas", [])
 
         # Extract experts for the just-completed round
@@ -498,14 +587,11 @@ class EventCollector:
         experts_this_round = experts_per_round[-1] if experts_per_round else []
 
         # AUDIT FIX (Issue #4): Emit working status BEFORE round starts
-        self.publisher.publish_event(
+        self._emit_working_status(
             session_id,
-            "working_status",
-            {
-                "phase": f"Round {completed_round}: Experts deliberating...",
-                "estimated_duration": "8-12 seconds",
-                "sub_problem_index": sub_problem_index,
-            },
+            phase=f"Round {completed_round}: Experts deliberating...",
+            estimated_duration="8-12 seconds",
+            sub_problem_index=sub_problem_index,
         )
 
         # Emit parallel round start event
@@ -551,29 +637,29 @@ class EventCollector:
 
     async def _handle_voting(self, session_id: str, output: dict) -> None:
         """Handle vote node completion."""
+        # Update phase in database for dashboard display
+        update_session_phase(session_id, "voting")
+
         # AUDIT FIX (Issue #4): Emit working status BEFORE voting starts
-        self.publisher.publish_event(
+        self._emit_working_status(
             session_id,
-            "working_status",
-            {
-                "phase": "Experts finalizing recommendations...",
-                "estimated_duration": "10-15 seconds",
-                "sub_problem_index": output.get("sub_problem_index", 0),
-            },
+            phase="Experts finalizing recommendations...",
+            estimated_duration="10-15 seconds",
+            sub_problem_index=output.get("sub_problem_index", 0),
         )
         await self._publish_node_event(session_id, output, "voting_complete", registry_key="voting")
 
     async def _handle_synthesis(self, session_id: str, output: dict) -> None:
         """Handle synthesize node completion."""
+        # Update phase in database for dashboard display
+        update_session_phase(session_id, "synthesis")
+
         # AUDIT FIX (Issue #4): Emit working status BEFORE synthesis starts
-        self.publisher.publish_event(
+        self._emit_working_status(
             session_id,
-            "working_status",
-            {
-                "phase": "Synthesizing insights from deliberation...",
-                "estimated_duration": "5-8 seconds",
-                "sub_problem_index": output.get("sub_problem_index", 0),
-            },
+            phase="Synthesizing insights from deliberation...",
+            estimated_duration="5-8 seconds",
+            sub_problem_index=output.get("sub_problem_index", 0),
         )
         # Publish event
         await self._publish_node_event(session_id, output, "synthesis_complete")
@@ -604,13 +690,10 @@ class EventCollector:
     async def _handle_meta_synthesis(self, session_id: str, output: dict) -> None:
         """Handle meta_synthesize node completion."""
         # AUDIT FIX (Issue #4): Emit working status BEFORE meta-synthesis starts
-        self.publisher.publish_event(
+        self._emit_working_status(
             session_id,
-            "working_status",
-            {
-                "phase": "Synthesizing final recommendation...",
-                "estimated_duration": "8-12 seconds",
-            },
+            phase="Synthesizing final recommendation...",
+            estimated_duration="8-12 seconds",
         )
         # Publish event
         await self._publish_node_event(session_id, output, "meta_synthesis_complete")
@@ -625,8 +708,31 @@ class EventCollector:
                 logger.error(f"Failed to save meta-synthesis to PostgreSQL for {session_id}: {e}")
 
     async def _handle_completion(self, session_id: str, final_state: dict) -> None:
-        """Handle deliberation completion - publishes cost breakdown and completion events."""
-        # Extract phase costs and metrics
+        """Handle deliberation completion - orchestrates cost breakdown, completion event, status update, and verification.
+
+        Args:
+            session_id: Session identifier
+            final_state: Final deliberation state containing synthesis, costs, and metrics
+        """
+        # Publish cost breakdown
+        self._publish_cost_breakdown(session_id, final_state)
+
+        # Publish completion event
+        self._publish_completion_event(session_id, final_state)
+
+        # Update session status with retry logic
+        await self._update_session_status_with_retry(session_id, final_state)
+
+        # Verify event persistence
+        await self._verify_event_persistence(session_id)
+
+    def _publish_cost_breakdown(self, session_id: str, final_state: dict) -> None:
+        """Publish phase cost breakdown event if costs are available.
+
+        Args:
+            session_id: Session identifier
+            final_state: Final deliberation state containing phase costs and metrics
+        """
         phase_costs = final_state.get("phase_costs", {})
         metrics = final_state.get("metrics", {})
 
@@ -646,22 +752,45 @@ class EventCollector:
                 },
             )
 
-        # Publish completion event
+    def _publish_completion_event(self, session_id: str, final_state: dict) -> None:
+        """Publish completion event with extracted data from final state.
+
+        Args:
+            session_id: Session identifier
+            final_state: Final deliberation state
+        """
         registry = get_event_registry()
         completion_data = registry.extract("completion", final_state)
         completion_data["session_id"] = session_id  # Ensure session_id is present
         self.publisher.publish_event(session_id, "complete", completion_data)
 
-        # Update session status in PostgreSQL for permanent record
-        # CRITICAL: This must succeed - retry with exponential backoff
+    async def _update_session_status_with_retry(self, session_id: str, final_state: dict) -> None:
+        """Update session status in PostgreSQL with exponential backoff retry logic.
+
+        CRITICAL: This must succeed to maintain consistency between Redis and PostgreSQL.
+        Uses 3 retry attempts with exponential backoff (0.1s, 0.2s).
+
+        Args:
+            session_id: Session identifier
+            final_state: Final deliberation state containing synthesis, metrics, and phase info
+        """
+        # Extract data for status update
         synthesis_text = final_state.get("synthesis") or final_state.get("meta_synthesis")
         final_recommendation = None  # Could extract from synthesis if needed
         round_number = final_state.get("round_number", 0)
         phase = final_state.get("current_phase")
 
+        # Extract total cost
+        metrics = final_state.get("metrics", {})
+        if hasattr(metrics, "total_cost"):
+            total_cost = metrics.total_cost
+        else:
+            total_cost = metrics.get("total_cost", 0.0) if isinstance(metrics, dict) else 0.0
+
         status_update_success = False
         last_error = None
 
+        # Retry loop with exponential backoff
         for attempt in range(3):  # 3 attempts with exponential backoff
             try:
                 update_session_status(
@@ -689,9 +818,8 @@ class EventCollector:
                         f"Session status update attempt {attempt + 1}/3 failed for "
                         f"{session_id}: {e}. Retrying in {wait_time}s..."
                     )
-                    import time
-
-                    time.sleep(wait_time)
+                    # BUG FIX: Use asyncio.sleep instead of time.sleep in async method
+                    await asyncio.sleep(wait_time)
                 else:
                     logger.error(
                         f"CRITICAL: Failed to update session status after 3 attempts for "
@@ -714,8 +842,15 @@ class EventCollector:
             except Exception as emit_error:
                 logger.error(f"Failed to emit status error event: {emit_error}")
 
-        # VERIFICATION: Check that events were actually persisted to PostgreSQL
-        # Compare Redis vs PostgreSQL event counts to detect persistence failures
+    async def _verify_event_persistence(self, session_id: str) -> None:
+        """Verify that events were persisted to PostgreSQL by comparing counts with Redis.
+
+        Compares Redis event count (temporary) with PostgreSQL event count (permanent)
+        to detect persistence failures. Emits warning events if discrepancies are found.
+
+        Args:
+            session_id: Session identifier
+        """
         try:
             from bo1.state.postgres_manager import get_session_events
 

@@ -7,8 +7,10 @@
 	import { fade, scale } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
 	import { SSEClient } from '$lib/utils/sse';
-	import { CheckCircle, AlertCircle, Clock, Pause, Play, Square } from 'lucide-svelte';
+	import { CheckCircle, AlertCircle, Clock, Pause, Play, Square, Download } from 'lucide-svelte';
 	import { PHASE_PROGRESS_MAP } from '$lib/design/tokens';
+	import { user } from '$lib/stores/auth';
+	import { generateReportHTML } from '$lib/utils/pdf-report-generator';
 
 	/**
 	 * Dynamic component loading strategy:
@@ -26,80 +28,9 @@
 	 * - More complex than static imports
 	 */
 
-	// Import only GenericEvent statically (fallback for all unknown/error cases)
-	import GenericEvent from '$lib/components/events/GenericEvent.svelte';
-
-	// Type for dynamically loaded components (any Svelte component)
-	type SvelteComponent = any;
-
-	// Map event types to dynamic component loaders
-	const componentLoaders: Record<string, () => Promise<{ default: SvelteComponent }>> = {
-		'decomposition_complete': () => import('$lib/components/events/DecompositionComplete.svelte'),
-		'contribution': () => import('$lib/components/events/ExpertPerspectiveCard.svelte'),
-		'facilitator_decision': () => import('$lib/components/events/FacilitatorDecision.svelte'),
-		'moderator_intervention': () => import('$lib/components/events/ModeratorIntervention.svelte'),
-		'convergence': () => import('$lib/components/events/ConvergenceCheck.svelte'),
-		'voting_complete': () => import('$lib/components/events/VotingResults.svelte'),
-		'persona_vote': () => import('$lib/components/events/PersonaVote.svelte'),
-		'meta_synthesis_complete': () => import('$lib/components/events/ActionPlan.svelte'),
-		'synthesis_complete': () => import('$lib/components/events/SynthesisComplete.svelte'),
-		'subproblem_complete': () => import('$lib/components/events/SubProblemProgress.svelte'),
-		'phase_cost_breakdown': () => import('$lib/components/events/PhaseTable.svelte'),
-		'complete': () => import('$lib/components/events/DeliberationComplete.svelte'),
-		'error': () => import('$lib/components/events/ErrorEvent.svelte'),
-		'expert_panel': () => import('$lib/components/events/ExpertPanel.svelte'),
-	};
-
-	// Cache loaded components to avoid re-importing (LRU with bounded size)
-	const MAX_CACHED_COMPONENTS = 20;
-	const componentCache = new Map<string, SvelteComponent>();
-
-	/**
-	 * Get component for event type with dynamic loading.
-	 * Returns GenericEvent as fallback for unknown types.
-	 *
-	 * Uses LRU (Least Recently Used) cache eviction strategy to prevent unbounded memory growth.
-	 * Cache is limited to MAX_CACHED_COMPONENTS (20) entries.
-	 */
-	async function getComponentForEvent(eventType: string): Promise<SvelteComponent> {
-		// Check cache first (LRU: move to end)
-		if (componentCache.has(eventType)) {
-			const component = componentCache.get(eventType)!;
-			// Move to end (most recently used) for LRU eviction
-			componentCache.delete(eventType);
-			componentCache.set(eventType, component);
-			return component;
-		}
-
-		// Load component
-		const loader = componentLoaders[eventType];
-		if (!loader) {
-			console.debug(`Unknown event type: ${eventType}, using GenericEvent`);
-			return GenericEvent;
-		}
-
-		try {
-			const module = await loader();
-			const component = module.default;
-
-			// Enforce max size (evict oldest/least recently used)
-			if (componentCache.size >= MAX_CACHED_COMPONENTS) {
-				const firstKey = componentCache.keys().next().value;
-				if (firstKey) {
-					componentCache.delete(firstKey);
-					console.debug(`LRU cache eviction: removed ${firstKey} component`);
-				}
-			}
-
-			// Cache for future use
-			componentCache.set(eventType, component);
-
-			return component;
-		} catch (error) {
-			console.error(`Failed to load component for ${eventType}:`, error);
-			return GenericEvent;
-		}
-	}
+	// Import DynamicEventComponent (reusable wrapper for dynamic event component loading)
+	import DynamicEventComponent from '$lib/components/events/DynamicEventComponent.svelte';
+	import ContributionRound from '$lib/components/events/ContributionRound.svelte';
 
 	// Import metrics components
 	import {
@@ -118,10 +49,9 @@
 	import AiDisclaimer from '$lib/components/ui/AiDisclaimer.svelte';
 	import {
 		EventCardSkeleton,
-		ExpertPanelSkeleton,
-		ContributionSkeleton,
 		DashboardCardSkeleton
 	} from '$lib/components/ui/skeletons';
+	import { LoadingDots, ActivityStatus, LOADING_MESSAGES, ROTATING_MESSAGES, getRotatingMessage } from '$lib/components/ui/loading';
 
 	// Import utilities
 	import { getEventPriority, type EventPriority } from '$lib/utils/event-humanization';
@@ -294,6 +224,44 @@
 		}
 	});
 
+	// CLIENT-SIDE STALENESS DETECTION
+	// Shows a "Still working..." banner when UI hasn't updated for a while
+	// This catches gaps between backend working_status events
+	const STALENESS_THRESHOLD_MS = 8000; // Show banner after 8s of no events
+	let lastEventReceivedTime = $state<number>(Date.now());
+	let staleSinceSeconds = $state<number>(0);
+	let isStale = $state<boolean>(false);
+
+	// Update staleness every second
+	$effect(() => {
+		// Only track staleness for active sessions
+		if (session?.status !== 'active') {
+			isStale = false;
+			staleSinceSeconds = 0;
+			return;
+		}
+
+		const interval = setInterval(() => {
+			const timeSince = Date.now() - lastEventReceivedTime;
+			if (timeSince >= STALENESS_THRESHOLD_MS) {
+				isStale = true;
+				staleSinceSeconds = Math.floor(timeSince / 1000);
+			} else {
+				isStale = false;
+				staleSinceSeconds = 0;
+			}
+		}, 1000);
+
+		return () => clearInterval(interval);
+	});
+
+	// Reset staleness when new events arrive (handled in addEvent below)
+	function resetStaleness() {
+		lastEventReceivedTime = Date.now();
+		isStale = false;
+		staleSinceSeconds = 0;
+	}
+
 	// Internal event types that should not be displayed in the UI
 	const HIDDEN_EVENT_TYPES = new Set([
 		'parallel_round_start',
@@ -307,6 +275,16 @@
 		if (HIDDEN_EVENT_TYPES.has(newEvent.event_type)) {
 			return;
 		}
+		// Filter out cost events for non-admin users
+		if (newEvent.event_type === 'phase_cost_breakdown' && !$user?.is_admin) {
+			return;
+		}
+
+		// Only reset staleness for VISIBLE events (events the user will actually see)
+		// This ensures "Still working..." banner shows when backend is busy
+		// but not producing user-visible updates
+		resetStaleness();
+
 		store.addEvent(newEvent);
 	}
 
@@ -322,21 +300,6 @@
 	}
 
 	onMount(() => {
-		// Preload critical components before any events arrive
-		const criticalComponents = [
-			'contribution',
-			'facilitator_decision',
-			'convergence',
-			'voting_complete',
-			'synthesis_complete',
-			'decomposition_complete'
-		];
-
-		// Fire all preloads in parallel
-		Promise.all(criticalComponents.map(type => getComponentForEvent(type)))
-			.then(() => console.log('[Events] Critical components preloaded'))
-			.catch(err => console.warn('[Events] Component preload failed:', err));
-
 		// Auth is already verified by parent layout, safe to load session
 		// Run async initialization with proper sequencing
 		(async () => {
@@ -415,8 +378,18 @@
 				addEvent(sseEvent);
 			}
 
-			// Auto-scroll after loading history
-			scrollToLatestEventDebounced(false); // No smooth scroll for initial load
+			// For completed meetings, scroll to top (show beginning)
+			// For active meetings, scroll to bottom (latest events)
+			if (session?.status === 'completed' || session?.status === 'failed') {
+				// Don't auto-scroll for completed meetings - let user read from start
+				const container = document.getElementById('events-container');
+				if (container) {
+					container.scrollTop = 0;
+				}
+			} else {
+				// Auto-scroll after loading history for active meetings
+				scrollToLatestEventDebounced(false); // No smooth scroll for initial load
+			}
 		} catch (err) {
 			console.error('[Events] Failed to load historical events:', err);
 			// Don't set error state - this is non-fatal, stream will still work
@@ -645,6 +618,14 @@
 	$effect(() => {
 		// Only trigger recalculation if events changed
 		if (events.length !== lastEventCountForGrouping) {
+			// For completed meetings, process immediately (no debounce)
+			const isCompleted = session?.status === 'completed' || session?.status === 'failed';
+			if (isCompleted) {
+				groupedEventsCache = groupEvents(events, debugMode);
+				lastEventCountForGrouping = events.length;
+				return;
+			}
+
 			const lastEvent = events[events.length - 1];
 
 			// Critical events get fastest rendering (50ms)
@@ -653,15 +634,6 @@
 				|| lastEvent?.event_type === 'persona_selected';
 
 			const delay = isCritical ? DEBOUNCE_CRITICAL : DEBOUNCE_NORMAL;
-
-			// ADD THIS: Log debounce timing for critical events
-			if (isCritical) {
-				console.log('[EXPERT PANEL] Using critical debounce:', {
-					eventType: lastEvent?.event_type,
-					delay: delay + 'ms',
-					eventCount: events.length
-				});
-			}
 
 			recalculateGroupedEvents(delay);
 		}
@@ -684,7 +656,7 @@
 		return Math.floor(Math.random() * (MAX_DELAY - MIN_DELAY + 1)) + MIN_DELAY;
 	}
 
-	// Generate varied thinking messages
+	// Generate varied thinking messages (passed to ContributionRound component)
 	const thinkingMessages = [
 		(name: string) => `${name} is thinking...`,
 		(name: string) => `${name} is formulating a response...`,
@@ -692,11 +664,6 @@
 		(name: string) => `${name} is considering the discussion...`,
 		(name: string) => `${name} is preparing insights...`,
 	];
-
-	function getThinkingMessage(name: string, index: number): string {
-		const msgFn = thinkingMessages[index % thinkingMessages.length];
-		return msgFn(name);
-	}
 
 	// Initial waiting messages (before any events arrive) - cycle every 1.5s
 	const initialWaitingMessages = [
@@ -827,6 +794,9 @@
 
 	$effect(() => {
 		// Track newly added contribution groups and stage their reveals
+		// For completed meetings, show all contributions immediately (no animation)
+		const isCompleted = session?.status === 'completed' || session?.status === 'failed';
+
 		for (const group of groupedEvents) {
 			if (group.type === 'round' && group.events) {
 				const roundKey = `round-${group.roundNumber}`;
@@ -835,6 +805,13 @@
 
 				// If we have new contributions to reveal
 				if (currentVisible < totalContributions) {
+					// For completed meetings, reveal all immediately
+					if (isCompleted) {
+						visibleContributionCounts.set(roundKey, totalContributions);
+						visibleContributionCounts = new Map(visibleContributionCounts);
+						continue;
+					}
+
 					// Calculate how many we need to reveal
 					const toReveal = totalContributions - currentVisible;
 
@@ -868,13 +845,6 @@
 		}
 	});
 
-	// Helper to get visible contributions for a round
-	function getVisibleContributions(roundNumber: number | undefined, allContributions: SSEEvent[]): SSEEvent[] {
-		if (!roundNumber) return allContributions;
-		const roundKey = `round-${roundNumber}`;
-		const visibleCount = visibleContributionCounts.get(roundKey) || 0;
-		return allContributions.slice(0, visibleCount);
-	}
 
 	// Progress calculation
 	function calculateProgress(session: SessionData | null): number {
@@ -1005,6 +975,13 @@
 
 	$effect(() => {
 		if (events.length !== lastEventCountForIndex) {
+			// For completed meetings, process immediately (no debounce)
+			const isCompleted = session?.status === 'completed' || session?.status === 'failed';
+			if (isCompleted) {
+				eventsBySubProblemCache = indexEventsBySubProblem(events);
+				lastEventCountForIndex = events.length;
+				return;
+			}
 			recalculateEventIndex();
 		}
 	});
@@ -1051,6 +1028,50 @@
 		}
 		return 'bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-700';
 	}
+
+	// Auto-switch to Summary tab when meeting completes
+	$effect(() => {
+		if (session?.status === 'completed' && showConclusionTab && activeSubProblemTab !== 'conclusion') {
+			activeSubProblemTab = 'conclusion';
+		}
+	});
+
+	// PDF Export functionality
+	let isExporting = $state(false);
+
+	async function exportPDF() {
+		isExporting = true;
+		try {
+			// Open print-friendly report in new window
+			const reportWindow = window.open('', '_blank', 'width=800,height=600');
+			if (!reportWindow) {
+				alert('Please allow popups to export the report');
+				return;
+			}
+
+			if (!session) {
+				alert('Session data not loaded');
+				return;
+			}
+
+			const reportHTML = generateReportHTML({
+				session,
+				events,
+				sessionId
+			});
+			reportWindow.document.write(reportHTML);
+			reportWindow.document.close();
+
+			// Trigger print dialog after a brief delay for styles to load
+			setTimeout(() => {
+				reportWindow.print();
+			}, 500);
+		} finally {
+			isExporting = false;
+		}
+	}
+
+	// PDF report generation has been extracted to $lib/utils/pdf-report-generator.ts
 </script>
 
 <svelte:head>
@@ -1103,11 +1124,19 @@
 	<!-- Main Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- AUDIT FIX (Issue #4): Prominent working status indicator -->
+		<!-- Shows either:
+		     1. Backend working_status phase (from currentWorkingPhase)
+		     2. Client-side staleness banner (when no events for 8+ seconds) -->
 		{#if currentWorkingPhase}
 			<WorkingStatus
 				currentPhase={currentWorkingPhase}
 				elapsedSeconds={workingElapsedSeconds}
 				estimatedDuration={estimatedDuration}
+			/>
+		{:else if isStale && session?.status === 'active'}
+			<WorkingStatus
+				currentPhase="Still working..."
+				elapsedSeconds={staleSinceSeconds}
 			/>
 		{/if}
 
@@ -1122,7 +1151,7 @@
 				{:else if latestEvent.event_type === 'synthesis_complete'}
 					Synthesis complete
 				{:else if latestEvent.event_type === 'complete'}
-					Deliberation complete
+					Meeting complete
 				{:else if latestEvent.event_type === 'voting_complete'}
 					Voting complete
 				{:else if latestEvent.event_type === 'subproblem_complete'}
@@ -1143,7 +1172,7 @@
 									{#if subProblemTabs.length > 1}
 										Focus Area Analysis
 									{:else}
-										Deliberation Stream
+										Activity
 									{/if}
 								</h2>
 								{#if connectionStatus === 'connecting'}
@@ -1236,7 +1265,7 @@
 					<div
 						id="events-container"
 						class="overflow-y-auto"
-						style="height: calc(100vh - 400px); min-height: 600px;"
+						style="height: calc(100vh - 400px); min-height: 600px; overflow-anchor: none;"
 					>
 						{#if isLoading}
 							<!-- Skeleton Loading States -->
@@ -1246,13 +1275,12 @@
 								{/each}
 							</div>
 						{:else if events.length === 0}
-							<div class="flex flex-col items-center justify-center h-full text-slate-500 dark:text-slate-400 p-4 gap-3">
-								<div class="flex gap-1">
-									<div class="w-2 h-2 rounded-full bg-slate-400 animate-pulse" style="animation-delay: 0ms"></div>
-									<div class="w-2 h-2 rounded-full bg-slate-400 animate-pulse" style="animation-delay: 150ms"></div>
-									<div class="w-2 h-2 rounded-full bg-slate-400 animate-pulse" style="animation-delay: 300ms"></div>
-								</div>
-								<p class="transition-opacity duration-300">{initialWaitingMessages[initialWaitingMessageIndex]}</p>
+							<div class="flex flex-col items-center justify-center h-full text-slate-500 dark:text-slate-400 p-4">
+								<ActivityStatus
+									variant="card"
+									message={initialWaitingMessages[initialWaitingMessageIndex]}
+									showDots
+								/>
 							</div>
 						{:else if subProblemTabs.length > 1}
 							<!-- Tab-based navigation for multiple sub-problems -->
@@ -1348,12 +1376,12 @@
 										{#each subGroupedEvents as group, index (index)}
 											{#if group.type === 'expert_panel' && group.events}
 												<div transition:fade={{ duration: 300, delay: 50 }}>
-													{#await getComponentForEvent('expert_panel')}
-														<!-- Loading skeleton for expert panel -->
-														<ExpertPanelSkeleton expertCount={group.events.length} />
-													{:then ExpertPanelComponent}
-														<ExpertPanelComponent
-															experts={group.events.map((e): ExpertInfo => ({
+													<DynamicEventComponent
+														event={group.events[0]}
+														eventType="expert_panel"
+														skeletonProps={{ hasAvatar: false }}
+														componentProps={{
+															experts: group.events.map((e): ExpertInfo => ({
 																persona: e.data.persona as {
 																	code: string;
 																	name: string;
@@ -1363,66 +1391,24 @@
 																},
 																rationale: e.data.rationale as string,
 																order: e.data.order as number,
-															}))}
-															subProblemGoal={group.subProblemGoal}
-														/>
-													{:catch error}
-														<GenericEvent event={group.events[0]} />
-													{/await}
+															})),
+															subProblemGoal: group.subProblemGoal
+														}}
+													/>
 												</div>
 											{:else if group.type === 'round' && group.events}
 												{@const roundKey = `round-${group.roundNumber}`}
 												{@const visibleCount = visibleContributionCounts.get(roundKey) || 0}
-												{@const hasMoreToReveal = visibleCount < group.events.length}
-												{@const nextExpert = hasMoreToReveal ? (group.events[visibleCount] as ContributionEvent | undefined)?.data?.persona_name : null}
-												<div transition:fade={{ duration: 300, delay: 50 }}>
-													<div class="space-y-3">
-														<h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-															<span>Round {group.roundNumber} Contributions</span>
-														</h3>
-														{#each getVisibleContributions(group.roundNumber, group.events) as contrib}
-															{@const contribEvent = contrib as ContributionEvent}
-															{#await getComponentForEvent('contribution')}
-																<!-- Loading skeleton with timeout fallback -->
-																<ContributionSkeleton />
-															{:then ExpertPerspectiveCardComponent}
-																{#if ExpertPerspectiveCardComponent}
-																	{@const cardId = `${contribEvent.data.persona_code}-${contribEvent.data.round}`}
-																	<ExpertPerspectiveCardComponent
-																		event={contribEvent}
-																		viewMode={getCardViewMode(cardId)}
-																		showFull={showFullTranscripts}
-																		onToggle={() => toggleCardViewMode(cardId)}
-																	/>
-																{:else}
-																	<!-- Component loaded but null - use GenericEvent -->
-																	<GenericEvent event={contrib} />
-																	<div class="text-xs text-red-600 mt-2">
-																		Component failed to load for: contribution
-																	</div>
-																{/if}
-															{:catch error}
-																<!-- Component import failed - show error with details -->
-																<GenericEvent event={contrib} />
-																<div class="text-xs text-red-600 mt-2">
-																	Error loading component: {error.message || 'Unknown error'}
-																</div>
-															{/await}
-														{/each}
-
-														<!-- Thinking indicator when more contributions are pending -->
-														{#if hasMoreToReveal && nextExpert}
-															<div class="flex items-center gap-2 py-2 px-3 text-sm text-slate-500 dark:text-slate-400" transition:fade={{ duration: 200 }}>
-																<div class="flex items-center gap-1">
-																	<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 0ms;"></span>
-																	<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 150ms;"></span>
-																	<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 300ms;"></span>
-																</div>
-																<span class="italic">{getThinkingMessage(nextExpert, visibleCount)}</span>
-															</div>
-														{/if}
-													</div>
-												</div>
+												<ContributionRound
+													roundNumber={group.roundNumber || 0}
+													events={group.events}
+													visibleCount={visibleCount}
+													viewMode={contributionViewMode}
+													showFullTranscripts={showFullTranscripts}
+													cardViewModes={cardViewModes}
+													onToggleCardViewMode={toggleCardViewMode}
+													thinkingMessages={thinkingMessages}
+												/>
 											{:else if group.type === 'single' && group.event}
 												{@const event = group.event}
 												{@const priority = getEventPriority(event.event_type)}
@@ -1442,26 +1428,10 @@
 																<RelativeTimestamp timestamp={event.timestamp} />
 															</div>
 
-															{#await getComponentForEvent(event.event_type)}
-																<!-- Loading skeleton with timeout fallback -->
-																<EventCardSkeleton hasAvatar={false} />
-															{:then EventComponent}
-																{#if EventComponent}
-																	<EventComponent {event} />
-																{:else}
-																	<!-- Component loaded but null - use GenericEvent -->
-																	<GenericEvent event={event} />
-																	<div class="text-xs text-red-600 mt-2">
-																		Component failed to load for: {event.event_type}
-																	</div>
-																{/if}
-															{:catch error}
-																<!-- Component import failed - show error with details -->
-																<GenericEvent event={event} />
-																<div class="text-xs text-red-600 mt-2">
-																	Error loading component: {error.message || 'Unknown error'}
-																</div>
-															{/await}
+															<DynamicEventComponent
+																{event}
+																skeletonProps={{ hasAvatar: false }}
+															/>
 														</div>
 													</div>
 												</div>
@@ -1471,53 +1441,32 @@
 										<!-- Synthesis preview for this sub-problem (if available) -->
 										{#if subProblemCompleteEvents[tabIndex]?.data?.synthesis}
 											<div class="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
-												{#await getComponentForEvent('subproblem_complete')}
-													<EventCardSkeleton />
-												{:then SubProblemComponent}
-													{#if SubProblemComponent}
-														<SubProblemComponent event={subProblemCompleteEvents[tabIndex]} />
-													{/if}
-												{:catch}
-													<!-- Fallback to raw display -->
-													{@const spData = subProblemCompleteEvents[tabIndex].data as { synthesis: string; goal: string }}
-													<h4 class="text-md font-semibold mb-3 flex items-center gap-2 text-slate-900 dark:text-white">
-														<svg class="w-5 h-5 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-														</svg>
-														Synthesis
-													</h4>
-													<div class="prose prose-slate dark:prose-invert max-w-none text-sm text-slate-700 dark:text-slate-300">
-														{@html spData.synthesis.replace(/\n/g, '<br />')}
-													</div>
-												{/await}
+												<DynamicEventComponent
+													event={subProblemCompleteEvents[tabIndex]}
+													eventType="subproblem_complete"
+												/>
 											</div>
 										{/if}
 
 										<!-- Phase-specific waiting indicator (tabbed view) -->
 										{#if isWaitingForFirstContributions && isTabActive}
-											<div class="flex items-center gap-3 py-4 px-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800" transition:fade={{ duration: 300 }}>
-												<div class="flex items-center gap-1">
-													<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></span>
-													<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></span>
-													<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></span>
-												</div>
-												<span class="text-sm text-amber-700 dark:text-amber-300 font-medium">
-													{phaseWaitingMessage}
-												</span>
+											<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 py-4 px-4" transition:fade={{ duration: 300 }}>
+												<ActivityStatus
+													variant="inline"
+													message={phaseWaitingMessage}
+													class="text-amber-700 dark:text-amber-300 font-medium"
+												/>
 											</div>
 										{/if}
 
 										<!-- Between-rounds waiting indicator (tabbed view) -->
 										{#if isWaitingForNextRound && isTabActive}
-											<div class="flex items-center gap-3 py-4 px-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800" transition:fade={{ duration: 300 }}>
-												<div class="flex items-center gap-1">
-													<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></span>
-													<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></span>
-													<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></span>
-												</div>
-												<span class="text-sm text-blue-700 dark:text-blue-300 font-medium">
-													{betweenRoundsMessages[betweenRoundsMessageIndex]}
-												</span>
+											<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 py-4 px-4" transition:fade={{ duration: 300 }}>
+												<ActivityStatus
+													variant="inline"
+													message={betweenRoundsMessages[betweenRoundsMessageIndex]}
+													class="text-blue-700 dark:text-blue-300 font-medium"
+												/>
 											</div>
 										{/if}
 									</div>
@@ -1537,97 +1486,57 @@
 									>
 										<!-- Problem Decomposition Overview -->
 										{#if decompositionEvent}
-											{#await getComponentForEvent('decomposition_complete')}
-												<EventCardSkeleton />
-											{:then DecompositionComponent}
-												{#if DecompositionComponent}
-													<DecompositionComponent event={decompositionEvent} />
-												{/if}
-											{:catch}
-												<!-- Silently skip if component fails to load -->
-											{/await}
+											<DynamicEventComponent
+												event={decompositionEvent}
+												eventType="decomposition_complete"
+											/>
 										{/if}
 
 										<!-- Progress indicator for multi-problem meetings -->
 										{#if subProblemCompleteEvents.length > 0 && !metaSynthesisEvent && subProblemTabs.length > 1}
 											<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6">
-												<div class="flex items-center gap-2">
-													<svg class="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-														<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-														<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-													</svg>
-													<span class="text-sm font-medium text-blue-900 dark:text-blue-100">
-														{subProblemCompleteEvents.length} of {subProblemTabs.length} focus areas completed
-													</span>
-												</div>
-												<p class="text-sm text-blue-700 dark:text-blue-300 mt-2">Generating final synthesis...</p>
+												<ActivityStatus
+													variant="inline"
+													message="Generating final synthesis..."
+													phase="{subProblemCompleteEvents.length} of {subProblemTabs.length} focus areas completed"
+													class="text-blue-900 dark:text-blue-100"
+												/>
 											</div>
 										{/if}
 
 										<!-- Meta-Synthesis / Overall Conclusion -->
 										{#if metaSynthesisEvent}
 											<!-- Use SynthesisComplete component for proper XML parsing and card rendering -->
-											{#await getComponentForEvent('synthesis_complete')}
-												<EventCardSkeleton />
-											{:then SynthesisComponent}
-												{#if SynthesisComponent}
-													<SynthesisComponent event={metaSynthesisEvent} />
-												{/if}
-											{:catch}
-												<!-- Fallback to raw display if component fails -->
-												<div class="prose prose-slate dark:prose-invert max-w-none">
-													{@html (metaSynthesisEvent.data.synthesis as string).replace(/\n/g, '<br />')}
-												</div>
-											{/await}
+											<DynamicEventComponent
+												event={metaSynthesisEvent}
+												eventType="synthesis_complete"
+											/>
 										{:else if synthesisCompleteEvent}
 											<!-- Use SynthesisComplete component for proper XML parsing and card rendering -->
-											{#await getComponentForEvent('synthesis_complete')}
-												<EventCardSkeleton />
-											{:then SynthesisComponent}
-												{#if SynthesisComponent}
-													<SynthesisComponent event={synthesisCompleteEvent} />
-												{/if}
-											{:catch}
-												<!-- Fallback to raw display if component fails -->
-												<div class="prose prose-slate dark:prose-invert max-w-none">
-													{@html (synthesisCompleteEvent.data.synthesis as string).replace(/\n/g, '<br />')}
-												</div>
-											{/await}
+											<DynamicEventComponent
+												event={synthesisCompleteEvent}
+												eventType="synthesis_complete"
+											/>
 										{:else if subProblemCompleteEvents.length > 0 && subProblemCompleteEvents.some(e => e.data.synthesis)}
 											<!-- Show individual sub-problem syntheses using SubProblemProgress component -->
 											<div class="space-y-6">
 												<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Sub-Problem Syntheses</h3>
 												{#each subProblemCompleteEvents.filter(e => e.data.synthesis) as spEvent}
-													{#await getComponentForEvent('subproblem_complete')}
-														<EventCardSkeleton />
-													{:then SubProblemComponent}
-														{#if SubProblemComponent}
-															<SubProblemComponent event={spEvent} />
-														{/if}
-													{:catch}
-														<!-- Fallback to simple display -->
-														{@const spData = spEvent.data as { goal: string; synthesis: string; sub_problem_index: number }}
-														<div class="border-l-4 border-blue-500 pl-4">
-															<h4 class="font-medium mb-2">{spData.goal}</h4>
-															<div class="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
-																{@html spData.synthesis.replace(/\n/g, '<br />')}
-															</div>
-														</div>
-													{/await}
+													<DynamicEventComponent
+														event={spEvent}
+														eventType="subproblem_complete"
+													/>
 												{/each}
 											</div>
 										{:else}
 											<!-- Fallback: Meeting complete but no synthesis yet -->
 											<div class="text-center py-12">
 												{#if session?.status === 'running' || session?.status === 'created' || session?.status === 'active'}
-													<div class="flex flex-col items-center gap-4">
-														<svg class="animate-spin h-8 w-8 text-slate-400 dark:text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-															<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-															<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-														</svg>
-														<p class="text-slate-600 dark:text-slate-400">Deliberation in progress...</p>
-														<p class="text-sm text-slate-500 dark:text-slate-500">The final synthesis will appear here when complete</p>
-													</div>
+													<ActivityStatus
+														variant="card"
+														message="Experts deliberating..."
+														phase="The final synthesis will appear here when complete"
+													/>
 												{:else if session?.status === 'failed'}
 													<div class="text-red-600 dark:text-red-400">
 														<p class="font-medium">Synthesis generation failed</p>
@@ -1658,15 +1567,12 @@
 
 							<!-- Phase-specific waiting indicator (experts being selected / familiarising) -->
 							{#if isWaitingForFirstContributions}
-								<div class="flex items-center gap-3 py-4 px-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800" transition:fade={{ duration: 300 }}>
-									<div class="flex items-center gap-1">
-										<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></span>
-										<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></span>
-										<span class="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></span>
-									</div>
-									<span class="text-sm text-amber-700 dark:text-amber-300 font-medium">
-										{phaseWaitingMessage}
-									</span>
+								<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 py-4 px-4" transition:fade={{ duration: 300 }}>
+									<ActivityStatus
+										variant="inline"
+										message={phaseWaitingMessage}
+										class="text-amber-700 dark:text-amber-300 font-medium"
+									/>
 								</div>
 							{/if}
 
@@ -1732,22 +1638,14 @@
 
 							{#if isVoting}
 								<div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-6 border border-purple-200 dark:border-purple-800" transition:fade={{ duration: 300 }}>
-									<div class="flex items-center gap-3 mb-3">
-										<!-- Heartbeat animation -->
-										<div class="relative">
-											<div class="w-5 h-5 bg-purple-600 rounded-full animate-ping absolute"></div>
-											<div class="w-5 h-5 bg-purple-600 rounded-full relative"></div>
-										</div>
-										<h3 class="text-lg font-semibold text-purple-900 dark:text-purple-100">
-											Collecting Expert Recommendations...
-											<span class="text-sm font-normal text-purple-700 dark:text-purple-300">
-												({elapsedSeconds}s)
-											</span>
-										</h3>
-									</div>
-									<p class="text-sm text-purple-700 dark:text-purple-300">
-										Experts are providing their final recommendations.
-									</p>
+									<ActivityStatus
+										variant="card"
+										message="Collecting Expert Recommendations..."
+										phase="Experts are providing their final recommendations"
+										showElapsedTime
+										startTime={votingStartTime ? new Date(votingStartTime) : null}
+										class="text-purple-900 dark:text-purple-100"
+									/>
 								</div>
 							{/if}
 
@@ -1755,95 +1653,40 @@
 								{#if group.type === 'expert_panel' && group.events}
 									<!-- Render grouped expert panel -->
 									<div transition:fade={{ duration: 300, delay: 50 }}>
-										{#await getComponentForEvent('expert_panel')}
-											<!-- Loading skeleton with timeout fallback -->
-											<ExpertPanelSkeleton expertCount={group.events?.length || 4} />
-										{:then ExpertPanelComponent}
-											{#if ExpertPanelComponent}
-												<ExpertPanelComponent
-													experts={group.events.map((e): ExpertInfo => ({
-														persona: e.data.persona as {
-															code: string;
-															name: string;
-															display_name: string;
-															archetype: string;
-															domain_expertise: string[];
-														},
-														rationale: e.data.rationale as string,
-														order: e.data.order as number,
-													}))}
-													subProblemGoal={group.subProblemGoal}
-												/>
-											{:else}
-												<!-- Component loaded but null - use GenericEvent -->
-												<GenericEvent event={group.events[0]} />
-												<div class="text-xs text-red-600 mt-2">
-													Component failed to load for: expert_panel
-												</div>
-											{/if}
-										{:catch error}
-											<!-- Component import failed - show error with details -->
-											<GenericEvent event={group.events[0]} />
-											<div class="text-xs text-red-600 mt-2">
-												Error loading component: {error.message || 'Unknown error'}
-											</div>
-										{/await}
+										<DynamicEventComponent
+											event={group.events[0]}
+											eventType="expert_panel"
+											skeletonProps={{ hasAvatar: false }}
+											componentProps={{
+												experts: group.events.map((e): ExpertInfo => ({
+													persona: e.data.persona as {
+														code: string;
+														name: string;
+														display_name: string;
+														archetype: string;
+														domain_expertise: string[];
+													},
+													rationale: e.data.rationale as string,
+													order: e.data.order as number,
+												})),
+												subProblemGoal: group.subProblemGoal
+											}}
+										/>
 									</div>
 								{:else if group.type === 'round' && group.events}
 									<!-- Render grouped contributions with new ExpertPerspectiveCard -->
 									{@const roundKey = `round-${group.roundNumber}`}
 									{@const visibleCount = visibleContributionCounts.get(roundKey) || 0}
-									{@const hasMoreToReveal = visibleCount < group.events.length}
-									{@const nextExpert = hasMoreToReveal ? (group.events[visibleCount] as ContributionEvent | undefined)?.data?.persona_name : null}
-									<div transition:fade={{ duration: 300, delay: 50 }}>
-										<div class="space-y-3">
-											<h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-												<span>Round {group.roundNumber} Contributions</span>
-											</h3>
-											{#each getVisibleContributions(group.roundNumber, group.events) as contrib}
-												{@const contribEvent = contrib as ContributionEvent}
-												{#await getComponentForEvent('contribution')}
-													<!-- Loading skeleton with timeout fallback -->
-													<ContributionSkeleton />
-												{:then ExpertPerspectiveCardComponent}
-													{#if ExpertPerspectiveCardComponent}
-														{@const cardId = `${contribEvent.data.persona_code}-${contribEvent.data.round}`}
-														<ExpertPerspectiveCardComponent
-															event={contribEvent}
-															viewMode={getCardViewMode(cardId)}
-															showFull={showFullTranscripts}
-															onToggle={() => toggleCardViewMode(cardId)}
-														/>
-													{:else}
-														<!-- Component loaded but null - use GenericEvent -->
-														<GenericEvent event={contrib} />
-														<div class="text-xs text-red-600 mt-2">
-															Component failed to load for: contribution
-														</div>
-													{/if}
-												{:catch error}
-													<!-- Component import failed - show error with details -->
-													<GenericEvent event={contrib} />
-													<div class="text-xs text-red-600 mt-2">
-														Error loading component: {error.message || 'Unknown error'}
-													</div>
-												{/await}
-											{/each}
-
-											<!-- Thinking indicator when more contributions are pending -->
-											{#if hasMoreToReveal && nextExpert}
-												<div class="flex items-center gap-2 py-2 px-3 text-sm text-slate-500 dark:text-slate-400" transition:fade={{ duration: 200 }}>
-													<!-- Pulsing dots animation like ChatGPT/Claude -->
-													<div class="flex items-center gap-1">
-														<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 0ms;"></span>
-														<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 150ms;"></span>
-														<span class="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse" style="animation-delay: 300ms;"></span>
-													</div>
-													<span class="italic">{getThinkingMessage(nextExpert, visibleCount)}</span>
-												</div>
-											{/if}
-										</div>
-									</div>
+									<ContributionRound
+										roundNumber={group.roundNumber || 0}
+										events={group.events}
+										visibleCount={visibleCount}
+										viewMode={contributionViewMode}
+										showFullTranscripts={showFullTranscripts}
+										cardViewModes={cardViewModes}
+										onToggleCardViewMode={toggleCardViewMode}
+										thinkingMessages={thinkingMessages}
+									/>
 								{:else if group.type === 'single' && group.event}
 									{@const event = group.event}
 									{@const priority = getEventPriority(event.event_type)}
@@ -1866,26 +1709,10 @@
 												</div>
 
 												<!-- Render appropriate component based on event type with dynamic loading -->
-												{#await getComponentForEvent(event.event_type)}
-													<!-- Loading skeleton with timeout fallback -->
-													<EventCardSkeleton hasAvatar={false} />
-												{:then EventComponent}
-													{#if EventComponent}
-														<EventComponent {event} />
-													{:else}
-														<!-- Component loaded but null - use GenericEvent -->
-														<GenericEvent event={event} />
-														<div class="text-xs text-red-600 mt-2">
-															Component failed to load for: {event.event_type}
-														</div>
-													{/if}
-												{:catch error}
-													<!-- Component import failed - show error with details -->
-													<GenericEvent event={event} />
-													<div class="text-xs text-red-600 mt-2">
-														Error loading component: {error.message || 'Unknown error'}
-													</div>
-												{/await}
+												<DynamicEventComponent
+													{event}
+													skeletonProps={{ hasAvatar: false }}
+												/>
 											</div>
 										</div>
 									</div>
@@ -1894,15 +1721,12 @@
 
 							<!-- Between-rounds waiting indicator -->
 							{#if isWaitingForNextRound}
-								<div class="flex items-center gap-3 py-4 px-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800" transition:fade={{ duration: 300 }}>
-									<div class="flex items-center gap-1">
-										<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></span>
-										<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></span>
-										<span class="w-2 h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></span>
-									</div>
-									<span class="text-sm text-blue-700 dark:text-blue-300 font-medium">
-										{betweenRoundsMessages[betweenRoundsMessageIndex]}
-									</span>
+								<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 py-4 px-4" transition:fade={{ duration: 300 }}>
+									<ActivityStatus
+										variant="inline"
+										message={betweenRoundsMessages[betweenRoundsMessageIndex]}
+										class="text-blue-700 dark:text-blue-300 font-medium"
+									/>
 								</div>
 							{/if}
 							</div>
@@ -1948,13 +1772,12 @@
 
 					<!-- Actions -->
 					{#if session.status === 'completed'}
-						<a href="/meeting/{sessionId}/results" class="block w-full">
-							<Button variant="brand" size="lg" class="w-full">
-								{#snippet children()}
-									View Results
-								{/snippet}
-							</Button>
-						</a>
+						<Button variant="brand" size="lg" class="w-full" onclick={exportPDF} disabled={isExporting}>
+							{#snippet children()}
+								<Download size={18} />
+								<span>{isExporting ? 'Generating...' : 'Export PDF'}</span>
+							{/snippet}
+						</Button>
 					{/if}
 				{/if}
 			</div>

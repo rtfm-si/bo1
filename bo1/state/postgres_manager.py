@@ -881,6 +881,7 @@ def save_session_tasks(
     total_tasks: int,
     extraction_confidence: float,
     synthesis_sections_analyzed: list[str],
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     """Save extracted tasks to PostgreSQL.
 
@@ -890,6 +891,7 @@ def save_session_tasks(
         total_tasks: Total number of tasks
         extraction_confidence: Confidence score (0.0-1.0)
         synthesis_sections_analyzed: List of analyzed sections
+        user_id: User identifier (optional, will be looked up from session if not provided)
 
     Returns:
         Saved task record
@@ -905,13 +907,22 @@ def save_session_tasks(
     """
     with db_session() as conn:
         with conn.cursor() as cur:
+            # Get user_id from session if not provided
+            if not user_id:
+                cur.execute("SELECT user_id FROM sessions WHERE id = %s", (session_id,))
+                row = cur.fetchone()
+                if row:
+                    user_id = row["user_id"]
+                else:
+                    raise ValueError(f"Session not found: {session_id}")
+
             cur.execute(
                 """
                 INSERT INTO session_tasks (
-                    session_id, tasks, total_tasks, extraction_confidence,
+                    session_id, user_id, tasks, total_tasks, extraction_confidence,
                     synthesis_sections_analyzed
                 )
-                VALUES (%s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (session_id) DO UPDATE
                 SET tasks = EXCLUDED.tasks,
                     total_tasks = EXCLUDED.total_tasks,
@@ -922,6 +933,7 @@ def save_session_tasks(
                 """,
                 (
                     session_id,
+                    user_id,
                     Json(tasks),
                     total_tasks,
                     extraction_confidence,
@@ -1148,6 +1160,29 @@ def update_session_status(
             return bool(cur.rowcount and cur.rowcount > 0)
 
 
+def update_session_phase(session_id: str, phase: str) -> bool:
+    """Update just the session phase (lightweight update for progress tracking).
+
+    Args:
+        session_id: Session identifier
+        phase: New phase name (e.g., 'selection', 'exploration', 'synthesis')
+
+    Returns:
+        True if updated successfully, False otherwise
+    """
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE sessions
+                SET phase = %s, updated_at = NOW()
+                WHERE id = %s
+                """,
+                (phase, session_id),
+            )
+            return bool(cur.rowcount and cur.rowcount > 0)
+
+
 def get_session(session_id: str) -> dict[str, Any] | None:
     """Get a single session by ID.
 
@@ -1322,25 +1357,38 @@ def get_user_sessions(
     with db_session() as conn:
         with conn.cursor() as cur:
             # Build query with optional status filter
+            # Include summary counts from session_events and session_tasks
             query = """
-                SELECT id, user_id, problem_statement, problem_context, status,
-                       phase, total_cost, round_number, created_at, updated_at,
-                       synthesis_text, final_recommendation
-                FROM sessions
-                WHERE user_id = %s
+                SELECT s.id, s.user_id, s.problem_statement, s.problem_context, s.status,
+                       s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
+                       s.synthesis_text, s.final_recommendation,
+                       -- Expert count: number of persona_selected events
+                       (SELECT COUNT(*)::int FROM session_events se
+                        WHERE se.session_id = s.id AND se.event_type = 'persona_selected') as expert_count,
+                       -- Contribution count: number of contribution events
+                       (SELECT COUNT(*)::int FROM session_events se
+                        WHERE se.session_id = s.id AND se.event_type = 'contribution') as contribution_count,
+                       -- Task count: from session_tasks table
+                       (SELECT st.total_tasks FROM session_tasks st
+                        WHERE st.session_id = s.id) as task_count,
+                       -- Focus area count: number of subproblem_started events
+                       (SELECT COUNT(*)::int FROM session_events se
+                        WHERE se.session_id = s.id AND se.event_type = 'subproblem_started') as focus_area_count
+                FROM sessions s
+                WHERE s.user_id = %s
             """
             params: list[Any] = [user_id]
 
             # Exclude deleted sessions by default
             if not include_deleted:
-                query += " AND status != 'deleted'"
+                query += " AND s.status != 'deleted'"
 
             if status_filter:
-                query += " AND status = %s"
+                query += " AND s.status = %s"
                 params.append(status_filter)
 
             query += """
-                ORDER BY created_at DESC
+                ORDER BY s.created_at DESC
                 LIMIT %s OFFSET %s
             """
             params.extend([limit, offset])

@@ -1,5 +1,12 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	/**
+	 * WorkingStatus - Shows current working phase with elapsed time
+	 *
+	 * NOTE: The parent component manages the elapsed time via its own timer.
+	 * This component just displays the prop value - no internal timer needed.
+	 * Previously had a bug where both parent AND this component ran timers,
+	 * causing 2x speed on the counter.
+	 */
 
 	interface Props {
 		currentPhase: string;
@@ -8,24 +15,6 @@
 	}
 
 	let { currentPhase, elapsedSeconds = 0, estimatedDuration }: Props = $props();
-
-	let startTime = $state(Date.now());
-	let currentElapsed = $state(elapsedSeconds);
-	let timer: ReturnType<typeof setInterval> | null = null;
-
-	onMount(() => {
-		startTime = Date.now();
-		// Update elapsed time every second
-		timer = setInterval(() => {
-			currentElapsed = Math.floor((Date.now() - startTime) / 1000) + elapsedSeconds;
-		}, 1000);
-	});
-
-	onDestroy(() => {
-		if (timer) {
-			clearInterval(timer);
-		}
-	});
 
 	function formatDuration(seconds: number): string {
 		if (seconds < 60) return `${seconds}s`;
@@ -50,7 +39,7 @@
 		<div class="flex-1 min-w-0">
 			<div class="font-semibold text-lg truncate">{currentPhase}</div>
 			<div class="text-sm opacity-90 flex items-center gap-2">
-				<span>{formatDuration(currentElapsed)}</span>
+				<span>{formatDuration(elapsedSeconds)}</span>
 				{#if estimatedDuration}
 					<span class="text-xs opacity-75">• Est. {estimatedDuration}</span>
 				{/if}

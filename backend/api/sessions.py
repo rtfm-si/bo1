@@ -288,7 +288,7 @@ async def list_sessions(
                         cost_val = pg_session.get("total_cost")
                         last_activity_at = None
 
-                    # Create session response
+                    # Create session response with summary counts
                     session = SessionResponse(
                         id=session_id,
                         status=status_val,
@@ -298,6 +298,11 @@ async def list_sessions(
                         last_activity_at=last_activity_at,
                         problem_statement=truncate_text(pg_session["problem_statement"]),
                         cost=cost_val,
+                        # Summary counts for dashboard cards
+                        expert_count=pg_session.get("expert_count"),
+                        contribution_count=pg_session.get("contribution_count"),
+                        task_count=pg_session.get("task_count"),
+                        focus_area_count=pg_session.get("focus_area_count"),
                     )
                     sessions.append(session)
 
@@ -688,7 +693,24 @@ async def extract_tasks(
                 import json
 
                 logger.info(f"Returning cached tasks from Redis for session {session_id}")
-                return json.loads(cached_tasks)
+                cached_data = json.loads(cached_tasks)
+
+                # Backfill to PostgreSQL if not already there (fixes missing task counts)
+                try:
+                    save_session_tasks(
+                        session_id=session_id,
+                        tasks=cached_data.get("tasks", []),
+                        total_tasks=cached_data.get("total_tasks", 0),
+                        extraction_confidence=cached_data.get("extraction_confidence", 0.0),
+                        synthesis_sections_analyzed=cached_data.get(
+                            "synthesis_sections_analyzed", []
+                        ),
+                    )
+                    logger.info(f"Backfilled tasks to PostgreSQL for session {session_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to backfill tasks to PostgreSQL: {e}")
+
+                return cached_data
 
             # Extract tasks from ALL synthesis events (sub-problems + meta-synthesis)
             # This ensures tasks are associated with their respective sub-problems

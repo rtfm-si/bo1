@@ -4,7 +4,7 @@
 	import Header from '$lib/components/Header.svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { SessionResponse } from '$lib/api/types';
-	import { DashboardCardSkeleton } from '$lib/components/ui/skeletons';
+	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { getSessionStatusColor } from '$lib/utils/color-helpers';
@@ -16,6 +16,9 @@
 	const sessions = $derived<SessionResponse[]>(sessionsData.data?.sessions || []);
 	const isLoading = $derived(sessionsData.isLoading);
 	const error = $derived(sessionsData.error);
+
+	// Check if user is admin for cost display
+	const isAdmin = $derived($user?.is_admin ?? false);
 
 	onMount(() => {
 		console.log('[Dashboard] onMount - user is authenticated, loading sessions');
@@ -51,6 +54,35 @@
 		return problem.substring(0, maxLength) + '...';
 	}
 
+	/**
+	 * Humanize phase names for user-friendly display
+	 * Phases: decomposition, selection, exploration, challenge, convergence, voting, synthesis
+	 */
+	function humanizePhase(phase: string | null): string {
+		if (!phase) return 'Starting';
+
+		const phaseMap: Record<string, string> = {
+			// Main deliberation phases
+			decomposition: 'Analyzing',
+			decompose: 'Analyzing',
+			problem_decomposition: 'Analyzing', // Legacy DB default
+			selection: 'Selecting Experts',
+			exploration: 'Exploring Ideas',
+			challenge: 'Deep Analysis',
+			convergence: 'Building Consensus',
+			voting: 'Collecting Votes',
+			synthesis: 'Synthesizing',
+			meta_synthesis: 'Final Synthesis',
+			// Status-like phases
+			complete: 'Completed',
+			completed: 'Completed',
+			failed: 'Failed',
+			killed: 'Stopped',
+		};
+
+		return phaseMap[phase.toLowerCase()] || phase.replace(/_/g, ' ');
+	}
+
 	async function handleDelete(sessionId: string, event: MouseEvent) {
 		event.preventDefault(); // Prevent navigation
 		event.stopPropagation(); // Stop event bubbling
@@ -84,7 +116,7 @@
 			<!-- Loading State -->
 			<div class="space-y-4">
 				{#each Array(3) as _, i}
-					<DashboardCardSkeleton />
+					<ShimmerSkeleton type="card" />
 				{/each}
 			</div>
 		{:else if error}
@@ -170,18 +202,46 @@
 								</h3>
 
 								<div class="flex items-center gap-4 text-sm text-neutral-600 dark:text-neutral-400">
-									<span class="flex items-center gap-1">
-										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-										</svg>
-										{session.phase ? session.phase.replace(/_/g, ' ') : 'Initializing'}
-									</span>
-									<span class="flex items-center gap-1">
-										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-										</svg>
-										Cost: ${session.cost?.toFixed(4) || "N/A"}
-									</span>
+									{#if session.status !== 'completed'}
+										<span class="flex items-center gap-1.5">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+											</svg>
+											{humanizePhase(session.phase)}
+										</span>
+									{/if}
+									{#if session.expert_count}
+										<span class="flex items-center gap-1.5" title="Experts consulted">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+											</svg>
+											{session.expert_count} experts
+										</span>
+									{/if}
+									{#if session.contribution_count}
+										<span class="flex items-center gap-1.5" title="Total contributions">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+											</svg>
+											{session.contribution_count} insights
+										</span>
+									{/if}
+									{#if session.task_count}
+										<span class="flex items-center gap-1.5" title="Action items">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+											</svg>
+											{session.task_count} actions
+										</span>
+									{/if}
+									{#if isAdmin && session.cost != null}
+										<span class="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-500" title="Meeting cost (admin only)">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+											</svg>
+											${session.cost.toFixed(4)}
+										</span>
+									{/if}
 								</div>
 							</div>
 

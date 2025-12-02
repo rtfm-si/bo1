@@ -18,6 +18,11 @@ export interface SessionResponse {
 	last_activity_at?: string;
 	problem_statement: string;
 	cost?: number | null;
+	// Summary counts for dashboard cards
+	expert_count?: number | null;
+	contribution_count?: number | null;
+	task_count?: number | null;
+	focus_area_count?: number | null;
 }
 
 export interface SessionDetailResponse extends SessionResponse {

@@ -81,10 +81,10 @@ async def send_ntfy_alert(
     url = f"{server.rstrip('/')}/{topic}"
 
     # Encode title for HTTP header (ntfy requires ASCII-safe encoding for headers)
-    # Use RFC 2047-style encoding or just strip non-ASCII for simplicity
-    safe_title = title.encode("ascii", "ignore").decode("ascii") or title.encode("utf-8").decode(
-        "ascii", "ignore"
-    )
+    # Strip non-ASCII characters and any resulting leading/trailing whitespace
+    safe_title = title.encode("ascii", "ignore").decode("ascii").strip()
+    if not safe_title:
+        safe_title = "Notification"
 
     headers = {
         "Title": safe_title,

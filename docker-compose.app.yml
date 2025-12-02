@@ -63,6 +63,13 @@ services:
       # Closed Beta Configuration
       - CLOSED_BETA_MODE=${CLOSED_BETA_MODE:-true}
       - BETA_WHITELIST=${BETA_WHITELIST}
+
+      # ntfy Push Notifications
+      - NTFY_SERVER=${NTFY_SERVER:-https://ntfy.boardof.one}
+      - NTFY_TOPIC_WAITLIST=${NTFY_TOPIC_WAITLIST}
+      - NTFY_TOPIC_MEETING=${NTFY_TOPIC_MEETING}
+      - NTFY_TOPIC_REPORTS=${NTFY_TOPIC_REPORTS}
+      - NTFY_TOPIC_ALERTS=${NTFY_TOPIC_ALERTS}
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     networks:

@@ -120,7 +120,7 @@ async def run_complete_demo(interactive: bool = False) -> None:
 
     decomposition = json.loads(decomposition_response.content)
     console.print(
-        f"[green]✓ Decomposed into {len(decomposition['sub_problems'])} sub-problems[/green]\n"
+        f"[green]✓ Broken down into {len(decomposition['sub_problems'])} focus areas[/green]\n"
     )
 
     for i, sp in enumerate(decomposition["sub_problems"], 1):

@@ -204,7 +204,7 @@
 		},
 		{
 			question: 'Do I need to be technical?',
-			answer: 'Not at all. If you can type your problem, you can use Board of One. It\'s designed for operators, founders, and decision-makers — not engineers.',
+			answer: 'Not at all. If you can describe your decision, you can use Board of One. It\'s designed for operators, founders, and decision-makers — not engineers.',
 		},
 		{
 			question: 'Is my data safe?',

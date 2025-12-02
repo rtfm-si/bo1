@@ -117,7 +117,7 @@
 					No meetings yet
 				</h2>
 				<p class="text-neutral-600 dark:text-neutral-400 mb-6 max-w-md mx-auto">
-					Get started by creating your first strategic decision meeting. Our AI board will analyze your problem from multiple expert perspectives.
+					Get started by creating your first strategic decision meeting. Our AI board will analyze your decision from multiple expert perspectives.
 				</p>
 				<a href="/meeting/new">
 					<Button variant="brand" size="lg">

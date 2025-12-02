@@ -155,7 +155,7 @@ class Console:
         self.console.print(
             Panel.fit(
                 content,
-                title=f"Sub-Problem: {sub_problem.id}",
+                title=f"Focus Area: {sub_problem.id}",
                 border_style="yellow",
             )
         )
@@ -484,13 +484,13 @@ class Console:
         else:
             sub_count = len(decomposition.get("sub_problems", []))
             self.console.print(
-                f"[success]✓ Successfully decomposed into {sub_count} sub-problems[/success]\n"
+                f"[success]✓ Successfully broken down into {sub_count} focus areas[/success]\n"
             )
 
         # Print sub-problems table
         sub_problems = decomposition.get("sub_problems", [])
         if sub_problems:
-            table = Table(title="Sub-Problems", show_header=True, header_style="bold yellow")
+            table = Table(title="Focus Areas", show_header=True, header_style="bold yellow")
             table.add_column("#", style="cyan", width=4)
             table.add_column("ID", style="dim")
             table.add_column("Goal", style="bold")

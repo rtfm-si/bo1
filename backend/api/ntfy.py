@@ -6,16 +6,43 @@ Handles:
 """
 
 import logging
+import os
 from typing import Literal
 
 import httpx
-
-from bo1.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 # Default ntfy server (self-hosted)
 DEFAULT_NTFY_SERVER = "https://ntfy.boardof.one"
+
+
+def _get_ntfy_settings() -> dict:
+    """Get ntfy settings from bo1.config or environment variables.
+
+    Falls back to environment variables when bo1.config is not available
+    (e.g., in lightweight CI workflows without full dependencies).
+    """
+    try:
+        from bo1.config import get_settings
+
+        settings = get_settings()
+        return {
+            "ntfy_server": settings.ntfy_server,
+            "ntfy_topic_waitlist": settings.ntfy_topic_waitlist,
+            "ntfy_topic_meeting": settings.ntfy_topic_meeting,
+            "ntfy_topic_reports": settings.ntfy_topic_reports,
+            "ntfy_topic_alerts": settings.ntfy_topic_alerts,
+        }
+    except ImportError:
+        # Fallback to environment variables (for CI workflows)
+        return {
+            "ntfy_server": os.environ.get("NTFY_SERVER"),
+            "ntfy_topic_waitlist": os.environ.get("NTFY_TOPIC_WAITLIST"),
+            "ntfy_topic_meeting": os.environ.get("NTFY_TOPIC_MEETING"),
+            "ntfy_topic_reports": os.environ.get("NTFY_TOPIC_REPORTS"),
+            "ntfy_topic_alerts": os.environ.get("NTFY_TOPIC_ALERTS"),
+        }
 
 
 async def send_ntfy_alert(
@@ -49,8 +76,8 @@ async def send_ntfy_alert(
         logger.debug("No ntfy topic provided - skipping notification")
         return False
 
-    settings = get_settings()
-    server = settings.ntfy_server or DEFAULT_NTFY_SERVER
+    settings = _get_ntfy_settings()
+    server = settings["ntfy_server"] or DEFAULT_NTFY_SERVER
     url = f"{server.rstrip('/')}/{topic}"
 
     headers = {
@@ -86,9 +113,9 @@ async def notify_waitlist_signup(email: str) -> bool:
     Returns:
         True if notification sent successfully
     """
-    settings = get_settings()
+    settings = _get_ntfy_settings()
     return await send_ntfy_alert(
-        topic=settings.ntfy_topic_waitlist,
+        topic=settings["ntfy_topic_waitlist"],
         title="New Waitlist Signup",
         message=f"{email} joined the Board of One waitlist",
         priority="default",
@@ -106,14 +133,14 @@ async def notify_meeting_started(session_id: str, problem_statement: str) -> boo
     Returns:
         True if notification sent successfully
     """
-    settings = get_settings()
+    settings = _get_ntfy_settings()
     # Truncate problem statement for notification
     truncated = (
         problem_statement[:100] + "..." if len(problem_statement) > 100 else problem_statement
     )
 
     return await send_ntfy_alert(
-        topic=settings.ntfy_topic_meeting,
+        topic=settings["ntfy_topic_meeting"],
         title="Meeting Started",
         message=f"Session {session_id[:8]}...\n\n{truncated}",
         priority="default",
@@ -146,7 +173,7 @@ async def notify_database_report(
         ...     priority="low"
         ... )
     """
-    settings = get_settings()
+    settings = _get_ntfy_settings()
 
     # Determine tags and title based on report type
     if report_type == "daily":
@@ -162,7 +189,7 @@ async def notify_database_report(
         message += f"\n\n{details}"
 
     return await send_ntfy_alert(
-        topic=settings.ntfy_topic_reports,
+        topic=settings["ntfy_topic_reports"],
         title=title,
         message=message,
         priority=priority,
@@ -192,7 +219,7 @@ async def notify_database_alert(
         ...     message="api_costs table exceeded 500K rows - partitioning recommended"
         ... )
     """
-    settings = get_settings()
+    settings = _get_ntfy_settings()
 
     # Determine priority and tags based on alert type
     if alert_type == "critical":
@@ -203,7 +230,7 @@ async def notify_database_alert(
         tags = ["warning"]
 
     return await send_ntfy_alert(
-        topic=settings.ntfy_topic_alerts,  # Use dedicated alerts topic
+        topic=settings["ntfy_topic_alerts"],  # Use dedicated alerts topic
         title=f"⚠️ {title}",
         message=message,
         priority=priority,

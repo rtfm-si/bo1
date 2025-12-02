@@ -1,7 +1,7 @@
 <script lang="ts">
 	/**
 	 * SubProblemProgress Event Component
-	 * Displays completion status for a sub-problem including synthesis/conclusion
+	 * Displays completion status for a focus area including synthesis/conclusion
 	 */
 	import type { SubProblemCompleteEvent } from '$lib/api/sse-events';
 	import Badge from '$lib/components/ui/Badge.svelte';
@@ -117,7 +117,7 @@
 			<div class="flex-1 min-w-0">
 				<div class="flex items-center gap-2 mb-2">
 					<h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-						Sub-Problem Complete
+						Focus Area Complete
 					</h3>
 					<Badge variant="success" size="sm">
 						#{event.data.sub_problem_index + 1}

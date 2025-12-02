@@ -20,12 +20,12 @@
 
 	async function handleSubmit() {
 		if (!problemStatement.trim()) {
-			error = 'Please enter a problem statement';
+			error = 'Please describe your decision';
 			return;
 		}
 
 		if (problemStatement.trim().length < 20) {
-			error = 'Problem statement should be at least 20 characters';
+			error = 'Please provide at least 20 characters describing your decision';
 			return;
 		}
 
@@ -213,7 +213,7 @@
 						<div class="text-sm text-blue-900 dark:text-blue-200">
 							<p class="font-semibold mb-1">What happens next?</p>
 							<ul class="list-disc list-inside space-y-1 text-blue-800 dark:text-blue-300">
-								<li>Your problem will be analyzed and broken down into sub-problems</li>
+								<li>Your decision will be analyzed and broken down into key focus areas</li>
 								<li>3-5 expert personas will be selected to debate your decision</li>
 								<li>Multiple rounds of deliberation will identify trade-offs and blind spots</li>
 								<li>A clear recommendation with action steps will be synthesized</li>

@@ -1126,7 +1126,7 @@
 				{:else if latestEvent.event_type === 'voting_complete'}
 					Voting complete
 				{:else if latestEvent.event_type === 'subproblem_complete'}
-					Sub-problem complete
+					Focus area complete
 				{/if}
 			{/if}
 		</div>
@@ -1141,7 +1141,7 @@
 							<div class="flex items-center gap-3">
 								<h2 class="text-lg font-semibold text-slate-900 dark:text-white">
 									{#if subProblemTabs.length > 1}
-										Sub-Problem Analysis
+										Focus Area Analysis
 									{:else}
 										Deliberation Stream
 									{/if}
@@ -1258,7 +1258,7 @@
 							<!-- Tab-based navigation for multiple sub-problems -->
 							<div class="h-full flex flex-col">
 								<div class="border-b border-slate-200 dark:border-slate-700">
-									<div class="flex overflow-x-auto px-4 pt-3" role="tablist" aria-label="Sub-problem tabs">
+									<div class="flex overflow-x-auto px-4 pt-3" role="tablist" aria-label="Focus area tabs">
 										{#each subProblemTabs as tab}
 											{@const isActive = activeSubProblemTab === tab.id}
 											<button
@@ -1557,7 +1557,7 @@
 														<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 													</svg>
 													<span class="text-sm font-medium text-blue-900 dark:text-blue-100">
-														{subProblemCompleteEvents.length} of {subProblemTabs.length} sub-problems completed
+														{subProblemCompleteEvents.length} of {subProblemTabs.length} focus areas completed
 													</span>
 												</div>
 												<p class="text-sm text-blue-700 dark:text-blue-300 mt-2">Generating final synthesis...</p>
@@ -1645,13 +1645,13 @@
 							<!-- Single sub-problem or linear view -->
 							<div class="p-4 space-y-4">
 
-							<!-- Sub-problem transition loading state -->
+							<!-- Focus area transition loading state -->
 							{#if isTransitioningSubProblem}
 								<div class="animate-pulse bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
 									<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
 									<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
 									<p class="text-sm text-slate-500 dark:text-slate-400 mt-2">
-										Preparing next sub-problem...
+										Preparing next focus area...
 									</p>
 								</div>
 							{/if}

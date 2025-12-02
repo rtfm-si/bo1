@@ -11,17 +11,17 @@ export const EVENT_TITLES: Record<string, string> = {
 	complete: "Meeting Complete",
 
 	// Decomposition phase
-	decomposition_started: "Analyzing Your Problem",
-	decomposition_complete: "Problem Breakdown Complete",
+	decomposition_started: "Analyzing Your Decision",
+	decomposition_complete: "Decision Breakdown Complete",
 
 	// Persona selection phase
 	persona_selection_started: "Selecting Expert Advisors",
 	persona_selected: "Expert Joined",
 	persona_selection_complete: "Board Assembled",
 
-	// Sub-problem handling
-	subproblem_started: "Starting Sub-Problem",
-	subproblem_complete: "Sub-Problem Resolved",
+	// Focus area handling
+	subproblem_started: "Starting Focus Area",
+	subproblem_complete: "Focus Area Complete",
 
 	// Discussion rounds
 	initial_round_started: "Initial Discussion Begins",
@@ -63,7 +63,7 @@ export const EVENT_TITLES: Record<string, string> = {
  */
 export const EVENT_DESCRIPTIONS: Record<string, string | ((data: any) => string)> = {
 	// Session lifecycle
-	session_started: "The board is reviewing your problem and preparing for deliberation.",
+	session_started: "The board is reviewing your decision and preparing for deliberation.",
 	complete: (data: any) => {
 		const rounds = data.total_rounds || 0;
 		const contributions = data.total_contributions || 0;
@@ -71,14 +71,14 @@ export const EVENT_DESCRIPTIONS: Record<string, string | ((data: any) => string)
 	},
 
 	// Decomposition phase
-	decomposition_started: "Breaking down your problem into manageable components...",
+	decomposition_started: "Breaking down your decision into key focus areas...",
 	decomposition_complete: (data: any) => {
 		const count = data.count || data.sub_problems?.length || 0;
-		return `Identified ${count} key sub-problem${count !== 1 ? 's' : ''} to address.`;
+		return `Identified ${count} key focus area${count !== 1 ? 's' : ''} to address.`;
 	},
 
 	// Persona selection phase
-	persona_selection_started: "Identifying the best experts for this problem...",
+	persona_selection_started: "Identifying the best experts for this decision...",
 	persona_selected: (data: any) => {
 		const name = data.persona?.display_name || data.persona?.name || "Expert";
 		return `${name} has joined the board.`;
@@ -88,11 +88,11 @@ export const EVENT_DESCRIPTIONS: Record<string, string | ((data: any) => string)
 		return `Assembled a board of ${count} expert${count !== 1 ? 's' : ''}.`;
 	},
 
-	// Sub-problem handling
+	// Focus area handling
 	subproblem_started: (data: any) => {
 		const index = (data.sub_problem_index || 0) + 1;
 		const total = data.total_sub_problems || 1;
-		return `Addressing sub-problem ${index} of ${total}.`;
+		return `Addressing focus area ${index} of ${total}.`;
 	},
 	subproblem_complete: (data: any) => {
 		const contributions = data.contribution_count || 0;

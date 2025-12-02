@@ -1,5 +1,5 @@
 /**
- * Sub-Problem Tabs - Logic for building and managing sub-problem tabs
+ * Focus Area Tabs - Logic for building and managing focus area tabs
  */
 
 import type { SSEEvent } from '$lib/api/sse-events';
@@ -143,7 +143,7 @@ export function buildSubProblemTabs(
 
 		tabs.push({
 			id: `subproblem-${index}`,
-			label: `Sub-problem ${index + 1}`,
+			label: `Focus Area ${index + 1}`,
 			goal: subProblem.goal,
 			status,
 			metrics: {

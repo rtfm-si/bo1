@@ -70,7 +70,7 @@ app = FastAPI(
 
     ## Features
 
-    - **Multi-Agent Deliberation**: 3-5 expert personas debate your problem
+    - **Multi-Agent Deliberation**: 3-5 expert personas debate your decision
     - **Structured Synthesis**: AI-powered consensus building
     - **Real-time Streaming**: Server-Sent Events (SSE) for live updates
     - **Context Management**: Business context and clarification support
@@ -264,7 +264,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             content={
                 "error": "Internal server error",
                 "message": "An unexpected error occurred. Please try again later. "
-                "If the problem persists, contact support.",
+                "If this issue persists, contact support.",
                 "type": "InternalError",
             },
         )

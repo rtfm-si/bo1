@@ -242,7 +242,7 @@ async def run_console_deliberation(
                         current_sp = output.get("current_sub_problem")
                         if current_sp:
                             console.print(
-                                f"\n[bold cyan]═══ Sub-Problem {sub_problem_index + 1} of {len(problem.sub_problems)} ═══[/bold cyan]"
+                                f"\n[bold cyan]═══ Focus Area {sub_problem_index + 1} of {len(problem.sub_problems)} ═══[/bold cyan]"
                             )
                             console.print(f"[dim]{current_sp.goal}[/dim]\n")
                 elif event_name == "initial_round" and isinstance(output, dict):
@@ -325,8 +325,8 @@ def _display_sub_problems(console: Console, state: Any) -> None:
         return
 
     console.print("\n")
-    console.print_header("Problem Decomposition")
-    console.print(f"\n[cyan]Decomposed into {len(sub_problems)} sub-problems:[/cyan]\n")
+    console.print_header("Decision Breakdown")
+    console.print(f"\n[cyan]Broken down into {len(sub_problems)} focus areas:[/cyan]\n")
 
     for i, sp in enumerate(sub_problems, 1):
         console.print(f"[bold cyan]{i}. {sp.goal}[/bold cyan]")
@@ -526,7 +526,7 @@ def _display_subproblem_completion(console: Console, state: Any) -> None:
     result = sub_problem_results[-1]
     sub_problem_index = len(sub_problem_results) - 1
 
-    console.print(f"\n[green]✓ Sub-problem {sub_problem_index + 1} complete[/green]")
+    console.print(f"\n[green]✓ Focus area {sub_problem_index + 1} complete[/green]")
     console.print(f"[dim]Cost: ${result.cost:.4f} | Duration: {result.duration_seconds:.1f}s[/dim]")
     console.print(f"[dim]Expert panel: {', '.join(result.expert_panel)}[/dim]\n")
 
@@ -543,7 +543,7 @@ def _display_meta_synthesis(console: Console, state: Any) -> None:
 
     # Display header before synthesis
     if sub_problem_results:
-        console.print("\n[bold magenta]═══ Cross-Sub-Problem Meta-Synthesis ═══[/bold magenta]")
+        console.print("\n[bold magenta]═══ Cross-Focus Area Meta-Synthesis ═══[/bold magenta]")
         console.print(
             f"[dim]Integrating insights from {len(sub_problem_results)} deliberations...[/dim]\n"
         )

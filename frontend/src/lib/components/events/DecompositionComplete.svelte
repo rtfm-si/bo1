@@ -1,7 +1,7 @@
 <script lang="ts">
 	/**
 	 * DecompositionComplete Event Component
-	 * Displays the list of sub-problems identified during decomposition
+	 * Displays the list of focus areas identified during decomposition
 	 */
 	import type { DecompositionCompleteEvent } from '$lib/api/sse-events';
 	import Badge from '$lib/components/ui/Badge.svelte';
@@ -16,7 +16,7 @@
 <div class="space-y-3">
 	<div class="flex items-center gap-2">
 		<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-			Problem Decomposition Complete
+			Decision Breakdown Complete
 		</h3>
 	</div>
 

@@ -108,7 +108,7 @@
 				Recommended Actions
 				{#if subProblemIndex !== undefined && filteredActions.length < actionPlan.recommended_actions.length}
 					<span class="text-[0.875rem] font-normal text-neutral-600 dark:text-neutral-400">
-						({filteredActions.length} of {actionPlan.recommended_actions.length} for this sub-problem)
+						({filteredActions.length} of {actionPlan.recommended_actions.length} for this focus area)
 					</span>
 				{/if}
 			</h3>
@@ -185,7 +185,7 @@
 			<div class="pt-4 border-t border-neutral-300 dark:border-neutral-600">
 				<p class="text-[0.75rem] text-neutral-600 dark:text-neutral-400">
 					<span class="font-semibold">Analysis based on:</span>
-					{actionPlan.sub_problems_addressed.length} sub-problem{actionPlan.sub_problems_addressed.length !== 1 ? 's' : ''} deliberated
+					{actionPlan.sub_problems_addressed.length} focus area{actionPlan.sub_problems_addressed.length !== 1 ? 's' : ''} deliberated
 					({actionPlan.sub_problems_addressed.join(', ')})
 				</p>
 			</div>

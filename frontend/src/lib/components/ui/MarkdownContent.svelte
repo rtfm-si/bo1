@@ -19,8 +19,28 @@
 		gfm: true, // GitHub Flavored Markdown (tables, strikethrough, etc.)
 	});
 
-	// Parse markdown to HTML
-	const html = $derived(marked.parse(content) as string);
+	/**
+	 * Clean content by removing standalone horizontal rule markers (---, ***, ___)
+	 * These often appear in AI output and render as messy lines
+	 */
+	function cleanContent(text: string): string {
+		return text
+			.split('\n')
+			.filter(line => {
+				const trimmed = line.trim();
+				// Filter out horizontal rule patterns: ---, ***, ___
+				// Must be at least 3 chars of the same character
+				return !(
+					/^-{3,}$/.test(trimmed) ||
+					/^\*{3,}$/.test(trimmed) ||
+					/^_{3,}$/.test(trimmed)
+				);
+			})
+			.join('\n');
+	}
+
+	// Parse markdown to HTML (after cleaning)
+	const html = $derived(marked.parse(cleanContent(content)) as string);
 </script>
 
 <div

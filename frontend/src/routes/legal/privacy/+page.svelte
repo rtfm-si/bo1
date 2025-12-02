@@ -44,7 +44,7 @@
 						<strong>Profile Information:</strong> Business context, preferences, subscription tier
 					</li>
 					<li>
-						<strong>Problem Statements:</strong> Questions and decisions you submit for deliberation
+						<strong>Decision Submissions:</strong> Questions and decisions you submit for deliberation
 					</li>
 					<li><strong>Payment Information:</strong> Billing details (processed via Stripe)</li>
 				</ul>
@@ -120,7 +120,7 @@
 
 				<h3>5.2 We Do NOT Share</h3>
 				<ul>
-					<li>Your problem statements with other users (unless you explicitly share them)</li>
+					<li>Your decision submissions with other users (unless you explicitly share them)</li>
 					<li>Personal data with advertisers or marketers</li>
 					<li>Deliberation transcripts with third parties (except service providers necessary to operate the Service)</li>
 				</ul>

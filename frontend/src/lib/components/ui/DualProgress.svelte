@@ -69,7 +69,7 @@
 		<div class="flex items-center justify-between mb-1">
 			<span class="text-sm font-medium text-slate-700 dark:text-slate-300">
 				{#if totalSubProblems > 1 && currentSubProblem > 0}
-					Sub-problem {currentSubProblem} of {totalSubProblems}
+					Focus area {currentSubProblem} of {totalSubProblems}
 				{:else}
 					Meeting Progress
 				{/if}

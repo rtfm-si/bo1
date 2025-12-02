@@ -6,6 +6,27 @@ Console-based AI system using multi-agent deliberation (Claude personas) for com
 
 ---
 
+## Terminology Standards
+
+Consistent terminology across user-facing content (UI, CLI, docs):
+
+| User-Facing Term | Technical/API Term | Notes |
+|------------------|-------------------|-------|
+| **Meeting** | `session` | User sessions in UI, `session_id` in API |
+| **Decision** | `problem_statement` | What users submit for deliberation |
+| **Expert** | `persona` | AI personas that deliberate |
+| **Focus Area** | `sub_problem` | Decomposed parts of a decision |
+| **Contribution** | `contribution` | Same in both contexts |
+| **Round** | `round` | Same in both contexts |
+
+**Key Rules**:
+- User-facing: "meeting", "decision", "expert", "focus area"
+- API/Database: Keep technical terms (`session_id`, `problem_statement`, `persona`, `sub_problem`)
+- Never use "problem" in user-facing text (use "decision")
+- Never use "sub-problem" in user-facing text (use "focus area")
+
+---
+
 ## System Flow
 
 ```

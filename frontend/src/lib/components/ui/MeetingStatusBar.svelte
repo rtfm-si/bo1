@@ -71,7 +71,7 @@
 						{#if subProblemProgress && subProblemProgress.total > 1 && subProblemProgress.current > 0}
 							<span class="inline-flex items-center gap-1">
 								<span class="inline-block w-1 h-1 bg-slate-400 rounded-full"></span>
-								<span>Sub-problem {subProblemProgress.current}/{subProblemProgress.total}</span>
+								<span>Focus area {subProblemProgress.current}/{subProblemProgress.total}</span>
 							</span>
 						{/if}
 					</p>

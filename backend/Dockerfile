@@ -41,6 +41,7 @@ FROM base AS development
 # Copy application code
 COPY backend/ /app/backend/
 COPY bo1/ /app/bo1/
+COPY scripts/ /app/scripts/
 
 # Copy alembic configuration and migrations
 COPY alembic.ini /app/alembic.ini
@@ -67,6 +68,7 @@ RUN echo "{\"build_timestamp\": \"${BUILD_TIMESTAMP:-$(date -u +%Y-%m-%dT%H:%M:%
 # Copy application code
 COPY backend/ /app/backend/
 COPY bo1/ /app/bo1/
+COPY scripts/ /app/scripts/
 
 # Copy alembic configuration and migrations
 COPY alembic.ini /app/alembic.ini

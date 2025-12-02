@@ -30,4 +30,4 @@ if [ -z "$CONTAINER" ]; then
 fi
 
 echo "$(date): Running $REPORT_TYPE report via $CONTAINER"
-docker exec "$CONTAINER" python scripts/send_database_report.py "$REPORT_TYPE"
+docker exec "$CONTAINER" uv run python scripts/send_database_report.py "$REPORT_TYPE"

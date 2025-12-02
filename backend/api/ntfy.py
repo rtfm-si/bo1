@@ -80,8 +80,14 @@ async def send_ntfy_alert(
     server = settings["ntfy_server"] or DEFAULT_NTFY_SERVER
     url = f"{server.rstrip('/')}/{topic}"
 
+    # Encode title for HTTP header (ntfy requires ASCII-safe encoding for headers)
+    # Use RFC 2047-style encoding or just strip non-ASCII for simplicity
+    safe_title = title.encode("ascii", "ignore").decode("ascii") or title.encode("utf-8").decode(
+        "ascii", "ignore"
+    )
+
     headers = {
-        "Title": title,
+        "Title": safe_title,
         "Priority": priority,
     }
 

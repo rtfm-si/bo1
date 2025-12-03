@@ -460,11 +460,29 @@ jobs:
 
               # Stop and remove old green containers completely
               echo "Removing old green containers..."
-              docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} down 2>/dev/null || true
+              docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} down --remove-orphans 2>/dev/null || true
 
-              echo "Starting green environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})..."
-              API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
-                docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} up -d --remove-orphans
+              # Wait for Docker to fully clean up containers (prevents "removal already in progress" race)
+              echo "Waiting for container cleanup to complete..."
+              sleep 5
+
+              # Retry loop for starting green environment (handles Docker race conditions)
+              for attempt in 1 2 3; do
+                echo "Starting green environment (api:${TARGET_API_PORT}, frontend:${TARGET_FRONTEND_PORT})... attempt $attempt/3"
+                if API_PORT=${TARGET_API_PORT} FRONTEND_PORT=${TARGET_FRONTEND_PORT} \
+                  docker-compose -f docker-compose.app.yml -p ${TARGET_PROJECT} up -d --remove-orphans 2>&1; then
+                  echo "✅ Green environment started successfully"
+                  break
+                fi
+
+                if [ $attempt -lt 3 ]; then
+                  echo "⚠️ Failed to start, waiting before retry..."
+                  sleep 5
+                else
+                  echo "❌ Failed to start green environment after 3 attempts"
+                  exit 1
+                fi
+              done
             fi
 
             # =================================================================

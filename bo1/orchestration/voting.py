@@ -12,6 +12,7 @@ from bo1.llm.response import LLMResponse
 from bo1.llm.response_parser import ResponseParser
 from bo1.models.recommendations import ConsensusLevel, Recommendation, RecommendationAggregation
 from bo1.prompts.reusable_prompts import RECOMMENDATION_SYSTEM_PROMPT, RECOMMENDATION_USER_MESSAGE
+from bo1.state.discussion_formatter import format_discussion_history
 from bo1.utils.error_logger import ErrorLogger
 from bo1.utils.json_parsing import parse_json_with_fallback
 
@@ -36,8 +37,8 @@ async def collect_recommendations(
     personas = state.get("personas", [])
     logger.info(f"Collecting recommendations from {len(personas)} personas (parallel)")
 
-    # Build discussion history once
-    discussion_history = _format_discussion_history(state)
+    # Build discussion history once (voting style includes problem statement)
+    discussion_history = format_discussion_history(state, style="voting")
 
     # Create recommendation tasks for all personas
     async def _collect_single_recommendation(
@@ -147,35 +148,6 @@ async def collect_recommendations(
     logger.info(f"Collected {len(recommendations)}/{len(personas)} recommendations")
 
     return recommendations, llm_responses
-
-
-def _format_discussion_history(state: DeliberationGraphState) -> str:
-    """Format full discussion history for voting context.
-
-    Args:
-        state: Current deliberation state (v2 graph state)
-
-    Returns:
-        Formatted discussion history string
-    """
-    lines = []
-
-    # Add problem statement
-    problem = state.get("problem")
-    lines.append("PROBLEM STATEMENT:")
-    lines.append(problem.description if problem else "No problem defined")
-    lines.append("")
-
-    # Add all contributions
-    lines.append("FULL DISCUSSION:")
-    lines.append("")
-    contributions = state.get("contributions", [])
-    for msg in contributions:
-        lines.append(f"--- {msg.persona_name} (Round {msg.round_number}) ---")
-        lines.append(msg.content)
-        lines.append("")
-
-    return "\n".join(lines)
 
 
 async def aggregate_recommendations_ai(

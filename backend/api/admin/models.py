@@ -18,6 +18,10 @@ class UserInfo(BaseModel):
         auth_provider: Authentication provider (google, github, supertokens, etc.)
         subscription_tier: Subscription tier (free, pro, enterprise)
         is_admin: Whether user has admin privileges
+        is_locked: Whether account is locked
+        locked_at: When account was locked
+        lock_reason: Reason for locking
+        deleted_at: When account was soft deleted
         total_meetings: Total number of meetings created
         total_cost: Total cost across all meetings (USD)
         last_meeting_at: When user's most recent meeting was created
@@ -35,6 +39,10 @@ class UserInfo(BaseModel):
         ..., description="Subscription tier", examples=["free", "pro", "enterprise"]
     )
     is_admin: bool = Field(..., description="Whether user has admin privileges", examples=[False])
+    is_locked: bool = Field(False, description="Whether account is locked", examples=[False])
+    locked_at: str | None = Field(None, description="When account was locked (ISO 8601)")
+    lock_reason: str | None = Field(None, description="Reason for locking")
+    deleted_at: str | None = Field(None, description="When account was soft deleted (ISO 8601)")
     total_meetings: int = Field(..., description="Total number of meetings created", examples=[5])
     total_cost: float | None = Field(
         None, description="Total cost across all meetings (USD)", examples=[0.42]
@@ -109,6 +117,77 @@ class UpdateUserRequest(BaseModel):
         examples=["free", "pro", "enterprise"],
     )
     is_admin: bool | None = Field(None, description="New admin status", examples=[True, False])
+
+
+class LockUserRequest(BaseModel):
+    """Request model for locking a user account.
+
+    Attributes:
+        reason: Optional reason for locking the account
+    """
+
+    reason: str | None = Field(
+        None,
+        description="Reason for locking the account",
+        max_length=500,
+        examples=["Suspicious activity", "Payment issue"],
+    )
+
+
+class LockUserResponse(BaseModel):
+    """Response model for lock/unlock operations.
+
+    Attributes:
+        user_id: User identifier
+        is_locked: Current lock status
+        locked_at: When account was locked (null if unlocked)
+        lock_reason: Reason for locking (null if unlocked)
+        sessions_revoked: Number of sessions revoked
+        message: Human-readable message
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    is_locked: bool = Field(..., description="Current lock status")
+    locked_at: str | None = Field(None, description="When account was locked")
+    lock_reason: str | None = Field(None, description="Reason for locking")
+    sessions_revoked: int = Field(0, description="Number of sessions revoked")
+    message: str = Field(..., description="Human-readable message")
+
+
+class DeleteUserRequest(BaseModel):
+    """Request model for deleting a user account.
+
+    Attributes:
+        hard_delete: If true, permanently delete (cannot be undone)
+        revoke_sessions: Revoke all active SuperTokens sessions
+    """
+
+    hard_delete: bool = Field(
+        False,
+        description="If true, permanently delete all user data (cannot be undone)",
+    )
+    revoke_sessions: bool = Field(
+        True,
+        description="Revoke all active SuperTokens sessions",
+    )
+
+
+class DeleteUserResponse(BaseModel):
+    """Response model for user deletion.
+
+    Attributes:
+        user_id: User identifier
+        deleted: Whether deletion was successful
+        hard_delete: Whether this was a permanent deletion
+        sessions_revoked: Number of sessions revoked
+        message: Human-readable message
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    deleted: bool = Field(..., description="Whether deletion was successful")
+    hard_delete: bool = Field(..., description="Whether this was a permanent deletion")
+    sessions_revoked: int = Field(0, description="Number of sessions revoked")
+    message: str = Field(..., description="Human-readable message")
 
 
 class AdminStatsResponse(BaseModel):

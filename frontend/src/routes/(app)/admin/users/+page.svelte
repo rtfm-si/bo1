@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
-	import { Search, ChevronLeft, ChevronRight } from 'lucide-svelte';
-	import { getTierColor } from '$lib/utils/color-helpers';
+	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2 } from 'lucide-svelte';
+	import { getTierColor } from '$lib/utils/persona-colors';
 
 	let { data } = $props();
 
@@ -18,6 +18,12 @@
 	let editingUserId = $state<string | null>(null);
 	let editForm = $state<{ subscription_tier?: string; is_admin?: boolean }>({});
 	let isSubmitting = $state(false);
+
+	// Modal state for lock/delete actions
+	let lockModalUser = $state<{ user_id: string; email: string } | null>(null);
+	let deleteModalUser = $state<{ user_id: string; email: string } | null>(null);
+	let lockReason = $state('');
+	let hardDelete = $state(false);
 
 	// Update local state when data changes
 	$effect(() => {
@@ -71,6 +77,26 @@
 		if (!dateString) return 'Never';
 		const date = new Date(dateString);
 		return date.toLocaleDateString();
+	}
+
+	function openLockModal(user: { user_id: string; email: string }) {
+		lockModalUser = user;
+		lockReason = '';
+	}
+
+	function closeLockModal() {
+		lockModalUser = null;
+		lockReason = '';
+	}
+
+	function openDeleteModal(user: { user_id: string; email: string }) {
+		deleteModalUser = user;
+		hardDelete = false;
+	}
+
+	function closeDeleteModal() {
+		deleteModalUser = null;
+		hardDelete = false;
 	}
 </script>
 
@@ -137,6 +163,7 @@
 						<thead class="bg-neutral-50 dark:bg-neutral-900">
 							<tr>
 								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Email</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Status</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Tier</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Admin</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Meetings</th>
@@ -147,10 +174,26 @@
 						</thead>
 						<tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
 							{#each users as user (user.user_id)}
-								<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-900/50">
+								<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-900/50 {user.deleted_at ? 'opacity-50' : ''}">
 									<td class="px-6 py-4 whitespace-nowrap">
 										<div class="text-sm font-medium text-neutral-900 dark:text-white">{user.email}</div>
 										<div class="text-xs text-neutral-500 dark:text-neutral-400">{user.auth_provider}</div>
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										{#if user.deleted_at}
+											<span class="inline-flex text-xs px-2 py-1 rounded-full bg-neutral-100 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-300" title="Deleted at: {formatDate(user.deleted_at)}">
+												Deleted
+											</span>
+										{:else if user.is_locked}
+											<span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-error-100 text-error-800 dark:bg-error-900/20 dark:text-error-300" title={user.lock_reason || 'No reason provided'}>
+												<Lock class="w-3 h-3" />
+												Locked
+											</span>
+										{:else}
+											<span class="inline-flex text-xs px-2 py-1 rounded-full bg-success-100 text-success-800 dark:bg-success-900/20 dark:text-success-300">
+												Active
+											</span>
+										{/if}
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap">
 										{#if editingUserId === user.user_id}
@@ -207,11 +250,12 @@
 												action="?/updateUser"
 												use:enhance={() => {
 													isSubmitting = true;
-													return async ({ result }) => {
+													return async ({ result, update }) => {
 														isSubmitting = false;
 														if (result.type === 'success') {
 															editingUserId = null;
 															editForm = {};
+															await update();
 														} else if (result.type === 'failure') {
 															alert(result.data?.error || 'Failed to update user');
 														}
@@ -240,12 +284,56 @@
 												</div>
 											</form>
 										{:else}
-											<button
-												onclick={() => startEdit(user.user_id, user.subscription_tier, user.is_admin)}
-												class="text-brand-600 dark:text-brand-400 hover:underline"
-											>
-												Edit
-											</button>
+											<div class="flex items-center gap-3">
+												<button
+													onclick={() => startEdit(user.user_id, user.subscription_tier, user.is_admin)}
+													class="text-brand-600 dark:text-brand-400 hover:underline"
+													disabled={!!user.deleted_at}
+												>
+													Edit
+												</button>
+
+												{#if !user.deleted_at}
+													{#if user.is_locked}
+														<form
+															method="POST"
+															action="?/unlockUser"
+															use:enhance={() => {
+																return async ({ result, update }) => {
+																	if (result.type === 'success') {
+																		await update();
+																	} else if (result.type === 'failure') {
+																		alert(result.data?.error || 'Failed to unlock user');
+																	}
+																};
+															}}
+														>
+															<input type="hidden" name="userId" value={user.user_id} />
+															<button type="submit" class="text-success-600 dark:text-success-400 hover:underline flex items-center gap-1">
+																<Unlock class="w-3 h-3" />
+																Unlock
+															</button>
+														</form>
+													{:else}
+														<button
+															onclick={() => openLockModal(user)}
+															class="text-warning-600 dark:text-warning-400 hover:underline flex items-center gap-1"
+														>
+															<Lock class="w-3 h-3" />
+															Lock
+														</button>
+													{/if}
+												{/if}
+
+												<button
+													onclick={() => openDeleteModal(user)}
+													class="text-error-600 dark:text-error-400 hover:underline flex items-center gap-1"
+													disabled={!!user.deleted_at}
+												>
+													<Trash2 class="w-3 h-3" />
+													Delete
+												</button>
+											</div>
 										{/if}
 									</td>
 								</tr>
@@ -288,3 +376,117 @@
 		{/if}
 	</main>
 </div>
+
+<!-- Lock User Modal -->
+{#if lockModalUser}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={closeLockModal} role="presentation">
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Lock User Account</h2>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+				Are you sure you want to lock <strong>{lockModalUser.email}</strong>? This will prevent them from signing in and revoke all active sessions.
+			</p>
+			<form
+				method="POST"
+				action="?/lockUser"
+				use:enhance={() => {
+					isSubmitting = true;
+					return async ({ result, update }) => {
+						isSubmitting = false;
+						if (result.type === 'success') {
+							closeLockModal();
+							await update();
+						} else if (result.type === 'failure') {
+							alert(result.data?.error || 'Failed to lock user');
+						}
+					};
+				}}
+			>
+				<input type="hidden" name="userId" value={lockModalUser.user_id} />
+				<div class="mb-4">
+					<label for="lockReason" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+						Reason (optional)
+					</label>
+					<input
+						type="text"
+						id="lockReason"
+						name="reason"
+						bind:value={lockReason}
+						placeholder="e.g., Suspicious activity, Payment issue"
+						class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+					/>
+				</div>
+				<div class="flex justify-end gap-3">
+					<Button variant="secondary" size="md" onclick={closeLockModal} disabled={isSubmitting}>
+						{#snippet children()}Cancel{/snippet}
+					</Button>
+					<Button variant="danger" size="md" type="submit" disabled={isSubmitting}>
+						{#snippet children()}{isSubmitting ? 'Locking...' : 'Lock User'}{/snippet}
+					</Button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Delete User Modal -->
+{#if deleteModalUser}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={closeDeleteModal} role="presentation">
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Delete User Account</h2>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+				Are you sure you want to delete <strong>{deleteModalUser.email}</strong>? This action will revoke all active sessions.
+			</p>
+			<form
+				method="POST"
+				action="?/deleteUser"
+				use:enhance={() => {
+					isSubmitting = true;
+					return async ({ result, update }) => {
+						isSubmitting = false;
+						if (result.type === 'success') {
+							closeDeleteModal();
+							await update();
+						} else if (result.type === 'failure') {
+							alert(result.data?.error || 'Failed to delete user');
+						}
+					};
+				}}
+			>
+				<input type="hidden" name="userId" value={deleteModalUser.user_id} />
+				<div class="mb-4">
+					<label class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+						<input
+							type="checkbox"
+							name="hard_delete"
+							bind:checked={hardDelete}
+							value="true"
+							class="rounded border-neutral-300 dark:border-neutral-600"
+						/>
+						<span>Permanent deletion (cannot be undone)</span>
+					</label>
+					{#if hardDelete}
+						<p class="mt-2 text-xs text-error-600 dark:text-error-400">
+							Warning: This will permanently delete all user data including meetings, contributions, and settings.
+						</p>
+					{:else}
+						<p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+							Soft delete: User will be marked as deleted but data is preserved.
+						</p>
+					{/if}
+				</div>
+				<div class="flex justify-end gap-3">
+					<Button variant="secondary" size="md" onclick={closeDeleteModal} disabled={isSubmitting}>
+						{#snippet children()}Cancel{/snippet}
+					</Button>
+					<Button variant="danger" size="md" type="submit" disabled={isSubmitting}>
+						{#snippet children()}{isSubmitting ? 'Deleting...' : (hardDelete ? 'Permanently Delete' : 'Delete User')}{/snippet}
+					</Button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}

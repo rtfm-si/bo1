@@ -4,11 +4,9 @@
 	import { env } from '$env/dynamic/public';
 	import { apiClient } from '$lib/api/client';
 	import type { SSEEvent, ContributionEvent, ExpertInfo } from '$lib/api/sse-events';
-	import { fade, scale } from 'svelte/transition';
-	import { quintOut } from 'svelte/easing';
+	import { fade } from 'svelte/transition';
 	import { SSEClient } from '$lib/utils/sse';
-	import { CheckCircle, AlertCircle, Clock, Pause, Play, Square, Download } from 'lucide-svelte';
-	import { PHASE_PROGRESS_MAP } from '$lib/design/tokens';
+	import { CheckCircle, AlertCircle, Download } from 'lucide-svelte';
 	import { user } from '$lib/stores/auth';
 	import { generateReportHTML } from '$lib/utils/pdf-report-generator';
 
@@ -32,26 +30,25 @@
 	import DynamicEventComponent from '$lib/components/events/DynamicEventComponent.svelte';
 	import ContributionRound from '$lib/components/events/ContributionRound.svelte';
 
-	// Import metrics components
-	import {
-		ProgressIndicator,
-	} from '$lib/components/metrics';
 
 	// Import UI components
 	import {
 		RelativeTimestamp,
 		DecisionMetrics,
-		Tabs,
 		Button,
 	} from '$lib/components/ui';
-	import type { Tab } from '$lib/components/ui';
-	import WorkingStatus from '$lib/components/ui/WorkingStatus.svelte';
 	import AiDisclaimer from '$lib/components/ui/AiDisclaimer.svelte';
 	import {
 		EventCardSkeleton,
-		DashboardCardSkeleton
 	} from '$lib/components/ui/skeletons';
-	import { LoadingDots, ActivityStatus, LOADING_MESSAGES, ROTATING_MESSAGES, getRotatingMessage } from '$lib/components/ui/loading';
+	import { ActivityStatus } from '$lib/components/ui/loading';
+
+	// Import meeting components
+	import MeetingHeader from '$lib/components/meeting/MeetingHeader.svelte';
+	import WorkingStatusBanner from '$lib/components/meeting/WorkingStatusBanner.svelte';
+	import MeetingProgress from '$lib/components/meeting/MeetingProgress.svelte';
+	import SubProblemTabs from '$lib/components/meeting/SubProblemTabs.svelte';
+	import EventStream from '$lib/components/meeting/EventStream.svelte';
 
 	// Import utilities
 	import { getEventPriority, type EventPriority } from '$lib/utils/event-humanization';
@@ -368,7 +365,7 @@
 			console.log(`[Events] Loaded ${response.count} historical events`);
 
 			// Convert historical events to SSEEvent format
-			for (const event of response.events) {
+			for (const event of response.events as SSEEvent[]) {
 				const sseEvent: SSEEvent = {
 					event_type: event.event_type,
 					session_id: event.session_id,
@@ -846,30 +843,6 @@
 	});
 
 
-	// Progress calculation
-	function calculateProgress(session: SessionData | null): number {
-		if (!session) return 0;
-
-		// Handle completed meetings (either by status or phase)
-		if (session.status === 'completed' || session.phase === 'complete') {
-			return 100;
-		}
-
-		// Handle synthesis phase
-		if (session.phase === 'synthesis') {
-			return 95;
-		}
-
-		const baseProgress = PHASE_PROGRESS_MAP[session.phase as keyof typeof PHASE_PROGRESS_MAP] || 0;
-
-		// Add round-based progress within discussion phase
-		if (session.phase === 'discussion' && session.round_number) {
-			const roundProgress = Math.min((session.round_number / 10) * 25, 25);
-			return Math.min(baseProgress + roundProgress, 100);
-		}
-
-		return baseProgress;
-	}
 
 	/**
 	 * Performance optimization: Memoized sub-problem tabs calculation
@@ -1019,6 +992,7 @@
 	});
 
 	// Visual hierarchy: Get CSS classes based on event priority (MINIMAL COLORS)
+	// Used in tabbed sub-problem view
 	function getEventCardClasses(priority: EventPriority): string {
 		if (priority === 'major') {
 			return 'bg-neutral-50 dark:bg-neutral-900/50 border-2 border-neutral-300 dark:border-neutral-700';
@@ -1080,65 +1054,24 @@
 
 <div class="min-h-screen bg-neutral-50 dark:bg-neutral-900">
 	<!-- Header -->
-	<header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<a
-						href="/dashboard"
-						class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-						aria-label="Back to dashboard"
-					>
-						<svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-						</svg>
-					</a>
-					<div class="flex-1">
-						<h1 class="text-[1.875rem] font-semibold leading-tight text-neutral-900 dark:text-white">
-							Meeting in Progress
-						</h1>
-					</div>
-				</div>
-
-				<div class="flex items-center gap-2">
-					{#if session?.status === 'active'}
-						<Button variant="secondary" size="md" onclick={handlePause}>
-							{#snippet children()}
-								<Pause size={16} />
-								<span>Pause</span>
-							{/snippet}
-						</Button>
-					{:else if session?.status === 'paused'}
-						<Button variant="brand" size="md" onclick={handleResume}>
-							{#snippet children()}
-								<Play size={16} />
-								<span>Resume</span>
-							{/snippet}
-						</Button>
-					{/if}
-				</div>
-			</div>
-		</div>
-	</header>
+	<MeetingHeader
+		{sessionId}
+		sessionStatus={session?.status}
+		onPause={handlePause}
+		onResume={handleResume}
+	/>
 
 	<!-- Main Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-		<!-- AUDIT FIX (Issue #4): Prominent working status indicator -->
-		<!-- Shows either:
-		     1. Backend working_status phase (from currentWorkingPhase)
-		     2. Client-side staleness banner (when no events for 8+ seconds) -->
-		{#if currentWorkingPhase}
-			<WorkingStatus
-				currentPhase={currentWorkingPhase}
-				elapsedSeconds={workingElapsedSeconds}
-				estimatedDuration={estimatedDuration}
-			/>
-		{:else if isStale && session?.status === 'active'}
-			<WorkingStatus
-				currentPhase="Still working..."
-				elapsedSeconds={staleSinceSeconds}
-			/>
-		{/if}
+		<!-- Working Status Banner -->
+		<WorkingStatusBanner
+			{currentWorkingPhase}
+			{workingElapsedSeconds}
+			{estimatedDuration}
+			{isStale}
+			staleSinceSeconds={staleSinceSeconds}
+			sessionStatus={session?.status}
+		/>
 
 		<!-- ARIA Live Region for Event Updates (A11Y: Announce new events to screen readers) -->
 		<div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
@@ -1250,16 +1183,7 @@
 						</div>
 
 						<!-- Progress Bar -->
-						{#if session}
-							<div class="px-4 pb-3">
-								<div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-									<div
-										class="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
-										style="width: {calculateProgress(session)}%"
-									></div>
-								</div>
-							</div>
-						{/if}
+						<MeetingProgress {session} />
 					</div>
 
 					<div
@@ -1285,57 +1209,12 @@
 						{:else if subProblemTabs.length > 1}
 							<!-- Tab-based navigation for multiple sub-problems -->
 							<div class="h-full flex flex-col">
-								<div class="border-b border-slate-200 dark:border-slate-700">
-									<div class="flex overflow-x-auto px-4 pt-3" role="tablist" aria-label="Focus area tabs">
-										{#each subProblemTabs as tab}
-											{@const isActive = activeSubProblemTab === tab.id}
-											<button
-												type="button"
-												role="tab"
-												aria-selected={isActive}
-												aria-controls="tabpanel-{tab.id}"
-												id="tab-{tab.id}"
-												class={[
-													'flex-shrink-0 px-4 py-2 border-b-2 -mb-px transition-all text-sm font-medium',
-													isActive
-														? 'border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-400'
-														: 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600',
-												].join(' ')}
-												onclick={() => activeSubProblemTab = tab.id}
-											>
-												<div class="flex items-center gap-2">
-													<span>{tab.label}</span>
-													{#if tab.status === 'complete'}
-														<CheckCircle size={14} class="text-current" />
-													{/if}
-												</div>
-											</button>
-										{/each}
-										<!-- Conclusion tab (appears when meta-synthesis is complete) -->
-										{#if showConclusionTab}
-											{@const isActive = activeSubProblemTab === 'conclusion'}
-											<button
-												type="button"
-												role="tab"
-												aria-selected={isActive}
-												aria-controls="tabpanel-conclusion"
-												id="tab-conclusion"
-												class={[
-													'flex-shrink-0 px-4 py-2 border-b-2 -mb-px transition-all text-sm font-medium',
-													isActive
-														? 'border-success-600 text-success-700 dark:border-success-400 dark:text-success-400'
-														: 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600',
-												].join(' ')}
-												onclick={() => activeSubProblemTab = 'conclusion'}
-											>
-												<div class="flex items-center gap-2">
-													<span>Summary</span>
-													<CheckCircle size={14} class="text-success-600 dark:text-success-400" />
-												</div>
-											</button>
-										{/if}
-									</div>
-								</div>
+								<SubProblemTabs
+									{subProblemTabs}
+									{showConclusionTab}
+									{activeSubProblemTab}
+									onTabChange={(tabId) => activeSubProblemTab = tabId}
+								/>
 
 								{#each subProblemTabs as tab}
 									{@const isTabActive = tab.id === activeSubProblemTab}
@@ -1552,184 +1431,30 @@
 							</div>
 						{:else}
 							<!-- Single sub-problem or linear view -->
-							<div class="p-4 space-y-4">
-
-							<!-- Focus area transition loading state -->
-							{#if isTransitioningSubProblem}
-								<div class="animate-pulse bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
-									<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
-									<div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-									<p class="text-sm text-slate-500 dark:text-slate-400 mt-2">
-										Preparing next focus area...
-									</p>
-								</div>
-							{/if}
-
-							<!-- Phase-specific waiting indicator (experts being selected / familiarising) -->
-							{#if isWaitingForFirstContributions}
-								<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 py-4 px-4" transition:fade={{ duration: 300 }}>
-									<ActivityStatus
-										variant="inline"
-										message={phaseWaitingMessage}
-										class="text-amber-700 dark:text-amber-300 font-medium"
-									/>
-								</div>
-							{/if}
-
-							{#if isSynthesizing}
-								<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800" transition:fade={{ duration: 300 }}>
-									<div class="flex items-center gap-3 mb-3">
-										<!-- Heartbeat animation -->
-										<div class="relative">
-											<div class="w-5 h-5 bg-blue-600 rounded-full animate-ping absolute"></div>
-											<div class="w-5 h-5 bg-blue-600 rounded-full relative"></div>
-										</div>
-										<h3 class="text-lg font-semibold text-blue-900 dark:text-blue-100">
-											Synthesizing Recommendations...
-											<span class="text-sm font-normal text-blue-700 dark:text-blue-300">
-												({elapsedSeconds}s)
-											</span>
-										</h3>
-									</div>
-
-									<!-- Multi-step progress indicator -->
-									<div class="mt-4 space-y-3">
-										<div class="flex items-center gap-3 text-sm">
-											<svg class="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-											</svg>
-											<span class="text-blue-800 dark:text-blue-200">
-												Analyzed {events.filter(e => e.event_type === 'persona_vote').length || events.filter(e => e.event_type === 'contribution').length} expert perspectives
-											</span>
-										</div>
-										<div class="flex items-center gap-3 text-sm {elapsedSeconds > 15 ? 'opacity-100' : 'opacity-50'}">
-											{#if elapsedSeconds > 15}
-												<svg class="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-												</svg>
-											{:else}
-												<svg class="w-5 h-5 text-blue-600 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-													<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-												</svg>
-											{/if}
-											<span class="text-blue-700 dark:text-blue-300">
-												Identifying consensus patterns and key insights
-											</span>
-										</div>
-										<div class="flex items-center gap-3 text-sm {elapsedSeconds > 30 ? 'opacity-100' : 'opacity-50'}">
-											{#if elapsedSeconds > 30}
-												<svg class="w-5 h-5 text-blue-600 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-													<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-												</svg>
-											{:else}
-												<svg class="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"></circle>
-												</svg>
-											{/if}
-											<span class="text-blue-600 dark:text-blue-400 {elapsedSeconds > 30 ? '' : 'opacity-50'}">
-												Generating comprehensive recommendation report
-											</span>
-										</div>
-									</div>
-								</div>
-							{/if}
-
-							{#if isVoting}
-								<div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-6 border border-purple-200 dark:border-purple-800" transition:fade={{ duration: 300 }}>
-									<ActivityStatus
-										variant="card"
-										message="Collecting Expert Recommendations..."
-										phase="Experts are providing their final recommendations"
-										showElapsedTime
-										startTime={votingStartTime ? new Date(votingStartTime) : null}
-										class="text-purple-900 dark:text-purple-100"
-									/>
-								</div>
-							{/if}
-
-							{#each groupedEvents as group, index (index)}
-								{#if group.type === 'expert_panel' && group.events}
-									<!-- Render grouped expert panel -->
-									<div transition:fade={{ duration: 300, delay: 50 }}>
-										<DynamicEventComponent
-											event={group.events[0]}
-											eventType="expert_panel"
-											skeletonProps={{ hasAvatar: false }}
-											componentProps={{
-												experts: group.events.map((e): ExpertInfo => ({
-													persona: e.data.persona as {
-														code: string;
-														name: string;
-														display_name: string;
-														archetype: string;
-														domain_expertise: string[];
-													},
-													rationale: e.data.rationale as string,
-													order: e.data.order as number,
-												})),
-												subProblemGoal: group.subProblemGoal
-											}}
-										/>
-									</div>
-								{:else if group.type === 'round' && group.events}
-									<!-- Render grouped contributions with new ExpertPerspectiveCard -->
-									{@const roundKey = `round-${group.roundNumber}`}
-									{@const visibleCount = visibleContributionCounts.get(roundKey) || 0}
-									<ContributionRound
-										roundNumber={group.roundNumber || 0}
-										events={group.events}
-										visibleCount={visibleCount}
-										viewMode={contributionViewMode}
-										showFullTranscripts={showFullTranscripts}
-										cardViewModes={cardViewModes}
-										onToggleCardViewMode={toggleCardViewMode}
-										thinkingMessages={thinkingMessages}
-									/>
-								{:else if group.type === 'single' && group.event}
-									{@const event = group.event}
-									{@const priority = getEventPriority(event.event_type)}
-									{@const isMajorEvent = event.event_type === 'complete' || event.event_type === 'synthesis_complete' || event.event_type === 'meta_synthesis_complete'}
-									<!-- Render single event with visual hierarchy -->
-									<div
-										class="{getEventCardClasses(priority)} rounded-lg p-4"
-										in:fade|global={{ duration: 300, delay: 50 }}
-										out:fade|global={{ duration: 200 }}
-									>
-										<div class="flex items-start gap-3">
-											{#if event.event_type === 'synthesis_complete' || event.event_type === 'subproblem_complete' || event.event_type === 'meta_synthesis_complete' || event.event_type === 'complete'}
-												<CheckCircle size={20} class="text-semantic-success" />
-											{:else if event.event_type === 'error'}
-												<AlertCircle size={20} class="text-semantic-error" />
-											{/if}
-											<div class="flex-1 min-w-0">
-												<div class="flex items-center justify-between mb-3">
-													<RelativeTimestamp timestamp={event.timestamp} />
-												</div>
-
-												<!-- Render appropriate component based on event type with dynamic loading -->
-												<DynamicEventComponent
-													{event}
-													skeletonProps={{ hasAvatar: false }}
-												/>
-											</div>
-										</div>
-									</div>
-								{/if}
-							{/each}
-
-							<!-- Between-rounds waiting indicator -->
-							{#if isWaitingForNextRound}
-								<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 py-4 px-4" transition:fade={{ duration: 300 }}>
-									<ActivityStatus
-										variant="inline"
-										message={betweenRoundsMessages[betweenRoundsMessageIndex]}
-										class="text-blue-700 dark:text-blue-300 font-medium"
-									/>
-								</div>
-							{/if}
-							</div>
+							<EventStream
+								{events}
+								{groupedEvents}
+								{session}
+								{isLoading}
+								{visibleContributionCounts}
+								{contributionViewMode}
+								{showFullTranscripts}
+								{cardViewModes}
+								{thinkingMessages}
+								{isWaitingForFirstContributions}
+								{phaseWaitingMessage}
+								{isWaitingForNextRound}
+								{betweenRoundsMessages}
+								{betweenRoundsMessageIndex}
+								{initialWaitingMessages}
+								{initialWaitingMessageIndex}
+								{isSynthesizing}
+								{isVoting}
+								{elapsedSeconds}
+								{votingStartTime}
+								{isTransitioningSubProblem}
+								onToggleCardViewMode={toggleCardViewMode}
+							/>
 						{/if}
 					</div>
 				</div>
@@ -1750,14 +1475,7 @@
 						</div>
 					</details>
 
-					<!-- Progress Indicator -->
-					<ProgressIndicator
-						events={events}
-						currentPhase={session.phase}
-						currentRound={session.round_number ?? null}
-					/>
-
-					<!-- Decision Metrics Dashboard -->
+						<!-- Decision Metrics Dashboard -->
 					<div class="flex-1">
 						<DecisionMetrics
 							events={events}

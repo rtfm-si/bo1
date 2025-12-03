@@ -1,144 +1,222 @@
-## BACKLOG
+# Feature Roadmap
 
-feature request
-implement some kind of 'gated' features, where (user a) can see page 123 but user b cant
+Prioritized by: implementation speed, dependencies, and user value.
 
-# Activate the venv
+---
 
-source .venv/bin/activate
+## Tier 1: Quick Wins (High Value, Low Effort)
 
-ssh root@139.59.201.65
+_Ship in days, immediate user impact_
 
-db tests users etc
+- [x] **Expert panel as columns** (not rows) - 1-2h ✅
 
-add business context page
-& research competition
+  - Converted to responsive grid (2-5 columns)
+  - Individual expert cards with centered info, order badge in corner
+  - Updated: `frontend/src/lib/components/events/ExpertPanel.svelte`
 
-new meeting
-(suggest q's based on bus context - CTA to add)
+- [x] **Meeting UI counters** - 4-6h ✅
 
-some kind of 'simple' kanban board for actions
+  - Added 5 counters: Topics explored, Research performed, Risks mitigated, Challenges resolved, Options discussed
+  - Each with icon, count, hover tooltip
+  - Added to DecisionMetrics as "Deliberation Progress" section
+  - Updated: `frontend/src/lib/components/ui/DecisionMetrics.svelte`
 
-'mentor mode' - speak with an expert directly in a chat (like chatgpt) but has business and problem context and actions etc etc
+- [x] **Persona diversity in contributions** - 4-8h ✅
 
-full report:
-rounds, minutes, experts = replace with experts and why?
-full synthesis missing
-needs the exec summary and recommendation right after problem statement
+  - Added response_style visual indicators (technical/analytical/socratic/narrative)
+  - Left border color + badge showing thinking style
+  - Persona code → response style mapping
+  - Updated: `frontend/src/lib/components/events/PersonaContribution.svelte`
 
-opus:
-look for legacy / backwards compatibility / fallback and simplify, we dont need this - no live customers
-look for persistence gaps - we should be storing all outputs we produce for end users (meetings etc) in the db
-look for optimisations, efficiencies - redundant conversions between pydantic and dicts etc. or simplify this via an reuseable 'autoconverter'?
-look for libraries and depedencies providing the same / conflicting capability
-look for front end and back end issues
+- [x] **Landing page hero carousel** - 8-12h ✅
+  - 3-slide auto-advancing carousel (6s interval)
+  - Slide 1: Problem statement with typewriter effect
+  - Slide 2: Expert discussion with 2 contribution previews
+  - Slide 3: Report output preview with 3 sections
+  - Navigation: arrows, dots, slide labels
+  - Created: `frontend/src/lib/components/landing/HeroCarousel.svelte`
+  - Updated: `frontend/src/lib/components/landing/HeroSection.svelte`
 
-need a counter for:
-topics explored
-research performed
-risks mitigated
-challenges resolved
-options discussed
-etc...
+---
 
-SEO
+## Tier 2: Core UX Improvements (Medium Effort, High Value)
 
-meeting image > should be a carousel type animation
-card with 'problem statement' pops up
-next is 'experts discuss...'
-final is the pdf report output view?
+_1-2 week features that significantly improve retention_
 
-could 'expert panel assembled' be columns instead of rows (should always be between 2 min and 5 max)?
+- [ ] **Action item tracking (simple kanban)** - 2-3d
 
-need to check the 'clarify' options - dont seem to be getting triggered. write responses to 'business context' timestamped
+  - Todo/doing/done for meeting actions
+  - Users need to track outcomes from meetings
 
-how robust is our security on prod regarding users creating free accounts and spamming 'start meeting'?
+- [ ] **Fix "Clarify" flow** - 1-2d
 
-determine whatand inject business context to problems
+  - Debug why clarification options aren't triggering
+  - Write responses to `business_context` with timestamps
 
-add delete user to admin
-add admin ability to 'lock account' and 'unlock account'
+- [ ] **More proactive research triggers** - 1-2d
 
-add experts that are able to contribute to meetings at a more informal level, more sole trader level
-would adding 'business style', or 'revenue', customers, employees etc etc help?
+  - "This vs that" questions should auto-trigger market research
+  - Consider demand, costs, risks for comparison decisions
+  - Example: "Series A now vs wait 6 months" should research current market conditions
 
-we should do more proactive research if the queston is ever 'this' vs 'that', so we can consider demand, costs, risks etc etc
-I think we should be triggering research a bit more frequently than we are doing? - should a problem like this:
-Should we raise Series A now or wait 6 months, given current metrics, market conditions, and realistic improvement potentiall perform research into current market conditions?
+- [x] **Admin: Delete user + Lock/Unlock account** - 4-6h ✅
+  - Lock/Unlock user accounts with session revocation
+  - Soft delete (preserves data) and hard delete (permanent) options
+  - SuperTokens integration blocks locked users at sign-in
+  - Audit logging for all admin actions
+  - UI: Status column, modals for lock/delete with confirmations
+  - Updated: `backend/api/admin/users.py`, `frontend/src/routes/(app)/admin/users/+page.svelte`
 
-actions should be 'trackable' and ability to 'replan' - what went wrong,
+---
 
-onboarding flow
+## Tier 3: Business Context System (Foundation for Future Features)
 
-A. Company Identity (Tiny Input → Big Expansion)
+_Enables personalization, better advice quality_
 
-Company name (input)
+- [ ] **Lightweight onboarding flow** - 3-5d
 
-Website URL (input → auto-crawl + enrich)
+  - Company name + website URL input
+  - Auto-crawl + enrich: industry, product categories, pricing, positioning, tone, brand maturity, SEO structure, tech stack
+  - Detect business model (SaaS, marketplace, agency, etc.)
+  - Identify competitors and ICP
+  - Extract keywords for market category
 
-Extract: industry, product categories, pricing pages, positioning, tone, brand maturity, SEO structure, tech stack (Wappalyzer style)
+- [ ] **Business stage dropdown** - 2-4h
 
-B. Business Stage & Priority
+  - Stage: idea → early → growing → scaling
+  - Primary objective: acquire customers / improve retention / raise capital / launch product / reduce costs
 
-Just a couple of lightweight dropdowns:
+- [ ] **Business context page** - 2-3d
 
-Stage: idea → early → growing → scaling
+  - View/edit enriched business data
+  - Inject into meeting context for better advice
 
-Primary objective: acquire customers / improve retention / raise capital / launch product / reduce costs / etc.
+- [ ] **Periodic context refresh prompt** - 4-6h
+  - "Are these details still correct?" every N months
+  - Prompt after first meeting completion
 
-prompt to add after first q completion and 'are these details correct...' every n months? 2. IMPORTANT — High value, but optional for simplicity
+### Additional Context Fields (Optional, High Value)
 
-These add measurable precision to decisions but shouldn’t block usage.
+- Target customer profile & geography
+- Traffic range, MAU buckets, revenue stage
+- Main product/service, value proposition
+- Team size (solo founder / small team / contractors)
+- Budget, time, regulatory constraints
 
-A. Target Customer & Market
+---
 
-Target customer profile
+## Tier 4: Security & Stability (Important, Less Visible)
 
-Geography or market served
+_Must-do before scaling_
 
-Industry niche (if unclear from website)
+- [ ] **Rate limiting on "Start Meeting"** - 4-6h
 
-B. Business Performance Signals
+  - Prevent free account spam
+  - IP + user-based throttling
 
-Small, non-financial indicators:
+- [ ] **Prompt injection audit** - 1-2d
 
-Traffic range (self-reported or scraped estimates)
+  - Review all LLM inputs for injection vectors
 
-Monthly active users (rough buckets)
+- [ ] **SQL injection audit** - 4-6h
 
-Revenue stage (pre-revenue / <£10k MRR / etc.)
+  - Verify parameterized queries everywhere
 
-C. Product Snapshot
+- [ ] **Redis → Postgres cleanup** - 1-2d
+  - Redis for live memory only
+  - Completed meetings read from Postgres
+  - Clear Redis cache post-meeting completion
 
-Main product or service
+---
 
-Value proposition (can be AI-extracted from homepage)
+## Tier 5: Premium Features (High Effort, High Value)
 
-D. Team Context
+_Differentiated value, potential monetization_
 
-Solo founder? small team? contractors?
-This influences advice quality (e.g., feasibility of actions).
+- [ ] **Mentor Mode** - 1-2w
 
-E. Constraints
+  - Chat directly with an expert (like ChatGPT)
+  - Has business context, problem history, actions
+  - Natural extension of meeting system
 
-Budget constraints
+- [ ] **Gated features system** - 2-3d
 
-Time constraints
+  - User A sees page X, User B doesn't
+  - Enables tier-based access control
 
-Regulatory concerns (if relevant)
+- [ ] **Tier plans infrastructure** - 3-5d
 
-Enrich from the website:
+  - Depends on gated features
+  - Pricing page, feature limits per tier
 
-Extract products, value prop, pricing, positioning, tone
+- [ ] **Action replanning** - 1w
+  - Track action outcomes
+  - "What went wrong" flow
+  - Replan based on results
 
-Detect business model (SaaS, marketplace, agency, etc.)
+---
 
-Identify competitors
+## Tier 6: Team & Scale Features (Later Stage)
 
-Identify ICP
+_Build after core product is solid_
 
-Extract keywords to detect market category
+- [ ] **Workspaces** - 1-2w
 
-Pull current market trends via external search APIs
+  - Team containers
+  - Shared meetings, business context
 
-Identify missing pieces relevant to the decision
+- [ ] **Projects** - 1w
+
+  - Group related meetings
+  - Depends on workspaces
+
+- [ ] **Informal expert tier** - 1w
+
+  - Sole trader / small business level personas
+  - Depends on business context system
+
+- [ ] **Competition research** - 1w
+  - Auto-identify and research competitors
+  - Depends on business context onboarding
+
+---
+
+## Tier 7: Marketing & Growth (Ongoing)
+
+- [ ] **Landing page SEO** - 2-3d
+
+  - Meta tags, structured data, content optimization
+
+- [ ] **Footer pages audit** - 1d
+
+  - Terms, privacy, about pages need updating & checking
+
+- [ ] **Suggested questions from business context** - 2-3d
+  - CTA to add business context when starting new meeting
+  - Depends on business context system
+
+---
+
+## Cleanup Tasks
+
+- [ ] Verify "Sub-Problem Complete" taxonomy change (may already be done)
+- [ ] Remove "Synthesis" label if no longer in use
+- [ ] Fix "The Bottom Line" duplicate in UI
+
+---
+
+## Recommended Sprint Plan
+
+**Sprint 1 (Week 1-2):** Tier 1 quick wins + admin basics
+
+**Sprint 2 (Week 3-4):** Tier 2 core UX (action tracking, clarify fix, research triggers)
+
+**Sprint 3 (Week 5-6):** Tier 3 business context foundation
+
+**Sprint 4 (Week 7-8):** Tier 4 security hardening
+
+**Sprint 5+:** Tier 5-7 based on user feedback and growth metrics
+
+new thoughts:
+how to add 'actions' and kanban to carousel?
+should we show competitor analysis in carousel?

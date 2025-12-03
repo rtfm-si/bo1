@@ -102,15 +102,15 @@
 	tabindex={onToggle ? 0 : undefined}
 >
 	<div class="border-l-4 border-brand-500 dark:border-brand-400 p-5">
-		<!-- Expert Header - Two-line layout for better scanning -->
-		<div class="mb-3">
+		<!-- Expert Header - Single line with gap between name and role -->
+		<div class="flex items-baseline gap-3 mb-3">
 			<h4 class="text-lg font-bold text-neutral-900 dark:text-white leading-tight tracking-tight">
 				{event.data.persona_name}
 			</h4>
 			{#if event.data.archetype}
-				<p class="text-sm font-medium text-brand-600 dark:text-brand-400 mt-1">
+				<span class="text-sm font-medium text-brand-600 dark:text-brand-400">
 					{event.data.archetype}
-				</p>
+				</span>
 			{/if}
 		</div>
 
@@ -127,7 +127,7 @@
 				<!-- Looking For -->
 				{#if event.data.summary.looking_for}
 					<div>
-						<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1 flex items-center gap-1.5">
+						<p class="text-[0.75rem] font-semibold leading-normal text-neutral-900 dark:text-white mb-1 flex items-center gap-1.5">
 							<Search size={14} class="text-blue-500 dark:text-blue-400" />
 							{eventTokens.insights.analyzing.label}
 						</p>
@@ -140,7 +140,7 @@
 				<!-- Value Added -->
 				{#if event.data.summary.value_added}
 					<div>
-						<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1 flex items-center gap-1.5">
+						<p class="text-[0.75rem] font-semibold leading-normal text-neutral-900 dark:text-white mb-1 flex items-center gap-1.5">
 							<Lightbulb size={14} class="text-amber-500 dark:text-amber-400" />
 							{eventTokens.insights.insight.label}
 						</p>
@@ -153,7 +153,7 @@
 				<!-- Concerns -->
 				{#if event.data.summary.concerns && event.data.summary.concerns.length > 0}
 					<div>
-						<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1 flex items-center gap-1.5">
+						<p class="text-[0.75rem] font-semibold leading-normal text-neutral-900 dark:text-white mb-1 flex items-center gap-1.5">
 							<AlertTriangle size={14} class="text-orange-500 dark:text-orange-400" />
 							{eventTokens.insights.concern.label}
 						</p>
@@ -171,7 +171,7 @@
 				<!-- Questions/Challenges -->
 				{#if event.data.summary.questions && event.data.summary.questions.length > 0}
 					<div>
-						<p class="text-[0.75rem] font-medium leading-normal text-neutral-600 dark:text-neutral-400 mb-1 flex items-center gap-1.5">
+						<p class="text-[0.75rem] font-semibold leading-normal text-neutral-900 dark:text-white mb-1 flex items-center gap-1.5">
 							<HelpCircle size={14} class="text-purple-500 dark:text-purple-400" />
 							{eventTokens.insights.question.label}
 						</p>

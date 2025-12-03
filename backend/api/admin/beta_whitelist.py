@@ -10,6 +10,10 @@ import os
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from backend.api.admin.helpers import (
+    AdminValidationService,
+    _row_to_whitelist_entry,
+)
 from backend.api.admin.models import (
     AddWhitelistRequest,
     BetaWhitelistEntry,
@@ -17,6 +21,7 @@ from backend.api.admin.models import (
 )
 from backend.api.middleware.admin import require_admin_any
 from backend.api.models import ControlResponse, ErrorResponse
+from backend.api.utils.errors import handle_api_errors
 from bo1.state.postgres_manager import db_session
 from bo1.utils.logging import get_logger
 
@@ -37,72 +42,43 @@ router = APIRouter(prefix="", tags=["Admin - Beta Whitelist"])
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("list beta whitelist")
 async def list_beta_whitelist(
     _admin: str = Depends(require_admin_any),
 ) -> BetaWhitelistResponse:
-    """List all whitelisted emails for closed beta.
+    """List all whitelisted emails for closed beta."""
+    # Get env-based whitelist
+    env_whitelist = os.getenv("BETA_WHITELIST", "")
+    env_emails = [e.strip().lower() for e in env_whitelist.split(",") if e.strip()]
 
-    Returns all emails in the beta whitelist (database + env var).
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, email, added_by, notes, created_at
+                FROM beta_whitelist
+                ORDER BY created_at DESC
+                """
+            )
+            rows = cur.fetchall()
+            entries = [_row_to_whitelist_entry(row) for row in rows]
 
-    Args:
-        _admin: Admin user ID or "api_key" (injected by dependency)
+    # Get unique db emails for deduplication
+    db_emails = {e.email.lower() for e in entries}
+    # Only count env emails not already in db
+    unique_env_emails = [e for e in env_emails if e not in db_emails]
 
-    Returns:
-        BetaWhitelistResponse with database entries and env emails
+    total_count = len(entries) + len(unique_env_emails)
 
-    Raises:
-        HTTPException: If retrieval fails
-    """
-    try:
-        # Get env-based whitelist
-        env_whitelist = os.getenv("BETA_WHITELIST", "")
-        env_emails = [e.strip().lower() for e in env_whitelist.split(",") if e.strip()]
+    logger.info(
+        f"Admin: Retrieved {len(entries)} db + {len(unique_env_emails)} env whitelist entries"
+    )
 
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT id, email, added_by, notes, created_at
-                    FROM beta_whitelist
-                    ORDER BY created_at DESC
-                    """
-                )
-                rows = cur.fetchall()
-
-                entries = [
-                    BetaWhitelistEntry(
-                        id=str(row["id"]),
-                        email=row["email"],
-                        added_by=row["added_by"],
-                        notes=row["notes"],
-                        created_at=row["created_at"].isoformat() if row["created_at"] else "",
-                    )
-                    for row in rows
-                ]
-
-        # Get unique db emails for deduplication
-        db_emails = {e.email.lower() for e in entries}
-        # Only count env emails not already in db
-        unique_env_emails = [e for e in env_emails if e not in db_emails]
-
-        total_count = len(entries) + len(unique_env_emails)
-
-        logger.info(
-            f"Admin: Retrieved {len(entries)} db + {len(unique_env_emails)} env whitelist entries"
-        )
-
-        return BetaWhitelistResponse(
-            total_count=total_count,
-            emails=entries,
-            env_emails=env_emails,  # Return all env emails (UI can show which are duplicates)
-        )
-
-    except Exception as e:
-        logger.error(f"Admin: Failed to list beta whitelist: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list beta whitelist: {str(e)}",
-        ) from e
+    return BetaWhitelistResponse(
+        total_count=total_count,
+        emails=entries,
+        env_emails=env_emails,
+    )
 
 
 @router.post(
@@ -118,74 +94,39 @@ async def list_beta_whitelist(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("add to beta whitelist")
 async def add_to_beta_whitelist(
     request: AddWhitelistRequest,
     _admin: str = Depends(require_admin_any),
 ) -> BetaWhitelistEntry:
-    """Add email to beta whitelist.
+    """Add email to beta whitelist."""
+    # Validate and normalize email
+    email = AdminValidationService.validate_email(request.email)
 
-    Args:
-        request: Email and optional notes
-        _admin_key: Admin API key (injected by dependency)
-
-    Returns:
-        BetaWhitelistEntry with created entry
-
-    Raises:
-        HTTPException: If email is invalid or already exists
-    """
-    try:
-        # Normalize email
-        email = request.email.strip().lower()
-
-        # Simple email validation
-        if "@" not in email or "." not in email.split("@")[1]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid email address: {email}",
-            )
-
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                # Check if email already exists
-                cur.execute("SELECT id FROM beta_whitelist WHERE email = %s", (email,))
-                if cur.fetchone():
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Email already whitelisted: {email}",
-                    )
-
-                # Insert new entry
-                cur.execute(
-                    """
-                    INSERT INTO beta_whitelist (email, added_by, notes)
-                    VALUES (%s, %s, %s)
-                    RETURNING id, email, added_by, notes, created_at
-                    """,
-                    (email, "admin", request.notes),
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Check if email already exists
+            cur.execute("SELECT id FROM beta_whitelist WHERE email = %s", (email,))
+            if cur.fetchone():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Email already whitelisted: {email}",
                 )
-                row = cur.fetchone()
 
-        entry = BetaWhitelistEntry(
-            id=str(row["id"]),
-            email=row["email"],
-            added_by=row["added_by"],
-            notes=row["notes"],
-            created_at=row["created_at"].isoformat() if row["created_at"] else "",
-        )
+            # Insert new entry
+            cur.execute(
+                """
+                INSERT INTO beta_whitelist (email, added_by, notes)
+                VALUES (%s, %s, %s)
+                RETURNING id, email, added_by, notes, created_at
+                """,
+                (email, "admin", request.notes),
+            )
+            row = cur.fetchone()
 
-        logger.info(f"Admin: Added {email} to beta whitelist")
-
-        return entry
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Admin: Failed to add {request.email} to beta whitelist: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to add email to beta whitelist: {str(e)}",
-        ) from e
+    entry = _row_to_whitelist_entry(row)
+    logger.info(f"Admin: Added {email} to beta whitelist")
+    return entry
 
 
 @router.delete(
@@ -201,52 +142,32 @@ async def add_to_beta_whitelist(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("remove from beta whitelist")
 async def remove_from_beta_whitelist(
     email: str,
     _admin: str = Depends(require_admin_any),
 ) -> ControlResponse:
-    """Remove email from beta whitelist.
+    """Remove email from beta whitelist."""
+    # Normalize email
+    email = email.strip().lower()
 
-    Args:
-        email: Email address to remove
-        _admin_key: Admin API key (injected by dependency)
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            # Delete email
+            cur.execute("DELETE FROM beta_whitelist WHERE email = %s RETURNING id", (email,))
+            row = cur.fetchone()
 
-    Returns:
-        ControlResponse with removal confirmation
+            if not row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Email not found in whitelist: {email}",
+                )
 
-    Raises:
-        HTTPException: If email not found or removal fails
-    """
-    try:
-        # Normalize email
-        email = email.strip().lower()
+    logger.info(f"Admin: Removed {email} from beta whitelist")
 
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                # Delete email
-                cur.execute("DELETE FROM beta_whitelist WHERE email = %s RETURNING id", (email,))
-                row = cur.fetchone()
-
-                if not row:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Email not found in whitelist: {email}",
-                    )
-
-        logger.info(f"Admin: Removed {email} from beta whitelist")
-
-        return ControlResponse(
-            session_id=str(row["id"]),  # Using session_id field for whitelist ID
-            action="remove_whitelist",
-            status="success",
-            message=f"Removed {email} from beta whitelist",
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Admin: Failed to remove {email} from beta whitelist: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to remove email from beta whitelist: {str(e)}",
-        ) from e
+    return ControlResponse(
+        session_id=str(row["id"]),
+        action="remove_whitelist",
+        status="success",
+        message=f"Removed {email} from beta whitelist",
+    )

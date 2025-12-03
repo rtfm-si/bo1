@@ -13,18 +13,17 @@ from typing import Any
 from bo1.agents.facilitator import FacilitatorAgent
 from bo1.agents.moderator import ModeratorAgent, ModeratorType
 from bo1.agents.summarizer import SummarizerAgent
-from bo1.config import MODEL_BY_ROLE
-from bo1.data import get_persona_by_code
 from bo1.graph.state import DeliberationGraphState
-from bo1.llm.broker import get_model_for_phase
 from bo1.llm.client import ClaudeClient
 from bo1.llm.response import LLMResponse
-from bo1.llm.response_parser import ResponseParser
 from bo1.models.state import (
     ContributionMessage,
     ContributionType,
     DeliberationPhase,
 )
+from bo1.orchestration.metrics_calculator import MetricsCalculator
+from bo1.orchestration.persona_executor import PersonaExecutor
+from bo1.orchestration.prompt_builder import PromptBuilder
 from bo1.prompts.reusable_prompts import get_round_phase_config
 from bo1.utils.logging_helpers import LogHelper
 
@@ -60,15 +59,12 @@ class DeliberationEngine:
             moderator: Optional moderator agent. If None, creates a new one.
             summarizer: Optional summarizer agent. If None, creates a new one.
         """
-        from bo1.config import resolve_model_alias
-
         self.state: DeliberationGraphState = state
         self.client = client or ClaudeClient()
         self.facilitator = facilitator or FacilitatorAgent()
         self.moderator = moderator or ModeratorAgent()
         self.summarizer = summarizer or SummarizerAgent()
-        self.model_name = MODEL_BY_ROLE["persona"]
-        self.model_id = resolve_model_alias(self.model_name)  # Full ID for pricing
+        self.persona_executor = PersonaExecutor(client=self.client, state=state)
         self.used_moderators: list[ModeratorType] = []  # Track moderators used
         self.pending_summary_task: asyncio.Task[LLMResponse] | None = (
             None  # Track background summarization
@@ -194,277 +190,28 @@ class DeliberationEngine:
         logger.debug(f"Calling persona: {persona_profile.display_name}")
 
         # Get adaptive round configuration
-        # Use estimated max_rounds based on complexity (default to 10 for moderate complexity)
         max_rounds = self.state.get("max_rounds", 10) if self.state else 10
-        round_config = get_round_phase_config(
-            round_number + 1, max_rounds
-        )  # +1 because round_number is 0-indexed
+        round_config = get_round_phase_config(round_number + 1, max_rounds)
 
-        logger.debug(
-            f"Round {round_number + 1} phase: {round_config['phase']} "
-            f"(temp={round_config['temperature']}, max_tokens={round_config['max_tokens']})"
-        )
-
-        # Get full persona data
-        persona_data = get_persona_by_code(persona_profile.code)
-        if not persona_data:
-            raise ValueError(f"Persona not found: {persona_profile.code}")
-
-        # Check if we have round summaries for hierarchical context
-        round_summaries = self.state.get("round_summaries", [])
-
-        if round_summaries and round_number > 1:
-            # Use hierarchical prompts (summaries + recent contributions)
-            # MERGED WITH CRITICAL THINKING PROTOCOL (P1.1 fix)
-            from bo1.prompts.reusable_prompts import compose_persona_prompt_hierarchical
-
-            # Get participant list
-            personas = self.state.get("personas", [])
-            participant_list = ", ".join([p.display_name for p in personas])
-
-            # Get current round contributions (last round, for full detail)
-            # We want the most recent round's contributions in full
-            prev_round_contribs = [
-                {"persona": c.persona_name, "content": c.content}
-                for c in (previous_contributions or [])[-10:]  # Last 10 contributions
-            ]
-
-            # Compose hierarchical base prompt
-            base_system_prompt = compose_persona_prompt_hierarchical(
-                persona_system_role=f"{persona_data['name']}, {persona_data['description']}",
-                problem_statement=problem_statement,
-                participant_list=participant_list,
-                round_summaries=round_summaries,  # All previous round summaries
-                current_round_contributions=prev_round_contribs,  # Recent full contributions
-                round_number=round_number + 1,  # +1 for 1-indexed display
-                current_phase="discussion",
-            )
-
-            # MERGE: Inject critical thinking protocol
-            # Get the protocol from enhanced prompts
-            state_max_rounds = self.state.get("max_rounds", 10)
-            phase_config = get_round_phase_config(round_number + 1, state_max_rounds)
-
-            # Determine debate phase based on round number
-            if round_number <= 1:
-                phase_instruction = """
-                <debate_phase>EARLY - DIVERGENT THINKING</debate_phase>
-                <phase_goals>
-                - Explore multiple perspectives
-                - Challenge initial assumptions
-                - Raise concerns and risks
-                - Identify gaps in analysis
-                - DON'T seek consensus yet - surface disagreements
-                </phase_goals>
-                """
-            elif round_number <= 3:
-                phase_instruction = """
-                <debate_phase>MIDDLE - DEEP ANALYSIS</debate_phase>
-                <phase_goals>
-                - Provide evidence for claims
-                - Challenge weak arguments
-                - Request clarification on unclear points
-                - Build on strong ideas from others
-                - Identify trade-offs and constraints
-                </phase_goals>
-                """
-            else:
-                phase_instruction = """
-                <debate_phase>LATE - CONVERGENT THINKING</debate_phase>
-                <phase_goals>
-                - Synthesize key insights
-                - Recommend specific actions
-                - Acknowledge remaining uncertainties
-                - Build consensus on critical points
-                - Propose next steps
-                </phase_goals>
-                """
-
-            critical_thinking_section = f"""
-{phase_instruction}
-
-<critical_thinking_protocol>
-You MUST engage critically with the discussion:
-
-1. **Challenge Assumptions**: If someone makes an assumption, question it
-2. **Demand Evidence**: If a claim lacks support, ask for evidence
-3. **Identify Gaps**: Point out what's missing from the analysis
-4. **Build or Refute**: Explicitly agree/disagree with previous speakers
-5. **Recommend Actions**: End with specific, actionable recommendations
-
-**Format your response with explicit structure:**
-- Start with: "Based on [previous speaker's] point about X..."
-- Include: "I disagree/agree with [persona] because..."
-- End with: "My recommendation is to [specific action]..."
-</critical_thinking_protocol>
-
-<forbidden_patterns>
-- Generic agreement ("I agree with the previous speakers...")
-- Vague observations without conclusions
-- Listing facts without analysis
-- Ending without a recommendation or question
-</forbidden_patterns>
-"""
-
-            # Merge into system prompt
-            system_prompt = base_system_prompt + "\n\n" + critical_thinking_section
-
-            # User message is the speaker prompt
-            user_message = expert_memory or round_config["directive"]
-
-            logger.debug(
-                f"Using hierarchical prompts with critical thinking: {len(round_summaries)} summaries, "
-                f"{len(prev_round_contribs)} recent contributions, phase={phase_config['phase']}"
-            )
-        else:
-            # Use regular prompts (no summaries yet or early rounds)
-            from bo1.prompts.reusable_prompts import compose_persona_contribution_prompt
-
-            # Convert previous contributions to dict format for enhanced prompts
-            prev_contribs = [
-                {
-                    "persona_code": c.persona_code,
-                    "persona_name": c.persona_name,
-                    "content": c.content,
-                }
-                for c in (previous_contributions or [])
-            ]
-
-            # Use enhanced prompts with phase-based critical thinking
-            system_prompt, user_message = compose_persona_contribution_prompt(
-                persona_name=persona_data["name"],
-                persona_description=persona_data["description"],
-                persona_expertise=", ".join(persona_data.get("domain_expertise", [])),
-                persona_communication_style=persona_data.get("response_style", "analytical"),
-                problem_statement=problem_statement,
-                previous_contributions=prev_contribs,
-                speaker_prompt=expert_memory or round_config["directive"],
-                round_number=round_number + 1,  # +1 for 1-indexed rounds
-            )
-
-        # Call LLM (async) with timing - use PromptBroker for retry protection
-        from datetime import datetime
-
-        from bo1.llm.broker import PromptBroker, PromptRequest
-        from bo1.llm.response import LLMResponse
-
-        start_time = datetime.now()
-
-        # Select model based on phase and round (Haiku for early rounds, Sonnet for later)
-        selected_model = get_model_for_phase("contribution", round_number=round_number + 1)
-
-        # Create prompt request to use broker (with retry protection)
-        broker = PromptBroker(client=self.client)
-        request = PromptRequest(
-            system=system_prompt,
-            user_message=user_message,
-            prefill=f"[{persona_profile.display_name}]\n\n<thinking>",  # Force character consistency
-            model=selected_model,  # Use phase-based model selection
-            cache_system=True,  # Enable prompt caching for cost optimization
-            temperature=round_config["temperature"],  # Adaptive temperature
-            max_tokens=round_config["max_tokens"],  # Adaptive token limit
-            phase="deliberation",
-            agent_type=f"persona_{persona_profile.code}",
-        )
-
-        # Use broker call for retry protection (not direct client call)
-        llm_response_temp = await broker.call(request)
-
-        # Prefill is already prepended by ClaudeClient (line 221-222 in client.py)
-        response_text = llm_response_temp.content
-        token_usage = llm_response_temp.token_usage
-        duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-
-        # Parse response (extract <thinking> and <contribution>)
-        thinking, contribution = ResponseParser.parse_persona_response(response_text)
-
-        # Validate response - check for meta-discussion (persona confusion)
-        # If detected, add clarifying instruction and retry once
-        if ResponseParser.is_meta_discussion(contribution):
-            logger.warning(
-                f"⚠️ Meta-discussion detected from {persona_profile.display_name}, retrying with clarification"
-            )
-            # Add explicit clarification to user message
-            clarification_msg = (
-                f"{user_message}\n\n"
-                "IMPORTANT: You ARE the expert. Do not ask questions about your role or how to respond. "
-                "Engage directly with the problem statement above. Provide your expert analysis NOW."
-            )
-            request_retry = PromptRequest(
-                system=system_prompt,
-                user_message=clarification_msg,
-                model=selected_model,  # Use same model as original request
-                cache_system=True,
-                temperature=round_config["temperature"] + 0.1,  # Slightly higher temp
-                max_tokens=round_config["max_tokens"],
-                phase="deliberation",
-                agent_type=f"persona_{persona_profile.code}_retry",
-            )
-            retry_response = await broker.call(request_retry)
-            response_text = retry_response.content
-            # Add retry tokens to total
-            token_usage.input_tokens += retry_response.token_usage.input_tokens
-            token_usage.output_tokens += retry_response.token_usage.output_tokens
-            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-            thinking, contribution = ResponseParser.parse_persona_response(response_text)
-            logger.info(
-                f"Retry response from {persona_profile.display_name}: {contribution[:100]}..."
-            )
-
-        # Calculate cost
-        cost = token_usage.calculate_cost(self.model_name)
-
-        # Create contribution message
-        contrib_msg = ContributionMessage(
-            persona_code=persona_profile.code,
-            persona_name=persona_profile.display_name,
-            content=contribution,
-            thinking=thinking,
-            contribution_type=contribution_type,
+        # Build prompts using PromptBuilder
+        system_prompt, user_message = PromptBuilder.build_persona_prompt(
+            persona_profile=persona_profile,
+            problem_statement=problem_statement,
+            state=self.state,
             round_number=round_number,
-            token_count=token_usage.total_tokens,
-            cost=cost,
+            expert_memory=expert_memory,
+            previous_contributions=previous_contributions,
         )
 
-        # Create LLM response for metrics tracking
-        llm_response = LLMResponse(
-            content=response_text,
-            model=self.model_id,  # Use full model ID for accurate pricing
-            token_usage=token_usage,
-            duration_ms=duration_ms,
-            phase="deliberation",
-            agent_type=f"persona_{persona_profile.code}",
+        # Execute persona call using PersonaExecutor
+        contrib_msg, llm_response = await self.persona_executor.execute_persona_call(
+            persona_profile=persona_profile,
+            system_prompt=system_prompt,
+            user_message=user_message,
+            round_number=round_number,
+            contribution_type=contribution_type,
+            round_config=round_config,
         )
-
-        logger.debug(
-            f"Persona {persona_profile.display_name} contributed "
-            f"({contrib_msg.token_count} tokens, ${contrib_msg.cost:.4f})"
-        )
-
-        # CRITICAL FIX: Save contribution to database (Phase 1.1)
-        # This ensures contributions are persisted for analytics and recovery
-        try:
-            from bo1.state.postgres_manager import save_contribution
-
-            session_id = self.state.get("session_id", "unknown")
-            phase_name = self.state.get("phase", "unknown")
-            if hasattr(phase_name, "value"):
-                phase_name = phase_name.value  # Extract enum value if DeliberationPhase
-
-            save_contribution(
-                session_id=session_id,
-                persona_code=persona_profile.code,
-                content=contribution,
-                round_number=round_number,
-                phase=phase_name,
-                cost=cost,
-                tokens=token_usage.total_tokens,
-                model=self.model_id,
-            )
-            logger.debug(f"Saved contribution from {persona_profile.display_name} to database")
-        except Exception as e:
-            # Log error but don't block deliberation if save fails
-            logger.error(f"Failed to save contribution to database: {e}")
 
         return contrib_msg, llm_response
 
@@ -660,7 +407,8 @@ You MUST engage critically with the discussion:
 
         # Calculate and log consensus metrics (if round > 1)
         if round_number > 1:
-            metrics = self._calculate_round_metrics(round_number)
+            contributions = self.state.get("contributions", [])
+            metrics = MetricsCalculator.calculate_round_metrics(contributions, round_number)
 
             LogHelper.log_consensus_metrics(
                 logger,
@@ -831,158 +579,3 @@ You MUST engage critically with the discussion:
             lines.append("---\n\n")
 
         return "".join(lines)
-
-    def _calculate_round_metrics(self, round_number: int) -> dict[str, Any]:
-        """Calculate convergence and consensus metrics for current round.
-
-        Uses heuristic-based analysis for v1 (can be upgraded to embeddings in v2).
-
-        Args:
-            round_number: Current round number
-
-        Returns:
-            Dictionary with metrics:
-            - convergence: 0-1 (higher = more agreement)
-            - novelty: 0-1 (higher = more new ideas)
-            - conflict: 0-1 (higher = more disagreement)
-            - should_stop: bool (recommendation to stop deliberation)
-            - stop_reason: str or None (explanation if should_stop is True)
-        """
-        contributions = self.state.get("contributions", [])
-        if len(contributions) < 2:
-            return {
-                "convergence": 0.0,
-                "novelty": 1.0,
-                "conflict": 0.0,
-                "should_stop": False,
-                "stop_reason": None,
-            }
-
-        # Analyze recent contributions (last 2 rounds = ~6 contributions)
-        recent_contributions = contributions[-6:]
-
-        convergence = self._calculate_convergence(recent_contributions)
-        novelty = self._calculate_novelty(recent_contributions)
-        conflict = self._calculate_conflict(recent_contributions)
-
-        # Decide if deliberation should stop early
-        should_stop = False
-        stop_reason = None
-
-        if convergence > 0.85 and novelty < 0.30 and round_number > 5:
-            should_stop = True
-            stop_reason = "High convergence + low novelty"
-
-        if conflict > 0.80 and round_number > 10:
-            should_stop = True
-            stop_reason = "Deadlock detected"
-
-        return {
-            "convergence": convergence,
-            "novelty": novelty,
-            "conflict": conflict,
-            "should_stop": should_stop,
-            "stop_reason": stop_reason,
-        }
-
-    def _calculate_convergence(self, contributions: list[ContributionMessage]) -> float:
-        """Calculate convergence score (0-1, higher = more agreement).
-
-        Uses keyword-based heuristic: count agreement vs. total words.
-        """
-        if not contributions:
-            return 0.0
-
-        agreement_keywords = [
-            "agree",
-            "yes",
-            "correct",
-            "exactly",
-            "indeed",
-            "aligned",
-            "consensus",
-            "support",
-            "concur",
-            "same",
-            "similar",
-        ]
-
-        total_words = 0
-        agreement_count = 0
-
-        for contrib in contributions:
-            words = contrib.content.lower().split()
-            total_words += len(words)
-            agreement_count += sum(
-                1 for word in words if any(kw in word for kw in agreement_keywords)
-            )
-
-        if total_words == 0:
-            return 0.0
-
-        # Normalize to 0-1 range (assume 10% agreement words = full convergence)
-        raw_score = agreement_count / total_words
-        return min(raw_score * 10, 1.0)
-
-    def _calculate_novelty(self, contributions: list[ContributionMessage]) -> float:
-        """Calculate novelty score (0-1, higher = more new ideas).
-
-        Uses simple heuristic: check for unique vs. repeated key phrases.
-        """
-        if not contributions:
-            return 1.0
-
-        # Extract key phrases (3+ char words, lowercase, deduplicated per contribution)
-        all_phrases: list[str] = []
-        for contrib in contributions:
-            words = [w.lower() for w in contrib.content.split() if len(w) > 3]
-            unique_words_in_contrib = list(set(words))
-            all_phrases.extend(unique_words_in_contrib)
-
-        if not all_phrases:
-            return 0.5
-
-        unique_phrases = len(set(all_phrases))
-        total_phrases = len(all_phrases)
-
-        # Novelty = ratio of unique to total phrases
-        return unique_phrases / total_phrases
-
-    def _calculate_conflict(self, contributions: list[ContributionMessage]) -> float:
-        """Calculate conflict score (0-1, higher = more disagreement).
-
-        Uses keyword-based heuristic: count disagreement vs. total words.
-        """
-        if not contributions:
-            return 0.0
-
-        disagreement_keywords = [
-            "disagree",
-            "no",
-            "wrong",
-            "incorrect",
-            "however",
-            "but",
-            "concern",
-            "risk",
-            "problem",
-            "issue",
-            "challenge",
-        ]
-
-        total_words = 0
-        disagreement_count = 0
-
-        for contrib in contributions:
-            words = contrib.content.lower().split()
-            total_words += len(words)
-            disagreement_count += sum(
-                1 for word in words if any(kw in word for kw in disagreement_keywords)
-            )
-
-        if total_words == 0:
-            return 0.0
-
-        # Normalize to 0-1 range (assume 10% disagreement words = full conflict)
-        raw_score = disagreement_count / total_words
-        return min(raw_score * 10, 1.0)

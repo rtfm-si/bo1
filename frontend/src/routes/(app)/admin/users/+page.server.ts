@@ -81,5 +81,102 @@ export const actions: Actions = {
 			console.error('Failed to update user:', err);
 			return fail(500, { error: 'Failed to update user' });
 		}
+	},
+
+	lockUser: async ({ request }) => {
+		const formData = await request.formData();
+		const userId = formData.get('userId') as string;
+		const reason = formData.get('reason') as string | null;
+
+		if (!userId) {
+			return fail(400, { error: 'User ID is required' });
+		}
+
+		try {
+			const cookieHeader = request.headers.get('cookie') || '';
+
+			const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/lock`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Cookie': cookieHeader
+				},
+				body: JSON.stringify({ reason })
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ detail: 'Failed to lock user' }));
+				return fail(response.status, { error: errorData.detail || 'Failed to lock user' });
+			}
+
+			return { success: true, action: 'locked' };
+		} catch (err) {
+			console.error('Failed to lock user:', err);
+			return fail(500, { error: 'Failed to lock user' });
+		}
+	},
+
+	unlockUser: async ({ request }) => {
+		const formData = await request.formData();
+		const userId = formData.get('userId') as string;
+
+		if (!userId) {
+			return fail(400, { error: 'User ID is required' });
+		}
+
+		try {
+			const cookieHeader = request.headers.get('cookie') || '';
+
+			const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/unlock`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Cookie': cookieHeader
+				}
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ detail: 'Failed to unlock user' }));
+				return fail(response.status, { error: errorData.detail || 'Failed to unlock user' });
+			}
+
+			return { success: true, action: 'unlocked' };
+		} catch (err) {
+			console.error('Failed to unlock user:', err);
+			return fail(500, { error: 'Failed to unlock user' });
+		}
+	},
+
+	deleteUser: async ({ request }) => {
+		const formData = await request.formData();
+		const userId = formData.get('userId') as string;
+		const hardDelete = formData.get('hard_delete') === 'true';
+
+		if (!userId) {
+			return fail(400, { error: 'User ID is required' });
+		}
+
+		try {
+			const cookieHeader = request.headers.get('cookie') || '';
+
+			const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
+				method: 'DELETE',
+				headers: {
+					'Content-Type': 'application/json',
+					'Cookie': cookieHeader
+				},
+				body: JSON.stringify({ hard_delete: hardDelete, revoke_sessions: true })
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ detail: 'Failed to delete user' }));
+				return fail(response.status, { error: errorData.detail || 'Failed to delete user' });
+			}
+
+			return { success: true, action: hardDelete ? 'hard_deleted' : 'soft_deleted' };
+		} catch (err) {
+			console.error('Failed to delete user:', err);
+			return fail(500, { error: 'Failed to delete user' });
+		}
 	}
 };

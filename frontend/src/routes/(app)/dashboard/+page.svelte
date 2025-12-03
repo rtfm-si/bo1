@@ -7,7 +7,7 @@
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
-	import { getSessionStatusColor } from '$lib/utils/color-helpers';
+	import { getSessionStatusColor } from '$lib/utils/persona-colors';
 
 	// Use data fetch utility for sessions
 	const sessionsData = useDataFetch(() => apiClient.listSessions());

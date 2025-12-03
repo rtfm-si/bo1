@@ -19,7 +19,7 @@ from backend.api.admin import (
     beta_whitelist,
     metrics,
     research_cache,
-    sessions,
+    session_control,
     users,
     waitlist,
 )
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 # Include all domain-specific sub-routers
 router.include_router(users.router)
-router.include_router(sessions.router)
+router.include_router(session_control.router)
 router.include_router(research_cache.router)
 router.include_router(beta_whitelist.router)
 router.include_router(waitlist.router)

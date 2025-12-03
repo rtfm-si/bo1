@@ -157,14 +157,14 @@ class TestSQLInjectionPrevention:
                 days_old="90; DROP TABLE research_cache;--",  # type: ignore[arg-type]
             )
 
-        assert "days must be an integer" in str(exc_info.value)
+        assert "must be an integer" in str(exc_info.value)
 
     def test_days_old_negative_validation(self):
         """Negative days_old should be rejected."""
         with pytest.raises(ValueError) as exc_info:
             get_stale_research_cache_entries(days_old=-1)
 
-        assert "days must be non-negative" in str(exc_info.value)
+        assert "must be non-negative" in str(exc_info.value)
 
 
 class TestAPIKeySecurity:

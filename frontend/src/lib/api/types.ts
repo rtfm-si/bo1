@@ -104,3 +104,130 @@ export interface UserContextResponse {
 	context?: UserContext;
 	updated_at?: string;
 }
+
+// ============================================================================
+// Admin Types
+// ============================================================================
+
+/**
+ * Admin user information with metrics
+ */
+export interface AdminUser {
+	user_id: string;
+	email: string;
+	auth_provider: string;
+	subscription_tier: string;
+	is_admin: boolean;
+	is_locked: boolean;
+	locked_at: string | null;
+	lock_reason: string | null;
+	deleted_at: string | null;
+	total_meetings: number;
+	total_cost: number | null;
+	last_meeting_at: string | null;
+	last_meeting_id: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * Admin user list response
+ */
+export interface AdminUserListResponse {
+	total_count: number;
+	users: AdminUser[];
+	page: number;
+	per_page: number;
+}
+
+/**
+ * Admin user update request
+ */
+export interface AdminUserUpdateRequest {
+	subscription_tier?: string;
+	is_admin?: boolean;
+}
+
+/**
+ * Beta whitelist entry
+ */
+export interface WhitelistEntry {
+	id: string;
+	email: string;
+	added_by: string | null;
+	notes: string | null;
+	created_at: string;
+}
+
+/**
+ * Beta whitelist response
+ */
+export interface WhitelistResponse {
+	total_count: number;
+	emails: WhitelistEntry[];
+	env_emails: string[];
+}
+
+/**
+ * Waitlist entry
+ */
+export interface WaitlistEntry {
+	id: string;
+	email: string;
+	status: string;
+	source: string | null;
+	notes: string | null;
+	created_at: string;
+}
+
+/**
+ * Waitlist response
+ */
+export interface WaitlistResponse {
+	total_count: number;
+	pending_count: number;
+	entries: WaitlistEntry[];
+}
+
+/**
+ * Waitlist approval response
+ */
+export interface WaitlistApprovalResponse {
+	email: string;
+	whitelist_added: boolean;
+	email_sent: boolean;
+	message: string;
+}
+
+/**
+ * Extracted task from synthesis
+ */
+export interface ExtractedTask {
+	id: string;
+	description: string;
+	category: string;
+	priority: string;
+	suggested_completion_date: string | null;
+	dependencies: string[];
+	source_section: string;
+	confidence: number;
+}
+
+/**
+ * Task extraction response
+ */
+export interface TaskExtractionResponse {
+	tasks: ExtractedTask[];
+	total_tasks: number;
+	extraction_confidence: number;
+	synthesis_sections_analyzed: string[];
+}
+
+/**
+ * Session events response
+ */
+export interface SessionEventsResponse {
+	session_id: string;
+	events: unknown[];
+	count: number;
+}

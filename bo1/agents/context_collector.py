@@ -14,7 +14,7 @@ import logging
 from typing import Any
 
 from bo1.ui.console import Console
-from bo1.utils.formatting import XMLContextFormatter
+from bo1.utils.xml_context_formatter import XMLContextFormatter
 
 logger = logging.getLogger(__name__)
 

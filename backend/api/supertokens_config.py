@@ -80,6 +80,35 @@ def is_whitelisted(email: str) -> bool:
     return False
 
 
+def is_user_locked_or_deleted(user_id: str) -> bool:
+    """Check if user account is locked or soft deleted.
+
+    Args:
+        user_id: User identifier
+
+    Returns:
+        True if user is locked or deleted, False otherwise
+    """
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT is_locked, deleted_at
+                    FROM users
+                    WHERE id = %s
+                    """,
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    return row["is_locked"] or row["deleted_at"] is not None
+                return False  # User not found in DB yet
+    except Exception as e:
+        logger.error(f"Error checking user lock status: {e}")
+        return False  # Fail open - don't block auth on DB errors
+
+
 def get_app_info() -> InputAppInfo:
     """Get SuperTokens app configuration from environment."""
     return InputAppInfo(
@@ -194,7 +223,15 @@ def override_thirdparty_functions(
             logger.info(
                 f"User synced to PostgreSQL: {email} (user_id: {user_id}, provider: {third_party_id})"
             )
+
+            # Check if user account is locked or deleted
+            if is_user_locked_or_deleted(user_id):
+                logger.warning(f"Sign-in rejected: user {user_id} ({email}) is locked or deleted")
+                raise Exception("Your account has been locked or deleted. Please contact support.")
         except Exception as e:
+            # Re-raise lock/delete exceptions
+            if "locked or deleted" in str(e):
+                raise
             # Log but don't block authentication - user will be synced on next API call
             logger.error(f"Failed to sync user to PostgreSQL: {e}")
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * PersonaVote Event Component
+	 * PersonaRecommendation Event Component
 	 * Displays an expert's recommendation with confidence and conditions
 	 */
 	import type { PersonaVoteEvent } from '$lib/api/sse-events';

@@ -15,8 +15,83 @@ import type {
 	HealthResponse,
 	ApiError,
 	UserContextResponse,
-	UserContext
+	UserContext,
+	AdminUser,
+	AdminUserListResponse,
+	AdminUserUpdateRequest,
+	WhitelistEntry,
+	WhitelistResponse,
+	WaitlistResponse,
+	WaitlistApprovalResponse,
+	TaskExtractionResponse,
+	SessionEventsResponse
 } from './types';
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Build a query string from optional parameters.
+ *
+ * @param params - Object of key-value pairs (values can be string, number, or undefined)
+ * @returns Query string without leading '?' or empty string if no params
+ */
+function buildQueryString(params: Record<string, string | number | undefined>): string {
+	const searchParams = new URLSearchParams();
+	for (const [key, value] of Object.entries(params)) {
+		if (value !== undefined) {
+			searchParams.set(key, String(value));
+		}
+	}
+	return searchParams.toString();
+}
+
+/**
+ * Append query string to endpoint if params exist.
+ *
+ * @param endpoint - Base endpoint path
+ * @param params - Optional query parameters
+ * @returns Endpoint with query string appended if needed
+ */
+function withQueryString(endpoint: string, params: Record<string, string | number | undefined>): string {
+	const query = buildQueryString(params);
+	return query ? `${endpoint}?${query}` : endpoint;
+}
+
+/**
+ * Merge headers from various formats into a single Record.
+ *
+ * @param defaultHeaders - Default headers to start with
+ * @param optionHeaders - Headers from RequestInit options (Headers, array, or object)
+ * @returns Merged headers as Record
+ */
+function mergeHeaders(
+	defaultHeaders: Record<string, string>,
+	optionHeaders?: HeadersInit
+): Record<string, string> {
+	const headers = { ...defaultHeaders };
+
+	if (!optionHeaders) return headers;
+
+	if (optionHeaders instanceof Headers) {
+		optionHeaders.forEach((value, key) => {
+			headers[key] = value;
+		});
+	} else if (Array.isArray(optionHeaders)) {
+		optionHeaders.forEach(([key, value]) => {
+			headers[key] = value;
+		});
+	} else {
+		Object.assign(headers, optionHeaders);
+	}
+
+	return headers;
+}
+
+// ============================================================================
+// Error Class
+// ============================================================================
 
 /**
  * Custom error class for API errors
@@ -31,6 +106,10 @@ export class ApiClientError extends Error {
 		this.name = 'ApiClientError';
 	}
 }
+
+// ============================================================================
+// API Client Class
+// ============================================================================
 
 /**
  * API Client for Board of One backend
@@ -48,40 +127,17 @@ export class ApiClient {
 	 * BFF Pattern: Authentication via httpOnly cookies (no tokens in localStorage).
 	 * Cookies are automatically sent with credentials: 'include'.
 	 */
-	private async fetch<T>(
-		endpoint: string,
-		options?: RequestInit
-	): Promise<T> {
+	private async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
-
-		const headers: Record<string, string> = {
-			'Content-Type': 'application/json'
-		};
-
-		// Merge in any additional headers from options
-		if (options?.headers) {
-			const optHeaders = options.headers;
-			if (optHeaders instanceof Headers) {
-				optHeaders.forEach((value, key) => {
-					headers[key] = value;
-				});
-			} else if (Array.isArray(optHeaders)) {
-				optHeaders.forEach(([key, value]) => {
-					headers[key] = value;
-				});
-			} else {
-				Object.assign(headers, optHeaders);
-			}
-		}
+		const headers = mergeHeaders({ 'Content-Type': 'application/json' }, options?.headers);
 
 		try {
 			const response = await fetch(url, {
 				...options,
-				credentials: 'include', // Send httpOnly cookies automatically
+				credentials: 'include',
 				headers
 			});
 
-			// Handle non-2xx responses
 			if (!response.ok) {
 				let error: ApiError;
 				try {
@@ -89,26 +145,16 @@ export class ApiClient {
 				} catch {
 					error = { detail: response.statusText, status: response.status };
 				}
-
-				throw new ApiClientError(
-					error.detail || 'Unknown error',
-					response.status,
-					error
-				);
+				throw new ApiClientError(error.detail || 'Unknown error', response.status, error);
 			}
 
-			// Handle 204 No Content
 			if (response.status === 204) {
 				return {} as T;
 			}
 
 			return await response.json();
 		} catch (error) {
-			if (error instanceof ApiClientError) {
-				throw error;
-			}
-
-			// Network error or other unexpected error
+			if (error instanceof ApiClientError) throw error;
 			throw new ApiClientError(
 				error instanceof Error ? error.message : 'Network error',
 				undefined,
@@ -118,8 +164,45 @@ export class ApiClient {
 	}
 
 	/**
-	 * Health Endpoints
+	 * POST request helper
 	 */
+	private post<T>(endpoint: string, data?: unknown): Promise<T> {
+		return this.fetch<T>(endpoint, {
+			method: 'POST',
+			body: data !== undefined ? JSON.stringify(data) : undefined
+		});
+	}
+
+	/**
+	 * PUT request helper
+	 */
+	private put<T>(endpoint: string, data: unknown): Promise<T> {
+		return this.fetch<T>(endpoint, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
+	}
+
+	/**
+	 * PATCH request helper
+	 */
+	private patch<T>(endpoint: string, data: unknown): Promise<T> {
+		return this.fetch<T>(endpoint, {
+			method: 'PATCH',
+			body: JSON.stringify(data)
+		});
+	}
+
+	/**
+	 * DELETE request helper
+	 */
+	private delete<T>(endpoint: string): Promise<T> {
+		return this.fetch<T>(endpoint, { method: 'DELETE' });
+	}
+
+	// ==========================================================================
+	// Health Endpoints
+	// ==========================================================================
 
 	async healthCheck(): Promise<HealthResponse> {
 		return this.fetch<HealthResponse>('/api/health');
@@ -137,30 +220,16 @@ export class ApiClient {
 		return this.fetch<HealthResponse>('/api/health/anthropic');
 	}
 
-	/**
-	 * Session Endpoints
-	 */
+	// ==========================================================================
+	// Session Endpoints
+	// ==========================================================================
 
 	async createSession(request: CreateSessionRequest): Promise<SessionResponse> {
-		return this.fetch<SessionResponse>('/api/v1/sessions', {
-			method: 'POST',
-			body: JSON.stringify(request)
-		});
+		return this.post<SessionResponse>('/api/v1/sessions', request);
 	}
 
-	async listSessions(params?: {
-		status?: string;
-		limit?: number;
-		offset?: number;
-	}): Promise<SessionListResponse> {
-		const searchParams = new URLSearchParams();
-		if (params?.status) searchParams.set('status', params.status);
-		if (params?.limit) searchParams.set('limit', params.limit.toString());
-		if (params?.offset) searchParams.set('offset', params.offset.toString());
-
-		const query = searchParams.toString();
-		const endpoint = query ? `/api/v1/sessions?${query}` : '/api/v1/sessions';
-
+	async listSessions(params?: { status?: string; limit?: number; offset?: number }): Promise<SessionListResponse> {
+		const endpoint = withQueryString('/api/v1/sessions', params || {});
 		return this.fetch<SessionListResponse>(endpoint);
 	}
 
@@ -168,240 +237,108 @@ export class ApiClient {
 		return this.fetch<SessionDetailResponse>(`/api/v1/sessions/${sessionId}`);
 	}
 
-	async getSessionEvents(sessionId: string): Promise<{ session_id: string; events: any[]; count: number }> {
-		return this.fetch<{ session_id: string; events: any[]; count: number }>(`/api/v1/sessions/${sessionId}/events`);
+	async getSessionEvents(sessionId: string): Promise<SessionEventsResponse> {
+		return this.fetch<SessionEventsResponse>(`/api/v1/sessions/${sessionId}/events`);
 	}
 
 	async deleteSession(sessionId: string): Promise<SessionResponse> {
-		return this.fetch<SessionResponse>(`/api/v1/sessions/${sessionId}`, {
-			method: 'DELETE'
-		});
+		return this.delete<SessionResponse>(`/api/v1/sessions/${sessionId}`);
 	}
 
-	/**
-	 * Control Endpoints
-	 */
+	// ==========================================================================
+	// Control Endpoints
+	// ==========================================================================
 
 	async startDeliberation(sessionId: string): Promise<ControlResponse> {
-		return this.fetch<ControlResponse>(`/api/v1/sessions/${sessionId}/start`, {
-			method: 'POST'
-		});
+		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/start`);
 	}
 
 	async pauseDeliberation(sessionId: string): Promise<ControlResponse> {
-		return this.fetch<ControlResponse>(`/api/v1/sessions/${sessionId}/pause`, {
-			method: 'POST'
-		});
+		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/pause`);
 	}
 
 	async resumeDeliberation(sessionId: string): Promise<ControlResponse> {
-		return this.fetch<ControlResponse>(`/api/v1/sessions/${sessionId}/resume`, {
-			method: 'POST'
-		});
+		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/resume`);
 	}
 
 	async killDeliberation(sessionId: string, reason?: string): Promise<ControlResponse> {
-		return this.fetch<ControlResponse>(`/api/v1/sessions/${sessionId}/kill`, {
-			method: 'POST',
-			body: JSON.stringify({ reason: reason || 'User requested termination' })
+		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/kill`, {
+			reason: reason || 'User requested termination'
 		});
 	}
 
-	/**
-	 * Context Endpoints
-	 */
+	// ==========================================================================
+	// Context Endpoints
+	// ==========================================================================
 
 	async getUserContext(): Promise<UserContextResponse> {
 		return this.fetch<UserContextResponse>('/api/v1/context');
 	}
 
 	async updateUserContext(context: UserContext): Promise<{ status: string }> {
-		return this.fetch<{ status: string }>('/api/v1/context', {
-			method: 'PUT',
-			body: JSON.stringify(context)
-		});
+		return this.put<{ status: string }>('/api/v1/context', context);
 	}
 
 	async deleteUserContext(): Promise<{ status: string }> {
-		return this.fetch<{ status: string }>('/api/v1/context', {
-			method: 'DELETE'
-		});
+		return this.delete<{ status: string }>('/api/v1/context');
 	}
 
-	async submitClarification(
-		sessionId: string,
-		answer: string
-	): Promise<ControlResponse> {
-		return this.fetch<ControlResponse>(`/api/v1/sessions/${sessionId}/clarify`, {
-			method: 'POST',
-			body: JSON.stringify({ answer })
-		});
+	async submitClarification(sessionId: string, answer: string): Promise<ControlResponse> {
+		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/clarify`, { answer });
 	}
 
-	/**
-	 * Task Extraction Endpoint
-	 */
+	// ==========================================================================
+	// Task Extraction Endpoint
+	// ==========================================================================
 
-	async extractTasks(sessionId: string): Promise<{
-		tasks: Array<{
-			id: string;
-			description: string;
-			category: string;
-			priority: string;
-			suggested_completion_date: string | null;
-			dependencies: string[];
-			source_section: string;
-			confidence: number;
-		}>;
-		total_tasks: number;
-		extraction_confidence: number;
-		synthesis_sections_analyzed: string[];
-	}> {
-		return this.fetch(`/api/v1/sessions/${sessionId}/extract-tasks`, {
-			method: 'POST'
-		});
+	async extractTasks(sessionId: string): Promise<TaskExtractionResponse> {
+		return this.post<TaskExtractionResponse>(`/api/v1/sessions/${sessionId}/extract-tasks`);
 	}
 
-	/**
-	 * Admin Endpoints
-	 */
+	// ==========================================================================
+	// Admin Endpoints - Users
+	// ==========================================================================
 
-	async listUsers(params?: { page?: number; per_page?: number; email?: string }): Promise<{
-		total_count: number;
-		users: Array<{
-			user_id: string;
-			email: string;
-			auth_provider: string;
-			subscription_tier: string;
-			is_admin: boolean;
-			total_meetings: number;
-			total_cost: number | null;
-			last_meeting_at: string | null;
-			last_meeting_id: string | null;
-			created_at: string;
-			updated_at: string;
-		}>;
-		page: number;
-		per_page: number;
-	}> {
-		const searchParams = new URLSearchParams();
-		if (params?.page) searchParams.set('page', params.page.toString());
-		if (params?.per_page) searchParams.set('per_page', params.per_page.toString());
-		if (params?.email) searchParams.set('email', params.email);
-
-		const query = searchParams.toString();
-		const endpoint = query ? `/api/admin/users?${query}` : '/api/admin/users';
-
-		return this.fetch(endpoint);
+	async listUsers(params?: { page?: number; per_page?: number; email?: string }): Promise<AdminUserListResponse> {
+		const endpoint = withQueryString('/api/admin/users', params || {});
+		return this.fetch<AdminUserListResponse>(endpoint);
 	}
 
-	async getUser(userId: string): Promise<{
-		user_id: string;
-		email: string;
-		auth_provider: string;
-		subscription_tier: string;
-		is_admin: boolean;
-		total_meetings: number;
-		total_cost: number | null;
-		last_meeting_at: string | null;
-		last_meeting_id: string | null;
-		created_at: string;
-		updated_at: string;
-	}> {
-		return this.fetch(`/api/admin/users/${userId}`);
+	async getUser(userId: string): Promise<AdminUser> {
+		return this.fetch<AdminUser>(`/api/admin/users/${userId}`);
 	}
 
-	async updateUser(userId: string, data: { subscription_tier?: string; is_admin?: boolean }): Promise<{
-		user_id: string;
-		email: string;
-		auth_provider: string;
-		subscription_tier: string;
-		is_admin: boolean;
-		total_meetings: number;
-		total_cost: number | null;
-		last_meeting_at: string | null;
-		last_meeting_id: string | null;
-		created_at: string;
-		updated_at: string;
-	}> {
-		return this.fetch(`/api/admin/users/${userId}`, {
-			method: 'PATCH',
-			body: JSON.stringify(data)
-		});
+	async updateUser(userId: string, data: AdminUserUpdateRequest): Promise<AdminUser> {
+		return this.patch<AdminUser>(`/api/admin/users/${userId}`, data);
 	}
 
-	async listWhitelist(): Promise<{
-		total_count: number;
-		emails: Array<{
-			id: string;
-			email: string;
-			added_by: string | null;
-			notes: string | null;
-			created_at: string;
-		}>;
-		env_emails: string[];
-	}> {
-		return this.fetch('/api/admin/beta-whitelist');
+	// ==========================================================================
+	// Admin Endpoints - Whitelist
+	// ==========================================================================
+
+	async listWhitelist(): Promise<WhitelistResponse> {
+		return this.fetch<WhitelistResponse>('/api/admin/beta-whitelist');
 	}
 
-	async addToWhitelist(data: { email: string; notes?: string }): Promise<{
-		id: string;
-		email: string;
-		added_by: string | null;
-		notes: string | null;
-		created_at: string;
-	}> {
-		return this.fetch('/api/admin/beta-whitelist', {
-			method: 'POST',
-			body: JSON.stringify(data)
-		});
+	async addToWhitelist(data: { email: string; notes?: string }): Promise<WhitelistEntry> {
+		return this.post<WhitelistEntry>('/api/admin/beta-whitelist', data);
 	}
 
-	async removeFromWhitelist(email: string): Promise<{
-		session_id: string;
-		action: string;
-		status: string;
-		message: string;
-	}> {
-		return this.fetch(`/api/admin/beta-whitelist/${encodeURIComponent(email)}`, {
-			method: 'DELETE'
-		});
+	async removeFromWhitelist(email: string): Promise<ControlResponse> {
+		return this.delete<ControlResponse>(`/api/admin/beta-whitelist/${encodeURIComponent(email)}`);
 	}
 
-	/**
-	 * Waitlist Admin Endpoints
-	 */
+	// ==========================================================================
+	// Admin Endpoints - Waitlist
+	// ==========================================================================
 
-	async listWaitlist(params?: { status?: string }): Promise<{
-		total_count: number;
-		pending_count: number;
-		entries: Array<{
-			id: string;
-			email: string;
-			status: string;
-			source: string | null;
-			notes: string | null;
-			created_at: string;
-		}>;
-	}> {
-		const searchParams = new URLSearchParams();
-		if (params?.status) searchParams.set('status', params.status);
-
-		const query = searchParams.toString();
-		const endpoint = query ? `/api/admin/waitlist?${query}` : '/api/admin/waitlist';
-
-		return this.fetch(endpoint);
+	async listWaitlist(params?: { status?: string }): Promise<WaitlistResponse> {
+		const endpoint = withQueryString('/api/admin/waitlist', params || {});
+		return this.fetch<WaitlistResponse>(endpoint);
 	}
 
-	async approveWaitlistEntry(email: string): Promise<{
-		email: string;
-		whitelist_added: boolean;
-		email_sent: boolean;
-		message: string;
-	}> {
-		return this.fetch(`/api/admin/waitlist/${encodeURIComponent(email)}/approve`, {
-			method: 'POST'
-		});
+	async approveWaitlistEntry(email: string): Promise<WaitlistApprovalResponse> {
+		return this.post<WaitlistApprovalResponse>(`/api/admin/waitlist/${encodeURIComponent(email)}/approve`);
 	}
 }
 

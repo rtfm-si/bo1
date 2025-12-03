@@ -17,7 +17,14 @@
 		filterEventsBySubProblem,
 		getLatestEvent
 	} from '$lib/utils/event-filters';
-	import { getConfidenceColor } from '$lib/utils/color-helpers';
+	import { getConfidenceColor } from '$lib/utils/persona-colors';
+	import {
+		Lightbulb,
+		Search,
+		ShieldCheck,
+		MessageSquare,
+		GitBranch
+	} from 'lucide-svelte';
 
 	interface Props {
 		events: SSEEvent[];
@@ -181,9 +188,127 @@
 	const interventions = $derived(
 		filterEventsByType(filteredEvents, 'moderator_intervention', activeSubProblemIndex, totalSubProblems).length
 	);
+
+	// ============================================================================
+	// Deliberation Progress Counters (TODO.md Tier 1)
+	// Uses multiple fallback sources since not all events are always emitted
+	// ============================================================================
+
+	// Topics explored = sub-problems from decomposition_complete OR unique sub_problem_index from contributions
+	const topicsExplored = $derived.by(() => {
+		// Try decomposition_complete first (most reliable)
+		const decompositionEvent = events.find(e => e.event_type === 'decomposition_complete');
+		if (decompositionEvent) {
+			const count = (decompositionEvent.data as any).count ||
+				(decompositionEvent.data as any).sub_problems?.length || 0;
+			if (count > 0) return count;
+		}
+
+		// Fallback: count unique sub_problem_index from contributions
+		const subProblemIndexes = new Set(
+			contributions.map((c: any) => c.data.sub_problem_index ?? 0)
+		);
+		return Math.max(subProblemIndexes.size, 1); // At least 1 topic
+	});
+
+	// Research performed = facilitator decisions to research
+	const researchPerformed = $derived(
+		events.filter(e =>
+			e.event_type === 'facilitator_decision' &&
+			(e.data as any).action === 'research'
+		).length
+	);
+
+	// Risks mitigated = contributions mentioning risk keywords
+	const risksMitigated = $derived.by(() => {
+		const riskKeywords = ['risk', 'caution', 'concern', 'warning', 'threat', 'downside', 'danger'];
+		const riskContributions = contributions.filter(c => {
+			const content = ((c.data as any).content || '').toLowerCase();
+			return riskKeywords.some(keyword => content.includes(keyword));
+		}).length;
+
+		return Math.min(riskContributions, 99); // Cap display
+	});
+
+	// Rounds completed = max round number from contributions or convergence events
+	const roundsCompleted = $derived.by(() => {
+		const roundsFromContributions = contributions.map((c: any) => c.data.round || 0);
+		const roundsFromConvergence = convergenceEvents.map((c: any) => c.data.round || 0);
+		const allRounds = [...roundsFromContributions, ...roundsFromConvergence];
+		return allRounds.length > 0 ? Math.max(...allRounds) : 0;
+	});
+
+	// Total contributions count
+	const totalContributions = $derived(contributions.length);
+
+	// Counter data structure for UI
+	const progressCounters = $derived([
+		{
+			icon: Lightbulb,
+			count: topicsExplored,
+			label: 'Focus Areas',
+			title: 'Focus Areas Analyzed',
+			color: 'text-amber-500'
+		},
+		{
+			icon: GitBranch,
+			count: roundsCompleted,
+			label: 'Rounds',
+			title: 'Discussion Rounds',
+			color: 'text-blue-500'
+		},
+		{
+			icon: ShieldCheck,
+			count: risksMitigated,
+			label: 'Risks',
+			title: 'Risks Identified',
+			color: 'text-red-500'
+		},
+		{
+			icon: Search,
+			count: researchPerformed,
+			label: 'Research',
+			title: 'Research Triggered',
+			color: 'text-green-500'
+		},
+		{
+			icon: MessageSquare,
+			count: totalContributions,
+			label: 'Contributions',
+			title: 'Expert Contributions',
+			color: 'text-purple-500'
+		}
+	]);
 </script>
 
 <div class="space-y-4">
+	<!-- Deliberation Progress Counters (TODO.md Tier 1) -->
+	{#if progressCounters.some(c => c.count > 0)}
+		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4" transition:fade>
+			<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">
+				Deliberation Progress
+			</h3>
+			<div class="grid grid-cols-5 gap-2">
+				{#each progressCounters as counter (counter.label)}
+					<div
+						class="flex flex-col items-center p-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors cursor-default"
+						title={counter.title}
+					>
+						<div class={counter.color}>
+							<counter.icon size={18} />
+						</div>
+						<span class="text-lg font-bold text-slate-900 dark:text-white mt-1">
+							{counter.count}
+						</span>
+						<span class="text-xs text-slate-500 dark:text-slate-400 truncate">
+							{counter.label}
+						</span>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
 	<!-- Context indicator for multi-sub-problem scenarios -->
 	{#if totalSubProblems > 1}
 		<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 p-3 mb-4">

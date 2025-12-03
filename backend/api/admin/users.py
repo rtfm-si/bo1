@@ -5,21 +5,36 @@ Provides:
 - GET /api/admin/users - List all users with metrics
 - GET /api/admin/users/{user_id} - Get single user detail
 - PATCH /api/admin/users/{user_id} - Update user (subscription_tier, is_admin)
+- POST /api/admin/users/{user_id}/lock - Lock user account
+- POST /api/admin/users/{user_id}/unlock - Unlock user account
+- DELETE /api/admin/users/{user_id} - Delete user account
 """
 
-import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from backend.api.admin.helpers import (
+    USER_WITH_METRICS_GROUP_BY,
+    USER_WITH_METRICS_SELECT,
+    AdminQueryService,
+    AdminUserService,
+    AdminValidationService,
+    _row_to_user_info,
+)
 from backend.api.admin.models import (
     AdminStatsResponse,
+    DeleteUserRequest,
+    DeleteUserResponse,
+    LockUserRequest,
+    LockUserResponse,
     UpdateUserRequest,
     UserInfo,
     UserListResponse,
 )
 from backend.api.middleware.admin import require_admin_any
 from backend.api.models import ErrorResponse
+from backend.api.utils.errors import handle_api_errors
 from bo1.state.postgres_manager import db_session
 from bo1.utils.logging import get_logger
 
@@ -40,69 +55,17 @@ router = APIRouter(prefix="", tags=["Admin - Users"])
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("get admin stats")
 async def get_admin_stats(
     _admin: str = Depends(require_admin_any),
 ) -> AdminStatsResponse:
-    """Get aggregated statistics for the admin dashboard.
-
-    Returns:
-        AdminStatsResponse with total users, meetings, cost, whitelist, and waitlist counts
-
-    Raises:
-        HTTPException: If retrieval fails
-    """
-    try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                # Get total users
-                cur.execute("SELECT COUNT(*) as count FROM users")
-                total_users = cur.fetchone()["count"]
-
-                # Get total meetings and cost from sessions
-                cur.execute(
-                    """
-                    SELECT
-                        COUNT(*) as total_meetings,
-                        COALESCE(SUM(total_cost), 0) as total_cost
-                    FROM sessions
-                    """
-                )
-                session_stats = cur.fetchone()
-                total_meetings = session_stats["total_meetings"]
-                total_cost = float(session_stats["total_cost"])
-
-                # Get whitelist count (db + env)
-                cur.execute("SELECT COUNT(*) as count FROM beta_whitelist")
-                db_whitelist_count = cur.fetchone()["count"]
-
-                env_whitelist = os.getenv("BETA_WHITELIST", "")
-                env_emails = [e.strip().lower() for e in env_whitelist.split(",") if e.strip()]
-                # For simplicity, just add env count (may have overlap but that's fine for stats)
-                whitelist_count = db_whitelist_count + len(env_emails)
-
-                # Get pending waitlist count
-                cur.execute("SELECT COUNT(*) as count FROM waitlist WHERE status = 'pending'")
-                waitlist_pending = cur.fetchone()["count"]
-
-        logger.info(
-            f"Admin: Retrieved stats - users: {total_users}, meetings: {total_meetings}, "
-            f"cost: ${total_cost:.2f}, whitelist: {whitelist_count}, waitlist: {waitlist_pending}"
-        )
-
-        return AdminStatsResponse(
-            total_users=total_users,
-            total_meetings=total_meetings,
-            total_cost=total_cost,
-            whitelist_count=whitelist_count,
-            waitlist_pending=waitlist_pending,
-        )
-
-    except Exception as e:
-        logger.error(f"Admin: Failed to get stats: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get admin stats: {str(e)}",
-        ) from e
+    """Get aggregated statistics for the admin dashboard."""
+    stats = AdminQueryService.get_stats()
+    logger.info(
+        f"Admin: Retrieved stats - users: {stats.total_users}, meetings: {stats.total_meetings}, "
+        f"cost: ${stats.total_cost:.2f}, whitelist: {stats.whitelist_count}, waitlist: {stats.waitlist_pending}"
+    )
+    return stats
 
 
 @router.get(
@@ -117,119 +80,24 @@ async def get_admin_stats(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("list users")
 async def list_users(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(10, ge=1, le=100, description="Users per page (1-100)"),
     email: str | None = Query(None, description="Search by email (partial match)"),
     _admin: str = Depends(require_admin_any),
 ) -> UserListResponse:
-    """List all users with metrics.
-
-    Returns paginated list of users with total meetings, costs, and last activity.
-
-    Args:
-        page: Page number (1-indexed)
-        per_page: Number of users per page (1-100)
-        email: Optional email search filter (case-insensitive partial match)
-        _admin_key: Admin API key (injected by dependency)
-
-    Returns:
-        UserListResponse with user list and pagination info
-
-    Raises:
-        HTTPException: If retrieval fails
-    """
-    try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                # Build query with optional email filter
-                count_query = """
-                    SELECT COUNT(*)
-                    FROM users
-                """
-                params: list[Any] = []
-
-                if email:
-                    count_query += " WHERE LOWER(email) LIKE LOWER(%s)"
-                    params.append(f"%{email}%")
-
-                # Get total count
-                cur.execute(count_query, params)
-                count_row = cur.fetchone()
-                total_count = count_row["count"] if count_row else 0
-
-                # Get paginated users with metrics
-                offset = (page - 1) * per_page
-                users_query = """
-                    SELECT
-                        u.id,
-                        u.email,
-                        u.auth_provider,
-                        u.subscription_tier,
-                        u.is_admin,
-                        u.created_at,
-                        u.updated_at,
-                        COUNT(s.id) as total_meetings,
-                        SUM(s.total_cost) as total_cost,
-                        MAX(s.created_at) as last_meeting_at,
-                        (SELECT id FROM sessions WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_meeting_id
-                    FROM users u
-                    LEFT JOIN sessions s ON u.id = s.user_id
-                """
-
-                if email:
-                    users_query += " WHERE LOWER(u.email) LIKE LOWER(%s)"
-
-                users_query += """
-                    GROUP BY u.id, u.email, u.auth_provider, u.subscription_tier, u.is_admin, u.created_at, u.updated_at
-                    ORDER BY u.created_at DESC
-                    LIMIT %s OFFSET %s
-                """
-
-                if email:
-                    params_users = [f"%{email}%", per_page, offset]
-                else:
-                    params_users = [per_page, offset]
-
-                cur.execute(users_query, params_users)
-                rows = cur.fetchall()
-
-                users = [
-                    UserInfo(
-                        user_id=row["id"],
-                        email=row["email"],
-                        auth_provider=row["auth_provider"],
-                        subscription_tier=row["subscription_tier"],
-                        is_admin=row["is_admin"],
-                        created_at=row["created_at"].isoformat() if row["created_at"] else "",
-                        updated_at=row["updated_at"].isoformat() if row["updated_at"] else "",
-                        total_meetings=row["total_meetings"] or 0,
-                        total_cost=float(row["total_cost"]) if row["total_cost"] else None,
-                        last_meeting_at=row["last_meeting_at"].isoformat()
-                        if row["last_meeting_at"]
-                        else None,
-                        last_meeting_id=row["last_meeting_id"],
-                    )
-                    for row in rows
-                ]
-
-        logger.info(
-            f"Admin: Listed {len(users)} users (page {page}, per_page {per_page}, total {total_count})"
-        )
-
-        return UserListResponse(
-            total_count=total_count,
-            users=users,
-            page=page,
-            per_page=per_page,
-        )
-
-    except Exception as e:
-        logger.error(f"Admin: Failed to list users: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list users: {str(e)}",
-        ) from e
+    """List all users with metrics."""
+    total_count, users = AdminQueryService.list_users(page, per_page, email)
+    logger.info(
+        f"Admin: Listed {len(users)} users (page {page}, per_page {per_page}, total {total_count})"
+    )
+    return UserListResponse(
+        total_count=total_count,
+        users=users,
+        page=page,
+        per_page=per_page,
+    )
 
 
 @router.get(
@@ -245,82 +113,15 @@ async def list_users(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("get user")
 async def get_user(
     user_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> UserInfo:
-    """Get detailed information about a user.
-
-    Args:
-        user_id: User identifier
-        _admin_key: Admin API key (injected by dependency)
-
-    Returns:
-        UserInfo with user details and metrics
-
-    Raises:
-        HTTPException: If user not found or retrieval fails
-    """
-    try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        u.id,
-                        u.email,
-                        u.auth_provider,
-                        u.subscription_tier,
-                        u.is_admin,
-                        u.created_at,
-                        u.updated_at,
-                        COUNT(s.id) as total_meetings,
-                        SUM(s.total_cost) as total_cost,
-                        MAX(s.created_at) as last_meeting_at,
-                        (SELECT id FROM sessions WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_meeting_id
-                    FROM users u
-                    LEFT JOIN sessions s ON u.id = s.user_id
-                    WHERE u.id = %s
-                    GROUP BY u.id, u.email, u.auth_provider, u.subscription_tier, u.is_admin, u.created_at, u.updated_at
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-
-                if not row:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"User not found: {user_id}",
-                    )
-
-                user = UserInfo(
-                    user_id=row["id"],
-                    email=row["email"],
-                    auth_provider=row["auth_provider"],
-                    subscription_tier=row["subscription_tier"],
-                    is_admin=row["is_admin"],
-                    created_at=row["created_at"].isoformat() if row["created_at"] else "",
-                    updated_at=row["updated_at"].isoformat() if row["updated_at"] else "",
-                    total_meetings=row["total_meetings"] or 0,
-                    total_cost=float(row["total_cost"]) if row["total_cost"] else None,
-                    last_meeting_at=row["last_meeting_at"].isoformat()
-                    if row["last_meeting_at"]
-                    else None,
-                    last_meeting_id=row["last_meeting_id"],
-                )
-
-        logger.info(f"Admin: Retrieved user {user_id}")
-
-        return user
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Admin: Failed to get user {user_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get user: {str(e)}",
-        ) from e
+    """Get detailed information about a user."""
+    user = AdminQueryService.get_user(user_id)
+    logger.info(f"Admin: Retrieved user {user_id}")
+    return user
 
 
 @router.patch(
@@ -337,131 +138,272 @@ async def get_user(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("update user")
 async def update_user(
     user_id: str,
     request: UpdateUserRequest,
     _admin: str = Depends(require_admin_any),
 ) -> UserInfo:
-    """Update user subscription tier or admin status.
+    """Update user subscription tier or admin status."""
+    # Validate at least one field is provided
+    if request.subscription_tier is None and request.is_admin is None:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one field (subscription_tier or is_admin) must be provided",
+        )
 
-    Args:
-        user_id: User identifier
-        request: Update request with optional subscription_tier and is_admin
-        _admin_key: Admin API key (injected by dependency)
+    # Validate subscription_tier if provided
+    if request.subscription_tier is not None:
+        AdminValidationService.validate_subscription_tier(request.subscription_tier)
 
-    Returns:
-        UserInfo with updated user details
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found: {user_id}",
+        )
 
-    Raises:
-        HTTPException: If user not found, invalid request, or update fails
-    """
-    try:
-        # Validate at least one field is provided
-        if request.subscription_tier is None and request.is_admin is None:
-            raise HTTPException(
-                status_code=400,
-                detail="At least one field (subscription_tier or is_admin) must be provided",
-            )
+    # Build dynamic UPDATE query
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            update_fields = []
+            params: list[Any] = []
 
-        # Validate subscription_tier if provided
-        if request.subscription_tier is not None:
-            valid_tiers = ["free", "pro", "enterprise"]
-            if request.subscription_tier not in valid_tiers:
+            if request.subscription_tier is not None:
+                update_fields.append("subscription_tier = %s")
+                params.append(request.subscription_tier)
+
+            if request.is_admin is not None:
+                update_fields.append("is_admin = %s")
+                params.append(request.is_admin)
+
+            # Always update updated_at
+            update_fields.append("updated_at = NOW()")
+            params.append(user_id)
+
+            # Execute update
+            query = f"""
+                UPDATE users
+                SET {", ".join(update_fields)}
+                WHERE id = %s
+            """  # noqa: S608 - Safe: update_fields contains only controlled column names, values are parameterized
+
+            cur.execute(query, params)
+
+            # Fetch updated user with metrics
+            fetch_query = f"""
+                {USER_WITH_METRICS_SELECT}
+                WHERE u.id = %s
+                {USER_WITH_METRICS_GROUP_BY}
+            """  # noqa: S608 - Safe: only uses controlled constants
+            cur.execute(fetch_query, (user_id,))
+            row = cur.fetchone()
+
+            if not row:
                 raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid subscription_tier. Must be one of: {', '.join(valid_tiers)}",
+                    status_code=500,
+                    detail="Failed to fetch updated user",
                 )
 
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                # Check if user exists
-                cur.execute("SELECT id FROM users WHERE id = %s", (user_id,))
-                if not cur.fetchone():
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"User not found: {user_id}",
-                    )
+            user = _row_to_user_info(row)
 
-                # Build dynamic UPDATE query
-                update_fields = []
-                params: list[Any] = []
+    logger.info(f"Admin: Updated user {user_id} - {request}")
+    return user
 
-                if request.subscription_tier is not None:
-                    update_fields.append("subscription_tier = %s")
-                    params.append(request.subscription_tier)
 
-                if request.is_admin is not None:
-                    update_fields.append("is_admin = %s")
-                    params.append(request.is_admin)
+@router.post(
+    "/users/{user_id}/lock",
+    response_model=LockUserResponse,
+    summary="Lock user account",
+    description="Lock a user account, preventing login. Revokes all active sessions.",
+    responses={
+        200: {"description": "User locked successfully"},
+        400: {"description": "Cannot lock own account", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        404: {"description": "User not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("lock user")
+async def lock_user(
+    user_id: str,
+    request: LockUserRequest,
+    admin_id: str = Depends(require_admin_any),
+) -> LockUserResponse:
+    """Lock a user account and revoke their sessions."""
+    # Prevent admin from locking themselves
+    if user_id == admin_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot lock your own account",
+        )
 
-                # Always update updated_at
-                update_fields.append("updated_at = NOW()")
-                params.append(user_id)
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found: {user_id}",
+        )
 
-                # Execute update
-                query = f"""
-                    UPDATE users
-                    SET {", ".join(update_fields)}
-                    WHERE id = %s
-                """  # noqa: S608 - Safe: update_fields contains only controlled column names, values are parameterized
+    # Lock the user
+    result = AdminUserService.lock_user(user_id, admin_id, request.reason)
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found or already deleted: {user_id}",
+        )
 
-                cur.execute(query, params)
+    # Revoke all sessions
+    sessions_revoked = await AdminUserService.revoke_user_sessions(user_id)
 
-                # Fetch updated user with metrics
-                cur.execute(
-                    """
-                    SELECT
-                        u.id,
-                        u.email,
-                        u.auth_provider,
-                        u.subscription_tier,
-                        u.is_admin,
-                        u.created_at,
-                        u.updated_at,
-                        COUNT(s.id) as total_meetings,
-                        SUM(s.total_cost) as total_cost,
-                        MAX(s.created_at) as last_meeting_at,
-                        (SELECT id FROM sessions WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as last_meeting_id
-                    FROM users u
-                    LEFT JOIN sessions s ON u.id = s.user_id
-                    WHERE u.id = %s
-                    GROUP BY u.id, u.email, u.auth_provider, u.subscription_tier, u.is_admin, u.created_at, u.updated_at
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
+    # Log the action
+    AdminUserService.log_admin_action(
+        admin_id=admin_id,
+        action="user_locked",
+        resource_type="user",
+        resource_id=user_id,
+        details={"reason": request.reason, "sessions_revoked": sessions_revoked},
+    )
 
-                if not row:
-                    raise HTTPException(
-                        status_code=500,
-                        detail="Failed to fetch updated user",
-                    )
+    logger.info(f"Admin {admin_id}: Locked user {user_id}, revoked {sessions_revoked} sessions")
 
-                user = UserInfo(
-                    user_id=row["id"],
-                    email=row["email"],
-                    auth_provider=row["auth_provider"],
-                    subscription_tier=row["subscription_tier"],
-                    is_admin=row["is_admin"],
-                    created_at=row["created_at"].isoformat() if row["created_at"] else "",
-                    updated_at=row["updated_at"].isoformat() if row["updated_at"] else "",
-                    total_meetings=row["total_meetings"] or 0,
-                    total_cost=float(row["total_cost"]) if row["total_cost"] else None,
-                    last_meeting_at=row["last_meeting_at"].isoformat()
-                    if row["last_meeting_at"]
-                    else None,
-                    last_meeting_id=row["last_meeting_id"],
-                )
+    locked_at = result["locked_at"].isoformat() if result["locked_at"] else None
+    return LockUserResponse(
+        user_id=user_id,
+        is_locked=True,
+        locked_at=locked_at,
+        lock_reason=result["lock_reason"],
+        sessions_revoked=sessions_revoked,
+        message=f"User {user_id} locked successfully. {sessions_revoked} session(s) revoked.",
+    )
 
-        logger.info(f"Admin: Updated user {user_id} - {request}")
 
-        return user
+@router.post(
+    "/users/{user_id}/unlock",
+    response_model=LockUserResponse,
+    summary="Unlock user account",
+    description="Unlock a previously locked user account.",
+    responses={
+        200: {"description": "User unlocked successfully"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        404: {"description": "User not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("unlock user")
+async def unlock_user(
+    user_id: str,
+    admin_id: str = Depends(require_admin_any),
+) -> LockUserResponse:
+    """Unlock a user account."""
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found: {user_id}",
+        )
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Admin: Failed to update user {user_id}: {e}")
+    # Unlock the user
+    result = AdminUserService.unlock_user(user_id)
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found: {user_id}",
+        )
+
+    # Log the action
+    AdminUserService.log_admin_action(
+        admin_id=admin_id,
+        action="user_unlocked",
+        resource_type="user",
+        resource_id=user_id,
+    )
+
+    logger.info(f"Admin {admin_id}: Unlocked user {user_id}")
+
+    return LockUserResponse(
+        user_id=user_id,
+        is_locked=False,
+        locked_at=None,
+        lock_reason=None,
+        sessions_revoked=0,
+        message=f"User {user_id} unlocked successfully.",
+    )
+
+
+@router.delete(
+    "/users/{user_id}",
+    response_model=DeleteUserResponse,
+    summary="Delete user account",
+    description="Soft delete a user account (or hard delete if specified).",
+    responses={
+        200: {"description": "User deleted successfully"},
+        400: {"description": "Cannot delete own account", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        404: {"description": "User not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("delete user")
+async def delete_user(
+    user_id: str,
+    request: DeleteUserRequest,
+    admin_id: str = Depends(require_admin_any),
+) -> DeleteUserResponse:
+    """Delete a user account."""
+    # Prevent admin from deleting themselves
+    if user_id == admin_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete your own account",
+        )
+
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found: {user_id}",
+        )
+
+    # Revoke sessions if requested
+    sessions_revoked = 0
+    if request.revoke_sessions:
+        sessions_revoked = await AdminUserService.revoke_user_sessions(user_id)
+
+    # Perform deletion
+    if request.hard_delete:
+        deleted = AdminUserService.hard_delete_user(user_id)
+        action = "user_hard_deleted"
+        message = f"User {user_id} permanently deleted."
+    else:
+        deleted = AdminUserService.soft_delete_user(user_id, admin_id)
+        action = "user_soft_deleted"
+        message = f"User {user_id} soft deleted."
+
+    if not deleted:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to update user: {str(e)}",
-        ) from e
+            detail="Failed to delete user",
+        )
+
+    # Log the action
+    AdminUserService.log_admin_action(
+        admin_id=admin_id,
+        action=action,
+        resource_type="user",
+        resource_id=user_id,
+        details={"hard_delete": request.hard_delete, "sessions_revoked": sessions_revoked},
+    )
+
+    logger.info(f"Admin {admin_id}: {action} user {user_id}, revoked {sessions_revoked} sessions")
+
+    return DeleteUserResponse(
+        user_id=user_id,
+        deleted=True,
+        hard_delete=request.hard_delete,
+        sessions_revoked=sessions_revoked,
+        message=f"{message} {sessions_revoked} session(s) revoked.",
+    )

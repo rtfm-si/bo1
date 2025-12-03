@@ -4,7 +4,7 @@ These test the confidence level and conditions parsing functions
 used in the recommendation system.
 """
 
-from bo1.utils.vote_parsing import parse_conditions, parse_confidence_level
+from bo1.utils.confidence_parser import parse_conditions, parse_confidence_level
 
 
 class TestParseConfidenceLevel:

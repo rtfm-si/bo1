@@ -5,7 +5,40 @@
  * Follows prompting best practices: Explicit > Implicit, Show Don't Tell.
  *
  * Reference: UX_METRICS_REFACTOR_PLAN.md
+ *
+ * REFACTORED: Converted if/else chains to object-based lookups for better
+ * maintainability and testability.
  */
+
+// ============================================================================
+// CONSTANTS - Centralized thresholds (previously magic numbers)
+// ============================================================================
+
+export const QUALITY_THRESHOLDS = {
+	/** Comprehensively explored / Clear direction emerging */
+	EXCELLENT: 0.85,
+	/** Thorough discussion / Healthy debate */
+	GOOD: 0.70,
+	/** Moderate / Building consensus */
+	MODERATE: 0.60,
+	/** Good progress / Building momentum */
+	PROGRESS: 0.40,
+	/** High conflict threshold */
+	HIGH_CONFLICT: 0.70,
+	/** Moderate conflict threshold */
+	MODERATE_CONFLICT: 0.40
+} as const;
+
+export const ROUND_THRESHOLDS = {
+	/** Rounds 1-2: Exploration phase */
+	EXPLORATION_END: 2,
+	/** Rounds 5+: Convergence phase */
+	CONVERGENCE_START: 5
+} as const;
+
+// ============================================================================
+// INTERFACES
+// ============================================================================
 
 export interface QualityLabel {
 	label: string;
@@ -21,6 +54,233 @@ export interface OutcomeMetaphor {
 	color: string;
 }
 
+// ============================================================================
+// LOOKUP TABLES
+// ============================================================================
+
+type ExplorationTier = 'excellent' | 'good' | 'progress' | 'early';
+
+const EXPLORATION_LABELS: Record<ExplorationTier, QualityLabel> = {
+	excellent: {
+		label: 'Comprehensively Explored',
+		description: 'All critical angles have been examined in depth',
+		color: 'green',
+		icon: 'check-circle'
+	},
+	good: {
+		label: 'Thorough Discussion',
+		description: 'Key topics covered with good depth',
+		color: 'green',
+		icon: 'check-circle'
+	},
+	progress: {
+		label: 'Good Progress',
+		description: 'Building momentum, still exploring angles',
+		color: 'amber',
+		icon: 'arrow-right'
+	},
+	early: {
+		label: 'Just Getting Started',
+		description: 'Experts are warming up, more to come',
+		color: 'blue',
+		icon: 'play-circle'
+	}
+};
+
+type PhaseType = 'exploration' | 'convergence' | 'challenge';
+type ConflictLevel = 'high' | 'moderate' | 'low';
+
+const CONFLICT_LABELS: Record<PhaseType, Record<ConflictLevel, QualityLabel>> = {
+	exploration: {
+		high: {
+			label: 'Vigorous Debate',
+			description: 'Healthy disagreement surfacing diverse viewpoints',
+			color: 'blue',
+			icon: 'zap'
+		},
+		moderate: {
+			label: 'Balanced Discussion',
+			description: 'Mix of agreement and constructive challenge',
+			color: 'green',
+			icon: 'check-circle'
+		},
+		low: {
+			label: 'Building on Ideas',
+			description: 'Experts finding common ground early',
+			color: 'green',
+			icon: 'check-circle'
+		}
+	},
+	convergence: {
+		high: {
+			label: 'Still Debating',
+			description: "Experts haven't fully aligned yet",
+			color: 'amber',
+			icon: 'message-circle'
+		},
+		moderate: {
+			label: 'Balanced Discussion',
+			description: 'Mix of agreement and constructive challenge',
+			color: 'green',
+			icon: 'check-circle'
+		},
+		low: {
+			label: 'Aligned Thinking',
+			description: 'Strong consensus forming',
+			color: 'green',
+			icon: 'check-circle'
+		}
+	},
+	challenge: {
+		high: {
+			label: 'Active Discussion',
+			description: 'Experts challenging ideas and assumptions',
+			color: 'blue',
+			icon: 'message-circle'
+		},
+		moderate: {
+			label: 'Balanced Discussion',
+			description: 'Mix of agreement and constructive challenge',
+			color: 'green',
+			icon: 'check-circle'
+		},
+		low: {
+			label: 'Aligned Thinking',
+			description: 'Strong consensus forming',
+			color: 'green',
+			icon: 'check-circle'
+		}
+	}
+};
+
+type ConvergencePhase = 'complete' | 'finalizing' | 'aligning' | 'debating' | 'exploring' | 'diverse';
+
+const CONVERGENCE_METAPHORS: Record<ConvergencePhase, OutcomeMetaphor> = {
+	complete: {
+		status: 'Discussion Complete',
+		description: 'Experts have concluded their deliberation',
+		icon: 'check-circle',
+		color: 'green'
+	},
+	finalizing: {
+		status: 'Finalizing Perspectives',
+		description: 'Experts wrapping up with diverse viewpoints',
+		icon: 'message-circle',
+		color: 'blue'
+	},
+	aligning: {
+		status: 'Clear Direction Emerging',
+		description: 'Experts are aligning on a path forward',
+		icon: 'trending-up',
+		color: 'green'
+	},
+	debating: {
+		status: 'Healthy Debate',
+		description: 'Experts exploring different viewpoints',
+		icon: 'message-circle',
+		color: 'blue'
+	},
+	exploring: {
+		status: 'Exploring Options',
+		description: 'Wide range of ideas being considered',
+		icon: 'compass',
+		color: 'amber'
+	},
+	diverse: {
+		status: 'Diverse Perspectives',
+		description: 'Experts bringing unique angles (expected in exploration)',
+		icon: 'layers',
+		color: 'blue'
+	}
+};
+
+type QualityTier = 'excellent' | 'good' | 'early' | 'warming';
+
+const OVERALL_QUALITY_LABELS: Record<QualityTier, QualityLabel> = {
+	excellent: {
+		label: 'Excellent',
+		description: 'Thorough discussion covering all key aspects',
+		color: 'green',
+		icon: 'check-circle'
+	},
+	good: {
+		label: 'Good Progress',
+		description: 'Building toward comprehensive coverage',
+		color: 'amber',
+		icon: 'trending-up'
+	},
+	early: {
+		label: 'Early Exploration',
+		description: 'Experts are diving into your question. More insights coming.',
+		color: 'blue',
+		icon: 'compass'
+	},
+	warming: {
+		label: 'Warming Up',
+		description: 'Experts are getting oriented. More depth to come.',
+		color: 'blue',
+		icon: 'play-circle'
+	}
+};
+
+// ============================================================================
+// HELPER FUNCTIONS - Pure, testable tier determination
+// ============================================================================
+
+function getExplorationTier(score: number): ExplorationTier {
+	if (score >= QUALITY_THRESHOLDS.EXCELLENT) return 'excellent';
+	if (score >= QUALITY_THRESHOLDS.GOOD) return 'good';
+	if (score >= QUALITY_THRESHOLDS.PROGRESS) return 'progress';
+	return 'early';
+}
+
+function getPhaseType(currentRound: number, maxRounds: number): PhaseType {
+	if (currentRound <= ROUND_THRESHOLDS.EXPLORATION_END) return 'exploration';
+	if (currentRound >= maxRounds - 1) return 'convergence';
+	return 'challenge';
+}
+
+function getConflictLevel(score: number): ConflictLevel {
+	if (score >= QUALITY_THRESHOLDS.HIGH_CONFLICT) return 'high';
+	if (score >= QUALITY_THRESHOLDS.MODERATE_CONFLICT) return 'moderate';
+	return 'low';
+}
+
+function getConvergencePhase(
+	score: number,
+	currentRound: number,
+	phase?: string | null
+): ConvergencePhase {
+	if (phase === 'complete' || phase === 'synthesis') return 'complete';
+	if (currentRound >= ROUND_THRESHOLDS.CONVERGENCE_START && score < QUALITY_THRESHOLDS.MODERATE) {
+		return 'finalizing';
+	}
+	if (score >= QUALITY_THRESHOLDS.EXCELLENT) return 'aligning';
+	if (score >= QUALITY_THRESHOLDS.MODERATE) return 'debating';
+	if (currentRound <= ROUND_THRESHOLDS.EXPLORATION_END) return 'diverse';
+	return 'exploring';
+}
+
+function getQualityTier(
+	exploration: number | null | undefined,
+	convergence: number | null | undefined
+): QualityTier {
+	if (typeof exploration === 'number' && exploration > 0) {
+		if (exploration >= QUALITY_THRESHOLDS.GOOD) return 'excellent';
+		if (exploration >= QUALITY_THRESHOLDS.PROGRESS) return 'good';
+		return 'early';
+	}
+	if (typeof convergence === 'number' && convergence > 0) {
+		if (convergence >= QUALITY_THRESHOLDS.GOOD) return 'good';
+		return 'early';
+	}
+	return 'warming';
+}
+
+// ============================================================================
+// PUBLIC API - Clean, simple functions using lookup tables
+// ============================================================================
+
 /**
  * Map exploration score to natural language.
  *
@@ -34,39 +294,7 @@ export interface OutcomeMetaphor {
  * - <0.40: Just getting started
  */
 export function getExplorationLabel(score: number): QualityLabel {
-	if (score >= 0.85) {
-		return {
-			label: 'Comprehensively Explored',
-			description: 'All critical angles have been examined in depth',
-			color: 'green',
-			icon: 'check-circle'
-		};
-	}
-
-	if (score >= 0.70) {
-		return {
-			label: 'Thorough Discussion',
-			description: 'Key topics covered with good depth',
-			color: 'green',
-			icon: 'check-circle'
-		};
-	}
-
-	if (score >= 0.40) {
-		return {
-			label: 'Good Progress',
-			description: 'Building momentum, still exploring angles',
-			color: 'amber',
-			icon: 'arrow-right'
-		};
-	}
-
-	return {
-		label: 'Just Getting Started',
-		description: 'Experts are warming up, more to come',
-		color: 'blue',
-		icon: 'play-circle'
-	};
+	return EXPLORATION_LABELS[getExplorationTier(score)];
 }
 
 /**
@@ -89,64 +317,7 @@ export function getConvergenceMetaphor(
 	currentRound: number,
 	phase?: string | null
 ): OutcomeMetaphor {
-	// PRIORITY 1: Check if meeting is complete (phase-aware)
-	// This ensures we show "Discussion Complete" at the end, not "Exploring Options"
-	if (phase === 'complete' || phase === 'synthesis') {
-		return {
-			status: 'Discussion Complete',
-			description: 'Experts have concluded their deliberation',
-			icon: 'check-circle',
-			color: 'green'
-		};
-	}
-
-	// Check for late rounds with low convergence (finalizing with diverse views)
-	if (currentRound >= 5 && convergenceScore < 0.60) {
-		return {
-			status: 'Finalizing Perspectives',
-			description: 'Experts wrapping up with diverse viewpoints',
-			icon: 'message-circle',
-			color: 'blue'
-		};
-	}
-
-	// High convergence = repetition = aligning on solution
-	if (convergenceScore >= 0.85) {
-		return {
-			status: 'Clear Direction Emerging',
-			description: 'Experts are aligning on a path forward',
-			icon: 'trending-up',
-			color: 'green'
-		};
-	}
-
-	// Moderate convergence = some repetition = building consensus
-	if (convergenceScore >= 0.60) {
-		return {
-			status: 'Healthy Debate',
-			description: 'Experts exploring different viewpoints',
-			icon: 'message-circle',
-			color: 'blue'
-		};
-	}
-
-	// Low convergence = diverse perspectives = exploring
-	// This is GOOD in early rounds!
-	if (currentRound <= 2) {
-		return {
-			status: 'Diverse Perspectives',
-			description: 'Experts bringing unique angles (expected in exploration)',
-			icon: 'layers',
-			color: 'blue' // Blue = neutral/positive, not red/warning
-		};
-	}
-
-	return {
-		status: 'Exploring Options',
-		description: 'Wide range of ideas being considered',
-		icon: 'compass',
-		color: 'amber'
-	};
+	return CONVERGENCE_METAPHORS[getConvergencePhase(convergenceScore, currentRound, phase)];
 }
 
 /**
@@ -164,61 +335,9 @@ export function getConflictLabel(
 	currentRound: number,
 	maxRounds: number
 ): QualityLabel {
-	const phase =
-		currentRound <= 2 ? 'exploration' : currentRound >= maxRounds - 1 ? 'convergence' : 'challenge';
-
-	// High conflict (0.7+)
-	if (conflictScore >= 0.7) {
-		if (phase === 'exploration') {
-			return {
-				label: 'Vigorous Debate',
-				description: 'Healthy disagreement surfacing diverse viewpoints',
-				color: 'blue', // Positive in exploration!
-				icon: 'zap'
-			};
-		} else if (phase === 'convergence') {
-			return {
-				label: 'Still Debating',
-				description: 'Experts haven\'t fully aligned yet',
-				color: 'amber',
-				icon: 'message-circle'
-			};
-		} else {
-			return {
-				label: 'Active Discussion',
-				description: 'Experts challenging ideas and assumptions',
-				color: 'blue',
-				icon: 'message-circle'
-			};
-		}
-	}
-
-	// Moderate conflict (0.4-0.7)
-	if (conflictScore >= 0.4) {
-		return {
-			label: 'Balanced Discussion',
-			description: 'Mix of agreement and constructive challenge',
-			color: 'green',
-			icon: 'check-circle'
-		};
-	}
-
-	// Low conflict (<0.4)
-	if (phase === 'exploration') {
-		return {
-			label: 'Building on Ideas',
-			description: 'Experts finding common ground early',
-			color: 'green',
-			icon: 'check-circle'
-		};
-	}
-
-	return {
-		label: 'Aligned Thinking',
-		description: 'Strong consensus forming',
-		color: 'green',
-		icon: 'check-circle'
-	};
+	const phase = getPhaseType(currentRound, maxRounds);
+	const level = getConflictLevel(conflictScore);
+	return CONFLICT_LABELS[phase][level];
 }
 
 /**
@@ -234,81 +353,6 @@ export function getOverallQuality(metrics: {
 	novelty_score?: number | null;
 	meeting_completeness_index?: number | null;
 }): QualityLabel {
-	// DEBUG: Log incoming metrics to diagnose the issue
-	console.log('[getOverallQuality] Received metrics:', {
-		exploration_score: metrics.exploration_score,
-		convergence_score: metrics.convergence_score,
-		focus_score: metrics.focus_score,
-		novelty_score: metrics.novelty_score,
-		meeting_completeness_index: metrics.meeting_completeness_index
-	});
-
-	// PRIORITY 1: Use exploration_score (most direct indicator of topic coverage)
-	// This is the primary quality metric - measures coverage of 8 critical decision aspects
-	if (
-		typeof metrics.exploration_score === 'number' &&
-		metrics.exploration_score > 0
-	) {
-		const exploration = metrics.exploration_score;
-		console.log('[getOverallQuality] Using exploration_score (primary):', exploration);
-
-		if (exploration >= 0.7) {
-			return {
-				label: 'Excellent',
-				description: 'Thorough discussion covering all key aspects',
-				color: 'green',
-				icon: 'check-circle'
-			};
-		}
-
-		if (exploration >= 0.4) {
-			return {
-				label: 'Good Progress',
-				description: 'Building toward comprehensive coverage',
-				color: 'amber',
-				icon: 'trending-up'
-			};
-		}
-
-		return {
-			label: 'Early Exploration',
-			description: 'Experts are diving into your question. More insights coming.',
-			color: 'blue',
-			icon: 'compass'
-		};
-	}
-
-	// Last fallback: Use convergence score as a proxy
-	if (
-		typeof metrics.convergence_score === 'number' &&
-		metrics.convergence_score > 0
-	) {
-		const convergence = metrics.convergence_score;
-		console.log('[getOverallQuality] Using convergence_score as last fallback:', convergence);
-
-		if (convergence >= 0.7) {
-			return {
-				label: 'Good Progress',
-				description: 'Experts are building toward consensus.',
-				color: 'amber',
-				icon: 'trending-up'
-			};
-		}
-
-		return {
-			label: 'Early Exploration',
-			description: 'Experts are diving into your question. More insights coming.',
-			color: 'blue',
-			icon: 'compass'
-		};
-	}
-
-	// No valid metrics available - show default
-	console.warn('[getOverallQuality] No valid quality metrics available, showing default');
-	return {
-		label: 'Warming Up',
-		description: 'Experts are getting oriented. More depth to come.',
-		color: 'blue',
-		icon: 'play-circle'
-	};
+	const tier = getQualityTier(metrics.exploration_score, metrics.convergence_score);
+	return OVERALL_QUALITY_LABELS[tier];
 }

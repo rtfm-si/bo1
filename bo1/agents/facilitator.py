@@ -17,6 +17,7 @@ from bo1.llm.broker import PromptBroker
 from bo1.llm.response import LLMResponse
 from bo1.llm.response_parser import ResponseParser
 from bo1.prompts.reusable_prompts import compose_facilitator_prompt
+from bo1.state.discussion_formatter import format_discussion_history
 from bo1.utils.deliberation_analysis import DeliberationAnalyzer
 from bo1.utils.error_logger import ErrorLogger
 from bo1.utils.json_parsing import parse_json_with_fallback
@@ -432,18 +433,7 @@ Analyze the discussion and decide the next action."""
 
     def _format_discussion_history(self, state: DeliberationGraphState) -> str:
         """Format discussion history for facilitator context."""
-        contributions = state.get("contributions", [])
-        if not contributions:
-            return "No contributions yet (initial round)."
-
-        # Add persona code prefix for facilitator context
-        lines = []
-        for msg in contributions:
-            lines.append(f"[Round {msg.round_number}] {msg.persona_code}:")
-            lines.append(msg.content)
-            lines.append("")
-
-        return "\n".join(lines)
+        return format_discussion_history(state, style="compact")
 
     def _get_phase_objectives(self, phase: str, round_number: int, max_rounds: int) -> str:
         """Get objectives for current phase."""

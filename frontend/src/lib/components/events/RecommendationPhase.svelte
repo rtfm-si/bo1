@@ -1,7 +1,7 @@
 <script lang="ts">
 	/**
-	 * VotingPhase Event Component
-	 * Displays when voting phase has started
+	 * RecommendationPhase Event Component
+	 * Displays when recommendation phase has started
 	 */
 	import type { VotingStartedEvent } from '$lib/api/sse-events';
 	import Badge from '$lib/components/ui/Badge.svelte';

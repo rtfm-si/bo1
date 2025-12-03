@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from backend.api.admin.models import ResearchCacheStats, StaleEntriesResponse
 from backend.api.middleware.admin import require_admin_any
 from backend.api.models import ControlResponse, ErrorResponse
+from backend.api.utils.errors import handle_api_errors
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -30,37 +31,16 @@ router = APIRouter(prefix="", tags=["Admin - Research Cache"])
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("get research cache stats")
 async def get_research_cache_stats(
     _admin: str = Depends(require_admin_any),
 ) -> ResearchCacheStats:
-    """Get research cache analytics and statistics.
+    """Get research cache analytics and statistics."""
+    from bo1.state.postgres_manager import get_research_cache_stats as get_stats
 
-    Returns cache hit rates, cost savings, and top cached questions.
-
-    Args:
-        _admin_key: Admin API key (injected by dependency)
-
-    Returns:
-        ResearchCacheStats with analytics
-
-    Raises:
-        HTTPException: If retrieval fails
-    """
-    try:
-        from bo1.state.postgres_manager import get_research_cache_stats as get_stats
-
-        stats = get_stats()
-
-        logger.info("Admin: Retrieved research cache statistics")
-
-        return ResearchCacheStats(**stats)
-
-    except Exception as e:
-        logger.error(f"Admin: Failed to get research cache stats: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get research cache stats: {str(e)}",
-        ) from e
+    stats = get_stats()
+    logger.info("Admin: Retrieved research cache statistics")
+    return ResearchCacheStats(**stats)
 
 
 @router.delete(
@@ -76,50 +56,30 @@ async def get_research_cache_stats(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("delete research cache entry")
 async def delete_research_cache_entry(
     cache_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> ControlResponse:
-    """Delete a specific research cache entry.
+    """Delete a specific research cache entry."""
+    from bo1.state.postgres_manager import delete_research_cache_entry as delete_entry
 
-    Args:
-        cache_id: Research cache entry ID (UUID)
-        _admin_key: Admin API key (injected by dependency)
+    deleted = delete_entry(cache_id)
 
-    Returns:
-        ControlResponse with deletion confirmation
-
-    Raises:
-        HTTPException: If cache entry not found or deletion fails
-    """
-    try:
-        from bo1.state.postgres_manager import delete_research_cache_entry as delete_entry
-
-        deleted = delete_entry(cache_id)
-
-        if not deleted:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Research cache entry not found: {cache_id}",
-            )
-
-        logger.info(f"Admin: Deleted research cache entry {cache_id}")
-
-        return ControlResponse(
-            session_id=cache_id,  # Using session_id field for cache_id
-            action="delete_cache",
-            status="success",
-            message=f"Research cache entry deleted: {cache_id}",
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Research cache entry not found: {cache_id}",
         )
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Admin: Failed to delete research cache entry {cache_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete research cache entry: {str(e)}",
-        ) from e
+    logger.info(f"Admin: Deleted research cache entry {cache_id}")
+
+    return ControlResponse(
+        session_id=cache_id,
+        action="delete_cache",
+        status="success",
+        message=f"Research cache entry deleted: {cache_id}",
+    )
 
 
 @router.get(
@@ -134,41 +94,18 @@ async def delete_research_cache_entry(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("get stale research cache entries")
 async def get_stale_research_cache_entries(
     days_old: int = Query(90, ge=1, le=365, description="Number of days to consider stale"),
     _admin: str = Depends(require_admin_any),
 ) -> StaleEntriesResponse:
-    """Get research cache entries older than specified days.
+    """Get research cache entries older than specified days."""
+    from bo1.state.postgres_manager import get_stale_research_cache_entries as get_stale
 
-    This endpoint helps admins identify stale cache entries that may need refreshing.
+    entries = get_stale(days_old)
+    logger.info(f"Admin: Retrieved {len(entries)} stale research cache entries (>{days_old} days)")
 
-    Args:
-        days_old: Number of days to consider stale (1-365, default: 90)
-        _admin_key: Admin API key (injected by dependency)
-
-    Returns:
-        StaleEntriesResponse with list of stale entries
-
-    Raises:
-        HTTPException: If retrieval fails
-    """
-    try:
-        from bo1.state.postgres_manager import get_stale_research_cache_entries as get_stale
-
-        entries = get_stale(days_old)
-
-        logger.info(
-            f"Admin: Retrieved {len(entries)} stale research cache entries (>{days_old} days)"
-        )
-
-        return StaleEntriesResponse(
-            stale_count=len(entries),
-            entries=entries,
-        )
-
-    except Exception as e:
-        logger.error(f"Admin: Failed to get stale research cache entries: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get stale research cache entries: {str(e)}",
-        ) from e
+    return StaleEntriesResponse(
+        stale_count=len(entries),
+        entries=entries,
+    )

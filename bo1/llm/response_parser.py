@@ -9,11 +9,11 @@ from typing import Any
 
 from bo1.graph.state import DeliberationGraphState
 from bo1.models.recommendations import Recommendation
-from bo1.utils.extraction import ResponseExtractor
-from bo1.utils.vote_parsing import (
+from bo1.utils.confidence_parser import (
     parse_conditions,
     parse_confidence_level,
 )
+from bo1.utils.extraction import ResponseExtractor
 from bo1.utils.xml_parsing import extract_xml_tag
 
 logger = logging.getLogger(__name__)

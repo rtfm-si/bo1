@@ -1,0 +1,43 @@
+"""Repository Pattern implementation for database operations.
+
+This package provides a clean separation between business logic and data access.
+Each repository handles CRUD operations for a specific domain.
+
+Usage:
+    from bo1.state.repositories import (
+        session_repository,
+        user_repository,
+        cache_repository,
+        contribution_repository,
+    )
+
+    # Get a session
+    session = session_repository.get(session_id)
+
+    # Save a contribution
+    contribution_repository.save(session_id, persona_code, content, ...)
+"""
+
+from bo1.state.repositories.base import BaseRepository
+from bo1.state.repositories.cache_repository import CacheRepository, cache_repository
+from bo1.state.repositories.contribution_repository import (
+    ContributionRepository,
+    contribution_repository,
+)
+from bo1.state.repositories.session_repository import (
+    SessionRepository,
+    session_repository,
+)
+from bo1.state.repositories.user_repository import UserRepository, user_repository
+
+__all__ = [
+    "BaseRepository",
+    "UserRepository",
+    "user_repository",
+    "SessionRepository",
+    "session_repository",
+    "CacheRepository",
+    "cache_repository",
+    "ContributionRepository",
+    "contribution_repository",
+]

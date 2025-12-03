@@ -124,6 +124,28 @@ Use when experts need external data that cannot be inferred from knowledge:
 
 - Information needed: [What specific data is required]
 - Query: [Specific research question for web search]
+
+OPTION D - Invoke Moderator
+Use ONLY in rounds 1-2 when premature consensus detected:
+- All experts agreeing too quickly without exploring alternatives
+- Important perspectives not being challenged
+- Echo chamber emerging before adequate exploration
+
+- Moderator type: [contrarian/skeptic/optimist]
+- Focus: [What should be challenged or explored]
+
+OPTION E - Request Clarification from User
+Use when discussion needs information only the user can provide:
+- Business-specific constraints not in the problem statement
+- Priorities between competing objectives
+- Context about past decisions or failed approaches
+- Budget, timeline, or resource constraints not specified
+
+Do NOT use for information experts could research or infer.
+Do NOT overuse - only for genuinely blocking information gaps.
+
+- Question: [Specific question for the user]
+- Reason: [Why this information is needed to proceed]
 </decision>
 
 <decision_examples>

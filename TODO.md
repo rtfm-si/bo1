@@ -48,10 +48,14 @@ _1-2 week features that significantly improve retention_
   - Todo/doing/done for meeting actions
   - Users need to track outcomes from meetings
 
-- [ ] **Fix "Clarify" flow** - 1-2d
+- [x] **Fix "Clarify" flow** - 1-2d ✅
 
-  - Debug why clarification options aren't triggering
-  - Write responses to `business_context` with timestamps
+  - Added "clarify" action to FacilitatorDecision type and response parser
+  - Added Option E (Request Clarification) to facilitator prompt
+  - Connected facilitator → clarification node in graph config
+  - Added router case for "clarify" action
+  - Clarification answers now stored with timestamps and round_number
+  - Updated: `bo1/llm/response_parser.py`, `bo1/graph/routers.py`, `bo1/graph/config.py`, `bo1/prompts/facilitator.py`, `bo1/graph/nodes/context.py`
 
 - [ ] **More proactive research triggers** - 1-2d
 

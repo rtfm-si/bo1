@@ -6,6 +6,7 @@ This module contains nodes for collecting and managing context:
 """
 
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from bo1.graph.state import DeliberationGraphState
@@ -148,12 +149,17 @@ async def clarification_node(state: DeliberationGraphState) -> dict[str, Any]:
 
         logger.info(f"Clarification answered: {question[:50]}...")
 
-        # Update business_context with clarification
+        # Update business_context with clarification (with timestamp per TODO.md)
         business_context = state.get("business_context") or {}
         if not isinstance(business_context, dict):
             business_context = {}
         clarifications = business_context.get("clarifications", {})
-        clarifications[question] = answer
+        # Store with timestamp and round number
+        clarifications[question] = {
+            "answer": answer,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "round_number": state.get("round_number", 0),
+        }
         business_context["clarifications"] = clarifications
 
         return {

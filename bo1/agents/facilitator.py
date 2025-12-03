@@ -26,7 +26,7 @@ from bo1.utils.xml_parsing import extract_xml_tag_with_fallback
 
 logger = logging.getLogger(__name__)
 
-FacilitatorAction = Literal["continue", "vote", "research", "moderator"]
+FacilitatorAction = Literal["continue", "vote", "research", "moderator", "clarify"]
 
 
 @dataclass
@@ -54,6 +54,9 @@ class FacilitatorDecision:
     research_query: str | None = None
     # For "vote" action (transition)
     phase_summary: str | None = None
+    # For "clarify" action
+    clarification_question: str | None = None
+    clarification_reason: str | None = None
 
 
 class FacilitatorAgent(BaseAgent):

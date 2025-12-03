@@ -177,7 +177,7 @@ class ResponseParser:
 
         Returns:
             Dictionary with parsed decision details:
-            - action: str ("continue", "vote", "research", "moderator")
+            - action: str ("continue", "vote", "research", "moderator", "clarify")
             - reasoning: str
             - next_speaker: str | None (for "continue")
             - speaker_prompt: str | None (for "continue")
@@ -185,6 +185,8 @@ class ResponseParser:
             - moderator_focus: str | None (for "moderator")
             - research_query: str | None (for "research")
             - phase_summary: str | None (for "vote")
+            - clarification_question: str | None (for "clarify")
+            - clarification_reason: str | None (for "clarify")
         """
         content_lower = content.lower()
 
@@ -199,6 +201,8 @@ class ResponseParser:
             action = "research"
         elif "option d" in content_lower or "moderator" in content_lower:
             action = "moderator"
+        elif "option e" in content_lower or "clarif" in content_lower:
+            action = "clarify"
         else:
             # Default to continue if unclear
             logger.warning("Could not parse facilitator action clearly, defaulting to 'continue'")
@@ -217,6 +221,8 @@ class ResponseParser:
             "moderator_focus": None,
             "research_query": None,
             "phase_summary": None,
+            "clarification_question": None,
+            "clarification_reason": None,
         }
 
         personas = state.get("personas", [])
@@ -258,6 +264,17 @@ class ResponseParser:
             result["phase_summary"] = extract_xml_tag(
                 content, "summary"
             ) or ResponseExtractor.extract_after_marker(content, ["summary:"], max_length=500)
+        elif action == "clarify":
+            result["clarification_question"] = extract_xml_tag(
+                content, "question"
+            ) or ResponseExtractor.extract_after_marker(
+                content, ["question:", "clarify:", "ask:"], max_length=500
+            )
+            result["clarification_reason"] = extract_xml_tag(
+                content, "reason"
+            ) or ResponseExtractor.extract_after_marker(
+                content, ["reason:", "because:", "why:"], max_length=300
+            )
 
         return result
 

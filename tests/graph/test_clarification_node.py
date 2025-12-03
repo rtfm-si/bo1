@@ -76,13 +76,14 @@ async def test_clarification_node_answer_immediately(mock_console_class):
     # Call node
     result = await clarification_node(state)
 
-    # Verify answer stored in business_context
+    # Verify answer stored in business_context with timestamp
     assert "business_context" in result
     assert "clarifications" in result["business_context"]
-    assert (
-        result["business_context"]["clarifications"]["What is your current ARR?"]
-        == "We have $2M ARR"
-    )
+    clarification = result["business_context"]["clarifications"]["What is your current ARR?"]
+    # New format: dict with answer, timestamp, and round_number
+    assert clarification["answer"] == "We have $2M ARR"
+    assert "timestamp" in clarification
+    assert "round_number" in clarification
 
     # Verify pending_clarification cleared
     assert result.get("pending_clarification") is None
@@ -221,13 +222,13 @@ async def test_clarification_node_preserves_existing_context(mock_console_class)
     # Call node
     result = await clarification_node(state)
 
-    # Verify existing clarifications preserved
+    # Verify existing clarifications preserved (old format still supported)
     assert result["business_context"]["clarifications"]["Previous question"] == "Previous answer"
 
-    # Verify new clarification added
-    assert (
-        result["business_context"]["clarifications"]["What is your growth rate?"] == "15% monthly"
-    )
+    # Verify new clarification added with new format (dict with timestamp)
+    new_clarification = result["business_context"]["clarifications"]["What is your growth rate?"]
+    assert new_clarification["answer"] == "15% monthly"
+    assert "timestamp" in new_clarification
 
 
 @pytest.mark.unit
@@ -265,8 +266,8 @@ async def test_clarification_node_handles_non_dict_context(mock_console_class):
     # Call node - should handle gracefully
     result = await clarification_node(state)
 
-    # Verify new business_context created
+    # Verify new business_context created with new format
     assert isinstance(result["business_context"], dict)
-    assert (
-        result["business_context"]["clarifications"]["What is your business model?"] == "B2B SaaS"
-    )
+    clarification = result["business_context"]["clarifications"]["What is your business model?"]
+    assert clarification["answer"] == "B2B SaaS"
+    assert "timestamp" in clarification

@@ -262,10 +262,8 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         f"sub_problem_index={sub_problem_index} {cost_msg}"
     )
 
-    # Return state updates with facilitator decision
-    # Include round_number so it's available for display
-    # Convert dataclass to dict for serializability
-    return {
+    # Build state updates
+    state_updates: dict[str, Any] = {
         "facilitator_decision": asdict(decision),
         "round_number": round_number,  # Pass through current round for display
         "phase": DeliberationPhase.DISCUSSION,
@@ -273,6 +271,20 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         "current_node": "facilitator_decide",
         "sub_problem_index": sub_problem_index,  # CRITICAL: Always preserve sub_problem_index (Issue #3 fix)
     }
+
+    # If clarify action, set pending_clarification for clarification_node
+    if decision.action == "clarify":
+        state_updates["pending_clarification"] = {
+            "question": decision.clarification_question or decision.reasoning,
+            "reason": decision.clarification_reason or "Facilitator requested clarification",
+            "round_number": round_number,
+        }
+        logger.info(
+            f"facilitator_decide_node: Set pending_clarification for question: "
+            f"'{(decision.clarification_question or decision.reasoning)[:50]}...'"
+        )
+
+    return state_updates
 
 
 async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, Any]:

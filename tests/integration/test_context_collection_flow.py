@@ -86,11 +86,13 @@ async def test_clarification_flow_answer_immediately(mock_console_class):
 
     result = await clarification_node(state)
 
-    # Verify clarification answered
+    # Verify clarification answered (new format with timestamp)
     assert result.get("pending_clarification") is None
     assert "business_context" in result
     assert "clarifications" in result["business_context"]
-    assert result["business_context"]["clarifications"]["What is your current ARR?"] == "$2M ARR"
+    clarification = result["business_context"]["clarifications"]["What is your current ARR?"]
+    assert clarification["answer"] == "$2M ARR"
+    assert "timestamp" in clarification
 
 
 @pytest.mark.integration
@@ -146,10 +148,12 @@ async def test_clarification_flow_pause_and_resume(mock_console_class):
     # Call again (simulating resume)
     result2 = await clarification_node(state)
 
-    # Verify clarification answered
+    # Verify clarification answered (new format with timestamp)
     assert result2.get("pending_clarification") is None
     assert "business_context" in result2
-    assert result2["business_context"]["clarifications"]["What is your customer CAC?"] == "$500"
+    clarification = result2["business_context"]["clarifications"]["What is your customer CAC?"]
+    assert clarification["answer"] == "$500"
+    assert "timestamp" in clarification
 
 
 @pytest.mark.integration

@@ -174,7 +174,7 @@ def create_deliberation_graph(
     workflow.add_edge("initial_round", "facilitator_decide")
 
     # Add conditional edges - Multi-round deliberation loop (Week 5 Day 30-31)
-    # facilitator_decide -> (continue/vote/research/moderator)
+    # facilitator_decide -> (continue/vote/research/moderator/clarify)
     workflow.add_conditional_edges(
         "facilitator_decide",
         route_facilitator_decision,
@@ -183,6 +183,7 @@ def create_deliberation_graph(
             "vote": "vote",
             "moderator_intervene": "moderator_intervene",  # RESTORED: Premature consensus detection
             "research": "research",  # Mid-meeting automated research (RESTORED)
+            "clarification": "clarification",  # Request clarification from user
             "END": END,
         },
     )

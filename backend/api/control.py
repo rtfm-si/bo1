@@ -30,6 +30,7 @@ from bo1.graph.config import create_deliberation_graph
 from bo1.graph.execution import PermissionError, SessionManager
 from bo1.graph.state import create_initial_state
 from bo1.models.problem import Problem
+from bo1.security import check_for_injection
 from bo1.state.postgres_manager import update_session_status
 from bo1.state.redis_manager import RedisManager
 
@@ -528,6 +529,13 @@ async def submit_clarification(
 
         # Unpack verified session data
         user_id, metadata = session_data
+
+        # Prompt injection audit on clarification answer
+        await check_for_injection(
+            content=request.answer,
+            source="clarification_answer",
+            raise_on_unsafe=True,
+        )
 
         # Check for pending clarification
         pending_clarification = metadata.get("pending_clarification")

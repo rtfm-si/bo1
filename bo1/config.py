@@ -197,6 +197,12 @@ class Settings(BaseSettings):
         default=False,
         description="Enable LLM response caching with Redis backend (60-80% cost reduction)",
     )
+
+    # Prompt Injection Audit (uses Claude Haiku to detect injection attempts)
+    enable_prompt_injection_audit: bool = Field(
+        default=True,
+        description="Enable LLM-based prompt injection detection for user inputs",
+    )
     llm_response_cache_ttl_seconds: int = Field(
         default=86400,  # 24 hours
         description="TTL for cached LLM responses in seconds",

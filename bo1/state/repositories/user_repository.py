@@ -126,6 +126,15 @@ class UserRepository(BaseRepository):
     # User Context
     # =========================================================================
 
+    # SQL INJECTION SAFETY NOTE:
+    # CONTEXT_FIELDS is used to build dynamic SQL queries (SELECT field_list, INSERT field_list).
+    # This is SAFE because:
+    # 1. CONTEXT_FIELDS is a hardcoded class constant (not user input)
+    # 2. All values are parameterized with %s placeholders
+    # 3. Field names are validated at class load time via _validate_sql_identifiers()
+    #
+    # DO NOT add user input to CONTEXT_FIELDS - it would create SQL injection vulnerability.
+
     # List of all context fields for extended business context
     CONTEXT_FIELDS = [
         # Original fields
@@ -167,6 +176,29 @@ class UserRepository(BaseRepository):
         "onboarding_completed",
         "onboarding_completed_at",
     ]
+
+    @classmethod
+    def _validate_sql_identifiers(cls) -> None:
+        """Validate that all CONTEXT_FIELDS are safe SQL identifiers.
+
+        This is a defense-in-depth measure to catch any accidentally
+        unsafe field names at class load time.
+
+        Raises:
+            ValueError: If any field name contains unsafe characters
+        """
+        import re
+
+        # Safe SQL identifier pattern: lowercase letters, numbers, underscores only
+        safe_pattern = re.compile(r"^[a-z][a-z0-9_]*$")
+
+        for field in cls.CONTEXT_FIELDS:
+            if not safe_pattern.match(field):
+                raise ValueError(
+                    f"CONTEXT_FIELDS contains unsafe SQL identifier: '{field}'. "
+                    "Field names must start with a letter and contain only "
+                    "lowercase letters, numbers, and underscores."
+                )
 
     def get_context(self, user_id: str) -> dict[str, Any] | None:
         """Load user's business context from database.
@@ -280,6 +312,9 @@ class UserRepository(BaseRepository):
         )
         return deleted > 0
 
+
+# Validate SQL identifiers at module load time (defense-in-depth)
+UserRepository._validate_sql_identifiers()
 
 # Singleton instance for convenience
 user_repository = UserRepository()

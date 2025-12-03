@@ -311,6 +311,9 @@ class SessionManager:
         Convenience method to update session status with automatic timestamping.
         Consolidates the repeated pattern of updating metadata with status + timestamp.
 
+        When status is terminal (completed, failed, killed), schedules Redis cleanup
+        after a grace period to ensure completed meetings are read from Postgres.
+
         Args:
             session_id: Session identifier
             status: New status (e.g., "running", "completed", "failed", "killed")
@@ -337,6 +340,17 @@ class SessionManager:
         metadata.update(extra_fields)
 
         self._save_session_metadata(session_id, metadata)
+
+        # Schedule Redis cleanup for terminal states
+        # This ensures completed meetings are read from Postgres after grace period
+        terminal_states = {"completed", "failed", "killed"}
+        if status in terminal_states:
+            user_id = extra_fields.get("user_id")
+            # If no user_id in extra_fields, try to get from existing metadata
+            if not user_id:
+                existing_meta = self._load_session_metadata(session_id)
+                user_id = existing_meta.get("user_id") if existing_meta else None
+            self.redis_manager.schedule_cleanup(session_id, user_id)
 
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""

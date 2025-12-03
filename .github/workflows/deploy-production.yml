@@ -394,6 +394,32 @@ jobs:
             echo "✅ Shared infrastructure is running"
 
             # =================================================================
+            # STEP 3b: Ensure ntfy is healthy (force restart if needed)
+            # =================================================================
+            echo "Checking ntfy health..."
+            NTFY_HEALTHY=false
+            for i in {1..3}; do
+              if docker exec infrastructure-ntfy-1 wget -q --spider http://localhost:80/v1/health 2>/dev/null; then
+                echo "✅ ntfy is healthy"
+                NTFY_HEALTHY=true
+                break
+              fi
+              echo "ntfy not healthy, attempt $i/3..."
+              sleep 2
+            done
+
+            if [ "$NTFY_HEALTHY" = false ]; then
+              echo "⚠️  ntfy is not healthy, forcing restart..."
+              docker-compose -f docker-compose.infrastructure.yml -p infrastructure up -d --force-recreate ntfy
+              sleep 5
+              if docker exec infrastructure-ntfy-1 wget -q --spider http://localhost:80/v1/health 2>/dev/null; then
+                echo "✅ ntfy restarted and healthy"
+              else
+                echo "⚠️  ntfy still unhealthy (non-blocking, continuing deployment)"
+              fi
+            fi
+
+            # =================================================================
             # STEP 4: Deploy target environment
             # =================================================================
             echo "🚀 Deploying ${TARGET_ENV} environment..."

@@ -268,7 +268,20 @@ class RateLimits:
     """Auth endpoints (login, refresh)"""
 
     SESSION = "30/minute"
-    """Session creation"""
+    """Session creation (IP-based, legacy)"""
+
+    # Tiered session limits (user-based, prevents free tier abuse)
+    SESSION_USER = "5/minute"
+    """Session creation per user (default)"""
+
+    SESSION_FREE = "5/minute"
+    """Session creation for free tier users"""
+
+    SESSION_PRO = "20/minute"
+    """Session creation for pro tier users"""
+
+    SESSION_ENTERPRISE = "100/minute"
+    """Session creation for enterprise tier users"""
 
     STREAMING = "5/minute"
     """SSE streaming endpoints"""
@@ -302,6 +315,19 @@ class DatabaseConfig:
 
     CHECKPOINT_TTL_SECONDS = 604800
     """7 days checkpoint retention"""
+
+    # Redis TTLs - all use same duration to avoid mismatch
+    REDIS_SESSION_TTL_SECONDS = 604800
+    """7 days for session data (metadata, events, checkpoints)"""
+
+    REDIS_METADATA_TTL_SECONDS = 604800
+    """7 days for metadata (aligned with checkpoint TTL)"""
+
+    REDIS_EVENTS_TTL_SECONDS = 604800
+    """7 days for event history"""
+
+    REDIS_CLEANUP_GRACE_PERIOD_SECONDS = 3600
+    """1 hour grace period before cleanup (for reconnections)"""
 
 
 class ResearchCacheConfig:

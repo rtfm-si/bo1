@@ -19,7 +19,7 @@ from backend.api.dependencies import (
 )
 from backend.api.metrics import track_api_call
 from backend.api.middleware.auth import get_current_user
-from backend.api.middleware.rate_limit import SESSION_RATE_LIMIT, limiter
+from backend.api.middleware.rate_limit import SESSION_RATE_LIMIT, limiter, user_rate_limiter
 from backend.api.models import (
     CreateSessionRequest,
     ErrorResponse,
@@ -36,6 +36,7 @@ from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
+from bo1.security import check_for_injection
 from bo1.state.postgres_manager import (
     ensure_user_exists,
     get_session_events,
@@ -110,6 +111,25 @@ async def create_session(
 
         # Extract user ID from authenticated user
         user_id = extract_user_id(user)
+
+        # User-based rate limiting (prevents free tier abuse)
+        # This runs AFTER auth, checking per-user limits in Redis
+        subscription_tier = user.get("subscription_tier", "free")
+        await user_rate_limiter.check_limit(
+            user_id=user_id,
+            action="session_create",
+            limit=5,  # 5 meetings/minute for free tier
+            window_seconds=60,
+            tier=subscription_tier,
+        )
+
+        # Prompt injection audit (LLM-based detection)
+        # Checks problem statement for injection attempts before processing
+        await check_for_injection(
+            content=session_request.problem_statement,
+            source="problem_statement",
+            raise_on_unsafe=True,
+        )
 
         # Generate session ID
         session_id = redis_manager.create_session()

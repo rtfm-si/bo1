@@ -41,7 +41,7 @@ class RedisManager:
         port: int | None = None,
         db: int | None = None,
         password: str | None = None,
-        ttl_seconds: int = 86400,  # 24 hours
+        ttl_seconds: int | None = None,
     ) -> None:
         """Initialize Redis manager.
 
@@ -50,8 +50,10 @@ class RedisManager:
             port: Redis port (defaults to config)
             db: Redis database number (defaults to config)
             password: Redis password (defaults to config)
-            ttl_seconds: Session TTL in seconds (default: 24 hours)
+            ttl_seconds: Session TTL in seconds (default: 7 days via DatabaseConfig)
         """
+        from bo1.constants import DatabaseConfig
+
         settings = get_settings()
 
         self.host = host or settings.redis_host
@@ -61,7 +63,8 @@ class RedisManager:
         self.password = (
             (password or settings.redis_password) if (password or settings.redis_password) else None
         )
-        self.ttl_seconds = ttl_seconds
+        # Use aligned TTL (7 days) to match checkpoint TTL
+        self.ttl_seconds = ttl_seconds or DatabaseConfig.REDIS_METADATA_TTL_SECONDS
 
         # Initialize connection pool
         try:
@@ -563,6 +566,137 @@ class RedisManager:
         except Exception as e:
             logger.error(f"Failed to batch load metadata: {e}")
             return {}
+
+    def cleanup_session(self, session_id: str, user_id: str | None = None) -> dict[str, bool]:
+        """Clean up all Redis data for a completed session.
+
+        Removes transient Redis data after a session completes, since the
+        authoritative data is now in PostgreSQL. This frees Redis memory
+        and ensures completed meetings are read from Postgres.
+
+        Cleans up:
+        - session:{session_id} - LangGraph state
+        - metadata:{session_id} - Session metadata
+        - events_history:{session_id} - Event history
+        - user_sessions:{user_id} - Removes from user's index (if user_id provided)
+
+        Note: LangGraph checkpoints (managed by AsyncRedisSaver) use a different
+        key pattern and have their own TTL. This cleans up our custom keys.
+
+        Args:
+            session_id: Session identifier to clean up
+            user_id: Optional user ID to remove session from user index
+
+        Returns:
+            Dict showing which keys were cleaned up
+
+        Examples:
+            >>> manager = RedisManager()
+            >>> result = manager.cleanup_session("bo1_abc123", "user_456")
+            >>> print(result)
+            {'session': True, 'metadata': True, 'events': True, 'user_index': True}
+        """
+        result = {
+            "session": False,
+            "metadata": False,
+            "events": False,
+            "user_index": False,
+        }
+
+        if not self.is_available:
+            logger.debug("Redis unavailable, skipping cleanup")
+            return result
+
+        assert self.redis is not None
+
+        try:
+            # Use pipeline for atomic cleanup
+            pipe = self.redis.pipeline()
+
+            # Delete session state
+            session_key = self._get_key(session_id)
+            pipe.delete(session_key)
+
+            # Delete metadata
+            metadata_key = f"metadata:{session_id}"
+            pipe.delete(metadata_key)
+
+            # Delete event history
+            events_key = f"events_history:{session_id}"
+            pipe.delete(events_key)
+
+            # Remove from user index if user_id provided
+            if user_id:
+                user_key = f"user_sessions:{user_id}"
+                pipe.srem(user_key, session_id)
+
+            # Execute all deletes
+            results = pipe.execute()
+
+            # Parse results
+            result["session"] = bool(results[0])
+            result["metadata"] = bool(results[1])
+            result["events"] = bool(results[2])
+            if user_id:
+                result["user_index"] = bool(results[3])
+
+            cleaned = sum(1 for v in result.values() if v)
+            logger.info(f"🧹 Cleaned up {cleaned} Redis keys for session {session_id}")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup session {session_id}: {e}")
+            return result
+
+    def schedule_cleanup(
+        self, session_id: str, user_id: str | None = None, delay_seconds: int | None = None
+    ) -> bool:
+        """Schedule session cleanup after a grace period.
+
+        Instead of immediate cleanup, sets short TTL on keys to allow
+        for reconnections and final data retrieval.
+
+        Args:
+            session_id: Session identifier
+            user_id: Optional user ID (unused, but kept for API consistency)
+            delay_seconds: Cleanup delay in seconds (default: 1 hour)
+
+        Returns:
+            True if TTLs were set successfully
+        """
+        from bo1.constants import DatabaseConfig
+
+        if not self.is_available:
+            return False
+
+        delay = delay_seconds or DatabaseConfig.REDIS_CLEANUP_GRACE_PERIOD_SECONDS
+
+        assert self.redis is not None
+
+        try:
+            pipe = self.redis.pipeline()
+
+            # Set TTL on all session keys
+            session_key = self._get_key(session_id)
+            pipe.expire(session_key, delay)
+
+            metadata_key = f"metadata:{session_id}"
+            pipe.expire(metadata_key, delay)
+
+            events_key = f"events_history:{session_id}"
+            pipe.expire(events_key, delay)
+
+            pipe.execute()
+
+            logger.info(
+                f"⏰ Scheduled cleanup for session {session_id} in {delay}s ({delay // 60} min)"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to schedule cleanup for session {session_id}: {e}")
+            return False
 
     def close(self) -> None:
         """Close Redis connection pool.

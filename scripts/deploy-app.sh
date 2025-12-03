@@ -119,6 +119,26 @@ echo ""
 echo "📊 Image timestamps:"
 docker images --format "{{.Repository}}:{{.Tag}} - {{.CreatedAt}}" | grep -E "^boardofone-(api|frontend)" | head -4
 
+# Check ntfy health (if running)
+echo ""
+echo "🔔 Checking ntfy health..."
+if docker ps --format '{{.Names}}' | grep -q "infrastructure-ntfy-1"; then
+    if docker exec infrastructure-ntfy-1 wget -q --spider http://localhost:80/v1/health 2>/dev/null; then
+        echo "✅ ntfy is healthy"
+    else
+        echo "⚠️  ntfy is unhealthy, restarting..."
+        docker-compose -f docker-compose.infrastructure.yml -p infrastructure up -d --force-recreate ntfy
+        sleep 5
+        if docker exec infrastructure-ntfy-1 wget -q --spider http://localhost:80/v1/health 2>/dev/null; then
+            echo "✅ ntfy restarted and healthy"
+        else
+            echo "⚠️  ntfy still unhealthy (check logs with: docker logs infrastructure-ntfy-1)"
+        fi
+    fi
+else
+    echo "⚠️  ntfy container not running - run: docker-compose -f docker-compose.infrastructure.yml -p infrastructure up -d ntfy"
+fi
+
 # Summary
 echo ""
 echo "=================================="

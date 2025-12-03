@@ -162,9 +162,9 @@ class ClaudeClient:
             content: Any = msg["content"]
             anthropic_messages.append({"role": role, "content": content})
 
-        # Add prefill if provided
+        # Add prefill if provided (strip trailing whitespace - Anthropic API rejects it)
         if prefill:
-            anthropic_messages.append({"role": "assistant", "content": prefill})
+            anthropic_messages.append({"role": "assistant", "content": prefill.rstrip()})
 
         # Prepare system parameter with caching
         # Type is complex because Anthropic SDK uses Union with Omit

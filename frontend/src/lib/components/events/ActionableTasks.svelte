@@ -26,7 +26,7 @@
 		category: string;
 		priority: string;
 		suggested_completion_date?: string | null;
-		source_section: string;
+		source_section: string | null;
 		confidence: number;
 		sub_problem_index?: number | null;
 	}

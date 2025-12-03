@@ -12,6 +12,7 @@ from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_phase_cost
 from bo1.models.problem import SubProblem
 from bo1.models.state import DeliberationPhase
+from bo1.utils.comparison_detector import ComparisonDetector
 from bo1.utils.json_parsing import extract_json_with_fallback
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,24 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Get problem from state
     problem = state["problem"]
+
+    # PROACTIVE RESEARCH: Detect comparison questions ("X vs Y")
+    # If detected, generate research queries that will be executed before deliberation
+    comparison_result = ComparisonDetector.detect(
+        problem_statement=problem.description,
+        context=problem.context,
+    )
+
+    pending_research_queries: list[dict[str, str]] = []
+    if comparison_result.is_comparison:
+        logger.info(
+            f"decompose_node: Detected comparison question - type='{comparison_result.comparison_type}', "
+            f"options={comparison_result.options}"
+        )
+        pending_research_queries = comparison_result.research_queries
+        logger.info(
+            f"decompose_node: Generated {len(pending_research_queries)} proactive research queries"
+        )
 
     # AUDIT FIX (Priority 5, Task 5.2): Determine complexity-based limits BEFORE decomposition
     # This helps the LLM understand expected decomposition count
@@ -201,7 +220,7 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     )
 
     # Return state updates with adaptive max_rounds
-    return {
+    state_updates: dict[str, Any] = {
         "problem": problem,
         "current_sub_problem": sub_problems[0] if sub_problems else None,
         "phase": DeliberationPhase.DECOMPOSITION,
@@ -209,3 +228,16 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
         "max_rounds": metrics.recommended_rounds,  # Adaptive based on complexity
         "current_node": "decompose",
     }
+
+    # PROACTIVE RESEARCH: Include pending research queries if comparison detected
+    if pending_research_queries:
+        state_updates["pending_research_queries"] = pending_research_queries
+        state_updates["comparison_detected"] = True
+        state_updates["comparison_options"] = comparison_result.options
+        state_updates["comparison_type"] = comparison_result.comparison_type
+        logger.info(
+            f"decompose_node: Added {len(pending_research_queries)} research queries to state "
+            f"for comparison: {comparison_result.options}"
+        )
+
+    return state_updates

@@ -24,7 +24,9 @@ import type {
 	WaitlistResponse,
 	WaitlistApprovalResponse,
 	TaskExtractionResponse,
-	SessionEventsResponse
+	SessionEventsResponse,
+	SessionActionsResponse,
+	TaskStatusUpdateRequest
 } from './types';
 
 // ============================================================================
@@ -293,6 +295,25 @@ export class ApiClient {
 
 	async extractTasks(sessionId: string): Promise<TaskExtractionResponse> {
 		return this.post<TaskExtractionResponse>(`/api/v1/sessions/${sessionId}/extract-tasks`);
+	}
+
+	// ==========================================================================
+	// Actions/Kanban Endpoints
+	// ==========================================================================
+
+	async getSessionActions(sessionId: string): Promise<SessionActionsResponse> {
+		return this.fetch<SessionActionsResponse>(`/api/v1/sessions/${sessionId}/actions`);
+	}
+
+	async updateTaskStatus(
+		sessionId: string,
+		taskId: string,
+		status: TaskStatusUpdateRequest['status']
+	): Promise<{ status: string; message: string }> {
+		return this.patch<{ status: string; message: string }>(
+			`/api/v1/sessions/${sessionId}/actions/${taskId}`,
+			{ status }
+		);
 	}
 
 	// ==========================================================================

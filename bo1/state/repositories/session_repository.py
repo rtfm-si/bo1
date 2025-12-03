@@ -405,12 +405,77 @@ class SessionRepository(BaseRepository):
         return self._execute_one(
             """
             SELECT id, session_id, tasks, total_tasks, extraction_confidence,
-                   synthesis_sections_analyzed, extracted_at
+                   synthesis_sections_analyzed, extracted_at, task_statuses
             FROM session_tasks
             WHERE session_id = %s
             """,
             (session_id,),
         )
+
+    def update_task_status(
+        self,
+        session_id: str,
+        task_id: str,
+        status: str,
+    ) -> bool:
+        """Update the status of a single task.
+
+        Args:
+            session_id: Session identifier
+            task_id: Task ID (e.g., "task_1")
+            status: New status ("todo", "doing", "done")
+
+        Returns:
+            True if updated successfully, False otherwise
+        """
+        if status not in ("todo", "doing", "done"):
+            raise ValueError(f"Invalid task status: {status}")
+
+        return (
+            self._execute_count(
+                """
+                UPDATE session_tasks
+                SET task_statuses = task_statuses || %s::jsonb
+                WHERE session_id = %s
+                """,
+                (Json({task_id: status}), session_id),
+            )
+            > 0
+        )
+
+    def get_user_tasks(
+        self,
+        user_id: str,
+        status_filter: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Get all tasks across all sessions for a user.
+
+        Args:
+            user_id: User identifier
+            status_filter: Filter by status ("todo", "doing", "done") - optional
+            limit: Maximum number of sessions to return
+            offset: Number of sessions to skip
+
+        Returns:
+            List of session task records with session metadata
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT st.session_id, st.tasks, st.task_statuses, st.extracted_at,
+                           s.problem_statement, s.status as session_status, s.created_at
+                    FROM session_tasks st
+                    JOIN sessions s ON st.session_id = s.id
+                    WHERE s.user_id = %s AND s.status != 'deleted'
+                    ORDER BY st.extracted_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (user_id, limit, offset),
+                )
+                return [dict(row) for row in cur.fetchall()]
 
     # =========================================================================
     # Session Synthesis

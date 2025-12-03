@@ -23,9 +23,12 @@ from backend.api.middleware.rate_limit import SESSION_RATE_LIMIT, limiter
 from backend.api.models import (
     CreateSessionRequest,
     ErrorResponse,
+    SessionActionsResponse,
     SessionDetailResponse,
     SessionListResponse,
     SessionResponse,
+    TaskStatusUpdate,
+    TaskWithStatus,
 )
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors, raise_api_error
@@ -43,6 +46,7 @@ from bo1.state.postgres_manager import (
     update_session_status,
 )
 from bo1.state.redis_manager import RedisManager
+from bo1.state.repositories.session_repository import session_repository
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -850,3 +854,178 @@ async def extract_tasks(
                 status_code=500,
                 detail=f"Task extraction failed: {str(e)}",
             ) from e
+
+
+# =============================================================================
+# Action/Task Endpoints (Kanban)
+# =============================================================================
+
+
+def _tasks_with_statuses(
+    tasks: list[dict[str, Any]], task_statuses: dict[str, str]
+) -> list[TaskWithStatus]:
+    """Merge tasks with their statuses.
+
+    Args:
+        tasks: List of task dictionaries
+        task_statuses: Mapping of task_id -> status
+
+    Returns:
+        List of TaskWithStatus objects
+    """
+    result = []
+    for task in tasks:
+        task_id = task.get("id", "")
+        status = task_statuses.get(task_id, "todo")  # Default to "todo"
+        result.append(
+            TaskWithStatus(
+                id=task_id,
+                title=task.get("title", ""),
+                description=task.get("description", ""),
+                what_and_how=task.get("what_and_how", []),
+                success_criteria=task.get("success_criteria", []),
+                kill_criteria=task.get("kill_criteria", []),
+                dependencies=task.get("dependencies", []),
+                timeline=task.get("timeline", ""),
+                priority=task.get("priority", "medium"),
+                category=task.get("category", "implementation"),
+                source_section=task.get("source_section"),
+                confidence=task.get("confidence", 0.0),
+                sub_problem_index=task.get("sub_problem_index"),
+                status=status,
+            )
+        )
+    return result
+
+
+def _count_by_status(tasks: list[TaskWithStatus]) -> dict[str, int]:
+    """Count tasks by status.
+
+    Args:
+        tasks: List of tasks with statuses
+
+    Returns:
+        Dict mapping status -> count
+    """
+    counts = {"todo": 0, "doing": 0, "done": 0}
+    for task in tasks:
+        if task.status in counts:
+            counts[task.status] += 1
+    return counts
+
+
+@router.get(
+    "/{session_id}/actions",
+    response_model=SessionActionsResponse,
+    summary="Get session actions with statuses",
+    description="Get all extracted tasks for a session with their Kanban statuses.",
+    responses={
+        200: {"description": "Actions retrieved successfully"},
+        404: {"description": "Session or tasks not found", "model": ErrorResponse},
+    },
+)
+async def get_session_actions(
+    session_id: str,
+    session_data: VerifiedSession,
+) -> SessionActionsResponse:
+    """Get all actions/tasks for a session with their statuses.
+
+    Args:
+        session_id: Session identifier
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        SessionActionsResponse with tasks and status counts
+    """
+    with track_api_call("sessions.get_actions", "GET"):
+        # Validate session ID format
+        session_id = validate_session_id(session_id)
+
+        # Get tasks from database
+        task_record = session_repository.get_tasks(session_id)
+
+        if not task_record:
+            raise HTTPException(
+                status_code=404,
+                detail="No tasks found for this session. Extract tasks first using POST /sessions/{id}/extract-tasks",
+            )
+
+        # Merge tasks with statuses
+        tasks = task_record.get("tasks", [])
+        task_statuses = task_record.get("task_statuses", {}) or {}
+
+        tasks_with_status = _tasks_with_statuses(tasks, task_statuses)
+        by_status = _count_by_status(tasks_with_status)
+
+        return SessionActionsResponse(
+            session_id=session_id,
+            tasks=tasks_with_status,
+            total_tasks=len(tasks_with_status),
+            by_status=by_status,
+        )
+
+
+@router.patch(
+    "/{session_id}/actions/{task_id}",
+    response_model=dict[str, str],
+    summary="Update task status",
+    description="Update the Kanban status of a specific task.",
+    responses={
+        200: {"description": "Status updated successfully"},
+        400: {"description": "Invalid status", "model": ErrorResponse},
+        404: {"description": "Session or task not found", "model": ErrorResponse},
+    },
+)
+async def update_task_status(
+    session_id: str,
+    task_id: str,
+    status_update: TaskStatusUpdate,
+    session_data: VerifiedSession,
+) -> dict[str, str]:
+    """Update the status of a task in a session.
+
+    Args:
+        session_id: Session identifier
+        task_id: Task identifier (e.g., "task_1")
+        status_update: New status
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        Success message
+    """
+    with track_api_call("sessions.update_task_status", "PATCH"):
+        # Validate session ID format
+        session_id = validate_session_id(session_id)
+
+        # Validate task_id format (should be "task_N")
+        if not task_id or not task_id.startswith("task_"):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid task ID format. Expected 'task_N' format.",
+            )
+
+        # Update task status in database
+        try:
+            success = session_repository.update_task_status(
+                session_id=session_id,
+                task_id=task_id,
+                status=status_update.status,
+            )
+
+            if not success:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Session {session_id} not found or no tasks extracted",
+                )
+
+            logger.info(
+                f"Updated task {task_id} status to {status_update.status} for session {session_id}"
+            )
+
+            return {
+                "status": "success",
+                "message": f"Task {task_id} status updated to {status_update.status}",
+            }
+
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e

@@ -204,13 +204,47 @@ export interface WaitlistApprovalResponse {
  */
 export interface ExtractedTask {
 	id: string;
+	title: string;
 	description: string;
-	category: string;
-	priority: string;
-	suggested_completion_date: string | null;
+	what_and_how: string[];
+	success_criteria: string[];
+	kill_criteria: string[];
 	dependencies: string[];
-	source_section: string;
+	timeline: string;
+	priority: string;
+	category: string;
+	source_section: string | null;
 	confidence: number;
+	sub_problem_index: number | null;
+	suggested_completion_date?: string | null;
+}
+
+/**
+ * Task with Kanban status
+ */
+export interface TaskWithStatus extends ExtractedTask {
+	status: 'todo' | 'doing' | 'done';
+}
+
+/**
+ * Session actions response (tasks with statuses)
+ */
+export interface SessionActionsResponse {
+	session_id: string;
+	tasks: TaskWithStatus[];
+	total_tasks: number;
+	by_status: {
+		todo: number;
+		doing: number;
+		done: number;
+	};
+}
+
+/**
+ * Task status update request
+ */
+export interface TaskStatusUpdateRequest {
+	status: 'todo' | 'doing' | 'done';
 }
 
 /**

@@ -87,6 +87,11 @@ class DeliberationGraphState(TypedDict, total=False):
     ]  # Proactive research queries from contribution analysis
     research_results: list[dict[str, Any]]  # Research results from completed queries
 
+    # Proactive comparison detection (from ComparisonDetector)
+    comparison_detected: bool  # Whether a "X vs Y" comparison question was detected
+    comparison_options: list[str]  # The options being compared (e.g., ["React", "Svelte"])
+    comparison_type: str  # Type of comparison (timing, build_vs_buy, technology, market, etc.)
+
     # NEW FIELDS FOR PARALLEL ARCHITECTURE (Day 38)
     current_phase: str  # "exploration", "challenge", "convergence"
     experts_per_round: list[list[str]]  # Track which experts contributed each round
@@ -139,6 +144,10 @@ def create_initial_state(
         completed_research_queries=[],  # Track completed research
         pending_research_queries=[],  # Proactive research from contribution analysis
         research_results=[],  # Research results from completed queries
+        # Proactive comparison detection (will be set by decompose_node if detected)
+        comparison_detected=False,
+        comparison_options=[],
+        comparison_type="",
         user_id=user_id,
         current_node="start",
         votes=[],

@@ -12,6 +12,15 @@ from bo1.graph.state import DeliberationGraphState
 from bo1.models.problem import Problem
 
 
+# Helper to mock interactive mode (non-headless)
+def mock_interactive_mode():
+    """Return patches to simulate interactive (non-headless) mode."""
+    return [
+        patch("bo1.graph.nodes.context.sys.stdin.isatty", return_value=True),
+        patch.dict("os.environ", {"BO1_HEADLESS": ""}),
+    ]
+
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_clarification_node_without_pending():
@@ -44,8 +53,9 @@ async def test_clarification_node_without_pending():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+@patch("sys.stdin.isatty", return_value=True)
 @patch("bo1.ui.console.Console")
-async def test_clarification_node_answer_immediately(mock_console_class):
+async def test_clarification_node_answer_immediately(mock_console_class, mock_isatty):
     """Test answering clarification immediately."""
     # Setup mock console
     mock_console = MagicMock()
@@ -94,8 +104,9 @@ async def test_clarification_node_answer_immediately(mock_console_class):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+@patch("sys.stdin.isatty", return_value=True)
 @patch("bo1.ui.console.Console")
-async def test_clarification_node_pause_session(mock_console_class):
+async def test_clarification_node_pause_session(mock_console_class, mock_isatty):
     """Test pausing session for clarification."""
     # Setup mock console
     mock_console = MagicMock()
@@ -139,8 +150,9 @@ async def test_clarification_node_pause_session(mock_console_class):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+@patch("sys.stdin.isatty", return_value=True)
 @patch("bo1.ui.console.Console")
-async def test_clarification_node_skip_question(mock_console_class):
+async def test_clarification_node_skip_question(mock_console_class, mock_isatty):
     """Test skipping clarification question."""
     # Setup mock console
     mock_console = MagicMock()
@@ -183,8 +195,9 @@ async def test_clarification_node_skip_question(mock_console_class):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+@patch("sys.stdin.isatty", return_value=True)
 @patch("bo1.ui.console.Console")
-async def test_clarification_node_preserves_existing_context(mock_console_class):
+async def test_clarification_node_preserves_existing_context(mock_console_class, mock_isatty):
     """Test that existing business_context is preserved when answering."""
     # Setup mock console
     mock_console = MagicMock()
@@ -233,8 +246,9 @@ async def test_clarification_node_preserves_existing_context(mock_console_class)
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+@patch("sys.stdin.isatty", return_value=True)
 @patch("bo1.ui.console.Console")
-async def test_clarification_node_handles_non_dict_context(mock_console_class):
+async def test_clarification_node_handles_non_dict_context(mock_console_class, mock_isatty):
     """Test that non-dict business_context is handled gracefully."""
     # Setup mock console
     mock_console = MagicMock()

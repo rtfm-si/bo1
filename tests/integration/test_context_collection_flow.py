@@ -49,8 +49,9 @@ async def test_context_collection_flow_without_user_interaction():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+@patch("sys.stdin.isatty", return_value=True)
 @patch("bo1.ui.console.Console")
-async def test_clarification_flow_answer_immediately(mock_console_class):
+async def test_clarification_flow_answer_immediately(mock_console_class, mock_isatty):
     """Test clarification flow with immediate answer."""
     # Setup mock console
     mock_console = MagicMock()
@@ -97,8 +98,9 @@ async def test_clarification_flow_answer_immediately(mock_console_class):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+@patch("sys.stdin.isatty", return_value=True)
 @patch("bo1.ui.console.Console")
-async def test_clarification_flow_pause_and_resume(mock_console_class):
+async def test_clarification_flow_pause_and_resume(mock_console_class, mock_isatty):
     """Test clarification flow with pause and resume."""
     # Setup mock console to pause
     mock_console = MagicMock()
@@ -233,8 +235,9 @@ async def test_context_collection_node_cost_tracking():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+@patch("sys.stdin.isatty", return_value=True)
 @patch("bo1.ui.console.Console")
-async def test_clarification_skip_continues_deliberation(mock_console_class):
+async def test_clarification_skip_continues_deliberation(mock_console_class, mock_isatty):
     """Test that skipping clarification allows deliberation to continue."""
     # Setup mock console to skip
     mock_console = MagicMock()

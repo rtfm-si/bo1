@@ -94,11 +94,8 @@ async def clarification_node(state: DeliberationGraphState) -> dict[str, Any]:
     """Handle clarification questions from facilitator during deliberation.
 
     This node:
-    1. Displays clarification question from facilitator
-    2. Provides options: Answer now / Pause session / Skip
-    3. If answer: Injects into context, continues
-    4. If pause: Sets should_stop=True, saves pending_clarification
-    5. If skip: Logs skip, continues with warning
+    1. In API mode (headless): Auto-pause and wait for user to answer via API
+    2. In CLI mode: Interactive prompt for answer/pause/skip
 
     Args:
         state: Current graph state (must have pending_clarification)
@@ -116,15 +113,36 @@ async def clarification_node(state: DeliberationGraphState) -> dict[str, Any]:
             "current_node": "clarification",
         }
 
-    # For now, we'll implement a simple console-based clarification prompt
-    # Full implementation will include web API support for async clarification
+    question = pending_clarification.get("question", "Unknown question")
+    reason = pending_clarification.get("reason", "")
 
+    # Check if we're running in headless mode (no stdin available)
+    # In API/server mode, stdin is not connected, so we auto-pause
+    import os
+    import sys
+
+    is_headless = not sys.stdin.isatty() or os.environ.get("BO1_HEADLESS", "").lower() in (
+        "1",
+        "true",
+    )
+
+    if is_headless:
+        # API mode: Auto-pause session, user answers via API
+        logger.info(
+            f"clarification_node: Headless mode detected, pausing for API-based answer. "
+            f"Question: {question[:50]}..."
+        )
+        return {
+            "should_stop": True,
+            "stop_reason": "clarification_needed",
+            "pending_clarification": pending_clarification,
+            "current_node": "clarification",
+        }
+
+    # CLI mode: Interactive prompt
     from bo1.ui.console import Console
 
     console = Console()
-
-    question = pending_clarification.get("question", "Unknown question")
-    reason = pending_clarification.get("reason", "")
 
     console.print("\n[bold yellow]Clarification Needed[/bold yellow]")
     console.print(f"Question: {question}")
@@ -136,11 +154,30 @@ async def clarification_node(state: DeliberationGraphState) -> dict[str, Any]:
     console.print("2. Pause session (resume later)")
     console.print("3. Skip question")
 
-    choice = console.input("\nYour choice (1-3): ").strip()
+    try:
+        choice = console.input("\nYour choice (1-3): ").strip()
+    except EOFError:
+        # Fallback: If stdin fails, pause the session
+        logger.warning("clarification_node: EOFError on input, pausing session")
+        return {
+            "should_stop": True,
+            "stop_reason": "clarification_needed",
+            "pending_clarification": pending_clarification,
+            "current_node": "clarification",
+        }
 
     if choice == "1":
         # Collect answer
-        answer = console.input("\nYour answer: ").strip()
+        try:
+            answer = console.input("\nYour answer: ").strip()
+        except EOFError:
+            logger.warning("clarification_node: EOFError on answer input, pausing session")
+            return {
+                "should_stop": True,
+                "stop_reason": "clarification_needed",
+                "pending_clarification": pending_clarification,
+                "current_node": "clarification",
+            }
 
         # Store answer in pending_clarification for later injection
         answered_clarification = pending_clarification.copy()
@@ -174,6 +211,7 @@ async def clarification_node(state: DeliberationGraphState) -> dict[str, Any]:
 
         return {
             "should_stop": True,
+            "stop_reason": "clarification_needed",
             "pending_clarification": pending_clarification,
             "current_node": "clarification",
         }

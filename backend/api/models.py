@@ -255,3 +255,93 @@ class ErrorResponse(BaseModel):
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Error message")
     details: dict[str, Any] | None = Field(None, description="Optional error details")
+
+
+# =============================================================================
+# Action/Task Models (Kanban)
+# =============================================================================
+
+
+class TaskStatusUpdate(BaseModel):
+    """Request model for updating task status.
+
+    Attributes:
+        status: New status for the task
+    """
+
+    status: str = Field(
+        ...,
+        description="New task status",
+        pattern="^(todo|doing|done)$",
+        examples=["todo", "doing", "done"],
+    )
+
+
+class TaskWithStatus(BaseModel):
+    """Task with its current status.
+
+    Attributes:
+        id: Task identifier
+        title: Short task title
+        description: Task description
+        what_and_how: Steps to complete the task
+        success_criteria: How to measure success
+        kill_criteria: When to abandon the task
+        dependencies: Prerequisites
+        timeline: Estimated duration
+        priority: Task priority
+        category: Task category
+        source_section: Where this task came from
+        confidence: AI confidence in extraction
+        sub_problem_index: Which focus area this belongs to
+        status: Current status (todo/doing/done)
+    """
+
+    id: str = Field(..., description="Task identifier")
+    title: str = Field(..., description="Short task title")
+    description: str = Field(..., description="Task description")
+    what_and_how: list[str] = Field(default_factory=list, description="Steps to complete")
+    success_criteria: list[str] = Field(default_factory=list, description="Success measures")
+    kill_criteria: list[str] = Field(default_factory=list, description="Abandonment conditions")
+    dependencies: list[str] = Field(default_factory=list, description="Prerequisites")
+    timeline: str = Field(..., description="Estimated duration")
+    priority: str = Field(..., description="high/medium/low")
+    category: str = Field(..., description="implementation/research/decision/communication")
+    source_section: str | None = Field(None, description="Source synthesis section")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="AI confidence")
+    sub_problem_index: int | None = Field(None, description="Focus area index")
+    status: str = Field(default="todo", description="Current status")
+
+
+class SessionActionsResponse(BaseModel):
+    """Response model for session actions.
+
+    Attributes:
+        session_id: Session identifier
+        tasks: List of tasks with statuses
+        total_tasks: Total task count
+        by_status: Count of tasks per status
+    """
+
+    session_id: str = Field(..., description="Session identifier")
+    tasks: list[TaskWithStatus] = Field(..., description="Tasks with statuses")
+    total_tasks: int = Field(..., description="Total task count")
+    by_status: dict[str, int] = Field(
+        ...,
+        description="Tasks grouped by status",
+        examples=[{"todo": 3, "doing": 1, "done": 2}],
+    )
+
+
+class AllActionsResponse(BaseModel):
+    """Response model for all user actions across sessions.
+
+    Attributes:
+        sessions: List of sessions with their tasks
+        total_tasks: Total tasks across all sessions
+        by_status: Global count per status
+    """
+
+    sessions: list[dict[str, Any]] = Field(..., description="Sessions with tasks")
+    total_tasks: int = Field(..., description="Total tasks across all sessions")
+    by_status: dict[str, int] = Field(..., description="Global status counts")

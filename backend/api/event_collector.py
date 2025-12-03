@@ -455,6 +455,23 @@ class EventCollector:
         )
         await self._publish_node_event(session_id, output, "decomposition_complete")
 
+        # Emit comparison_detected event if a "X vs Y" comparison was identified
+        if output.get("comparison_detected"):
+            comparison_event = {
+                "comparison_type": output.get("comparison_type", ""),
+                "options": output.get("comparison_options", []),
+                "research_queries_count": len(output.get("pending_research_queries", [])),
+            }
+            await self._publish(
+                session_id,
+                "comparison_detected",
+                comparison_event,
+            )
+            logger.info(
+                f"Comparison detected: {comparison_event['comparison_type']} - "
+                f"{comparison_event['options']} ({comparison_event['research_queries_count']} queries)"
+            )
+
     async def _handle_persona_selection(self, session_id: str, output: dict) -> None:
         """Handle select_personas node completion - publishes multiple events."""
         # Update phase in database for dashboard display

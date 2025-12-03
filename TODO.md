@@ -43,10 +43,14 @@ _Ship in days, immediate user impact_
 
 _1-2 week features that significantly improve retention_
 
-- [ ] **Action item tracking (simple kanban)** - 2-3d
+- [x] **Action item tracking (simple kanban)** - 2-3d ✅
 
-  - Todo/doing/done for meeting actions
-  - Users need to track outcomes from meetings
+  - Added `task_statuses` JSONB column to `session_tasks` table
+  - API endpoints: GET `/{session_id}/actions`, PATCH `/{session_id}/actions/{task_id}`
+  - Kanban frontend: `TaskCard.svelte`, `KanbanBoard.svelte`, `ActionsPanel.svelte`
+  - Three columns: Todo, Doing, Done with status transitions
+  - Created: `migrations/versions/b1c2d3e4f5g6_add_task_status_tracking.py`
+  - Updated: `bo1/state/repositories/session_repository.py`, `backend/api/sessions.py`
 
 - [x] **Fix "Clarify" flow** - 1-2d ✅
 
@@ -57,11 +61,15 @@ _1-2 week features that significantly improve retention_
   - Clarification answers now stored with timestamps and round_number
   - Updated: `bo1/llm/response_parser.py`, `bo1/graph/routers.py`, `bo1/graph/config.py`, `bo1/prompts/facilitator.py`, `bo1/graph/nodes/context.py`
 
-- [ ] **More proactive research triggers** - 1-2d
+- [x] **More proactive research triggers** - 1-2d ✅
 
-  - "This vs that" questions should auto-trigger market research
-  - Consider demand, costs, risks for comparison decisions
-  - Example: "Series A now vs wait 6 months" should research current market conditions
+  - Created `ComparisonDetector` utility for "X vs Y" pattern detection
+  - Integrated into `decompose_node` at problem intake stage
+  - Detects: explicit vs, timing, build vs buy, market expansion, technology choices
+  - Auto-generates research queries with HIGH/MEDIUM priority
+  - Emits `comparison_detected` SSE event for frontend awareness
+  - Created: `bo1/utils/comparison_detector.py`, `tests/utils/test_comparison_detector.py`
+  - Updated: `bo1/graph/nodes/decomposition.py`, `bo1/graph/state.py`, `backend/api/event_collector.py`
 
 - [x] **Admin: Delete user + Lock/Unlock account** - 4-6h ✅
   - Lock/Unlock user accounts with session revocation

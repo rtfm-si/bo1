@@ -10,6 +10,7 @@
 		variant?: 'success' | 'warning' | 'error' | 'info';
 		dismissable?: boolean;
 		title?: string;
+		class?: string;
 		children?: Snippet;
 		ondismiss?: () => void;
 	}
@@ -18,6 +19,7 @@
 		variant = 'info',
 		dismissable = false,
 		title,
+		class: className = '',
 		children,
 		ondismiss
 	}: Props = $props();
@@ -47,7 +49,7 @@
 	}
 </script>
 
-<div class="p-4 border rounded-lg {variants[variant]}" role="alert">
+<div class="p-4 border rounded-lg {variants[variant]} {className}" role="alert">
 	<div class="flex items-start gap-3">
 		<!-- Icon -->
 		<svg

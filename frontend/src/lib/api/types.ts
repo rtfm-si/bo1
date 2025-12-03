@@ -309,3 +309,42 @@ export interface SessionEventsResponse {
 	events: unknown[];
 	count: number;
 }
+
+/**
+ * Task with session context for global actions view
+ */
+export interface TaskWithSessionContext extends TaskWithStatus {
+	session_id: string;
+	problem_statement: string;
+}
+
+/**
+ * Session with tasks for global actions view
+ */
+export interface SessionWithTasks {
+	session_id: string;
+	problem_statement: string;
+	session_status: string;
+	created_at: string | null;
+	extracted_at: string | null;
+	tasks: TaskWithSessionContext[];
+	task_count: number;
+	by_status: {
+		todo: number;
+		doing: number;
+		done: number;
+	};
+}
+
+/**
+ * All actions response (global across sessions)
+ */
+export interface AllActionsResponse {
+	sessions: SessionWithTasks[];
+	total_tasks: number;
+	by_status: {
+		todo: number;
+		doing: number;
+		done: number;
+	};
+}

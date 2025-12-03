@@ -3,20 +3,43 @@
 	import { user } from '$lib/stores/auth';
 	import Header from '$lib/components/Header.svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { SessionResponse } from '$lib/api/types';
+	import type { SessionResponse, AllActionsResponse, TaskWithSessionContext } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
+	import Badge from '$lib/components/ui/Badge.svelte';
 	import ContextRefreshBanner from '$lib/components/ui/ContextRefreshBanner.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { getSessionStatusColor } from '$lib/utils/persona-colors';
 
 	// Use data fetch utility for sessions
 	const sessionsData = useDataFetch(() => apiClient.listSessions());
+	// Fetch outstanding actions (todo and doing only)
+	const actionsData = useDataFetch(() => apiClient.getAllActions());
 
 	// Derived state for template compatibility
 	const sessions = $derived<SessionResponse[]>(sessionsData.data?.sessions || []);
 	const isLoading = $derived(sessionsData.isLoading);
 	const error = $derived(sessionsData.error);
+
+	// Outstanding actions (todo + doing, sorted by priority)
+	const outstandingActions = $derived.by<TaskWithSessionContext[]>(() => {
+		if (!actionsData.data?.sessions) return [];
+		const allTasks = actionsData.data.sessions.flatMap((s) => s.tasks as TaskWithSessionContext[]);
+		// Filter to only todo and doing, then sort by priority (high first) then status (doing first)
+		return allTasks
+			.filter((t) => t.status === 'todo' || t.status === 'doing')
+			.sort((a, b) => {
+				// Status priority: doing > todo
+				if (a.status !== b.status) {
+					return a.status === 'doing' ? -1 : 1;
+				}
+				// Priority order: high > medium > low
+				const priorityOrder = { high: 0, medium: 1, low: 2 };
+				return (priorityOrder[a.priority as keyof typeof priorityOrder] || 2) -
+					(priorityOrder[b.priority as keyof typeof priorityOrder] || 2);
+			})
+			.slice(0, 5); // Show top 5 outstanding actions
+	});
 
 	// Check if user is admin for cost display
 	const isAdmin = $derived($user?.is_admin ?? false);
@@ -24,8 +47,9 @@
 	onMount(() => {
 		console.log('[Dashboard] onMount - user is authenticated, loading sessions');
 		console.log('[Dashboard] User from auth store:', $user);
-		// Auth is already verified by parent layout, safe to load sessions
+		// Auth is already verified by parent layout, safe to load sessions and actions
 		sessionsData.fetch();
+		actionsData.fetch();
 	});
 
 	async function loadSessions() {
@@ -115,6 +139,84 @@
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Context refresh reminder -->
 		<ContextRefreshBanner />
+
+		<!-- Outstanding Actions Section (at top per UX best practices) -->
+		{#if outstandingActions.length > 0}
+			<div class="mb-8">
+				<div class="flex items-center justify-between mb-4">
+					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
+						<svg class="w-5 h-5 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+						</svg>
+						Outstanding Actions
+					</h2>
+					<a href="/actions" class="text-sm text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1">
+						View all
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+						</svg>
+					</a>
+				</div>
+
+				<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+					<div class="divide-y divide-neutral-200 dark:divide-neutral-700">
+						{#each outstandingActions as action (action.id + '-' + action.session_id)}
+							<a
+								href="/meeting/{action.session_id}"
+								class="flex items-center gap-4 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors"
+							>
+								<!-- Status indicator -->
+								<div class="flex-shrink-0">
+									{#if action.status === 'doing'}
+										<span class="flex items-center justify-center w-8 h-8 rounded-full bg-warning-100 dark:bg-warning-900/30">
+											<svg class="w-4 h-4 text-warning-600 dark:text-warning-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+											</svg>
+										</span>
+									{:else}
+										<span class="flex items-center justify-center w-8 h-8 rounded-full bg-neutral-100 dark:bg-neutral-700">
+											<svg class="w-4 h-4 text-neutral-500 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+											</svg>
+										</span>
+									{/if}
+								</div>
+
+								<!-- Action content -->
+								<div class="flex-1 min-w-0">
+									<div class="flex items-center gap-2 mb-1">
+										<span class="font-medium text-neutral-900 dark:text-white truncate">
+											{action.title}
+										</span>
+										<Badge variant={action.status === 'doing' ? 'warning' : 'neutral'}>
+											{action.status === 'doing' ? 'In Progress' : 'To Do'}
+										</Badge>
+										<Badge variant={action.priority === 'high' ? 'error' : action.priority === 'medium' ? 'warning' : 'success'}>
+											{action.priority}
+										</Badge>
+									</div>
+									<div class="text-sm text-neutral-500 dark:text-neutral-400 truncate">
+										From: {truncateProblem(action.problem_statement, 60)}
+									</div>
+								</div>
+
+								<!-- Timeline -->
+								{#if action.timeline}
+									<div class="flex-shrink-0 text-sm text-neutral-500 dark:text-neutral-400">
+										{action.timeline}
+									</div>
+								{/if}
+
+								<!-- Arrow -->
+								<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+								</svg>
+							</a>
+						{/each}
+					</div>
+				</div>
+			</div>
+		{/if}
 
 		{#if isLoading}
 			<!-- Loading State -->

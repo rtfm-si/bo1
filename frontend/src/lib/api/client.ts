@@ -26,7 +26,8 @@ import type {
 	TaskExtractionResponse,
 	SessionEventsResponse,
 	SessionActionsResponse,
-	TaskStatusUpdateRequest
+	TaskStatusUpdateRequest,
+	AllActionsResponse
 } from './types';
 
 // ============================================================================
@@ -53,9 +54,10 @@ export interface EnrichmentRequest {
 
 export interface EnrichmentResponse {
 	success: boolean;
-	context: UserContext;
-	confidence: 'low' | 'medium' | 'high';
-	fields_enriched: string[];
+	context?: UserContext;
+	enrichment_source?: string;
+	confidence?: string;
+	error?: string;
 }
 
 export interface RefreshCheckResponse {
@@ -63,6 +65,208 @@ export interface RefreshCheckResponse {
 	last_updated: string | null;
 	days_since_update: number | null;
 	missing_fields: string[];
+}
+
+// ============================================================================
+// Strategic Context Types (Phase 3)
+// ============================================================================
+
+export interface DetectedCompetitor {
+	name: string;
+	url: string | null;
+	description: string | null;
+}
+
+export interface CompetitorDetectRequest {
+	industry?: string;
+	product_description?: string;
+}
+
+export interface CompetitorDetectResponse {
+	success: boolean;
+	competitors: DetectedCompetitor[];
+	error?: string;
+}
+
+export interface MarketTrend {
+	trend: string;
+	source: string | null;
+	source_url: string | null;
+}
+
+export interface TrendsRefreshRequest {
+	industry?: string;
+}
+
+export interface TrendsRefreshResponse {
+	success: boolean;
+	trends: MarketTrend[];
+	error?: string;
+}
+
+// ============================================================================
+// Competitor Watch Types
+// ============================================================================
+
+export interface CompetitorProfile {
+	id?: string;
+	name: string;
+	website?: string | null;
+	tagline?: string | null;
+	industry?: string | null;
+	// Standard tier
+	product_description?: string | null;
+	pricing_model?: string | null;
+	target_market?: string | null;
+	business_model?: string | null;
+	// Deep tier
+	value_proposition?: string | null;
+	tech_stack?: string[] | null;
+	recent_news?: { title: string; url: string; date: string }[] | null;
+	funding_info?: string | null;
+	employee_count?: string | null;
+	// Metadata
+	display_order?: number;
+	is_primary?: boolean;
+	data_depth?: 'basic' | 'standard' | 'deep';
+	last_enriched_at?: string | null;
+	changes_detected?: string[] | null;
+	created_at?: string;
+	updated_at?: string;
+}
+
+export interface CompetitorListResponse {
+	competitors: CompetitorProfile[];
+	tier: string;
+	max_allowed: number;
+	data_depth: 'basic' | 'standard' | 'deep';
+}
+
+export interface CompetitorCreateRequest {
+	name: string;
+	website?: string;
+	is_primary?: boolean;
+}
+
+export interface CompetitorEnrichResponse {
+	success: boolean;
+	competitor?: CompetitorProfile;
+	changes?: string[];
+	error?: string;
+}
+
+export interface CompetitorBulkEnrichResponse {
+	success: boolean;
+	enriched_count: number;
+	competitors: CompetitorProfile[];
+	errors?: string[];
+}
+
+// ============================================================================
+// Industry Insights Types (Phase 4)
+// ============================================================================
+
+export interface IndustryInsight {
+	id: string;
+	industry: string;
+	insight_type: 'trend' | 'benchmark' | 'competitor' | 'best_practice';
+	content: Record<string, unknown>;
+	source_count: number;
+	confidence: number;
+	expires_at: string | null;
+	created_at: string;
+}
+
+export interface IndustryInsightsResponse {
+	industry: string;
+	insights: IndustryInsight[];
+	has_benchmarks: boolean;
+}
+
+// ============================================================================
+// Business Metrics Types
+// ============================================================================
+
+export type MetricCategory = 'financial' | 'growth' | 'retention' | 'efficiency' | 'custom';
+export type MetricSource = 'manual' | 'clarification' | 'integration';
+
+export interface MetricTemplate {
+	metric_key: string;
+	name: string;
+	definition: string;
+	importance: string;
+	category: MetricCategory;
+	value_unit: string;
+	display_order: number;
+	applies_to: string[];
+}
+
+export interface UserMetric {
+	id: string;
+	user_id: string;
+	metric_key: string;
+	name: string;
+	definition: string | null;
+	importance: string | null;
+	category: MetricCategory | null;
+	value: number | null;
+	value_unit: string | null;
+	captured_at: string | null;
+	source: MetricSource;
+	is_predefined: boolean;
+	display_order: number;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface MetricsResponse {
+	metrics: UserMetric[];
+	templates: MetricTemplate[];
+}
+
+export interface UpdateMetricRequest {
+	value: number | null;
+	source?: MetricSource;
+}
+
+export interface CreateMetricRequest {
+	metric_key: string;
+	name: string;
+	definition?: string;
+	importance?: string;
+	category?: MetricCategory;
+	value_unit: string;
+	value?: number;
+}
+
+// ============================================================================
+// Billing Types
+// ============================================================================
+
+export interface PlanDetails {
+	tier: string;
+	name: string;
+	price_monthly: number;
+	meetings_limit: number | null;
+	features: string[];
+	billing_cycle_start: string | null;
+	billing_cycle_end: string | null;
+}
+
+export interface UsageStats {
+	meetings_used: number;
+	meetings_limit: number | null;
+	meetings_remaining: number | null;
+	api_calls_used: number;
+	total_cost_cents: number;
+	period_start: string | null;
+	period_end: string | null;
+}
+
+export interface BillingPortalResponse {
+	url: string | null;
+	message: string;
+	available: boolean;
 }
 
 // ============================================================================
@@ -353,6 +557,19 @@ export class ApiClient {
 	}
 
 	// ==========================================================================
+	// Global Actions Endpoints
+	// ==========================================================================
+
+	async getAllActions(params?: {
+		status_filter?: 'todo' | 'doing' | 'done';
+		limit?: number;
+		offset?: number;
+	}): Promise<AllActionsResponse> {
+		const endpoint = withQueryString('/api/v1/actions', params || {});
+		return this.fetch<AllActionsResponse>(endpoint);
+	}
+
+	// ==========================================================================
 	// Admin Endpoints - Users
 	// ==========================================================================
 
@@ -423,7 +640,7 @@ export class ApiClient {
 	// ==========================================================================
 
 	async enrichContext(url: string): Promise<EnrichmentResponse> {
-		return this.post<EnrichmentResponse>('/api/v1/context/enrich', { url });
+		return this.post<EnrichmentResponse>('/api/v1/context/enrich', { website_url: url });
 	}
 
 	async checkRefreshNeeded(): Promise<RefreshCheckResponse> {
@@ -432,6 +649,119 @@ export class ApiClient {
 
 	async dismissRefresh(): Promise<{ status: string }> {
 		return this.post<{ status: string }>('/api/v1/context/dismiss-refresh');
+	}
+
+	// ==========================================================================
+	// Strategic Context Endpoints (Phase 3)
+	// ==========================================================================
+
+	async detectCompetitors(request?: CompetitorDetectRequest): Promise<CompetitorDetectResponse> {
+		return this.post<CompetitorDetectResponse>('/api/v1/context/competitors/detect', request);
+	}
+
+	async refreshTrends(request?: TrendsRefreshRequest): Promise<TrendsRefreshResponse> {
+		return this.post<TrendsRefreshResponse>('/api/v1/context/trends/refresh', request);
+	}
+
+	// ==========================================================================
+	// Competitor Watch Endpoints
+	// ==========================================================================
+
+	async getCompetitors(): Promise<CompetitorListResponse> {
+		return this.fetch<CompetitorListResponse>('/api/v1/competitors');
+	}
+
+	async createCompetitor(request: CompetitorCreateRequest): Promise<CompetitorProfile> {
+		return this.fetch<CompetitorProfile>('/api/v1/competitors', {
+			method: 'POST',
+			body: JSON.stringify(request)
+		});
+	}
+
+	async updateCompetitor(id: string, profile: CompetitorProfile): Promise<CompetitorProfile> {
+		return this.fetch<CompetitorProfile>(`/api/v1/competitors/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify(profile)
+		});
+	}
+
+	async deleteCompetitor(id: string): Promise<{ status: string }> {
+		return this.fetch<{ status: string }>(`/api/v1/competitors/${id}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async enrichCompetitor(id: string): Promise<CompetitorEnrichResponse> {
+		return this.fetch<CompetitorEnrichResponse>(`/api/v1/competitors/${id}/enrich`, {
+			method: 'POST'
+		});
+	}
+
+	async enrichAllCompetitors(): Promise<CompetitorBulkEnrichResponse> {
+		return this.fetch<CompetitorBulkEnrichResponse>('/api/v1/competitors/enrich-all', {
+			method: 'POST'
+		});
+	}
+
+	// ==========================================================================
+	// Industry Insights Endpoints (Phase 4)
+	// ==========================================================================
+
+	async getIndustryInsights(insightType?: string): Promise<IndustryInsightsResponse> {
+		const endpoint = withQueryString('/api/v1/industry-insights', { insight_type: insightType });
+		return this.fetch<IndustryInsightsResponse>(endpoint);
+	}
+
+	async getIndustryInsightsByIndustry(industry: string, insightType?: string): Promise<IndustryInsightsResponse> {
+		const endpoint = withQueryString(`/api/v1/industry-insights/${encodeURIComponent(industry)}`, { insight_type: insightType });
+		return this.fetch<IndustryInsightsResponse>(endpoint);
+	}
+
+	// ==========================================================================
+	// Business Metrics Endpoints
+	// ==========================================================================
+
+	async getMetrics(businessModel?: string): Promise<MetricsResponse> {
+		const endpoint = withQueryString('/api/v1/business-metrics', { business_model: businessModel });
+		return this.fetch<MetricsResponse>(endpoint);
+	}
+
+	async getMetricTemplates(businessModel?: string): Promise<MetricTemplate[]> {
+		const endpoint = withQueryString('/api/v1/business-metrics/templates', { business_model: businessModel });
+		return this.fetch<MetricTemplate[]>(endpoint);
+	}
+
+	async updateMetric(metricKey: string, value: number | null, source: MetricSource = 'manual'): Promise<UserMetric> {
+		return this.put<UserMetric>(`/api/v1/business-metrics/${metricKey}`, { value, source });
+	}
+
+	async createMetric(request: CreateMetricRequest): Promise<UserMetric> {
+		return this.post<UserMetric>('/api/v1/business-metrics', request);
+	}
+
+	async deleteMetric(metricKey: string): Promise<{ status: string }> {
+		return this.delete<{ status: string }>(`/api/v1/business-metrics/${metricKey}`);
+	}
+
+	async initializeMetrics(businessModel?: string): Promise<UserMetric[]> {
+		const endpoint = withQueryString('/api/v1/business-metrics/initialize', { business_model: businessModel });
+		return this.post<UserMetric[]>(endpoint);
+	}
+
+	// ==========================================================================
+	// Billing Endpoints
+	// ==========================================================================
+
+	async getBillingPlan(): Promise<PlanDetails> {
+		return this.fetch<PlanDetails>('/api/v1/billing/plan');
+	}
+
+	async getBillingUsage(): Promise<UsageStats> {
+		return this.fetch<UsageStats>('/api/v1/billing/usage');
+	}
+
+	async createBillingPortalSession(): Promise<BillingPortalResponse> {
+		return this.post<BillingPortalResponse>('/api/v1/billing/portal');
 	}
 }
 

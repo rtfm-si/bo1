@@ -114,21 +114,28 @@
 			if (response.success && response.context) {
 				// Update form with enriched data
 				const ctx = response.context;
+				const updated: string[] = [];
+
 				if (ctx.company_name && !companyName) {
 					companyName = ctx.company_name;
+					updated.push('Company Name');
 				}
 				if (ctx.business_stage && !businessStage) {
 					businessStage = ctx.business_stage;
+					updated.push('Business Stage');
 				}
 				if (ctx.primary_objective && !primaryObjective) {
 					primaryObjective = ctx.primary_objective;
+					updated.push('Primary Objective');
 				}
 
-				enrichedFields = response.fields_enriched;
+				enrichedFields = updated;
 				trackContextEnriched({
 					source: 'website',
-					confidence: response.confidence
+					confidence: response.confidence || 'medium'
 				});
+			} else if (response.error) {
+				enrichmentError = response.error;
 			}
 		} catch (error) {
 			enrichmentError = error instanceof Error ? error.message : 'Failed to enrich from website';

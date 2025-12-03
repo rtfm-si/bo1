@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
+from bo1.config import get_settings
 from bo1.services.enrichment import EnrichmentService
 from bo1.state.database import db_session
 from bo1.state.postgres_manager import (
@@ -382,8 +383,9 @@ async def get_context(user: dict[str, Any] = Depends(get_current_user)) -> Conte
         if not context_data:
             return ContextResponse(exists=False, context=None, updated_at=None)
 
-        # Parse into BusinessContext
+        # Parse into BusinessContext - include all extended fields
         context = BusinessContext(
+            # Original fields
             business_model=context_data.get("business_model"),
             target_market=context_data.get("target_market"),
             product_description=context_data.get("product_description"),
@@ -392,6 +394,32 @@ async def get_context(user: dict[str, Any] = Depends(get_current_user)) -> Conte
             growth_rate=context_data.get("growth_rate"),
             competitors=context_data.get("competitors"),
             website=context_data.get("website"),
+            # Extended fields (Tier 3)
+            company_name=context_data.get("company_name"),
+            business_stage=context_data.get("business_stage"),
+            primary_objective=context_data.get("primary_objective"),
+            industry=context_data.get("industry"),
+            product_categories=context_data.get("product_categories"),
+            pricing_model=context_data.get("pricing_model"),
+            brand_positioning=context_data.get("brand_positioning"),
+            brand_tone=context_data.get("brand_tone"),
+            brand_maturity=context_data.get("brand_maturity"),
+            tech_stack=context_data.get("tech_stack"),
+            seo_structure=context_data.get("seo_structure"),
+            detected_competitors=context_data.get("detected_competitors"),
+            ideal_customer_profile=context_data.get("ideal_customer_profile"),
+            keywords=context_data.get("keywords"),
+            target_geography=context_data.get("target_geography"),
+            traffic_range=context_data.get("traffic_range"),
+            mau_bucket=context_data.get("mau_bucket"),
+            revenue_stage=context_data.get("revenue_stage"),
+            main_value_proposition=context_data.get("main_value_proposition"),
+            team_size=context_data.get("team_size"),
+            budget_constraints=context_data.get("budget_constraints"),
+            time_constraints=context_data.get("time_constraints"),
+            regulatory_constraints=context_data.get("regulatory_constraints"),
+            enrichment_source=context_data.get("enrichment_source"),
+            enrichment_date=context_data.get("enrichment_date"),
         )
 
         return ContextResponse(
@@ -452,8 +480,9 @@ async def update_context(
     try:
         user_id = extract_user_id(user)
 
-        # Convert to dict for save function
+        # Convert to dict for save function - include all fields
         context_dict = {
+            # Original fields
             "business_model": context.business_model,
             "target_market": context.target_market,
             "product_description": context.product_description,
@@ -462,6 +491,36 @@ async def update_context(
             "growth_rate": context.growth_rate,
             "competitors": context.competitors,
             "website": context.website,
+            # Extended fields (Tier 3)
+            "company_name": context.company_name,
+            "business_stage": context.business_stage.value if context.business_stage else None,
+            "primary_objective": context.primary_objective.value
+            if context.primary_objective
+            else None,
+            "industry": context.industry,
+            "product_categories": context.product_categories,
+            "pricing_model": context.pricing_model,
+            "brand_positioning": context.brand_positioning,
+            "brand_tone": context.brand_tone,
+            "brand_maturity": context.brand_maturity,
+            "tech_stack": context.tech_stack,
+            "seo_structure": context.seo_structure,
+            "detected_competitors": context.detected_competitors,
+            "ideal_customer_profile": context.ideal_customer_profile,
+            "keywords": context.keywords,
+            "target_geography": context.target_geography,
+            "traffic_range": context.traffic_range,
+            "mau_bucket": context.mau_bucket,
+            "revenue_stage": context.revenue_stage,
+            "main_value_proposition": context.main_value_proposition,
+            "team_size": context.team_size,
+            "budget_constraints": context.budget_constraints,
+            "time_constraints": context.time_constraints,
+            "regulatory_constraints": context.regulatory_constraints,
+            "enrichment_source": context.enrichment_source.value
+            if context.enrichment_source
+            else None,
+            "enrichment_date": context.enrichment_date,
         }
 
         # Save to database
@@ -560,7 +619,8 @@ async def delete_context(user: dict[str, Any] = Depends(get_current_user)) -> di
     - Brave Search API for company information
     - Claude AI for intelligent extraction
 
-    The enriched data can then be saved using PUT /v1/context.
+    **Auto-save**: The enriched data is automatically merged with existing
+    context and saved. Empty fields are not overwritten.
     """,
     responses={
         200: {
@@ -574,7 +634,7 @@ async def enrich_context(
     request: EnrichmentRequest,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> EnrichmentResponse:
-    """Enrich business context from website URL."""
+    """Enrich business context from website URL and auto-save."""
     try:
         user_id = extract_user_id(user)
         logger.info(f"Enriching context from {request.website_url} for user {user_id}")
@@ -608,6 +668,42 @@ async def enrich_context(
             enrichment_source=EnrichmentSource(enriched.enrichment_source),
             enrichment_date=enriched.enrichment_date,
         )
+
+        # Auto-save: Merge enriched data with existing context (preserve user values)
+        existing_context = load_user_context(user_id) or {}
+        enriched_dict = {
+            "company_name": enriched.company_name,
+            "website": enriched.website,
+            "industry": enriched.industry,
+            "business_model": enriched.business_model,
+            "pricing_model": enriched.pricing_model,
+            "target_market": enriched.target_market,
+            "product_description": enriched.product_description,
+            "product_categories": enriched.product_categories,
+            "main_value_proposition": enriched.main_value_proposition,
+            "brand_positioning": enriched.brand_positioning,
+            "brand_tone": enriched.brand_tone,
+            "brand_maturity": enriched.brand_maturity,
+            "tech_stack": enriched.tech_stack,
+            "seo_structure": enriched.seo_structure,
+            "keywords": enriched.keywords,
+            "detected_competitors": enriched.detected_competitors,
+            "ideal_customer_profile": enriched.ideal_customer_profile,
+            "enrichment_source": enriched.enrichment_source,
+            "enrichment_date": enriched.enrichment_date.isoformat()
+            if enriched.enrichment_date
+            else None,
+        }
+
+        # Only update fields that don't already have user values (preserve user input)
+        merged_context = existing_context.copy()
+        for key, value in enriched_dict.items():
+            if value is not None and not existing_context.get(key):
+                merged_context[key] = value
+
+        # Save merged context
+        save_user_context(user_id, merged_context)
+        logger.info(f"Auto-saved enriched context for user {user_id}")
 
         return EnrichmentResponse(
             success=True,
@@ -761,3 +857,407 @@ async def dismiss_refresh_prompt(
             status_code=500,
             detail=f"Failed to dismiss refresh: {str(e)}",
         ) from e
+
+
+# =============================================================================
+# Phase 3: Strategic Context Endpoints
+# =============================================================================
+
+
+class CompetitorDetectRequest(BaseModel):
+    """Request to detect competitors."""
+
+    industry: str | None = Field(None, description="Industry to search in")
+    product_description: str | None = Field(None, description="Product description")
+
+
+class DetectedCompetitor(BaseModel):
+    """A detected competitor."""
+
+    name: str = Field(..., description="Competitor name")
+    url: str | None = Field(None, description="Competitor website")
+    description: str | None = Field(None, description="Brief description")
+
+
+class CompetitorDetectResponse(BaseModel):
+    """Response from competitor detection."""
+
+    success: bool = Field(..., description="Whether detection succeeded")
+    competitors: list[DetectedCompetitor] = Field(
+        default_factory=list, description="Detected competitors"
+    )
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class MarketTrend(BaseModel):
+    """A market trend."""
+
+    trend: str = Field(..., description="Trend description")
+    source: str | None = Field(None, description="Source name")
+    source_url: str | None = Field(None, description="Source URL")
+
+
+class TrendsRefreshRequest(BaseModel):
+    """Request to refresh market trends."""
+
+    industry: str | None = Field(None, description="Industry to search trends for")
+
+
+class TrendsRefreshResponse(BaseModel):
+    """Response from trends refresh."""
+
+    success: bool = Field(..., description="Whether refresh succeeded")
+    trends: list[MarketTrend] = Field(default_factory=list, description="Market trends")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+@router.post(
+    "/v1/context/competitors/detect",
+    response_model=CompetitorDetectResponse,
+    summary="Auto-detect competitors",
+    description="""
+    Automatically detect competitors using Tavily Search API.
+
+    First checks if competitors were already detected during website enrichment.
+    If not, uses Tavily to search G2, Capterra, and other review sites for
+    high-quality competitor information.
+
+    **Auto-save**: Detected competitors are automatically saved to Competitor Watch
+    (up to the user's tier limit). Existing competitors are not duplicated.
+
+    Returns a list of detected competitors with names, URLs, and descriptions.
+    """,
+)
+async def detect_competitors(
+    request: CompetitorDetectRequest | None = None,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> CompetitorDetectResponse:
+    """Detect competitors using Tavily Search API and auto-save to Competitor Watch."""
+    import httpx
+
+    try:
+        user_id = extract_user_id(user)
+        logger.info(f"Detecting competitors for user {user_id}")
+
+        # Load user context
+        context_data = load_user_context(user_id)
+
+        # First, check if we already have enriched competitors
+        if context_data:
+            enriched_competitors = context_data.get("detected_competitors", [])
+            if enriched_competitors and len(enriched_competitors) > 0:
+                logger.info(f"Using {len(enriched_competitors)} pre-enriched competitors")
+                detected = [
+                    DetectedCompetitor(name=name, url=None, description=None)
+                    for name in enriched_competitors[:10]
+                ]
+                # Auto-save pre-enriched competitors
+                await _auto_save_competitors(user_id, detected)
+                return CompetitorDetectResponse(
+                    success=True,
+                    competitors=detected,
+                )
+
+        # Get context for search
+        company_name = context_data.get("company_name") if context_data else None
+        industry = request.industry if request else None
+        product_description = request.product_description if request else None
+
+        if context_data:
+            industry = industry or context_data.get("industry")
+            product_description = product_description or context_data.get("product_description")
+
+        if not company_name and not industry and not product_description:
+            return CompetitorDetectResponse(
+                success=False,
+                competitors=[],
+                error="Please complete the Overview tab first (company name, industry, or product description required).",
+            )
+
+        settings = get_settings()
+        if not settings.tavily_api_key:
+            return CompetitorDetectResponse(
+                success=False,
+                competitors=[],
+                error="Tavily Search API not configured. Please try again later.",
+            )
+
+        # Build targeted search query for competitor discovery
+        # Focus on review sites that list actual companies
+        if company_name:
+            search_query = f'"{company_name}" competitors alternatives'
+        elif industry and product_description:
+            search_query = f"best {industry} software companies {product_description[:50]}"
+        else:
+            search_query = f"top {industry or product_description[:80]} companies competitors"
+
+        logger.info(f"Tavily competitor search: {search_query}")
+
+        # Use Tavily Search API
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "https://api.tavily.com/search",
+                json={
+                    "api_key": settings.tavily_api_key,
+                    "query": search_query,
+                    "search_depth": "advanced",  # Better quality
+                    "include_domains": [
+                        "g2.com",
+                        "capterra.com",
+                        "trustradius.com",
+                        "getapp.com",
+                        "softwareadvice.com",
+                        "alternativeto.net",
+                    ],
+                    "max_results": 10,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        # Extract company names from results
+        results = data.get("results", [])
+        competitors = []
+        seen_names = set()
+
+        for result in results:
+            title = result.get("title", "")
+            url = result.get("url", "")
+            content = result.get("content", "")
+
+            # Extract company name from title
+            # G2/Capterra titles often like "Company Name Reviews 2025" or "Company Name vs Competitor"
+            name = title.split(" Reviews")[0].split(" vs ")[0].split(" -")[0].split(" |")[0].strip()
+
+            # Skip if it's our own company, generic terms, or duplicates
+            if not name or len(name) < 2 or len(name) > 50:
+                continue
+            if company_name and name.lower() == company_name.lower():
+                continue
+            if name.lower() in seen_names:
+                continue
+            if any(
+                skip in name.lower()
+                for skip in [
+                    "best",
+                    "top",
+                    "review",
+                    "compare",
+                    "alternative",
+                    "software",
+                    "2024",
+                    "2025",
+                    "guide",
+                    "list",
+                ]
+            ):
+                continue
+
+            seen_names.add(name.lower())
+            competitors.append(
+                DetectedCompetitor(
+                    name=name,
+                    url=url,
+                    description=content[:200] if content else None,
+                )
+            )
+
+        if not competitors:
+            return CompetitorDetectResponse(
+                success=False,
+                competitors=[],
+                error="No competitors found. Try adding more context about your company or industry.",
+            )
+
+        # Auto-save detected competitors to Competitor Watch
+        await _auto_save_competitors(user_id, competitors[:8])
+
+        return CompetitorDetectResponse(
+            success=True,
+            competitors=competitors[:8],  # Return top 8 quality results
+        )
+
+    except httpx.HTTPError as e:
+        logger.error(f"Tavily API error: {e}")
+        return CompetitorDetectResponse(
+            success=False,
+            competitors=[],
+            error="Search service temporarily unavailable. Please try again later.",
+        )
+    except Exception as e:
+        logger.error(f"Competitor detection failed: {e}")
+        return CompetitorDetectResponse(
+            success=False,
+            competitors=[],
+            error=f"Detection failed: {str(e)}",
+        )
+
+
+async def _auto_save_competitors(user_id: str, competitors: list[DetectedCompetitor]) -> None:
+    """Auto-save detected competitors to competitor_profiles table.
+
+    Respects tier limits and doesn't duplicate existing competitors.
+    """
+    if not competitors:
+        return
+
+    try:
+        # Get user tier and limits
+        tier_limits = {
+            "free": {"max_competitors": 3, "data_depth": "basic"},
+            "starter": {"max_competitors": 5, "data_depth": "standard"},
+            "pro": {"max_competitors": 8, "data_depth": "deep"},
+        }
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Get user's tier
+                cur.execute(
+                    "SELECT subscription_tier FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                tier = row["subscription_tier"] if row else "free"
+                tier_config = tier_limits.get(tier, tier_limits["free"])
+
+                # Get current competitor count and names
+                cur.execute(
+                    "SELECT name FROM competitor_profiles WHERE user_id = %s",
+                    (user_id,),
+                )
+                existing = {row["name"].lower() for row in cur.fetchall()}
+                current_count = len(existing)
+
+                # Calculate how many we can add
+                available_slots = tier_config["max_competitors"] - current_count
+                if available_slots <= 0:
+                    logger.info(
+                        f"User {user_id} at competitor limit ({current_count}/{tier_config['max_competitors']})"
+                    )
+                    return
+
+                # Add new competitors (up to available slots)
+                added = 0
+                for comp in competitors:
+                    if added >= available_slots:
+                        break
+                    if comp.name.lower() in existing:
+                        continue
+
+                    cur.execute(
+                        """
+                        INSERT INTO competitor_profiles (user_id, name, website, tagline, data_depth)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        (
+                            user_id,
+                            comp.name,
+                            comp.url,
+                            comp.description,
+                            tier_config["data_depth"],
+                        ),
+                    )
+                    if cur.rowcount > 0:
+                        added += 1
+                        existing.add(comp.name.lower())
+
+                logger.info(f"Auto-saved {added} competitors for user {user_id}")
+
+    except Exception as e:
+        # Don't fail the main request if auto-save fails
+        logger.error(f"Failed to auto-save competitors: {e}")
+
+
+@router.post(
+    "/v1/context/trends/refresh",
+    response_model=TrendsRefreshResponse,
+    summary="Refresh market trends",
+    description="""
+    Fetch current market trends for the user's industry using Brave Search API.
+
+    Uses the industry from saved context or the request to search for
+    recent trends and news.
+
+    Returns a list of trends with sources.
+    """,
+)
+async def refresh_trends(
+    request: TrendsRefreshRequest | None = None,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> TrendsRefreshResponse:
+    """Refresh market trends using Brave Search."""
+    try:
+        user_id = extract_user_id(user)
+        logger.info(f"Refreshing trends for user {user_id}")
+
+        # Get industry from request or saved context
+        industry = request.industry if request else None
+
+        if not industry:
+            context_data = load_user_context(user_id)
+            if context_data:
+                industry = context_data.get("industry")
+
+        if not industry:
+            return TrendsRefreshResponse(
+                success=False,
+                trends=[],
+                error="No industry available. Please set your industry first.",
+            )
+
+        # Search for trends using Brave API
+        import httpx
+
+        settings = get_settings()
+        if not settings.brave_api_key:
+            return TrendsRefreshResponse(
+                success=False,
+                trends=[],
+                error="Brave Search API not configured. Please try again later.",
+            )
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                headers={"X-Subscription-Token": settings.brave_api_key},
+                params={
+                    "q": f"{industry} industry trends 2025 insights market analysis",
+                    "count": 10,
+                    "freshness": "pw",  # Past week
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        # Extract trends from search results
+        results = data.get("web", {}).get("results", [])
+        trends = []
+
+        for result in results[:5]:
+            title = result.get("title", "")
+            url = result.get("url", "")
+            description = result.get("description", "")
+
+            # Create trend from result
+            if title and description:
+                trends.append(
+                    MarketTrend(
+                        trend=f"{title}: {description[:150]}...",
+                        source=result.get("profile", {}).get("name", "Web"),
+                        source_url=url,
+                    )
+                )
+
+        return TrendsRefreshResponse(
+            success=True,
+            trends=trends,
+        )
+
+    except Exception as e:
+        logger.error(f"Trends refresh failed: {e}")
+        return TrendsRefreshResponse(
+            success=False,
+            trends=[],
+            error=f"Refresh failed: {str(e)}",
+        )

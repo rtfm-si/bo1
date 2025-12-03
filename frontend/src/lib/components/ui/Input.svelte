@@ -19,6 +19,7 @@
 		onchange,
 		onblur,
 		onfocus,
+		onkeydown,
 	}: {
 		type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url';
 		value?: string;
@@ -34,6 +35,7 @@
 		onchange?: (event: Event) => void;
 		onblur?: (event: FocusEvent) => void;
 		onfocus?: (event: FocusEvent) => void;
+		onkeydown?: (event: KeyboardEvent) => void;
 	} = $props();
 
 	// Generate ID if not provided
@@ -85,6 +87,7 @@
 		onchange={onchange}
 		onblur={onblur}
 		onfocus={onfocus}
+		onkeydown={onkeydown}
 	/>
 
 	{#if error}

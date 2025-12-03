@@ -20,11 +20,16 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from backend.api import (
+    actions,
     admin,
     auth,
+    billing,
+    business_metrics,
+    competitors,
     context,
     control,
     health,
+    industry_insights,
     onboarding,
     sessions,
     streaming,
@@ -212,7 +217,12 @@ app.include_router(
 )  # Custom auth endpoints (e.g., /me)
 app.include_router(streaming.router, prefix="/api", tags=["streaming"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
+app.include_router(actions.router, prefix="/api", tags=["actions"])
 app.include_router(context.router, prefix="/api", tags=["context"])
+app.include_router(business_metrics.router, prefix="/api", tags=["business-metrics"])
+app.include_router(billing.router, prefix="/api", tags=["billing"])
+app.include_router(industry_insights.router, prefix="/api", tags=["industry-insights"])
+app.include_router(competitors.router, prefix="/api", tags=["competitors"])
 app.include_router(onboarding.router, prefix="/api", tags=["onboarding"])
 app.include_router(control.router, prefix="/api", tags=["deliberation-control"])
 app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])

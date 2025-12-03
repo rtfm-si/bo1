@@ -67,6 +67,12 @@
 						Dashboard
 					</a>
 					<a
+						href="/actions"
+						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+					>
+						Actions
+					</a>
+					<a
 						href="/settings"
 						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
 					>

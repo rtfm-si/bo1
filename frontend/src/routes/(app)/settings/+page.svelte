@@ -1,10 +1,9 @@
 <script lang="ts">
-	/**
-	 * Context Index - Redirects to overview
-	 */
+	import { redirect } from '@sveltejs/kit';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 
+	// Redirect to context overview on mount (client-side)
 	onMount(() => {
 		goto('/settings/context/overview', { replaceState: true });
 	});

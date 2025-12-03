@@ -30,6 +30,42 @@ import type {
 } from './types';
 
 // ============================================================================
+// Onboarding Types
+// ============================================================================
+
+export type OnboardingStep = 'business_context' | 'first_meeting' | 'expert_panel' | 'results';
+
+export interface OnboardingStatus {
+	is_new_user: boolean;
+	onboarding_completed: boolean;
+	completed_steps: OnboardingStep[];
+	current_step: OnboardingStep | null;
+	tours_completed: string[];
+	skipped: boolean;
+	skipped_at: string | null;
+	started_at: string | null;
+	completed_at: string | null;
+}
+
+export interface EnrichmentRequest {
+	url: string;
+}
+
+export interface EnrichmentResponse {
+	success: boolean;
+	context: UserContext;
+	confidence: 'low' | 'medium' | 'high';
+	fields_enriched: string[];
+}
+
+export interface RefreshCheckResponse {
+	needs_refresh: boolean;
+	last_updated: string | null;
+	days_since_update: number | null;
+	missing_fields: string[];
+}
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 
@@ -360,6 +396,42 @@ export class ApiClient {
 
 	async approveWaitlistEntry(email: string): Promise<WaitlistApprovalResponse> {
 		return this.post<WaitlistApprovalResponse>(`/api/admin/waitlist/${encodeURIComponent(email)}/approve`);
+	}
+
+	// ==========================================================================
+	// Onboarding Endpoints
+	// ==========================================================================
+
+	async getOnboardingStatus(): Promise<OnboardingStatus> {
+		return this.fetch<OnboardingStatus>('/api/v1/onboarding/status');
+	}
+
+	async completeOnboardingStep(step: OnboardingStep): Promise<{ status: string; step: string }> {
+		return this.post<{ status: string; step: string }>('/api/v1/onboarding/step', { step });
+	}
+
+	async completeTour(tourName: string): Promise<{ status: string; tour: string }> {
+		return this.post<{ status: string; tour: string }>('/api/v1/onboarding/tour/complete', { tour_name: tourName });
+	}
+
+	async skipOnboarding(): Promise<{ status: string }> {
+		return this.post<{ status: string }>('/api/v1/onboarding/skip');
+	}
+
+	// ==========================================================================
+	// Context Enrichment Endpoints
+	// ==========================================================================
+
+	async enrichContext(url: string): Promise<EnrichmentResponse> {
+		return this.post<EnrichmentResponse>('/api/v1/context/enrich', { url });
+	}
+
+	async checkRefreshNeeded(): Promise<RefreshCheckResponse> {
+		return this.fetch<RefreshCheckResponse>('/api/v1/context/refresh-check');
+	}
+
+	async dismissRefresh(): Promise<{ status: string }> {
+		return this.post<{ status: string }>('/api/v1/context/dismiss-refresh');
 	}
 }
 

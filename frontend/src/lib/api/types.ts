@@ -88,7 +88,23 @@ export interface ApiError {
 	status?: number;
 }
 
+// ============================================================================
+// Business Context Types (Extended for Tier 3)
+// ============================================================================
+
+export type BusinessStage = 'idea' | 'early' | 'growing' | 'scaling';
+
+export type PrimaryObjective =
+	| 'acquire_customers'
+	| 'improve_retention'
+	| 'raise_capital'
+	| 'launch_product'
+	| 'reduce_costs';
+
+export type EnrichmentSource = 'manual' | 'api' | 'scrape';
+
 export interface UserContext {
+	// Original fields
 	business_model?: string;
 	target_market?: string;
 	product_description?: string;
@@ -97,6 +113,34 @@ export interface UserContext {
 	growth_rate?: string;
 	competitors?: string;
 	website?: string;
+
+	// Extended fields (Tier 3)
+	company_name?: string;
+	business_stage?: BusinessStage;
+	primary_objective?: PrimaryObjective;
+	industry?: string;
+	product_categories?: string[];
+	pricing_model?: string;
+	brand_positioning?: string;
+	brand_tone?: string;
+	brand_maturity?: string;
+	tech_stack?: string[];
+	seo_structure?: Record<string, unknown>;
+	detected_competitors?: string[];
+	ideal_customer_profile?: string;
+	keywords?: string[];
+	target_geography?: string;
+	traffic_range?: string;
+	mau_bucket?: string;
+	revenue_stage?: string;
+	main_value_proposition?: string;
+	team_size?: string;
+	budget_constraints?: string;
+	time_constraints?: string;
+	regulatory_constraints?: string;
+	enrichment_source?: EnrichmentSource;
+	enrichment_date?: string;
+	onboarding_completed?: boolean;
 }
 
 export interface UserContextResponse {

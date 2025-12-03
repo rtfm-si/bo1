@@ -25,6 +25,7 @@ from backend.api import (
     context,
     control,
     health,
+    onboarding,
     sessions,
     streaming,
     supertokens_routes,
@@ -130,6 +131,10 @@ app = FastAPI(
             "name": "waitlist",
             "description": "Waitlist management for closed beta access",
         },
+        {
+            "name": "onboarding",
+            "description": "User onboarding and driver.js tour tracking",
+        },
     ],
 )
 
@@ -208,6 +213,7 @@ app.include_router(
 app.include_router(streaming.router, prefix="/api", tags=["streaming"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(context.router, prefix="/api", tags=["context"])
+app.include_router(onboarding.router, prefix="/api", tags=["onboarding"])
 app.include_router(control.router, prefix="/api", tags=["deliberation-control"])
 app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])

@@ -85,35 +85,50 @@ _1-2 week features that significantly improve retention_
 
 _Enables personalization, better advice quality_
 
-- [ ] **Lightweight onboarding flow** - 3-5d
+- [x] **Lightweight onboarding flow** - 3-5d ✅
 
-  - Company name + website URL input
-  - Auto-crawl + enrich: industry, product categories, pricing, positioning, tone, brand maturity, SEO structure, tech stack
-  - Detect business model (SaaS, marketplace, agency, etc.)
-  - Identify competitors and ICP
-  - Extract keywords for market category
+  - Company name + website URL input with multi-step form
+  - Auto-crawl + enrich via EnrichmentService (Brave Search + Claude Haiku)
+  - Detects: industry, product categories, pricing, positioning, tone, brand maturity, SEO structure, tech stack
+  - Business model detection (SaaS, marketplace, agency, etc.)
+  - Competitor and ICP identification
+  - Keyword extraction for market category
+  - Driver.js guided tour for new users
+  - Umami analytics integration (self-hosted)
+  - Created: `bo1/services/enrichment.py`, `frontend/src/routes/(app)/onboarding/+page.svelte`
+  - Created: `frontend/src/lib/tours/index.ts`, `frontend/src/lib/utils/analytics.ts`
+  - Updated: `backend/api/context.py`, `backend/api/onboarding.py`
 
-- [ ] **Business stage dropdown** - 2-4h
+- [x] **Business stage dropdown** - 2-4h ✅
 
   - Stage: idea → early → growing → scaling
   - Primary objective: acquire customers / improve retention / raise capital / launch product / reduce costs
+  - Integrated into onboarding flow and context settings page
 
-- [ ] **Business context page** - 2-3d
+- [x] **Business context page** - 2-3d ✅
 
-  - View/edit enriched business data
-  - Inject into meeting context for better advice
+  - Full view/edit of enriched business data
+  - Auto-enrichment from website URL
+  - Context auto-injected into meeting creation
+  - Created: `frontend/src/routes/(app)/settings/context/+page.svelte`
+  - Updated: `backend/api/sessions.py` (context injection)
 
-- [ ] **Periodic context refresh prompt** - 4-6h
-  - "Are these details still correct?" every N months
-  - Prompt after first meeting completion
+- [x] **Periodic context refresh prompt** - 4-6h ✅
+  - ContextRefreshBanner on dashboard when context >30 days old
+  - Checks for missing fields, days since update
+  - Dismissable with API tracking
+  - Created: `frontend/src/lib/components/ui/ContextRefreshBanner.svelte`
+  - Updated: `backend/api/context.py` (refresh-check, dismiss-refresh endpoints)
 
-### Additional Context Fields (Optional, High Value)
+### Additional Context Fields (Implemented) ✅
 
 - Target customer profile & geography
 - Traffic range, MAU buckets, revenue stage
 - Main product/service, value proposition
 - Team size (solo founder / small team / contractors)
 - Budget, time, regulatory constraints
+- All stored in extended `user_context` table (30+ fields)
+- Migration: `migrations/versions/c2d3e4f5g6h7_add_extended_business_context.py`
 
 ---
 

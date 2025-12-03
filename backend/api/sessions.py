@@ -47,6 +47,7 @@ from bo1.state.postgres_manager import (
 )
 from bo1.state.redis_manager import RedisManager
 from bo1.state.repositories.session_repository import session_repository
+from bo1.state.repositories.user_repository import user_repository
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -113,6 +114,47 @@ async def create_session(
         # Generate session ID
         session_id = redis_manager.create_session()
 
+        # Fetch user's business context and merge with request context
+        # User context provides business background, request context can override/add specifics
+        merged_context: dict[str, Any] = {}
+        try:
+            user_context = user_repository.get_context(user_id)
+            if user_context:
+                # Include relevant business context fields
+                context_fields = [
+                    "company_name",
+                    "business_model",
+                    "target_market",
+                    "product_description",
+                    "business_stage",
+                    "primary_objective",
+                    "industry",
+                    "competitors",
+                    "revenue",
+                    "customers",
+                    "growth_rate",
+                    "website",
+                    "pricing_model",
+                    "brand_positioning",
+                    "ideal_customer_profile",
+                    "team_size",
+                    "budget_constraints",
+                    "time_constraints",
+                    "regulatory_constraints",
+                ]
+                for field in context_fields:
+                    if field in user_context and user_context[field]:
+                        merged_context[field] = user_context[field]
+                logger.debug(
+                    f"Injected {len(merged_context)} business context fields for user {user_id}"
+                )
+        except Exception as e:
+            logger.warning(f"Failed to load user context for session creation: {e}")
+
+        # Merge request context (overrides user context if same keys)
+        if session_request.problem_context:
+            merged_context.update(session_request.problem_context)
+
         # Create initial metadata
         now = datetime.now(UTC)
         metadata = {
@@ -122,7 +164,7 @@ async def create_session(
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
             "problem_statement": session_request.problem_statement,
-            "problem_context": session_request.problem_context or {},
+            "problem_context": merged_context,
         }
 
         # Save metadata to Redis (for live state and fast lookup)
@@ -150,7 +192,7 @@ async def create_session(
                 session_id=session_id,
                 user_id=user_id,
                 problem_statement=session_request.problem_statement,
-                problem_context=session_request.problem_context,
+                problem_context=merged_context if merged_context else None,
                 status="created",
             )
             logger.info(

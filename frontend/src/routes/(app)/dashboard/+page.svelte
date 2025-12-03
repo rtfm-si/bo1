@@ -6,6 +6,7 @@
 	import type { SessionResponse } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
+	import ContextRefreshBanner from '$lib/components/ui/ContextRefreshBanner.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { getSessionStatusColor } from '$lib/utils/persona-colors';
 
@@ -112,6 +113,9 @@
 
 	<!-- Main Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Context refresh reminder -->
+		<ContextRefreshBanner />
+
 		{#if isLoading}
 			<!-- Loading State -->
 			<div class="space-y-4">

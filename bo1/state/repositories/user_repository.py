@@ -126,6 +126,48 @@ class UserRepository(BaseRepository):
     # User Context
     # =========================================================================
 
+    # List of all context fields for extended business context
+    CONTEXT_FIELDS = [
+        # Original fields
+        "business_model",
+        "target_market",
+        "product_description",
+        "revenue",
+        "customers",
+        "growth_rate",
+        "competitors",
+        "website",
+        # Extended fields (Tier 3)
+        "company_name",
+        "business_stage",
+        "primary_objective",
+        "industry",
+        "product_categories",
+        "pricing_model",
+        "brand_positioning",
+        "brand_tone",
+        "brand_maturity",
+        "tech_stack",
+        "seo_structure",
+        "detected_competitors",
+        "ideal_customer_profile",
+        "keywords",
+        "target_geography",
+        "traffic_range",
+        "mau_bucket",
+        "revenue_stage",
+        "main_value_proposition",
+        "team_size",
+        "budget_constraints",
+        "time_constraints",
+        "regulatory_constraints",
+        "enrichment_source",
+        "enrichment_date",
+        "last_refresh_prompt",
+        "onboarding_completed",
+        "onboarding_completed_at",
+    ]
+
     def get_context(self, user_id: str) -> dict[str, Any] | None:
         """Load user's business context from database.
 
@@ -133,13 +175,13 @@ class UserRepository(BaseRepository):
             user_id: User ID (from Supabase auth)
 
         Returns:
-            Dictionary with context fields or None if not found
+            Dictionary with all context fields or None if not found
         """
+        # Build SELECT with all fields
+        fields = ", ".join(self.CONTEXT_FIELDS + ["created_at", "updated_at"])
         return self._execute_one(
-            """
-            SELECT business_model, target_market, product_description,
-                   revenue, customers, growth_rate, competitors, website,
-                   created_at, updated_at
+            f"""
+            SELECT {fields}
             FROM user_context
             WHERE user_id = %s
             """,
@@ -151,44 +193,77 @@ class UserRepository(BaseRepository):
 
         Args:
             user_id: User ID (from Supabase auth)
-            context: Dictionary with context fields
+            context: Dictionary with context fields (any subset of CONTEXT_FIELDS)
 
         Returns:
             Saved context with timestamps
         """
-        return self._execute_returning(
-            """
-            INSERT INTO user_context (
-                user_id, business_model, target_market, product_description,
-                revenue, customers, growth_rate, competitors, website
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        import json
+
+        # Filter to only valid fields
+        valid_fields = [f for f in self.CONTEXT_FIELDS if f in context]
+
+        # Build dynamic INSERT statement
+        field_list = ", ".join(valid_fields)
+        placeholders = ", ".join(["%s"] * len(valid_fields))
+        update_clause = ", ".join([f"{f} = EXCLUDED.{f}" for f in valid_fields])
+
+        # Prepare values, converting lists/dicts to JSON for JSONB columns
+        jsonb_fields = {
+            "product_categories",
+            "tech_stack",
+            "seo_structure",
+            "detected_competitors",
+            "keywords",
+        }
+
+        values = []
+        for field in valid_fields:
+            value = context.get(field)
+            if field in jsonb_fields and value is not None:
+                value = json.dumps(value)
+            values.append(value)
+
+        # Build return fields
+        return_fields = ", ".join(self.CONTEXT_FIELDS + ["created_at", "updated_at"])
+
+        sql = f"""
+            INSERT INTO user_context (user_id, {field_list})
+            VALUES (%s, {placeholders})
             ON CONFLICT (user_id) DO UPDATE SET
-                business_model = EXCLUDED.business_model,
-                target_market = EXCLUDED.target_market,
-                product_description = EXCLUDED.product_description,
-                revenue = EXCLUDED.revenue,
-                customers = EXCLUDED.customers,
-                growth_rate = EXCLUDED.growth_rate,
-                competitors = EXCLUDED.competitors,
-                website = EXCLUDED.website,
+                {update_clause},
                 updated_at = NOW()
-            RETURNING business_model, target_market, product_description,
-                      revenue, customers, growth_rate, competitors, website,
-                      created_at, updated_at
-            """,
-            (
-                user_id,
-                context.get("business_model"),
-                context.get("target_market"),
-                context.get("product_description"),
-                context.get("revenue"),
-                context.get("customers"),
-                context.get("growth_rate"),
-                context.get("competitors"),
-                context.get("website"),
-            ),
-        )
+            RETURNING {return_fields}
+        """
+
+        return self._execute_returning(sql, (user_id, *values))
+
+    def mark_onboarding_complete(self, user_id: str) -> bool:
+        """Mark user's onboarding as complete.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            True if updated successfully
+        """
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE user_context
+                        SET onboarding_completed = true,
+                            onboarding_completed_at = NOW(),
+                            updated_at = NOW()
+                        WHERE user_id = %s
+                        """,
+                        (user_id,),
+                    )
+                    return bool(cur.rowcount and cur.rowcount > 0)
+        except Exception as e:
+            logger.error(f"Failed to mark onboarding complete: {e}")
+            return False
 
     def delete_context(self, user_id: str) -> bool:
         """Delete user's business context.

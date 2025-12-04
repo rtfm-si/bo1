@@ -342,6 +342,39 @@ def clarification_answered_event(
     )
 
 
+def clarification_required_event(
+    session_id: str,
+    questions: list[dict[str, Any]],
+    phase: str,
+    reason: str,
+) -> str:
+    """Create SSE event for pre-deliberation clarification questions.
+
+    This event is emitted when critical information gaps are identified
+    during problem decomposition, BEFORE deliberation starts.
+
+    Args:
+        session_id: Session identifier
+        questions: List of question dicts with 'question', 'reason', 'priority'
+        phase: Phase when clarification is needed ('pre_deliberation' or 'mid_deliberation')
+        reason: Overall reason why clarification is needed
+
+    Returns:
+        SSE-formatted event string
+    """
+    return format_sse_event(
+        "clarification_required",
+        {
+            "session_id": session_id,
+            "questions": questions,
+            "phase": phase,
+            "reason": reason,
+            "question_count": len(questions),
+            "timestamp": datetime.now(UTC).isoformat(),
+        },
+    )
+
+
 # Additional event formatters for complete streaming support
 
 

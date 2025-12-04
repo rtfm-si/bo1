@@ -2,9 +2,11 @@
 
 This module contains nodes for collecting and managing context:
 - context_collection_node: Collects business context before deliberation
+- identify_gaps_node: Identifies critical information gaps after decomposition
 - clarification_node: Handles clarification questions during deliberation
 """
 
+import json
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -103,6 +105,141 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
         "metrics": metrics,
         "current_node": "context_collection",
     }
+
+
+async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Identify critical information gaps after decomposition.
+
+    This node runs AFTER decomposition and BEFORE deliberation to:
+    1. Analyze the problem and sub-problems for missing critical information
+    2. Categorize gaps as INTERNAL (user must provide) or EXTERNAL (can research)
+    3. If CRITICAL internal gaps exist, pause session for user Q&A
+    4. External gaps can be researched automatically during deliberation
+
+    This prevents entire sub-problems by getting key info upfront, leading to
+    better, faster, cheaper deliberations.
+
+    Args:
+        state: Current graph state (must have problem with sub_problems)
+
+    Returns:
+        Dictionary with state updates:
+        - If critical gaps: should_stop=True, pending_clarification with questions
+        - If no critical gaps: continues to next node
+    """
+    logger.info("identify_gaps_node: Analyzing information gaps")
+
+    problem = state.get("problem")
+    if not problem:
+        raise ValueError("identify_gaps_node called without problem")
+
+    # Check if we already have clarification answers waiting to be processed
+    clarification_answers = state.get("clarification_answers")
+    if clarification_answers and isinstance(clarification_answers, (list, dict)):
+        answer_count = (
+            len(clarification_answers)
+            if isinstance(clarification_answers, list)
+            else len(clarification_answers.keys())
+        )
+        logger.info(f"identify_gaps_node: Processing {answer_count} clarification answers")
+        # Answers already processed - continue to next node
+        return {
+            "current_node": "identify_gaps",
+            "pending_clarification": None,
+        }
+
+    # Get sub-problems from problem
+    sub_problems = problem.sub_problems or []
+    if not sub_problems:
+        logger.info("identify_gaps_node: No sub-problems, skipping gap analysis")
+        return {"current_node": "identify_gaps"}
+
+    # Get business context
+    business_context = state.get("business_context") or {}
+
+    # Call decomposer's identify_information_gaps method
+    from bo1.agents.decomposer import DecomposerAgent
+
+    decomposer = DecomposerAgent()
+
+    sub_problems_dicts = [
+        {
+            "id": sp.id,
+            "goal": sp.goal,
+            "context": sp.context,
+            "complexity_score": sp.complexity_score,
+        }
+        for sp in sub_problems
+    ]
+
+    response = await decomposer.identify_information_gaps(
+        problem_description=problem.description,
+        sub_problems=sub_problems_dicts,
+        business_context=business_context if isinstance(business_context, dict) else None,
+    )
+
+    # Parse gaps
+    try:
+        gaps = json.loads(response.content)
+    except json.JSONDecodeError:
+        logger.warning("identify_gaps_node: Failed to parse gaps JSON, continuing without Q&A")
+        gaps = {"internal_gaps": [], "external_gaps": []}
+
+    internal_gaps = gaps.get("internal_gaps", [])
+    external_gaps = gaps.get("external_gaps", [])
+
+    # Filter to CRITICAL internal gaps only
+    critical_internal_gaps = [gap for gap in internal_gaps if gap.get("priority") == "CRITICAL"]
+
+    logger.info(
+        f"identify_gaps_node: Found {len(internal_gaps)} internal gaps "
+        f"({len(critical_internal_gaps)} critical), {len(external_gaps)} external gaps"
+    )
+
+    # Track cost
+    metrics = ensure_metrics(state)
+    track_phase_cost(metrics, "identify_gaps", response)
+
+    # Store external gaps for potential research during deliberation
+    state_updates: dict[str, Any] = {
+        "metrics": metrics,
+        "current_node": "identify_gaps",
+        "external_research_gaps": external_gaps,  # Can be researched later
+    }
+
+    if critical_internal_gaps:
+        # Format questions for user
+        questions = [
+            {
+                "question": gap["question"],
+                "reason": gap.get(
+                    "reason", "This information is critical for high-quality recommendations"
+                ),
+                "priority": "CRITICAL",
+            }
+            for gap in critical_internal_gaps
+        ]
+
+        logger.info(
+            f"identify_gaps_node: Pausing for {len(questions)} critical clarifying questions"
+        )
+
+        # Pause session for user to answer
+        state_updates.update(
+            {
+                "should_stop": True,
+                "stop_reason": "clarification_needed",
+                "pending_clarification": {
+                    "questions": questions,
+                    "phase": "pre_deliberation",
+                    "reason": "Critical information needed before starting expert deliberation",
+                },
+            }
+        )
+    else:
+        logger.info("identify_gaps_node: No critical gaps, proceeding to deliberation")
+
+    return state_updates
 
 
 async def clarification_node(state: DeliberationGraphState) -> dict[str, Any]:

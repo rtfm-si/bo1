@@ -15,6 +15,7 @@ from bo1.graph.nodes import (
     clarification_node,  # Pre-meeting context collection
     context_collection_node,
     decompose_node,
+    identify_gaps_node,  # Post-decomposition gap analysis
     initial_round_node,
     research_node,  # Mid-meeting automated research (RESTORED)
     select_personas_node,
@@ -140,6 +141,7 @@ def create_deliberation_graph(
     workflow.add_node("next_subproblem", next_subproblem_node)  # Day 36.5
     workflow.add_node("meta_synthesis", meta_synthesize_node)  # Day 36.5
     workflow.add_node("clarification", clarification_node)  # Day 37
+    workflow.add_node("identify_gaps", identify_gaps_node)  # Pre-deliberation Q&A
 
     # Add edges - Linear setup phase
     # ISSUE #3 FIX: Business context must flow BEFORE decomposition
@@ -149,11 +151,32 @@ def create_deliberation_graph(
     # context_collection -> decompose (business context flows INTO decomposition)
     workflow.add_edge("context_collection", "decompose")
 
-    # decompose -> analyze_dependencies (if parallel sub-problems enabled, else select_personas)
+    # decompose -> identify_gaps (analyze what info is missing)
+    workflow.add_edge("decompose", "identify_gaps")
+
+    # Router for identify_gaps: if critical gaps, END (pause for Q&A), else continue
+    def route_after_identify_gaps(state: DeliberationGraphState) -> str:
+        """Route based on whether critical information gaps require user input."""
+        if state.get("should_stop") and state.get("stop_reason") == "clarification_needed":
+            logger.info("route_after_identify_gaps: Pausing for clarification")
+            return "END"
+        logger.info("route_after_identify_gaps: Continuing to deliberation")
+        return "continue"
+
+    # identify_gaps -> analyze_dependencies (if parallel sub-problems enabled, else select_personas)
     if ENABLE_PARALLEL_SUBPROBLEMS:
         workflow.add_node("analyze_dependencies", analyze_dependencies_node)
         workflow.add_node("parallel_subproblems", parallel_subproblems_node)
-        workflow.add_edge("decompose", "analyze_dependencies")
+
+        # identify_gaps -> (END if clarification needed, else analyze_dependencies)
+        workflow.add_conditional_edges(
+            "identify_gaps",
+            route_after_identify_gaps,
+            {
+                "END": END,
+                "continue": "analyze_dependencies",
+            },
+        )
 
         # analyze_dependencies -> (parallel_subproblems | select_personas)
         workflow.add_conditional_edges(
@@ -168,8 +191,15 @@ def create_deliberation_graph(
         # parallel_subproblems -> meta_synthesis
         workflow.add_edge("parallel_subproblems", "meta_synthesis")
     else:
-        # Legacy: decompose -> select_personas
-        workflow.add_edge("decompose", "select_personas")
+        # Legacy: identify_gaps -> (END if clarification needed, else select_personas)
+        workflow.add_conditional_edges(
+            "identify_gaps",
+            route_after_identify_gaps,
+            {
+                "END": END,
+                "continue": "select_personas",
+            },
+        )
 
     # select_personas -> initial_round
     workflow.add_edge("select_personas", "initial_round")

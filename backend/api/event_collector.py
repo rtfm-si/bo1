@@ -47,6 +47,7 @@ class EventCollector:
     # Node handler registry: maps node names to handler method names
     NODE_HANDLERS: dict[str, str] = {
         "decompose": "_handle_decomposition",
+        "identify_gaps": "_handle_identify_gaps",
         "select_personas": "_handle_persona_selection",
         "initial_round": "_handle_initial_round",
         "facilitator_decide": "_handle_facilitator_decision",
@@ -471,6 +472,45 @@ class EventCollector:
                 f"Comparison detected: {comparison_event['comparison_type']} - "
                 f"{comparison_event['options']} ({comparison_event['research_queries_count']} queries)"
             )
+
+    async def _handle_identify_gaps(self, session_id: str, output: dict) -> None:
+        """Handle identify_gaps node completion.
+
+        Emits clarification_required event if critical information gaps were found.
+        """
+        pending_clarification = output.get("pending_clarification")
+
+        if pending_clarification:
+            questions = pending_clarification.get("questions", [])
+            phase = pending_clarification.get("phase", "pre_deliberation")
+            reason = pending_clarification.get("reason", "")
+
+            logger.info(
+                f"identify_gaps: Found {len(questions)} critical questions, pausing for user input"
+            )
+
+            # Emit clarification_required event
+            self.publisher.publish_event(
+                session_id,
+                "clarification_required",
+                {
+                    "questions": questions,
+                    "phase": phase,
+                    "reason": reason,
+                    "question_count": len(questions),
+                },
+            )
+
+            # Update session status to indicate waiting for clarification
+            update_session_phase(session_id, "clarification_needed")
+        else:
+            # No critical gaps, just emit a status update
+            external_gaps = output.get("external_research_gaps", [])
+            if external_gaps:
+                logger.info(
+                    f"identify_gaps: No critical gaps, but {len(external_gaps)} "
+                    f"external research opportunities identified"
+                )
 
     async def _handle_persona_selection(self, session_id: str, output: dict) -> None:
         """Handle select_personas node completion - publishes multiple events."""

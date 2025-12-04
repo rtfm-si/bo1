@@ -40,18 +40,32 @@ router = APIRouter(prefix="/v1/sessions", tags=["deliberation-control"])
 
 
 class ClarificationRequest(BaseModel):
-    """Request model for clarification answer.
+    """Request model for clarification answers.
+
+    Supports both single answer (legacy) and multiple answers (new).
 
     Attributes:
-        answer: User's answer to the clarification question
+        answer: Single answer to clarification question (legacy, optional)
+        answers: Dict of question->answer pairs (new, optional)
+        skip: Whether to skip all questions without answering
     """
 
-    answer: str = Field(
-        ...,
-        min_length=1,
+    answer: str | None = Field(
+        None,
         max_length=5000,
-        description="Answer to clarification question",
+        description="Single answer to clarification question (legacy)",
         examples=["Our current churn rate is 3.5% monthly"],
+    )
+    answers: dict[str, str] | None = Field(
+        None,
+        description="Dict of question->answer pairs for multiple questions",
+        examples=[
+            {"What is your monthly churn rate?": "3.5%", "What is your current ARR?": "$500K"}
+        ],
+    )
+    skip: bool = Field(
+        False,
+        description="Skip all questions without answering",
     )
 
 
@@ -645,22 +659,47 @@ async def _submit_clarification_impl(
         # Unpack verified session data
         user_id, metadata = session_data
 
-        # Prompt injection audit on clarification answer
-        await check_for_injection(
-            content=request.answer,
-            source="clarification_answer",
-            raise_on_unsafe=True,
-        )
+        # Handle skip request
+        if request.skip:
+            logger.info(f"User skipped clarification questions for session {session_id}")
+            # Clear pending clarification and allow resume
+            metadata["pending_clarification"] = None
+            metadata["status"] = "paused"
+            metadata["updated_at"] = datetime.now(UTC).isoformat()
+            redis_manager.save_metadata(session_id, metadata)
 
-        # Check for pending clarification
-        pending_clarification = metadata.get("pending_clarification")
-        if not pending_clarification:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Session {session_id} has no pending clarification",
+            return ControlResponse(
+                session_id=session_id,
+                action="clarify",
+                status="success",
+                message="Questions skipped. Session ready to resume.",
             )
 
-        # Load state and inject answer into problem context
+        # Get answers - support both legacy single answer and new multiple answers
+        answers_to_process: dict[str, str] = {}
+        if request.answers:
+            answers_to_process = request.answers
+        elif request.answer:
+            # Legacy single answer - need to get question from pending_clarification
+            pending_clarification = metadata.get("pending_clarification", {})
+            question = pending_clarification.get("question", "Clarification")
+            answers_to_process = {question: request.answer}
+
+        if not answers_to_process:
+            raise HTTPException(
+                status_code=400,
+                detail="No answers provided. Use 'answers' dict or 'skip': true",
+            )
+
+        # Prompt injection audit on all answers
+        for _question, answer in answers_to_process.items():
+            await check_for_injection(
+                content=answer,
+                source="clarification_answer",
+                raise_on_unsafe=True,
+            )
+
+        # Load state and inject answers into problem context
         state = redis_manager.load_state(session_id)
         if not state:
             raise HTTPException(
@@ -672,15 +711,24 @@ async def _submit_clarification_impl(
         if not isinstance(state, dict):
             state = state.model_dump() if hasattr(state, "model_dump") else {}
 
-        # Inject clarification answer into problem context
+        # Inject clarification answers into problem context
         if "problem" not in state:
             state["problem"] = {}
-        if "context" not in state["problem"]:
-            state["problem"]["context"] = {}
 
-        # Add clarification to context
-        clarification_key = f"clarification_{pending_clarification['question_id']}"
-        state["problem"]["context"][clarification_key] = request.answer
+        # Build context string from answers
+        clarification_context = "\n\n## Clarification Answers\n"
+        for question, answer in answers_to_process.items():
+            clarification_context += f"- **Q:** {question}\n  **A:** {answer}\n"
+
+        # Append to existing context
+        if hasattr(state["problem"], "context"):
+            state["problem"].context = (state["problem"].context or "") + clarification_context
+        else:
+            existing_context = state["problem"].get("context", "") or ""
+            state["problem"]["context"] = existing_context + clarification_context
+
+        # Store answers in state for identify_gaps_node to see
+        state["clarification_answers"] = answers_to_process
 
         # Save updated state
         redis_manager.save_state(session_id, state)
@@ -691,8 +739,8 @@ async def _submit_clarification_impl(
         metadata["updated_at"] = datetime.now(UTC).isoformat()
         redis_manager.save_metadata(session_id, metadata)
 
-        # ISSUE #4 FIX: Persist clarification answer to user's business context
-        # This ensures future meetings can benefit from the clarification
+        # ISSUE #4 FIX: Persist clarification answers to user's business context
+        # This ensures future meetings can benefit from the clarifications
         try:
             from bo1.state.postgres_manager import load_user_context, save_user_context
 
@@ -701,19 +749,19 @@ async def _submit_clarification_impl(
 
             # Add/update clarifications section
             clarifications = existing_context.get("clarifications", {})
-            question = pending_clarification.get("question", "Unknown question")
-            clarifications[question] = {
-                "answer": request.answer,
-                "answered_at": datetime.now(UTC).isoformat(),
-                "session_id": session_id,
-            }
+            for question, answer in answers_to_process.items():
+                clarifications[question] = {
+                    "answer": answer,
+                    "answered_at": datetime.now(UTC).isoformat(),
+                    "session_id": session_id,
+                }
             existing_context["clarifications"] = clarifications
 
             # Save updated context
             save_user_context(user_id, existing_context)
             logger.info(
-                f"Persisted clarification to business context for user {user_id}: "
-                f"'{question[:50]}...' = '{request.answer[:50]}...'"
+                f"Persisted {len(answers_to_process)} clarification(s) to business context "
+                f"for user {user_id}"
             )
         except Exception as e:
             # Don't fail the request if business context persistence fails
@@ -721,7 +769,7 @@ async def _submit_clarification_impl(
 
         logger.info(
             f"Clarification submitted for session {session_id}. "
-            f"Question: {pending_clarification.get('question', 'N/A')}"
+            f"Answered {len(answers_to_process)} question(s)"
         )
 
         # Note: We return 202 but don't auto-resume. User must call /resume endpoint.
@@ -730,7 +778,7 @@ async def _submit_clarification_impl(
             session_id=session_id,
             action="clarify",
             status="success",
-            message="Clarification submitted. Session ready to resume.",
+            message=f"Clarification submitted ({len(answers_to_process)} answer(s)). Session ready to resume.",
         )
 
     except HTTPException:

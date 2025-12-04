@@ -265,6 +265,12 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
         "clarification_requested": lambda: events.clarification_requested_event(
             session_id, data.get("question", ""), data.get("reason", ""), data.get("round", 1)
         ),
+        "clarification_required": lambda: events.clarification_required_event(
+            session_id,
+            data.get("questions", []),
+            data.get("phase", "pre_deliberation"),
+            data.get("reason", ""),
+        ),
     }
 
     formatter = formatters.get(event_type)

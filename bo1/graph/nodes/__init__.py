@@ -35,6 +35,7 @@ from bo1.graph.nodes.archived.moderation import facilitator_decide_node
 from bo1.graph.nodes.context import (
     clarification_node,
     context_collection_node,
+    identify_gaps_node,
 )
 from bo1.graph.nodes.decomposition import decompose_node
 from bo1.graph.nodes.moderation import moderator_intervene_node
@@ -106,6 +107,7 @@ __all__ = [
     "_parallel_subproblems_legacy",
     # Context
     "context_collection_node",
+    "identify_gaps_node",
     "clarification_node",
     # Utils
     "retry_with_backoff",

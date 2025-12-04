@@ -32,6 +32,7 @@
   "dependencies": {
     "@types/marked": "^5.0.2",
     "driver.js": "^1.4.0",
+    "frappe-gantt": "^1.0.4",
     "js-cookie": "^3.0.5",
     "lucide-svelte": "^0.554.0",
     "marked": "^17.0.1",

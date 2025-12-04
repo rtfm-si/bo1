@@ -1,0 +1,36 @@
+declare module 'frappe-gantt' {
+	export interface Task {
+		id: string;
+		name: string;
+		start: string | Date | null;
+		end: string | Date | null;
+		progress?: number;
+		dependencies?: string;
+		custom_class?: string;
+	}
+
+	export interface GanttOptions {
+		header_height?: number;
+		column_width?: number;
+		step?: number;
+		view_modes?: string[];
+		bar_height?: number;
+		bar_corner_radius?: number;
+		arrow_curve?: number;
+		padding?: number;
+		view_mode?: 'Day' | 'Week' | 'Month' | 'Quarter' | 'Year';
+		date_format?: string;
+		popup_trigger?: 'click' | 'hover';
+		custom_popup_html?: (task: any) => string;
+		on_click?: (task: any) => void;
+		on_date_change?: (task: any, start: Date, end: Date) => void;
+		on_progress_change?: (task: any, progress: number) => void;
+		on_view_change?: (mode: string) => void;
+	}
+
+	export default class Gantt {
+		constructor(element: HTMLElement, tasks: Task[], options?: GanttOptions);
+		change_view_mode(mode: 'Day' | 'Week' | 'Month' | 'Quarter' | 'Year'): void;
+		refresh(tasks: Task[]): void;
+	}
+}

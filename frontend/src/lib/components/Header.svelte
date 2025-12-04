@@ -73,6 +73,12 @@
 						Actions
 					</a>
 					<a
+						href="/projects"
+						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+					>
+						Projects
+					</a>
+					<a
 						href="/settings"
 						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
 					>

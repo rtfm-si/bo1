@@ -342,7 +342,7 @@ class SessionRepository(BaseRepository):
         synthesis_sections_analyzed: list[str],
         user_id: str | None = None,
     ) -> dict[str, Any]:
-        """Save extracted tasks to PostgreSQL.
+        """Save extracted tasks to actions table and session_tasks metadata.
 
         Args:
             session_id: Session identifier
@@ -353,7 +353,7 @@ class SessionRepository(BaseRepository):
             user_id: User identifier (optional)
 
         Returns:
-            Saved task record
+            Saved task record with metadata
         """
         with db_session() as conn:
             with conn.cursor() as cur:
@@ -366,6 +366,7 @@ class SessionRepository(BaseRepository):
                     else:
                         raise ValueError(f"Session not found: {session_id}")
 
+                # Save metadata to session_tasks (for extraction_confidence tracking)
                 cur.execute(
                     """
                     INSERT INTO session_tasks (
@@ -391,6 +392,42 @@ class SessionRepository(BaseRepository):
                     ),
                 )
                 result = cur.fetchone()
+
+                # Save each task to actions table
+                for idx, task in enumerate(tasks):
+                    cur.execute(
+                        """
+                        INSERT INTO actions (
+                            user_id, source_session_id, title, description,
+                            what_and_how, success_criteria, kill_criteria,
+                            status, priority, category,
+                            timeline, estimated_duration_days,
+                            confidence, source_section, sub_problem_index,
+                            sort_order
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        (
+                            user_id,
+                            session_id,
+                            task.get("title", ""),
+                            task.get("description", ""),
+                            task.get("what_and_how", []),
+                            task.get("success_criteria", []),
+                            task.get("kill_criteria", []),
+                            "todo",  # Initial status
+                            task.get("priority", "medium"),
+                            task.get("category", "implementation"),
+                            task.get("timeline"),
+                            task.get("estimated_duration_days"),
+                            task.get("confidence", 0.0),
+                            task.get("source_section"),
+                            task.get("sub_problem_index"),
+                            idx,  # Use array index as sort_order
+                        ),
+                    )
+
                 return dict(result) if result else {}
 
     def get_tasks(self, session_id: str) -> dict[str, Any] | None:

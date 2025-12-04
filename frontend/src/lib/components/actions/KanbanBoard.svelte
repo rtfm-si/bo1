@@ -5,23 +5,25 @@
 	import type { TaskWithStatus } from '$lib/api/types';
 	import TaskCard from './TaskCard.svelte';
 
+	import type { ActionStatus } from '$lib/api/types';
+
 	interface Props {
 		tasks: TaskWithStatus[];
-		onStatusChange: (taskId: string, newStatus: 'todo' | 'doing' | 'done') => void;
+		onStatusChange: (taskId: string, newStatus: ActionStatus) => void;
 		loading?: boolean;
 	}
 
 	let { tasks, onStatusChange, loading = false }: Props = $props();
 
 	// Helper function to filter tasks by status (called reactively in template)
-	function getTasksByStatus(status: 'todo' | 'doing' | 'done') {
+	function getTasksByStatus(status: ActionStatus) {
 		return tasks.filter((t) => t.status === status);
 	}
 
-	const columns = [
-		{ id: 'todo' as const, title: 'To Do', color: 'var(--color-muted)' },
-		{ id: 'doing' as const, title: 'In Progress', color: 'var(--color-warning)' },
-		{ id: 'done' as const, title: 'Done', color: 'var(--color-success)' }
+	const columns: { id: ActionStatus; title: string; color: string }[] = [
+		{ id: 'todo', title: 'To Do', color: 'var(--color-muted)' },
+		{ id: 'in_progress', title: 'In Progress', color: 'var(--color-warning)' },
+		{ id: 'done', title: 'Done', color: 'var(--color-success)' }
 	];
 </script>
 
@@ -38,7 +40,7 @@
 					<div class="empty-state">
 						{#if column.id === 'todo'}
 							No pending tasks
-						{:else if column.id === 'doing'}
+						{:else if column.id === 'in_progress'}
 							No tasks in progress
 						{:else}
 							No completed tasks

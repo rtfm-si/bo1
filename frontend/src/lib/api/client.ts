@@ -28,7 +28,32 @@ import type {
 	SessionActionsResponse,
 	TaskStatusUpdateRequest,
 	AllActionsResponse,
-	ActionDetailResponse
+	ActionDetailResponse,
+	ActionStatus,
+	// Project types
+	ProjectStatus,
+	ProjectCreateRequest,
+	ProjectUpdateRequest,
+	ProjectDetailResponse,
+	ProjectListResponse,
+	ProjectActionsResponse,
+	ProjectSessionsResponse,
+	GanttResponse,
+	// Action Update types (Phase 5)
+	ActionUpdateCreateRequest,
+	ActionUpdateResponse,
+	ActionUpdatesResponse,
+	// Replanning types (Phase 7)
+	ReplanRequest,
+	ReplanResponse,
+	// Tag types
+	TagCreateRequest,
+	TagUpdateRequest,
+	TagResponse,
+	TagListResponse,
+	ActionTagsUpdateRequest,
+	// Global Gantt types
+	GlobalGanttResponse
 } from './types';
 
 // ============================================================================
@@ -562,7 +587,10 @@ export class ApiClient {
 	// ==========================================================================
 
 	async getAllActions(params?: {
-		status_filter?: 'todo' | 'doing' | 'done';
+		status_filter?: ActionStatus;
+		project_id?: string;
+		session_id?: string;
+		tag_ids?: string;
 		limit?: number;
 		offset?: number;
 	}): Promise<AllActionsResponse> {
@@ -570,8 +598,18 @@ export class ApiClient {
 		return this.fetch<AllActionsResponse>(endpoint);
 	}
 
-	async getActionDetail(sessionId: string, taskId: string): Promise<ActionDetailResponse> {
-		return this.fetch<ActionDetailResponse>(`/api/v1/actions/${sessionId}/${taskId}`);
+	async getActionDetail(actionId: string): Promise<ActionDetailResponse> {
+		return this.fetch<ActionDetailResponse>(`/api/v1/actions/${actionId}`);
+	}
+
+	async getGlobalGantt(params?: {
+		status_filter?: ActionStatus;
+		project_id?: string;
+		session_id?: string;
+		tag_ids?: string;
+	}): Promise<GlobalGanttResponse> {
+		const endpoint = withQueryString('/api/v1/actions/gantt', params || {});
+		return this.fetch<GlobalGanttResponse>(endpoint);
 	}
 
 	// ==========================================================================
@@ -767,6 +805,168 @@ export class ApiClient {
 
 	async createBillingPortalSession(): Promise<BillingPortalResponse> {
 		return this.post<BillingPortalResponse>('/api/v1/billing/portal');
+	}
+
+	// ==========================================================================
+	// Project Endpoints
+	// ==========================================================================
+
+	async listProjects(params?: {
+		status?: string;
+		page?: number;
+		per_page?: number;
+	}): Promise<ProjectListResponse> {
+		const endpoint = withQueryString('/api/v1/projects', params || {});
+		return this.fetch<ProjectListResponse>(endpoint);
+	}
+
+	async createProject(request: ProjectCreateRequest): Promise<ProjectDetailResponse> {
+		return this.post<ProjectDetailResponse>('/api/v1/projects', request);
+	}
+
+	async getProject(projectId: string): Promise<ProjectDetailResponse> {
+		return this.fetch<ProjectDetailResponse>(`/api/v1/projects/${projectId}`);
+	}
+
+	async updateProject(projectId: string, request: ProjectUpdateRequest): Promise<ProjectDetailResponse> {
+		return this.fetch<ProjectDetailResponse>(`/api/v1/projects/${projectId}`, {
+			method: 'PATCH',
+			body: JSON.stringify(request)
+		});
+	}
+
+	async deleteProject(projectId: string): Promise<void> {
+		return this.delete<void>(`/api/v1/projects/${projectId}`);
+	}
+
+	async updateProjectStatus(projectId: string, status: ProjectStatus): Promise<ProjectDetailResponse> {
+		return this.fetch<ProjectDetailResponse>(`/api/v1/projects/${projectId}/status`, {
+			method: 'PATCH',
+			body: JSON.stringify({ status })
+		});
+	}
+
+	async getProjectActions(
+		projectId: string,
+		params?: { status?: string; page?: number; per_page?: number }
+	): Promise<ProjectActionsResponse> {
+		const endpoint = withQueryString(`/api/v1/projects/${projectId}/actions`, params || {});
+		return this.fetch<ProjectActionsResponse>(endpoint);
+	}
+
+	async assignActionToProject(projectId: string, actionId: string): Promise<void> {
+		return this.post<void>(`/api/v1/projects/${projectId}/actions/${actionId}`);
+	}
+
+	async removeActionFromProject(projectId: string, actionId: string): Promise<void> {
+		return this.delete<void>(`/api/v1/projects/${projectId}/actions/${actionId}`);
+	}
+
+	async getProjectGantt(projectId: string): Promise<GanttResponse> {
+		return this.fetch<GanttResponse>(`/api/v1/projects/${projectId}/gantt`);
+	}
+
+	async linkSessionToProject(
+		projectId: string,
+		sessionId: string,
+		relationship?: 'discusses' | 'created_from' | 'replanning'
+	): Promise<{ project_id: string; session_id: string; relationship: string }> {
+		return this.post<{ project_id: string; session_id: string; relationship: string }>(
+			`/api/v1/projects/${projectId}/sessions`,
+			{ session_id: sessionId, relationship: relationship || 'discusses' }
+		);
+	}
+
+	async unlinkSessionFromProject(projectId: string, sessionId: string): Promise<void> {
+		return this.delete<void>(`/api/v1/projects/${projectId}/sessions/${sessionId}`);
+	}
+
+	async getProjectSessions(projectId: string): Promise<ProjectSessionsResponse> {
+		return this.fetch<ProjectSessionsResponse>(`/api/v1/projects/${projectId}/sessions`);
+	}
+
+	// ==========================================================================
+	// Action Updates Endpoints (Phase 5)
+	// ==========================================================================
+
+	/**
+	 * Get activity timeline for an action
+	 */
+	async getActionUpdates(actionId: string, limit?: number): Promise<ActionUpdatesResponse> {
+		const params = new URLSearchParams();
+		if (limit) params.append('limit', limit.toString());
+		const query = params.toString();
+		return this.fetch<ActionUpdatesResponse>(
+			`/api/v1/actions/${actionId}/updates${query ? `?${query}` : ''}`
+		);
+	}
+
+	/**
+	 * Add a progress update, blocker, or note to an action
+	 */
+	async addActionUpdate(
+		actionId: string,
+		update: ActionUpdateCreateRequest
+	): Promise<ActionUpdateResponse> {
+		return this.post<ActionUpdateResponse>(`/api/v1/actions/${actionId}/updates`, update);
+	}
+
+	/**
+	 * Request AI replanning for a blocked action
+	 * Creates a new deliberation session with context about the blocked action
+	 */
+	async requestReplan(
+		actionId: string,
+		additionalContext?: string
+	): Promise<ReplanResponse> {
+		const body: ReplanRequest = additionalContext ? { additional_context: additionalContext } : {};
+		return this.post<ReplanResponse>(`/api/v1/actions/${actionId}/replan`, body);
+	}
+
+	// ==========================================================================
+	// Tag Endpoints
+	// ==========================================================================
+
+	/**
+	 * Get all tags for the current user
+	 */
+	async getTags(): Promise<TagListResponse> {
+		return this.fetch<TagListResponse>('/api/v1/tags');
+	}
+
+	/**
+	 * Create a new tag
+	 */
+	async createTag(request: TagCreateRequest): Promise<TagResponse> {
+		return this.post<TagResponse>('/api/v1/tags', request);
+	}
+
+	/**
+	 * Update an existing tag
+	 */
+	async updateTag(tagId: string, request: TagUpdateRequest): Promise<TagResponse> {
+		return this.patch<TagResponse>(`/api/v1/tags/${tagId}`, request);
+	}
+
+	/**
+	 * Delete a tag
+	 */
+	async deleteTag(tagId: string): Promise<{ message: string; tag_id: string }> {
+		return this.delete<{ message: string; tag_id: string }>(`/api/v1/tags/${tagId}`);
+	}
+
+	/**
+	 * Get tags for an action
+	 */
+	async getActionTags(actionId: string): Promise<TagResponse[]> {
+		return this.fetch<TagResponse[]>(`/api/v1/actions/${actionId}/tags`);
+	}
+
+	/**
+	 * Set tags for an action (replaces existing)
+	 */
+	async setActionTags(actionId: string, tagIds: string[]): Promise<TagResponse[]> {
+		return this.put<TagResponse[]>(`/api/v1/actions/${actionId}/tags`, { tag_ids: tagIds });
 	}
 }
 

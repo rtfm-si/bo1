@@ -5,16 +5,18 @@
 	import type { TaskWithStatus } from '$lib/api/types';
 	import Badge from '$lib/components/ui/Badge.svelte';
 
+	import type { ActionStatus } from '$lib/api/types';
+
 	interface Props {
 		task: TaskWithStatus;
-		onStatusChange: (taskId: string, newStatus: 'todo' | 'doing' | 'done') => void;
+		onStatusChange: (taskId: string, newStatus: ActionStatus) => void;
 	}
 
 	let { task, onStatusChange }: Props = $props();
 
 	// Determine next status for quick action button
 	const nextStatus = $derived(
-		task.status === 'todo' ? 'doing' : task.status === 'doing' ? 'done' : null
+		task.status === 'todo' ? 'in_progress' : task.status === 'in_progress' ? 'done' : null
 	);
 
 	const priorityColors = {
@@ -107,16 +109,16 @@
 	<div class="task-actions">
 		{#if nextStatus}
 			<button class="action-btn primary" onclick={() => onStatusChange(task.id, nextStatus)}>
-				{nextStatus === 'doing' ? 'Start' : 'Complete'}
+				{nextStatus === 'in_progress' ? 'Start' : 'Complete'}
 			</button>
 		{/if}
-		{#if task.status === 'doing'}
+		{#if task.status === 'in_progress'}
 			<button class="action-btn secondary" onclick={() => onStatusChange(task.id, 'todo')}>
 				Move back
 			</button>
 		{/if}
 		{#if task.status === 'done'}
-			<button class="action-btn secondary" onclick={() => onStatusChange(task.id, 'doing')}>
+			<button class="action-btn secondary" onclick={() => onStatusChange(task.id, 'in_progress')}>
 				Reopen
 			</button>
 		{/if}

@@ -1,38 +1,108 @@
 <script lang="ts">
 	/**
-	 * Actions Page - Global Kanban board for all user actions
+	 * Actions Page - Global Kanban/Gantt board for all user actions
 	 *
-	 * Displays all actions from completed meetings in a Kanban view.
-	 * Follows 2025 UX best practices:
-	 * - F/Z-pattern layout with critical info at top
-	 * - 5-second rule for finding key information
-	 * - Color-coded status indicators
-	 * - Click-through to meeting context
-	 * - Filter by source meeting
+	 * Displays all actions from completed meetings.
+	 * Features:
+	 * - Kanban and Gantt views
+	 * - Filter by meeting, project, and tags
+	 * - Click-through to action details
 	 */
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import Header from '$lib/components/Header.svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { AllActionsResponse, TaskWithSessionContext, SessionWithTasks } from '$lib/api/types';
+	import type {
+		AllActionsResponse,
+		TaskWithSessionContext,
+		ActionStatus,
+		TagResponse,
+		ProjectDetailResponse,
+		GlobalGanttResponse
+	} from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 	import Badge from '$lib/components/ui/Badge.svelte';
-	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
+	import GlobalGanttChart from '$lib/components/actions/GlobalGanttChart.svelte';
 
-	// Fetch all actions
-	const actionsData = useDataFetch(() => apiClient.getAllActions());
-
-	const data = $derived<AllActionsResponse | null>(actionsData.data);
-	const isLoading = $derived(actionsData.isLoading);
-	const error = $derived(actionsData.error);
-
-	// Meeting filter state
+	// Filter state
 	let selectedMeetingId = $state<string | null>(null);
+	let selectedProjectId = $state<string | null>(null);
+	let selectedTagIds = $state<string[]>([]);
+
+	// View mode state (kanban or gantt)
+	let viewMode = $state<'kanban' | 'gantt'>('kanban');
+	let ganttViewMode = $state<'Day' | 'Week' | 'Month'>('Week');
+
+	// Loading states
+	let isLoading = $state(true);
+	let error = $state<string | null>(null);
+
+	// Data
+	let actionsData = $state<AllActionsResponse | null>(null);
+	let ganttData = $state<GlobalGanttResponse | null>(null);
+	let projects = $state<ProjectDetailResponse[]>([]);
+	let tags = $state<TagResponse[]>([]);
+	let showTagDropdown = $state(false);
+
+	// Fetch all data
+	async function fetchData() {
+		isLoading = true;
+		error = null;
+		try {
+			// Build filter params
+			const params: Record<string, string | undefined> = {};
+			if (selectedProjectId) params.project_id = selectedProjectId;
+			if (selectedMeetingId) params.session_id = selectedMeetingId;
+			if (selectedTagIds.length > 0) params.tag_ids = selectedTagIds.join(',');
+
+			// Fetch actions, projects, tags in parallel
+			const [actionsRes, projectsRes, tagsRes] = await Promise.all([
+				apiClient.getAllActions(params),
+				apiClient.listProjects({ status: 'active' }),
+				apiClient.getTags()
+			]);
+
+			actionsData = actionsRes;
+			projects = projectsRes.projects;
+			tags = tagsRes.tags;
+
+			// If gantt view is active, fetch gantt data too
+			if (viewMode === 'gantt') {
+				ganttData = await apiClient.getGlobalGantt(params);
+			}
+		} catch (err) {
+			console.error('Failed to fetch actions:', err);
+			error = err instanceof Error ? err.message : 'Failed to load actions';
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	// Fetch gantt data when switching to gantt view
+	async function fetchGanttData() {
+		try {
+			const params: Record<string, string | undefined> = {};
+			if (selectedProjectId) params.project_id = selectedProjectId;
+			if (selectedMeetingId) params.session_id = selectedMeetingId;
+			if (selectedTagIds.length > 0) params.tag_ids = selectedTagIds.join(',');
+			ganttData = await apiClient.getGlobalGantt(params);
+		} catch (err) {
+			console.error('Failed to fetch gantt data:', err);
+		}
+	}
+
+	// Watch for view mode changes
+	$effect(() => {
+		if (viewMode === 'gantt' && !ganttData && actionsData) {
+			fetchGanttData();
+		}
+	});
 
 	// Get unique meetings for filter dropdown
 	const meetings = $derived<{ id: string; title: string; taskCount: number }[]>(
-		data?.sessions
-			? data.sessions.map((s) => ({
+		actionsData?.sessions
+			? actionsData.sessions.map((s) => ({
 					id: s.session_id,
 					title: s.problem_statement.length > 50
 						? s.problem_statement.substring(0, 50) + '...'
@@ -42,10 +112,11 @@
 			: []
 	);
 
-	// Get all tasks flattened with session context (filtered by selected meeting)
+	// Get all tasks flattened with session context (filtered by selected meeting - client-side filter for meeting)
 	const allTasks = $derived.by<TaskWithSessionContext[]>(() => {
-		if (!data?.sessions) return [];
-		const tasks = data.sessions.flatMap((s) => s.tasks as TaskWithSessionContext[]);
+		if (!actionsData?.sessions) return [];
+		const tasks = actionsData.sessions.flatMap((s) => s.tasks as TaskWithSessionContext[]);
+		// Meeting filter is applied server-side via session_id, but also filter client-side for UI responsiveness
 		if (selectedMeetingId) {
 			return tasks.filter((t) => t.session_id === selectedMeetingId);
 		}
@@ -53,13 +124,31 @@
 	});
 
 	// Filter tasks by status
-	function getTasksByStatus(status: 'todo' | 'doing' | 'done') {
+	function getTasksByStatus(status: ActionStatus) {
 		return allTasks.filter((t) => t.status === status);
 	}
 
-	// Clear meeting filter
-	function clearMeetingFilter() {
+	// Clear all filters
+	function clearFilters() {
 		selectedMeetingId = null;
+		selectedProjectId = null;
+		selectedTagIds = [];
+		fetchData();
+	}
+
+	// Toggle tag selection
+	function toggleTag(tagId: string) {
+		if (selectedTagIds.includes(tagId)) {
+			selectedTagIds = selectedTagIds.filter((id) => id !== tagId);
+		} else {
+			selectedTagIds = [...selectedTagIds, tagId];
+		}
+	}
+
+	// Apply filters
+	function applyFilters() {
+		showTagDropdown = false;
+		fetchData();
 	}
 
 	// Status update handler
@@ -68,13 +157,12 @@
 	async function handleStatusChange(
 		sessionId: string,
 		taskId: string,
-		newStatus: 'todo' | 'doing' | 'done'
+		newStatus: ActionStatus
 	) {
 		updatingTaskId = taskId;
 		try {
 			await apiClient.updateTaskStatus(sessionId, taskId, newStatus);
-			// Refresh data
-			await actionsData.fetch();
+			await fetchData();
 		} catch (err) {
 			console.error('Failed to update task status:', err);
 		} finally {
@@ -82,10 +170,15 @@
 		}
 	}
 
-	const columns = [
-		{ id: 'todo' as const, title: 'To Do', color: 'var(--color-neutral-500)' },
-		{ id: 'doing' as const, title: 'In Progress', color: 'var(--color-warning-500)' },
-		{ id: 'done' as const, title: 'Done', color: 'var(--color-success-500)' }
+	// Navigate to action detail
+	function handleTaskClick(actionId: string) {
+		goto(`/actions/${actionId}`);
+	}
+
+	const columns: { id: ActionStatus; title: string; color: string }[] = [
+		{ id: 'todo', title: 'To Do', color: 'var(--color-neutral-500)' },
+		{ id: 'in_progress', title: 'In Progress', color: 'var(--color-warning-500)' },
+		{ id: 'done', title: 'Done', color: 'var(--color-success-500)' }
 	];
 
 	const priorityColors: Record<string, string> = {
@@ -99,8 +192,13 @@
 		return text.substring(0, maxLen) + '...';
 	}
 
+	// Check if any filters are active
+	const hasActiveFilters = $derived(
+		selectedMeetingId !== null || selectedProjectId !== null || selectedTagIds.length > 0
+	);
+
 	onMount(() => {
-		actionsData.fetch();
+		fetchData();
 	});
 </script>
 
@@ -123,64 +221,175 @@
 						Track and manage actions from your meetings
 					</p>
 				</div>
-				<a href="/dashboard">
-					<Button variant="ghost" size="sm">
-						{#snippet children()}
-							<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M10 19l-7-7m0 0l7-7m-7 7h18"
-								/>
+				<!-- View Toggle -->
+				<div class="flex items-center gap-4">
+					{#if viewMode === 'gantt'}
+						<select
+							bind:value={ganttViewMode}
+							class="px-2 py-1 text-sm bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg"
+						>
+							<option value="Day">Day</option>
+							<option value="Week">Week</option>
+							<option value="Month">Month</option>
+						</select>
+					{/if}
+					<div class="flex items-center gap-1 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg">
+						<button
+							onclick={() => viewMode = 'kanban'}
+							class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors {viewMode === 'kanban' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'}"
+						>
+							<svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
 							</svg>
-							Dashboard
-						{/snippet}
-					</Button>
-				</a>
+							Kanban
+						</button>
+						<button
+							onclick={() => viewMode = 'gantt'}
+							class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors {viewMode === 'gantt' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'}"
+						>
+							<svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+							</svg>
+							Gantt
+						</button>
+					</div>
+				</div>
 			</div>
 
-			<!-- Meeting Filter -->
-			{#if data && !isLoading && meetings.length > 0}
-				<div class="mb-4 flex flex-wrap items-center gap-3">
-					<label for="meeting-filter" class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-						Filter by meeting:
-					</label>
+			<!-- Filters Row -->
+			{#if actionsData && !isLoading}
+				<div class="mb-4 flex flex-wrap items-center gap-3 p-4 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+					<!-- Meeting Filter -->
 					<div class="flex items-center gap-2">
+						<label for="meeting-filter" class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+							Meeting:
+						</label>
 						<select
 							id="meeting-filter"
 							bind:value={selectedMeetingId}
-							class="px-3 py-2 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 min-w-[200px] max-w-[400px]"
+							onchange={() => applyFilters()}
+							class="px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 min-w-[180px]"
 						>
-							<option value={null}>All meetings ({data.total_tasks} actions)</option>
+							<option value={null}>All meetings</option>
 							{#each meetings as meeting (meeting.id)}
 								<option value={meeting.id}>
-									{meeting.title} ({meeting.taskCount} actions)
+									{meeting.title} ({meeting.taskCount})
 								</option>
 							{/each}
 						</select>
-						{#if selectedMeetingId}
+					</div>
+
+					<!-- Project Filter -->
+					{#if projects.length > 0}
+						<div class="flex items-center gap-2">
+							<label for="project-filter" class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+								Project:
+							</label>
+							<select
+								id="project-filter"
+								bind:value={selectedProjectId}
+								onchange={() => applyFilters()}
+								class="px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 min-w-[180px]"
+							>
+								<option value={null}>All projects</option>
+								{#each projects as project (project.id)}
+									<option value={project.id}>
+										{project.name}
+									</option>
+								{/each}
+							</select>
+						</div>
+					{/if}
+
+					<!-- Tags Filter -->
+					{#if tags.length > 0}
+						<div class="relative">
 							<button
-								onclick={clearMeetingFilter}
-								class="p-2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-								title="Clear filter"
+								onclick={() => showTagDropdown = !showTagDropdown}
+								class="flex items-center gap-2 px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm text-neutral-900 dark:text-white hover:border-brand-500 transition-colors"
 							>
 								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+								</svg>
+								Tags
+								{#if selectedTagIds.length > 0}
+									<span class="px-1.5 py-0.5 bg-brand-500 text-white text-xs rounded-full">
+										{selectedTagIds.length}
+									</span>
+								{/if}
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
 								</svg>
 							</button>
-						{/if}
-					</div>
-					{#if selectedMeetingId}
-						<span class="text-sm text-brand-600 dark:text-brand-400">
-							Showing {allTasks.length} actions from selected meeting
-						</span>
+
+							{#if showTagDropdown}
+								<div class="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg z-50 p-3">
+									<div class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+										Select tags (AND logic)
+									</div>
+									<div class="max-h-48 overflow-y-auto space-y-1">
+										{#each tags as tag (tag.id)}
+											<label class="flex items-center gap-2 p-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-700 cursor-pointer">
+												<input
+													type="checkbox"
+													checked={selectedTagIds.includes(tag.id)}
+													onchange={() => toggleTag(tag.id)}
+													class="rounded border-neutral-300 text-brand-600 focus:ring-brand-500"
+												/>
+												<span
+													class="w-3 h-3 rounded-full flex-shrink-0"
+													style="background-color: {tag.color}"
+												></span>
+												<span class="text-sm text-neutral-900 dark:text-white truncate">
+													{tag.name}
+												</span>
+												<span class="text-xs text-neutral-500 ml-auto">
+													{tag.action_count}
+												</span>
+											</label>
+										{/each}
+									</div>
+									<div class="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-700 flex justify-end gap-2">
+										<button
+											onclick={() => { selectedTagIds = []; showTagDropdown = false; applyFilters(); }}
+											class="px-3 py-1 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+										>
+											Clear
+										</button>
+										<button
+											onclick={() => applyFilters()}
+											class="px-3 py-1 text-sm bg-brand-600 text-white rounded hover:bg-brand-700"
+										>
+											Apply
+										</button>
+									</div>
+								</div>
+							{/if}
+						</div>
 					{/if}
+
+					<!-- Clear Filters Button -->
+					{#if hasActiveFilters}
+						<button
+							onclick={clearFilters}
+							class="flex items-center gap-1 px-3 py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+						>
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+							</svg>
+							Clear filters
+						</button>
+					{/if}
+
+					<!-- Active filter count -->
+					<span class="ml-auto text-sm text-neutral-500 dark:text-neutral-400">
+						{actionsData.total_tasks} actions
+					</span>
 				</div>
 			{/if}
 
-			<!-- Quick Stats (filtered) -->
-			{#if data && !isLoading}
+			<!-- Quick Stats -->
+			{#if actionsData && !isLoading}
 				<div class="grid grid-cols-3 gap-4 mb-6">
 					<div
 						class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
@@ -194,7 +403,7 @@
 						class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
 					>
 						<div class="text-2xl font-bold text-warning-600 dark:text-warning-400">
-							{getTasksByStatus('doing').length}
+							{getTasksByStatus('in_progress').length}
 						</div>
 						<div class="text-sm text-neutral-500 dark:text-neutral-400">In Progress</div>
 					</div>
@@ -253,14 +462,14 @@
 					</div>
 				</div>
 				<div class="mt-4">
-					<Button variant="danger" size="md" onclick={() => actionsData.fetch()}>
+					<Button variant="danger" size="md" onclick={() => fetchData()}>
 						{#snippet children()}
 							Retry
 						{/snippet}
 					</Button>
 				</div>
 			</div>
-		{:else if !data || data.total_tasks === 0}
+		{:else if !actionsData || actionsData.total_tasks === 0}
 			<!-- Empty State -->
 			<div
 				class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-12 text-center"
@@ -278,27 +487,54 @@
 						d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
 					/>
 				</svg>
-				<h2 class="text-2xl font-semibold text-neutral-900 dark:text-white mb-2">No actions yet</h2>
+				<h2 class="text-2xl font-semibold text-neutral-900 dark:text-white mb-2">
+					{hasActiveFilters ? 'No matching actions' : 'No actions yet'}
+				</h2>
 				<p class="text-neutral-600 dark:text-neutral-400 mb-6 max-w-md mx-auto">
-					Complete a meeting and extract action items to see them here. Actions help you track the
-					next steps from your strategic decisions.
+					{#if hasActiveFilters}
+						Try adjusting your filters to see more actions.
+					{:else}
+						Complete a meeting and extract action items to see them here. Actions help you track the
+						next steps from your strategic decisions.
+					{/if}
 				</p>
-				<a href="/meeting/new">
-					<Button variant="brand" size="lg">
+				{#if hasActiveFilters}
+					<Button variant="secondary" size="md" onclick={clearFilters}>
 						{#snippet children()}
-							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M12 4v16m8-8H4"
-								/>
-							</svg>
-							Start a Meeting
+							Clear Filters
 						{/snippet}
 					</Button>
-				</a>
+				{:else}
+					<a href="/meeting/new">
+						<Button variant="brand" size="lg">
+							{#snippet children()}
+								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M12 4v16m8-8H4"
+									/>
+								</svg>
+								Start a Meeting
+							{/snippet}
+						</Button>
+					</a>
+				{/if}
 			</div>
+		{:else if viewMode === 'gantt'}
+			<!-- Gantt View -->
+			{#if ganttData}
+				<GlobalGanttChart
+					data={ganttData}
+					onTaskClick={handleTaskClick}
+					viewMode={ganttViewMode}
+				/>
+			{:else}
+				<div class="flex items-center justify-center h-96 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+					<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+				</div>
+			{/if}
 		{:else}
 			<!-- Kanban Board -->
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -327,7 +563,7 @@
 								<div class="text-center py-8 text-neutral-400 dark:text-neutral-500 text-sm">
 									{#if column.id === 'todo'}
 										No pending actions
-									{:else if column.id === 'doing'}
+									{:else if column.id === 'in_progress'}
 										No actions in progress
 									{:else}
 										No completed actions
@@ -337,7 +573,7 @@
 								{#each columnTasks as task (task.id + '-' + task.session_id)}
 									{@const isUpdating = updatingTaskId === task.id}
 									<a
-										href="/actions/{task.session_id}/{task.id}"
+										href="/actions/{task.id}"
 										class="block bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 transition-all hover:shadow-md hover:border-brand-300 dark:hover:border-brand-600"
 										class:opacity-50={isUpdating}
 										style="border-left: 3px solid {task.priority === 'high'
@@ -382,20 +618,20 @@
 										</div>
 
 										<!-- Action Buttons -->
-										<div class="flex gap-2 mt-2" onclick={(e) => e.preventDefault()}>
+										<div class="flex gap-2 mt-2" role="group" aria-label="Task actions" onkeydown={(e) => e.key === 'Enter' && e.preventDefault()} onclick={(e) => e.preventDefault()}>
 											{#if task.status === 'todo'}
 												<button
 													class="flex-1 text-xs px-2 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded transition-colors disabled:opacity-50"
 													onclick={(e) => {
 														e.preventDefault();
 														e.stopPropagation();
-														handleStatusChange(task.session_id, task.id, 'doing');
+														handleStatusChange(task.session_id, task.id, 'in_progress');
 													}}
 													disabled={isUpdating}
 												>
 													{isUpdating ? 'Starting...' : 'Start'}
 												</button>
-											{:else if task.status === 'doing'}
+											{:else if task.status === 'in_progress'}
 												<button
 													class="flex-1 text-xs px-2 py-1.5 bg-success-600 hover:bg-success-700 text-white rounded transition-colors disabled:opacity-50"
 													onclick={(e) => {
@@ -424,7 +660,7 @@
 													onclick={(e) => {
 														e.preventDefault();
 														e.stopPropagation();
-														handleStatusChange(task.session_id, task.id, 'doing');
+														handleStatusChange(task.session_id, task.id, 'in_progress');
 													}}
 													disabled={isUpdating}
 												>
@@ -442,3 +678,13 @@
 		{/if}
 	</main>
 </div>
+
+<!-- Click outside to close tag dropdown -->
+{#if showTagDropdown}
+	<button
+		class="fixed inset-0 z-40"
+		onclick={() => showTagDropdown = false}
+		onkeydown={(e) => e.key === 'Escape' && (showTagDropdown = false)}
+		aria-label="Close dropdown"
+	></button>
+{/if}

@@ -43,6 +43,10 @@ class ExtractedTask(BaseModel):
         default=None,
         description="Which sub-problem this action belongs to (None = applies to all)",
     )
+    estimated_duration_days: int | None = Field(
+        default=None,
+        description="Parsed timeline in business days (auto-calculated from timeline)",
+    )
     # Legacy field for backwards compatibility
     suggested_completion_date: str | None = Field(
         default=None, description="ISO date or relative (e.g., 'Week 1') - use timeline instead"
@@ -216,6 +220,15 @@ async def extract_tasks_from_synthesis(
 
     data = json.loads(content)
 
+    # Parse timeline to estimated_duration_days for each task
+    from bo1.utils.timeline_parser import parse_timeline
+
+    for task_data in data.get("tasks", []):
+        timeline = task_data.get("timeline", "")
+        if timeline:
+            duration_days = parse_timeline(timeline)
+            task_data["estimated_duration_days"] = duration_days
+
     return TaskExtractionResult(**data)
 
 
@@ -271,5 +284,14 @@ def sync_extract_tasks_from_synthesis(
         content = content.split("```")[1].split("```")[0].strip()
 
     data = json.loads(content)
+
+    # Parse timeline to estimated_duration_days for each task
+    from bo1.utils.timeline_parser import parse_timeline
+
+    for task_data in data.get("tasks", []):
+        timeline = task_data.get("timeline", "")
+        if timeline:
+            duration_days = parse_timeline(timeline)
+            task_data["estimated_duration_days"] = duration_days
 
     return TaskExtractionResult(**data)

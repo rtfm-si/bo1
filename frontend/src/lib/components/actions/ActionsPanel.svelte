@@ -65,7 +65,9 @@
 		}
 	}
 
-	async function handleStatusChange(taskId: string, newStatus: 'todo' | 'doing' | 'done') {
+	import type { ActionStatus } from '$lib/api/types';
+
+	async function handleStatusChange(taskId: string, newStatus: ActionStatus) {
 		if (!actionsData) return;
 
 		// Optimistic update
@@ -134,9 +136,9 @@
 			<div class="kanban-header">
 				<h3>Action Items ({actionsData.total_tasks})</h3>
 				<div class="status-summary">
-					<span class="status-badge todo">{actionsData.by_status.todo} to do</span>
-					<span class="status-badge doing">{actionsData.by_status.doing} in progress</span>
-					<span class="status-badge done">{actionsData.by_status.done} done</span>
+					<span class="status-badge todo">{actionsData.by_status.todo || 0} to do</span>
+					<span class="status-badge doing">{actionsData.by_status.in_progress || 0} in progress</span>
+					<span class="status-badge done">{actionsData.by_status.done || 0} done</span>
 				</div>
 			</div>
 			<KanbanBoard tasks={tasks} onStatusChange={handleStatusChange} loading={extracting} />

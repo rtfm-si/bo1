@@ -21,17 +21,17 @@
 	const isLoading = $derived(sessionsData.isLoading);
 	const error = $derived(sessionsData.error);
 
-	// Outstanding actions (todo + doing, sorted by priority)
+	// Outstanding actions (todo + in_progress, sorted by priority)
 	const outstandingActions = $derived.by<TaskWithSessionContext[]>(() => {
 		if (!actionsData.data?.sessions) return [];
 		const allTasks = actionsData.data.sessions.flatMap((s) => s.tasks as TaskWithSessionContext[]);
-		// Filter to only todo and doing, then sort by priority (high first) then status (doing first)
+		// Filter to only todo and in_progress, then sort by priority (high first) then status (in_progress first)
 		return allTasks
-			.filter((t) => t.status === 'todo' || t.status === 'doing')
+			.filter((t) => t.status === 'todo' || t.status === 'in_progress')
 			.sort((a, b) => {
-				// Status priority: doing > todo
+				// Status priority: in_progress > todo
 				if (a.status !== b.status) {
-					return a.status === 'doing' ? -1 : 1;
+					return a.status === 'in_progress' ? -1 : 1;
 				}
 				// Priority order: high > medium > low
 				const priorityOrder = { high: 0, medium: 1, low: 2 };
@@ -43,7 +43,7 @@
 
 	// Total count of outstanding actions (for badge display)
 	const outstandingCount = $derived(
-		actionsData.data ? (actionsData.data.by_status.todo + actionsData.data.by_status.doing) : 0
+		actionsData.data ? ((actionsData.data.by_status.todo || 0) + (actionsData.data.by_status.in_progress || 0)) : 0
 	);
 
 	// Check if user is admin for cost display
@@ -177,7 +177,7 @@
 							>
 								<!-- Status indicator -->
 								<div class="flex-shrink-0">
-									{#if action.status === 'doing'}
+									{#if action.status === 'in_progress'}
 										<span class="flex items-center justify-center w-8 h-8 rounded-full bg-warning-100 dark:bg-warning-900/30">
 											<svg class="w-4 h-4 text-warning-600 dark:text-warning-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -198,8 +198,8 @@
 										<span class="font-medium text-neutral-900 dark:text-white truncate">
 											{action.title}
 										</span>
-										<Badge variant={action.status === 'doing' ? 'warning' : 'neutral'}>
-											{action.status === 'doing' ? 'In Progress' : 'To Do'}
+										<Badge variant={action.status === 'in_progress' ? 'warning' : 'neutral'}>
+											{action.status === 'in_progress' ? 'In Progress' : 'To Do'}
 										</Badge>
 										<Badge variant={action.priority === 'high' ? 'error' : action.priority === 'medium' ? 'warning' : 'success'}>
 											{action.priority}

@@ -31,9 +31,11 @@ from backend.api import (
     health,
     industry_insights,
     onboarding,
+    projects,
     sessions,
     streaming,
     supertokens_routes,
+    tags,
     waitlist,
 )
 from backend.api.middleware.auth import require_admin
@@ -218,6 +220,8 @@ app.include_router(
 app.include_router(streaming.router, prefix="/api", tags=["streaming"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(actions.router, prefix="/api", tags=["actions"])
+app.include_router(tags.router, prefix="/api", tags=["tags"])
+app.include_router(projects.router, prefix="/api", tags=["projects"])
 app.include_router(context.router, prefix="/api", tags=["context"])
 app.include_router(business_metrics.router, prefix="/api", tags=["business-metrics"])
 app.include_router(billing.router, prefix="/api", tags=["billing"])

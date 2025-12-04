@@ -27,7 +27,8 @@ import type {
 	SessionEventsResponse,
 	SessionActionsResponse,
 	TaskStatusUpdateRequest,
-	AllActionsResponse
+	AllActionsResponse,
+	ActionDetailResponse
 } from './types';
 
 // ============================================================================
@@ -567,6 +568,10 @@ export class ApiClient {
 	}): Promise<AllActionsResponse> {
 		const endpoint = withQueryString('/api/v1/actions', params || {});
 		return this.fetch<AllActionsResponse>(endpoint);
+	}
+
+	async getActionDetail(sessionId: string, taskId: string): Promise<ActionDetailResponse> {
+		return this.fetch<ActionDetailResponse>(`/api/v1/actions/${sessionId}/${taskId}`);
 	}
 
 	// ==========================================================================

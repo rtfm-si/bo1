@@ -348,3 +348,25 @@ export interface AllActionsResponse {
 		done: number;
 	};
 }
+
+/**
+ * Action detail response (single action with full context)
+ */
+export interface ActionDetailResponse {
+	id: string;
+	title: string;
+	description: string;
+	what_and_how: string[];
+	success_criteria: string[];
+	kill_criteria: string[];
+	dependencies: string[];
+	timeline: string;
+	priority: 'high' | 'medium' | 'low';
+	category: 'implementation' | 'research' | 'decision' | 'communication';
+	source_section: string | null;
+	confidence: number;
+	sub_problem_index: number | null;
+	status: 'todo' | 'doing' | 'done';
+	session_id: string;
+	problem_statement: string;
+}

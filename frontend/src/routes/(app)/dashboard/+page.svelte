@@ -41,6 +41,11 @@
 			.slice(0, 5); // Show top 5 outstanding actions
 	});
 
+	// Total count of outstanding actions (for badge display)
+	const outstandingCount = $derived(
+		actionsData.data ? (actionsData.data.by_status.todo + actionsData.data.by_status.doing) : 0
+	);
+
 	// Check if user is admin for cost display
 	const isAdmin = $derived($user?.is_admin ?? false);
 
@@ -149,6 +154,11 @@
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
 						</svg>
 						Outstanding Actions
+						{#if outstandingCount > 0}
+							<span class="px-2 py-0.5 text-sm font-medium bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-300 rounded-full">
+								{outstandingCount}
+							</span>
+						{/if}
 					</h2>
 					<a href="/actions" class="text-sm text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1">
 						View all

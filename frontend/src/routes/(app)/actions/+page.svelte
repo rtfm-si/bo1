@@ -8,11 +8,12 @@
 	 * - 5-second rule for finding key information
 	 * - Color-coded status indicators
 	 * - Click-through to meeting context
+	 * - Filter by source meeting
 	 */
 	import { onMount } from 'svelte';
 	import Header from '$lib/components/Header.svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { AllActionsResponse, TaskWithSessionContext } from '$lib/api/types';
+	import type { AllActionsResponse, TaskWithSessionContext, SessionWithTasks } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 	import Badge from '$lib/components/ui/Badge.svelte';
@@ -25,16 +26,40 @@
 	const isLoading = $derived(actionsData.isLoading);
 	const error = $derived(actionsData.error);
 
-	// Get all tasks flattened with session context
-	const allTasks = $derived(
+	// Meeting filter state
+	let selectedMeetingId = $state<string | null>(null);
+
+	// Get unique meetings for filter dropdown
+	const meetings = $derived<{ id: string; title: string; taskCount: number }[]>(
 		data?.sessions
-			? data.sessions.flatMap((s) => s.tasks as TaskWithSessionContext[])
-			: [] as TaskWithSessionContext[]
+			? data.sessions.map((s) => ({
+					id: s.session_id,
+					title: s.problem_statement.length > 50
+						? s.problem_statement.substring(0, 50) + '...'
+						: s.problem_statement,
+					taskCount: s.task_count
+				}))
+			: []
 	);
+
+	// Get all tasks flattened with session context (filtered by selected meeting)
+	const allTasks = $derived.by<TaskWithSessionContext[]>(() => {
+		if (!data?.sessions) return [];
+		const tasks = data.sessions.flatMap((s) => s.tasks as TaskWithSessionContext[]);
+		if (selectedMeetingId) {
+			return tasks.filter((t) => t.session_id === selectedMeetingId);
+		}
+		return tasks;
+	});
 
 	// Filter tasks by status
 	function getTasksByStatus(status: 'todo' | 'doing' | 'done') {
 		return allTasks.filter((t) => t.status === status);
+	}
+
+	// Clear meeting filter
+	function clearMeetingFilter() {
+		selectedMeetingId = null;
 	}
 
 	// Status update handler
@@ -115,14 +140,53 @@
 				</a>
 			</div>
 
-			<!-- Quick Stats -->
+			<!-- Meeting Filter -->
+			{#if data && !isLoading && meetings.length > 0}
+				<div class="mb-4 flex flex-wrap items-center gap-3">
+					<label for="meeting-filter" class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+						Filter by meeting:
+					</label>
+					<div class="flex items-center gap-2">
+						<select
+							id="meeting-filter"
+							bind:value={selectedMeetingId}
+							class="px-3 py-2 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 min-w-[200px] max-w-[400px]"
+						>
+							<option value={null}>All meetings ({data.total_tasks} actions)</option>
+							{#each meetings as meeting (meeting.id)}
+								<option value={meeting.id}>
+									{meeting.title} ({meeting.taskCount} actions)
+								</option>
+							{/each}
+						</select>
+						{#if selectedMeetingId}
+							<button
+								onclick={clearMeetingFilter}
+								class="p-2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+								title="Clear filter"
+							>
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
+						{/if}
+					</div>
+					{#if selectedMeetingId}
+						<span class="text-sm text-brand-600 dark:text-brand-400">
+							Showing {allTasks.length} actions from selected meeting
+						</span>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- Quick Stats (filtered) -->
 			{#if data && !isLoading}
 				<div class="grid grid-cols-3 gap-4 mb-6">
 					<div
 						class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
 					>
 						<div class="text-2xl font-bold text-neutral-900 dark:text-white">
-							{data.by_status.todo}
+							{getTasksByStatus('todo').length}
 						</div>
 						<div class="text-sm text-neutral-500 dark:text-neutral-400">To Do</div>
 					</div>
@@ -130,7 +194,7 @@
 						class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
 					>
 						<div class="text-2xl font-bold text-warning-600 dark:text-warning-400">
-							{data.by_status.doing}
+							{getTasksByStatus('doing').length}
 						</div>
 						<div class="text-sm text-neutral-500 dark:text-neutral-400">In Progress</div>
 					</div>
@@ -138,7 +202,7 @@
 						class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700"
 					>
 						<div class="text-2xl font-bold text-success-600 dark:text-success-400">
-							{data.by_status.done}
+							{getTasksByStatus('done').length}
 						</div>
 						<div class="text-sm text-neutral-500 dark:text-neutral-400">Completed</div>
 					</div>
@@ -272,8 +336,9 @@
 							{:else}
 								{#each columnTasks as task (task.id + '-' + task.session_id)}
 									{@const isUpdating = updatingTaskId === task.id}
-									<div
-										class="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 transition-all"
+									<a
+										href="/actions/{task.session_id}/{task.id}"
+										class="block bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 transition-all hover:shadow-md hover:border-brand-300 dark:hover:border-brand-600"
 										class:opacity-50={isUpdating}
 										style="border-left: 3px solid {task.priority === 'high'
 											? 'var(--color-error-500)'
@@ -292,12 +357,9 @@
 										</p>
 
 										<!-- Meeting Context -->
-										<a
-											href="/meeting/{task.session_id}"
-											class="text-xs text-brand-600 dark:text-brand-400 hover:underline block mb-2"
-										>
+										<div class="text-xs text-brand-600 dark:text-brand-400 mb-2">
 											From: {truncate(task.problem_statement, 40)}
-										</a>
+										</div>
 
 										<!-- Badges -->
 										<div class="flex flex-wrap gap-1 mb-2">
@@ -320,12 +382,15 @@
 										</div>
 
 										<!-- Action Buttons -->
-										<div class="flex gap-2 mt-2">
+										<div class="flex gap-2 mt-2" onclick={(e) => e.preventDefault()}>
 											{#if task.status === 'todo'}
 												<button
 													class="flex-1 text-xs px-2 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded transition-colors disabled:opacity-50"
-													onclick={() =>
-														handleStatusChange(task.session_id, task.id, 'doing')}
+													onclick={(e) => {
+														e.preventDefault();
+														e.stopPropagation();
+														handleStatusChange(task.session_id, task.id, 'doing');
+													}}
 													disabled={isUpdating}
 												>
 													{isUpdating ? 'Starting...' : 'Start'}
@@ -333,16 +398,22 @@
 											{:else if task.status === 'doing'}
 												<button
 													class="flex-1 text-xs px-2 py-1.5 bg-success-600 hover:bg-success-700 text-white rounded transition-colors disabled:opacity-50"
-													onclick={() =>
-														handleStatusChange(task.session_id, task.id, 'done')}
+													onclick={(e) => {
+														e.preventDefault();
+														e.stopPropagation();
+														handleStatusChange(task.session_id, task.id, 'done');
+													}}
 													disabled={isUpdating}
 												>
 													{isUpdating ? 'Completing...' : 'Complete'}
 												</button>
 												<button
 													class="text-xs px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-300 rounded transition-colors disabled:opacity-50"
-													onclick={() =>
-														handleStatusChange(task.session_id, task.id, 'todo')}
+													onclick={(e) => {
+														e.preventDefault();
+														e.stopPropagation();
+														handleStatusChange(task.session_id, task.id, 'todo');
+													}}
 													disabled={isUpdating}
 												>
 													Back
@@ -350,15 +421,18 @@
 											{:else}
 												<button
 													class="flex-1 text-xs px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-300 rounded transition-colors disabled:opacity-50"
-													onclick={() =>
-														handleStatusChange(task.session_id, task.id, 'doing')}
+													onclick={(e) => {
+														e.preventDefault();
+														e.stopPropagation();
+														handleStatusChange(task.session_id, task.id, 'doing');
+													}}
 													disabled={isUpdating}
 												>
 													{isUpdating ? 'Reopening...' : 'Reopen'}
 												</button>
 											{/if}
 										</div>
-									</div>
+									</a>
 								{/each}
 							{/if}
 						</div>

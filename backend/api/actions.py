@@ -2,15 +2,16 @@
 
 Provides:
 - GET /api/v1/actions - Get all user actions across sessions
+- GET /api/v1/actions/{session_id}/{task_id} - Get single action details
 """
 
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.api.middleware.auth import get_current_user
-from backend.api.models import AllActionsResponse
+from backend.api.models import ActionDetailResponse, AllActionsResponse
 from bo1.state.repositories.session_repository import session_repository
 
 logger = logging.getLogger(__name__)
@@ -174,4 +175,75 @@ async def get_all_actions(
         sessions=sessions_data,
         total_tasks=len(all_tasks),
         by_status=global_by_status,
+    )
+
+
+@router.get(
+    "/{session_id}/{task_id}",
+    response_model=ActionDetailResponse,
+    summary="Get single action details",
+    description="Get detailed information about a specific action/task.",
+    responses={
+        200: {"description": "Action details retrieved successfully"},
+        404: {"description": "Action not found"},
+    },
+)
+async def get_action_detail(
+    session_id: str,
+    task_id: str,
+    user_data: dict = Depends(get_current_user),
+) -> ActionDetailResponse:
+    """Get detailed information about a specific action.
+
+    Args:
+        session_id: Session identifier
+        task_id: Task identifier within the session
+        user_data: Current user from auth
+
+    Returns:
+        ActionDetailResponse with full task details
+    """
+    user_id = user_data.get("user_id")
+    logger.info(f"Fetching action {task_id} from session {session_id} for user {user_id}")
+
+    # Get the session
+    session = session_repository.get_by_id(session_id, user_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Get tasks from session
+    tasks = session.get("tasks", [])
+    task_statuses = session.get("task_statuses", {}) or {}
+    problem_statement = session.get("problem_statement", "")
+
+    # Find the specific task
+    task_data = None
+    for task in tasks:
+        if task.get("id") == task_id:
+            task_data = task
+            break
+
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found in session")
+
+    # Build full task details
+    status = task_statuses.get(task_id, "todo")
+
+    return ActionDetailResponse(
+        id=task_data.get("id", ""),
+        title=task_data.get("title", ""),
+        description=task_data.get("description", ""),
+        what_and_how=task_data.get("what_and_how", []),
+        success_criteria=task_data.get("success_criteria", []),
+        kill_criteria=task_data.get("kill_criteria", []),
+        dependencies=task_data.get("dependencies", []),
+        timeline=task_data.get("timeline", ""),
+        priority=task_data.get("priority", "medium"),
+        category=task_data.get("category", "implementation"),
+        source_section=task_data.get("source_section"),
+        confidence=task_data.get("confidence", 0.0),
+        sub_problem_index=task_data.get("sub_problem_index"),
+        status=status,
+        session_id=session_id,
+        problem_statement=problem_statement,
     )

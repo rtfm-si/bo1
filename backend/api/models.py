@@ -345,3 +345,43 @@ class AllActionsResponse(BaseModel):
     sessions: list[dict[str, Any]] = Field(..., description="Sessions with tasks")
     total_tasks: int = Field(..., description="Total tasks across all sessions")
     by_status: dict[str, int] = Field(..., description="Global status counts")
+
+
+class ActionDetailResponse(BaseModel):
+    """Response model for a single action's full details.
+
+    Attributes:
+        id: Task identifier
+        title: Task title
+        description: Full task description
+        what_and_how: Steps to complete the task
+        success_criteria: Measurable success conditions
+        kill_criteria: Conditions to stop/abandon task
+        dependencies: Required preconditions
+        timeline: Expected timeline
+        priority: Priority level (high/medium/low)
+        category: Task category
+        source_section: Which part of synthesis this came from
+        confidence: AI confidence in the task
+        sub_problem_index: Which sub-problem this relates to
+        status: Current status (todo/doing/done)
+        session_id: Parent session ID
+        problem_statement: Session's problem statement (decision)
+    """
+
+    id: str = Field(..., description="Task identifier")
+    title: str = Field(..., description="Task title")
+    description: str = Field(..., description="Full task description")
+    what_and_how: list[str] = Field(default_factory=list, description="Steps to complete")
+    success_criteria: list[str] = Field(default_factory=list, description="Success conditions")
+    kill_criteria: list[str] = Field(default_factory=list, description="Stop conditions")
+    dependencies: list[str] = Field(default_factory=list, description="Dependencies")
+    timeline: str = Field(default="", description="Expected timeline")
+    priority: str = Field(default="medium", description="Priority level")
+    category: str = Field(default="implementation", description="Task category")
+    source_section: str | None = Field(default=None, description="Source section")
+    confidence: float = Field(default=0.0, description="AI confidence")
+    sub_problem_index: int | None = Field(default=None, description="Sub-problem index")
+    status: str = Field(default="todo", description="Current status")
+    session_id: str = Field(..., description="Parent session ID")
+    problem_statement: str = Field(..., description="Session decision")

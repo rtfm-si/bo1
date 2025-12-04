@@ -333,6 +333,35 @@ class SessionRepository(BaseRepository):
     # Session Tasks
     # =========================================================================
 
+    @staticmethod
+    def _extract_task_id_references(dependencies: list[str]) -> list[str]:
+        """Extract task_N references from dependency strings.
+
+        Parses dependency strings like:
+        - "task_1"
+        - "Pricing research complete (task_1)"
+        - "task_2, task_3"
+
+        Args:
+            dependencies: List of dependency strings from extracted task
+
+        Returns:
+            List of task IDs (e.g., ["task_1", "task_2"])
+        """
+        import re
+
+        task_ids: list[str] = []
+        pattern = r"\b(task_\d+)\b"
+
+        for dep in dependencies:
+            matches = re.findall(pattern, dep, re.IGNORECASE)
+            for match in matches:
+                task_id = match.lower()  # Normalize to lowercase
+                if task_id not in task_ids:
+                    task_ids.append(task_id)
+
+        return task_ids
+
     def save_tasks(
         self,
         session_id: str,
@@ -393,7 +422,10 @@ class SessionRepository(BaseRepository):
                 )
                 result = cur.fetchone()
 
-                # Save each task to actions table
+                # Save each task to actions table and track task_id -> action_id mapping
+                task_id_to_action_id: dict[str, str] = {}
+                tasks_with_deps: list[tuple[str, list[str]]] = []  # (action_id, dep_task_ids)
+
                 for idx, task in enumerate(tasks):
                     cur.execute(
                         """
@@ -407,6 +439,7 @@ class SessionRepository(BaseRepository):
                         )
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT DO NOTHING
+                        RETURNING id
                         """,
                         (
                             user_id,
@@ -427,6 +460,33 @@ class SessionRepository(BaseRepository):
                             idx,  # Use array index as sort_order
                         ),
                     )
+                    action_row = cur.fetchone()
+                    if action_row:
+                        action_id = str(action_row["id"])
+                        task_id = task.get("id", f"task_{idx + 1}")
+                        task_id_to_action_id[task_id] = action_id
+
+                        # Parse dependencies for task_N references
+                        deps = task.get("dependencies", [])
+                        dep_task_ids = self._extract_task_id_references(deps)
+                        if dep_task_ids:
+                            tasks_with_deps.append((action_id, dep_task_ids))
+
+                # Create action_dependencies records after all actions are created
+                for action_id, dep_task_ids in tasks_with_deps:
+                    for dep_task_id in dep_task_ids:
+                        depends_on_action_id = task_id_to_action_id.get(dep_task_id)
+                        if depends_on_action_id and depends_on_action_id != action_id:
+                            cur.execute(
+                                """
+                                INSERT INTO action_dependencies (
+                                    action_id, depends_on_action_id, dependency_type, lag_days
+                                )
+                                VALUES (%s, %s, 'finish_to_start', 0)
+                                ON CONFLICT DO NOTHING
+                                """,
+                                (action_id, depends_on_action_id),
+                            )
 
                 return dict(result) if result else {}
 

@@ -952,29 +952,29 @@ class ProjectSessionLink(BaseModel):
 
 
 class GanttActionData(BaseModel):
-    """Action data for Gantt chart.
+    """Action data for Gantt chart (frappe-gantt format).
 
     Attributes:
         id: Action UUID
-        title: Action title
+        name: Action name/title
+        start: Start date (ISO)
+        end: End date (ISO)
+        progress: Progress percentage (0-100)
+        dependencies: Comma-separated list of dependency IDs
         status: Current status
         priority: Priority level
-        estimated_start_date: Start date (ISO)
-        estimated_end_date: End date (ISO)
-        actual_start_date: Actual start (ISO)
-        actual_end_date: Actual end (ISO)
-        blocking_reason: Why action is blocked
+        session_id: Source session ID
     """
 
     id: str = Field(..., description="Action UUID")
-    title: str = Field(..., description="Action title")
+    name: str = Field(..., description="Action name/title")
+    start: str = Field(..., description="Start date (ISO)")
+    end: str = Field(..., description="End date (ISO)")
+    progress: int = Field(0, description="Progress percentage (0-100)")
+    dependencies: str = Field("", description="Comma-separated dependency IDs")
     status: str = Field(..., description="Current status")
     priority: str = Field(..., description="Priority level")
-    estimated_start_date: str | None = Field(None, description="Start date (ISO)")
-    estimated_end_date: str | None = Field(None, description="End date (ISO)")
-    actual_start_date: str | None = Field(None, description="Actual start (ISO)")
-    actual_end_date: str | None = Field(None, description="Actual end (ISO)")
-    blocking_reason: str | None = Field(None, description="Why action is blocked")
+    session_id: str = Field("", description="Source session ID")
 
 
 class GanttDependency(BaseModel):

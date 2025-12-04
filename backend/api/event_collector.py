@@ -462,7 +462,7 @@ class EventCollector:
                 "options": output.get("comparison_options", []),
                 "research_queries_count": len(output.get("pending_research_queries", [])),
             }
-            await self._publish(
+            self.publisher.publish_event(
                 session_id,
                 "comparison_detected",
                 comparison_event,

@@ -334,33 +334,56 @@ class SessionRepository(BaseRepository):
     # =========================================================================
 
     @staticmethod
-    def _extract_task_id_references(dependencies: list[str]) -> list[str]:
-        """Extract task_N references from dependency strings.
+    def _extract_task_id_references(
+        dependencies: list[str], current_sub_problem_index: int | None = None
+    ) -> tuple[list[str], list[tuple[int, str]]]:
+        """Extract task_N and spN_task_M references from dependency strings.
 
         Parses dependency strings like:
-        - "task_1"
+        - "task_1" (same sub-problem)
         - "Pricing research complete (task_1)"
-        - "task_2, task_3"
+        - "sp0_task_2" (cross-sub-problem: sub-problem 0, task 2)
+        - "sp2_task_1, sp1_task_3" (multiple cross-sub-problem)
 
         Args:
             dependencies: List of dependency strings from extracted task
+            current_sub_problem_index: Index of current sub-problem (for context)
 
         Returns:
-            List of task IDs (e.g., ["task_1", "task_2"])
+            Tuple of:
+            - List of local task IDs (e.g., ["task_1", "task_2"])
+            - List of cross-sub-problem refs as (sp_index, task_id) tuples
         """
         import re
 
-        task_ids: list[str] = []
-        pattern = r"\b(task_\d+)\b"
+        local_task_ids: list[str] = []
+        cross_sp_refs: list[tuple[int, str]] = []
+
+        # Pattern for local task references: task_N
+        local_pattern = r"\b(task_\d+)\b"
+        # Pattern for cross-sub-problem references: spN_task_M
+        cross_pattern = r"\bsp(\d+)_task_(\d+)\b"
 
         for dep in dependencies:
-            matches = re.findall(pattern, dep, re.IGNORECASE)
-            for match in matches:
-                task_id = match.lower()  # Normalize to lowercase
-                if task_id not in task_ids:
-                    task_ids.append(task_id)
+            # Extract cross-sub-problem references first
+            cross_matches = re.findall(cross_pattern, dep, re.IGNORECASE)
+            for sp_idx_str, task_num in cross_matches:
+                sp_idx = int(sp_idx_str)
+                task_id = f"task_{task_num}"
+                ref = (sp_idx, task_id)
+                if ref not in cross_sp_refs:
+                    cross_sp_refs.append(ref)
 
-        return task_ids
+            # Extract local task references (excluding cross-sp ones)
+            # Remove cross-sp patterns first to avoid double-matching
+            dep_cleaned = re.sub(cross_pattern, "", dep, flags=re.IGNORECASE)
+            local_matches = re.findall(local_pattern, dep_cleaned, re.IGNORECASE)
+            for match in local_matches:
+                task_id = match.lower()  # Normalize to lowercase
+                if task_id not in local_task_ids:
+                    local_task_ids.append(task_id)
+
+        return local_task_ids, cross_sp_refs
 
     def save_tasks(
         self,
@@ -423,10 +446,18 @@ class SessionRepository(BaseRepository):
                 result = cur.fetchone()
 
                 # Save each task to actions table and track task_id -> action_id mapping
+                # Key format: "sp{index}_{task_id}" for cross-sp lookups
                 task_id_to_action_id: dict[str, str] = {}
-                tasks_with_deps: list[tuple[str, list[str]]] = []  # (action_id, dep_task_ids)
+                tasks_with_local_deps: list[
+                    tuple[str, list[str], int | None]
+                ] = []  # (action_id, local_deps, sp_idx)
+                tasks_with_cross_deps: list[
+                    tuple[str, list[tuple[int, str]]]
+                ] = []  # (action_id, cross_sp_deps)
 
                 for idx, task in enumerate(tasks):
+                    sp_index = task.get("sub_problem_index")
+
                     cur.execute(
                         """
                         INSERT INTO actions (
@@ -456,7 +487,7 @@ class SessionRepository(BaseRepository):
                             task.get("estimated_duration_days"),
                             task.get("confidence", 0.0),
                             task.get("source_section"),
-                            task.get("sub_problem_index"),
+                            sp_index,
                             idx,  # Use array index as sort_order
                         ),
                     )
@@ -464,17 +495,26 @@ class SessionRepository(BaseRepository):
                     if action_row:
                         action_id = str(action_row["id"])
                         task_id = task.get("id", f"task_{idx + 1}")
+
+                        # Store both local and cross-sp lookup keys
                         task_id_to_action_id[task_id] = action_id
+                        if sp_index is not None:
+                            # Also store with sp prefix for cross-sp lookups
+                            cross_key = f"sp{sp_index}_{task_id}"
+                            task_id_to_action_id[cross_key] = action_id
 
-                        # Parse dependencies for task_N references
+                        # Parse dependencies for both local and cross-sp references
                         deps = task.get("dependencies", [])
-                        dep_task_ids = self._extract_task_id_references(deps)
-                        if dep_task_ids:
-                            tasks_with_deps.append((action_id, dep_task_ids))
+                        local_deps, cross_sp_deps = self._extract_task_id_references(deps, sp_index)
 
-                # Create action_dependencies records after all actions are created
-                for action_id, dep_task_ids in tasks_with_deps:
-                    for dep_task_id in dep_task_ids:
+                        if local_deps:
+                            tasks_with_local_deps.append((action_id, local_deps, sp_index))
+                        if cross_sp_deps:
+                            tasks_with_cross_deps.append((action_id, cross_sp_deps))
+
+                # Create action_dependencies for local (same sub-problem) dependencies
+                for action_id, local_dep_task_ids, _sp_index in tasks_with_local_deps:
+                    for dep_task_id in local_dep_task_ids:
                         depends_on_action_id = task_id_to_action_id.get(dep_task_id)
                         if depends_on_action_id and depends_on_action_id != action_id:
                             cur.execute(
@@ -486,6 +526,36 @@ class SessionRepository(BaseRepository):
                                 ON CONFLICT DO NOTHING
                                 """,
                                 (action_id, depends_on_action_id),
+                            )
+                            logger.debug(
+                                f"Created local dependency: {action_id} -> {depends_on_action_id}"
+                            )
+
+                # Create action_dependencies for cross-sub-problem dependencies
+                for action_id, cross_sp_deps in tasks_with_cross_deps:
+                    for sp_idx, task_id in cross_sp_deps:
+                        # Look up by cross-sp key format
+                        cross_key = f"sp{sp_idx}_{task_id}"
+                        depends_on_action_id = task_id_to_action_id.get(cross_key)
+                        if depends_on_action_id and depends_on_action_id != action_id:
+                            cur.execute(
+                                """
+                                INSERT INTO action_dependencies (
+                                    action_id, depends_on_action_id, dependency_type, lag_days
+                                )
+                                VALUES (%s, %s, 'finish_to_start', 0)
+                                ON CONFLICT DO NOTHING
+                                """,
+                                (action_id, depends_on_action_id),
+                            )
+                            logger.info(
+                                f"Created cross-sub-problem dependency: action {action_id} "
+                                f"depends on sp{sp_idx}_{task_id} (action {depends_on_action_id})"
+                            )
+                        else:
+                            logger.warning(
+                                f"Cross-sub-problem dependency not resolved: {cross_key} "
+                                f"(action may be from different session or not yet extracted)"
                             )
 
                 return dict(result) if result else {}

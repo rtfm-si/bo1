@@ -100,14 +100,21 @@ async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, 
         # Check if any batch has more than 1 sub-problem (actual parallelism)
         has_parallelism = any(len(batch) > 1 for batch in batches)
 
+        # CRITICAL: Use subgraph execution for ALL multi-sub-problem scenarios,
+        # not just when there's true parallelism. This ensures:
+        # 1. all_subproblems_complete event is emitted BEFORE meta-synthesis
+        # 2. Synthesis doesn't happen after each individual sub-problem
+        # 3. Proper event streaming via get_stream_writer()
+        use_subgraph = len(sub_problems) > 1
+
         logger.info(
             f"analyze_dependencies_node: Complete - {len(batches)} batches, "
-            f"parallel={has_parallelism}, batches={batches}"
+            f"has_parallelism={has_parallelism}, use_subgraph={use_subgraph}, batches={batches}"
         )
 
         return {
             "execution_batches": batches,
-            "parallel_mode": has_parallelism,
+            "parallel_mode": use_subgraph,  # Route to subgraph for any multi-sub-problem case
             "current_node": "analyze_dependencies",
         }
 
@@ -388,6 +395,21 @@ async def _parallel_subproblems_subgraph(state: DeliberationGraphState) -> dict[
         f"_parallel_subproblems_subgraph: Complete - {len(all_results)} sub-problems, "
         f"{total_contributions} contributions, ${total_cost:.4f}"
     )
+
+    # ISSUE FIX #1: Emit all_subproblems_complete event as synchronization barrier
+    # This ensures the frontend knows all sub-problems are done before meta-synthesis starts
+    writer(
+        {
+            "event_type": "all_subproblems_complete",
+            "total_sub_problems": len(all_results),
+            "total_contributions": total_contributions,
+            "total_cost": total_cost,
+            "sub_problem_ids": [r.sub_problem_id for r in all_results],
+        }
+    )
+
+    # Small delay to ensure event is flushed before transitioning to meta-synthesis
+    await asyncio.sleep(0.1)
 
     # Update metrics
     metrics = ensure_metrics(state)

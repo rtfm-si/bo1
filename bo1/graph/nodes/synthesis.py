@@ -191,6 +191,15 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Prepend the prefill since it's not included in response
     synthesis_report = "## The Bottom Line\n\n" + raw_content
 
+    # ISSUE #2 FIX: Validate synthesis is not empty/suspiciously short
+    synthesis_length = len(synthesis_report)
+    if synthesis_length < 100:
+        logger.warning(
+            f"synthesize_node: SYNTHESIS WARNING - Suspiciously short synthesis "
+            f"({synthesis_length} chars). This may indicate extraction issues. "
+            f"Content preview: {synthesis_report[:200]}"
+        )
+
     # Add AI-generated content disclaimer
     disclaimer = (
         "\n\n---\n\n"
@@ -206,7 +215,8 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     track_phase_cost(metrics, "synthesis", response)
 
     logger.info(
-        f"synthesize_node: Complete - synthesis generated (cost: ${response.cost_total:.4f})"
+        f"synthesize_node: Complete - synthesis generated "
+        f"({synthesis_length} chars, cost: ${response.cost_total:.4f})"
     )
 
     # Return state updates

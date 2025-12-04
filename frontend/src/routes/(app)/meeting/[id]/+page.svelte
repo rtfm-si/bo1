@@ -490,6 +490,7 @@
 			'synthesis_started',
 			'synthesis_complete',
 			'subproblem_complete',
+			'all_subproblems_complete', // ISSUE FIX #1: Synchronization barrier event
 			'meta_synthesis_started',
 			'meta_synthesis_complete',
 			'phase_cost_breakdown',

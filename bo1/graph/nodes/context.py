@@ -71,6 +71,21 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
                 if saved_context.get("growth_rate"):
                     context_lines.append(f"- Growth Rate: {saved_context['growth_rate']}")
 
+                # ISSUE #4 FIX: Include saved clarifications from previous meetings
+                clarifications = saved_context.get("clarifications", {})
+                if clarifications:
+                    context_lines.append("\n### Previous Clarifications")
+                    for question, answer_data in clarifications.items():
+                        if isinstance(answer_data, dict):
+                            answer = answer_data.get("answer", "N/A")
+                        else:
+                            answer = str(answer_data)
+                        context_lines.append(f"- Q: {question}")
+                        context_lines.append(f"  A: {answer}")
+                    logger.info(
+                        f"Injected {len(clarifications)} previous clarifications into context"
+                    )
+
                 # Append to existing context
                 problem.context = problem.context + "\n".join(context_lines)
                 logger.info("Injected business context into problem.context")

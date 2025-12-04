@@ -70,13 +70,22 @@ Your task is to extract discrete, actionable tasks from the synthesis sections.
 {synthesis}
 </synthesis>
 
+<sub_problem_context>
+Sub-problem index: {sub_problem_index}
+Total sub-problems: {total_sub_problems}
+Other sub-problem goals: {other_sub_problem_goals}
+</sub_problem_context>
+
 Extract tasks following these rules:
 1. **Discrete** - Each task should be a single, completable action
 2. **Actionable** - Must be something the user can actually do (not abstract)
 3. **Well-structured** - Each task MUST include title, what_and_how, success criteria, kill criteria
 4. **Prioritized** - Assign priority based on impact and urgency mentioned in synthesis
 5. **Timed** - Include realistic timeline (e.g., "2 weeks", "1 month")
-6. **Dependencies** - Identify what needs to happen before this task can start
+6. **Dependencies** - CRITICAL: Identify what needs to happen before this task can start:
+   - Reference other tasks in THIS synthesis using their ID (e.g., "task_1")
+   - Reference tasks from OTHER sub-problems using format "sp{{index}}_task_{{n}}" (e.g., "sp0_task_2" for task 2 from sub-problem 0)
+   - Include external dependencies (e.g., "Access to customer contact list")
 
 **Output format (JSON):**
 ```json
@@ -123,7 +132,7 @@ Extract tasks following these rules:
         "If data quality insufficient, use industry proxies with documented assumptions",
         "Abandon if pricing research (task_1) doesn't complete"
       ],
-      "dependencies": ["Pricing research complete (task_1)", "Finance team review"],
+      "dependencies": ["Pricing research complete (task_1)", "Finance team review", "Market analysis from sp0_task_3"],
       "timeline": "1 week",
       "priority": "high",
       "category": "implementation",
@@ -146,7 +155,10 @@ Extract tasks following these rules:
 - **what_and_how** must have 1-3 specific action bullets (not a repeat of the title)
 - **success_criteria** must have 1-2 measurable outcomes
 - **kill_criteria** must have 1-2 conditions for when to stop/replan
-- **dependencies** should list prerequisites (can reference other task IDs or external requirements)
+- **dependencies** MUST include:
+  - Internal dependencies using "task_N" format (e.g., "task_1", "task_2")
+  - Cross-sub-problem dependencies using "spN_task_M" format (e.g., "sp0_task_3", "sp2_task_1")
+  - External dependencies (e.g., "Finance team review", "Customer data access")
 - **timeline** should be realistic (e.g., "3 days", "2 weeks", "1 month")
 - Set confidence based on how explicit the task is in the synthesis
 
@@ -157,6 +169,9 @@ async def extract_tasks_from_synthesis(
     synthesis: str,
     session_id: str,
     anthropic_api_key: str,
+    sub_problem_index: int | None = None,
+    total_sub_problems: int = 1,
+    other_sub_problem_goals: list[str] | None = None,
 ) -> TaskExtractionResult:
     """Extract actionable tasks from synthesis using Claude.
 
@@ -164,6 +179,9 @@ async def extract_tasks_from_synthesis(
         synthesis: XML-formatted synthesis report
         session_id: Session ID for tracking
         anthropic_api_key: Anthropic API key
+        sub_problem_index: Index of this sub-problem (for cross-sp dependencies)
+        total_sub_problems: Total number of sub-problems in session
+        other_sub_problem_goals: Goals of other sub-problems for context
 
     Returns:
         TaskExtractionResult with extracted tasks
@@ -179,7 +197,18 @@ async def extract_tasks_from_synthesis(
 
     client = AsyncAnthropic(api_key=anthropic_api_key)
 
-    prompt = TASK_EXTRACTION_PROMPT.format(synthesis=synthesis)
+    # Format sub-problem context for cross-sub-problem dependencies
+    sp_index_str = (
+        str(sub_problem_index) if sub_problem_index is not None else "N/A (meta-synthesis)"
+    )
+    other_goals_str = ", ".join(other_sub_problem_goals) if other_sub_problem_goals else "N/A"
+
+    prompt = TASK_EXTRACTION_PROMPT.format(
+        synthesis=synthesis,
+        sub_problem_index=sp_index_str,
+        total_sub_problems=total_sub_problems,
+        other_sub_problem_goals=other_goals_str,
+    )
 
     # Use haiku for fast, cheap structured extraction (like summarizer)
     model = get_model_for_role("SUMMARIZER")
@@ -236,17 +265,42 @@ def sync_extract_tasks_from_synthesis(
     synthesis: str,
     session_id: str,
     anthropic_api_key: str,
+    sub_problem_index: int | None = None,
+    total_sub_problems: int = 1,
+    other_sub_problem_goals: list[str] | None = None,
 ) -> TaskExtractionResult:
     """Synchronous version of extract_tasks_from_synthesis.
 
     Used in contexts where async is not available.
+
+    Args:
+        synthesis: XML-formatted synthesis report
+        session_id: Session ID for tracking
+        anthropic_api_key: Anthropic API key
+        sub_problem_index: Index of this sub-problem (for cross-sp dependencies)
+        total_sub_problems: Total number of sub-problems in session
+        other_sub_problem_goals: Goals of other sub-problems for context
+
+    Returns:
+        TaskExtractionResult with extracted tasks
     """
     if not synthesis or not synthesis.strip():
         raise ValueError("Synthesis cannot be empty")
 
     client = Anthropic(api_key=anthropic_api_key)
 
-    prompt = TASK_EXTRACTION_PROMPT.format(synthesis=synthesis)
+    # Format sub-problem context for cross-sub-problem dependencies
+    sp_index_str = (
+        str(sub_problem_index) if sub_problem_index is not None else "N/A (meta-synthesis)"
+    )
+    other_goals_str = ", ".join(other_sub_problem_goals) if other_sub_problem_goals else "N/A"
+
+    prompt = TASK_EXTRACTION_PROMPT.format(
+        synthesis=synthesis,
+        sub_problem_index=sp_index_str,
+        total_sub_problems=total_sub_problems,
+        other_sub_problem_goals=other_goals_str,
+    )
 
     # Use haiku for fast, cheap structured extraction (like summarizer)
     model = get_model_for_role("SUMMARIZER")

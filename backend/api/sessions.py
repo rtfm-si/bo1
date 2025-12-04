@@ -839,10 +839,35 @@ async def extract_tasks(
                     detail="No synthesis found for this session. Run the deliberation to completion first.",
                 )
 
+            # Build sub-problem context for cross-sub-problem dependency extraction
+            # Filter to get only sub-problem syntheses (not meta-synthesis)
+            sub_problem_syntheses = [(s, idx) for s, idx in synthesis_events if idx is not None]
+            total_sub_problems = len(sub_problem_syntheses)
+
+            # Build goal map from decomposition_complete event (if available)
+            sub_problem_goals: dict[int, str] = {}
+            for event_json in redis_events or []:
+                try:
+                    import json as json_mod
+
+                    event = (
+                        json_mod.loads(event_json)
+                        if isinstance(event_json, (str, bytes))
+                        else event_json
+                    )
+                    if event.get("event_type") == "decomposition_complete":
+                        for idx, sp in enumerate(event.get("data", {}).get("sub_problems", [])):
+                            sub_problem_goals[idx] = sp.get("goal", f"Sub-problem {idx + 1}")
+                        break
+                except Exception as e:
+                    logger.debug(f"Failed to parse event JSON: {e}")
+                    continue
+
             # Extract tasks from each synthesis and tag with sub_problem_index
             all_tasks: list[dict[str, Any]] = []
             all_sections_analyzed: list[str] = []
             total_confidence_sum = 0.0
+            tasks_by_sp: dict[int | None, int] = {}  # Track task count per sub-problem
 
             for synthesis, sub_problem_index in synthesis_events:
                 logger.info(
@@ -850,20 +875,50 @@ async def extract_tasks(
                     f"for session {session_id}"
                 )
 
+                # Build context for other sub-problems (for cross-sp dependencies)
+                other_goals = [
+                    f"[sp{idx}] {goal}"
+                    for idx, goal in sub_problem_goals.items()
+                    if idx != sub_problem_index
+                ]
+
                 result = sync_extract_tasks_from_synthesis(
                     synthesis=synthesis,
                     session_id=session_id,
                     anthropic_api_key=api_key,
+                    sub_problem_index=sub_problem_index,
+                    total_sub_problems=total_sub_problems,
+                    other_sub_problem_goals=other_goals,
                 )
 
                 # Tag each task with its sub_problem_index
+                task_count = 0
                 for task in result.tasks:
                     task_dict = task.model_dump() if hasattr(task, "model_dump") else task
                     task_dict["sub_problem_index"] = sub_problem_index
                     all_tasks.append(task_dict)
+                    task_count += 1
+
+                # Track task count per sub-problem for validation
+                tasks_by_sp[sub_problem_index] = task_count
 
                 all_sections_analyzed.extend(result.synthesis_sections_analyzed)
                 total_confidence_sum += result.extraction_confidence
+
+            # ISSUE #2 FIX: Validation that all sub-problems have tasks extracted
+            sp_indices_with_tasks = {idx for idx in tasks_by_sp.keys() if idx is not None}
+            expected_sp_indices = set(range(total_sub_problems))
+            missing_sp_indices = expected_sp_indices - sp_indices_with_tasks
+
+            if missing_sp_indices:
+                logger.warning(
+                    f"TASK EXTRACTION WARNING: Sub-problems {sorted(missing_sp_indices)} "
+                    f"have no tasks extracted for session {session_id}. "
+                    f"Tasks by sub-problem: {tasks_by_sp}"
+                )
+
+            # Log task distribution for debugging
+            logger.info(f"Task distribution by sub-problem for session {session_id}: {tasks_by_sp}")
 
             # Calculate average confidence across all syntheses
             avg_confidence = (

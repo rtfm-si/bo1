@@ -483,8 +483,85 @@ async def kill_deliberation(
         ) from e
 
 
+class ClarificationResponse(BaseModel):
+    """Response model for clarification questions.
+
+    Attributes:
+        session_id: Session identifier
+        has_pending: Whether there's a pending clarification
+        question: The clarification question (if pending)
+        reason: Why clarification is needed (if pending)
+        question_id: Unique ID for the question (if pending)
+    """
+
+    session_id: str
+    has_pending: bool
+    question: str | None = None
+    reason: str | None = None
+    question_id: str | None = None
+
+
+@router.get(
+    "/{session_id}/clarifications",
+    response_model=ClarificationResponse,
+    summary="Get pending clarification question",
+    description="Check if there's a pending clarification question for this session.",
+    responses={
+        200: {"description": "Clarification status returned"},
+        404: {"description": "Session not found", "model": ErrorResponse},
+    },
+)
+async def get_pending_clarification(
+    session_id: str,
+    session_data: VerifiedSession,
+    redis_manager: RedisManager = Depends(get_redis_manager),
+) -> ClarificationResponse:
+    """Get pending clarification question for a session.
+
+    Args:
+        session_id: Session identifier
+        session_data: Verified session (user_id, metadata) from dependency
+        redis_manager: Redis manager instance
+
+    Returns:
+        ClarificationResponse with pending question details or empty if none
+    """
+    try:
+        # Validate session ID format
+        session_id = validate_session_id(session_id)
+
+        # Unpack verified session data
+        user_id, metadata = session_data
+
+        # Check for pending clarification
+        pending = metadata.get("pending_clarification")
+
+        if pending:
+            return ClarificationResponse(
+                session_id=session_id,
+                has_pending=True,
+                question=pending.get("question"),
+                reason=pending.get("reason"),
+                question_id=pending.get("question_id"),
+            )
+        else:
+            return ClarificationResponse(
+                session_id=session_id,
+                has_pending=False,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get clarification for session {session_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get clarification: {str(e)}",
+        ) from e
+
+
 @router.post(
-    "/{session_id}/clarify",
+    "/{session_id}/clarifications",
     response_model=ControlResponse,
     status_code=202,
     summary="Submit clarification answer",
@@ -497,11 +574,49 @@ async def kill_deliberation(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+async def submit_clarification_new(
+    session_id: str,
+    request: ClarificationRequest,
+    session_data: VerifiedSession,
+    redis_manager: RedisManager = Depends(get_redis_manager),
+) -> ControlResponse:
+    """Submit clarification answer and resume deliberation (new endpoint).
+
+    This is the preferred endpoint at POST /sessions/{id}/clarifications.
+    """
+    return await _submit_clarification_impl(session_id, request, session_data, redis_manager)
+
+
+@router.post(
+    "/{session_id}/clarify",
+    response_model=ControlResponse,
+    status_code=202,
+    summary="Submit clarification answer (legacy)",
+    description="Submit an answer to a pending clarification question and resume deliberation.",
+    responses={
+        202: {"description": "Clarification submitted, deliberation resumed"},
+        400: {"description": "Invalid request", "model": ErrorResponse},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+    deprecated=True,
+)
 async def submit_clarification(
     session_id: str,
     request: ClarificationRequest,
     session_data: VerifiedSession,
     redis_manager: RedisManager = Depends(get_redis_manager),
+) -> ControlResponse:
+    """Submit clarification answer (legacy endpoint, use POST /clarifications instead)."""
+    return await _submit_clarification_impl(session_id, request, session_data, redis_manager)
+
+
+async def _submit_clarification_impl(
+    session_id: str,
+    request: ClarificationRequest,
+    session_data: VerifiedSession,
+    redis_manager: RedisManager,
 ) -> ControlResponse:
     """Submit clarification answer and resume deliberation.
 
@@ -575,6 +690,34 @@ async def submit_clarification(
         metadata["status"] = "paused"  # Mark as paused, ready to resume
         metadata["updated_at"] = datetime.now(UTC).isoformat()
         redis_manager.save_metadata(session_id, metadata)
+
+        # ISSUE #4 FIX: Persist clarification answer to user's business context
+        # This ensures future meetings can benefit from the clarification
+        try:
+            from bo1.state.postgres_manager import load_user_context, save_user_context
+
+            # Load existing business context
+            existing_context = load_user_context(user_id) or {}
+
+            # Add/update clarifications section
+            clarifications = existing_context.get("clarifications", {})
+            question = pending_clarification.get("question", "Unknown question")
+            clarifications[question] = {
+                "answer": request.answer,
+                "answered_at": datetime.now(UTC).isoformat(),
+                "session_id": session_id,
+            }
+            existing_context["clarifications"] = clarifications
+
+            # Save updated context
+            save_user_context(user_id, existing_context)
+            logger.info(
+                f"Persisted clarification to business context for user {user_id}: "
+                f"'{question[:50]}...' = '{request.answer[:50]}...'"
+            )
+        except Exception as e:
+            # Don't fail the request if business context persistence fails
+            logger.warning(f"Failed to persist clarification to business context: {e}")
 
         logger.info(
             f"Clarification submitted for session {session_id}. "

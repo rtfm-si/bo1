@@ -142,30 +142,34 @@ def create_deliberation_graph(
     workflow.add_node("clarification", clarification_node)  # Day 37
 
     # Add edges - Linear setup phase
-    # decompose -> analyze_dependencies (if parallel sub-problems enabled, else context_collection)
+    # ISSUE #3 FIX: Business context must flow BEFORE decomposition
+    # Entry point is now context_collection, which enriches problem.context
+    # before decompose_node analyzes the problem
+
+    # context_collection -> decompose (business context flows INTO decomposition)
+    workflow.add_edge("context_collection", "decompose")
+
+    # decompose -> analyze_dependencies (if parallel sub-problems enabled, else select_personas)
     if ENABLE_PARALLEL_SUBPROBLEMS:
         workflow.add_node("analyze_dependencies", analyze_dependencies_node)
         workflow.add_node("parallel_subproblems", parallel_subproblems_node)
         workflow.add_edge("decompose", "analyze_dependencies")
 
-        # analyze_dependencies -> (parallel_subproblems | context_collection)
+        # analyze_dependencies -> (parallel_subproblems | select_personas)
         workflow.add_conditional_edges(
             "analyze_dependencies",
             route_subproblem_execution,
             {
                 "parallel_subproblems": "parallel_subproblems",
-                "context_collection": "context_collection",
+                "select_personas": "select_personas",  # Sequential mode
             },
         )
 
         # parallel_subproblems -> meta_synthesis
         workflow.add_edge("parallel_subproblems", "meta_synthesis")
     else:
-        # Legacy: decompose -> context_collection (Day 37)
-        workflow.add_edge("decompose", "context_collection")
-
-    # context_collection -> select_personas (Day 37) - only used in sequential mode
-    workflow.add_edge("context_collection", "select_personas")
+        # Legacy: decompose -> select_personas
+        workflow.add_edge("decompose", "select_personas")
 
     # select_personas -> initial_round
     workflow.add_edge("select_personas", "initial_round")
@@ -248,7 +252,8 @@ def create_deliberation_graph(
     workflow.add_edge("meta_synthesis", END)
 
     # Set entry point
-    workflow.set_entry_point("decompose")
+    # ISSUE #3 FIX: Start with context_collection to enrich problem before decomposition
+    workflow.set_entry_point("context_collection")
 
     # Compile graph
     # Note: recursion_limit is set in the config during execution, not compilation

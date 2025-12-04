@@ -264,19 +264,22 @@ def route_clarification(
 
 def route_subproblem_execution(
     state: DeliberationGraphState,
-) -> Literal["parallel_subproblems", "context_collection"]:
+) -> Literal["parallel_subproblems", "select_personas"]:
     """Route after dependency analysis to parallel or sequential execution.
 
     This router checks the parallel_mode flag set by analyze_dependencies_node:
     - If parallel_mode=True: Route to parallel_subproblems for concurrent execution
-    - If parallel_mode=False: Route to context_collection for sequential execution
+    - If parallel_mode=False: Route to select_personas for sequential execution
+
+    Note: context_collection now happens BEFORE decomposition (Issue #3 fix),
+    so sequential mode goes directly to select_personas.
 
     Args:
         state: Current graph state (must have parallel_mode set)
 
     Returns:
         - "parallel_subproblems" if parallel execution enabled
-        - "context_collection" if sequential execution (legacy flow)
+        - "select_personas" if sequential execution
     """
     parallel_mode = state.get("parallel_mode", False)
 
@@ -286,5 +289,5 @@ def route_subproblem_execution(
         logger.info("route_subproblem_execution: Routing to parallel_subproblems")
         return "parallel_subproblems"
     else:
-        logger.info("route_subproblem_execution: Routing to context_collection (sequential)")
-        return "context_collection"
+        logger.info("route_subproblem_execution: Routing to select_personas (sequential)")
+        return "select_personas"

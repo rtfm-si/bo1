@@ -11,6 +11,7 @@ from typing import Any
 
 from anthropic import AsyncAnthropic
 
+from backend.api.dependencies import get_redis_manager
 from backend.api.event_extractors import get_event_registry
 from backend.api.event_publisher import EventPublisher
 from bo1.config import get_settings, resolve_model_alias
@@ -510,8 +511,27 @@ class EventCollector:
                 },
             )
 
-            # Update session status to indicate waiting for clarification
-            update_session_phase(session_id, "clarification_needed")
+            # Update session status to paused and phase to clarification_needed
+            # Update PostgreSQL
+            update_session_status(
+                session_id=session_id,
+                status="paused",
+                phase="clarification_needed",
+            )
+
+            # Also update Redis metadata so API returns correct status
+            try:
+                redis_manager = get_redis_manager()
+                metadata = redis_manager.load_metadata(session_id)
+                if metadata:
+                    metadata["status"] = "paused"
+                    metadata["phase"] = "clarification_needed"
+                    redis_manager.save_metadata(session_id, metadata)
+                    logger.info(
+                        f"Updated Redis metadata for {session_id}: status=paused, phase=clarification_needed"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to update Redis metadata for {session_id}: {e}")
         else:
             # No critical gaps, just emit a status update
             external_gaps = output.get("external_research_gaps", [])
@@ -851,6 +871,17 @@ class EventCollector:
             session_id: Session identifier
             final_state: Final deliberation state containing synthesis, costs, and metrics
         """
+        # Check if session paused for clarification - don't treat as completion
+        stop_reason = final_state.get("stop_reason")
+        if stop_reason == "clarification_needed":
+            logger.info(
+                f"Session {session_id} paused for clarification - "
+                f"skipping completion handling (clarification_required event already sent)"
+            )
+            # Still verify event persistence
+            await self._verify_event_persistence(session_id)
+            return
+
         # Publish cost breakdown
         self._publish_cost_breakdown(session_id, final_state)
 
@@ -911,6 +942,15 @@ class EventCollector:
             session_id: Session identifier
             final_state: Final deliberation state containing synthesis, metrics, and phase info
         """
+        # Check if session paused for clarification - don't set to completed
+        stop_reason = final_state.get("stop_reason")
+        if stop_reason == "clarification_needed":
+            logger.info(
+                f"Session {session_id} paused for clarification - "
+                f"not updating status to completed (phase already set to clarification_needed)"
+            )
+            return
+
         # Extract data for status update
         synthesis_text = final_state.get("synthesis") or final_state.get("meta_synthesis")
         final_recommendation = None  # Could extract from synthesis if needed

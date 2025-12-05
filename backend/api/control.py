@@ -37,6 +37,110 @@ from bo1.state.redis_manager import RedisManager
 
 logger = logging.getLogger(__name__)
 
+
+async def get_checkpointer() -> Any:
+    """Get an initialized AsyncRedisSaver checkpointer.
+
+    Creates and sets up the checkpointer with required Redis indexes.
+    This must be called before using the checkpointer for state operations.
+
+    Returns:
+        Initialized AsyncRedisSaver instance
+    """
+    import os
+
+    from langgraph.checkpoint.redis.aio import AsyncRedisSaver
+
+    redis_host = os.getenv("REDIS_HOST", "localhost")
+    redis_port = os.getenv("REDIS_PORT", "6379")
+    redis_db = os.getenv("REDIS_DB", "0")
+    redis_password = os.getenv("REDIS_PASSWORD", "")
+
+    if redis_password:
+        redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+    else:
+        redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+
+    checkpointer = AsyncRedisSaver(redis_url)
+    # Setup creates required Redis search indexes
+    await checkpointer.asetup()
+    return checkpointer
+
+
+async def load_state_from_checkpoint(session_id: str) -> dict[str, Any] | None:
+    """Load deliberation state from LangGraph checkpoint.
+
+    Uses the LangGraph checkpoint system (AsyncRedisSaver) to retrieve
+    the most recent state for a session. This is the authoritative source
+    of state during deliberation.
+
+    Args:
+        session_id: Session identifier (used as thread_id in checkpoint)
+
+    Returns:
+        State dict if checkpoint exists, None otherwise
+    """
+    try:
+        # Get initialized checkpointer
+        checkpointer = await get_checkpointer()
+
+        # Create graph with the initialized checkpointer
+        graph = create_deliberation_graph(checkpointer=checkpointer)
+
+        # Config uses thread_id to identify the checkpoint
+        config = {"configurable": {"thread_id": session_id}}
+
+        # Load state from checkpoint
+        checkpoint_state = await graph.aget_state(config)
+
+        if checkpoint_state and checkpoint_state.values:
+            logger.debug(f"Loaded state from checkpoint for session {session_id}")
+            return dict(checkpoint_state.values)
+
+        logger.debug(f"No checkpoint found for session {session_id}")
+        return None
+
+    except Exception as e:
+        logger.error(f"Failed to load state from checkpoint for {session_id}: {e}")
+        return None
+
+
+async def save_state_to_checkpoint(session_id: str, state: dict[str, Any]) -> bool:
+    """Save deliberation state to LangGraph checkpoint.
+
+    Updates the checkpoint with new state values. This is used when
+    modifying state outside of normal graph execution (e.g., adding
+    clarification answers).
+
+    Args:
+        session_id: Session identifier (used as thread_id in checkpoint)
+        state: State dict to save
+
+    Returns:
+        True if saved successfully, False otherwise
+    """
+    try:
+        # Get initialized checkpointer
+        checkpointer = await get_checkpointer()
+
+        # Create graph with the initialized checkpointer
+        graph = create_deliberation_graph(checkpointer=checkpointer)
+
+        # Config uses thread_id to identify the checkpoint
+        config = {"configurable": {"thread_id": session_id}}
+
+        # Update state using graph's update_state method
+        # This preserves checkpoint history and metadata
+        await graph.aupdate_state(config, state)
+
+        logger.debug(f"Saved state to checkpoint for session {session_id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to save state to checkpoint for {session_id}: {e}")
+        return False
+
+
 router = APIRouter(prefix="/v1/sessions", tags=["deliberation-control"])
 
 
@@ -706,17 +810,14 @@ async def _submit_clarification_impl(
                 raise_on_unsafe=True,
             )
 
-        # Load state and inject answers into problem context
-        state = redis_manager.load_state(session_id)
+        # Load state from LangGraph checkpoint (authoritative source during deliberation)
+        state = await load_state_from_checkpoint(session_id)
         if not state:
             raise HTTPException(
                 status_code=500,
-                detail=f"Failed to load state for session {session_id}",
+                detail=f"Failed to load state from checkpoint for session {session_id}. "
+                "The session may have expired or the checkpoint may be unavailable.",
             )
-
-        # Convert state to dict if it's a DeliberationState
-        if not isinstance(state, dict):
-            state = state.model_dump() if hasattr(state, "model_dump") else {}
 
         # Inject clarification answers into problem context
         if "problem" not in state:
@@ -727,18 +828,26 @@ async def _submit_clarification_impl(
         for question, answer in answers_to_process.items():
             clarification_context += f"- **Q:** {question}\n  **A:** {answer}\n"
 
-        # Append to existing context
-        if hasattr(state["problem"], "context"):
-            state["problem"].context = (state["problem"].context or "") + clarification_context
+        # Append to existing context - handle both dict and object problem formats
+        problem = state["problem"]
+        if isinstance(problem, dict):
+            existing_context = problem.get("context", "") or ""
+            problem["context"] = existing_context + clarification_context
+        elif hasattr(problem, "context"):
+            problem.context = (problem.context or "") + clarification_context
         else:
-            existing_context = state["problem"].get("context", "") or ""
-            state["problem"]["context"] = existing_context + clarification_context
+            # Fallback: create new problem dict
+            state["problem"] = {"context": clarification_context}
 
         # Store answers in state for identify_gaps_node to see
         state["clarification_answers"] = answers_to_process
 
-        # Save updated state
-        redis_manager.save_state(session_id, state)
+        # Save updated state to checkpoint
+        if not await save_state_to_checkpoint(session_id, state):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to save updated state to checkpoint for session {session_id}",
+            )
 
         # Clear pending clarification from metadata
         metadata["pending_clarification"] = None

@@ -7,7 +7,7 @@ import type { SSEEvent } from '$lib/api/sse-events';
 
 export interface EventDerivedStateConfig {
 	getEvents: () => SSEEvent[];
-	getSession: () => { status: string } | null;
+	getSession: () => { status: string; phase?: string | null } | null;
 	getSubProblemTabsLength: () => number;
 }
 
@@ -43,7 +43,10 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 
 	const clarificationRequiredEvent = $derived.by(() => {
 		const events = getEvents();
-		return events.find((e) => e.event_type === 'clarification_required');
+		// Get the LAST clarification_required event (most recent questions)
+		// This handles the case where user partially answers and session re-pauses
+		const clarificationEvents = events.filter((e) => e.event_type === 'clarification_required');
+		return clarificationEvents.length > 0 ? clarificationEvents[clarificationEvents.length - 1] : undefined;
 	});
 
 	const showConclusionTab = $derived.by(() => {
@@ -64,9 +67,13 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 
 	const needsClarification = $derived.by(() => {
 		const session = getSession();
+		// Show clarification form when session is paused for clarification
+		// Status can be 'active' (legacy) or 'paused' (new behavior)
+		const isPausedForClarification =
+			session?.status === 'paused' && session?.phase === 'clarification_needed';
 		return (
 			clarificationRequiredEvent !== undefined &&
-			session?.status === 'active' &&
+			(session?.status === 'active' || isPausedForClarification) &&
 			clarificationQuestions !== undefined
 		);
 	});

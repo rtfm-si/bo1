@@ -373,7 +373,8 @@
 
 				console.log('[Events] Session and history loaded, checking session status...');
 
-				if (session?.status === 'completed' || session?.status === 'failed') {
+				// Skip SSE connection for sessions that are not actively running
+				if (session?.status === 'completed' || session?.status === 'failed' || session?.status === 'paused') {
 					console.log(`[Events] Session is ${session.status}, skipping SSE connection`);
 					store.setConnectionStatus('connected');
 					return;

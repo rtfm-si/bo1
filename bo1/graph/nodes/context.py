@@ -135,14 +135,44 @@ async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Check if we already have clarification answers waiting to be processed
     clarification_answers = state.get("clarification_answers")
-    if clarification_answers and isinstance(clarification_answers, (list, dict)):
-        answer_count = (
-            len(clarification_answers)
-            if isinstance(clarification_answers, list)
-            else len(clarification_answers.keys())
-        )
+    pending_clarification = state.get("pending_clarification")
+
+    if clarification_answers and isinstance(clarification_answers, dict):
+        answer_count = len(clarification_answers)
         logger.info(f"identify_gaps_node: Processing {answer_count} clarification answers")
-        # Answers already processed - continue to next node
+
+        # Check if there are unanswered questions from pending_clarification
+        if pending_clarification and pending_clarification.get("questions"):
+            original_questions = pending_clarification.get("questions", [])
+            answered_questions = set(clarification_answers.keys())
+
+            # Find unanswered questions
+            unanswered_questions = [
+                q for q in original_questions if q.get("question") not in answered_questions
+            ]
+
+            if unanswered_questions:
+                logger.info(
+                    f"identify_gaps_node: {len(unanswered_questions)} questions remain unanswered, "
+                    f"re-pausing for user input"
+                )
+
+                # Re-pause with remaining questions
+                return {
+                    "current_node": "identify_gaps",
+                    "should_stop": True,
+                    "stop_reason": "clarification_needed",
+                    "pending_clarification": {
+                        "questions": unanswered_questions,
+                        "phase": "pre_deliberation",
+                        "reason": "Additional information needed to proceed",
+                    },
+                    # Keep the answers we have, don't clear them
+                    "clarification_answers": clarification_answers,
+                }
+
+        # All questions answered (or no original questions) - continue to next node
+        logger.info("identify_gaps_node: All clarification questions answered, continuing")
         return {
             "current_node": "identify_gaps",
             "pending_clarification": None,

@@ -183,6 +183,10 @@ export function createSessionStore() {
 				session.phase = 'voting';
 			} else if (eventType === 'synthesis_started') {
 				session.phase = 'synthesis';
+			} else if (eventType === 'clarification_required') {
+				// Session pauses for clarification questions
+				session.status = 'paused';
+				session.phase = 'clarification_needed';
 			} else if (eventType === 'complete') {
 				session.status = 'completed';
 				session.phase = 'complete';

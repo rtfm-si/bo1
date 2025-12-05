@@ -10,13 +10,12 @@ import type { Handle } from '@sveltejs/kit';
 // In Docker, use INTERNAL_API_URL (service name 'api') for server-side proxy
 // This is for server-side requests, not browser requests
 const API_BASE_URL = process.env.INTERNAL_API_URL || 'http://api:8000';
+const DEBUG = process.env.NODE_ENV === 'development';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	// Proxy /api/* requests to backend
 	if (event.url.pathname.startsWith('/api/')) {
 		const backendUrl = `${API_BASE_URL}${event.url.pathname}${event.url.search}`;
-
-		console.log(`[SvelteKit Proxy] ${event.request.method} ${event.url.pathname} -> ${backendUrl}`);
 
 		try {
 			// Forward the request to the backend
@@ -28,7 +27,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 					: undefined,
 			});
 
-			console.log(`[SvelteKit Proxy] Response: ${response.status} ${response.statusText}`);
+			if (DEBUG) {
+				console.log(`[Proxy] ${event.request.method} ${event.url.pathname} -> ${response.status}`);
+			}
 
 			// Check if this is an SSE stream (text/event-stream)
 			const contentType = response.headers.get('content-type');

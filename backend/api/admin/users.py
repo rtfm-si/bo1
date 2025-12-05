@@ -34,8 +34,8 @@ from backend.api.admin.models import (
 )
 from backend.api.middleware.admin import require_admin_any
 from backend.api.models import ErrorResponse
+from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import handle_api_errors
-from bo1.state.postgres_manager import db_session
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -164,48 +164,38 @@ async def update_user(
         )
 
     # Build dynamic UPDATE query
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            update_fields = []
-            params: list[Any] = []
+    update_fields = []
+    params: list[Any] = []
 
-            if request.subscription_tier is not None:
-                update_fields.append("subscription_tier = %s")
-                params.append(request.subscription_tier)
+    if request.subscription_tier is not None:
+        update_fields.append("subscription_tier = %s")
+        params.append(request.subscription_tier)
 
-            if request.is_admin is not None:
-                update_fields.append("is_admin = %s")
-                params.append(request.is_admin)
+    if request.is_admin is not None:
+        update_fields.append("is_admin = %s")
+        params.append(request.is_admin)
 
-            # Always update updated_at
-            update_fields.append("updated_at = NOW()")
-            params.append(user_id)
+    # Always update updated_at
+    update_fields.append("updated_at = NOW()")
+    params.append(user_id)
 
-            # Execute update
-            query = f"""
-                UPDATE users
-                SET {", ".join(update_fields)}
-                WHERE id = %s
-            """  # noqa: S608 - Safe: update_fields contains only controlled column names, values are parameterized
+    # Execute update
+    # noqa: S608 - Safe: update_fields contains only controlled column names, values are parameterized
+    update_query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = %s"
+    execute_query(update_query, tuple(params), fetch="none")
 
-            cur.execute(query, params)
+    # Fetch updated user with metrics
+    # noqa: S608 - Safe: only uses controlled constants
+    fetch_query = f"{USER_WITH_METRICS_SELECT} WHERE u.id = %s {USER_WITH_METRICS_GROUP_BY}"
+    row = execute_query(fetch_query, (user_id,), fetch="one")
 
-            # Fetch updated user with metrics
-            fetch_query = f"""
-                {USER_WITH_METRICS_SELECT}
-                WHERE u.id = %s
-                {USER_WITH_METRICS_GROUP_BY}
-            """  # noqa: S608 - Safe: only uses controlled constants
-            cur.execute(fetch_query, (user_id,))
-            row = cur.fetchone()
+    if not row:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch updated user",
+        )
 
-            if not row:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Failed to fetch updated user",
-                )
-
-            user = _row_to_user_info(row)
+    user = _row_to_user_info(row)
 
     logger.info(f"Admin: Updated user {user_id} - {request}")
     return user

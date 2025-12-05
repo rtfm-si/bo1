@@ -17,7 +17,8 @@ from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
-from bo1.state.database import db_session
+from backend.api.utils.db_helpers import execute_query, get_single_value
+from backend.api.utils.errors import handle_api_errors
 
 logger = logging.getLogger(__name__)
 
@@ -61,21 +62,17 @@ class TourCompleteRequest(BaseModel):
 def _get_onboarding_record(user_id: str) -> dict[str, Any] | None:
     """Get user's onboarding record from database."""
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT tour_completed, tour_completed_at, steps_completed,
-                           first_meeting_id, created_at, updated_at
-                    FROM user_onboarding
-                    WHERE user_id = %s
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if row:
-                    return dict(row)
-                return None
+        row = execute_query(
+            """
+            SELECT tour_completed, tour_completed_at, steps_completed,
+                   first_meeting_id, created_at, updated_at
+            FROM user_onboarding
+            WHERE user_id = %s
+            """,
+            (user_id,),
+            fetch="one",
+        )
+        return dict(row) if row else None
     except Exception as e:
         logger.error(f"Failed to get onboarding record: {e}")
         return None
@@ -84,20 +81,18 @@ def _get_onboarding_record(user_id: str) -> dict[str, Any] | None:
 def _ensure_onboarding_record(user_id: str) -> dict[str, Any]:
     """Ensure user has an onboarding record, creating if needed."""
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO user_onboarding (user_id)
-                    VALUES (%s)
-                    ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW()
-                    RETURNING tour_completed, tour_completed_at, steps_completed,
-                              first_meeting_id, created_at, updated_at
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                return dict(row) if row else {}
+        row = execute_query(
+            """
+            INSERT INTO user_onboarding (user_id)
+            VALUES (%s)
+            ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW()
+            RETURNING tour_completed, tour_completed_at, steps_completed,
+                      first_meeting_id, created_at, updated_at
+            """,
+            (user_id,),
+            fetch="one",
+        )
+        return dict(row) if row else {}
     except Exception as e:
         logger.error(f"Failed to ensure onboarding record: {e}")
         return {}
@@ -106,20 +101,14 @@ def _ensure_onboarding_record(user_id: str) -> dict[str, Any]:
 def _check_context_setup(user_id: str) -> bool:
     """Check if user has set up business context."""
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT onboarding_completed
-                    FROM user_context
-                    WHERE user_id = %s
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if row:
-                    return bool(row.get("onboarding_completed", False))
-                return False
+        return bool(
+            get_single_value(
+                "SELECT onboarding_completed FROM user_context WHERE user_id = %s",
+                (user_id,),
+                column="onboarding_completed",
+                default=False,
+            )
+        )
     except Exception as e:
         logger.error(f"Failed to check context setup: {e}")
         return False
@@ -139,47 +128,40 @@ def _check_context_setup(user_id: str) -> bool:
     Use this to determine whether to show the onboarding flow or tour.
     """,
 )
+@handle_api_errors("get onboarding status")
 async def get_onboarding_status(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> OnboardingStatus:
     """Get user's onboarding status."""
-    try:
-        user_id = extract_user_id(user)
+    user_id = extract_user_id(user)
 
-        # Get onboarding record
-        record = _get_onboarding_record(user_id)
-        context_setup = _check_context_setup(user_id)
+    # Get onboarding record
+    record = _get_onboarding_record(user_id)
+    context_setup = _check_context_setup(user_id)
 
-        if not record:
-            # User has no onboarding record yet
-            return OnboardingStatus(
-                tour_completed=False,
-                tour_completed_at=None,
-                steps_completed=[],
-                context_setup=context_setup,
-                first_meeting_id=None,
-                needs_onboarding=not context_setup,
-            )
-
-        # Determine if user still needs onboarding
-        tour_done = record.get("tour_completed", False)
-        needs_onboarding = not context_setup and not tour_done
-
+    if not record:
+        # User has no onboarding record yet
         return OnboardingStatus(
-            tour_completed=tour_done,
-            tour_completed_at=record.get("tour_completed_at"),
-            steps_completed=record.get("steps_completed", []),
+            tour_completed=False,
+            tour_completed_at=None,
+            steps_completed=[],
             context_setup=context_setup,
-            first_meeting_id=record.get("first_meeting_id"),
-            needs_onboarding=needs_onboarding,
+            first_meeting_id=None,
+            needs_onboarding=not context_setup,
         )
 
-    except Exception as e:
-        logger.error(f"Failed to get onboarding status: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get onboarding status: {str(e)}",
-        ) from e
+    # Determine if user still needs onboarding
+    tour_done = record.get("tour_completed", False)
+    needs_onboarding = not context_setup and not tour_done
+
+    return OnboardingStatus(
+        tour_completed=tour_done,
+        tour_completed_at=record.get("tour_completed_at"),
+        steps_completed=record.get("steps_completed", []),
+        context_setup=context_setup,
+        first_meeting_id=record.get("first_meeting_id"),
+        needs_onboarding=needs_onboarding,
+    )
 
 
 @router.post(
@@ -198,63 +180,52 @@ async def get_onboarding_status(
     This is used by driver.js to track tour progress.
     """,
 )
+@handle_api_errors("complete onboarding step")
 async def complete_step(
     request: StepCompleteRequest,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> OnboardingStatus:
     """Mark an onboarding step as complete."""
-    try:
-        user_id = extract_user_id(user)
+    user_id = extract_user_id(user)
 
-        # Ensure record exists
-        _ensure_onboarding_record(user_id)
+    # Ensure record exists
+    _ensure_onboarding_record(user_id)
 
-        # Add step to completed list if not already there
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE user_onboarding
-                    SET steps_completed = (
-                        SELECT jsonb_agg(DISTINCT elem)
-                        FROM (
-                            SELECT jsonb_array_elements(steps_completed) AS elem
-                            UNION
-                            SELECT %s::jsonb
-                        ) sub
-                    ),
-                    updated_at = NOW()
-                    WHERE user_id = %s
-                    RETURNING tour_completed, tour_completed_at, steps_completed,
-                              first_meeting_id
-                    """,
-                    (f'"{request.step.value}"', user_id),
-                )
-                row = cur.fetchone()
+    # Add step to completed list if not already there
+    row = execute_query(
+        """
+        UPDATE user_onboarding
+        SET steps_completed = (
+            SELECT jsonb_agg(DISTINCT elem)
+            FROM (
+                SELECT jsonb_array_elements(steps_completed) AS elem
+                UNION
+                SELECT %s::jsonb
+            ) sub
+        ),
+        updated_at = NOW()
+        WHERE user_id = %s
+        RETURNING tour_completed, tour_completed_at, steps_completed,
+                  first_meeting_id
+        """,
+        (f'"{request.step.value}"', user_id),
+        fetch="one",
+    )
 
-        if not row:
-            raise HTTPException(status_code=500, detail="Failed to update step")
+    if not row:
+        raise HTTPException(status_code=500, detail="Failed to update step")
 
-        context_setup = _check_context_setup(user_id)
-        tour_done = row.get("tour_completed", False)
+    context_setup = _check_context_setup(user_id)
+    tour_done = row.get("tour_completed", False)
 
-        return OnboardingStatus(
-            tour_completed=tour_done,
-            tour_completed_at=row.get("tour_completed_at"),
-            steps_completed=row.get("steps_completed", []),
-            context_setup=context_setup,
-            first_meeting_id=row.get("first_meeting_id"),
-            needs_onboarding=not context_setup and not tour_done,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to complete step: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to complete step: {str(e)}",
-        ) from e
+    return OnboardingStatus(
+        tour_completed=tour_done,
+        tour_completed_at=row.get("tour_completed_at"),
+        steps_completed=row.get("steps_completed", []),
+        context_setup=context_setup,
+        first_meeting_id=row.get("first_meeting_id"),
+        needs_onboarding=not context_setup and not tour_done,
+    )
 
 
 @router.post(
@@ -268,71 +239,61 @@ async def complete_step(
     Optionally include the first_meeting_id if the user created a meeting during the tour.
     """,
 )
+@handle_api_errors("complete tour")
 async def complete_tour(
     request: TourCompleteRequest | None = None,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> OnboardingStatus:
     """Mark the tour as complete."""
-    try:
-        user_id = extract_user_id(user)
+    user_id = extract_user_id(user)
 
-        # Ensure record exists
-        _ensure_onboarding_record(user_id)
+    # Ensure record exists
+    _ensure_onboarding_record(user_id)
 
-        # Update tour completion
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                if request and request.first_meeting_id:
-                    cur.execute(
-                        """
-                        UPDATE user_onboarding
-                        SET tour_completed = true,
-                            tour_completed_at = NOW(),
-                            first_meeting_id = %s,
-                            updated_at = NOW()
-                        WHERE user_id = %s
-                        RETURNING tour_completed, tour_completed_at, steps_completed,
-                                  first_meeting_id
-                        """,
-                        (request.first_meeting_id, user_id),
-                    )
-                else:
-                    cur.execute(
-                        """
-                        UPDATE user_onboarding
-                        SET tour_completed = true,
-                            tour_completed_at = NOW(),
-                            updated_at = NOW()
-                        WHERE user_id = %s
-                        RETURNING tour_completed, tour_completed_at, steps_completed,
-                                  first_meeting_id
-                        """,
-                        (user_id,),
-                    )
-                row = cur.fetchone()
-
-        if not row:
-            raise HTTPException(status_code=500, detail="Failed to complete tour")
-
-        context_setup = _check_context_setup(user_id)
-
-        return OnboardingStatus(
-            tour_completed=True,
-            tour_completed_at=row.get("tour_completed_at"),
-            steps_completed=row.get("steps_completed", []),
-            context_setup=context_setup,
-            first_meeting_id=row.get("first_meeting_id"),
-            needs_onboarding=False,  # Tour is done, no more onboarding
+    # Update tour completion
+    if request and request.first_meeting_id:
+        row = execute_query(
+            """
+            UPDATE user_onboarding
+            SET tour_completed = true,
+                tour_completed_at = NOW(),
+                first_meeting_id = %s,
+                updated_at = NOW()
+            WHERE user_id = %s
+            RETURNING tour_completed, tour_completed_at, steps_completed,
+                      first_meeting_id
+            """,
+            (request.first_meeting_id, user_id),
+            fetch="one",
+        )
+    else:
+        row = execute_query(
+            """
+            UPDATE user_onboarding
+            SET tour_completed = true,
+                tour_completed_at = NOW(),
+                updated_at = NOW()
+            WHERE user_id = %s
+            RETURNING tour_completed, tour_completed_at, steps_completed,
+                      first_meeting_id
+            """,
+            (user_id,),
+            fetch="one",
         )
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to complete tour: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to complete tour: {str(e)}",
-        ) from e
+    if not row:
+        raise HTTPException(status_code=500, detail="Failed to complete tour")
+
+    context_setup = _check_context_setup(user_id)
+
+    return OnboardingStatus(
+        tour_completed=True,
+        tour_completed_at=row.get("tour_completed_at"),
+        steps_completed=row.get("steps_completed", []),
+        context_setup=context_setup,
+        first_meeting_id=row.get("first_meeting_id"),
+        needs_onboarding=False,  # Tour is done, no more onboarding
+    )
 
 
 @router.post(
@@ -346,50 +307,39 @@ async def complete_tour(
     Useful for returning users who don't want to go through the tour.
     """,
 )
+@handle_api_errors("skip onboarding")
 async def skip_onboarding(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> OnboardingStatus:
     """Skip onboarding entirely."""
-    try:
-        user_id = extract_user_id(user)
+    user_id = extract_user_id(user)
 
-        # Ensure record exists and mark as skipped
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO user_onboarding (user_id, tour_completed, tour_completed_at)
-                    VALUES (%s, true, NOW())
-                    ON CONFLICT (user_id) DO UPDATE SET
-                        tour_completed = true,
-                        tour_completed_at = NOW(),
-                        updated_at = NOW()
-                    RETURNING tour_completed, tour_completed_at, steps_completed,
-                              first_meeting_id
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
+    # Ensure record exists and mark as skipped
+    row = execute_query(
+        """
+        INSERT INTO user_onboarding (user_id, tour_completed, tour_completed_at)
+        VALUES (%s, true, NOW())
+        ON CONFLICT (user_id) DO UPDATE SET
+            tour_completed = true,
+            tour_completed_at = NOW(),
+            updated_at = NOW()
+        RETURNING tour_completed, tour_completed_at, steps_completed,
+                  first_meeting_id
+        """,
+        (user_id,),
+        fetch="one",
+    )
 
-        if not row:
-            raise HTTPException(status_code=500, detail="Failed to skip onboarding")
+    if not row:
+        raise HTTPException(status_code=500, detail="Failed to skip onboarding")
 
-        context_setup = _check_context_setup(user_id)
+    context_setup = _check_context_setup(user_id)
 
-        return OnboardingStatus(
-            tour_completed=True,
-            tour_completed_at=row.get("tour_completed_at"),
-            steps_completed=row.get("steps_completed", []),
-            context_setup=context_setup,
-            first_meeting_id=row.get("first_meeting_id"),
-            needs_onboarding=False,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to skip onboarding: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to skip onboarding: {str(e)}",
-        ) from e
+    return OnboardingStatus(
+        tour_completed=True,
+        tour_completed_at=row.get("tour_completed_at"),
+        steps_completed=row.get("steps_completed", []),
+        context_setup=context_setup,
+        first_meeting_id=row.get("first_meeting_id"),
+        needs_onboarding=False,
+    )

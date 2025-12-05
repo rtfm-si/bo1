@@ -182,6 +182,9 @@ def send_beta_welcome_email(email: str) -> dict | None:
         logger.info(f"Beta welcome email sent to {email}: {result.get('id', 'unknown')}")
         return result
 
+    except resend.exceptions.ResendError as e:
+        logger.error(f"Resend API error sending email to {email}: {e}")
+        return None
     except Exception as e:
-        logger.error(f"Failed to send beta welcome email to {email}: {e}")
+        logger.error(f"Unexpected error sending beta welcome email to {email}: {e}", exc_info=True)
         return None

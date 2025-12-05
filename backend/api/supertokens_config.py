@@ -23,8 +23,9 @@ from supertokens_python.recipe.thirdparty.interfaces import RecipeInterface
 from supertokens_python.recipe.thirdparty.provider import ProviderInput
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 
+from backend.api.utils.db_helpers import execute_query, exists
 from bo1.feature_flags import GOOGLE_OAUTH_ENABLED
-from bo1.state.postgres_manager import db_session, ensure_user_exists
+from bo1.state.postgres_manager import ensure_user_exists
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +40,11 @@ def check_whitelist_db(email: str) -> bool:
         True if email is whitelisted in database, False otherwise
     """
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT 1 FROM beta_whitelist WHERE LOWER(email) = LOWER(%s)",
-                    (email,),
-                )
-                return cur.fetchone() is not None
+        return exists(
+            "beta_whitelist",
+            where="LOWER(email) = LOWER(%s)",
+            params=(email,),
+        )
     except Exception as e:
         logger.error(f"Error checking database whitelist: {e}")
         return False
@@ -90,20 +89,14 @@ def is_user_locked_or_deleted(user_id: str) -> bool:
         True if user is locked or deleted, False otherwise
     """
     try:
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT is_locked, deleted_at
-                    FROM users
-                    WHERE id = %s
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-                if row:
-                    return row["is_locked"] or row["deleted_at"] is not None
-                return False  # User not found in DB yet
+        row = execute_query(
+            "SELECT is_locked, deleted_at FROM users WHERE id = %s",
+            (user_id,),
+            fetch="one",
+        )
+        if row:
+            return row["is_locked"] or row["deleted_at"] is not None
+        return False  # User not found in DB yet
     except Exception as e:
         logger.error(f"Error checking user lock status: {e}")
         return False  # Fail open - don't block auth on DB errors

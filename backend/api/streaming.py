@@ -18,6 +18,7 @@ from backend.api.events import (
     error_event,
     node_start_event,
 )
+from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.validation import validate_session_id
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ router = APIRouter(prefix="/v1/sessions", tags=["streaming"])
         500: {"description": "Internal server error"},
     },
 )
+@handle_api_errors("get event history")
 async def get_event_history(
     session_id: str,
     session_data: VerifiedSession,

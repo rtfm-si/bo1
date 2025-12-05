@@ -115,7 +115,11 @@ class EventPublisher:
             persistence_success = False
             last_error = None
 
-            for attempt in range(3):  # 3 attempts with exponential backoff
+            # Retry persistence without blocking (no sleep between attempts)
+            # Note: Blocking sleep was removed to prevent event loop blocking.
+            # If persistence fails, we retry immediately which is acceptable
+            # since database errors are typically transient connection issues.
+            for attempt in range(3):  # 3 immediate retry attempts
                 try:
                     save_session_event(
                         session_id=session_id,
@@ -132,15 +136,11 @@ class EventPublisher:
                     break
                 except Exception as db_error:
                     last_error = db_error
-                    if attempt < 2:  # Don't sleep on last attempt
-                        wait_time = 0.1 * (2**attempt)  # 0.1s, 0.2s
+                    if attempt < 2:  # Log retry attempts
                         logger.warning(
                             f"Event persistence attempt {attempt + 1}/3 failed for "
-                            f"{event_type}: {db_error}. Retrying in {wait_time}s..."
+                            f"{event_type}: {db_error}. Retrying immediately..."
                         )
-                        import time
-
-                        time.sleep(wait_time)
                     else:
                         logger.error(
                             f"CRITICAL: Event persistence failed after 3 attempts for "

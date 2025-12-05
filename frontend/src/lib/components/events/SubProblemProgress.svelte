@@ -5,6 +5,7 @@
 	 */
 	import type { SubProblemCompleteEvent } from '$lib/api/sse-events';
 	import Badge from '$lib/components/ui/Badge.svelte';
+	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
 	import { parseSynthesisXML, isXMLFormatted } from '$lib/utils/xml-parser';
 
 	interface Props {
@@ -41,22 +42,6 @@
 			.trim();
 	}
 
-	/**
-	 * Convert markdown-like patterns to HTML for basic formatting
-	 */
-	function renderMarkdown(text: string): string {
-		if (!text) return '';
-
-		return text
-			// Bold: **text** or __text__
-			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-			.replace(/__([^_]+)__/g, '<strong>$1</strong>')
-			// Italic: *text* or _text_
-			.replace(/\*([^*]+)\*/g, '<em>$1</em>')
-			.replace(/(?<!\w)_([^_]+)_(?!\w)/g, '<em>$1</em>')
-			// Line breaks
-			.replace(/\n/g, '<br />');
-	}
 
 	// State for showing full synthesis
 	let showFullSynthesis = $state(false);
@@ -151,12 +136,12 @@
 								</div>
 							{/if}
 						{:else}
-							<!-- Fallback for non-XML synthesis -->
-							<div class="text-sm text-neutral-700 dark:text-neutral-300 prose prose-sm dark:prose-invert max-w-none">
+							<!-- Fallback for non-XML synthesis - uses MarkdownContent for XSS-safe rendering -->
+							<div class="text-sm text-neutral-700 dark:text-neutral-300">
 								{#if showFullSynthesis || !isLongSynthesis}
-									{@html renderMarkdown(cleanedSynthesis)}
+									<MarkdownContent content={cleanedSynthesis} />
 								{:else}
-									{@html renderMarkdown(truncatedSynthesis)}
+									<MarkdownContent content={truncatedSynthesis} />
 								{/if}
 							</div>
 							{#if isLongSynthesis}

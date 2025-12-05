@@ -32,6 +32,7 @@ from backend.api.models import (
     ProjectStatusUpdate,
     ProjectUpdate,
 )
+from backend.api.utils.errors import handle_api_errors
 from bo1.state.repositories.project_repository import ProjectRepository
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,7 @@ def _format_project_response(project: dict) -> dict:
     summary="Get all projects",
     description="Get all projects for the current user with optional filtering",
 )
+@handle_api_errors("get projects")
 async def get_projects(
     status: str | None = Query(None, description="Filter by status"),
     page: int = Query(1, ge=1, description="Page number"),
@@ -120,6 +122,7 @@ async def get_projects(
     summary="Create a project",
     description="Create a new project",
 )
+@handle_api_errors("create project")
 async def create_project(
     request: ProjectCreate,
     user: dict = Depends(get_current_user),
@@ -154,6 +157,7 @@ async def create_project(
     summary="Get project details",
     description="Get detailed information about a specific project",
 )
+@handle_api_errors("get project")
 async def get_project(
     project_id: str,
     user: dict = Depends(get_current_user),
@@ -177,6 +181,7 @@ async def get_project(
     summary="Update a project",
     description="Update project fields",
 )
+@handle_api_errors("update project")
 async def update_project(
     project_id: str,
     request: ProjectUpdate,
@@ -222,6 +227,7 @@ async def update_project(
     summary="Archive a project",
     description="Archive a project (soft delete)",
 )
+@handle_api_errors("delete project")
 async def delete_project(
     project_id: str,
     user: dict = Depends(get_current_user),
@@ -242,6 +248,7 @@ async def delete_project(
     summary="Update project status",
     description="Update project status with validation",
 )
+@handle_api_errors("update project status")
 async def update_project_status(
     project_id: str,
     request: ProjectStatusUpdate,
@@ -276,6 +283,7 @@ async def update_project_status(
     summary="Get project actions",
     description="Get all actions for a project",
 )
+@handle_api_errors("get project actions")
 async def get_project_actions(
     project_id: str,
     status: str | None = Query(None, description="Filter by action status"),
@@ -398,6 +406,7 @@ async def remove_action_from_project(
     summary="Get Gantt chart data",
     description="Get timeline data for Gantt chart visualization",
 )
+@handle_api_errors("get gantt data")
 async def get_gantt_data(
     project_id: str,
     user: dict = Depends(get_current_user),

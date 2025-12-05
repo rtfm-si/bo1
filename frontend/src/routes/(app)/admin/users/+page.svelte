@@ -4,7 +4,7 @@
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
 	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2 } from 'lucide-svelte';
-	import { getTierColor } from '$lib/utils/persona-colors';
+	import { getTierColor } from '$lib/utils/colors';
 
 	let { data } = $props();
 

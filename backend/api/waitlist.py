@@ -15,7 +15,8 @@ from typing import Literal
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 
-from bo1.state.postgres_manager import db_session
+from backend.api.utils.db_helpers import execute_query, exists
+from backend.api.utils.errors import handle_api_errors
 
 logger = logging.getLogger(__name__)
 
@@ -65,18 +66,17 @@ def is_whitelisted(email: str) -> bool:
 
     # Check database whitelist
     try:
-        with db_session() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT 1 FROM beta_whitelist WHERE LOWER(email) = %s LIMIT 1",
-                    (email_lower,),
-                )
-                return cursor.fetchone() is not None
+        return exists(
+            "beta_whitelist",
+            where="LOWER(email) = %s",
+            params=(email_lower,),
+        )
     except Exception:
         return False  # Fail closed - if DB error, don't grant access
 
 
 @router.post("", response_model=WaitlistResponse, status_code=status.HTTP_200_OK)
+@handle_api_errors("add to waitlist")
 async def add_to_waitlist(
     request: WaitlistRequest, background_tasks: BackgroundTasks
 ) -> WaitlistResponse:
@@ -109,46 +109,40 @@ async def add_to_waitlist(
             is_whitelisted=True,
         )
 
-    # Check if already in waitlist
-    try:
-        with db_session() as conn:
-            with conn.cursor() as cursor:
-                # Check for duplicate
-                cursor.execute("SELECT id, status FROM waitlist WHERE email = %s", (email,))
-                existing = cursor.fetchone()
+    # Check for duplicate
+    existing = execute_query(
+        "SELECT id, status FROM waitlist WHERE email = %s",
+        (email,),
+        fetch="one",
+    )
 
-                if existing:
-                    return WaitlistResponse(
-                        status="already_exists",
-                        message="You're already on the waitlist! We'll notify you when you're in.",
-                    )
+    if existing:
+        return WaitlistResponse(
+            status="already_exists",
+            message="You're already on the waitlist! We'll notify you when you're in.",
+        )
 
-                # Insert new waitlist entry
-                cursor.execute(
-                    """
-                    INSERT INTO waitlist (email, status, created_at)
-                    VALUES (%s, %s, %s)
-                    RETURNING id
-                    """,
-                    (email, "pending", datetime.now(UTC)),
-                )
+    # Insert new waitlist entry
+    execute_query(
+        """
+        INSERT INTO waitlist (email, status, created_at)
+        VALUES (%s, %s, %s)
+        """,
+        (email, "pending", datetime.now(UTC)),
+        fetch="none",
+    )
 
-                # Send ntfy notification in background
-                background_tasks.add_task(_send_waitlist_notification, email)
+    # Send ntfy notification in background
+    background_tasks.add_task(_send_waitlist_notification, email)
 
-                return WaitlistResponse(
-                    status="added",
-                    message="Success! Check your email for next steps.",
-                )
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to add to waitlist: {str(e)}",
-        ) from e
+    return WaitlistResponse(
+        status="added",
+        message="Success! Check your email for next steps.",
+    )
 
 
 @router.post("/check", response_model=dict[str, bool])
+@handle_api_errors("check whitelist")
 async def check_whitelist(request: WaitlistRequest) -> dict[str, bool]:
     """Check if email is whitelisted for closed beta.
 

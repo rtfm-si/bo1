@@ -4,6 +4,9 @@
  */
 
 import type { SSEEvent } from '$lib/api/sse-events';
+import { createLogger } from '$lib/utils/debug';
+
+const log = createLogger('Events');
 
 export interface SessionData {
 	id: string;
@@ -83,7 +86,7 @@ export function createSessionStore() {
 			eventSequence++;
 
 			if (seenEventKeys.has(eventKey)) {
-				console.warn('[Events] Duplicate detected:', eventKey);
+				log.warn('Duplicate detected:', eventKey);
 				return;
 			}
 
@@ -91,7 +94,7 @@ export function createSessionStore() {
 			if (seenEventKeys.size >= MAX_SEEN_EVENTS) {
 				const keys = Array.from(seenEventKeys);
 				seenEventKeys = new Set(keys.slice(-MAX_SEEN_EVENTS));
-				console.debug(`[Events] Pruned deduplication set to ${MAX_SEEN_EVENTS} entries`);
+				log.debug(`Pruned deduplication set to ${MAX_SEEN_EVENTS} entries`);
 			}
 
 			seenEventKeys.add(eventKey);
@@ -101,34 +104,31 @@ export function createSessionStore() {
 				// Keep the most recent events, prune oldest 10%
 				const pruneCount = Math.floor(MAX_EVENTS * 0.1);
 				events = [...events.slice(pruneCount), newEvent];
-				console.debug(`[Events] Pruned ${pruneCount} oldest events to maintain max size of ${MAX_EVENTS}`);
+				log.debug(`Pruned ${pruneCount} oldest events to maintain max size of ${MAX_EVENTS}`);
 			} else {
 				events = [...events, newEvent];
 			}
 
 			// Debug convergence events
 			if (newEvent.event_type === 'convergence') {
-				console.log('[EVENT RECEIVED] Convergence event:', {
+				log.log('Convergence event:', {
 					sequence: eventSequence - 1,
 					event_type: newEvent.event_type,
 					sub_problem_index: newEvent.data.sub_problem_index,
 					score: newEvent.data.score,
 					threshold: newEvent.data.threshold,
-					round: newEvent.data.round,
-					data: newEvent.data
+					round: newEvent.data.round
 				});
 			}
 			// Debug contribution events
 			if (newEvent.event_type === 'contribution') {
 				const data = newEvent.data as Record<string, unknown>;
 				const summary = data?.summary as Record<string, unknown> | undefined;
-				console.log('[EVENT RECEIVED] Contribution event:', {
+				log.log('Contribution event:', {
 					persona_name: data?.persona_name,
 					persona_code: data?.persona_code,
 					archetype: data?.archetype,
-					has_summary: !!summary,
-					summary_has_concise: !!summary?.concise,
-					full_data: data
+					has_summary: !!summary
 				});
 			}
 		},

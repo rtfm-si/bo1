@@ -21,6 +21,7 @@ from backend.api.models import (
     TagResponse,
     TagUpdate,
 )
+from backend.api.utils.errors import handle_api_errors
 from bo1.state.repositories.tag_repository import tag_repository
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ def _format_tag_response(tag: dict[str, Any]) -> TagResponse:
         200: {"description": "Tags retrieved successfully"},
     },
 )
+@handle_api_errors("get tags")
 async def get_tags(
     user_data: dict = Depends(get_current_user),
 ) -> TagListResponse:
@@ -82,6 +84,7 @@ async def get_tags(
         400: {"description": "Tag name already exists"},
     },
 )
+@handle_api_errors("create tag")
 async def create_tag(
     tag_data: TagCreate,
     user_data: dict = Depends(get_current_user),
@@ -125,6 +128,7 @@ async def create_tag(
         404: {"description": "Tag not found"},
     },
 )
+@handle_api_errors("update tag")
 async def update_tag(
     tag_id: str,
     tag_data: TagUpdate,
@@ -165,6 +169,7 @@ async def update_tag(
         404: {"description": "Tag not found"},
     },
 )
+@handle_api_errors("delete tag")
 async def delete_tag(
     tag_id: str,
     user_data: dict = Depends(get_current_user),

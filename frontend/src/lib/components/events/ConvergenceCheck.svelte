@@ -13,7 +13,7 @@
 		getNoveltyColor,
 		getConflictColor,
 		getDriftColor
-	} from '$lib/utils/persona-colors';
+	} from '$lib/utils/colors';
 
 	interface Props {
 		event: ConvergenceEvent;

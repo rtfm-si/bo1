@@ -172,15 +172,11 @@ class TestAPIKeySecurity:
 
     def test_admin_key_not_logged(self, caplog, monkeypatch):
         """Admin API key should not appear in logs."""
-        # Set a valid admin key in environment for this test
-        monkeypatch.setenv("ADMIN_API_KEY", "valid_admin_key_12345")
-
-        # Need to reload the module to pick up the new env var
-        import importlib
 
         from backend.api.middleware import admin
 
-        importlib.reload(admin)
+        # Monkeypatch the ADMIN_API_KEY directly in the module
+        monkeypatch.setattr(admin, "ADMIN_API_KEY", "valid_admin_key_12345")
 
         # Test invalid key - should not log the key itself
         with pytest.raises(HTTPException):

@@ -11,15 +11,18 @@ Provides:
 - GET /api/v1/industry-insights/:industry - Get insights for specific industry
 """
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from psycopg2 import DatabaseError, OperationalError
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
+from backend.api.utils.errors import handle_api_errors
 from bo1.state.postgres_manager import load_user_context
 
 logger = logging.getLogger(__name__)
@@ -216,6 +219,7 @@ def get_stub_insights(industry: str) -> list[IndustryInsight]:
     **Note:** Currently returns example data. Real aggregation pipeline coming soon.
     """,
 )
+@handle_api_errors("get insights for user")
 async def get_insights_for_user(
     insight_type: str | None = Query(
         None, description="Filter by type: trend, benchmark, best_practice"
@@ -250,8 +254,16 @@ async def get_insights_for_user(
             has_benchmarks=any(i.insight_type == "benchmark" for i in insights),
         )
 
+    except (DatabaseError, OperationalError) as e:
+        logger.error(f"Database error getting insights: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Database error while retrieving insights",
+        ) from e
+    except asyncio.CancelledError:
+        raise  # Always re-raise CancelledError
     except Exception as e:
-        logger.error(f"Failed to get insights: {e}")
+        logger.error(f"Unexpected error getting insights: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get insights: {str(e)}",
@@ -270,6 +282,7 @@ async def get_insights_for_user(
     **Note:** Currently returns example data. Real aggregation pipeline coming soon.
     """,
 )
+@handle_api_errors("get insights by industry")
 async def get_insights_by_industry(
     industry: str,
     insight_type: str | None = Query(
@@ -292,8 +305,10 @@ async def get_insights_by_industry(
             has_benchmarks=any(i.insight_type == "benchmark" for i in insights),
         )
 
+    except asyncio.CancelledError:
+        raise  # Always re-raise CancelledError
     except Exception as e:
-        logger.error(f"Failed to get insights for {industry}: {e}")
+        logger.error(f"Unexpected error getting insights for {industry}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get insights: {str(e)}",

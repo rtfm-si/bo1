@@ -37,6 +37,8 @@ from backend.api.models import (
     TagResponse,
     UnblockActionRequest,
 )
+from backend.api.utils.db_helpers import execute_query
+from backend.api.utils.errors import handle_api_errors
 from bo1.services.replanning_service import replanning_service
 from bo1.state.repositories.action_repository import action_repository
 from bo1.state.repositories.session_repository import session_repository
@@ -117,6 +119,7 @@ def _count_by_status(tasks: list[dict[str, Any]]) -> dict[str, int]:
         200: {"description": "Actions retrieved successfully"},
     },
 )
+@handle_api_errors("get all actions")
 async def get_all_actions(
     user_data: dict = Depends(get_current_user),
     status_filter: str | None = Query(
@@ -247,6 +250,7 @@ async def get_all_actions(
         200: {"description": "Gantt data retrieved successfully"},
     },
 )
+@handle_api_errors("get global gantt data")
 async def get_global_gantt(
     user_data: dict = Depends(get_current_user),
     status_filter: str | None = Query(
@@ -385,6 +389,7 @@ async def get_global_gantt(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("get action detail")
 async def get_action_detail(
     action_id: str,
     user_data: dict = Depends(get_current_user),
@@ -458,6 +463,7 @@ async def get_action_detail(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("start action")
 async def start_action(
     action_id: str,
     user_data: dict = Depends(get_current_user),
@@ -500,6 +506,7 @@ async def start_action(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("complete action")
 async def complete_action(
     action_id: str,
     user_data: dict = Depends(get_current_user),
@@ -550,6 +557,7 @@ async def complete_action(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("update action status")
 async def update_action_status(
     action_id: str,
     status_update: ActionStatusUpdate,
@@ -633,6 +641,7 @@ async def update_action_status(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("get action dependencies")
 async def get_action_dependencies(
     action_id: str,
     user_data: dict = Depends(get_current_user),
@@ -687,6 +696,7 @@ async def get_action_dependencies(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("add action dependency")
 async def add_action_dependency(
     action_id: str,
     dependency: DependencyCreate,
@@ -760,6 +770,7 @@ async def add_action_dependency(
         404: {"description": "Action or dependency not found"},
     },
 )
+@handle_api_errors("remove action dependency")
 async def remove_action_dependency(
     action_id: str,
     depends_on_id: str,
@@ -826,6 +837,7 @@ async def remove_action_dependency(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("block action")
 async def block_action(
     action_id: str,
     block_request: BlockActionRequest,
@@ -884,6 +896,7 @@ async def block_action(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("unblock action")
 async def unblock_action(
     action_id: str,
     unblock_request: UnblockActionRequest | None = None,
@@ -959,6 +972,7 @@ async def unblock_action(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("request replan")
 async def request_replan(
     action_id: str,
     replan_request: ReplanRequest | None = None,
@@ -1033,6 +1047,7 @@ async def request_replan(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("update action dates")
 async def update_action_dates(
     action_id: str,
     dates_update: ActionDatesUpdate,
@@ -1089,20 +1104,17 @@ async def update_action_dates(
         estimated_duration = parse_timeline(dates_update.timeline)
 
         # Direct SQL update for timeline (since update_dates doesn't handle timeline)
-        from bo1.state.database import db_session
-
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE actions
-                    SET timeline = %s,
-                        estimated_duration_days = %s,
-                        updated_at = NOW()
-                    WHERE id = %s
-                    """,
-                    (dates_update.timeline, estimated_duration, action_id),
-                )
+        execute_query(
+            """
+            UPDATE actions
+            SET timeline = %s,
+                estimated_duration_days = %s,
+                updated_at = NOW()
+            WHERE id = %s
+            """,
+            (dates_update.timeline, estimated_duration, action_id),
+            fetch="none",
+        )
 
     # Update target dates if provided
     if target_start or target_end:
@@ -1144,6 +1156,7 @@ async def update_action_dates(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("recalculate action dates")
 async def recalculate_action_dates(
     action_id: str,
     user_data: dict = Depends(get_current_user),
@@ -1203,6 +1216,7 @@ async def recalculate_action_dates(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("get action updates")
 async def get_action_updates(
     action_id: str,
     user_data: dict = Depends(get_current_user),
@@ -1268,6 +1282,7 @@ async def get_action_updates(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("add action update")
 async def add_action_update(
     action_id: str,
     update: ActionUpdateCreate,
@@ -1344,6 +1359,7 @@ async def add_action_update(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("get action tags")
 async def get_action_tags(
     action_id: str,
     user_data: dict = Depends(get_current_user),
@@ -1393,6 +1409,7 @@ async def get_action_tags(
         404: {"description": "Action not found"},
     },
 )
+@handle_api_errors("set action tags")
 async def set_action_tags(
     action_id: str,
     tags_update: ActionTagsUpdate,

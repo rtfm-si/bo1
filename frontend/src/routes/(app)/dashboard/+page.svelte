@@ -9,7 +9,11 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import ContextRefreshBanner from '$lib/components/ui/ContextRefreshBanner.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
-	import { getSessionStatusColor } from '$lib/utils/persona-colors';
+	import { getSessionStatusColor } from '$lib/utils/colors';
+	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
+	import { createLogger } from '$lib/utils/debug';
+
+	const log = createLogger('Dashboard');
 
 	// Use data fetch utility for sessions
 	const sessionsData = useDataFetch(() => apiClient.listSessions());
@@ -50,33 +54,14 @@
 	const isAdmin = $derived($user?.is_admin ?? false);
 
 	onMount(() => {
-		console.log('[Dashboard] onMount - user is authenticated, loading sessions');
-		console.log('[Dashboard] User from auth store:', $user);
+		log.log('Loading sessions for user:', $user?.email);
 		// Auth is already verified by parent layout, safe to load sessions and actions
 		sessionsData.fetch();
 		actionsData.fetch();
 	});
 
 	async function loadSessions() {
-		console.log('[Dashboard] Loading sessions...');
 		await sessionsData.fetch();
-		console.log('[Dashboard] Sessions loaded:', sessionsData.data);
-	}
-
-	function formatDate(dateString: string): string {
-		const date = new Date(dateString);
-		const now = new Date();
-		const diffMs = now.getTime() - date.getTime();
-		const diffMins = Math.floor(diffMs / 60000);
-		const diffHours = Math.floor(diffMins / 60);
-		const diffDays = Math.floor(diffHours / 24);
-
-		if (diffMins < 1) return 'just now';
-		if (diffMins < 60) return `${diffMins}m ago`;
-		if (diffHours < 24) return `${diffHours}h ago`;
-		if (diffDays < 7) return `${diffDays}d ago`;
-
-		return date.toLocaleDateString();
 	}
 
 	function truncateProblem(problem: string, maxLength: number = 80): string {
@@ -297,12 +282,12 @@
 										{session.status}
 									</span>
 									<span class="text-xs text-neutral-500 dark:text-neutral-400" title="Created">
-										Created {formatDate(session.created_at)}
+										Created {formatCompactRelativeTime(session.created_at)}
 									</span>
 									{#if session.last_activity_at}
 										<span class="text-xs text-neutral-500 dark:text-neutral-400" title="Last activity">
 											<span class="inline-block w-1.5 h-1.5 bg-neutral-400 dark:bg-neutral-500 rounded-full mr-1"></span>
-											Activity {formatDate(session.last_activity_at)}
+											Activity {formatCompactRelativeTime(session.last_activity_at)}
 										</span>
 									{/if}
 									{#if session.status === 'active'}

@@ -22,6 +22,26 @@ export function formatRelativeTime(timestamp: string): string {
 }
 
 /**
+ * Format a timestamp as compact relative time (e.g., "2m ago", "3d ago")
+ * Used in dashboards and lists where space is limited
+ */
+export function formatCompactRelativeTime(timestamp: string): string {
+	const now = new Date();
+	const date = new Date(timestamp);
+	const diffMs = now.getTime() - date.getTime();
+	const diffMin = Math.floor(diffMs / 60000);
+	const diffHour = Math.floor(diffMin / 60);
+	const diffDay = Math.floor(diffHour / 24);
+	const diffWeek = Math.floor(diffDay / 7);
+
+	if (diffMin < 1) return 'just now';
+	if (diffMin < 60) return `${diffMin}m ago`;
+	if (diffHour < 24) return `${diffHour}h ago`;
+	if (diffDay < 7) return `${diffDay}d ago`;
+	return date.toLocaleDateString();
+}
+
+/**
  * Format a timestamp as absolute time (e.g., "Jan 21, 10:45:23 AM")
  */
 export function formatAbsoluteTime(timestamp: string): string {

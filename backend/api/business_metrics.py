@@ -9,16 +9,19 @@ Provides:
 - POST /api/v1/business-metrics/initialize - Initialize predefined metrics
 """
 
+import asyncio
 import logging
 from decimal import Decimal
 from enum import Enum
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from psycopg2 import DatabaseError, OperationalError
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
+from backend.api.utils.errors import handle_api_errors
 from bo1.state.repositories.metrics_repository import metrics_repository
 
 logger = logging.getLogger(__name__)
@@ -173,6 +176,7 @@ def _format_template(template: dict[str, Any]) -> dict[str, Any]:
     Optionally filter templates by business model (saas, ecommerce, marketplace).
     """,
 )
+@handle_api_errors("get metrics")
 async def get_metrics(
     business_model: str | None = Query(
         None,
@@ -192,8 +196,16 @@ async def get_metrics(
             templates=[_format_template(t) for t in result["templates"]],
         )
 
+    except (DatabaseError, OperationalError) as e:
+        logger.error(f"Database error getting metrics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Database error while retrieving metrics",
+        ) from e
+    except asyncio.CancelledError:
+        raise  # Always re-raise CancelledError
     except Exception as e:
-        logger.error(f"Failed to get metrics: {e}")
+        logger.error(f"Unexpected error getting metrics: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get metrics: {str(e)}",
@@ -210,6 +222,7 @@ async def get_metrics(
     Templates include standard SaaS metrics like MRR, CAC, Churn, etc.
     """,
 )
+@handle_api_errors("get templates")
 async def get_templates(
     business_model: str | None = Query(
         None,
@@ -223,8 +236,16 @@ async def get_templates(
         templates = metrics_repository.get_templates(business_model)
         return [_format_template(t) for t in templates]
 
+    except (DatabaseError, OperationalError) as e:
+        logger.error(f"Database error getting templates: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Database error while retrieving templates",
+        ) from e
+    except asyncio.CancelledError:
+        raise  # Always re-raise CancelledError
     except Exception as e:
-        logger.error(f"Failed to get templates: {e}")
+        logger.error(f"Unexpected error getting templates: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get templates: {str(e)}",
@@ -242,6 +263,7 @@ async def get_templates(
     with the template defaults and the provided value.
     """,
 )
+@handle_api_errors("update metric")
 async def update_metric(
     metric_key: str,
     request: UpdateMetricRequest,
@@ -287,8 +309,16 @@ async def update_metric(
 
     except HTTPException:
         raise
+    except (DatabaseError, OperationalError) as e:
+        logger.error(f"Database error updating metric: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Database error while updating metric",
+        ) from e
+    except asyncio.CancelledError:
+        raise  # Always re-raise CancelledError
     except Exception as e:
-        logger.error(f"Failed to update metric: {e}")
+        logger.error(f"Unexpected error updating metric: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to update metric: {str(e)}",
@@ -308,6 +338,7 @@ async def update_metric(
     numbers, and underscores only.
     """,
 )
+@handle_api_errors("create metric")
 async def create_metric(
     request: CreateMetricRequest,
     user: dict[str, Any] = Depends(get_current_user),
@@ -351,8 +382,16 @@ async def create_metric(
 
     except HTTPException:
         raise
+    except (DatabaseError, OperationalError) as e:
+        logger.error(f"Database error creating metric: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Database error while creating metric",
+        ) from e
+    except asyncio.CancelledError:
+        raise  # Always re-raise CancelledError
     except Exception as e:
-        logger.error(f"Failed to create metric: {e}")
+        logger.error(f"Unexpected error creating metric: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to create metric: {str(e)}",
@@ -370,6 +409,7 @@ async def create_metric(
     by setting value to null via PUT.
     """,
 )
+@handle_api_errors("delete metric")
 async def delete_metric(
     metric_key: str,
     user: dict[str, Any] = Depends(get_current_user),
@@ -398,8 +438,16 @@ async def delete_metric(
 
     except HTTPException:
         raise
+    except (DatabaseError, OperationalError) as e:
+        logger.error(f"Database error deleting metric: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Database error while deleting metric",
+        ) from e
+    except asyncio.CancelledError:
+        raise  # Always re-raise CancelledError
     except Exception as e:
-        logger.error(f"Failed to delete metric: {e}")
+        logger.error(f"Unexpected error deleting metric: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to delete metric: {str(e)}",
@@ -420,6 +468,7 @@ async def delete_metric(
     Skips metrics that already exist.
     """,
 )
+@handle_api_errors("initialize metrics")
 async def initialize_metrics(
     business_model: str | None = Query(
         None,
@@ -437,8 +486,16 @@ async def initialize_metrics(
         logger.info(f"Initialized {len(metrics)} metrics for user {user_id}")
         return [_format_metric(m) for m in metrics]
 
+    except (DatabaseError, OperationalError) as e:
+        logger.error(f"Database error initializing metrics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Database error while initializing metrics",
+        ) from e
+    except asyncio.CancelledError:
+        raise  # Always re-raise CancelledError
     except Exception as e:
-        logger.error(f"Failed to initialize metrics: {e}")
+        logger.error(f"Unexpected error initializing metrics: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to initialize metrics: {str(e)}",

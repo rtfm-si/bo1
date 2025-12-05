@@ -32,6 +32,10 @@ export { default as SubProblemMetrics } from './SubProblemMetrics.svelte';
 export { default as ConnectionStatus } from './ConnectionStatus.svelte';
 export { default as SynthesisProgress } from './SynthesisProgress.svelte';
 
+// Performance components
+export { default as LazyRender } from './LazyRender.svelte';
+export { default as VirtualizedList } from './VirtualizedList.svelte';
+
 // Type exports for TypeScript consumers
 export type { DropdownItem } from './Dropdown.svelte';
 export type { Tab } from './Tabs.svelte';

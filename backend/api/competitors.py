@@ -9,6 +9,7 @@ Provides:
 - POST /api/v1/competitors/enrich-all - Enrich all competitors (monthly refresh)
 """
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -16,12 +17,14 @@ from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from psycopg2 import DatabaseError, OperationalError
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
+from backend.api.utils.db_helpers import count_rows, execute_query, exists, get_single_value
+from backend.api.utils.errors import handle_api_errors
 from bo1.config import get_settings
-from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
 
@@ -111,26 +114,17 @@ class BulkEnrichResponse(BaseModel):
 
 def get_user_tier(user_id: str) -> str:
     """Get user's subscription tier."""
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT subscription_tier FROM users WHERE id = %s",
-                (user_id,),
-            )
-            row = cur.fetchone()
-            return row["subscription_tier"] if row else "free"
+    return get_single_value(
+        "SELECT subscription_tier FROM users WHERE id = %s",
+        (user_id,),
+        column="subscription_tier",
+        default="free",
+    )
 
 
 def get_competitor_count(user_id: str) -> int:
     """Get count of user's tracked competitors."""
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT COUNT(*) as count FROM competitor_profiles WHERE user_id = %s",
-                (user_id,),
-            )
-            row = cur.fetchone()
-            return row["count"] if row else 0
+    return count_rows("competitor_profiles", where="user_id = %s", params=(user_id,))
 
 
 def row_to_profile(row: dict[str, Any]) -> CompetitorProfile:
@@ -250,6 +244,7 @@ async def enrich_competitor_with_tavily(
     response_model=CompetitorListResponse,
     summary="Get tracked competitors",
 )
+@handle_api_errors("get competitors")
 async def get_competitors(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> CompetitorListResponse:
@@ -258,17 +253,15 @@ async def get_competitors(
     tier = get_user_tier(user_id)
     tier_config = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
 
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT * FROM competitor_profiles
-                WHERE user_id = %s
-                ORDER BY is_primary DESC, display_order, created_at
-                """,
-                (user_id,),
-            )
-            rows = cur.fetchall()
+    rows = execute_query(
+        """
+        SELECT * FROM competitor_profiles
+        WHERE user_id = %s
+        ORDER BY is_primary DESC, display_order, created_at
+        """,
+        (user_id,),
+        fetch="all",
+    )
 
     competitors = [row_to_profile(row) for row in rows]
 
@@ -285,6 +278,7 @@ async def get_competitors(
     response_model=CompetitorProfile,
     summary="Add a competitor to watch",
 )
+@handle_api_errors("create competitor")
 async def create_competitor(
     request: CompetitorCreateRequest,
     user: dict[str, Any] = Depends(get_current_user),
@@ -302,23 +296,21 @@ async def create_competitor(
             detail=f"Competitor limit reached ({tier_config['max_competitors']}). Upgrade your plan to track more.",
         )
 
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO competitor_profiles (user_id, name, website, is_primary, data_depth)
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING *
-                """,
-                (
-                    user_id,
-                    request.name,
-                    request.website,
-                    request.is_primary,
-                    tier_config["data_depth"],
-                ),
-            )
-            row = cur.fetchone()
+    row = execute_query(
+        """
+        INSERT INTO competitor_profiles (user_id, name, website, is_primary, data_depth)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING *
+        """,
+        (
+            user_id,
+            request.name,
+            request.website,
+            request.is_primary,
+            tier_config["data_depth"],
+        ),
+        fetch="one",
+    )
 
     return row_to_profile(row)
 
@@ -328,6 +320,7 @@ async def create_competitor(
     response_model=CompetitorProfile,
     summary="Update a competitor",
 )
+@handle_api_errors("update competitor")
 async def update_competitor(
     competitor_id: UUID,
     request: CompetitorProfile,
@@ -336,37 +329,35 @@ async def update_competitor(
     """Update a tracked competitor."""
     user_id = extract_user_id(user)
 
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            # Verify ownership
-            cur.execute(
-                "SELECT id FROM competitor_profiles WHERE id = %s AND user_id = %s",
-                (str(competitor_id), user_id),
-            )
-            if not cur.fetchone():
-                raise HTTPException(status_code=404, detail="Competitor not found")
+    # Verify ownership
+    if not exists(
+        "competitor_profiles",
+        where="id = %s AND user_id = %s",
+        params=(str(competitor_id), user_id),
+    ):
+        raise HTTPException(status_code=404, detail="Competitor not found")
 
-            cur.execute(
-                """
-                UPDATE competitor_profiles SET
-                    name = %s,
-                    website = %s,
-                    is_primary = %s,
-                    display_order = %s,
-                    updated_at = NOW()
-                WHERE id = %s AND user_id = %s
-                RETURNING *
-                """,
-                (
-                    request.name,
-                    request.website,
-                    request.is_primary,
-                    request.display_order,
-                    str(competitor_id),
-                    user_id,
-                ),
-            )
-            row = cur.fetchone()
+    row = execute_query(
+        """
+        UPDATE competitor_profiles SET
+            name = %s,
+            website = %s,
+            is_primary = %s,
+            display_order = %s,
+            updated_at = NOW()
+        WHERE id = %s AND user_id = %s
+        RETURNING *
+        """,
+        (
+            request.name,
+            request.website,
+            request.is_primary,
+            request.display_order,
+            str(competitor_id),
+            user_id,
+        ),
+        fetch="one",
+    )
 
     return row_to_profile(row)
 
@@ -376,6 +367,7 @@ async def update_competitor(
     response_model=dict[str, str],
     summary="Remove a competitor",
 )
+@handle_api_errors("delete competitor")
 async def delete_competitor(
     competitor_id: UUID,
     user: dict[str, Any] = Depends(get_current_user),
@@ -383,14 +375,19 @@ async def delete_competitor(
     """Remove a competitor from tracking."""
     user_id = extract_user_id(user)
 
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM competitor_profiles WHERE id = %s AND user_id = %s",
-                (str(competitor_id), user_id),
-            )
-            if cur.rowcount == 0:
-                raise HTTPException(status_code=404, detail="Competitor not found")
+    # Verify ownership before delete
+    if not exists(
+        "competitor_profiles",
+        where="id = %s AND user_id = %s",
+        params=(str(competitor_id), user_id),
+    ):
+        raise HTTPException(status_code=404, detail="Competitor not found")
+
+    execute_query(
+        "DELETE FROM competitor_profiles WHERE id = %s AND user_id = %s",
+        (str(competitor_id), user_id),
+        fetch="none",
+    )
 
     return {"status": "deleted"}
 
@@ -400,6 +397,7 @@ async def delete_competitor(
     response_model=EnrichResponse,
     summary="Enrich a competitor with latest data",
 )
+@handle_api_errors("enrich competitor")
 async def enrich_competitor(
     competitor_id: UUID,
     user: dict[str, Any] = Depends(get_current_user),
@@ -409,85 +407,98 @@ async def enrich_competitor(
     tier = get_user_tier(user_id)
     tier_config = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
 
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            # Get competitor
-            cur.execute(
-                "SELECT * FROM competitor_profiles WHERE id = %s AND user_id = %s",
-                (str(competitor_id), user_id),
-            )
-            row = cur.fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Competitor not found")
+    # Get competitor
+    row = execute_query(
+        "SELECT * FROM competitor_profiles WHERE id = %s AND user_id = %s",
+        (str(competitor_id), user_id),
+        fetch="one",
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Competitor not found")
 
-            try:
-                # Enrich with Tavily
-                enriched = await enrich_competitor_with_tavily(
-                    row["name"],
-                    row["website"],
-                    tier_config["data_depth"],
-                )
+    try:
+        # Enrich with Tavily
+        enriched = await enrich_competitor_with_tavily(
+            row["name"],
+            row["website"],
+            tier_config["data_depth"],
+        )
 
-                # Detect changes
-                changes = []
-                for key, value in enriched.items():
-                    if value and row.get(key) != value:
-                        changes.append(key)
+        # Detect changes
+        changes = []
+        for key, value in enriched.items():
+            if value and row.get(key) != value:
+                changes.append(key)
 
-                # Store previous snapshot for change detection
-                previous_snapshot = {
-                    "tagline": row.get("tagline"),
-                    "product_description": row.get("product_description"),
-                    "pricing_model": row.get("pricing_model"),
-                }
+        # Store previous snapshot for change detection
+        previous_snapshot = {
+            "tagline": row.get("tagline"),
+            "product_description": row.get("product_description"),
+            "pricing_model": row.get("pricing_model"),
+        }
 
-                # Update record
-                cur.execute(
-                    """
-                    UPDATE competitor_profiles SET
-                        tagline = COALESCE(%s, tagline),
-                        product_description = COALESCE(%s, product_description),
-                        pricing_model = COALESCE(%s, pricing_model),
-                        target_market = COALESCE(%s, target_market),
-                        value_proposition = COALESCE(%s, value_proposition),
-                        funding_info = COALESCE(%s, funding_info),
-                        employee_count = COALESCE(%s, employee_count),
-                        recent_news = COALESCE(%s, recent_news),
-                        last_enriched_at = NOW(),
-                        previous_snapshot = %s,
-                        changes_detected = %s,
-                        updated_at = NOW()
-                    WHERE id = %s
-                    RETURNING *
-                    """,
-                    (
-                        enriched.get("tagline"),
-                        enriched.get("product_description"),
-                        enriched.get("pricing_model"),
-                        enriched.get("target_market"),
-                        enriched.get("value_proposition"),
-                        enriched.get("funding_info"),
-                        enriched.get("employee_count"),
-                        enriched.get("recent_news"),
-                        previous_snapshot,
-                        changes if changes else None,
-                        str(competitor_id),
-                    ),
-                )
-                updated_row = cur.fetchone()
+        # Update record
+        updated_row = execute_query(
+            """
+            UPDATE competitor_profiles SET
+                tagline = COALESCE(%s, tagline),
+                product_description = COALESCE(%s, product_description),
+                pricing_model = COALESCE(%s, pricing_model),
+                target_market = COALESCE(%s, target_market),
+                value_proposition = COALESCE(%s, value_proposition),
+                funding_info = COALESCE(%s, funding_info),
+                employee_count = COALESCE(%s, employee_count),
+                recent_news = COALESCE(%s, recent_news),
+                last_enriched_at = NOW(),
+                previous_snapshot = %s,
+                changes_detected = %s,
+                updated_at = NOW()
+            WHERE id = %s
+            RETURNING *
+            """,
+            (
+                enriched.get("tagline"),
+                enriched.get("product_description"),
+                enriched.get("pricing_model"),
+                enriched.get("target_market"),
+                enriched.get("value_proposition"),
+                enriched.get("funding_info"),
+                enriched.get("employee_count"),
+                enriched.get("recent_news"),
+                previous_snapshot,
+                changes if changes else None,
+                str(competitor_id),
+            ),
+            fetch="one",
+        )
 
-                return EnrichResponse(
-                    success=True,
-                    competitor=row_to_profile(updated_row),
-                    changes=changes if changes else None,
-                )
+        return EnrichResponse(
+            success=True,
+            competitor=row_to_profile(updated_row),
+            changes=changes if changes else None,
+        )
 
-            except Exception as e:
-                logger.error(f"Enrichment failed: {e}")
-                return EnrichResponse(
-                    success=False,
-                    error=str(e),
-                )
+    except httpx.HTTPError as e:
+        logger.error(f"HTTP error during enrichment: {e}")
+        return EnrichResponse(
+            success=False,
+            error=f"Failed to connect to enrichment service: {e}",
+        )
+    except (DatabaseError, OperationalError) as e:
+        logger.error(f"Database error during enrichment: {e}")
+        return EnrichResponse(
+            success=False,
+            error="Database error during enrichment",
+        )
+    except asyncio.CancelledError:
+        # Always re-raise CancelledError
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during enrichment: {e}", exc_info=True)
+        return EnrichResponse(
+            success=False,
+            error=str(e),
+        )
 
 
 @router.post(
@@ -495,6 +506,7 @@ async def enrich_competitor(
     response_model=BulkEnrichResponse,
     summary="Refresh all competitors (monthly)",
 )
+@handle_api_errors("enrich all competitors")
 async def enrich_all_competitors(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> BulkEnrichResponse:
@@ -503,13 +515,11 @@ async def enrich_all_competitors(
     tier = get_user_tier(user_id)
     tier_config = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
 
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM competitor_profiles WHERE user_id = %s",
-                (user_id,),
-            )
-            rows = cur.fetchall()
+    rows = execute_query(
+        "SELECT * FROM competitor_profiles WHERE user_id = %s",
+        (user_id,),
+        fetch="all",
+    )
 
     if not rows:
         return BulkEnrichResponse(
@@ -529,28 +539,36 @@ async def enrich_all_competitors(
                 tier_config["data_depth"],
             )
 
-            with db_session() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        UPDATE competitor_profiles SET
-                            tagline = COALESCE(%s, tagline),
-                            product_description = COALESCE(%s, product_description),
-                            last_enriched_at = NOW(),
-                            updated_at = NOW()
-                        WHERE id = %s
-                        RETURNING *
-                        """,
-                        (
-                            enriched.get("tagline"),
-                            enriched.get("product_description"),
-                            str(row["id"]),
-                        ),
-                    )
-                    updated_row = cur.fetchone()
-                    enriched_competitors.append(row_to_profile(updated_row))
+            updated_row = execute_query(
+                """
+                UPDATE competitor_profiles SET
+                    tagline = COALESCE(%s, tagline),
+                    product_description = COALESCE(%s, product_description),
+                    last_enriched_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+                RETURNING *
+                """,
+                (
+                    enriched.get("tagline"),
+                    enriched.get("product_description"),
+                    str(row["id"]),
+                ),
+                fetch="one",
+            )
+            enriched_competitors.append(row_to_profile(updated_row))
 
+        except httpx.HTTPError as e:
+            errors.append(f"{row['name']}: HTTP error - {e}")
+            enriched_competitors.append(row_to_profile(row))
+        except (DatabaseError, OperationalError):
+            errors.append(f"{row['name']}: Database error")
+            enriched_competitors.append(row_to_profile(row))
+        except asyncio.CancelledError:
+            # Always re-raise CancelledError
+            raise
         except Exception as e:
+            logger.error(f"Unexpected error enriching {row['name']}: {e}", exc_info=True)
             errors.append(f"{row['name']}: {str(e)}")
             enriched_competitors.append(row_to_profile(row))
 

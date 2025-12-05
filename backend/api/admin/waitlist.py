@@ -17,8 +17,8 @@ from backend.api.admin.models import (
 )
 from backend.api.middleware.admin import require_admin_any
 from backend.api.models import ErrorResponse
+from backend.api.utils.db_helpers import count_rows, execute_query
 from backend.api.utils.errors import handle_api_errors
-from bo1.state.postgres_manager import db_session
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -44,38 +44,32 @@ async def list_waitlist(
     _admin: str = Depends(require_admin_any),
 ) -> WaitlistResponse:
     """List all waitlist entries."""
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            # Get total and pending counts
-            cur.execute("SELECT COUNT(*) FROM waitlist")
-            total_row = cur.fetchone()
-            total_count = total_row["count"] if total_row else 0
+    # Get total and pending counts
+    total_count = count_rows("waitlist")
+    pending_count = count_rows("waitlist", where="status = 'pending'")
 
-            cur.execute("SELECT COUNT(*) FROM waitlist WHERE status = 'pending'")
-            pending_row = cur.fetchone()
-            pending_count = pending_row["count"] if pending_row else 0
-
-            # Get entries with optional status filter
-            if status:
-                cur.execute(
-                    """
-                    SELECT id, email, status, source, notes, created_at
-                    FROM waitlist
-                    WHERE status = %s
-                    ORDER BY created_at DESC
-                    """,
-                    (status,),
-                )
-            else:
-                cur.execute(
-                    """
-                    SELECT id, email, status, source, notes, created_at
-                    FROM waitlist
-                    ORDER BY created_at DESC
-                    """
-                )
-            rows = cur.fetchall()
-            entries = [_row_to_waitlist_entry(row) for row in rows]
+    # Get entries with optional status filter
+    if status:
+        rows = execute_query(
+            """
+            SELECT id, email, status, source, notes, created_at
+            FROM waitlist
+            WHERE status = %s
+            ORDER BY created_at DESC
+            """,
+            (status,),
+            fetch="all",
+        )
+    else:
+        rows = execute_query(
+            """
+            SELECT id, email, status, source, notes, created_at
+            FROM waitlist
+            ORDER BY created_at DESC
+            """,
+            fetch="all",
+        )
+    entries = [_row_to_waitlist_entry(row) for row in rows]
 
     logger.info(f"Admin: Listed {len(entries)} waitlist entries (total: {total_count})")
 

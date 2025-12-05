@@ -4,6 +4,9 @@
  */
 
 import type { SSEEvent } from '$lib/api/sse-events';
+import { createLogger } from '$lib/utils/debug';
+
+const log = createLogger('ExpertPanel');
 
 export interface EventGroup {
 	type: 'single' | 'round' | 'expert_panel';
@@ -58,10 +61,9 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 		if (event.event_type === 'persona_selection_complete') {
 			// CRITICAL FIX: Flush expert panel immediately when selection completes
 			if (currentExpertPanel.length > 0) {
-				console.log('[EXPERT PANEL] Flushing panel on selection_complete:', {
+				log.log('Flushing panel on selection_complete:', {
 					expertCount: currentExpertPanel.length,
-					subProblemGoal: currentSubProblemGoal,
-					experts: currentExpertPanel.map(e => (e.data.persona as any)?.code)
+					subProblemGoal: currentSubProblemGoal
 				});
 
 				groups.push({
@@ -153,9 +155,8 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 
 	// Flush remaining expert panel
 	if (currentExpertPanel.length > 0) {
-		console.log('[EXPERT PANEL] Flushing remaining panel at end of loop:', {
-			expertCount: currentExpertPanel.length,
-			experts: currentExpertPanel.map(e => (e.data.persona as any)?.code)
+		log.log('Flushing remaining panel at end of loop:', {
+			expertCount: currentExpertPanel.length
 		});
 
 		groups.push({

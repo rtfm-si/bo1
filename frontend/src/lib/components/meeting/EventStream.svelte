@@ -8,9 +8,12 @@
 
 	import DynamicEventComponent from '$lib/components/events/DynamicEventComponent.svelte';
 	import ContributionRound from '$lib/components/events/ContributionRound.svelte';
-	import { RelativeTimestamp } from '$lib/components/ui';
+	import { RelativeTimestamp, LazyRender } from '$lib/components/ui';
 	import { ActivityStatus } from '$lib/components/ui/loading';
 	import { EventCardSkeleton } from '$lib/components/ui/skeletons';
+
+	// Threshold for enabling lazy rendering (number of grouped events)
+	const LAZY_RENDER_THRESHOLD = 20;
 
 	interface Props {
 		events: SSEEvent[];
@@ -201,72 +204,79 @@
 			{/if}
 
 			{#each groupedEvents as group, index (index)}
+				{@const useLazyRendering = groupedEvents.length > LAZY_RENDER_THRESHOLD}
+				{@const shouldLazyLoad = useLazyRendering && index < groupedEvents.length - 10}
 				{#if group.type === 'expert_panel' && group.events}
 					<!-- Render grouped expert panel -->
-					<div transition:fade={{ duration: 300, delay: 50 }}>
-						<DynamicEventComponent
-							event={group.events[0]}
-							eventType="expert_panel"
-							skeletonProps={{ hasAvatar: false }}
-							componentProps={{
-								experts: group.events.map((e): ExpertInfo => ({
-									persona: e.data.persona as {
-										code: string;
-										name: string;
-										display_name: string;
-										archetype: string;
-										domain_expertise: string[];
-									},
-									rationale: e.data.rationale as string,
-									order: e.data.order as number,
-								})),
-								subProblemGoal: group.subProblemGoal
-							}}
-						/>
-					</div>
+					<LazyRender height={shouldLazyLoad ? 150 : 0} key={index}>
+						<div transition:fade={{ duration: 300, delay: 50 }}>
+							<DynamicEventComponent
+								event={group.events[0]}
+								eventType="expert_panel"
+								skeletonProps={{ hasAvatar: false }}
+								componentProps={{
+									experts: group.events.map((e): ExpertInfo => ({
+										persona: e.data.persona as {
+											code: string;
+											name: string;
+											display_name: string;
+											archetype: string;
+											domain_expertise: string[];
+										},
+										rationale: e.data.rationale as string,
+										order: e.data.order as number,
+									})),
+									subProblemGoal: group.subProblemGoal
+								}}
+							/>
+						</div>
+					</LazyRender>
 				{:else if group.type === 'round' && group.events}
 					<!-- Render grouped contributions with new ExpertPerspectiveCard -->
 					{@const roundKey = `round-${group.roundNumber}`}
 					{@const visibleCount = visibleContributionCounts.get(roundKey) || 0}
-					<ContributionRound
-						roundNumber={group.roundNumber || 0}
-						events={group.events}
-						{visibleCount}
-						viewMode={contributionViewMode}
-						{showFullTranscripts}
-						{cardViewModes}
-						onToggleCardViewMode={onToggleCardViewMode}
-						{thinkingMessages}
-					/>
+					<LazyRender height={shouldLazyLoad ? 200 : 0} key={index}>
+						<ContributionRound
+							roundNumber={group.roundNumber || 0}
+							events={group.events}
+							{visibleCount}
+							viewMode={contributionViewMode}
+							{showFullTranscripts}
+							{cardViewModes}
+							onToggleCardViewMode={onToggleCardViewMode}
+							{thinkingMessages}
+						/>
+					</LazyRender>
 				{:else if group.type === 'single' && group.event}
 					{@const event = group.event}
 					{@const priority = getEventPriority(event.event_type)}
-					{@const isMajorEvent = event.event_type === 'complete' || event.event_type === 'synthesis_complete' || event.event_type === 'meta_synthesis_complete'}
 					<!-- Render single event with visual hierarchy -->
-					<div
-						class="{getEventCardClasses(priority)} rounded-lg p-4"
-						in:fade|global={{ duration: 300, delay: 50 }}
-						out:fade|global={{ duration: 200 }}
-					>
-						<div class="flex items-start gap-3">
-							{#if event.event_type === 'synthesis_complete' || event.event_type === 'subproblem_complete' || event.event_type === 'meta_synthesis_complete' || event.event_type === 'complete'}
-								<CheckCircle size={20} class="text-semantic-success" />
-							{:else if event.event_type === 'error'}
-								<AlertCircle size={20} class="text-semantic-error" />
-							{/if}
-							<div class="flex-1 min-w-0">
-								<div class="flex items-center justify-between mb-3">
-									<RelativeTimestamp timestamp={event.timestamp} />
-								</div>
+					<LazyRender height={shouldLazyLoad ? 100 : 0} key={index}>
+						<div
+							class="{getEventCardClasses(priority)} rounded-lg p-4"
+							in:fade|global={{ duration: 300, delay: 50 }}
+							out:fade|global={{ duration: 200 }}
+						>
+							<div class="flex items-start gap-3">
+								{#if event.event_type === 'synthesis_complete' || event.event_type === 'subproblem_complete' || event.event_type === 'meta_synthesis_complete' || event.event_type === 'complete'}
+									<CheckCircle size={20} class="text-semantic-success" />
+								{:else if event.event_type === 'error'}
+									<AlertCircle size={20} class="text-semantic-error" />
+								{/if}
+								<div class="flex-1 min-w-0">
+									<div class="flex items-center justify-between mb-3">
+										<RelativeTimestamp timestamp={event.timestamp} />
+									</div>
 
-								<!-- Render appropriate component based on event type with dynamic loading -->
-								<DynamicEventComponent
-									{event}
-									skeletonProps={{ hasAvatar: false }}
-								/>
+									<!-- Render appropriate component based on event type with dynamic loading -->
+									<DynamicEventComponent
+										{event}
+										skeletonProps={{ hasAvatar: false }}
+									/>
+								</div>
 							</div>
 						</div>
-					</div>
+					</LazyRender>
 				{/if}
 			{/each}
 

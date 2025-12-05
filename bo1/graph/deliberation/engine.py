@@ -2,16 +2,6 @@
 
 This module contains the core deliberation orchestration logic for a single
 sub-problem, extracted from nodes.py to improve modularity and testability.
-
-The deliberation engine:
-1. Selects personas for the sub-problem
-2. Runs multi-round parallel deliberation (3-6 rounds)
-3. Collects recommendations from all experts
-4. Generates synthesis
-5. Creates expert memory summaries for sequential dependencies
-
-This function is designed to be called in parallel for independent sub-problems
-during parallel batch execution.
 """
 
 import json
@@ -33,118 +23,66 @@ from bo1.orchestration.voting import collect_recommendations
 from bo1.prompts.reusable_prompts import SYNTHESIS_PROMPT_TEMPLATE
 
 if TYPE_CHECKING:
-    # Avoid circular imports by only importing for type checking
     pass
 
 logger = logging.getLogger(__name__)
 
 
-async def deliberate_subproblem(
+async def _select_personas_for_subproblem(
     sub_problem: SubProblem,
     problem: Problem,
-    all_personas: list[PersonaProfile],
-    previous_results: list[SubProblemResult],
-    sub_problem_index: int,
-    user_id: str | None = None,
-    event_bridge: Any | None = None,  # EventBridge | None (avoid circular import)
-) -> SubProblemResult:
-    """Run complete deliberation for a single sub-problem.
-
-    This encapsulates the full deliberation lifecycle:
-    - Persona selection for this specific sub-problem
-    - Initial round
-    - Multi-round deliberation (up to 6 rounds)
-    - Convergence checking
-    - Voting/recommendations collection
-    - Synthesis generation
-
-    This function is designed to be called in parallel for independent sub-problems.
-
-    Args:
-        sub_problem: The sub-problem to deliberate
-        problem: The parent problem (for context)
-        all_personas: Available personas (persona selection will choose subset)
-        previous_results: Results from previously completed sub-problems (for expert memory)
-        sub_problem_index: Index of this sub-problem (0-based) for event tracking
-        user_id: Optional user ID for context persistence
-        event_bridge: Optional EventBridge for emitting real-time events during parallel execution
+    metrics: DeliberationMetrics,
+    event_bridge: Any | None,
+) -> tuple[list[PersonaProfile], list[dict[str, Any]]]:
+    """Select personas for a sub-problem.
 
     Returns:
-        SubProblemResult with synthesis, votes, costs, and expert summaries
-
-    Example:
-        >>> # Parallel execution of independent sub-problems
-        >>> tasks = [
-        ...     deliberate_subproblem(sp1, problem, personas, []),
-        ...     deliberate_subproblem(sp2, problem, personas, []),
-        ... ]
-        >>> results = await asyncio.gather(*tasks)
+        Tuple of (personas list, recommended_personas dicts for rationale lookup)
     """
-    # Import nodes functions here to avoid circular imports
-    # These must be imported from the nodes module, not defined here
-    from bo1.graph import nodes as graph_nodes
-
-    logger.info(
-        f"deliberate_subproblem: Starting deliberation for sub-problem '{sub_problem.id}': {sub_problem.goal[:80]}"
-    )
-
-    # Track metrics for this sub-problem
-    metrics = DeliberationMetrics()
-    start_time = time.time()
-
-    # Step 1: Select personas for this sub-problem
-    logger.info(f"deliberate_subproblem: Selecting personas for {sub_problem.id}")
     selector = PersonaSelectorAgent()
     response = await selector.recommend_personas(
         sub_problem=sub_problem,
         problem_context=problem.context,
     )
 
-    # Parse recommendations
     recommendations = json.loads(response.content)
     recommended_personas = recommendations.get("recommended_personas", [])
     persona_codes = [p["code"] for p in recommended_personas]
 
-    # Load persona profiles
     personas = []
     for code in persona_codes:
         persona_dict = get_persona_by_code(code)
         if persona_dict:
-            persona = PersonaProfile.model_validate(persona_dict)
-            personas.append(persona)
+            personas.append(PersonaProfile.model_validate(persona_dict))
 
-    # Track persona selection cost
     track_phase_cost(metrics, "persona_selection", response)
 
-    # Emit persona selection events (one per persona, matching sequential execution)
+    # Emit events
     if event_bridge:
         for i, persona in enumerate(personas):
-            # Find matching rationale from recommendations
-            rationale = ""
-            for rec in recommended_personas:
-                if rec.get("code") == persona.code:
-                    rationale = rec.get("rationale", "")
-                    break
-
-            persona_dict = {
-                "code": persona.code,
-                "name": persona.name,
-                "archetype": persona.archetype,
-                "display_name": persona.display_name,
-                "domain_expertise": persona.domain_expertise,
-            }
-
+            rationale = next(
+                (
+                    r.get("rationale", "")
+                    for r in recommended_personas
+                    if r.get("code") == persona.code
+                ),
+                "",
+            )
             event_bridge.emit(
                 "persona_selected",
                 {
-                    "persona": persona_dict,
+                    "persona": {
+                        "code": persona.code,
+                        "name": persona.name,
+                        "archetype": persona.archetype,
+                        "display_name": persona.display_name,
+                        "domain_expertise": persona.domain_expertise,
+                    },
                     "rationale": rationale,
                     "order": i + 1,
                 },
             )
 
-        # CRITICAL: Emit persona_selection_complete to trigger frontend expert panel flush
-        # Without this, expert panel only appears after page refresh (Issue #1)
         event_bridge.emit(
             "persona_selection_complete",
             {
@@ -162,28 +100,156 @@ async def deliberate_subproblem(
             },
         )
 
-    logger.info(
-        f"deliberate_subproblem: Selected {len(personas)} personas for {sub_problem.id}: {persona_codes}"
+    logger.info(f"Selected {len(personas)} personas: {persona_codes}")
+    return personas, recommended_personas
+
+
+def _build_expert_memory_from_results(previous_results: list[SubProblemResult]) -> dict[str, str]:
+    """Build expert memory from previous sub-problem results."""
+    if not previous_results:
+        return {}
+
+    memory_parts: dict[str, list[str]] = {}
+    for result in previous_results:
+        for expert_code, summary in result.expert_summaries.items():
+            if expert_code not in memory_parts:
+                memory_parts[expert_code] = []
+            memory_parts[expert_code].append(
+                f"Sub-problem: {result.sub_problem_goal}\nYour position: {summary}"
+            )
+
+    return {code: "\n\n".join(parts) for code, parts in memory_parts.items() if parts}
+
+
+async def _generate_synthesis(
+    sub_problem: SubProblem,
+    contributions: list[Any],
+    votes: list[dict[str, Any]],
+    metrics: DeliberationMetrics,
+    event_bridge: Any | None,
+) -> str:
+    """Generate synthesis for a sub-problem."""
+    if event_bridge:
+        event_bridge.emit("synthesis_started", {})
+
+    # Format context
+    context_parts = ["=== DISCUSSION ===\n"]
+    for contrib in contributions:
+        context_parts.append(
+            f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
+        )
+
+    context_parts.append("\n=== RECOMMENDATIONS ===\n")
+    for vote in votes:
+        context_parts.append(
+            f"{vote['persona_name']}: {vote['recommendation']} (confidence: {vote['confidence']:.2f})\nReasoning: {vote['reasoning']}\n"
+        )
+        if vote.get("conditions"):
+            context_parts.append(f"Conditions: {', '.join(str(c) for c in vote['conditions'])}\n")
+        context_parts.append("\n")
+
+    synthesis_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(
+        problem_statement=sub_problem.goal,
+        all_contributions_and_votes="".join(context_parts),
     )
 
+    broker = PromptBroker()
+    request = PromptRequest(
+        system=synthesis_prompt,
+        user_message="Generate the synthesis report now.",
+        prefill="<thinking>",
+        model="sonnet",
+        temperature=0.7,
+        max_tokens=3000,
+        phase="synthesis",
+        agent_type="synthesizer",
+    )
+
+    response = await broker.call(request)
+    synthesis = "<thinking>" + response.content
+    track_phase_cost(metrics, "synthesis", response)
+
+    if event_bridge:
+        event_bridge.emit(
+            "synthesis_complete", {"synthesis": synthesis, "word_count": len(synthesis.split())}
+        )
+
+    logger.info(f"Synthesis generated (cost: ${response.cost_total:.4f})")
+    return synthesis
+
+
+async def _generate_expert_summaries(
+    personas: list[PersonaProfile],
+    contributions: list[Any],
+    sub_problem: SubProblem,
+    round_number: int,
+    metrics: DeliberationMetrics,
+) -> dict[str, str]:
+    """Generate expert summaries for memory."""
+    expert_summaries: dict[str, str] = {}
+    summarizer = SummarizerAgent()
+
+    for persona in personas:
+        expert_contributions = [c for c in contributions if c.persona_code == persona.code]
+        if not expert_contributions:
+            continue
+
+        try:
+            contribution_dicts = [
+                {"persona": c.persona_name, "content": c.content} for c in expert_contributions
+            ]
+            summary_response = await summarizer.summarize_round(
+                round_number=round_number,
+                contributions=contribution_dicts,
+                problem_statement=sub_problem.goal,
+                target_tokens=75,
+            )
+            expert_summaries[persona.code] = summary_response.content
+            track_phase_cost(metrics, "expert_memory", summary_response)
+        except Exception as e:
+            logger.warning(f"Failed to generate summary for {persona.display_name}: {e}")
+
+    return expert_summaries
+
+
+async def deliberate_subproblem(
+    sub_problem: SubProblem,
+    problem: Problem,
+    all_personas: list[PersonaProfile],
+    previous_results: list[SubProblemResult],
+    sub_problem_index: int,
+    user_id: str | None = None,
+    event_bridge: Any | None = None,
+) -> SubProblemResult:
+    """Run complete deliberation for a single sub-problem.
+
+    Args:
+        sub_problem: The sub-problem to deliberate
+        problem: The parent problem (for context)
+        all_personas: Available personas (persona selection will choose subset)
+        previous_results: Results from previously completed sub-problems
+        sub_problem_index: Index of this sub-problem (0-based)
+        user_id: Optional user ID for context persistence
+        event_bridge: Optional EventBridge for real-time events
+
+    Returns:
+        SubProblemResult with synthesis, votes, costs, and expert summaries
+    """
+    from bo1.graph import nodes as graph_nodes
+
+    logger.info(f"deliberate_subproblem: Starting '{sub_problem.id}': {sub_problem.goal[:80]}")
+
+    metrics = DeliberationMetrics()
+    start_time = time.time()
+
+    # Step 1: Select personas
+    personas, _ = await _select_personas_for_subproblem(sub_problem, problem, metrics, event_bridge)
+
     # Step 2: Build expert memory from previous results
-    expert_memory: dict[str, str] = {}
-    if previous_results:
-        # Build memory parts first
-        memory_parts: dict[str, list[str]] = {}
-        for result in previous_results:
-            for expert_code, summary in result.expert_summaries.items():
-                if expert_code not in memory_parts:
-                    memory_parts[expert_code] = []
-                memory_parts[expert_code].append(
-                    f"Sub-problem: {result.sub_problem_goal}\nYour position: {summary}"
-                )
-
-        # Join memory parts for each expert
-        expert_memory = {code: "\n\n".join(parts) for code, parts in memory_parts.items() if parts}
-
+    expert_memory = _build_expert_memory_from_results(previous_results)
+    if expert_memory:
         logger.info(
-            f"deliberate_subproblem: Built expert memory for {len(expert_memory)} experts from {len(previous_results)} previous sub-problems"
+            f"Built expert memory for {len(expert_memory)} experts from {len(previous_results)} previous sub-problems"
         )
 
     # Step 3: Run deliberation rounds
@@ -359,97 +425,12 @@ async def deliberate_subproblem(
 
     # Step 5: Generate synthesis
     logger.info(f"deliberate_subproblem: Generating synthesis for {sub_problem.id}")
-
-    # Emit synthesis started event
-    if event_bridge:
-        event_bridge.emit("synthesis_started", {})
-
-    # Format contributions and votes
-    all_contributions_and_votes = []
-    all_contributions_and_votes.append("=== DISCUSSION ===\n")
-    for contrib in contributions:
-        all_contributions_and_votes.append(
-            f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
-        )
-
-    all_contributions_and_votes.append("\n=== RECOMMENDATIONS ===\n")
-    for vote in votes:
-        all_contributions_and_votes.append(
-            f"{vote['persona_name']}: {vote['recommendation']} "
-            f"(confidence: {vote['confidence']:.2f})\n"
-            f"Reasoning: {vote['reasoning']}\n"
-        )
-        conditions = vote.get("conditions")
-        if conditions and isinstance(conditions, list):
-            all_contributions_and_votes.append(
-                f"Conditions: {', '.join(str(c) for c in conditions)}\n"
-            )
-        all_contributions_and_votes.append("\n")
-
-    full_context = "".join(all_contributions_and_votes)
-
-    synthesis_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(
-        problem_statement=sub_problem.goal,
-        all_contributions_and_votes=full_context,
-    )
-
-    broker = PromptBroker()
-    request = PromptRequest(
-        system=synthesis_prompt,
-        user_message="Generate the synthesis report now.",
-        prefill="<thinking>",
-        model="sonnet",
-        temperature=0.7,
-        max_tokens=3000,
-        phase="synthesis",
-        agent_type="synthesizer",
-    )
-
-    response = await broker.call(request)
-    synthesis = "<thinking>" + response.content
-    track_phase_cost(metrics, "synthesis", response)
-
-    logger.info(
-        f"deliberate_subproblem: Synthesis generated for {sub_problem.id} (cost: ${response.cost_total:.4f})"
-    )
-
-    # Emit synthesis complete event
-    if event_bridge:
-        event_bridge.emit(
-            "synthesis_complete",
-            {
-                "synthesis": synthesis,
-                "word_count": len(synthesis.split()),
-            },
-        )
+    synthesis = await _generate_synthesis(sub_problem, contributions, votes, metrics, event_bridge)
 
     # Step 6: Generate expert summaries for memory
-    expert_summaries: dict[str, str] = {}
-    summarizer = SummarizerAgent()
-
-    for persona in personas:
-        expert_contributions = [c for c in contributions if c.persona_code == persona.code]
-
-        if expert_contributions:
-            try:
-                contribution_dicts = [
-                    {"persona": c.persona_name, "content": c.content} for c in expert_contributions
-                ]
-
-                summary_response = await summarizer.summarize_round(
-                    round_number=mini_state["round_number"],
-                    contributions=contribution_dicts,
-                    problem_statement=sub_problem.goal,
-                    target_tokens=75,
-                )
-
-                expert_summaries[persona.code] = summary_response.content
-                track_phase_cost(metrics, "expert_memory", summary_response)
-
-            except Exception as e:
-                logger.warning(
-                    f"Failed to generate summary for {persona.display_name} in {sub_problem.id}: {e}"
-                )
+    expert_summaries = await _generate_expert_summaries(
+        personas, contributions, sub_problem, mini_state["round_number"], metrics
+    )
 
     # Calculate duration
     duration_seconds = time.time() - start_time

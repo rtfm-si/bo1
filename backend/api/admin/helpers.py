@@ -21,7 +21,7 @@ from backend.api.admin.models import (
     UserInfo,
     WaitlistEntry,
 )
-from bo1.state.postgres_manager import db_session
+from backend.api.utils.db_helpers import count_rows, execute_query, exists, get_single_value
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -119,36 +119,30 @@ class AdminQueryService:
         Returns:
             AdminStatsResponse with aggregated stats
         """
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                # Get total users
-                cur.execute("SELECT COUNT(*) as count FROM users")
-                total_users = cur.fetchone()["count"]
+        # Get total users
+        total_users = count_rows("users")
 
-                # Get total meetings and cost from sessions
-                cur.execute(
-                    """
-                    SELECT
-                        COUNT(*) as total_meetings,
-                        COALESCE(SUM(total_cost), 0) as total_cost
-                    FROM sessions
-                    """
-                )
-                session_stats = cur.fetchone()
-                total_meetings = session_stats["total_meetings"]
-                total_cost = float(session_stats["total_cost"])
+        # Get total meetings and cost from sessions
+        session_stats = execute_query(
+            """
+            SELECT
+                COUNT(*) as total_meetings,
+                COALESCE(SUM(total_cost), 0) as total_cost
+            FROM sessions
+            """,
+            fetch="one",
+        )
+        total_meetings = session_stats["total_meetings"] if session_stats else 0
+        total_cost = float(session_stats["total_cost"]) if session_stats else 0.0
 
-                # Get whitelist count (db + env)
-                cur.execute("SELECT COUNT(*) as count FROM beta_whitelist")
-                db_whitelist_count = cur.fetchone()["count"]
+        # Get whitelist count (db + env)
+        db_whitelist_count = count_rows("beta_whitelist")
+        env_whitelist = os.getenv("BETA_WHITELIST", "")
+        env_emails = [e.strip().lower() for e in env_whitelist.split(",") if e.strip()]
+        whitelist_count = db_whitelist_count + len(env_emails)
 
-                env_whitelist = os.getenv("BETA_WHITELIST", "")
-                env_emails = [e.strip().lower() for e in env_whitelist.split(",") if e.strip()]
-                whitelist_count = db_whitelist_count + len(env_emails)
-
-                # Get pending waitlist count
-                cur.execute("SELECT COUNT(*) as count FROM waitlist WHERE status = 'pending'")
-                waitlist_pending = cur.fetchone()["count"]
+        # Get pending waitlist count
+        waitlist_pending = count_rows("waitlist", where="status = 'pending'")
 
         return AdminStatsResponse(
             total_users=total_users,
@@ -171,23 +165,17 @@ class AdminQueryService:
         Raises:
             HTTPException: If user not found
         """
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                query = f"""
-                    {USER_WITH_METRICS_SELECT}
-                    WHERE u.id = %s
-                    {USER_WITH_METRICS_GROUP_BY}
-                """  # noqa: S608 - Safe: only uses controlled constants
-                cur.execute(query, (user_id,))
-                row = cur.fetchone()
+        # noqa: S608 - Safe: only uses controlled constants
+        query = f"{USER_WITH_METRICS_SELECT} WHERE u.id = %s {USER_WITH_METRICS_GROUP_BY}"
+        row = execute_query(query, (user_id,), fetch="one")
 
-                if not row:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"User not found: {user_id}",
-                    )
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User not found: {user_id}",
+            )
 
-                return _row_to_user_info(row)
+        return _row_to_user_info(row)
 
     @staticmethod
     def list_users(
@@ -205,34 +193,34 @@ class AdminQueryService:
         Returns:
             Tuple of (total_count, users)
         """
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                # Build query with optional email filter
-                params: list[Any] = []
-                where_clause = ""
+        # Build query with optional email filter
+        params: list[Any] = []
+        where_clause = ""
 
-                if email_filter:
-                    where_clause = "WHERE LOWER(u.email) LIKE LOWER(%s)"
-                    params.append(f"%{email_filter}%")
+        if email_filter:
+            where_clause = "WHERE LOWER(u.email) LIKE LOWER(%s)"
+            params.append(f"%{email_filter}%")
 
-                # Get total count
-                count_query = f"SELECT COUNT(*) as count FROM users u {where_clause}"
-                cur.execute(count_query, params)
-                total_count = cur.fetchone()["count"]
+        # Get total count
+        total_count = get_single_value(
+            f"SELECT COUNT(*) as count FROM users u {where_clause}",
+            tuple(params),
+            column="count",
+            default=0,
+        )
 
-                # Get paginated users with metrics
-                offset = (page - 1) * per_page
-                data_query = f"""
-                    {USER_WITH_METRICS_SELECT}
-                    {where_clause}
-                    {USER_WITH_METRICS_GROUP_BY}
-                    ORDER BY u.created_at DESC
-                    LIMIT %s OFFSET %s
-                """  # noqa: S608 - Safe: only uses controlled constants and where_clause
-                cur.execute(data_query, [*params, per_page, offset])
-                rows = cur.fetchall()
-
-                users = [_row_to_user_info(row) for row in rows]
+        # Get paginated users with metrics
+        offset = (page - 1) * per_page
+        # noqa: S608 - Safe: only uses controlled constants and where_clause
+        data_query = f"""
+            {USER_WITH_METRICS_SELECT}
+            {where_clause}
+            {USER_WITH_METRICS_GROUP_BY}
+            ORDER BY u.created_at DESC
+            LIMIT %s OFFSET %s
+        """
+        rows = execute_query(data_query, (*params, per_page, offset), fetch="all")
+        users = [_row_to_user_info(row) for row in rows]
 
         return total_count, users
 
@@ -246,10 +234,7 @@ class AdminQueryService:
         Returns:
             True if user exists
         """
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT id FROM users WHERE id = %s", (user_id,))
-                return cur.fetchone() is not None
+        return exists("users", where="id = %s", params=(user_id,))
 
 
 class AdminValidationService:
@@ -342,55 +327,52 @@ class AdminApprovalService:
         whitelist_added = False
         email_sent = False
 
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                # Check if email is on waitlist
-                cur.execute(
-                    "SELECT id, status FROM waitlist WHERE email = %s",
-                    (email,),
-                )
-                waitlist_row = cur.fetchone()
+        # Check if email is on waitlist
+        waitlist_row = execute_query(
+            "SELECT id, status FROM waitlist WHERE email = %s",
+            (email,),
+            fetch="one",
+        )
 
-                if not waitlist_row:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Email not found on waitlist: {email}",
-                    )
+        if not waitlist_row:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Email not found on waitlist: {email}",
+            )
 
-                if waitlist_row["status"] == "invited":
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Email already approved: {email}",
-                    )
+        if waitlist_row["status"] == "invited":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Email already approved: {email}",
+            )
 
-                # Check if already on whitelist
-                cur.execute(
-                    "SELECT id FROM beta_whitelist WHERE email = %s",
-                    (email,),
-                )
-                if cur.fetchone():
-                    logger.info(f"Email {email} already on whitelist, skipping add")
-                else:
-                    # Add to whitelist
-                    cur.execute(
-                        """
-                        INSERT INTO beta_whitelist (email, added_by, notes)
-                        VALUES (%s, %s, %s)
-                        """,
-                        (email, "admin", "Approved from waitlist"),
-                    )
-                    whitelist_added = True
-                    logger.info(f"Added {email} to beta whitelist")
+        # Check if already on whitelist
+        already_on_whitelist = exists("beta_whitelist", where="email = %s", params=(email,))
+        if already_on_whitelist:
+            logger.info(f"Email {email} already on whitelist, skipping add")
+        else:
+            # Add to whitelist
+            execute_query(
+                """
+                INSERT INTO beta_whitelist (email, added_by, notes)
+                VALUES (%s, %s, %s)
+                """,
+                (email, "admin", "Approved from waitlist"),
+                fetch="none",
+            )
+            whitelist_added = True
+            logger.info(f"Added {email} to beta whitelist")
 
-                # Update waitlist status
-                cur.execute(
-                    """
-                    UPDATE waitlist
-                    SET status = 'invited', updated_at = NOW()
-                    WHERE email = %s
-                    """,
-                    (email,),
-                )
+        # Update waitlist status
+        execute_query(
+            """
+            UPDATE waitlist
+            SET status = 'invited', updated_at = NOW()
+            WHERE email = %s
+            """,
+            (email,),
+            fetch="none",
+        )
 
         # Send welcome email (outside transaction)
         result = send_beta_welcome_email(email)
@@ -475,22 +457,20 @@ class AdminUserService:
         Returns:
             Updated user row or None if not found
         """
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE users
-                    SET is_locked = true,
-                        locked_at = NOW(),
-                        locked_by = %s,
-                        lock_reason = %s,
-                        updated_at = NOW()
-                    WHERE id = %s AND deleted_at IS NULL
-                    RETURNING id, is_locked, locked_at, lock_reason
-                    """,
-                    (admin_id, reason, user_id),
-                )
-                return cur.fetchone()
+        return execute_query(
+            """
+            UPDATE users
+            SET is_locked = true,
+                locked_at = NOW(),
+                locked_by = %s,
+                lock_reason = %s,
+                updated_at = NOW()
+            WHERE id = %s AND deleted_at IS NULL
+            RETURNING id, is_locked, locked_at, lock_reason
+            """,
+            (admin_id, reason, user_id),
+            fetch="one",
+        )
 
     @staticmethod
     def unlock_user(user_id: str) -> dict[str, Any] | None:
@@ -502,22 +482,20 @@ class AdminUserService:
         Returns:
             Updated user row or None if not found
         """
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE users
-                    SET is_locked = false,
-                        locked_at = NULL,
-                        locked_by = NULL,
-                        lock_reason = NULL,
-                        updated_at = NOW()
-                    WHERE id = %s
-                    RETURNING id, is_locked
-                    """,
-                    (user_id,),
-                )
-                return cur.fetchone()
+        return execute_query(
+            """
+            UPDATE users
+            SET is_locked = false,
+                locked_at = NULL,
+                locked_by = NULL,
+                lock_reason = NULL,
+                updated_at = NOW()
+            WHERE id = %s
+            RETURNING id, is_locked
+            """,
+            (user_id,),
+            fetch="one",
+        )
 
     @staticmethod
     def soft_delete_user(user_id: str, admin_id: str) -> bool:
@@ -530,21 +508,20 @@ class AdminUserService:
         Returns:
             True if user was deleted
         """
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE users
-                    SET deleted_at = NOW(),
-                        deleted_by = %s,
-                        is_locked = true,
-                        updated_at = NOW()
-                    WHERE id = %s AND deleted_at IS NULL
-                    RETURNING id
-                    """,
-                    (admin_id, user_id),
-                )
-                return cur.fetchone() is not None
+        result = execute_query(
+            """
+            UPDATE users
+            SET deleted_at = NOW(),
+                deleted_by = %s,
+                is_locked = true,
+                updated_at = NOW()
+            WHERE id = %s AND deleted_at IS NULL
+            RETURNING id
+            """,
+            (admin_id, user_id),
+            fetch="one",
+        )
+        return result is not None
 
     @staticmethod
     def hard_delete_user(user_id: str) -> bool:
@@ -556,11 +533,13 @@ class AdminUserService:
         Returns:
             True if user was deleted
         """
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                # Sessions have ON DELETE CASCADE, so they'll be deleted automatically
-                cur.execute("DELETE FROM users WHERE id = %s RETURNING id", (user_id,))
-                return cur.fetchone() is not None
+        # Sessions have ON DELETE CASCADE, so they'll be deleted automatically
+        result = execute_query(
+            "DELETE FROM users WHERE id = %s RETURNING id",
+            (user_id,),
+            fetch="one",
+        )
+        return result is not None
 
     @staticmethod
     def log_admin_action(
@@ -581,21 +560,20 @@ class AdminUserService:
             details: Optional additional details
             ip_address: Optional IP address
         """
-        from psycopg.types.json import Json
+        import json
 
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO audit_log (user_id, action, resource_type, resource_id, details, ip_address)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        admin_id,
-                        action,
-                        resource_type,
-                        resource_id,
-                        Json(details) if details else None,
-                        ip_address,
-                    ),
-                )
+        execute_query(
+            """
+            INSERT INTO audit_log (user_id, action, resource_type, resource_id, details, ip_address)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                admin_id,
+                action,
+                resource_type,
+                resource_id,
+                json.dumps(details) if details else None,
+                ip_address,
+            ),
+            fetch="none",
+        )

@@ -3,6 +3,9 @@
  */
 
 import type { SSEEvent } from '$lib/api/sse-events';
+import { createLogger } from '$lib/utils/debug';
+
+const log = createLogger('TabBuild');
 
 export interface SubProblemTab {
 	id: string;
@@ -30,7 +33,7 @@ export function buildSubProblemTabs(
 	const decompositionEvent = events.find(e => e.event_type === 'decomposition_complete');
 
 	if (!decompositionEvent) {
-		console.log('[TAB BUILD DEBUG] No decomposition_complete event found');
+		log.debug('No decomposition_complete event found');
 		return [];
 	}
 
@@ -40,30 +43,25 @@ export function buildSubProblemTabs(
 		dependencies?: number[];
 	}>;
 
-	console.log('[TAB BUILD DEBUG] Decomposition event:', {
-		eventData: decompositionEvent.data,
-		subProblemsCount: subProblems?.length || 0,
-		subProblems
+	log.debug('Decomposition event:', {
+		subProblemsCount: subProblems?.length || 0
 	});
 
 	if (!subProblems || subProblems.length <= 1) {
-		console.log('[TAB BUILD DEBUG] Single sub-problem scenario, not building tabs');
+		log.debug('Single sub-problem scenario, not building tabs');
 		return [];
 	}
 
 	const tabs: SubProblemTab[] = [];
 
-	console.log('[TAB BUILD DEBUG] Building tabs for', subProblems.length, 'sub-problems');
+	log.debug('Building tabs for', subProblems.length, 'sub-problems');
 
 	for (let index = 0; index < subProblems.length; index++) {
 		const subProblem = subProblems[index];
 
 		// Use indexed lookup
 		const subEvents = eventsBySubProblem.get(index) || [];
-		console.log(`[TAB BUILD DEBUG] Sub-problem ${index}:`, {
-			totalEvents: subEvents.length,
-			eventTypes: subEvents.map(e => e.event_type)
-		});
+		log.debug(`Sub-problem ${index}:`, { totalEvents: subEvents.length });
 
 		// Single iteration for all metrics (instead of multiple filters)
 		let expertCount = 0;
@@ -102,18 +100,7 @@ export function buildSubProblemTabs(
 			const score = latestConvergenceEvent.data.score as number;
 			const threshold = latestConvergenceEvent.data.threshold as number;
 			convergencePercent = Math.round((score / threshold) * 100);
-			console.log('[CONVERGENCE DEBUG]', {
-				subProblem: index,
-				score,
-				threshold,
-				convergencePercent,
-				eventData: latestConvergenceEvent.data
-			});
-		} else {
-			console.log('[CONVERGENCE DEBUG] No convergence event found for sub-problem', index, {
-				subEvents: subEvents.length,
-				eventTypes: subEvents.map(e => e.event_type)
-			});
+			log.debug('Convergence:', { subProblem: index, score, threshold, convergencePercent });
 		}
 
 		// Calculate duration - prefer duration_seconds from subproblem_complete event

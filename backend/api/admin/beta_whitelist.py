@@ -21,8 +21,8 @@ from backend.api.admin.models import (
 )
 from backend.api.middleware.admin import require_admin_any
 from backend.api.models import ControlResponse, ErrorResponse
+from backend.api.utils.db_helpers import execute_query, exists
 from backend.api.utils.errors import handle_api_errors
-from bo1.state.postgres_manager import db_session
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -51,17 +51,15 @@ async def list_beta_whitelist(
     env_whitelist = os.getenv("BETA_WHITELIST", "")
     env_emails = [e.strip().lower() for e in env_whitelist.split(",") if e.strip()]
 
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id, email, added_by, notes, created_at
-                FROM beta_whitelist
-                ORDER BY created_at DESC
-                """
-            )
-            rows = cur.fetchall()
-            entries = [_row_to_whitelist_entry(row) for row in rows]
+    rows = execute_query(
+        """
+        SELECT id, email, added_by, notes, created_at
+        FROM beta_whitelist
+        ORDER BY created_at DESC
+        """,
+        fetch="all",
+    )
+    entries = [_row_to_whitelist_entry(row) for row in rows]
 
     # Get unique db emails for deduplication
     db_emails = {e.email.lower() for e in entries}
@@ -103,26 +101,23 @@ async def add_to_beta_whitelist(
     # Validate and normalize email
     email = AdminValidationService.validate_email(request.email)
 
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            # Check if email already exists
-            cur.execute("SELECT id FROM beta_whitelist WHERE email = %s", (email,))
-            if cur.fetchone():
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Email already whitelisted: {email}",
-                )
+    # Check if email already exists
+    if exists("beta_whitelist", where="email = %s", params=(email,)):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Email already whitelisted: {email}",
+        )
 
-            # Insert new entry
-            cur.execute(
-                """
-                INSERT INTO beta_whitelist (email, added_by, notes)
-                VALUES (%s, %s, %s)
-                RETURNING id, email, added_by, notes, created_at
-                """,
-                (email, "admin", request.notes),
-            )
-            row = cur.fetchone()
+    # Insert new entry
+    row = execute_query(
+        """
+        INSERT INTO beta_whitelist (email, added_by, notes)
+        VALUES (%s, %s, %s)
+        RETURNING id, email, added_by, notes, created_at
+        """,
+        (email, "admin", request.notes),
+        fetch="one",
+    )
 
     entry = _row_to_whitelist_entry(row)
     logger.info(f"Admin: Added {email} to beta whitelist")
@@ -151,17 +146,18 @@ async def remove_from_beta_whitelist(
     # Normalize email
     email = email.strip().lower()
 
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            # Delete email
-            cur.execute("DELETE FROM beta_whitelist WHERE email = %s RETURNING id", (email,))
-            row = cur.fetchone()
+    # Delete email
+    row = execute_query(
+        "DELETE FROM beta_whitelist WHERE email = %s RETURNING id",
+        (email,),
+        fetch="one",
+    )
 
-            if not row:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Email not found in whitelist: {email}",
-                )
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Email not found in whitelist: {email}",
+        )
 
     logger.info(f"Admin: Removed {email} from beta whitelist")
 

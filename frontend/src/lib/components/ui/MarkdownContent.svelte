@@ -2,9 +2,10 @@
 	/**
 	 * MarkdownContent Component
 	 * Renders markdown content as HTML using marked
-	 * Includes basic XSS protection via marked's sanitize option
+	 * XSS protection via DOMPurify sanitization
 	 */
 	import { marked } from 'marked';
+	import DOMPurify from 'isomorphic-dompurify';
 
 	interface Props {
 		content: string;
@@ -16,7 +17,7 @@
 	// Configure marked for safe, simple rendering
 	marked.setOptions({
 		breaks: true, // Convert \n to <br>
-		gfm: true, // GitHub Flavored Markdown (tables, strikethrough, etc.)
+		gfm: true // GitHub Flavored Markdown (tables, strikethrough, etc.)
 	});
 
 	/**
@@ -26,7 +27,7 @@
 	function cleanContent(text: string): string {
 		return text
 			.split('\n')
-			.filter(line => {
+			.filter((line) => {
 				const trimmed = line.trim();
 				// Filter out horizontal rule patterns: ---, ***, ___
 				// Must be at least 3 chars of the same character
@@ -39,8 +40,8 @@
 			.join('\n');
 	}
 
-	// Parse markdown to HTML (after cleaning)
-	const html = $derived(marked.parse(cleanContent(content)) as string);
+	// Parse markdown to HTML and sanitize to prevent XSS
+	const html = $derived(DOMPurify.sanitize(marked.parse(cleanContent(content)) as string));
 </script>
 
 <div

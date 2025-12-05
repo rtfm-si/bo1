@@ -17,7 +17,7 @@
 		filterEventsBySubProblem,
 		getLatestEvent
 	} from '$lib/utils/event-filters';
-	import { getConfidenceColor } from '$lib/utils/persona-colors';
+	import { getConfidenceColor } from '$lib/utils/colors';
 	import {
 		Lightbulb,
 		Search,

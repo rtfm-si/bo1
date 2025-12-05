@@ -94,6 +94,43 @@ class Settings(BaseSettings):
     # Email Configuration (Resend)
     resend_api_key: str = Field(default="", description="Resend API key for transactional emails")
 
+    # Admin Configuration
+    admin_api_key: str = Field(default="", description="API key for admin endpoints")
+
+    # CORS Configuration
+    cors_origins: str = Field(
+        default="http://localhost:3000,http://localhost:5173",
+        description="Comma-separated list of allowed CORS origins",
+    )
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parse CORS origins into a list."""
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    # SuperTokens Configuration
+    supertokens_app_name: str = Field(default="Board of One", description="SuperTokens app name")
+    supertokens_api_domain: str = Field(
+        default="http://localhost:8000", description="SuperTokens API domain"
+    )
+    supertokens_website_domain: str = Field(
+        default="http://localhost:5173", description="SuperTokens website domain"
+    )
+    supertokens_connection_uri: str = Field(
+        default="http://supertokens:3567", description="SuperTokens connection URI"
+    )
+    supertokens_api_key: str = Field(
+        default="dev_api_key_change_in_production", description="SuperTokens API key"
+    )
+
+    # OAuth Configuration
+    google_oauth_client_id: str = Field(default="", description="Google OAuth client ID")
+    google_oauth_client_secret: str = Field(default="", description="Google OAuth client secret")
+
+    # Cookie Configuration
+    cookie_secure: bool = Field(default=False, description="Use secure cookies (HTTPS only)")
+    cookie_domain: str = Field(default="localhost", description="Cookie domain")
+
     # ntfy Push Notifications
     ntfy_server: str = Field(default="https://ntfy.boardof.one", description="ntfy server URL")
     ntfy_topic_waitlist: str = Field(

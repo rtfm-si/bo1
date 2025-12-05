@@ -2,7 +2,7 @@
 	/**
 	 * TaskStatusSelect - Dropdown for selecting task status.
 	 */
-	import { getTaskStatusColor } from '$lib/utils/persona-colors';
+	import { getTaskStatusColor } from '$lib/utils/colors';
 
 	interface StatusOption {
 		value: string;

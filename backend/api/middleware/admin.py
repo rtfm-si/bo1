@@ -8,7 +8,6 @@ SECURITY: Uses constant-time comparison to prevent timing attacks on API keys.
 """
 
 import logging
-import os
 import secrets
 from typing import Annotated
 
@@ -16,12 +15,14 @@ from fastapi import Depends, Header, HTTPException, Request
 from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 
+from bo1.config import get_settings
 from bo1.state.postgres_manager import get_user
 
 logger = logging.getLogger(__name__)
 
-# Load admin API key from environment (for script/automation access)
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+# Load admin API key from centralized settings
+_settings = get_settings()
+ADMIN_API_KEY = _settings.admin_api_key
 
 if not ADMIN_API_KEY:
     logger.info("ADMIN_API_KEY not set - API key auth disabled, session auth still works")

@@ -183,16 +183,209 @@ async def _deliberate_subproblem(
     )
 
 
+async def _run_single_subproblem(
+    sp_index: int,
+    sub_problems: list[Any],
+    subproblem_graph: Any,
+    session_id: str | None,
+    problem: Any,
+    all_personas: list[PersonaProfile],
+    expert_memory: dict[str, Any],
+    user_id: str | None,
+    writer: Any,
+) -> tuple[int, SubProblemResult, float]:
+    """Execute a single sub-problem through the subgraph.
+
+    Args:
+        sp_index: Index of the sub-problem to execute
+        sub_problems: List of all sub-problems
+        subproblem_graph: Compiled LangGraph subgraph
+        session_id: Session ID for thread configuration
+        problem: Parent problem object
+        all_personas: Available personas for expert selection
+        expert_memory: Context from previous sub-problems
+        user_id: User ID for context
+        writer: Stream writer for events
+
+    Returns:
+        Tuple of (index, result, duration)
+    """
+    from bo1.graph.deliberation.subgraph import (
+        create_subproblem_initial_state,
+        result_from_subgraph_state,
+    )
+
+    if sp_index >= len(sub_problems):
+        raise ValueError(f"Invalid sub-problem index {sp_index}")
+
+    sub_problem = sub_problems[sp_index]
+    start_time = time.time()
+
+    # Emit subproblem_started event
+    writer(
+        {
+            "event_type": "subproblem_started",
+            "sub_problem_index": sp_index,
+            "sub_problem_id": sub_problem.id,
+            "goal": sub_problem.goal,
+            "total_sub_problems": len(sub_problems),
+        }
+    )
+
+    # Create initial state for subgraph
+    sp_state = create_subproblem_initial_state(
+        session_id=session_id or f"subproblem_{sub_problem.id}",
+        sub_problem=sub_problem,
+        sub_problem_index=sp_index,
+        parent_problem=problem,
+        all_available_personas=all_personas,
+        expert_memory=expert_memory,
+        user_id=user_id,
+    )
+
+    # Execute subgraph with unique thread_id
+    config: RunnableConfig = {
+        "configurable": {"thread_id": f"{session_id}:subproblem:{sp_index}"},
+        "recursion_limit": 50,
+    }
+
+    final_state = await subproblem_graph.ainvoke(sp_state, config=config)
+    result = result_from_subgraph_state(cast(SubProblemGraphState, final_state))
+    duration = time.time() - start_time
+
+    # Update duration (not available in subgraph state)
+    result = SubProblemResult(
+        sub_problem_id=result.sub_problem_id,
+        sub_problem_goal=result.sub_problem_goal,
+        synthesis=result.synthesis,
+        votes=result.votes,
+        contribution_count=result.contribution_count,
+        cost=result.cost,
+        duration_seconds=duration,
+        expert_panel=result.expert_panel,
+        expert_summaries=result.expert_summaries,
+    )
+
+    # Emit subproblem_complete event
+    writer(
+        {
+            "event_type": "subproblem_complete",
+            "sub_problem_index": sp_index,
+            "goal": result.sub_problem_goal,
+            "synthesis": result.synthesis,
+            "recommendations_count": len(result.votes),
+            "expert_panel": result.expert_panel,
+            "contribution_count": result.contribution_count,
+            "cost": result.cost,
+            "duration_seconds": duration,
+        }
+    )
+
+    return sp_index, result, duration
+
+
+async def _execute_batch(
+    batch: list[int],
+    batch_idx: int,
+    total_batches: int,
+    sub_problems: list[Any],
+    subproblem_graph: Any,
+    session_id: str | None,
+    problem: Any,
+    all_personas: list[PersonaProfile],
+    all_results: list[SubProblemResult],
+    user_id: str | None,
+    writer: Any,
+) -> list[SubProblemResult]:
+    """Execute a batch of sub-problems in parallel.
+
+    Args:
+        batch: List of sub-problem indices to execute
+        batch_idx: Index of this batch
+        total_batches: Total number of batches
+        sub_problems: List of all sub-problems
+        subproblem_graph: Compiled LangGraph subgraph
+        session_id: Session ID
+        problem: Parent problem
+        all_personas: Available personas
+        all_results: Results from previous batches (for context)
+        user_id: User ID
+        writer: Stream writer for events
+
+    Returns:
+        List of results from this batch
+    """
+    from bo1.graph.deliberation.subgraph import build_expert_memory
+
+    logger.info(f"Batch {batch_idx + 1}/{total_batches}: Starting {len(batch)} sub-problems")
+
+    writer(
+        {
+            "event_type": "batch_started",
+            "batch_index": batch_idx,
+            "total_batches": total_batches,
+            "sub_problem_indices": batch,
+        }
+    )
+
+    expert_memory = build_expert_memory(all_results)
+
+    # Execute all sub-problems in batch in parallel
+    batch_tasks = [
+        _run_single_subproblem(
+            sp_idx,
+            sub_problems,
+            subproblem_graph,
+            session_id,
+            problem,
+            all_personas,
+            expert_memory,
+            user_id,
+            writer,
+        )
+        for sp_idx in batch
+    ]
+    batch_results_raw = await asyncio.gather(*batch_tasks, return_exceptions=True)
+
+    # Process results
+    batch_results: list[tuple[int, SubProblemResult]] = []
+    failed_count = 0
+
+    for raw_result in batch_results_raw:
+        if isinstance(raw_result, BaseException):
+            failed_count += 1
+            logger.error(f"Sub-problem failed: {raw_result}")
+            writer(
+                {
+                    "event_type": "subproblem_failed",
+                    "error": str(raw_result),
+                    "error_type": type(raw_result).__name__,
+                }
+            )
+        else:
+            sp_index, sp_result, _ = raw_result
+            batch_results.append((sp_index, sp_result))
+
+    writer(
+        {
+            "event_type": "batch_complete",
+            "batch_index": batch_idx,
+            "succeeded": len(batch_results),
+            "failed": failed_count,
+        }
+    )
+
+    if failed_count > 0:
+        raise RuntimeError(f"{failed_count} sub-problem(s) failed in batch {batch_idx}")
+
+    logger.info(f"Batch {batch_idx + 1}/{total_batches}: Complete")
+    return [result for _, result in sorted(batch_results, key=lambda x: x[0])]
+
+
 async def _parallel_subproblems_subgraph(state: DeliberationGraphState) -> dict[str, Any]:
     """Execute sub-problems using LangGraph subgraphs with real-time streaming.
 
-    NEW IMPLEMENTATION: Uses get_stream_writer() for per-expert event streaming.
-
-    Key improvements over legacy EventBridge approach:
-    - contribution_started fires BEFORE LLM call (instant feedback)
-    - contribution fires AFTER LLM call (with content)
-    - No more 3-5 minute UI blackouts
-    - Single event system (no EventBridge/EventCollector duality)
+    Uses get_stream_writer() for per-expert event streaming.
 
     Args:
         state: Current graph state (must have execution_batches, problem)
@@ -202,14 +395,10 @@ async def _parallel_subproblems_subgraph(state: DeliberationGraphState) -> dict[
     """
     from langgraph.config import get_stream_writer
 
-    from bo1.graph.deliberation.subgraph import (
-        build_expert_memory,
-        create_subproblem_initial_state,
-        get_subproblem_graph,
-        result_from_subgraph_state,
-    )
+    from bo1.data import get_active_personas
+    from bo1.graph.deliberation.subgraph import get_subproblem_graph
 
-    logger.info("_parallel_subproblems_subgraph: Starting subgraph-based parallel execution")
+    logger.info("_parallel_subproblems_subgraph: Starting")
 
     writer = get_stream_writer()
     problem = state.get("problem")
@@ -218,186 +407,44 @@ async def _parallel_subproblems_subgraph(state: DeliberationGraphState) -> dict[
 
     session_id = state.get("session_id")
     user_id = state.get("user_id")
+    sub_problems = problem.sub_problems
 
     execution_batches = state.get("execution_batches", [])
     if not execution_batches:
-        logger.warning("No execution_batches in state, creating sequential batches")
-        execution_batches = [[i] for i in range(len(problem.sub_problems))]
+        execution_batches = [[i] for i in range(len(sub_problems))]
 
-    sub_problems = problem.sub_problems
-
-    # Get all available personas for selection
-    from bo1.data import get_active_personas
-
-    all_personas_dicts = get_active_personas()
-    all_personas = [PersonaProfile.model_validate(p) for p in all_personas_dicts]
-
-    # Track all results across batches
+    all_personas = [PersonaProfile.model_validate(p) for p in get_active_personas()]
+    subproblem_graph = get_subproblem_graph()
     all_results: list[SubProblemResult] = []
     total_batches = len(execution_batches)
 
-    # Get the compiled subgraph (singleton for efficiency)
-    subproblem_graph = get_subproblem_graph()
+    logger.info(f"Executing {total_batches} batches for {len(sub_problems)} sub-problems")
 
-    logger.info(
-        f"_parallel_subproblems_subgraph: Executing {total_batches} batches for {len(sub_problems)} sub-problems"
-    )
-
-    # Execute batches sequentially, sub-problems within batch in parallel
+    # Execute batches sequentially
     for batch_idx, batch in enumerate(execution_batches):
-        logger.info(
-            f"_parallel_subproblems_subgraph: Starting batch {batch_idx + 1}/{total_batches} with {len(batch)} sub-problems"
+        batch_results = await _execute_batch(
+            batch,
+            batch_idx,
+            total_batches,
+            sub_problems,
+            subproblem_graph,
+            session_id,
+            problem,
+            all_personas,
+            all_results,
+            user_id,
+            writer,
         )
+        all_results.extend(batch_results)
 
-        # Emit batch_started event
-        writer(
-            {
-                "event_type": "batch_started",
-                "batch_index": batch_idx,
-                "total_batches": total_batches,
-                "sub_problem_indices": batch,
-            }
-        )
-
-        # Build expert memory from previous results
-        expert_memory = build_expert_memory(all_results)
-
-        # Create tasks for all sub-problems in this batch
-        async def run_subproblem(
-            sp_index: int, expert_memory: dict[str, Any] = expert_memory
-        ) -> tuple[int, SubProblemResult, float]:
-            """Run a single sub-problem through the subgraph."""
-            if sp_index >= len(sub_problems):
-                raise ValueError(f"Invalid sub-problem index {sp_index}")
-
-            sub_problem = sub_problems[sp_index]
-            start_time = time.time()
-
-            # Emit subproblem_started event
-            writer(
-                {
-                    "event_type": "subproblem_started",
-                    "sub_problem_index": sp_index,
-                    "sub_problem_id": sub_problem.id,
-                    "goal": sub_problem.goal,
-                    "total_sub_problems": len(sub_problems),
-                }
-            )
-
-            # Create initial state for subgraph
-            sp_state = create_subproblem_initial_state(
-                session_id=session_id or f"subproblem_{sub_problem.id}",
-                sub_problem=sub_problem,
-                sub_problem_index=sp_index,
-                parent_problem=problem,
-                all_available_personas=all_personas,
-                expert_memory=expert_memory,
-                user_id=user_id,
-            )
-
-            # Execute subgraph with unique thread_id
-            config: RunnableConfig = {
-                "configurable": {
-                    "thread_id": f"{session_id}:subproblem:{sp_index}",
-                },
-                "recursion_limit": 50,
-            }
-
-            # Run the subgraph - events stream via get_stream_writer() in nodes
-            final_state = await subproblem_graph.ainvoke(sp_state, config=config)
-
-            # Extract result
-            result = result_from_subgraph_state(cast(SubProblemGraphState, final_state))
-            duration = time.time() - start_time
-
-            # Update duration (not available in subgraph state)
-            result = SubProblemResult(
-                sub_problem_id=result.sub_problem_id,
-                sub_problem_goal=result.sub_problem_goal,
-                synthesis=result.synthesis,
-                votes=result.votes,
-                contribution_count=result.contribution_count,
-                cost=result.cost,
-                duration_seconds=duration,
-                expert_panel=result.expert_panel,
-                expert_summaries=result.expert_summaries,
-            )
-
-            # Emit subproblem_complete event
-            writer(
-                {
-                    "event_type": "subproblem_complete",
-                    "sub_problem_index": sp_index,
-                    "goal": result.sub_problem_goal,
-                    "synthesis": result.synthesis,
-                    "recommendations_count": len(result.votes),
-                    "expert_panel": result.expert_panel,
-                    "contribution_count": result.contribution_count,
-                    "cost": result.cost,
-                    "duration_seconds": duration,
-                }
-            )
-
-            return sp_index, result, duration
-
-        # Execute batch in parallel
-        batch_tasks = [run_subproblem(sp_idx) for sp_idx in batch]
-        batch_results_raw = await asyncio.gather(*batch_tasks, return_exceptions=True)
-
-        # Process results
-        batch_results: list[tuple[int, SubProblemResult]] = []
-        failed_count = 0
-
-        for raw_result in batch_results_raw:
-            if isinstance(raw_result, BaseException):
-                failed_count += 1
-                logger.error(f"_parallel_subproblems_subgraph: Sub-problem failed: {raw_result}")
-                # Emit error event
-                writer(
-                    {
-                        "event_type": "subproblem_failed",
-                        "error": str(raw_result),
-                        "error_type": type(raw_result).__name__,
-                    }
-                )
-            else:
-                # Type is now narrowed to tuple[int, SubProblemResult, float]
-                sp_index, sp_result, _ = raw_result
-                batch_results.append((sp_index, sp_result))
-
-        # Emit batch_complete event
-        writer(
-            {
-                "event_type": "batch_complete",
-                "batch_index": batch_idx,
-                "succeeded": len(batch_results),
-                "failed": failed_count,
-            }
-        )
-
-        # If any failed, raise error
-        if failed_count > 0:
-            raise RuntimeError(f"{failed_count} sub-problem(s) failed in batch {batch_idx}")
-
-        # Add to all_results in order
-        for _sp_index, result in sorted(batch_results, key=lambda x: x[0]):
-            all_results.append(result)
-
-        logger.info(
-            f"_parallel_subproblems_subgraph: Batch {batch_idx + 1}/{total_batches} complete"
-        )
-
-    # Calculate totals
+    # Emit completion event
     total_cost = sum(r.cost for r in all_results)
     total_contributions = sum(r.contribution_count for r in all_results)
 
     logger.info(
-        f"_parallel_subproblems_subgraph: Complete - {len(all_results)} sub-problems, "
-        f"{total_contributions} contributions, ${total_cost:.4f}"
+        f"Complete: {len(all_results)} sub-problems, {total_contributions} contributions, ${total_cost:.4f}"
     )
 
-    # ISSUE FIX #1: Emit all_subproblems_complete event as synchronization barrier
-    # This ensures the frontend knows all sub-problems are done before meta-synthesis starts
     writer(
         {
             "event_type": "all_subproblems_complete",
@@ -408,10 +455,8 @@ async def _parallel_subproblems_subgraph(state: DeliberationGraphState) -> dict[
         }
     )
 
-    # Small delay to ensure event is flushed before transitioning to meta-synthesis
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.1)  # Ensure event is flushed
 
-    # Update metrics
     metrics = ensure_metrics(state)
     for result in all_results:
         metrics.total_cost += result.cost

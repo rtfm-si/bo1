@@ -153,15 +153,13 @@ add_supertokens_middleware(app)
 app.state.limiter = limiter
 
 # Configure CORS with explicit allow lists (SECURITY: No wildcards in production)
-# Parse CORS origins from environment variable
-# Format: Comma-separated list (e.g., "http://localhost:3000,http://localhost:5173")
-cors_origins_env = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
-CORS_ORIGINS = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+# Use centralized settings for CORS origins
+settings_for_cors = get_settings()
+CORS_ORIGINS = settings_for_cors.cors_origins_list
 
 # SECURITY: Validate no wildcards in production
-settings_for_cors = get_settings()
 if not settings_for_cors.debug:
-    if "*" in cors_origins_env:
+    if "*" in settings_for_cors.cors_origins:
         raise RuntimeError(
             "SECURITY: Wildcard CORS origins not allowed in production. "
             "Set specific origins in CORS_ORIGINS environment variable."

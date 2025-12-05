@@ -24,6 +24,7 @@ from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import CONTROL_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.auth_helpers import extract_user_id
+from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.validation import validate_session_id
 from bo1.data import load_personas
 from bo1.graph.config import create_deliberation_graph
@@ -100,6 +101,7 @@ class KillRequest(BaseModel):
     },
 )
 @limiter.limit(CONTROL_RATE_LIMIT)
+@handle_api_errors("start deliberation")
 async def start_deliberation(
     request: Request,
     session_id: str,
@@ -249,6 +251,7 @@ async def start_deliberation(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("pause deliberation")
 async def pause_deliberation(
     session_id: str,
     session_data: VerifiedSession,
@@ -317,6 +320,7 @@ async def pause_deliberation(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("resume deliberation")
 async def resume_deliberation(
     session_id: str,
     session_data: VerifiedSession,
@@ -422,6 +426,7 @@ async def resume_deliberation(
     },
 )
 @limiter.limit(CONTROL_RATE_LIMIT)
+@handle_api_errors("kill deliberation")
 async def kill_deliberation(
     request: Request,
     session_id: str,
@@ -525,6 +530,7 @@ class ClarificationResponse(BaseModel):
         404: {"description": "Session not found", "model": ErrorResponse},
     },
 )
+@handle_api_errors("get pending clarification")
 async def get_pending_clarification(
     session_id: str,
     session_data: VerifiedSession,
@@ -588,6 +594,7 @@ async def get_pending_clarification(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@handle_api_errors("submit clarification")
 async def submit_clarification_new(
     session_id: str,
     request: ClarificationRequest,

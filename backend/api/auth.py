@@ -18,6 +18,7 @@ from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
+from backend.api.utils.errors import handle_api_errors
 from bo1.state.postgres_manager import get_user
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ router = APIRouter()
 
 @router.get("/me")
 @limiter.limit(AUTH_RATE_LIMIT)
+@handle_api_errors("get user info")
 async def get_user_info(
     request: Request, session: SessionContainer = Depends(verify_session())
 ) -> dict:

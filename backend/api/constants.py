@@ -36,3 +36,13 @@ DB_POOL_MAX_CONNECTIONS = 20
 # Research cache defaults
 RESEARCH_CACHE_SIMILARITY_THRESHOLD = 0.85
 RESEARCH_CACHE_DEFAULT_FRESHNESS_DAYS = 90
+
+# Event persistence retry settings
+EVENT_PERSISTENCE_MAX_ATTEMPTS = 3
+
+# Competitor tier limits
+TIER_LIMITS = {
+    "free": {"max_competitors": 3, "data_depth": "basic"},
+    "starter": {"max_competitors": 5, "data_depth": "standard"},
+    "pro": {"max_competitors": 8, "data_depth": "deep"},
+}

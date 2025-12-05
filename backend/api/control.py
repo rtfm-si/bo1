@@ -68,17 +68,18 @@ async def get_checkpointer() -> Any:
 
 
 async def load_state_from_checkpoint(session_id: str) -> dict[str, Any] | None:
-    """Load deliberation state from LangGraph checkpoint.
+    """Load deliberation state from LangGraph checkpoint, with PostgreSQL fallback.
 
     Uses the LangGraph checkpoint system (AsyncRedisSaver) to retrieve
-    the most recent state for a session. This is the authoritative source
-    of state during deliberation.
+    the most recent state for a session. If checkpoint is missing (e.g., Redis
+    restart, TTL expiry), attempts to reconstruct minimal state from PostgreSQL
+    events for sessions paused awaiting clarification.
 
     Args:
         session_id: Session identifier (used as thread_id in checkpoint)
 
     Returns:
-        State dict if checkpoint exists, None otherwise
+        State dict if checkpoint exists or can be reconstructed, None otherwise
     """
     try:
         # Get initialized checkpointer
@@ -97,11 +98,141 @@ async def load_state_from_checkpoint(session_id: str) -> dict[str, Any] | None:
             logger.debug(f"Loaded state from checkpoint for session {session_id}")
             return dict(checkpoint_state.values)
 
-        logger.debug(f"No checkpoint found for session {session_id}")
-        return None
+        logger.info(
+            f"No checkpoint found for session {session_id}, attempting PostgreSQL reconstruction"
+        )
 
     except Exception as e:
-        logger.error(f"Failed to load state from checkpoint for {session_id}: {e}")
+        logger.warning(
+            f"Failed to load checkpoint for {session_id}: {e}, attempting PostgreSQL reconstruction"
+        )
+
+    # Fallback: Reconstruct state from PostgreSQL events
+    # This handles cases where Redis checkpoint expired but session is paused for clarification
+    return _reconstruct_state_from_postgres(session_id)
+
+
+def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
+    """Reconstruct minimal deliberation state from PostgreSQL events.
+
+    Used when LangGraph checkpoint is missing but session data exists in PostgreSQL.
+    Reconstructs enough state to resume from clarification pause point.
+
+    Args:
+        session_id: Session identifier
+
+    Returns:
+        Reconstructed state dict, or None if reconstruction not possible
+    """
+    from bo1.models.problem import Problem, SubProblem
+    from bo1.state.postgres_manager import db_session, get_session_events
+
+    try:
+        # Get session metadata
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT problem_statement, status, phase
+                       FROM sessions WHERE id = %s""",
+                    (session_id,),
+                )
+                session_row = cur.fetchone()
+
+        if not session_row:
+            logger.warning(f"Session {session_id} not found in PostgreSQL")
+            return None
+
+        # Only reconstruct for sessions paused for clarification
+        if session_row["status"] != "paused" or session_row["phase"] != "clarification_needed":
+            logger.warning(
+                f"Session {session_id} not in clarification state "
+                f"(status={session_row['status']}, phase={session_row['phase']})"
+            )
+            return None
+
+        # Get events to reconstruct state
+        events = get_session_events(session_id)
+        if not events:
+            logger.warning(f"No events found for session {session_id}")
+            return None
+
+        # Find decomposition_complete event for sub_problems
+        decomp_event = None
+        clarification_event = None
+        for event in events:
+            event_type = event.get("event_type") or event.get("data", {}).get("event_type")
+            if event_type == "decomposition_complete":
+                decomp_event = event
+            elif event_type == "clarification_required":
+                clarification_event = event
+
+        if not decomp_event:
+            logger.warning(f"No decomposition_complete event for session {session_id}")
+            return None
+
+        # Extract sub_problems from decomposition event
+        decomp_data = decomp_event.get("data", {})
+        if isinstance(decomp_data, dict) and "data" in decomp_data:
+            decomp_data = decomp_data["data"]  # Handle nested structure
+
+        sub_problems_data = decomp_data.get("sub_problems", [])
+
+        # Build Problem object
+        sub_problems = [
+            SubProblem(
+                id=sp.get("id", f"sp_{i:03d}"),
+                goal=sp.get("goal", ""),
+                context=sp.get("context") or "",  # Default empty string if None
+                rationale=sp.get("rationale") or "",
+                dependencies=sp.get("dependencies", []),
+                complexity_score=sp.get("complexity_score", 5),
+            )
+            for i, sp in enumerate(sub_problems_data)
+        ]
+
+        problem_description = session_row["problem_statement"] or ""
+        problem = Problem(
+            title=problem_description[:100],  # Use first 100 chars as title
+            description=problem_description,
+            context="",  # Context not stored separately, may be in description
+            sub_problems=sub_problems,
+        )
+
+        # Extract pending_clarification from clarification event
+        pending_clarification = None
+        if clarification_event:
+            clar_data = clarification_event.get("data", {})
+            if isinstance(clar_data, dict) and "data" in clar_data:
+                clar_data = clar_data["data"]  # Handle nested structure
+            pending_clarification = {
+                "questions": clar_data.get("questions", []),
+                "phase": clar_data.get("phase", "pre_deliberation"),
+                "reason": clar_data.get("reason", ""),
+            }
+
+        # Reconstruct minimal state needed to resume from clarification
+        reconstructed_state = {
+            "problem": problem,
+            "sub_problem_index": 0,
+            "round_number": 0,
+            "should_stop": True,
+            "stop_reason": "clarification_needed",
+            "pending_clarification": pending_clarification,
+            "current_node": "identify_gaps",
+            "personas": [],
+            "contributions": [],
+            "metrics": {},
+        }
+
+        logger.info(
+            f"Reconstructed state for session {session_id} from PostgreSQL "
+            f"(sub_problems={len(sub_problems)}, has_clarification={pending_clarification is not None})"
+        )
+
+        return reconstructed_state
+
+    except Exception as e:
+        logger.error(f"Failed to reconstruct state from PostgreSQL for {session_id}: {e}")
         return None
 
 

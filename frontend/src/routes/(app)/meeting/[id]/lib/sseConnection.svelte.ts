@@ -36,6 +36,7 @@ const EVENT_TYPES = [
 	'voting_complete',
 	'synthesis_started',
 	'synthesis_complete',
+	'expert_summaries', // P2-004: Expert summaries event
 	'subproblem_complete',
 	'all_subproblems_complete',
 	'meta_synthesis_started',

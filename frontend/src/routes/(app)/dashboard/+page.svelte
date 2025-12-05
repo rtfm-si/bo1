@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/auth';
-	import Header from '$lib/components/Header.svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { SessionResponse, AllActionsResponse, TaskWithSessionContext } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
@@ -121,9 +120,7 @@
 	<title>Dashboard - Board of One</title>
 </svelte:head>
 
-<Header transparent={false} showCTA={true} />
-
-<div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800 pt-16">
+<div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
 
 	<!-- Main Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

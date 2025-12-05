@@ -12,7 +12,8 @@
 		HeroSection,
 		MetricsGrid,
 		FAQAccordion,
-		SampleDecisionModal
+		SampleDecisionModal,
+		SampleSelector
 	} from '$lib/components/landing';
 	import { useSectionObservers } from '$lib/hooks/useIntersectionObserver.svelte';
 	import {
@@ -22,6 +23,8 @@
 		decisionTypes,
 		faqs
 	} from '$lib/data/landing-page-data';
+	import { sampleDecisions } from '$lib/data/samples';
+	import type { SampleDecision } from '$lib/data/samples';
 
 	// Waitlist form state
 	let email = $state('');
@@ -34,6 +37,34 @@
 
 	// Sample decision modal
 	let showSampleModal = $state(false);
+	let currentSampleIndex = $state(0);
+
+	// Get current sample and navigation functions
+	const currentSample = $derived(sampleDecisions[currentSampleIndex]);
+
+	function showSample(sample: SampleDecision) {
+		const index = sampleDecisions.findIndex(s => s.id === sample.id);
+		if (index !== -1) {
+			currentSampleIndex = index;
+		}
+		showSampleModal = true;
+	}
+
+	function nextSample() {
+		if (currentSampleIndex < sampleDecisions.length - 1) {
+			currentSampleIndex++;
+		}
+	}
+
+	function previousSample() {
+		if (currentSampleIndex > 0) {
+			currentSampleIndex--;
+		}
+	}
+
+	function closeSampleModal() {
+		showSampleModal = false;
+	}
 
 	// Section visibility tracking
 	const visibility = useSectionObservers([
@@ -324,7 +355,10 @@
 		{error}
 		{mounted}
 		onSubmit={handleWaitlistSubmit}
-		onShowSample={() => (showSampleModal = true)}
+		onShowSample={() => {
+			currentSampleIndex = 0;
+			showSampleModal = true;
+		}}
 	/>
 
 	<MetricsGrid {metrics} visible={visibility.get('metrics-section') ?? false} />
@@ -669,9 +703,12 @@
 		</div>
 	</section>
 
+	<!-- Sample Decision Selector -->
+	<SampleSelector samples={sampleDecisions} onSelectSample={showSample} />
+
 	<!-- Social Proof -->
 	<section
-		class="py-16 bg-neutral-50 dark:bg-neutral-800 border-y border-neutral-200 dark:border-neutral-800"
+		class="py-16 bg-white dark:bg-neutral-900 border-y border-neutral-200 dark:border-neutral-800"
 	>
 		<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
 			<div class="grid md:grid-cols-3 gap-8">
@@ -817,4 +854,11 @@
 	<Footer />
 </div>
 
-<SampleDecisionModal show={showSampleModal} onClose={() => (showSampleModal = false)} />
+<SampleDecisionModal
+	show={showSampleModal}
+	sample={currentSample}
+	onClose={closeSampleModal}
+	onPrevious={currentSampleIndex > 0 ? previousSample : undefined}
+	onNext={currentSampleIndex < sampleDecisions.length - 1 ? nextSample : undefined}
+	showNavigation={true}
+/>

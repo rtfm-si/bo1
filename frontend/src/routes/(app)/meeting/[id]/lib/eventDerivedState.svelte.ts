@@ -75,6 +75,26 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		return getSubProblemTabsLength() > 1;
 	});
 
+	// P2-004: Get personas by sub-problem index from persona_selected events
+	const personasBySubProblem = $derived.by(() => {
+		const events = getEvents();
+		const personaEvents = events.filter((e) => e.event_type === 'persona_selected');
+		const result: Record<number, any[]> = {};
+
+		for (const event of personaEvents) {
+			// Type assertion: event.data contains sub_problem_index as number
+			const subProblemIndex = (event.data as { sub_problem_index?: number }).sub_problem_index ?? 0;
+			if (!result[subProblemIndex]) {
+				result[subProblemIndex] = [];
+			}
+			// Type assertion: event.data contains persona object
+			const persona = (event.data as { persona: any }).persona;
+			result[subProblemIndex].push(persona);
+		}
+
+		return result;
+	});
+
 	return {
 		// Reactive getters
 		get metaSynthesisEvent() {
@@ -97,6 +117,9 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		},
 		get clarificationQuestions() {
 			return clarificationQuestions;
+		},
+		get personasBySubProblem() {
+			return personasBySubProblem;
 		},
 		get needsClarification() {
 			return needsClarification;

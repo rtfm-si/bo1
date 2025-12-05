@@ -18,6 +18,10 @@ export interface SessionData {
 	phase: string | null;
 	round_number?: number;
 	created_at: string;
+	// P2-004: Expert summaries by sub-problem index
+	expert_summaries_by_subproblem?: Record<number, Record<string, string>>;
+	// P2-006: Research results by sub-problem index
+	research_results_by_subproblem?: Record<number, any[]>;
 }
 
 /**
@@ -141,6 +145,28 @@ export function createSessionStore() {
 				session.round_number = payload.round;
 			} else if (payload.round_number !== undefined && typeof payload.round_number === 'number') {
 				session.round_number = payload.round_number;
+			}
+
+			// P2-004: Handle expert_summaries event
+			if (eventType === 'expert_summaries' && payload.expert_summaries) {
+				const subProblemIndex = payload.sub_problem_index ?? 0;
+				if (!session.expert_summaries_by_subproblem) {
+					session.expert_summaries_by_subproblem = {};
+				}
+				session.expert_summaries_by_subproblem[subProblemIndex] = payload.expert_summaries;
+			}
+
+			// P2-006: Handle research_results event
+			if (eventType === 'research_results' && payload.research_results) {
+				const subProblemIndex = payload.sub_problem_index ?? 0;
+				if (!session.research_results_by_subproblem) {
+					session.research_results_by_subproblem = {};
+				}
+				// Append new research results (don't replace)
+				if (!session.research_results_by_subproblem[subProblemIndex]) {
+					session.research_results_by_subproblem[subProblemIndex] = [];
+				}
+				session.research_results_by_subproblem[subProblemIndex].push(...payload.research_results);
 			}
 
 			// Phase transitions

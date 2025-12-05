@@ -59,6 +59,7 @@ class EventCollector:
         "next_subproblem": "_handle_subproblem_complete",
         "meta_synthesis": "_handle_meta_synthesis",
         "meta_synthesize": "_handle_meta_synthesis",  # Support both node names
+        "research": "_handle_research",  # P2-006: Research results
     }
 
     def __init__(self, publisher: EventPublisher) -> None:
@@ -762,6 +763,30 @@ class EventCollector:
         # Publish event
         await self._publish_node_event(session_id, output, "synthesis_complete")
 
+        # P2-004: Emit expert summaries event if expert_summaries are available
+        expert_summaries = output.get("expert_summaries", {})
+        if expert_summaries:
+            current_sub_problem = output.get("current_sub_problem")
+            expert_summaries_event = {
+                "expert_summaries": expert_summaries,
+                "sub_problem_index": output.get("sub_problem_index", 0),
+                "sub_problem_goal": (
+                    current_sub_problem.goal
+                    if current_sub_problem and hasattr(current_sub_problem, "goal")
+                    else ""
+                ),
+            }
+            self.publisher.publish_event(
+                session_id,
+                "expert_summaries",
+                expert_summaries_event,
+            )
+            logger.info(
+                f"Published expert_summaries event for session {session_id}, "
+                f"sub_problem_index={output.get('sub_problem_index', 0)}, "
+                f"summaries_count={len(expert_summaries)}"
+            )
+
         # Save synthesis to PostgreSQL for long-term storage
         synthesis_text = output.get("synthesis")
         if synthesis_text:
@@ -804,6 +829,20 @@ class EventCollector:
                 logger.info(f"Saved meta-synthesis to PostgreSQL for session {session_id}")
             except Exception as e:
                 logger.error(f"Failed to save meta-synthesis to PostgreSQL for {session_id}: {e}")
+
+    async def _handle_research(self, session_id: str, output: dict) -> None:
+        """Handle research node completion (P2-006).
+
+        Emits research_results event with query, summary, sources, and metadata.
+        """
+        research_results = output.get("research_results", [])
+        if research_results:
+            logger.info(
+                f"[RESEARCH] Publishing {len(research_results)} research results for session {session_id}"
+            )
+            await self._publish_node_event(session_id, output, "research_results")
+        else:
+            logger.debug(f"[RESEARCH] No research results to publish for session {session_id}")
 
     async def _handle_completion(self, session_id: str, final_state: dict) -> None:
         """Handle deliberation completion - orchestrates cost breakdown, completion event, status update, and verification.

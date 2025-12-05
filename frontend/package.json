@@ -38,7 +38,8 @@
     "js-cookie": "^3.0.5",
     "lucide-svelte": "^0.554.0",
     "marked": "^17.0.1",
-    "supertokens-web-js": "^0.16.0"
+    "supertokens-web-js": "^0.16.0",
+    "svelte-dnd-action": "^0.9.68"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.28.1",

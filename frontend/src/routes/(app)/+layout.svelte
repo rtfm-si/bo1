@@ -1,10 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { isAuthenticated, isLoading } from '$lib/stores/auth';
 	import { ActivityStatus, LOADING_MESSAGES } from '$lib/components/ui/loading';
 	import { createLogger } from '$lib/utils/debug';
 	import type { Snippet } from 'svelte';
+	import Header from '$lib/components/Header.svelte';
+	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
+	import { getBreadcrumbs } from '$lib/utils/breadcrumbs';
 
 	const log = createLogger('AppLayout');
 
@@ -15,6 +19,13 @@
 	let { children }: Props = $props();
 
 	let authChecked = $state(false);
+
+	// Generate breadcrumbs from current path
+	const breadcrumbs = $derived(getBreadcrumbs($page.url.pathname));
+
+	// Pages where we don't show breadcrumbs (dashboard is home)
+	const hideBreadcrumbPaths = ['/dashboard'];
+	const showBreadcrumbs = $derived(!hideBreadcrumbPaths.includes($page.url.pathname));
 
 	onMount(() => {
 		log.log('Checking authentication...');
@@ -52,5 +63,15 @@
 	</div>
 {:else}
 	<!-- Auth verified - show protected content -->
-	{@render children()}
+	<div class="min-h-screen bg-slate-50 dark:bg-slate-900">
+		<Header />
+		{#if showBreadcrumbs && breadcrumbs.length > 0}
+			<div class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+				<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+					<Breadcrumb items={breadcrumbs} />
+				</div>
+			</div>
+		{/if}
+		{@render children()}
+	</div>
 {/if}

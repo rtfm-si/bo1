@@ -2,9 +2,10 @@
 	/**
 	 * Header Component - Reusable navigation header with logo and auth
 	 */
-	import { goto } from '$app/navigation';
+	import { goto, beforeNavigate } from '$app/navigation';
 	import Button from '$lib/components/ui/Button.svelte';
 	import { isAuthenticated, user, signOut } from '$lib/stores/auth';
+	import { Menu, X } from 'lucide-svelte';
 
 	// Props
 	let {
@@ -14,6 +15,22 @@
 		transparent?: boolean;
 		showCTA?: boolean;
 	} = $props();
+
+	// Mobile menu state
+	let mobileMenuOpen = $state(false);
+
+	function toggleMobileMenu() {
+		mobileMenuOpen = !mobileMenuOpen;
+	}
+
+	function closeMobileMenu() {
+		mobileMenuOpen = false;
+	}
+
+	// Close mobile menu on navigation
+	beforeNavigate(() => {
+		mobileMenuOpen = false;
+	});
 
 	// Navigation handlers
 	function handleSignIn() {
@@ -43,8 +60,22 @@
 <header class={`sticky top-0 z-50 ${headerClasses}`}>
 	<nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 		<div class="flex items-center justify-between h-16">
+			<!-- Mobile menu button -->
+			<button
+				class="md:hidden p-2 -ml-2 text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+				onclick={toggleMobileMenu}
+				aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+				aria-expanded={mobileMenuOpen}
+			>
+				{#if mobileMenuOpen}
+					<X class="h-6 w-6" />
+				{:else}
+					<Menu class="h-6 w-6" />
+				{/if}
+			</button>
+
 			<!-- Logo -->
-			<a href="/" class="flex items-center gap-3 group">
+			<a href="/" class="flex items-center gap-3 group" onclick={closeMobileMenu}>
 				<img
 					src="/logo.svg"
 					alt="Board of One"
@@ -131,4 +162,91 @@
 			{/if}
 		</div>
 	</nav>
+
+	<!-- Mobile Navigation Menu -->
+	{#if mobileMenuOpen}
+		<div class="md:hidden border-t border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
+			<div class="px-4 py-4 space-y-3">
+				{#if $isAuthenticated}
+					<a
+						href="/dashboard"
+						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+						onclick={closeMobileMenu}
+					>
+						Dashboard
+					</a>
+					<a
+						href="/actions"
+						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+						onclick={closeMobileMenu}
+					>
+						Actions
+					</a>
+					<a
+						href="/projects"
+						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+						onclick={closeMobileMenu}
+					>
+						Projects
+					</a>
+					<a
+						href="/settings"
+						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+						onclick={closeMobileMenu}
+					>
+						Settings
+					</a>
+					{#if $user?.is_admin}
+						<a
+							href="/admin"
+							class="block py-2 text-base font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+							onclick={closeMobileMenu}
+						>
+							Admin
+						</a>
+					{/if}
+					<div class="pt-3 border-t border-neutral-200 dark:border-neutral-700">
+						{#if $user?.email && !$user.email.endsWith('@placeholder.local')}
+							<p class="py-2 text-sm text-neutral-500 dark:text-neutral-400">
+								{$user.email}
+							</p>
+						{/if}
+						<div class="flex flex-col gap-2 pt-2">
+							<Button variant="brand" size="sm" onclick={() => { closeMobileMenu(); handleNewMeeting(); }}>
+								New Meeting
+							</Button>
+							<Button variant="ghost" size="sm" onclick={() => { closeMobileMenu(); handleSignOut(); }}>
+								Sign Out
+							</Button>
+						</div>
+					</div>
+				{:else}
+					<a
+						href="/#how-it-works"
+						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+						onclick={closeMobileMenu}
+					>
+						How It Works
+					</a>
+					<a
+						href="/#features"
+						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+						onclick={closeMobileMenu}
+					>
+						Features
+					</a>
+					<div class="pt-3 border-t border-neutral-200 dark:border-neutral-700">
+						<div class="flex flex-col gap-2 pt-2">
+							<Button variant="brand" size="sm" onclick={() => { closeMobileMenu(); handleGetStarted(); }}>
+								Join Waitlist
+							</Button>
+							<Button variant="ghost" size="sm" onclick={() => { closeMobileMenu(); handleSignIn(); }}>
+								Sign In
+							</Button>
+						</div>
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
 </header>

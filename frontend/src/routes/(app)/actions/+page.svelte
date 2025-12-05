@@ -10,7 +10,6 @@
 	 */
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import Header from '$lib/components/Header.svelte';
 	import { apiClient } from '$lib/api/client';
 	import type {
 		AllActionsResponse,
@@ -153,6 +152,8 @@
 
 	// Status update handler
 	let updatingTaskId = $state<string | null>(null);
+	let deletingTaskId = $state<string | null>(null);
+	let confirmDeleteTaskId = $state<string | null>(null);
 
 	async function handleStatusChange(
 		sessionId: string,
@@ -167,6 +168,19 @@
 			console.error('Failed to update task status:', err);
 		} finally {
 			updatingTaskId = null;
+		}
+	}
+
+	async function handleDelete(taskId: string) {
+		deletingTaskId = taskId;
+		confirmDeleteTaskId = null;
+		try {
+			await apiClient.deleteAction(taskId);
+			await fetchData();
+		} catch (err) {
+			console.error('Failed to delete action:', err);
+		} finally {
+			deletingTaskId = null;
 		}
 	}
 
@@ -206,10 +220,8 @@
 	<title>Actions - Board of One</title>
 </svelte:head>
 
-<Header transparent={false} showCTA={true} />
-
 <div
-	class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800 pt-16"
+	class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800"
 >
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Header with stats -->
@@ -574,7 +586,7 @@
 									{@const isUpdating = updatingTaskId === task.id}
 									<a
 										href="/actions/{task.id}"
-										class="block bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 transition-all hover:shadow-md hover:border-brand-300 dark:hover:border-brand-600"
+										class="relative block bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 transition-all hover:shadow-md hover:border-brand-300 dark:hover:border-brand-600"
 										class:opacity-50={isUpdating}
 										style="border-left: 3px solid {task.priority === 'high'
 											? 'var(--color-error-500)'
@@ -667,7 +679,51 @@
 													{isUpdating ? 'Reopening...' : 'Reopen'}
 												</button>
 											{/if}
+											<!-- Delete Button -->
+											<button
+												class="text-xs px-2 py-1.5 text-neutral-400 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-900/20 rounded transition-colors disabled:opacity-50"
+												onclick={(e) => {
+													e.preventDefault();
+													e.stopPropagation();
+													confirmDeleteTaskId = task.id;
+												}}
+												disabled={deletingTaskId === task.id}
+												title="Delete action"
+											>
+												<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+												</svg>
+											</button>
 										</div>
+
+										<!-- Delete Confirmation Overlay -->
+										{#if confirmDeleteTaskId === task.id}
+											<div class="absolute inset-0 bg-white/95 dark:bg-neutral-900/95 rounded-lg flex flex-col items-center justify-center gap-3 z-10">
+												<p class="text-sm font-medium text-neutral-900 dark:text-white">Delete this action?</p>
+												<div class="flex gap-2">
+													<button
+														class="px-3 py-1.5 text-xs bg-error-600 hover:bg-error-700 text-white rounded transition-colors"
+														onclick={(e) => {
+															e.preventDefault();
+															e.stopPropagation();
+															handleDelete(task.id);
+														}}
+													>
+														Delete
+													</button>
+													<button
+														class="px-3 py-1.5 text-xs bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-300 rounded transition-colors"
+														onclick={(e) => {
+															e.preventDefault();
+															e.stopPropagation();
+															confirmDeleteTaskId = null;
+														}}
+													>
+														Cancel
+													</button>
+												</div>
+											</div>
+										{/if}
 									</a>
 								{/each}
 							{/if}

@@ -4,15 +4,19 @@
 	 */
 	import type { TaskWithStatus } from '$lib/api/types';
 	import Badge from '$lib/components/ui/Badge.svelte';
+	import { Trash2 } from 'lucide-svelte';
 
 	import type { ActionStatus } from '$lib/api/types';
 
 	interface Props {
 		task: TaskWithStatus;
 		onStatusChange: (taskId: string, newStatus: ActionStatus) => void;
+		onDelete?: (taskId: string) => void;
 	}
 
-	let { task, onStatusChange }: Props = $props();
+	let { task, onStatusChange, onDelete }: Props = $props();
+
+	let showDeleteConfirm = $state(false);
 
 	// Determine next status for quick action button
 	const nextStatus = $derived(
@@ -122,11 +126,36 @@
 				Reopen
 			</button>
 		{/if}
+		{#if onDelete}
+			<button
+				class="action-btn delete"
+				onclick={() => showDeleteConfirm = true}
+				title="Delete action"
+			>
+				<Trash2 class="h-4 w-4" />
+			</button>
+		{/if}
 	</div>
+
+	<!-- Delete confirmation overlay -->
+	{#if showDeleteConfirm}
+		<div class="delete-confirm-overlay">
+			<p>Delete this action?</p>
+			<div class="confirm-actions">
+				<button class="action-btn danger" onclick={() => { onDelete?.(task.id); showDeleteConfirm = false; }}>
+					Delete
+				</button>
+				<button class="action-btn secondary" onclick={() => showDeleteConfirm = false}>
+					Cancel
+				</button>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>
 	.task-card {
+		position: relative;
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
 		border-left: 3px solid var(--priority-color);
@@ -255,5 +284,57 @@
 
 	.action-btn.secondary:hover {
 		background: var(--color-border);
+	}
+
+	.action-btn.delete {
+		background: transparent;
+		color: var(--color-muted);
+		border: 1px solid var(--color-border);
+		padding: 6px;
+		margin-left: auto;
+	}
+
+	.action-btn.delete:hover {
+		background: var(--color-error);
+		color: white;
+		border-color: var(--color-error);
+	}
+
+	.action-btn.danger {
+		background: var(--color-error);
+		color: white;
+	}
+
+	.action-btn.danger:hover {
+		filter: brightness(1.1);
+	}
+
+	.delete-confirm-overlay {
+		position: absolute;
+		inset: 0;
+		background: rgba(255, 255, 255, 0.95);
+		border-radius: 8px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 12px;
+		z-index: 10;
+	}
+
+	:global(.dark) .delete-confirm-overlay {
+		background: rgba(23, 23, 23, 0.95);
+	}
+
+	.delete-confirm-overlay p {
+		font-size: 0.9rem;
+		font-weight: 500;
+		color: var(--color-text);
+		margin: 0;
+	}
+
+	.confirm-actions {
+		display: flex;
+		gap: 8px;
 	}
 </style>

@@ -16,7 +16,6 @@
 	import GanttChart from '$lib/components/projects/GanttChart.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
-	import Header from '$lib/components/Header.svelte';
 	import {
 		ArrowLeft,
 		CheckCircle2,
@@ -239,11 +238,9 @@
 	<title>{project?.name ?? 'Project'} | Board of One</title>
 </svelte:head>
 
-<Header transparent={false} showCTA={true} />
-
-<div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800 pt-16">
+<div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
 	<!-- Sticky Header -->
-	<div class="sticky top-16 z-10 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800">
+	<div class="sticky top-0 z-10 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800">
 		<div class="max-w-6xl mx-auto px-4 sm:px-6 py-4">
 			<div class="flex items-center gap-4">
 				<button

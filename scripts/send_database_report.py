@@ -16,6 +16,8 @@ from psycopg2.extras import RealDictCursor
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+from datetime import UTC
+
 from backend.api.ntfy import notify_database_alert, notify_database_report
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -306,6 +308,16 @@ async def send_report(report_type: str) -> None:
 
     if success:
         print("✅ Report sent successfully!")
+        # Update heartbeat file for monitoring
+        try:
+            from datetime import datetime
+            from pathlib import Path
+
+            heartbeat_file = Path("/tmp/bo1_report_heartbeat")  # noqa: S108
+            heartbeat_file.write_text(datetime.now(UTC).isoformat())
+            print("📍 Heartbeat updated")
+        except Exception as e:
+            print(f"⚠️ Failed to update heartbeat: {e}")
         sys.exit(0)
     else:
         print("❌ Failed to send report")

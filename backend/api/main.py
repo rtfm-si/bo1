@@ -64,9 +64,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         print(f"✗ SECURITY ERROR: {e}")
         raise
 
+    # Start persistence retry worker
+    from backend.api.persistence_worker import start_persistence_worker
+
+    try:
+        await start_persistence_worker()
+        print("✓ Persistence retry worker started")
+    except Exception as e:
+        print(f"⚠️  Failed to start persistence worker: {e}")
+        # Don't fail startup if worker can't start (not critical)
+
     yield
+
     # Shutdown
     print("Shutting down Board of One API...")
+
+    # Stop persistence retry worker
+    from backend.api.persistence_worker import stop_persistence_worker
+
+    try:
+        await stop_persistence_worker()
+        print("✓ Persistence retry worker stopped")
+    except Exception as e:
+        print(f"⚠️  Failed to stop persistence worker: {e}")
 
 
 # Create FastAPI application

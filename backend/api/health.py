@@ -11,7 +11,7 @@ Provides endpoints to check:
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import psycopg2
@@ -549,5 +549,329 @@ async def health_check_anthropic() -> ComponentHealthResponse:
                 "healthy": False,
                 "message": f"Anthropic API check failed: {str(e)}",
                 "timestamp": datetime.utcnow().isoformat(),
+            },
+        ) from e
+
+
+class SessionPersistenceDetail(BaseModel):
+    """Detail about a single session's persistence status."""
+
+    session_id: str = Field(..., description="Session ID")
+    redis_count: int = Field(..., description="Events in Redis")
+    postgres_count: int = Field(..., description="Events in PostgreSQL")
+    discrepancy: int = Field(..., description="Difference (Redis - PostgreSQL)")
+    status: str = Field(..., description="Status: ok, warning, critical")
+
+
+class PersistenceHealthResponse(BaseModel):
+    """Event persistence health response.
+
+    Attributes:
+        status: Overall persistence health status
+        component: Component name (persistence)
+        healthy: Whether persistence is healthy
+        sessions_checked: Number of recent sessions checked
+        sessions_with_issues: Number of sessions with persistence discrepancies
+        total_redis_events: Total events in Redis for checked sessions
+        total_postgres_events: Total events in PostgreSQL for checked sessions
+        persistence_rate: Percentage of events successfully persisted
+        queue_depth: Number of events in retry queue
+        dlq_depth: Number of events in dead letter queue
+        details: List of sessions with issues (if any)
+        message: Status message
+        timestamp: ISO 8601 timestamp
+    """
+
+    status: str = Field(..., description="Overall persistence health status")
+    component: str = Field(default="persistence", description="Component name")
+    healthy: bool = Field(..., description="Whether persistence is healthy")
+    sessions_checked: int = Field(..., description="Number of recent sessions checked")
+    sessions_with_issues: int = Field(..., description="Sessions with persistence issues")
+    total_redis_events: int = Field(..., description="Total events in Redis")
+    total_postgres_events: int = Field(..., description="Total events in PostgreSQL")
+    persistence_rate: float = Field(..., description="Percentage of events persisted")
+    queue_depth: int = Field(..., description="Number of events in retry queue")
+    dlq_depth: int = Field(..., description="Number of events in dead letter queue")
+    details: list[SessionPersistenceDetail] | None = Field(None, description="Sessions with issues")
+    message: str = Field(..., description="Status message")
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+
+
+@router.get(
+    "/health/persistence",
+    response_model=PersistenceHealthResponse,
+    summary="Event persistence health check",
+    description="""
+    Check if events are being correctly persisted from Redis to PostgreSQL.
+
+    Tests:
+    - Compares event counts in Redis vs PostgreSQL for recent sessions
+    - Identifies sessions with persistence discrepancies
+    - Calculates overall persistence success rate
+
+    **Thresholds:**
+    - Healthy: 100% persistence rate
+    - Warning: 95-99% persistence rate or minor discrepancies
+    - Critical: <95% persistence rate or sessions with zero PostgreSQL events
+
+    **Use Cases:**
+    - Post-deployment verification of event persistence
+    - Detecting data loss before it affects users
+    - Monitoring overall system reliability
+    """,
+    responses={
+        200: {
+            "description": "Persistence health status",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "healthy": {
+                            "summary": "Healthy persistence",
+                            "value": {
+                                "status": "healthy",
+                                "component": "persistence",
+                                "healthy": True,
+                                "sessions_checked": 10,
+                                "sessions_with_issues": 0,
+                                "total_redis_events": 150,
+                                "total_postgres_events": 150,
+                                "persistence_rate": 100.0,
+                                "details": None,
+                                "message": "All events persisted successfully",
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                        "warning": {
+                            "summary": "Warning - minor discrepancies",
+                            "value": {
+                                "status": "warning",
+                                "component": "persistence",
+                                "healthy": True,
+                                "sessions_checked": 10,
+                                "sessions_with_issues": 1,
+                                "total_redis_events": 150,
+                                "total_postgres_events": 148,
+                                "persistence_rate": 98.67,
+                                "details": [
+                                    {
+                                        "session_id": "abc123",
+                                        "redis_count": 15,
+                                        "postgres_count": 13,
+                                        "discrepancy": 2,
+                                        "status": "warning",
+                                    }
+                                ],
+                                "message": "1 session(s) with minor persistence issues",
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        503: {
+            "description": "Critical persistence issues",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "critical",
+                        "component": "persistence",
+                        "healthy": False,
+                        "sessions_checked": 10,
+                        "sessions_with_issues": 3,
+                        "total_redis_events": 150,
+                        "total_postgres_events": 50,
+                        "persistence_rate": 33.33,
+                        "details": [
+                            {
+                                "session_id": "abc123",
+                                "redis_count": 50,
+                                "postgres_count": 0,
+                                "discrepancy": 50,
+                                "status": "critical",
+                            }
+                        ],
+                        "message": "CRITICAL: 3 session(s) with persistence failures",
+                        "timestamp": "2025-01-15T12:00:00.000000",
+                    }
+                }
+            },
+        },
+    },
+)
+async def health_check_persistence() -> PersistenceHealthResponse:
+    """Event persistence health check.
+
+    Checks recent sessions (last hour) and compares Redis event counts
+    with PostgreSQL event counts to detect persistence issues. Also checks
+    the retry queue and dead letter queue depths.
+
+    Returns:
+        Persistence health status with details about any discrepancies
+
+    Raises:
+        HTTPException: If critical persistence issues are detected
+    """
+    try:
+        from backend.api.event_publisher import get_dlq_depth, get_queue_depth
+        from bo1.state.postgres_manager import get_session_events
+
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        redis_client = redis.from_url(redis_url)
+        database_url = os.getenv("DATABASE_URL")
+
+        if not database_url:
+            raise HTTPException(
+                status_code=500,
+                detail="DATABASE_URL environment variable not set",
+            )
+
+        # Get recent sessions from PostgreSQL (last 2 hours)
+        conn = psycopg2.connect(database_url)
+        cutoff_time = datetime.now(UTC) - timedelta(hours=2)
+
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id FROM sessions
+                WHERE created_at >= %s
+                ORDER BY created_at DESC
+                LIMIT 20
+                """,
+                (cutoff_time,),
+            )
+            recent_sessions = [row[0] for row in cur.fetchall()]
+        conn.close()
+
+        # Get retry queue depths
+        queue_depth = await get_queue_depth(redis_client)
+        dlq_depth = await get_dlq_depth(redis_client)
+
+        if not recent_sessions:
+            # No recent sessions to check
+            return PersistenceHealthResponse(
+                status="healthy",
+                component="persistence",
+                healthy=True,
+                sessions_checked=0,
+                sessions_with_issues=0,
+                total_redis_events=0,
+                total_postgres_events=0,
+                persistence_rate=100.0,
+                queue_depth=queue_depth,
+                dlq_depth=dlq_depth,
+                details=None,
+                message="No recent sessions to verify",
+                timestamp=datetime.now(UTC).isoformat(),
+            )
+
+        # Compare Redis vs PostgreSQL counts for each session
+        total_redis = 0
+        total_postgres = 0
+        issues: list[SessionPersistenceDetail] = []
+
+        for session_id in recent_sessions:
+            # Get Redis count
+            redis_key = f"events_history:{session_id}"
+            redis_count = redis_client.llen(redis_key)
+
+            # Get PostgreSQL count
+            pg_events = get_session_events(session_id)
+            postgres_count = len(pg_events) if pg_events else 0
+
+            total_redis += redis_count
+            total_postgres += postgres_count
+
+            # Check for discrepancies
+            if redis_count > postgres_count:
+                discrepancy = redis_count - postgres_count
+
+                # Determine severity
+                if postgres_count == 0 and redis_count > 0:
+                    status = "critical"
+                elif discrepancy > 5:
+                    status = "warning"
+                else:
+                    status = "warning"
+
+                issues.append(
+                    SessionPersistenceDetail(
+                        session_id=session_id,
+                        redis_count=redis_count,
+                        postgres_count=postgres_count,
+                        discrepancy=discrepancy,
+                        status=status,
+                    )
+                )
+
+        redis_client.close()
+
+        # Calculate persistence rate
+        persistence_rate = (total_postgres / total_redis * 100) if total_redis > 0 else 100.0
+
+        # Determine overall health
+        critical_issues = [i for i in issues if i.status == "critical"]
+        has_critical = len(critical_issues) > 0
+
+        # Check queue depths for warnings
+        queue_warning = queue_depth > 100
+        dlq_warning = dlq_depth > 0
+
+        if has_critical or persistence_rate < 95:
+            status = "critical"
+            healthy = False
+            message = f"CRITICAL: {len(issues)} session(s) with persistence failures"
+        elif issues or persistence_rate < 100 or queue_warning or dlq_warning:
+            status = "warning"
+            healthy = True
+            warnings = []
+            if issues:
+                warnings.append(f"{len(issues)} session(s) with minor persistence issues")
+            if queue_warning:
+                warnings.append(f"{queue_depth} events in retry queue")
+            if dlq_warning:
+                warnings.append(f"{dlq_depth} events in dead letter queue")
+            message = "; ".join(warnings)
+        else:
+            status = "healthy"
+            healthy = True
+            message = "All events persisted successfully"
+
+        response = PersistenceHealthResponse(
+            status=status,
+            component="persistence",
+            healthy=healthy,
+            sessions_checked=len(recent_sessions),
+            sessions_with_issues=len(issues),
+            total_redis_events=total_redis,
+            total_postgres_events=total_postgres,
+            persistence_rate=round(persistence_rate, 2),
+            queue_depth=queue_depth,
+            dlq_depth=dlq_depth,
+            details=issues if issues else None,
+            message=message,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
+
+        if not healthy:
+            raise HTTPException(
+                status_code=503,
+                detail=response.model_dump(),
+            )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Persistence health check failed")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "error",
+                "component": "persistence",
+                "healthy": False,
+                "message": f"Persistence health check failed: {str(e)}",
+                "timestamp": datetime.now(UTC).isoformat(),
             },
         ) from e

@@ -7,6 +7,7 @@ Provides:
 import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -18,6 +19,7 @@ from backend.api.events import (
     error_event,
     node_start_event,
 )
+from backend.api.metrics import metrics
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.validation import validate_session_id
 
@@ -301,7 +303,6 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
         ...     print(event)  # SSE formatted: "event: node_start\ndata: {...}\n\n"
     """
     import json
-    import time
 
     redis_manager = get_redis_manager()
     redis_client = redis_manager.redis
@@ -325,12 +326,22 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
         last_keepalive = time.time()
         keepalive_interval = 15  # Send keepalive every 15 seconds
 
+        # P2-005: Track time between messages for performance monitoring
+        last_message_time = time.time()
+
         # Stream events from Redis pubsub
         while True:
             # Check for message with timeout
-            message = pubsub.get_message(timeout=1.0)
+            # P2-005 Quick Win: Reduced from 1.0s to 0.1s for faster event delivery
+            message = pubsub.get_message(timeout=0.1)
 
             if message and message["type"] == "message":
+                # P2-005: Track SSE gap (time between messages)
+                now = time.time()
+                gap_ms = (now - last_message_time) * 1000
+                metrics.observe("sse.gap_ms", gap_ms)
+                last_message_time = now
+
                 try:
                     # Parse event payload
                     payload = json.loads(message["data"])
@@ -368,8 +379,8 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
                 yield ": keepalive\n\n"
                 last_keepalive = now
 
-            # Small sleep to prevent busy loop
-            await asyncio.sleep(0.1)
+            # P2-005 Quick Win: Reduced from 0.1s to 0.01s for faster event delivery
+            await asyncio.sleep(0.01)
 
     except asyncio.CancelledError:
         # Client disconnected

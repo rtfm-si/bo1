@@ -49,7 +49,8 @@ export const EVENT_INDEX_DEBOUNCE_MS = 200;
 export const HIDDEN_EVENT_TYPES = new Set([
 	'parallel_round_start',
 	'node_start',
-	'stream_connected'
+	'stream_connected',
+	'expert_summaries' // P2-004: Displayed via ExpertSummariesPanel, not event card
 ]);
 
 // ============================================================================

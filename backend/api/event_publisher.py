@@ -3,18 +3,353 @@
 Provides:
 - EventPublisher: Publishes deliberation events to Redis channels for SSE streaming
 - Persists events to PostgreSQL for permanent storage (Redis is transient)
+- Failed event queue management with retry logic
 """
 
+import asyncio
 import json
 import logging
+import time
 from datetime import UTC, datetime
 from typing import Any
 
 import redis
 
+from backend.api.metrics import metrics
 from bo1.state.postgres_manager import save_session_event
 
 logger = logging.getLogger(__name__)
+
+
+# Failed event persistence retry configuration
+FAILED_EVENTS_KEY = "failed_events:queue"
+FAILED_EVENTS_DLQ_KEY = "failed_events:dlq"
+MAX_RETRIES = 5
+RETRY_DELAYS = [60, 120, 300, 600, 1800]  # 1min, 2min, 5min, 10min, 30min
+
+
+async def queue_failed_event(
+    redis_client: redis.Redis,  # type: ignore[type-arg]
+    session_id: str,
+    event_type: str,
+    sequence: int,
+    event_data: dict[str, Any],
+    original_error: str,
+) -> bool:
+    """Queue a failed event for later retry.
+
+    Args:
+        redis_client: Redis client instance
+        session_id: Session identifier
+        event_type: SSE event type
+        sequence: Event sequence number
+        event_data: Event payload (full payload including timestamp)
+        original_error: Error message from failed persistence attempt
+
+    Returns:
+        True if queued successfully, False otherwise
+    """
+    try:
+        failed_event = {
+            "session_id": session_id,
+            "event_type": event_type,
+            "sequence": sequence,
+            "event_data": event_data,
+            "retry_count": 0,
+            "first_failed_at": datetime.now(UTC).isoformat(),
+            "next_retry_at": datetime.now(UTC).isoformat(),
+            "original_error": original_error,
+        }
+
+        # Add to sorted set with current timestamp as score (for FIFO ordering)
+        score = datetime.now(UTC).timestamp()
+        redis_client.zadd(FAILED_EVENTS_KEY, {json.dumps(failed_event): score})
+
+        logger.info(
+            f"Queued failed event for retry: {event_type} (session {session_id}, seq {sequence})"
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Failed to queue failed event: {e}")
+        return False
+
+
+async def get_pending_retries(
+    redis_client: redis.Redis,  # type: ignore[type-arg]
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Get events ready for retry (next_retry_at <= now).
+
+    Args:
+        redis_client: Redis client instance
+        limit: Maximum number of events to retrieve
+
+    Returns:
+        List of failed event dictionaries ready for retry
+    """
+    try:
+        now = datetime.now(UTC).timestamp()
+
+        # Get events where score (timestamp) <= now
+        raw_events = redis_client.zrangebyscore(FAILED_EVENTS_KEY, 0, now, start=0, num=limit)
+
+        if not raw_events:
+            return []
+
+        events = []
+        for raw_event in raw_events:
+            try:
+                event = json.loads(raw_event)
+                # Filter by next_retry_at to ensure it's actually ready
+                next_retry_at = datetime.fromisoformat(event["next_retry_at"])
+                if next_retry_at <= datetime.now(UTC):
+                    events.append(event)
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                logger.warning(f"Failed to parse queued event: {e}")
+                # Remove invalid event
+                redis_client.zrem(FAILED_EVENTS_KEY, raw_event)
+                continue
+
+        return events
+    except Exception as e:
+        logger.error(f"Failed to get pending retries: {e}")
+        return []
+
+
+async def retry_event(
+    redis_client: redis.Redis,  # type: ignore[type-arg]
+    event: dict[str, Any],
+) -> bool:
+    """Attempt to persist the event. Returns True on success.
+
+    Args:
+        redis_client: Redis client instance
+        event: Failed event dictionary
+
+    Returns:
+        True if persistence succeeded, False otherwise
+    """
+    try:
+        # Attempt to persist to PostgreSQL
+        save_session_event(
+            session_id=event["session_id"],
+            event_type=event["event_type"],
+            sequence=event["sequence"],
+            data=event["event_data"],
+        )
+
+        logger.info(
+            f"Successfully retried event persistence: {event['event_type']} "
+            f"(session {event['session_id']}, retry {event['retry_count'] + 1})"
+        )
+        return True
+    except Exception as e:
+        logger.warning(
+            f"Retry attempt {event['retry_count'] + 1}/{MAX_RETRIES} failed for "
+            f"{event['event_type']}: {e}"
+        )
+        return False
+
+
+async def update_retry_event(
+    redis_client: redis.Redis,  # type: ignore[type-arg]
+    event: dict[str, Any],
+    success: bool,
+) -> None:
+    """Update event after retry attempt.
+
+    Args:
+        redis_client: Redis client instance
+        event: Failed event dictionary
+        success: Whether the retry succeeded
+    """
+    try:
+        # Remove old entry
+        old_entry = json.dumps(event)
+        redis_client.zrem(FAILED_EVENTS_KEY, old_entry)
+
+        if success:
+            # Success - event is now persisted, nothing more to do
+            return
+
+        # Increment retry count
+        event["retry_count"] += 1
+
+        # Check if we've exceeded max retries
+        if event["retry_count"] >= MAX_RETRIES:
+            await move_to_dlq(redis_client, event)
+            return
+
+        # Calculate next retry time with exponential backoff
+        delay_seconds = RETRY_DELAYS[event["retry_count"] - 1]
+        next_retry = datetime.now(UTC).timestamp() + delay_seconds
+        event["next_retry_at"] = datetime.fromtimestamp(next_retry, UTC).isoformat()
+
+        # Re-add to queue with new retry time as score
+        redis_client.zadd(FAILED_EVENTS_KEY, {json.dumps(event): next_retry})
+
+        logger.info(
+            f"Scheduled retry {event['retry_count']}/{MAX_RETRIES} for "
+            f"{event['event_type']} in {delay_seconds}s"
+        )
+    except Exception as e:
+        logger.error(f"Failed to update retry event: {e}")
+
+
+async def move_to_dlq(
+    redis_client: redis.Redis,  # type: ignore[type-arg]
+    event: dict[str, Any],
+) -> None:
+    """Move permanently failed event to dead letter queue.
+
+    Args:
+        redis_client: Redis client instance
+        event: Failed event dictionary
+    """
+    try:
+        # Add to DLQ with current timestamp
+        score = datetime.now(UTC).timestamp()
+        event["moved_to_dlq_at"] = datetime.now(UTC).isoformat()
+        redis_client.zadd(FAILED_EVENTS_DLQ_KEY, {json.dumps(event): score})
+
+        logger.error(
+            f"CRITICAL: Event moved to DLQ after {MAX_RETRIES} failed retries: "
+            f"{event['event_type']} (session {event['session_id']}, seq {event['sequence']})"
+        )
+    except Exception as e:
+        logger.error(f"Failed to move event to DLQ: {e}")
+
+
+async def get_queue_depth(redis_client: redis.Redis) -> int:  # type: ignore[type-arg]
+    """Get number of events in retry queue.
+
+    Args:
+        redis_client: Redis client instance
+
+    Returns:
+        Number of events in queue
+    """
+    try:
+        return redis_client.zcard(FAILED_EVENTS_KEY)
+    except Exception as e:
+        logger.error(f"Failed to get queue depth: {e}")
+        return -1
+
+
+async def get_dlq_depth(redis_client: redis.Redis) -> int:  # type: ignore[type-arg]
+    """Get number of events in dead letter queue.
+
+    Args:
+        redis_client: Redis client instance
+
+    Returns:
+        Number of events in DLQ
+    """
+    try:
+        return redis_client.zcard(FAILED_EVENTS_DLQ_KEY)
+    except Exception as e:
+        logger.error(f"Failed to get DLQ depth: {e}")
+        return -1
+
+
+async def _persist_event_async(
+    redis_client: redis.Redis,  # type: ignore[type-arg]
+    session_id: str,
+    event_type: str,
+    sequence: int,
+    payload: dict[str, Any],
+    channel: str,
+) -> None:
+    """Persist event to PostgreSQL asynchronously (P2-005 optimization).
+
+    Runs in background to avoid blocking event publishing.
+    On failure, queues event for retry and emits error to frontend.
+
+    Args:
+        redis_client: Redis client for error event publishing
+        session_id: Session identifier
+        event_type: SSE event type
+        sequence: Event sequence number
+        payload: Full event payload including timestamp
+        channel: Redis channel for error event publishing
+    """
+    persistence_success = False
+    last_error = None
+
+    # P2-005: Track DB persistence timing
+    persist_start = time.perf_counter()
+
+    # Retry persistence without blocking (no sleep between attempts)
+    for attempt in range(3):  # 3 immediate retry attempts
+        try:
+            save_session_event(
+                session_id=session_id,
+                event_type=event_type,
+                sequence=sequence,
+                data=payload,  # Store full payload including timestamp
+            )
+            persistence_success = True
+
+            # P2-005: Track successful persistence time
+            persist_duration_ms = (time.perf_counter() - persist_start) * 1000
+            metrics.observe("event.db_persist_ms", persist_duration_ms)
+            metrics.increment("event.persisted")
+
+            if attempt > 0:
+                logger.info(
+                    f"Event persistence succeeded on attempt {attempt + 1} "
+                    f"for {event_type} (session {session_id})"
+                )
+                metrics.increment("event.persist_retry_success")
+            break
+        except Exception as db_error:
+            last_error = db_error
+            if attempt < 2:  # Log retry attempts
+                logger.warning(
+                    f"Event persistence attempt {attempt + 1}/3 failed for "
+                    f"{event_type}: {db_error}. Retrying immediately..."
+                )
+            else:
+                logger.error(
+                    f"CRITICAL: Event persistence failed after 3 attempts for "
+                    f"{event_type} (session {session_id}): {db_error}\n"
+                    f"This event will be LOST when Redis expires!"
+                )
+                metrics.increment("event.persist_failed")
+
+    # If all attempts failed, queue for retry and emit error event to frontend
+    if not persistence_success:
+        # Queue the failed event for background retry
+        try:
+            await queue_failed_event(
+                redis_client=redis_client,
+                session_id=session_id,
+                event_type=event_type,
+                sequence=sequence,
+                event_data=payload,
+                original_error=str(last_error),
+            )
+        except Exception as queue_error:
+            logger.error(f"Failed to queue failed event: {queue_error}")
+
+        # Emit error event to frontend
+        try:
+            error_payload = {
+                "event_type": "persistence_error",
+                "session_id": session_id,
+                "timestamp": payload.get("timestamp"),
+                "data": {
+                    "failed_event_type": event_type,
+                    "failed_sequence": sequence,
+                    "error": str(last_error),
+                    "message": "Event was published but failed to persist to database. Queued for retry.",
+                },
+            }
+            error_message = json.dumps(error_payload)
+            redis_client.publish(channel, error_message)
+            logger.error(f"Emitted persistence_error event for failed {event_type}")
+        except Exception as emit_error:
+            logger.error(f"Failed to emit persistence error event: {emit_error}")
 
 
 class EventPublisher:
@@ -96,6 +431,9 @@ class EventPublisher:
             "data": data,
         }
 
+        # P2-005: Track event publish timing
+        publish_start = time.perf_counter()
+
         try:
             message = json.dumps(payload)
 
@@ -107,66 +445,43 @@ class EventPublisher:
             # Publish to Redis PubSub (for real-time streaming)
             self.redis.publish(channel, message)
 
+            # P2-005: Track Redis publish latency (should be <10ms)
+            publish_duration_ms = (time.perf_counter() - publish_start) * 1000
+            metrics.observe("event.redis_publish_ms", publish_duration_ms)
+            metrics.increment("event.published")
+
             logger.debug(f"Published {event_type} to {channel} and stored in history")
 
-            # Persist to PostgreSQL (permanent storage)
-            # CRITICAL: Events MUST be persisted for meeting replay
-            # Retry with exponential backoff if persistence fails
-            persistence_success = False
-            last_error = None
-
-            # Retry persistence without blocking (no sleep between attempts)
-            # Note: Blocking sleep was removed to prevent event loop blocking.
-            # If persistence fails, we retry immediately which is acceptable
-            # since database errors are typically transient connection issues.
-            for attempt in range(3):  # 3 immediate retry attempts
+            # P2-005 Quick Win: Persist to PostgreSQL asynchronously
+            # Events are immediately available in Redis for SSE streaming.
+            # PostgreSQL persistence runs in background to avoid blocking.
+            # CRITICAL: Events MUST be persisted for meeting replay.
+            try:
+                asyncio.create_task(
+                    _persist_event_async(
+                        redis_client=self.redis,
+                        session_id=session_id,
+                        event_type=event_type,
+                        sequence=sequence,
+                        payload=payload,
+                        channel=channel,
+                    )
+                )
+            except RuntimeError:
+                # No event loop running (happens in sync tests or CLI)
+                # Fall back to synchronous persistence
                 try:
                     save_session_event(
                         session_id=session_id,
                         event_type=event_type,
                         sequence=sequence,
-                        data=payload,  # Store full payload including timestamp
+                        data=payload,
                     )
-                    persistence_success = True
-                    if attempt > 0:
-                        logger.info(
-                            f"Event persistence succeeded on attempt {attempt + 1} "
-                            f"for {event_type} (session {session_id})"
-                        )
-                    break
                 except Exception as db_error:
-                    last_error = db_error
-                    if attempt < 2:  # Log retry attempts
-                        logger.warning(
-                            f"Event persistence attempt {attempt + 1}/3 failed for "
-                            f"{event_type}: {db_error}. Retrying immediately..."
-                        )
-                    else:
-                        logger.error(
-                            f"CRITICAL: Event persistence failed after 3 attempts for "
-                            f"{event_type} (session {session_id}): {db_error}\n"
-                            f"This event will be LOST when Redis expires!"
-                        )
-
-            # If all attempts failed, emit error event to frontend
-            if not persistence_success:
-                try:
-                    error_payload = {
-                        "event_type": "persistence_error",
-                        "session_id": session_id,
-                        "timestamp": payload.get("timestamp"),
-                        "data": {
-                            "failed_event_type": event_type,
-                            "failed_sequence": sequence,
-                            "error": str(last_error),
-                            "message": "Event was published but failed to persist to database",
-                        },
-                    }
-                    error_message = json.dumps(error_payload)
-                    self.redis.publish(channel, error_message)
-                    logger.error(f"Emitted persistence_error event for failed {event_type}")
-                except Exception as emit_error:
-                    logger.error(f"Failed to emit persistence error event: {emit_error}")
+                    logger.error(
+                        f"CRITICAL: Sync fallback persistence failed for "
+                        f"{event_type} (session {session_id}): {db_error}"
+                    )
 
         except Exception as e:
             logger.error(f"Failed to publish {event_type} to {channel}: {e}")

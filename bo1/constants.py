@@ -195,8 +195,8 @@ class LLMConfig:
     MAX_RETRIES = 3
     """Maximum retry attempts for LLM calls"""
 
-    RETRY_BASE_DELAY = 1.0
-    """Base delay in seconds"""
+    RETRY_BASE_DELAY = 0.2
+    """Base delay in seconds (P2-005: reduced from 1.0s for faster error recovery)"""
 
     RETRY_MAX_DELAY = 60.0
     """Maximum delay in seconds"""

@@ -3,16 +3,23 @@
 	 * Sample Decision Modal - Shows example decision output.
 	 */
 	import Button from '$lib/components/ui/Button.svelte';
+	import type { SampleDecision } from '$lib/data/samples';
 
 	interface Props {
 		show: boolean;
+		sample: SampleDecision;
 		onClose: () => void;
+		onPrevious?: () => void;
+		onNext?: () => void;
+		showNavigation?: boolean;
 	}
 
-	let { show, onClose }: Props = $props();
+	let { show, sample, onClose, onPrevious, onNext, showNavigation = false }: Props = $props();
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onClose();
+		if (e.key === 'ArrowLeft' && onPrevious) onPrevious();
+		if (e.key === 'ArrowRight' && onNext) onNext();
 	}
 
 	function handleBackdropClick() {
@@ -41,9 +48,16 @@
 			tabindex="-1"
 		>
 			<div class="flex justify-between items-start mb-6">
-				<h3 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-					Sample Decision Output
-				</h3>
+				<div class="flex-1">
+					<div
+						class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 mb-3"
+					>
+						{sample.category}
+					</div>
+					<h3 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+						Sample Decision Output
+					</h3>
+				</div>
 				<button
 					onclick={onClose}
 					class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 text-2xl leading-none"
@@ -51,26 +65,72 @@
 					×
 				</button>
 			</div>
+
+			<!-- Navigation arrows -->
+			{#if showNavigation && (onPrevious || onNext)}
+				<div class="flex justify-between items-center mb-6 -mt-2">
+					<button
+						onclick={onPrevious}
+						disabled={!onPrevious}
+						class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<path d="M15 18l-6-6 6-6" />
+						</svg>
+						Previous
+					</button>
+					<button
+						onclick={onNext}
+						disabled={!onNext}
+						class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+					>
+						Next
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<path d="M9 18l6-6-6-6" />
+						</svg>
+					</button>
+				</div>
+			{/if}
+
 			<div class="space-y-6 text-left">
 				<div>
 					<h4 class="font-semibold text-brand-600 dark:text-brand-400 mb-2">Question:</h4>
 					<p class="text-neutral-700 dark:text-neutral-300">
-						"Should I invest $50K in paid ads or hire a content marketer?"
+						"{sample.question}"
 					</p>
 				</div>
 				<div>
 					<h4 class="font-semibold text-brand-600 dark:text-brand-400 mb-2">Recommendation:</h4>
 					<p class="text-neutral-700 dark:text-neutral-300">
-						<span class="font-semibold">Hire a content marketer first</span> — then allocate 30% of
-						the remaining budget ($15K) to amplify their best content with paid ads.
+						{sample.recommendation}
 					</p>
 				</div>
 				<div>
 					<h4 class="font-semibold text-brand-600 dark:text-brand-400 mb-2">Why This Works:</h4>
 					<ul class="list-disc list-inside space-y-2 text-neutral-700 dark:text-neutral-300">
-						<li>Content compounds over time; ads stop when budget runs out</li>
-						<li>Reduces dependency on paid acquisition long-term</li>
-						<li>Creates owned audience assets (email list, SEO authority)</li>
+						{#each sample.keyPoints as point}
+							<li>{point}</li>
+						{/each}
 					</ul>
 				</div>
 				<div>
@@ -78,16 +138,17 @@
 						Blind Spots Identified:
 					</h4>
 					<ul class="list-disc list-inside space-y-2 text-neutral-700 dark:text-neutral-300">
-						<li>You may underestimate content production time (3-6 month lag)</li>
-						<li>Need clear KPIs for content marketer performance</li>
+						{#each sample.blindSpots as blindSpot}
+							<li>{blindSpot}</li>
+						{/each}
 					</ul>
 				</div>
 				<div>
 					<h4 class="font-semibold text-brand-600 dark:text-brand-400 mb-2">Next Steps:</h4>
 					<ol class="list-decimal list-inside space-y-2 text-neutral-700 dark:text-neutral-300">
-						<li>Define content goals: SEO, thought leadership, or conversion?</li>
-						<li>Write job description with clear 90-day success metrics</li>
-						<li>Budget $15K for ad testing in Q2 once content is live</li>
+						{#each sample.nextSteps as step}
+							<li>{step}</li>
+						{/each}
 					</ol>
 				</div>
 			</div>

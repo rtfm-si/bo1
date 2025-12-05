@@ -26,6 +26,8 @@
 		SubProblemTabs,
 		EventStream,
 		ClarificationForm,
+		ExpertSummariesPanel,
+		ResearchPanel,
 	} from '$lib/components/meeting';
 
 	// Import utilities
@@ -678,11 +680,28 @@
 										{/each}
 
 										{#if eventState.subProblemCompleteEvents[tabIndex]?.data?.synthesis}
-											<div class="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
+											<div class="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6 space-y-6">
 												<DynamicEventComponent
 													event={eventState.subProblemCompleteEvents[tabIndex]}
 													eventType="subproblem_complete"
 												/>
+
+												<!-- P2-004: Expert Summaries Panel -->
+												{#if session?.expert_summaries_by_subproblem?.[tabIndex] && eventState.personasBySubProblem[tabIndex]}
+													<ExpertSummariesPanel
+														expertSummaries={session.expert_summaries_by_subproblem[tabIndex]}
+														personas={eventState.personasBySubProblem[tabIndex]}
+														subProblemGoal={tab.goal}
+													/>
+												{/if}
+
+												<!-- P2-006: Research Panel -->
+												{#if session?.research_results_by_subproblem?.[tabIndex]}
+													<ResearchPanel
+														researchResults={session.research_results_by_subproblem[tabIndex]}
+														subProblemGoal={tab.goal}
+													/>
+												{/if}
 											</div>
 										{/if}
 
@@ -752,10 +771,23 @@
 												eventType="synthesis_complete"
 											/>
 										{:else if eventState.synthesisCompleteEvent}
-											<DynamicEventComponent
-												event={eventState.synthesisCompleteEvent}
-												eventType="synthesis_complete"
-											/>
+											<div class="space-y-6">
+												<DynamicEventComponent
+													event={eventState.synthesisCompleteEvent}
+													eventType="synthesis_complete"
+												/>
+
+												<!-- P2-004: Expert Summaries Panel for single sub-problem -->
+												{#if eventState.synthesisCompleteEvent}
+													{@const subProblemIndex = (eventState.synthesisCompleteEvent.data.sub_problem_index as number | undefined) ?? 0}
+													{#if session?.expert_summaries_by_subproblem?.[subProblemIndex] && eventState.personasBySubProblem[subProblemIndex]}
+														<ExpertSummariesPanel
+															expertSummaries={session.expert_summaries_by_subproblem[subProblemIndex]}
+															personas={eventState.personasBySubProblem[subProblemIndex]}
+														/>
+													{/if}
+												{/if}
+											</div>
 										{:else if eventState.subProblemCompleteEvents.length > 0 && eventState.subProblemCompleteEvents.some((e) => e.data.synthesis)}
 											<div class="space-y-6">
 												<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">

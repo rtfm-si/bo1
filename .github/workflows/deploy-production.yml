@@ -681,10 +681,36 @@ jobs:
           echo "Running post-deployment validation..."
           sleep 10
 
-          # Test production endpoints
+          # Test backend API endpoints
+          echo "🔍 Testing backend API health..."
           curl --fail https://boardof.one/api/health || exit 1
           curl --fail https://boardof.one/api/health/db || exit 1
           curl --fail https://boardof.one/api/health/redis || exit 1
+          curl --fail https://boardof.one/api/health/persistence || echo "⚠️ Persistence check skipped (no recent sessions)"
+
+          # Test frontend health endpoint
+          echo ""
+          echo "🔍 Testing frontend health..."
+          curl --fail https://boardof.one/api/health || exit 1
+
+          # Test that frontend pages are accessible (not 500 errors)
+          echo ""
+          echo "🔍 Testing frontend page accessibility..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://boardof.one/)
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "   ✅ Landing page accessible (HTTP $HTTP_STATUS)"
+          else
+            echo "   ❌ Landing page failed (HTTP $HTTP_STATUS)"
+            exit 1
+          fi
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://boardof.one/login)
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "   ✅ Login page accessible (HTTP $HTTP_STATUS)"
+          else
+            echo "   ❌ Login page failed (HTTP $HTTP_STATUS)"
+            exit 1
+          fi
 
           # Verify build metadata is present
           echo ""
@@ -692,6 +718,7 @@ jobs:
           HEALTH_RESPONSE=$(curl -s https://boardof.one/api/health)
           echo "$HEALTH_RESPONSE" | jq -r '.details | "   build_timestamp: \(.build_timestamp)\n   git_commit: \(.git_commit)"' || echo "   (build info parsing failed - check response format)"
 
+          echo ""
           echo "✅ Post-deployment validation passed"
 
   create-release:

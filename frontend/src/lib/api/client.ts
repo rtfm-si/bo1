@@ -602,6 +602,10 @@ export class ApiClient {
 		return this.fetch<ActionDetailResponse>(`/api/v1/actions/${actionId}`);
 	}
 
+	async deleteAction(actionId: string): Promise<{ message: string; action_id: string }> {
+		return this.delete<{ message: string; action_id: string }>(`/api/v1/actions/${actionId}`);
+	}
+
 	async getGlobalGantt(params?: {
 		status_filter?: ActionStatus;
 		project_id?: string;

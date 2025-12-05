@@ -87,6 +87,35 @@
 			error = err instanceof Error ? err.message : 'Failed to update status';
 		}
 	}
+
+	async function handleDelete(taskId: string) {
+		if (!actionsData) return;
+
+		// Optimistic update - remove from list
+		const oldTasks = [...actionsData.tasks];
+		const oldByStatus = { ...actionsData.by_status };
+		const taskToDelete = actionsData.tasks.find((t) => t.id === taskId);
+
+		if (taskToDelete) {
+			actionsData = {
+				...actionsData,
+				tasks: actionsData.tasks.filter((t) => t.id !== taskId),
+				total_tasks: actionsData.total_tasks - 1,
+				by_status: {
+					...actionsData.by_status,
+					[taskToDelete.status]: (actionsData.by_status[taskToDelete.status] || 1) - 1
+				}
+			};
+		}
+
+		try {
+			await apiClient.deleteAction(taskId);
+		} catch (err) {
+			// Revert on error
+			actionsData = { ...actionsData, tasks: oldTasks, total_tasks: oldTasks.length, by_status: oldByStatus };
+			error = err instanceof Error ? err.message : 'Failed to delete action';
+		}
+	}
 </script>
 
 <div class="actions-panel">
@@ -141,7 +170,7 @@
 					<span class="status-badge done">{actionsData.by_status.done || 0} done</span>
 				</div>
 			</div>
-			<KanbanBoard tasks={tasks} onStatusChange={handleStatusChange} loading={extracting} />
+			<KanbanBoard tasks={tasks} onStatusChange={handleStatusChange} onDelete={handleDelete} loading={extracting} />
 		</div>
 	{/if}
 </div>

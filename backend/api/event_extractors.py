@@ -271,6 +271,29 @@ def extract_subproblem_result(result: Any) -> dict[str, Any]:
     }
 
 
+def extract_research_results(output: dict[str, Any]) -> dict[str, Any]:
+    """Extract research results event data (P2-006).
+
+    Research results contain:
+    - query: research question
+    - summary: AI-generated summary
+    - sources: list of source URLs
+    - cached: whether result came from cache
+    - round: which round research was done
+    - depth: 'basic' or 'deep'
+    - proactive: whether it was proactively triggered (optional)
+    """
+    research_results = output.get("research_results", [])
+    sub_problem_index = output.get("sub_problem_index", 0)
+    round_number = output.get("round_number", 0)
+
+    return {
+        "research_results": research_results,
+        "sub_problem_index": sub_problem_index,
+        "round_number": round_number,
+    }
+
+
 # ==============================================================================
 # Extractor Configurations - Declarative definitions for each event type
 # ==============================================================================
@@ -564,6 +587,16 @@ SUBPROBLEM_STARTED_EXTRACTORS: list[FieldExtractor] = [
 ]
 
 
+# P2-006: Research results extractors
+RESEARCH_RESULTS_EXTRACTORS: list[FieldExtractor] = [
+    {
+        "source_field": "__root__",
+        "target_field": "__root__",
+        "transform": extract_research_results,
+    }
+]
+
+
 def _create_subproblem_complete_extractors() -> list[FieldExtractor]:
     """Create sub-problem complete extractors."""
 
@@ -804,6 +837,8 @@ def get_event_registry() -> EventExtractorRegistry:
     registry.register("subproblem_started", SUBPROBLEM_STARTED_EXTRACTORS)
     registry.register("subproblem_complete", _create_subproblem_complete_extractors)
     registry.register("completion", _create_completion_extractors)
+    # P2-006: Research results
+    registry.register("research_results", RESEARCH_RESULTS_EXTRACTORS)
 
     # Parallel architecture events (Day 38+)
     registry.register(

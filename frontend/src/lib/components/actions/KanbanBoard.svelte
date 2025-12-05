@@ -1,54 +1,133 @@
 <script lang="ts">
 	/**
 	 * KanbanBoard - Three-column Kanban board for task management
+	 * Features drag-and-drop between columns using svelte-dnd-action
 	 */
-	import type { TaskWithStatus } from '$lib/api/types';
+	import type { TaskWithStatus, ActionStatus } from '$lib/api/types';
 	import TaskCard from './TaskCard.svelte';
-
-	import type { ActionStatus } from '$lib/api/types';
+	import { dndzone, type DndEvent } from 'svelte-dnd-action';
+	import { flip } from 'svelte/animate';
 
 	interface Props {
 		tasks: TaskWithStatus[];
 		onStatusChange: (taskId: string, newStatus: ActionStatus) => void;
+		onDelete?: (taskId: string) => void;
 		loading?: boolean;
 	}
 
-	let { tasks, onStatusChange, loading = false }: Props = $props();
+	let { tasks, onStatusChange, onDelete, loading = false }: Props = $props();
 
-	// Helper function to filter tasks by status (called reactively in template)
-	function getTasksByStatus(status: ActionStatus) {
-		return tasks.filter((t) => t.status === status);
-	}
+	// Track tasks by column for drag-and-drop
+	// We need mutable state for dndzone to work
+	let todoTasks = $state<TaskWithStatus[]>([]);
+	let inProgressTasks = $state<TaskWithStatus[]>([]);
+	let doneTasks = $state<TaskWithStatus[]>([]);
 
+	// Sync from props when tasks change
+	$effect(() => {
+		todoTasks = tasks.filter((t) => t.status === 'todo');
+		inProgressTasks = tasks.filter((t) => t.status === 'in_progress');
+		doneTasks = tasks.filter((t) => t.status === 'done');
+	});
+
+	// Animation duration for flip
+	const flipDurationMs = 200;
+
+	// Column configuration
 	const columns: { id: ActionStatus; title: string; color: string }[] = [
 		{ id: 'todo', title: 'To Do', color: 'var(--color-muted)' },
 		{ id: 'in_progress', title: 'In Progress', color: 'var(--color-warning)' },
 		{ id: 'done', title: 'Done', color: 'var(--color-success)' }
 	];
+
+	// Get tasks array for a specific column
+	function getColumnTasks(status: ActionStatus): TaskWithStatus[] {
+		switch (status) {
+			case 'todo':
+				return todoTasks;
+			case 'in_progress':
+				return inProgressTasks;
+			case 'done':
+				return doneTasks;
+			default:
+				return [];
+		}
+	}
+
+	// Handle drag consider (while dragging)
+	function handleDndConsider(status: ActionStatus, e: CustomEvent<DndEvent<TaskWithStatus>>) {
+		switch (status) {
+			case 'todo':
+				todoTasks = e.detail.items;
+				break;
+			case 'in_progress':
+				inProgressTasks = e.detail.items;
+				break;
+			case 'done':
+				doneTasks = e.detail.items;
+				break;
+		}
+	}
+
+	// Handle drag finalize (drop completed)
+	function handleDndFinalize(status: ActionStatus, e: CustomEvent<DndEvent<TaskWithStatus>>) {
+		const items = e.detail.items;
+
+		// Update the column state
+		switch (status) {
+			case 'todo':
+				todoTasks = items;
+				break;
+			case 'in_progress':
+				inProgressTasks = items;
+				break;
+			case 'done':
+				doneTasks = items;
+				break;
+		}
+
+		// Find items that changed status and trigger onStatusChange
+		for (const item of items) {
+			if (item.status !== status) {
+				onStatusChange(item.id, status);
+			}
+		}
+	}
 </script>
 
 <div class="kanban-board" class:loading>
 	{#each columns as column (column.id)}
-		{@const columnTasks = getTasksByStatus(column.id)}
+		{@const columnTasks = getColumnTasks(column.id)}
 		<div class="kanban-column">
 			<div class="column-header" style="--column-color: {column.color}">
 				<span class="column-title">{column.title}</span>
 				<span class="column-count">{columnTasks.length}</span>
 			</div>
-			<div class="column-content">
+			<div
+				class="column-content"
+				use:dndzone={{
+					items: columnTasks,
+					flipDurationMs,
+					dropTargetStyle: { outline: '2px dashed var(--color-brand)', outlineOffset: '-2px' }
+				}}
+				onconsider={(e) => handleDndConsider(column.id, e)}
+				onfinalize={(e) => handleDndFinalize(column.id, e)}
+			>
 				{#if columnTasks.length === 0}
 					<div class="empty-state">
 						{#if column.id === 'todo'}
-							No pending tasks
+							Drop tasks here
 						{:else if column.id === 'in_progress'}
-							No tasks in progress
+							Drop tasks here
 						{:else}
-							No completed tasks
+							Drop completed tasks here
 						{/if}
 					</div>
 				{:else}
 					{#each columnTasks as task (task.id)}
-						<TaskCard {task} {onStatusChange} />
+						<div animate:flip={{ duration: flipDurationMs }} class="task-wrapper">
+							<TaskCard {task} {onStatusChange} {onDelete} />
+						</div>
 					{/each}
 				{/if}
 			</div>
@@ -120,5 +199,28 @@
 		padding: 24px;
 		color: var(--color-muted);
 		font-size: 0.85rem;
+		min-height: 60px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 2px dashed var(--color-border);
+		border-radius: 8px;
+		margin: 4px;
+	}
+
+	.task-wrapper {
+		margin-bottom: 8px;
+		cursor: grab;
+	}
+
+	.task-wrapper:active {
+		cursor: grabbing;
+	}
+
+	/* Styles for dragged items (provided by svelte-dnd-action) */
+	:global(.kanban-column .column-content [data-is-dnd-shadow-item]) {
+		opacity: 0.4;
+		border: 2px dashed var(--color-brand);
+		border-radius: 8px;
 	}
 </style>

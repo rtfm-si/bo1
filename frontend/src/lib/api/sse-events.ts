@@ -332,6 +332,48 @@ export interface SubProblemCompleteEvent extends SSEEvent {
 }
 
 // ============================================================================
+// Event 19a: Expert Summaries (P2-004)
+// ============================================================================
+
+export interface ExpertSummariesEvent extends SSEEvent {
+	event_type: 'expert_summaries';
+	data: {
+		expert_summaries: Record<string, string>; // persona_code → summary text
+		sub_problem_index: number;
+		sub_problem_goal: string;
+	};
+}
+
+// ============================================================================
+// Event 19b: Research Results (P2-006)
+// ============================================================================
+
+export interface ResearchSource {
+	url: string;
+	title?: string;
+}
+
+export interface ResearchResult {
+	query: string;
+	summary: string;
+	sources: ResearchSource[];
+	cached: boolean;
+	cost?: number;
+	round: number;
+	depth: 'basic' | 'deep';
+	proactive?: boolean;
+}
+
+export interface ResearchResultsEvent extends SSEEvent {
+	event_type: 'research_results';
+	data: {
+		research_results: ResearchResult[];
+		sub_problem_index: number;
+		round_number: number;
+	};
+}
+
+// ============================================================================
 // Event 20: Meta-Synthesis Started
 // ============================================================================
 
@@ -458,6 +500,8 @@ export type DeliberationEvent =
 	| SynthesisStartedEvent
 	| SynthesisCompleteEvent
 	| SubProblemCompleteEvent
+	| ExpertSummariesEvent
+	| ResearchResultsEvent
 	| MetaSynthesisStartedEvent
 	| MetaSynthesisCompleteEvent
 	| PhaseCostBreakdownEvent
@@ -532,4 +576,12 @@ export function isErrorEvent(event: SSEEvent): event is ErrorEvent {
 
 export function isMeetingFailedEvent(event: SSEEvent): event is MeetingFailedEvent {
 	return event.event_type === 'meeting_failed';
+}
+
+export function isExpertSummariesEvent(event: SSEEvent): event is ExpertSummariesEvent {
+	return event.event_type === 'expert_summaries';
+}
+
+export function isResearchResultsEvent(event: SSEEvent): event is ResearchResultsEvent {
+	return event.event_type === 'research_results';
 }

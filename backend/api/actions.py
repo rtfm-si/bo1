@@ -151,7 +151,8 @@ async def get_all_actions(
         AllActionsResponse with all actions grouped by session
     """
     user_id = user_data.get("user_id")
-    logger.info(f"Fetching all actions for user {user_id}")
+    is_admin = user_data.get("is_admin", False)
+    logger.info(f"Fetching all actions for user {user_id} (admin={is_admin})")
 
     # Parse tag_ids from comma-separated string
     tag_id_list: list[str] | None = None
@@ -159,6 +160,7 @@ async def get_all_actions(
         tag_id_list = [t.strip() for t in tag_ids.split(",") if t.strip()]
 
     # Get all actions from actions table
+    # P1-007: Non-admin users only see actions from completed meetings
     actions = action_repository.get_by_user(
         user_id=user_id,
         status_filter=status_filter,
@@ -167,6 +169,7 @@ async def get_all_actions(
         tag_ids=tag_id_list,
         limit=limit,
         offset=offset,
+        is_admin=is_admin,
     )
 
     # Group actions by session
@@ -280,7 +283,8 @@ async def get_global_gantt(
     from datetime import date, timedelta
 
     user_id = user_data.get("user_id")
-    logger.info(f"Fetching global Gantt data for user {user_id}")
+    is_admin = user_data.get("is_admin", False)
+    logger.info(f"Fetching global Gantt data for user {user_id} (admin={is_admin})")
 
     # Parse tag_ids
     tag_id_list: list[str] | None = None
@@ -288,6 +292,7 @@ async def get_global_gantt(
         tag_id_list = [t.strip() for t in tag_ids.split(",") if t.strip()]
 
     # Get all actions
+    # P1-007: Non-admin users only see actions from completed meetings
     actions = action_repository.get_by_user(
         user_id=user_id,
         status_filter=status_filter,
@@ -296,6 +301,7 @@ async def get_global_gantt(
         tag_ids=tag_id_list,
         limit=500,
         offset=0,
+        is_admin=is_admin,
     )
 
     # Format for Gantt chart
@@ -404,7 +410,8 @@ async def get_action_detail(
         ActionDetailResponse with full action details
     """
     user_id = user_data.get("user_id")
-    logger.info(f"Fetching action {action_id} for user {user_id}")
+    is_admin = user_data.get("is_admin", False)
+    logger.info(f"Fetching action {action_id} for user {user_id} (admin={is_admin})")
 
     # Get action from actions table
     action = action_repository.get(action_id)
@@ -415,10 +422,14 @@ async def get_action_detail(
     if action.get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="Action not found")
 
-    # Get session for problem_statement
+    # Get session for problem_statement and status check
     session_id = action.get("source_session_id", "")
     session = session_repository.get(session_id)
     problem_statement = session.get("problem_statement", "") if session else ""
+
+    # P1-007: Non-admin users only see actions from completed meetings
+    if session and not is_admin and session.get("status") != "completed":
+        raise HTTPException(status_code=404, detail="Action not found")
 
     # Format dates as ISO strings
     def to_iso(dt: datetime | None) -> str | None:
@@ -623,6 +634,57 @@ async def update_action_status(
         "action_id": action_id,
         "status": status_update.status,
         "unblocked_actions": unblocked_ids,
+    }
+
+
+# =============================================================================
+# Delete Endpoint
+# =============================================================================
+
+
+@router.delete(
+    "/{action_id}",
+    summary="Delete action (soft delete)",
+    description="Soft delete an action. Admin users can restore deleted actions.",
+    responses={
+        200: {"description": "Action deleted successfully"},
+        404: {"description": "Action not found"},
+    },
+)
+@handle_api_errors("delete action")
+async def delete_action(
+    action_id: str,
+    user_data: dict = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Soft delete an action.
+
+    Args:
+        action_id: Action UUID
+        user_data: Current user from auth
+
+    Returns:
+        Success message
+    """
+    user_id = user_data.get("user_id")
+    logger.info(f"Soft deleting action {action_id} for user {user_id}")
+
+    # Get action and verify ownership
+    action = action_repository.get(action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+    if action.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    # Soft delete
+    success = action_repository.delete(action_id)
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to delete action")
+
+    logger.info(f"Successfully soft-deleted action {action_id}")
+
+    return {
+        "message": "Action deleted successfully",
+        "action_id": action_id,
     }
 
 

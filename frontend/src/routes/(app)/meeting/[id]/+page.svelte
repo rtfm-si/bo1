@@ -458,8 +458,8 @@
 				>
 					<div class="border-b border-slate-200 dark:border-slate-700">
 						<!-- Header Row -->
-						<div class="p-4 flex items-center justify-between">
-							<div class="flex items-center gap-3">
+						<div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
+							<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
 								<h2 class="text-lg font-semibold text-slate-900 dark:text-white">
 									{#if memoized.subProblemTabs.length > 1}
 										Focus Area Analysis
@@ -660,7 +660,7 @@
 													<div class="flex items-start gap-3">
 														{#if event.event_type === 'synthesis_complete' || event.event_type === 'subproblem_complete' || event.event_type === 'meta_synthesis_complete' || event.event_type === 'complete'}
 															<CheckCircle size={20} class="text-semantic-success" />
-														{:else if event.event_type === 'error'}
+														{:else if event.event_type === 'error' || event.event_type === 'meeting_failed'}
 															<AlertCircle size={20} class="text-semantic-error" />
 														{/if}
 														<div class="flex-1 min-w-0">

@@ -665,6 +665,20 @@ async def delete_session(
                 logger.warning(f"Failed to update PostgreSQL status for {session_id}: {pg_err}")
                 # Continue - Redis is the source of truth for active sessions
 
+            # P1-006: Cascade soft delete to actions
+            try:
+                from bo1.state.repositories.action_repository import ActionRepository
+
+                action_repo = ActionRepository()
+                deleted_actions = action_repo.soft_delete_by_session(session_id)
+                if deleted_actions > 0:
+                    logger.info(
+                        f"Cascade soft-deleted {deleted_actions} actions for session {session_id}"
+                    )
+            except Exception as cascade_err:
+                logger.warning(f"Failed to cascade delete actions for {session_id}: {cascade_err}")
+                # Continue - session delete should still succeed
+
             logger.info(f"Soft deleted session: {session_id} for user: {user_id}")
 
             # Return session response

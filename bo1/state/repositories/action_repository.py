@@ -161,6 +161,7 @@ class ActionRepository(BaseRepository):
         tag_ids: list[str] | None = None,
         limit: int = 100,
         offset: int = 0,
+        is_admin: bool = False,
     ) -> list[dict[str, Any]]:
         """Get all actions for a user with optional filtering.
 
@@ -172,6 +173,7 @@ class ActionRepository(BaseRepository):
             tag_ids: Filter by tags - actions must have ALL specified tags (optional)
             limit: Maximum actions to return (default: 100)
             offset: Number of actions to skip
+            is_admin: If True, show actions from all sessions; otherwise only completed
 
         Returns:
             List of action records
@@ -189,9 +191,18 @@ class ActionRepository(BaseRepository):
                    a.confidence, a.source_section, a.sub_problem_index,
                    a.sort_order, a.created_at, a.updated_at
             FROM actions a
+            LEFT JOIN sessions s ON a.source_session_id = s.id
             WHERE a.user_id = %s
         """
         params: list[Any] = [user_id]
+
+        # P1-007: Only show actions from completed meetings for non-admin users
+        if not is_admin:
+            query += " AND (s.status = 'completed' OR s.id IS NULL)"
+
+        # P1-005: Exclude soft-deleted actions for non-admin users
+        if not is_admin:
+            query += " AND a.deleted_at IS NULL"
 
         if status_filter:
             query += " AND a.status = %s"
@@ -508,7 +519,41 @@ class ActionRepository(BaseRepository):
         return success
 
     def delete(self, action_id: str | UUID) -> bool:
-        """Delete an action.
+        """Soft delete an action by setting deleted_at timestamp.
+
+        Args:
+            action_id: Action UUID
+
+        Returns:
+            True if soft deleted successfully
+        """
+        return (
+            self._execute_count(
+                "UPDATE actions SET deleted_at = NOW() WHERE id = %s AND deleted_at IS NULL",
+                (str(action_id),),
+            )
+            > 0
+        )
+
+    def restore(self, action_id: str | UUID) -> bool:
+        """Restore a soft-deleted action.
+
+        Args:
+            action_id: Action UUID
+
+        Returns:
+            True if restored successfully
+        """
+        return (
+            self._execute_count(
+                "UPDATE actions SET deleted_at = NULL WHERE id = %s AND deleted_at IS NOT NULL",
+                (str(action_id),),
+            )
+            > 0
+        )
+
+    def hard_delete(self, action_id: str | UUID) -> bool:
+        """Permanently delete an action (admin only).
 
         Args:
             action_id: Action UUID
@@ -522,6 +567,38 @@ class ActionRepository(BaseRepository):
                 (str(action_id),),
             )
             > 0
+        )
+
+    def soft_delete_by_session(self, session_id: str) -> int:
+        """Soft delete all actions for a session (P1-006 cascade).
+
+        Called when a meeting/session is soft-deleted.
+
+        Args:
+            session_id: Session UUID
+
+        Returns:
+            Number of actions soft-deleted
+        """
+        return self._execute_count(
+            "UPDATE actions SET deleted_at = NOW() WHERE source_session_id = %s AND deleted_at IS NULL",
+            (session_id,),
+        )
+
+    def restore_by_session(self, session_id: str) -> int:
+        """Restore all soft-deleted actions for a session.
+
+        Called when a meeting/session is restored (un-deleted).
+
+        Args:
+            session_id: Session UUID
+
+        Returns:
+            Number of actions restored
+        """
+        return self._execute_count(
+            "UPDATE actions SET deleted_at = NULL WHERE source_session_id = %s AND deleted_at IS NOT NULL",
+            (session_id,),
         )
 
     # =========================================================================

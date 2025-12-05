@@ -446,6 +446,14 @@ class EventCollector:
         # Update phase in database for dashboard display
         update_session_phase(session_id, "decomposition")
 
+        # P1-004 FIX: Emit working status at START of decomposition
+        self._emit_working_status(
+            session_id,
+            phase="Breaking down your decision into key areas...",
+            estimated_duration="5-10 seconds",
+            sub_problem_index=output.get("sub_problem_index", 0),
+        )
+
         # ISSUE FIX: Add status message for problem analysis phase
         self._emit_quality_status(
             session_id,
@@ -521,6 +529,14 @@ class EventCollector:
         persona_recommendations = output.get("persona_recommendations", [])
         sub_problem_index = output.get("sub_problem_index", 0)
 
+        # P1-004 FIX: Emit working status at START of persona selection
+        self._emit_working_status(
+            session_id,
+            phase="Assembling the right experts for your question...",
+            estimated_duration="3-5 seconds",
+            sub_problem_index=sub_problem_index,
+        )
+
         # ISSUE FIX: Add status message for expert selection phase
         self._emit_quality_status(
             session_id,
@@ -585,6 +601,15 @@ class EventCollector:
         # Get personas for archetype/domain_expertise lookup
         personas = output.get("personas", [])
 
+        # P1-004 FIX (MAJOR GAP): Emit working status at START of initial round
+        # This is the longest phase (15-30s) and was previously missing status updates
+        self._emit_working_status(
+            session_id,
+            phase="Experts are sharing their initial perspectives...",
+            estimated_duration="15-30 seconds",
+            sub_problem_index=sub_problem_index,
+        )
+
         # ISSUE FIX: Emit initial discussion quality status at START of round 1
         # This provides early UX feedback that quality tracking has begun
         self._emit_quality_status(
@@ -608,6 +633,13 @@ class EventCollector:
 
     async def _handle_facilitator_decision(self, session_id: str, output: dict) -> None:
         """Handle facilitator_decide node completion."""
+        # P1-004 FIX: Emit working status for facilitator decision
+        self._emit_working_status(
+            session_id,
+            phase="Guiding the discussion deeper...",
+            estimated_duration="2-4 seconds",
+            sub_problem_index=output.get("sub_problem_index", 0),
+        )
         await self._publish_node_event(session_id, output, "facilitator_decision")
 
     async def _handle_parallel_round(self, session_id: str, output: dict) -> None:
@@ -641,7 +673,7 @@ class EventCollector:
         # AUDIT FIX (Issue #4): Emit working status BEFORE round starts
         self._emit_working_status(
             session_id,
-            phase=f"Round {completed_round}: Experts deliberating...",
+            phase=f"Experts are discussing (round {completed_round})...",
             estimated_duration="8-12 seconds",
             sub_problem_index=sub_problem_index,
         )
@@ -675,10 +707,24 @@ class EventCollector:
 
     async def _handle_moderator(self, session_id: str, output: dict) -> None:
         """Handle moderator_intervene node completion."""
+        # P1-004 FIX: Emit working status for moderator intervention
+        self._emit_working_status(
+            session_id,
+            phase="Ensuring balanced perspectives...",
+            estimated_duration="2-4 seconds",
+            sub_problem_index=output.get("sub_problem_index", 0),
+        )
         await self._publish_node_event(session_id, output, "moderator_intervention")
 
     async def _handle_convergence(self, session_id: str, output: dict) -> None:
         """Handle check_convergence node completion."""
+        # P1-004 FIX: Emit working status for convergence check
+        self._emit_working_status(
+            session_id,
+            phase="Checking for emerging agreement...",
+            estimated_duration="2-3 seconds",
+            sub_problem_index=output.get("sub_problem_index", 0),
+        )
         logger.info(
             f"[CONVERGENCE DEBUG] Handler called for session {session_id} | "
             f"round={output.get('round_number')} | "
@@ -695,7 +741,7 @@ class EventCollector:
         # AUDIT FIX (Issue #4): Emit working status BEFORE voting starts
         self._emit_working_status(
             session_id,
-            phase="Experts finalizing recommendations...",
+            phase="Experts are finalizing their recommendations...",
             estimated_duration="10-15 seconds",
             sub_problem_index=output.get("sub_problem_index", 0),
         )
@@ -709,7 +755,7 @@ class EventCollector:
         # AUDIT FIX (Issue #4): Emit working status BEFORE synthesis starts
         self._emit_working_status(
             session_id,
-            phase="Synthesizing insights from deliberation...",
+            phase="Bringing together the key insights...",
             estimated_duration="5-8 seconds",
             sub_problem_index=output.get("sub_problem_index", 0),
         )
@@ -744,7 +790,7 @@ class EventCollector:
         # AUDIT FIX (Issue #4): Emit working status BEFORE meta-synthesis starts
         self._emit_working_status(
             session_id,
-            phase="Synthesizing final recommendation...",
+            phase="Crafting your final recommendation...",
             estimated_duration="8-12 seconds",
         )
         # Publish event

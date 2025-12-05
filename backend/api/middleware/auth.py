@@ -115,14 +115,20 @@ async def get_current_user(
 
         logger.info(f"Authenticated user via SuperTokens: {user_id}")
 
-        # TODO: Fetch additional user data from database (email, role, subscription_tier, is_admin)
-        # For now, return minimal user data
+        # Fetch user data from database including is_admin flag
+        from bo1.state.postgres_manager import get_user
+
+        user_data = get_user(user_id)
+
+        # Use database values if available, otherwise defaults
         return {
             "user_id": user_id,
-            "email": None,  # Not available in SuperTokens session by default
+            "email": user_data.get("email") if user_data else None,
             "role": "authenticated",
-            "subscription_tier": "free",
-            "is_admin": False,
+            "subscription_tier": user_data.get("subscription_tier", "free")
+            if user_data
+            else "free",
+            "is_admin": user_data.get("is_admin", False) if user_data else False,
             "session_handle": session_handle,
         }
 

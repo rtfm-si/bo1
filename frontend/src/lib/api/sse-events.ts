@@ -403,6 +403,22 @@ export interface ErrorEvent extends SSEEvent {
 }
 
 // ============================================================================
+// Event 24a: Meeting Failed (sub-problem validation failure)
+// ============================================================================
+
+export interface MeetingFailedEvent extends SSEEvent {
+	event_type: 'meeting_failed';
+	data: {
+		reason: string;
+		failed_count: number;
+		failed_ids: string[];
+		failed_goals: string[];
+		completed_count: number;
+		total_count: number;
+	};
+}
+
+// ============================================================================
 // Event 25: Clarification Requested
 // ============================================================================
 
@@ -447,6 +463,7 @@ export type DeliberationEvent =
 	| PhaseCostBreakdownEvent
 	| CompleteEvent
 	| ErrorEvent
+	| MeetingFailedEvent
 	| ClarificationRequestedEvent;
 
 // ============================================================================
@@ -511,4 +528,8 @@ export function isCompleteEvent(event: SSEEvent): event is CompleteEvent {
 
 export function isErrorEvent(event: SSEEvent): event is ErrorEvent {
 	return event.event_type === 'error';
+}
+
+export function isMeetingFailedEvent(event: SSEEvent): event is MeetingFailedEvent {
+	return event.event_type === 'meeting_failed';
 }

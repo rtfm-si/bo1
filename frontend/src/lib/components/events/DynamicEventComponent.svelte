@@ -66,6 +66,7 @@
 		'phase_cost_breakdown': () => import('./PhaseTable.svelte'),
 		'complete': () => import('./DeliberationComplete.svelte'),
 		'error': () => import('./ErrorEvent.svelte'),
+		'meeting_failed': () => import('./MeetingFailedEvent.svelte'),
 		'expert_panel': () => import('./ExpertPanel.svelte'),
 	};
 

@@ -1,1107 +1,571 @@
-# Feature Roadmap
+# Board of One - Prioritized TODO
 
-Prioritized by: implementation speed, dependencies, and user value.
+Last updated: 2025-12-05 (deep audit completed)
+Status: **P0 CRITICAL ISSUE ACTIVE** (Data Persistence - partial mitigation in place)
 
-## Tier 5: Premium Features (High Effort, High Value)
+**Audit Summary** (verified 2025-12-05):
 
-_Differentiated value, potential monetization_
-
-- [ ] **Mentor Mode** - 1-2w
-
-  - Chat directly with an expert (like ChatGPT)
-  - Has business context, problem history, actions
-  - Natural extension of meeting system
-  - mentors can be grouped under categories as well:
-    Leadership
-    Product
-    Marketing
-    Founder Psychology
-    Productivity
-    Career
-    etc...
-    chat to all in category as an 'addon' package?
-    can be 'called' from within an action, with the convo linked to action, and summary added to action as an 'update'
-
-- [ ] **Gated features system** - 2-3d
-
-  - User A sees page X, User B doesn't
-  - Enables tier-based access control
-
-- [ ] **Tier plans infrastructure** - 3-5d
-
-  - Depends on gated features
-  - Pricing page, feature limits per tier
-  - different levels of market insight and competitor watch are unlocked at different plans
-
-- [ ] **Action replanning** - 1w
-  - Track action outcomes - user inputs progress updates
-  - "What went wrong" flow
-  - Replan based on results
-  - Actions have deadlines - basic capability chase user for update, and mentors can follow up 'need any help with...?' if plan tier allows
+- ✅ P0-002: COMPLETED (sub-problem validation before meta-synthesis)
+- ✅ P1-001: COMPLETED (Gantt chart fully implemented with error handling)
+- ✅ P1-004: COMPLETED (working_status events for all 10 major phases)
+- ✅ P1-008: COMPLETED (admin counts backend working)
+- ✅ Cleanup Tasks: ALL COMPLETED (Synthesis label, mobile layout)
+- ✅ P1-006: COMPLETED (soft-delete cascade)
+- ⚠️ P0-001, P0-003, P0-004: PARTIAL implementation
+- ⚠️ P2-001, P2-002, P2-003: PARTIAL implementation (dashboard, kanban, skip questions)
+- ✅ P1-007: COMPLETED (actions filtered by session status)
+- ✅ P1-005: COMPLETED (soft delete backend, UI pending)
+- ❌ P1-002, P1-003: NOT STARTED
 
 ---
 
-## Tier 6: Team & Scale Features (Later Stage)
+## P0: Critical Bugs (Data Loss / Core Functionality Broken)
 
-_Build after core product is solid_
+These issues cause data loss or break core meeting functionality. **Fix immediately.**
 
-- [ ] **Workspaces** - 1-2w
+### 1. [P0-001] Data Persistence Failure - Records Not Saved
 
-  - Team containers
-  - Shared meetings, business context
+**Status**: PARTIAL (retry logic exists, critical gaps remain)
+**Reported**: ntfy alert 2025-12-05 - "no records persisted"
+**User Impact**: Completed meetings/actions/business context lost after deploy
 
-- [ ] **Projects** - 1w
+**Symptoms**:
 
-  - Group related meetings
-  - Depends on workspaces
+- Completed sessions have no contributions in PostgreSQL
+- Business context disappears after deployment
+- Actions from meetings are lost
 
-- [ ] **Informal expert tier** - 1w
+**Currently Implemented** (verified 2025-12-05):
 
-  - Sole trader / small business level personas
-  - Depends on business context system
+- Event persistence verification: `event_collector.py:943-989` - compares Redis vs PostgreSQL counts
+- Event publisher retry logic: `event_publisher.py:112-169` - 3 immediate retries (no backoff, intentionally non-blocking)
+- Session status update retries: `event_collector.py:865-941` - exponential backoff (0.1s, 0.2s)
+- Pool health check: `health.py:296-378` and `database.py:73-114`
+- CRITICAL logging on persistence failures
 
-- [ ] **Competition research** - 1w
-  - Auto-identify and research competitors (basic capability on sign up (plan tier specific)
-  - Depends on business context onboarding
-  - Use Brave and Tavily
-  - Can request market updates every month maybe (plan tier)?
-  - embeddings are used to ensure we dont make repeated expensive searches for the same businesses / markets etc - just reuse existing if recent
+**Critical Gaps**:
 
----
+- No persistent queue - failed events are logged but NOT queued for later retry
+- No deployment safety - restarts can interrupt in-progress meetings
+- No early detection - daily reports don't catch persistence failures
 
-## Tier 7: Marketing & Growth (Ongoing)
+**To Implement**:
 
-- [ ] **Landing page SEO** - 2-3d
+- [x] Persistence verification at meeting end → `event_collector.py:943-989`
+- [ ] Add persistence monitoring to health checks - **PARTIAL** (pool only, not events)
+- [ ] Add Redis queue for failed persistence retries - **NOT DONE**
+- [ ] Add deployment drain period (stop new meetings before restart) - **NOT DONE** - should we stand up the new instance for new meetings, let old meetings complete on the old instance, then cut over?
+- [ ] Enhance daily report to detect persistence failures earlier - **PARTIAL**
+- [ ] Add PostgreSQL write-ahead logging for critical events - **NOT DONE**
 
-  - Meta tags, structured data, content optimization
-
-- [ ] **Footer pages audit** - 1d
-
-  - Terms, privacy, about pages need updating & checking
-
-- [ ] **Suggested questions from business context** - 2-3d
-  - CTA to add business context when starting new meeting
-  - Depends on business context system
-
----
-
-## Cleanup Tasks
-
-- [ ] Verify "Sub-Problem Complete" taxonomy change (may already be done)
-- [ ] Remove "Synthesis" label if no longer in use
-- [ ] Fix "The Bottom Line" duplicate in UI
+**Files**: `backend/api/event_publisher.py`, `bo1/state/repositories/session_repository.py`, `backend/api/event_collector.py`
 
 ---
 
-new thoughts:
+### 2. [P0-002] Sub-Problems Fail But Summary Still Generated
 
-remove 'delete context' from settings context > overview
+**Status**: ✅ COMPLETED (verified 2025-12-05)
+**User Impact**: Users get incomplete/wrong meeting results
 
-deleted meetings should delete actions
-gantt fails to load
+**Problem**: When sub-problems fail during deliberation, the meta-synthesis still runs and generates a summary based on incomplete data.
 
-option to delete actions (all delete operations should be 'soft delete' where the record is masked from ui for end user, but admin can still see the record)
+**Implemented**:
 
-Admin should be able to 'impersonate' a user and see their dashboard, meetings, actions etc but with the additional admin views (like costs, failed meetings etc etc)
+- [x] Add validation in `routers.py` before meta-synthesis → `bo1/graph/routers.py:181-224`
+- [x] Emit `meeting_failed` event if any sub-problems fail → `bo1/graph/routers.py:196-221`
+- [x] Show clear error state to user instead of partial results → `ErrorEvent.svelte`
 
-NB - only completed meetings should have actions showing up. failed meetings should probably be masked from end users dashboard (except admin). in progress should only show actions when the meeting has completed.
-
-when actions are closed (completed / killed etc) the dependant actions should 'auto update'?
-
-projects should be able to be tagged with ai generated categories and filterable
-
-gantt chart should be filterable by project
-
-gantt chart should be accessible from actions tab
-
-what do top level page links look like?
-meetings -< projects -< actions
-
-ntfy report didnt trigger this am
-
-email send for those on wait list
-
-is the graph too complicated?
-should we simplify? cap max sub problems?
-are we breaking down complex problem into problems that need solving, or are they unnecessary? must be direct and relevant to problem
-
-need to make sure summarization works better
-sub problems fail and summary generated - this is wrong (maybe fxed - check)
-
-research being stored?
-should be retrieved locally
-
-'still working..' isn't great and messages need to be more consistent
-still display / trigger multiple 'completed' results
-
-admin counts not working
-
-are we persisting everything to db (full review)
-
-business context & competitor research
-stripe (only when working)
-promotions
-settings/account
-feature request?
-report a problem
-help
-main pages on landing page
-actions tracking
-kanban board for actions
-
-'x people joined waitlist'
-
-need multiple sample reports covering different sizes of business and different depths of problem
-
-clarify should be a toggle (answer with / without), or skippable questions?
-
-on mobile, 'connected' should flow under 'active'
-
-seem to lose completed meetings/actions/business context etc on deploy? are we properly persisting and reloading from pg?
-maybe need to bring forward redis postgres work
-
-feels like there is a significant performance bottleneck somewhere in meetings. we are using haiku 4.5, we shou,ld get a response approx every 5s, but we sometimes (more frequently than expected) see gaps of 30s - whats going on? deep investigation required into retries, etc
-
-mobile page navigation doesn't work - text too big
-app navigation isnt great in general
-dashboard should be the 'control centre':
-start new meeting
-overall projects, meetings, actions etc - progress in the last 7 days..?
-how to navigate : meetings > projects > actions
-i think you can start projects or meetings
-
-deployment to prod is often successful, but the app actually fails. our tests dont seem to cover page load and interactivity etc. whats missing? how do we improve confidence in deployment actually works
-
-add auto seo
-
-twitter, bluesky
-
-create a bank of meetings with context we can run through the meeting generator. like a bunch of posts we can queue up
-
----the following is an AI SEO feature:
-**“Plan implementation of this system in detail: architecture, prompts, tasks, and phase breakdown.”**
+**Files**: `bo1/graph/routers.py`, `backend/api/event_collector.py`
 
 ---
 
-## 0. Context & Objective
+### 3. [P0-003] Deployment Succeeds But App Actually Fails
 
-**Goal:**
-Build an automated “growth engine” that:
+**Status**: PARTIAL (API smoke tests exist, missing frontend/SSE)
+**User Impact**: Users get errors after "successful" deployment
 
-1. Generates high-quality SEO guides on relevant topics.
-2. Creates and schedules social posts (with images/GIFs) to promote them.
-3. Ingests social comments, learns from them, and (optionally) replies.
-4. Feeds all of that feedback back into future topics, pages and posts.
+**Problem**: CI/CD reports success but pages don't load or API fails. Tests don't cover page load/interactivity.
 
-**Stack assumptions:**
+**Current State** (verified 2025-12-05):
 
-- Frontend: Svelte app.
-- Backend: Python (FastAPI/Flask/Django).
-- DB: Postgres (or similar relational).
-- Optional: n8n (or equivalent) for some automations.
+- API health checks implemented: `/api/health`, `/api/health/db`, `/api/health/redis`
+- Deployment fails if API health checks fail (15 retries with 3s delay)
+- Post-deploy validation hits production URL after nginx cutover
 
----
+**To Implement**:
 
-## 1. High-Level System Overview
+- [x] Add post-deploy smoke tests (hit key endpoints, verify response) → `.github/workflows/deploy-production.yml:679-695`
+- [ ] Add frontend health check (can pages render?) - **NOT DONE**
+- [ ] Add SSE connection test in deployment verification - **NOT DONE**
+- [x] Fail deployment if smoke tests fail → exits with code 1 on failure
 
-The system has five main subsystems:
-
-1. **SEO Content Engine**
-
-   - Topic & keyword discovery
-   - Page idea generation
-   - Page content generation
-   - Publishing & performance tracking
-
-2. **Media Asset Bank**
-
-   - Pre-generated hero/OG images
-   - Meeting demo loops (GIF/MP4)
-   - Conceptual illustrations / brand art
-
-3. **Social Autoposter**
-
-   - Social bundle generation (Twitter/Bluesky/LinkedIn)
-   - Scheduling
-   - Platform posting
-
-4. **Comment Ingestion & Learning**
-
-   - Fetch comments/replies
-   - Classify & tag
-   - Summarise feedback
-   - Draft replies & manage a comment inbox
-
-5. **Feedback Loops**
-
-   - Feedback → new keywords/topics
-   - Feedback → page refreshes & FAQs
-   - Feedback → improved social messaging
-
-The Planner LLM should take this outline and turn each subsystem into concrete tasks, data flows, and prompts.
+**Files**: `scripts/verify_deployment.py`, `.github/workflows/deploy-production.yml`
 
 ---
 
-## 2. Core Data Model (Tables & Relationships)
+### 4. [P0-004] ntfy Daily Report Not Triggering Reliably
 
-### 2.1 SEO Content
+**Status**: PARTIAL (cron configured, missing heartbeat)
+**User Impact**: Admin doesn't know when systems fail
 
-- `seo_topic`
+**Problem**: Report didn't trigger this morning
 
-  - `id`
-  - `name`
-  - `description`
-  - `search_intent` (awareness / consideration / decision)
-  - `funnel_stage` (top / mid / bottom)
-  - `priority_score` (0–100)
-  - `status` (idea / selected / in_progress / live)
-  - `tags` (e.g. `{pricing, burnout}`)
-  - `created_at`, `updated_at`
+**Current State** (verified 2025-12-05):
 
-- `seo_keyword`
+- Cron job configured: `0 9 * * *` (9:00 AM UTC daily) via `setup-db-monitoring-cron.sh`
+- Docker container auto-detection (blue-green aware) in `db-report.sh`
+- Weekly report also configured: `0 10 * * 1` (Monday 10:00 AM UTC)
+- Logs to `/var/log/db-monitoring.log`
 
-  - `id`
-  - `topic_id` → `seo_topic.id`
-  - `phrase`
-  - `intent` (informational / commercial / transactional)
-  - `funnel_stage`
-  - `source` (seed / llm_expanded / gsc / competitor_inferred)
-  - `estimated_value` (0–100, simple heuristic initially)
-  - `created_at`
+**To Implement**:
 
-- `seo_page`
+- [x] Check cron job configuration → `scripts/setup-db-monitoring-cron.sh:22-46`
+- [ ] Add heartbeat check (alert if no report in 25 hours) - **NOT DONE**
+- [ ] Add redundant alerting channel (email/Slack fallback) - **NOT DONE**
 
-  - `id`
-  - `topic_id` → `seo_topic.id`
-  - `slug`
-  - `page_type` (guide / template / comparison / playbook)
-  - `target_keyword`
-  - `title`
-  - `meta_description`
-  - `h1`
-  - `body_md` (markdown or HTML)
-  - `status` (draft / pending_review / live)
-  - `tags`
-  - `hero_image_url` (static page image)
-  - `og_image_url`
-  - `created_at`, `updated_at`
-  - `last_generated_at`
-
-- (Optional, later) `seo_page_version`
-
-  - For versioning different prompts/generations.
-
-- (Optional, later) `seo_metrics_daily`
-
-  - `page_id`
-  - `date`
-  - `impressions`, `clicks`, `avg_position`
-  - `sessions`, `signups`
+**Files**: `scripts/send_database_report.py`, `scripts/db-report.sh`, `scripts/setup-db-monitoring-cron.sh`
 
 ---
 
-### 2.2 Media Asset Bank
+## P1: UX Blockers (Direct User Experience Impact)
 
-- `media_asset`
+These issues frustrate users and hurt retention. **Fix this week.**
 
-  - `id`
-  - `type` (`guide_hero`, `meeting_loop`, `concept_illustration`, `persona_avatar`)
-  - `seo_page_id` (nullable)
-  - `topic_id` (nullable)
-  - `tags` (e.g. `{pricing, growth, decision}`)
-  - `url_image` (PNG/JPEG)
-  - `url_gif` (short loop)
-  - `url_video` (MP4/WebM)
-  - `created_at`
+### 1. [P1-001] Gantt Chart Fails to Load
 
----
+**Status**: ✅ COMPLETED (verified 2025-12-05)
+**User Impact**: Actions timeline view broken
 
-### 2.3 Social Posts
+**Implemented**:
 
-- `social_post`
+- [x] frappe-gantt initialization in `GlobalGanttChart.svelte:224-273` - dynamic import, proper error handlers
+- [x] Empty/invalid date data handled gracefully - `lines 217, 227, 314-318` default to today + 7 days
+- [x] Empty state UI with helpful message - `lines 298-323`
 
-  - `id`
-  - `platform` (`twitter`, `linkedin`, `bluesky`)
-  - `seo_page_id` → `seo_page.id`
-  - `media_asset_id` → `media_asset.id` (nullable)
-  - `text`
-  - `link_url` (with UTM params)
-  - `scheduled_at`
-  - `posted_at`
-  - `status` (pending / posted / failed / skipped)
-  - `error_message` (nullable)
-  - `approved` (bool; initial manual review)
-  - `created_at`
+**Files**: `frontend/src/lib/components/actions/GlobalGanttChart.svelte`
 
 ---
 
-### 2.4 Comments & Feedback
+### 2. [P1-002] Mobile Navigation Broken - Text Too Big
 
-- `social_comment`
+**Status**: TODO
+**User Impact**: App unusable on mobile
 
-  - `id`
-  - `platform`
-  - `platform_post_id`
-  - `platform_comment_id`
-  - `social_post_id` → `social_post.id`
-  - `author_handle`
-  - `text`
-  - `created_at` (time of comment)
-  - `imported_at`
-  - `sentiment` (positive / neutral / negative)
-  - `intent` (question / praise / complaint / objection / feature_request / bug_report / off_topic)
-  - `themes` (array of tags)
-  - `needs_response` (bool)
-  - `priority` (0–100)
-  - `handled_status` (new / summarised / replied / escalated)
-  - `reply_text_draft` (nullable)
-  - `reply_status` (none / drafted / approved / posted)
+**To Implement**:
 
-- `feedback_summary`
-
-  - `id`
-  - `scope_type` (`topic` or `seo_page`)
-  - `scope_id` (id of topic/page)
-  - `period_start`, `period_end`
-  - `summary_md` (markdown bullets)
-  - `suggested_keywords` (JSON array)
-  - `suggested_faqs` (JSON array of `{question, answer_draft}`)
-  - `created_at`
+- [ ] Audit responsive breakpoints
+- [ ] Fix font scaling on mobile
+- [ ] Test navigation on common mobile viewport sizes
 
 ---
 
-## 3. Pipelines / Jobs
+### 3. [P1-003] App Navigation Confusing
 
-### 3.1 Topic & Keyword Discovery
+**Status**: TODO
+**User Impact**: Users don't know where to go
 
-**Trigger:** manually (via admin) or weekly job.
+**Problem**: Hierarchy unclear: meetings → projects → actions
 
-**Inputs:**
+**To Implement**:
 
-- Seed topics (short list).
-- Competitor URLs (optional).
-- Existing GSC queries (optional, later).
-
-**Steps:**
-
-1. Build a prompt for an LLM to:
-
-   - Propose 5–10 core topics for the audience.
-   - For each topic, propose 5–15 concrete search queries.
-   - Label queries with `intent` and `funnel_stage`.
-
-2. Parse JSON output.
-3. Upsert `seo_topic` and `seo_keyword` rows.
-4. Mark new topics as `status='idea'`.
-
-**Outputs:**
-
-- Populated `seo_topic` and `seo_keyword` tables with fresh ideas.
+- [ ] Add breadcrumbs
+- [ ] Improve sidebar organization
+- [ ] Add "back to meeting" from actions
+- [ ] Dashboard as central hub (see P2-001)
 
 ---
 
-### 3.2 Page Idea Generation
+### 4. [P1-004] "Still Working" Messages Inconsistent
 
-**Trigger:** daily or on demand.
+**Status**: ✅ COMPLETED (verified 2025-12-05)
+**User Impact**: Users think app is broken during long operations
 
-**Inputs:**
+**Implemented** (all 10 major phases now have working_status events):
 
-- `seo_topic` with `status='idea'` or `selected`.
-- Attached `seo_keyword`s.
+- WorkingStatus.svelte component: ✅ Implemented with sticky positioning, elapsed time
+- WorkingStatusBanner.svelte: ✅ Integrated with staleness fallback (8s timeout)
+- SSE handler for working_status events: ✅ Implemented
+- Timing state management: ✅ Consolidated in timingState.svelte.ts
 
-**Steps:**
+**All Phases WITH working_status events** (user-friendly messages):
 
-1. Select topics and a subset of keywords per topic that:
+- [x] Decomposition: `event_collector.py:450` - "Breaking down your decision into key areas..."
+- [x] Persona selection: `event_collector.py:533` - "Assembling the right experts for your question..."
+- [x] Initial round: `event_collector.py:606` - "Experts are sharing their initial perspectives..." (15-30s)
+- [x] Facilitator decisions: `event_collector.py:637` - "Guiding the discussion deeper..."
+- [x] Parallel rounds: `event_collector.py:674` - "Experts are discussing (round N)..."
+- [x] Moderator interventions: `event_collector.py:711` - "Ensuring balanced perspectives..."
+- [x] Convergence checks: `event_collector.py:722` - "Checking for emerging agreement..."
+- [x] Voting phase: `event_collector.py:742` - "Experts are finalizing their recommendations..."
+- [x] Synthesis phase: `event_collector.py:756` - "Bringing together the key insights..."
+- [x] Meta-synthesis: `event_collector.py:791` - "Crafting your final recommendation..."
 
-   - Match desired intent (e.g. informational/commercial).
-   - Match funnel stages (consideration/decision).
-
-2. For each topic–keyword pair, ask LLM to:
-
-   - Propose a single page idea: `page_type`, `working_title`, `slug`, `cta_focus`, short reasoning.
-
-3. Insert new `seo_page` rows with:
-
-   - `topic_id`, `target_keyword`, `slug`, `title`, `status='draft'`.
-
-**Outputs:**
-
-- Draft `seo_page` records awaiting content generation.
-
----
-
-### 3.3 Page Content Generation
-
-**Trigger:** when `seo_page.status='draft'` and `body_md` is null.
-
-**Inputs:**
-
-- `seo_page` row (title, slug, target keyword, page_type).
-- Topic description and tags.
-- Brand tone + claim rules.
-- Optionally, previous `feedback_summary` for that topic/page.
-
-**Steps:**
-
-1. LLM call to generate:
-
-   - `meta_description`
-   - `h1`
-   - `body_md` (full guide with headings, examples, CTA).
-
-2. Optional second LLM pass:
-
-   - As “editor” to enforce tone, remove risky claims, tighten structure.
-
-3. Save content to `seo_page`.
-4. Set `status='pending_review'`.
-
-**Outputs:**
-
-- Content-filled pages ready for human review and/or auto-publish.
+**Files**: `frontend/src/lib/components/ui/WorkingStatus.svelte`, `backend/api/event_collector.py`
 
 ---
 
-### 3.4 Publishing
+### 5. [P1-005] Delete Actions (Soft Delete)
 
-**Trigger:** manual approval, or auto for low-risk pages.
+**Status**: ✅ COMPLETED (backend) / PARTIAL (UI pending)
+**User Impact**: Can't remove unwanted actions
 
-**Inputs:**
+**Implemented**:
 
-- `seo_page` with `status='pending_review'`.
+- [x] Add `deleted_at` column to actions table → `migrations/versions/b2_add_actions_soft_delete.py`
+- [x] Add soft delete endpoint → `DELETE /api/v1/actions/{action_id}` in `actions.py:645-688`
+- [x] Repository methods: `delete()`, `restore()`, `hard_delete()` → `action_repository.py:517-566`
+- [x] Exclude deleted actions from user queries → `action_repository.py:203-205`
+- [x] Admins can see deleted items via `is_admin` parameter
+- [ ] UI: Add delete button with confirmation (frontend pending)
 
-**Steps:**
-
-1. Human reviews and approves (or auto-approve based on rules).
-2. Set `status='live'`, update `last_generated_at`.
-3. Ensure Svelte route `/guides/[slug]` renders:
-
-   - Title, meta, body, CTAs.
-
-4. Update sitemap and robots if needed.
-
-**Outputs:**
-
-- Live URL for each guide.
+**Files**: `bo1/state/repositories/action_repository.py`, `backend/api/actions.py`, `migrations/versions/b2_add_actions_soft_delete.py`
 
 ---
 
-### 3.5 Media Asset Generation
+### 6. [P1-006] Deleted Meetings Should Delete Actions
 
-**Types:**
+**Status**: ✅ COMPLETED (2025-12-05)
+**User Impact**: Orphaned actions from deleted meetings clutter UI
 
-1. **Guide hero / OG image (per `seo_page`)**
+**Implemented**:
 
-   - HTML/CSS template that uses `title`, `target_keyword`, and brand colours.
-   - Render via Puppeteer/Playwright → PNG.
-   - Store as `media_asset` (`type='guide_hero'`) and update `seo_page.hero_image_url` / `og_image_url`.
+- [x] CASCADE constraint exists: `a1_create_actions_table.py:141` - `ondelete="CASCADE"`
+  - Hard deletes cascade correctly at database level
+- [x] Soft-delete actions when meeting soft-deleted → `sessions.py:668-677`
+- [x] Repository methods: `soft_delete_by_session()`, `restore_by_session()` → `action_repository.py:572-602`
 
-2. **Meeting demo loops (few generic ones)**
-
-   - Scripted demo route in app (`/demo/meeting`).
-   - Record via Playwright video.
-   - Trim & convert via ffmpeg → MP4 + GIF.
-   - Store as `media_asset` (`type='meeting_loop'`) with tags.
-
-3. **Conceptual illustrations**
-
-   - Generate manually with an image model.
-   - Tag by theme and store as `media_asset` (`type='concept_illustration'`).
-
-**Outputs:**
-
-- Reusable media assets linked to pages/topics or generic.
+**Files**: `backend/api/sessions.py`, `bo1/state/repositories/action_repository.py`
 
 ---
 
-### 3.6 Social Bundle Generation
+### 7. [P1-007] Only Completed Meetings Should Show Actions
 
-**Trigger:** when a `seo_page` transitions to `live`.
+**Status**: ✅ COMPLETED (2025-12-05)
+**User Impact**: Users see incomplete/failed meeting actions
 
-**Inputs:**
+**Problem**: In-progress and failed meetings showing actions
 
-- `seo_page` (title, summary, URL).
-- Optional: short summary derived from `body_md`.
+**Implemented**:
 
-**Steps:**
+- [x] Filter actions API by session status = 'completed' → `action_repository.py:194-201`
+- [x] Admin override to see all → `is_admin` parameter in `get_by_user()`
+- [x] Failed meetings masked from end users (admin can see) → `actions.py:430-432`
+- [x] Auth middleware fetches is_admin from database → `auth.py:118-130`
 
-1. LLM prompt to produce JSON:
-
-   - `twitter`: 2–3 short posts.
-   - `linkedin`: 1–2 longer posts with different angles.
-
-2. For each generated post:
-
-   - Build `link_url` with UTM params.
-   - Select best `media_asset` based on `seo_page.tags`, `topic_id`, and platform rules.
-   - Create `social_post` rows with:
-
-     - `platform`, `seo_page_id`, `media_asset_id`, `text`, `link_url`, `status='pending'`, `approved=false`.
-
-   - Assign `scheduled_at` (staggered over coming days).
-
-**Outputs:**
-
-- A queue of `social_post` records for each new page.
+**Files**: `backend/api/actions.py`, `bo1/state/repositories/action_repository.py`, `backend/api/middleware/auth.py`
 
 ---
 
-### 3.7 Social Posting
+### 8. [P1-008] Admin Counts Not Working
 
-**Trigger:** periodic worker (cron) or n8n flow.
+**Status**: ✅ COMPLETED (verified 2025-12-05)
+**User Impact**: Admin can't see usage metrics
 
-**Inputs:**
+**Investigation Result**:
+Backend admin dashboard queries are fully implemented and working:
 
-- `social_post` where:
+- `GET /api/admin/stats` → `AdminQueryService.get_stats()` in `backend/api/admin/helpers.py:115-153`
+- `GET /api/admin/users` → `AdminQueryService.list_users()` with proper JOIN and GROUP BY
+- `GET /api/admin/metrics` → API performance metrics via `MetricsCollector`
 
-  - `status='pending'`
-  - `approved=true`
-  - `scheduled_at <= now()`.
+**Implemented**:
 
-**Steps:**
+- [x] Debug admin dashboard queries → queries work correctly
+- [x] Verify metrics aggregation → proper SQL aggregation with COUNT, SUM, MAX
 
-1. For each eligible post:
-
-   - Upload media to platform if present.
-   - Publish post via platform API (or via n8n connector).
-
-2. On success:
-
-   - Set `status='posted'`, `posted_at=now()`.
-
-3. On error:
-
-   - Set `status='failed'`, store `error_message`.
-
-**Outputs:**
-
-- Live social posts, tracked against pages.
+**Note**: If admin counts appear incorrect, issue is likely frontend display or null values in sessions table.
 
 ---
 
-### 3.8 Comment Ingestion
+## P2: User Value Features (Adoption/Conversion Drivers)
 
-**Trigger:** periodic worker per platform (e.g. every 15–60 minutes).
+Drive user adoption and conversion. **Next 2-4 weeks.**
 
-**Inputs:**
+### 1. [P2-001] Dashboard as Control Centre
 
-- Platform credentials & API access.
-- IDs of posts we’ve created (`social_post`).
+**Status**: PARTIAL (CTA added, remaining items optional)
+**User Impact**: No single view of everything important
 
-**Steps:**
+**Implemented** (`frontend/src/routes/(app)/dashboard/+page.svelte`):
 
-1. For each platform:
+- [x] Recent meetings summary (sessions list)
+- [x] Outstanding actions panel (top 5 todo + in_progress)
+- [x] Quick navigation to actions
+- [x] Start new meeting CTA on dashboard → `+page.svelte:269-283`
 
-   - Fetch replies/comments to our posts within a time window.
+**To Implement** (lower priority):
 
-2. For each new comment:
-
-   - Upsert `social_comment` using `platform_post_id` + `platform_comment_id`.
-   - Link to `social_post_id`.
-
-**Outputs:**
-
-- Fresh `social_comment` rows for downstream processing.
+- [ ] "Active actions needing attention" section with urgency indicators
+- [ ] Progress overview visualization
 
 ---
 
-### 3.9 Comment Classification & Reply Drafting
+### 2. [P2-002] Kanban Board for Actions
 
-**Trigger:** periodic worker (e.g. every 15 minutes).
+**Status**: PARTIAL
+**User Impact**: Better task management UX
 
-**Inputs:**
+**Implemented** (`frontend/src/lib/components/actions/KanbanBoard.svelte`):
 
-- `social_comment` with `handled_status='new'`.
+- [x] 3-column layout: To Do, In Progress, Done
+- [x] Task cards with status display
+- [x] Status change callback (`onStatusChange`)
+- [x] Responsive grid (single column on mobile)
 
-**Steps:**
+**To Implement**:
 
-1. LLM classification:
-
-   - Input: comment text, original post text.
-   - Output JSON: `sentiment`, `intent`, `themes[]`, `needs_response`, `priority`.
-   - Update corresponding fields in `social_comment`.
-
-2. For comments where `needs_response=true`:
-
-   - LLM generates `reply_text_draft` (short, on-brand, safe).
-   - Set `reply_status='drafted'`.
-
-**Outputs:**
-
-- Classified comments with drafted replies.
+- [ ] Drag-and-drop functionality (no drag library integrated)
+- [ ] Persist sort order within columns
 
 ---
 
-### 3.10 Comment Inbox & Reply Posting
+### 3. [P2-003] Clarify Questions Toggle/Skip
 
-**Admin UI:**
+**Status**: PARTIAL
+**User Impact**: Forced to answer questions even when unnecessary
 
-- List of comments needing attention, with filters:
+**Implemented** (`frontend/src/lib/components/meeting/ClarificationForm.svelte:60-94`):
 
-  - By platform, by intent, by priority.
+- [x] "Skip Questions" button implemented
+- [x] `handleSkip()` function posts with `skip: true`
 
-- For each:
+**To Implement**:
 
-  - Show comment, original post, classification, `reply_text_draft`.
-  - Actions: **Approve**, **Edit & Approve**, **Skip/Escalate**.
-
-**Worker for replies:**
-
-- Select `social_comment` with:
-
-  - `reply_status='approved'`.
-
-- Post reply via API.
-- On success: `reply_status='posted'`, `handled_status='replied'`.
-- On error: mark as failed and store message.
+- [ ] User preference/setting to disable pre-deliberation questions entirely
 
 ---
 
-### 3.11 Feedback Summarisation & Integration
+### 4. [P2-004] Improve Summarization Quality
 
-**Trigger:** daily or weekly job.
+**Status**: TODO
+**User Impact**: Summaries sometimes miss key points
 
-**Inputs:**
+**To Implement**:
 
-- `social_comment` from a time window, grouped by `seo_page_id` and `topic_id`.
-
-**Steps:**
-
-1. For each page/topic:
-
-   - Gather comments and basic engagement metrics.
-   - LLM summarisation:
-
-     - Key questions & objections.
-     - Areas of confusion.
-     - Suggested improvements or new FAQs.
-     - Suggested new keywords/topics.
-
-2. Write `feedback_summary` entry per scope.
-3. **Feed into other pipelines:**
-
-   - Add `suggested_keywords` into the next topic/keyword discovery run as extra seeds.
-   - Pass relevant `feedback_summary` into:
-
-     - Future page content refresh prompts.
-     - Future social bundle prompts (to better address objections).
-
-**Outputs:**
-
-- Persistent summaries that inform future content and posts.
+- [ ] Use hierarchical summarization (round summaries in synthesis)
+- [ ] Display expert summaries in UI
+- [ ] Cap max sub-problems to reduce noise (simplify graph)
 
 ---
 
-## 4. Governance & Guardrails
+### 5. [P2-005] Performance Bottleneck Investigation
 
-The Planner LLM should explicitly design:
+**Status**: TODO
+**User Impact**: 30s gaps between events instead of expected 5s
 
-- **Rate limits**
+**To Implement**:
 
-  - Max pages/week
-  - Max social posts/day/platform
-  - Max auto-replies/day
-
-- **Human checkpoints**
-
-  - Topic selection (from `seo_topic.idea` → `selected`)
-  - Page approval (`pending_review` → `live`)
-  - Social post approval (`social_post.approved`)
-  - Reply approval for high-risk comment types
-
-- **Tone & claims rules**
-
-  - System-level instructions in all content and social prompts:
-
-    - No guarantees of results.
-    - No legal/financial/medical advice.
-    - No hypey AI buzzword soup.
-    - Helpful, pragmatic, respectful.
+- [ ] Add timing metrics to each graph node
+- [ ] Profile LLM call latency
+- [ ] Check for blocking I/O
+- [ ] Investigate retry logic delays
 
 ---
 
-## 5. What the Planner LLM Should Do Next
+### 6. [P2-006] Business Context & Competitor Research
 
-When you hand this to another LLM, ask it to:
+**Status**: TODO
+**User Impact**: Context not being used effectively
 
-1. Turn each pipeline into:
+**To Implement**:
 
-   - Detailed sequence diagrams or flow descriptions.
-   - Concrete Python task signatures and Svelte route specs.
-   - Specific LLM prompts (system + user) and JSON schemas.
-
-2. Propose:
-
-   - Error-handling strategies (API failures, bad LLM output).
-   - Monitoring/metrics for each subsystem.
-
-3. Prioritise implementation into phases:
-
-   - Phase 1: SEO Content Engine + hero images.
-   - Phase 2: Social Autoposter + media bank usage.
-   - Phase 3: Comment ingestion + manual replies.
-   - Phase 4: Feedback loops + semi-auto replies.
+- [ ] Store research results locally (embeddings for deduplication)
+- [ ] Retrieve from cache before expensive API calls
+- [ ] Display research in meeting context
 
 ---
 
-a project can have many actions (and sub projects)
-a meeting can have many projects and actions
-an action can only be attributed to a single project
-an action can have sub actions
+### 7. [P2-007] Email Waitlist Notification
 
-mentors can assist with actions
-expert panels can assist with meetings
-expert panels are made up of mentors
+**Status**: TODO
+**User Impact**: Waitlist users not being engaged
 
---- the following is an AI ops 'self healing' style feature where the codebase auto corrects errors
-At a high level, you want: **“when prod blows up, an AI engineer grabs the crash, ships a safe patch, and rolls it out”** on your DO stack.
+**To Implement**:
 
-You can get close, but it _must_ be sandboxed. Think:
-
-> **Prod → Telemetry → Incident queue → AI-fixer in a dev clone → CI/tests → Controlled deploy to prod**
-
-I’ll lay it out concretely with DigitalOcean + Docker + GitHub + Claude Code.
+- [ ] "X people joined waitlist" display
+- [ ] Trigger email when spot opens
+- [ ] Weekly engagement emails
 
 ---
 
-## 1. Overall architecture on DigitalOcean
+### 8. [P2-008] Multiple Sample Reports
 
-Assume:
+**Status**: TODO
+**User Impact**: Landing page only shows one example
 
-- App is containerised (Docker / docker-compose)
-- Source of truth is GitHub
-- CI/CD is GitHub Actions
-- You already have (or will have) basic logging / error tracking
+**To Implement**:
 
-### Minimal DO setup
-
-- **Droplet 1 – Prod**
-
-  - Reverse proxy: Nginx / Traefik
-  - App containers
-  - Postgres (if self-hosted) or managed DO DB
-
-- **Droplet 2 – Dev/AI-ops sandbox**
-
-  - Git clone of repo
-  - Claude Code CLI + your “AI ops” scripts
-  - Runner for CI tests (or just let GitHub do CI and this box is only for AI editing)
-
-- Optional later: **Droplet 3 – Staging** for canary deploys
+- [ ] Create sample reports for different business sizes/depths
+- [ ] Add selector on landing page
 
 ---
 
-## 2. The runtime failure → “AI ticket” flow
+### 9. [P2-009] Stripe Integration
 
-### 2.1 Capture failures in prod
+**Status**: BLOCKED (on fixing P0/P1 first)
 
-Instrument the app so every “meeting failure” spits out:
+**To Implement**:
 
-- `meeting_id`
-- Error (stack trace, message)
-- Request context (user id, org, parameters, decision config)
-- Relevant logs (last N lines from the meeting worker/container)
+- [ ] Payment flow
+- [ ] Tier management
+- [ ] Trial period logic
 
-**Store this in a central place**:
+---
 
-- DB table `meeting_failures`
-- Or a queue (e.g. Redis stream, pgmq, RabbitMQ, n8n workflow trigger)
+### 10. [P2-010] Settings/Account Improvements
 
-Example DB schema:
+**Status**: TODO
 
-```sql
-CREATE TABLE meeting_failures (
-  id BIGSERIAL PRIMARY KEY,
-  meeting_id UUID NOT NULL,
-  error_type TEXT,
-  error_message TEXT,
-  stack_trace TEXT,
-  component TEXT,        -- e.g. "meeting-worker", "scheduler"
-  occurred_at TIMESTAMP NOT NULL DEFAULT now(),
-  raw_context JSONB
-);
+**To Implement**:
+
+- [ ] Remove 'delete context' from settings context > overview
+- [ ] Account management page
+- [ ] Subscription management
+
+---
+
+## P3: Nice-to-Haves (Polish & Growth)
+
+Lower priority. **Backlog.**
+
+### 1. [P3-001] Auto-Update Dependent Actions on Close
+
+When actions closed (completed/killed), dependent actions should auto-update.
+Note: `action_repository.py:auto_unblock_dependents()` may already exist - verify and add UI refresh.
+
+### 2. [P3-002] Projects with AI-Generated Tags
+
+Projects taggable with AI-generated categories, filterable.
+
+### 3. [P3-003] Gantt Filterable by Project
+
+Add project filter to Gantt chart. Also: Gantt accessible from actions tab.
+
+### 4. [P3-004] Admin Impersonation
+
+Admin can impersonate user to see their dashboard/meetings/actions with admin overlay (costs, failures, etc).
+
+### 5. [P3-005] Feature Request Form
+
+In-app feature request submission.
+
+### 6. [P3-006] Report a Problem Flow
+
+In-app problem reporting.
+
+### 7. [P3-007] Help/Documentation
+
+Help pages, onboarding guidance.
+
+### 8. [P3-008] Landing Page SEO
+
+Meta tags, structured data, content optimization. (2-3d)
+
+### 9. [P3-009] Footer Pages Audit
+
+Terms, privacy, about pages need updating. (1d)
+
+---
+
+## Cleanup Tasks (Low Effort)
+
+- [x] Verify "Sub-Problem Complete" taxonomy change → ✅ VERIFIED in `SynthesisComplete.svelte:59`
+- [x] Rename "Synthesis" to "Executive Summary" in fallback section → ✅ FIXED in `SynthesisComplete.svelte:259`
+- [x] "The Bottom Line" duplicate in UI - FIXED in `xml-parser.ts`:
+  - Added "The Bottom Line" to markdown section mappings (maps to `executive_summary`)
+  - Added `stripDuplicateHeader()` function to remove LLM-repeated header text from content
+  - Added lean template mappings: "What To Do Next", "Why This Matters", "Board Confidence", "Key Risks"
+- [x] On mobile, 'connected' should flow under 'active' → ✅ FIXED in `meeting/[id]/+page.svelte:461-462`
+  - Changed to `flex flex-col sm:flex-row sm:items-center` for responsive stacking
+
+---
+
+## Deferred: Not Now
+
+These are complex systems premature for current stage. **Revisit after core product solid.**
+
+### AI SEO Growth Engine
+
+Automated content generation, social posting, comment learning.
+**Status**: DEFERRED - Focus on core product first
+
+### AI Ops Self-Healing System
+
+Auto-recovery from failures, self-monitoring, Claude Code integration.
+**Status**: DEFERRED - Need dedicated DevOps capacity
+
+### Mentor Mode
+
+Chat directly with AI expert, business context aware.
+**Status**: DEFERRED - 1-2 week impl, needs solid action system first
+
+### Workspaces & Teams
+
+Team containers, shared meetings/context.
+**Status**: DEFERRED - Later stage feature
+
+### Projects System
+
+Group related meetings, sub-projects.
+**Status**: DEFERRED - Depends on workspaces
+
+### Competition Research System
+
+Auto-identify competitors, Brave/Tavily integration.
+**Status**: DEFERRED - Depends on business context
+
+### Gated Features / Tier Plans
+
+Feature flags per user tier, pricing page.
+**Status**: DEFERRED - After Stripe integration
+
+### Action Replanning
+
+Track outcomes, "what went wrong" flow, deadline chasing.
+**Status**: DEFERRED - After core actions work
+
+---
+
+## Data Model Notes (Reference)
+
+```
+Projects
+  ├── Actions (many)
+  └── Sub-projects (many)
+
+Meetings (sessions)
+  ├── Projects (many)
+  └── Actions (many)
+
+Actions
+  ├── Project (one, optional)
+  ├── Sub-actions (many)
+  └── Mentor assistance (future)
+
+Expert Panels
+  └── Mentors/Personas (many)
 ```
 
-You also tag a “severity” and “auto-fix candidate” flag if you can (e.g. HTTP 5xx vs user error, transient LLM failure vs logic bug).
+---
 
-### 2.2 Trigger the AI ops pipeline
+## Key Files Reference
 
-You then have a **background worker** that runs either:
-
-- On the dev/AI-ops droplet, polling `meeting_failures` for new rows
-- Or via something like n8n, listening to a webhook / queue
-
-When it sees a failure that looks like a **code bug** (not just transient LLM outage), it:
-
-1. Fetches the failure record(s)
-2. Optionally enriches them with:
-
-   - “Similar failures in last X hours”
-   - Git commit hash currently deployed
-   - Link to logs/dashboard (Grafana, etc.)
-
-3. Prepares a **prompt + context bundle** for Claude Code.
+| Area                 | File                                           |
+| -------------------- | ---------------------------------------------- |
+| Event persistence    | `backend/api/event_publisher.py`               |
+| Session/event saving | `bo1/state/repositories/session_repository.py` |
+| Monitoring           | `scripts/send_database_report.py`              |
+| Actions CRUD         | `bo1/state/repositories/action_repository.py`  |
+| Meeting flow         | `backend/api/event_collector.py`               |
+| Graph config         | `bo1/graph/config.py`                          |
 
 ---
 
-## 3. How Claude Code fits in
-
-You **do not** want Claude editing your live droplet. You want it editing the **git repo** in a controlled environment.
-
-### 3.1 Repo-centric workflow
-
-On the AI-ops droplet:
-
-- Clone your GitHub repo:
-
-  - `origin` = GitHub
-  - `prod` branch = what’s currently deployed
-
-- Install Claude Code CLI + your MCP tools
-- Create a script `ai_fix_meeting_failure.py` (or similar) that:
-
-  1. Creates a new branch:
-
-     - `ai-fix/meeting-<meeting_id>` or `ai-fix/<error-signature>`
-
-  2. Uses Claude Code to:
-
-     - Read failing code paths (based on stack trace)
-     - Propose a patch
-     - Apply patch to the repo
-
-  3. Runs tests
-  4. If tests pass and risk checks pass:
-
-     - Push branch to GitHub
-     - Optionally auto-open PR via GitHub API
-     - Optionally label PR `ai-autofix`, attach failure context
-
-Claude prompt (in spirit):
-
-- _System_: “You are the AI ops engineer. Only propose **minimal, non-breaking** patches that fix the specific bug, no feature work, no schema changes.”
-- _User content_:
-
-  - Error logs / stack trace
-  - Snippets of relevant files
-  - Your coding rules (from your existing governance framework)
-  - “Do not modify: migrations, pricing logic, auth, billing, schema files.”
-
----
-
-## 4. CI / Tests / Non-breaking guarantees
-
-Your **guardrails live in CI**, not in blind trust of Claude.
-
-### 4.1 CI pipeline for AI branches
-
-Use GitHub Actions with something like:
-
-1. **Static checks**
-
-   - Lint (ruff/eslint)
-   - Type checks (mypy/tsc)
-   - Security checks (bandit, dependency scan)
-
-2. **Unit tests**
-
-   - Especially around the component that failed
-
-3. **Integration/smoke tests**
-
-   - Spin a temporary container stack (docker-compose) and:
-
-     - Run a synthetic “meeting” flow
-     - Ensure it completes successfully
-     - Ensure core routes respond (healthcheck, login, start meeting, etc.)
-
-4. **Policy checks**
-
-   - Scripts that enforce **“non-breaking only”**, e.g.:
-
-     - Reject if DB migrations changed
-     - Reject if files under `billing/` or `auth/` changed
-     - Reject if > N files changed or diff size > threshold
-     - Reject if public API schema (OpenAPI spec) changed
-
-If all pass, mark PR as **“safe candidate”**.
-
-### 4.2 Automatic vs manual deploy
-
-You have options:
-
-- **Phase 1 (safer)**:
-
-  - AI creates PR + passes CI
-  - You get Slack / email:
-
-    - “AI fix ready for bug X – click to merge and deploy”
-
-  - You eyeball and hit merge
-
-- **Phase 2 (limited auto-deploy)**:
-
-  - For labelled, low-risk classes of bugs (timeouts, null checks, missing imports), auto-merge + deploy if:
-
-    - Single file touched
-    - No schema changes
-    - Tests + smoke tests pass
-
-  - Otherwise require human review
-
----
-
-## 5. Deployment from GitHub to DigitalOcean
-
-You probably want:
-
-- **Images built in CI**, not on the droplet
-- **GitHub → DO** via:
-
-### Option A: Docker on Droplet + GitHub Actions
-
-1. CI builds Docker image and pushes to Docker Hub / GHCR.
-2. GitHub Action runs SSH step:
-
-   - SSH into the droplet
-   - `docker-compose pull && docker-compose up -d --no-deps <service>`
-   - Or use a small deploy script on the droplet
-
-3. Staging first, then prod:
-
-   - For AI-autofixes, you can:
-
-     - Deploy to staging droplet
-     - Run a synthetic “meeting” end-to-end test hitting that staging URL
-     - Only then deploy same image tag to prod.
-
-### Option B: DigitalOcean App Platform
-
-- CI pushes image
-- DO App Platform auto-deploys when new image arrives
-- You gate auto-deploys so only specific branches/tags (e.g. `prod`) trigger it.
-
-Given your DIY tendencies and cost constraints, **Option A with 2–3 droplets + docker-compose + GitHub Actions** is likely the sweet spot.
-
----
-
-## 6. Concrete “AI Ops” components you need to build
-
-### A. Telemetry + failure capture
-
-- Add error handlers in:
-
-  - Meeting orchestration worker
-  - LLM call layer (timeout, provider errors)
-  - Any orchestrator (n8n / background queue)
-
-- Write to `meeting_failures` table + log aggregator (Sentry, OpenTelemetry, etc.).
-
-### B. AI-Ops worker service
-
-Small Python service running on AI-ops droplet:
-
-- Poll failures
-- Deduplicate similar incidents
-- Decide “eligible for AI fix?” (rules like: repeated identical stack trace, not user input error)
-- Prepare context bundle:
-
-  - Error logs
-  - Last deployed commit hash
-  - Git repo path
-
-- Call Claude Code CLI (or via API with your own wrapper) to:
-
-  - Create branch
-  - Apply patch
-  - Commit changes
-
-- Push branch & open PR via GitHub API.
-
-### C. CI guardrail scripts
-
-- `check_non_breaking.sh`:
-
-  - Fail if:
-
-    - `migrations/` changed
-    - `schema.sql` / `db/schema` changed
-    - `billing/`, `auth/` touched (unless you explicitly allow)
-    - More than N files changed
-
-- Synthetic “meeting” test script:
-
-  - Hit a test endpoint or run internal function that simulates:
-
-    - Create test user
-    - Create test meeting
-    - Run full Bo1 meeting (short, cheap config)
-    - Assert: final status = `completed`, no errors.
-
-### D. Deployment hook
-
-- GitHub Action:
-
-  - Trigger: merge to `prod` branch
-  - Jobs:
-
-    - Build + push image
-    - SSH to staging
-
-      - Deploy new image
-      - Run smoke tests
-
-    - If staging pass:
-
-      - SSH to prod
-      - Deploy same tag
-
----
-
-## 7. Risk boundaries for “non-breaking only”
-
-Make it explicit in code & policy:
-
-**Allowed for auto-fix:**
-
-- Null/undefined checks
-- Fixing missing imports / wrong variable names
-- Obvious logic bug inside a single function
-- Timeouts / retry logic around LLM calls
-- Extra guards around external API responses
-- Logging / metrics additions
-
-**Not allowed (must be manual):**
-
-- DB schema or migration changes
-- Changes to auth / permissions / RLS
-- Pricing / billing logic
-- Changes to external contracts (APIs, webhooks)
-- Big refactors / cross-cutting changes
-
-Your AI prompt should clearly state this, and your CI script should enforce it.
-
----
-
-## 8. How I’d roll this out in stages
-
-1. **Stage 0 – Observability**
-
-   - Meeting failure table + dashboards
-   - Alerts to Slack/Email
-
-2. **Stage 1 – AI as assistant**
-
-   - AI-ops worker generates:
-
-     - GitHub issues with suggested patches
-     - PRs that you manually review & deploy
-
-3. **Stage 2 – Semi-auto**
-
-   - For low-risk classes, allow “one-click merge+deploy” from Slack/issue link.
-
-4. **Stage 3 – Auto for narrow class**
-
-   - “Non-breaking” auto-deploy pipeline for a very constrained set of bugs
-   - Everything else still goes through human.
+## Commands Reference
+
+```bash
+make pre-commit                    # Before any PR
+make test                          # Run tests
+uv run alembic upgrade head        # Apply migrations
+python scripts/send_database_report.py daily  # Manual report
+```

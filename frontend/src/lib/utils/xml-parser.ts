@@ -66,14 +66,19 @@ function extractWarning(content: string): { content: string; warning: string | u
  */
 const MARKDOWN_TO_SECTION_KEY: Record<string, keyof SynthesisSection> = {
 	'executive summary': 'executive_summary',
+	'the bottom line': 'executive_summary', // Lean template format
 	recommendation: 'recommendation',
+	'what to do next': 'recommendation', // Lean template format
 	rationale: 'rationale',
+	'why this matters': 'rationale', // Lean template format
 	'implementation considerations': 'implementation_considerations',
 	'confidence assessment': 'confidence_assessment',
+	'board confidence': 'confidence_assessment', // Lean template format
 	'open questions': 'open_questions',
 	'vote breakdown': 'vote_breakdown',
 	'risks & mitigations': 'risks_and_mitigations',
 	'risks and mitigations': 'risks_and_mitigations',
+	'key risks': 'risks_and_mitigations', // Lean template format
 	'success metrics': 'success_metrics',
 	timeline: 'timeline',
 	'resources required': 'resources_required',
@@ -84,6 +89,35 @@ const MARKDOWN_TO_SECTION_KEY: Record<string, keyof SynthesisSection> = {
 	'the real problem': 'rationale',
 	'why community infrastructure matters more': 'rationale',
 };
+
+/**
+ * Strip duplicate header text from the beginning of section content.
+ * LLMs sometimes repeat the section title as bold/emphasized text.
+ * E.g., "## The Bottom Line\n\n**The Bottom Line**\n\nActual content..."
+ */
+function stripDuplicateHeader(header: string, content: string): string {
+	if (!content) return content;
+
+	// Patterns to match the header repeated at the start of content:
+	// - **Header** or **Header:**
+	// - *Header* or *Header:*
+	// - Header (plain text at very start)
+	// - ### Header (sub-header)
+	const escapedHeader = header.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const patterns = [
+		new RegExp(`^\\*\\*${escapedHeader}:?\\*\\*\\s*\\n*`, 'i'),
+		new RegExp(`^\\*${escapedHeader}:?\\*\\s*\\n*`, 'i'),
+		new RegExp(`^###?\\s*${escapedHeader}:?\\s*\\n*`, 'i'),
+		new RegExp(`^${escapedHeader}:?\\s*\\n+`, 'i'),
+	];
+
+	let cleaned = content;
+	for (const pattern of patterns) {
+		cleaned = cleaned.replace(pattern, '');
+	}
+
+	return cleaned.trim();
+}
 
 /**
  * Parse markdown-formatted synthesis into sections
@@ -113,7 +147,10 @@ function parseMarkdownSections(content: string): SynthesisSection {
 
 		// Get content after the header line
 		const headerLineEnd = content.indexOf('\n', current.index);
-		const sectionContent = content.slice(headerLineEnd + 1, nextIndex).trim();
+		let sectionContent = content.slice(headerLineEnd + 1, nextIndex).trim();
+
+		// Remove duplicate header text from content (LLM sometimes repeats it)
+		sectionContent = stripDuplicateHeader(current.header, sectionContent);
 
 		parts.push({ header: current.header, content: sectionContent });
 	}

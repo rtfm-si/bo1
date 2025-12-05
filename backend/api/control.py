@@ -210,6 +210,11 @@ def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
                 "reason": clar_data.get("reason", ""),
             }
 
+        # Create proper metrics object (not a dict)
+        from bo1.models.state import DeliberationMetrics
+
+        metrics = DeliberationMetrics()
+
         # Reconstruct minimal state needed to resume from clarification
         reconstructed_state = {
             "problem": problem,
@@ -221,7 +226,7 @@ def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
             "current_node": "identify_gaps",
             "personas": [],
             "contributions": [],
-            "metrics": {},
+            "metrics": metrics,
         }
 
         logger.info(

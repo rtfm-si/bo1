@@ -36,9 +36,9 @@ class RateLimitConfig:
 # These are conservative defaults - adjust based on your API plan
 RATE_LIMIT_CONFIGS = {
     "brave_free": RateLimitConfig(
-        max_requests=10,  # 10 requests per minute (free tier)
-        time_window_seconds=60,
-        burst_size=15,  # Allow small bursts
+        max_requests=1,  # Brave free tier: 1 request per second
+        time_window_seconds=1,
+        burst_size=1,  # No bursting - strict 1 req/s
     ),
     "brave_basic": RateLimitConfig(
         max_requests=100,  # 100 requests per minute

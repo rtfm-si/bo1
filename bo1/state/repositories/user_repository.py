@@ -235,6 +235,19 @@ class UserRepository(BaseRepository):
         # Filter to only valid fields
         valid_fields = [f for f in self.CONTEXT_FIELDS if f in context]
 
+        # Handle empty context - insert/update minimal record with just user_id
+        if not valid_fields:
+            return_fields = ", ".join(self.CONTEXT_FIELDS + ["created_at", "updated_at"])
+            return self._execute_returning(
+                f"""
+                INSERT INTO user_context (user_id)
+                VALUES (%s)
+                ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW()
+                RETURNING {return_fields}
+                """,
+                (user_id,),
+            )
+
         # Build dynamic INSERT statement
         field_list = ", ".join(valid_fields)
         placeholders = ", ".join(["%s"] * len(valid_fields))

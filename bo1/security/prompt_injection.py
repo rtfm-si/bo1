@@ -11,13 +11,13 @@ Usage:
         raise HTTPException(400, "Content flagged for review")
 """
 
-import json
 import logging
 from dataclasses import dataclass
 from typing import Any
 
 from bo1.config import get_settings
 from bo1.llm.client import ClaudeClient
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -256,51 +256,47 @@ class PromptInjectionAuditor:
 
     def _parse_response(self, response: str) -> AuditResult:
         """Parse the JSON response from the auditor."""
-        try:
-            # Handle potential JSON prefix from prefill
-            response = response.strip()
-            if not response.startswith("{"):
-                # Try to find JSON in response
-                start = response.find("{")
-                if start >= 0:
-                    response = response[start:]
+        # Use robust JSON parsing with multiple fallback strategies
+        data, parse_errors = parse_json_with_fallback(
+            content=response,
+            context="prompt injection audit",
+            logger=logger,
+        )
 
-            data = json.loads(response)
-
-            is_safe = data.get("is_safe", True)
-            categories_data = data.get("categories", [])
-
-            categories = []
-            flagged = []
-
-            for cat_data in categories_data:
-                code = cat_data.get("code", "")
-                confidence = cat_data.get("confidence", "none")
-
-                categories.append(CategoryResult(code=code, confidence=confidence))
-
-                # Track flagged categories
-                if confidence in ("medium", "high"):
-                    if code in HIGH_RISK_CATEGORIES or confidence == "high":
-                        flagged.append(code)
-
-            return AuditResult(
-                is_safe=is_safe,
-                categories=categories,
-                flagged_categories=flagged,
-                raw_response=response,
-            )
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse audit response as JSON: {e}")
+        if data is None:
+            logger.error(f"Failed to parse audit response. Errors: {parse_errors}")
             # Return safe on parse error (fail open)
             return AuditResult(
                 is_safe=True,
                 categories=[],
                 flagged_categories=[],
-                error=f"JSON parse error: {e}",
+                error=f"JSON parse error: {parse_errors}",
                 raw_response=response,
             )
+
+        is_safe = data.get("is_safe", True)
+        categories_data = data.get("categories", [])
+
+        categories = []
+        flagged = []
+
+        for cat_data in categories_data:
+            code = cat_data.get("code", "")
+            confidence = cat_data.get("confidence", "none")
+
+            categories.append(CategoryResult(code=code, confidence=confidence))
+
+            # Track flagged categories
+            if confidence in ("medium", "high"):
+                if code in HIGH_RISK_CATEGORIES or confidence == "high":
+                    flagged.append(code)
+
+        return AuditResult(
+            is_safe=is_safe,
+            categories=categories,
+            flagged_categories=flagged,
+            raw_response=response,
+        )
 
     async def check_multiple(
         self, contents: dict[str, str], fail_fast: bool = True

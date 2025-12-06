@@ -15,6 +15,7 @@ from bo1.config import MODEL_BY_ROLE
 from bo1.data import get_active_personas, get_persona_by_code
 from bo1.llm.response import LLMResponse
 from bo1.models.problem import SubProblem
+from bo1.utils.json_parsing import parse_json_with_fallback
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -395,9 +396,22 @@ Provide your recommendation as JSON following the format in your system prompt.
             cache_system=False,
         )
 
-        # Validate JSON structure
+        # Validate JSON structure with robust parsing
         try:
-            recommendation = json.loads(response.content)
+            # Use parse_json_with_fallback for resilient JSON parsing
+            # This handles extra text after JSON, markdown code blocks, etc.
+            recommendation, parse_errors = parse_json_with_fallback(
+                content=response.content,
+                context="persona selection",
+                logger=logger,
+            )
+
+            if recommendation is None:
+                raise json.JSONDecodeError(
+                    f"All parsing strategies failed: {parse_errors}",
+                    response.content,
+                    0,
+                )
 
             # Validate structure
             if "recommended_personas" not in recommendation:
@@ -538,14 +552,15 @@ Provide your recommendation as JSON following the format in your system prompt.
         """Get a default persona recommendation as fallback.
 
         Returns a safe default set of personas covering key perspectives.
+        Uses persona codes that exist in bo1/data/personas.json.
         """
         logger.warning("Using default persona recommendation due to parsing error")
         return {
             "analysis": "Using default persona set due to recommendation error.",
             "recommended_personas": [
                 {
-                    "code": "product_strategist",
-                    "name": "Jordan Kim",
+                    "code": "product_manager",  # Exists in personas.json
+                    "name": "Priya Desai",
                     "rationale": "Strategic perspective on product decisions",
                 },
                 {

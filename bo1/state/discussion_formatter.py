@@ -9,7 +9,7 @@ Consolidates formatting logic previously duplicated across:
 """
 
 import re
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from bo1.models.state import ContributionMessage
 
@@ -18,6 +18,19 @@ if TYPE_CHECKING:
 
 
 FormatStyle = Literal["default", "compact", "voting"]
+
+
+def _get_problem_attr(problem: Any, attr: str, default: Any = None) -> Any:
+    """Safely get attribute from problem (handles both dict and object).
+
+    After checkpoint restoration, Problem objects may be deserialized as dicts.
+    This helper handles both cases.
+    """
+    if problem is None:
+        return default
+    if isinstance(problem, dict):
+        return problem.get(attr, default)
+    return getattr(problem, attr, default)
 
 
 def format_discussion_history(
@@ -74,7 +87,7 @@ def format_discussion_history(
         lines = []
         problem = state.get("problem")
         lines.append("PROBLEM STATEMENT:")
-        lines.append(problem.description if problem else "No problem defined")
+        lines.append(_get_problem_attr(problem, "description", "No problem defined"))
         lines.append("")
         lines.append("FULL DISCUSSION:")
         lines.append("")

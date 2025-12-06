@@ -68,7 +68,7 @@ class ContributionRepository(BaseRepository):
                     cur.execute("SELECT user_id FROM sessions WHERE id = %s", (session_id,))
                     result = cur.fetchone()
                     if result:
-                        user_id = result[0]
+                        user_id = result["user_id"]  # Dict access, not tuple
                     else:
                         logger.warning(
                             f"Session {session_id} not found, cannot fetch user_id for contribution"

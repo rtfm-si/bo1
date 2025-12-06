@@ -125,34 +125,14 @@ class ResearcherAgent:
 
         total_cost = 0.0
 
-        # Process all batches in parallel for maximum throughput
-        async def process_batch(
-            batch: list[dict[str, Any]],
-        ) -> tuple[list[dict[str, Any]], float]:
-            """Process a single batch (possibly merged questions)."""
-            if len(batch) > 1:
-                merged_question = merge_batch_questions(batch)
-                logger.info(
-                    f"Processing consolidated batch: {len(batch)} questions → '{merged_question[:50]}...'"
-                )
-                # Use first question's metadata for the batch
-                question_data = batch[0].copy()
-                question_data["question"] = merged_question
-                batch_result = await self._research_single_question(
-                    question_data, category, industry, research_depth
-                )
-                # Split result back to individual questions
-                return split_batch_results(batch_result, batch), batch_result.get("cost", 0.0)
-            else:
-                # Single question - process normally
-                question_data = batch[0]
-                result = await self._research_single_question(
-                    question_data, category, industry, research_depth
-                )
-                return [result], result.get("cost", 0.0)
-
-        # Run all batches in parallel
-        batch_results = await asyncio.gather(*[process_batch(batch) for batch in batches])
+        # Process batches SEQUENTIALLY to respect rate limits
+        # (Brave free tier: 1 req/sec - parallel requests cause 429 errors)
+        batch_results = []
+        for batch in batches:
+            result_items, cost = await self._process_batch_with_retry(
+                batch, category, industry, research_depth
+            )
+            batch_results.append((result_items, cost))
 
         # Aggregate results
         results = []
@@ -162,6 +142,96 @@ class ResearcherAgent:
 
         logger.info(f"Research complete - Total cost: ${total_cost:.4f}")
         return results
+
+    async def _process_batch_with_retry(
+        self,
+        batch: list[dict[str, Any]],
+        category: str | None,
+        industry: str | None,
+        research_depth: Literal["basic", "deep"],
+        max_retries: int = 3,
+    ) -> tuple[list[dict[str, Any]], float]:
+        """Process a batch with exponential backoff on rate limit errors.
+
+        Args:
+            batch: List of question dicts to process
+            category: Category filter
+            industry: Industry filter
+            research_depth: Research depth
+            max_retries: Maximum retry attempts for rate limit errors
+
+        Returns:
+            Tuple of (result_items, total_cost)
+        """
+        if len(batch) > 1:
+            merged_question = merge_batch_questions(batch)
+            logger.info(
+                f"Processing consolidated batch: {len(batch)} questions → '{merged_question[:50]}...'"
+            )
+            question_data = batch[0].copy()
+            question_data["question"] = merged_question
+        else:
+            question_data = batch[0]
+
+        for attempt in range(max_retries):
+            try:
+                result = await self._research_single_question(
+                    question_data, category, industry, research_depth
+                )
+
+                # Check if result indicates rate limit failure
+                if "429" in result.get("summary", "") or "Rate limit" in result.get("summary", ""):
+                    if attempt < max_retries - 1:
+                        wait_time = self._calculate_backoff(attempt)
+                        logger.warning(
+                            f"Rate limited (detected in result), waiting {wait_time:.1f}s before retry"
+                        )
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(f"Rate limit persists after {max_retries} attempts")
+
+                # Split back if batch was consolidated
+                if len(batch) > 1:
+                    return split_batch_results(result, batch), result.get("cost", 0.0)
+                return [result], result.get("cost", 0.0)
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < max_retries - 1:
+                    wait_time = self._calculate_backoff(attempt)
+                    logger.warning(
+                        f"Rate limited (HTTP 429), waiting {wait_time:.1f}s before retry "
+                        f"(attempt {attempt + 1}/{max_retries})"
+                    )
+                    await asyncio.sleep(wait_time)
+                else:
+                    # Re-raise non-429 errors or final 429
+                    raise
+
+        # After all retries exhausted, return failure result
+        failure_result = {
+            "question": question_data.get("question", ""),
+            "summary": "[Rate limit exceeded after retries - please try again later]",
+            "sources": [],
+            "confidence": "low",
+            "cached": False,
+            "cost": 0.0,
+            "rate_limited": True,
+        }
+        if len(batch) > 1:
+            return split_batch_results(failure_result, batch), 0.0
+        return [failure_result], 0.0
+
+    def _calculate_backoff(self, attempt: int) -> float:
+        """Calculate exponential backoff wait time.
+
+        Args:
+            attempt: Current attempt number (0-indexed)
+
+        Returns:
+            Wait time in seconds (1s, 2s, 4s, ... capped at 30s)
+        """
+        return float(min(2**attempt, 30))
 
     async def _research_single_question(
         self,
@@ -309,23 +379,36 @@ class ResearcherAgent:
             # CACHE MISS - Perform research (Brave or Tavily based on depth)
             research_result = await self._perform_web_research(question, research_depth)
 
-            # Save to cache
-            try:
-                save_research_result(
-                    question=question,
-                    embedding=embedding,
-                    summary=research_result["summary"],
-                    sources=research_result.get("sources"),
-                    confidence=research_result["confidence"],
-                    category=category,
-                    industry=industry,
-                    freshness_days=freshness_days,
-                    tokens_used=research_result.get("tokens_used", 0),
-                    research_cost_usd=research_result["cost"],
+            # Only cache successful results with meaningful data
+            # Don't cache rate-limited, errored, or empty results
+            is_rate_limited = "429" in research_result.get(
+                "summary", ""
+            ) or "[Search API error" in research_result.get("summary", "")
+            has_sources = len(research_result.get("sources", [])) > 0
+            has_good_confidence = research_result.get("confidence") in ("high", "medium")
+
+            if has_sources and has_good_confidence and not is_rate_limited:
+                try:
+                    save_research_result(
+                        question=question,
+                        embedding=embedding,
+                        summary=research_result["summary"],
+                        sources=research_result.get("sources"),
+                        confidence=research_result["confidence"],
+                        category=category,
+                        industry=industry,
+                        freshness_days=freshness_days,
+                        tokens_used=research_result.get("tokens_used", 0),
+                        research_cost_usd=research_result["cost"],
+                    )
+                    logger.info(f"Saved research result to cache for '{question[:50]}...'")
+                except Exception as e:
+                    logger.warning(f"Failed to save research result to cache: {e}")
+            else:
+                logger.info(
+                    f"Skipping cache for '{question[:50]}...' "
+                    f"(sources={has_sources}, confidence={research_result.get('confidence')}, rate_limited={is_rate_limited})"
                 )
-                logger.info(f"Saved research result to cache for '{question[:50]}...'")
-            except Exception as e:
-                logger.warning(f"Failed to save research result to cache: {e}")
 
             total_research_cost = embedding_cost + research_result["cost"]
             response_time_ms = (time.time() - start_time) * 1000

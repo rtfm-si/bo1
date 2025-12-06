@@ -95,8 +95,25 @@ async def load_state_from_checkpoint(session_id: str) -> dict[str, Any] | None:
         checkpoint_state = await graph.aget_state(config)
 
         if checkpoint_state and checkpoint_state.values:
+            state = dict(checkpoint_state.values)
+
+            # Validate sub_problems exist (critical for deliberation)
+            problem = state.get("problem")
+            if problem:
+                sub_problems = (
+                    problem.get("sub_problems", [])
+                    if isinstance(problem, dict)
+                    else getattr(problem, "sub_problems", [])
+                )
+                if not sub_problems:
+                    logger.warning(
+                        f"Checkpoint for {session_id} has empty sub_problems, "
+                        f"falling back to PostgreSQL reconstruction"
+                    )
+                    return _reconstruct_state_from_postgres(session_id)
+
             logger.debug(f"Loaded state from checkpoint for session {session_id}")
-            return dict(checkpoint_state.values)
+            return state
 
         logger.info(
             f"No checkpoint found for session {session_id}, attempting PostgreSQL reconstruction"
@@ -262,6 +279,11 @@ async def save_state_to_checkpoint(
         True if saved successfully, False otherwise
     """
     try:
+        from bo1.graph.state import serialize_state_for_checkpoint
+
+        # Serialize Pydantic models before saving
+        serialized_state = serialize_state_for_checkpoint(state)
+
         # Get initialized checkpointer
         checkpointer = await get_checkpointer()
 
@@ -274,7 +296,7 @@ async def save_state_to_checkpoint(
         # Update state using graph's update_state method
         # as_node parameter tells LangGraph which node this update is "from"
         # so it knows where to resume execution
-        await graph.aupdate_state(config, state, as_node=as_node)
+        await graph.aupdate_state(config, serialized_state, as_node=as_node)
 
         logger.debug(
             f"Saved state to checkpoint for session {session_id}"
@@ -638,16 +660,21 @@ async def resume_deliberation(
         if clarification_answers:
             # Update checkpoint state IN PLACE using aupdate_state
             # This injects answers without restarting the graph from entry point
+            from bo1.graph.state import serialize_state_for_checkpoint
+
             state_update = {
                 "clarification_answers": clarification_answers,
                 "should_stop": False,  # Reset stop flag so router continues
                 "stop_reason": None,  # Clear stop reason
             }
 
+            # Serialize state update before saving
+            serialized_update = serialize_state_for_checkpoint(state_update)
+
             try:
                 # Use as_node="identify_gaps" to tell LangGraph to resume from
                 # the edge AFTER identify_gaps (the router will run next)
-                await graph.aupdate_state(config, state_update, as_node="identify_gaps")
+                await graph.aupdate_state(config, serialized_update, as_node="identify_gaps")
 
                 logger.info(
                     f"Updated checkpoint for session {session_id} with {len(clarification_answers)} "

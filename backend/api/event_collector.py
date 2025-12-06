@@ -5,7 +5,6 @@ Provides:
 """
 
 import asyncio
-import json
 import logging
 from typing import Any
 
@@ -22,6 +21,7 @@ from bo1.state.postgres_manager import (
     update_session_phase,
     update_session_status,
 )
+from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -990,12 +990,31 @@ class EventCollector:
         """
         # Check if session paused for clarification - don't set to completed
         stop_reason = final_state.get("stop_reason")
-        if stop_reason == "clarification_needed":
+        non_completion_reasons = {"clarification_needed", "context_insufficient"}
+        if stop_reason in non_completion_reasons:
             logger.info(
-                f"Session {session_id} paused for clarification - "
-                f"not updating status to completed (phase already set to clarification_needed)"
+                f"Session {session_id} has stop_reason={stop_reason} - "
+                f"not updating status to completed"
             )
             return
+
+        # Additional safety: check current phase in PostgreSQL to prevent race conditions
+        # This guards against: graph completes with different stop_reason but phase was set
+        # to clarification_needed by _handle_identify_gaps earlier
+        try:
+            from bo1.state.postgres_manager import get_session
+
+            current_session = get_session(session_id)
+            if current_session:
+                current_phase = current_session.get("phase")
+                if current_phase in ("clarification_needed", "context_insufficient"):
+                    logger.warning(
+                        f"Session {session_id} has phase='{current_phase}' in DB - "
+                        f"not overwriting with completed status (stop_reason={stop_reason})"
+                    )
+                    return
+        except Exception as e:
+            logger.warning(f"Failed to check current session phase for {session_id}: {e}")
 
         # Extract data for status update
         synthesis_text = final_state.get("synthesis") or final_state.get("meta_synthesis")
@@ -1159,15 +1178,126 @@ class EventCollector:
                 cost_record.output_tokens = response.usage.output_tokens
 
             # Extract JSON from response - prepend opening brace from prefill
-            response_text = "{" + response.content[0].text
-            summary = json.loads(response_text)
+            response_text = response.content[0].text
 
-            logger.debug(f"Summarized contribution for {persona_name}")
-            return summary
+            # Strategy 1: Try parse_json_with_fallback with prefill
+            summary, parse_errors = parse_json_with_fallback(
+                content=response_text,
+                prefill="{",
+                context=f"contribution summary for {persona_name}",
+                logger=logger,
+            )
+
+            if summary is not None:
+                return self._validate_summary_schema(summary)
+
+            # Strategy 2: Extract first complete JSON object using brace counting
+            # This handles cases where LLM returns multiple JSON objects or trailing text
+            summary = self._extract_first_json_object("{" + response_text)
+            if summary is not None:
+                logger.debug(f"Extracted summary via brace counting for {persona_name}")
+                return self._validate_summary_schema(summary)
+
+            # Strategy 3: Return fallback summary
+            logger.warning(
+                f"Failed to parse summary for {persona_name}: {parse_errors}. Using fallback."
+            )
+            return self._create_fallback_summary(persona_name, content)
 
         except Exception as e:
             logger.error(f"Failed to summarize contribution for {persona_name}: {e}")
+            return self._create_fallback_summary(persona_name, content)
+
+    def _extract_first_json_object(self, text: str) -> dict | None:
+        """Extract first complete JSON object using brace counting.
+
+        Handles cases where LLM returns multiple JSON objects or trailing text
+        by counting opening/closing braces to find the first complete object.
+
+        Args:
+            text: Text potentially containing JSON object(s)
+
+        Returns:
+            Parsed dict if found, None otherwise
+        """
+        import json
+
+        try:
+            start = text.find("{")
+            if start == -1:
+                return None
+
+            brace_count = 0
+            in_string = False
+            escape_next = False
+
+            for i, char in enumerate(text[start:], start):
+                if escape_next:
+                    escape_next = False
+                    continue
+                if char == "\\":
+                    escape_next = True
+                    continue
+                if char == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if char == "{":
+                    brace_count += 1
+                elif char == "}":
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_str = text[start : i + 1]
+                        return json.loads(json_str)
+
             return None
+        except json.JSONDecodeError:
+            return None
+
+    def _validate_summary_schema(self, summary: dict) -> dict:
+        """Validate summary has required fields, fill in defaults.
+
+        Args:
+            summary: Parsed summary dict
+
+        Returns:
+            Summary with all required fields (with defaults if missing)
+        """
+        summary.setdefault("concise", "")
+        summary.setdefault("looking_for", "")
+        summary.setdefault("value_added", "")
+        summary.setdefault("concerns", [])
+        summary.setdefault("questions", [])
+
+        # Ensure arrays are actually arrays
+        if not isinstance(summary.get("concerns"), list):
+            summary["concerns"] = []
+        if not isinstance(summary.get("questions"), list):
+            summary["questions"] = []
+
+        return summary
+
+    def _create_fallback_summary(self, persona_name: str, content: str) -> dict:
+        """Create a basic fallback summary when parsing fails.
+
+        Args:
+            persona_name: Expert name
+            content: Original contribution content
+
+        Returns:
+            Basic summary dict with minimal information
+        """
+        # Extract first sentence as a simple summary
+        first_sentence = content.split(".")[0][:100] if content else ""
+        return {
+            "concise": f"{first_sentence}..." if first_sentence else f"Analysis by {persona_name}",
+            "looking_for": "Evaluating the situation",
+            "value_added": "Expert perspective",
+            "concerns": [],
+            "questions": [],
+            "parse_error": True,
+        }
 
     async def _publish_contribution(
         self,

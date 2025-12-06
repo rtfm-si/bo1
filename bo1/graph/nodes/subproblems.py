@@ -87,6 +87,16 @@ async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, 
     # Check if parallel sub-problems feature is enabled
     if not ENABLE_PARALLEL_SUBPROBLEMS or len(sub_problems) <= 1:
         # Sequential mode or single sub-problem
+        # Set current_sub_problem to first sub-problem for select_personas_node
+        first_sub_problem = None
+        if sub_problems:
+            sp = sub_problems[0]
+            # Handle both dict and SubProblem object
+            if isinstance(sp, dict):
+                first_sub_problem = SubProblem.model_validate(sp)
+            else:
+                first_sub_problem = sp
+
         logger.info(
             f"analyze_dependencies_node: Sequential mode "
             f"(feature_flag={ENABLE_PARALLEL_SUBPROBLEMS}, sub_problems={len(sub_problems)})"
@@ -94,6 +104,7 @@ async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, 
         return {
             "execution_batches": [[i] for i in range(len(sub_problems))],
             "parallel_mode": False,
+            "current_sub_problem": first_sub_problem,
             "current_node": "analyze_dependencies",
         }
 

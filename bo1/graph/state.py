@@ -266,3 +266,99 @@ def state_to_dict(state: DeliberationGraphState) -> dict[str, Any]:
     # No conversion needed
 
     return result
+
+
+def serialize_state_for_checkpoint(state: DeliberationGraphState) -> dict[str, Any]:
+    """Serialize state for checkpoint storage.
+
+    Converts Pydantic models to dicts to ensure proper serialization
+    by LangGraph's AsyncRedisSaver. This fixes the bug where nested models
+    (like Problem.sub_problems) are lost on checkpoint resume.
+
+    Args:
+        state: The graph state to serialize
+
+    Returns:
+        Dictionary with all Pydantic models converted to dicts
+    """
+    result = dict(state)
+
+    # Serialize Problem (contains nested SubProblem list)
+    if "problem" in result and result["problem"] is not None:
+        if hasattr(result["problem"], "model_dump"):
+            result["problem"] = result["problem"].model_dump()
+
+    # Serialize current_sub_problem
+    if "current_sub_problem" in result and result["current_sub_problem"] is not None:
+        if hasattr(result["current_sub_problem"], "model_dump"):
+            result["current_sub_problem"] = result["current_sub_problem"].model_dump()
+
+    # Serialize personas list
+    if "personas" in result and result["personas"]:
+        personas_list: list[Any] = []
+        for p in result["personas"]:  # type: ignore[attr-defined]
+            if hasattr(p, "model_dump"):
+                personas_list.append(p.model_dump())
+            else:
+                personas_list.append(p)
+        result["personas"] = personas_list
+
+    # Serialize contributions list
+    if "contributions" in result and result["contributions"]:
+        contributions_list: list[Any] = []
+        for c in result["contributions"]:  # type: ignore[attr-defined]
+            if hasattr(c, "model_dump"):
+                contributions_list.append(c.model_dump())
+            else:
+                contributions_list.append(c)
+        result["contributions"] = contributions_list
+
+    # Serialize metrics
+    if "metrics" in result and result["metrics"] is not None:
+        if hasattr(result["metrics"], "model_dump"):
+            result["metrics"] = result["metrics"].model_dump()
+
+    return result
+
+
+def deserialize_state_from_checkpoint(data: dict[str, Any]) -> dict[str, Any]:
+    """Deserialize state from checkpoint storage.
+
+    Converts dicts back to Pydantic models where appropriate.
+    This is the inverse of serialize_state_for_checkpoint.
+
+    Args:
+        data: Dictionary loaded from checkpoint
+
+    Returns:
+        Dictionary with Pydantic models reconstructed
+    """
+    result = dict(data)
+
+    # Deserialize Problem
+    if "problem" in result and isinstance(result["problem"], dict):
+        result["problem"] = Problem.model_validate(result["problem"])
+
+    # Deserialize current_sub_problem
+    if "current_sub_problem" in result and isinstance(result["current_sub_problem"], dict):
+        result["current_sub_problem"] = SubProblem.model_validate(result["current_sub_problem"])
+
+    # Deserialize personas list
+    if "personas" in result and result["personas"]:
+        result["personas"] = [
+            PersonaProfile.model_validate(p) if isinstance(p, dict) else p
+            for p in result["personas"]
+        ]
+
+    # Deserialize contributions list
+    if "contributions" in result and result["contributions"]:
+        result["contributions"] = [
+            ContributionMessage.model_validate(c) if isinstance(c, dict) else c
+            for c in result["contributions"]
+        ]
+
+    # Deserialize metrics
+    if "metrics" in result and isinstance(result["metrics"], dict):
+        result["metrics"] = DeliberationMetrics.model_validate(result["metrics"])
+
+    return result

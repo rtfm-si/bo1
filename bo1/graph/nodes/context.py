@@ -251,6 +251,33 @@ async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Get business context
     business_context = state.get("business_context") or {}
 
+    # BUG FIX (P1 #3): Include problem_context in business_context
+    # This ensures the information gap analysis considers context already provided by the user
+    problem_context = ""
+    if isinstance(problem, dict):
+        problem_context = problem.get("context", "") or ""
+    else:
+        problem_context = problem.context or ""
+
+    # Merge problem_context into business_context for the LLM
+    merged_context = dict(business_context) if isinstance(business_context, dict) else {}
+    if problem_context:
+        # Parse problem_context if it's JSON
+        try:
+            parsed_context = json.loads(problem_context)
+            if isinstance(parsed_context, dict):
+                merged_context.update(parsed_context)
+            else:
+                merged_context["provided_context"] = problem_context
+        except (json.JSONDecodeError, TypeError):
+            # If not JSON, store as string
+            merged_context["provided_context"] = problem_context
+
+    logger.info(
+        f"identify_gaps_node: Merged context has {len(merged_context)} keys "
+        f"(problem_context length: {len(problem_context)} chars)"
+    )
+
     # Call decomposer's identify_information_gaps method
     from bo1.agents.decomposer import DecomposerAgent
 
@@ -286,7 +313,7 @@ async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
     response = await decomposer.identify_information_gaps(
         problem_description=problem_description,
         sub_problems=sub_problems_dicts,
-        business_context=business_context if isinstance(business_context, dict) else None,
+        business_context=merged_context if merged_context else None,  # BUG FIX: Use merged context
     )
 
     # Parse gaps

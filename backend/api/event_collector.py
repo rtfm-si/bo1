@@ -924,6 +924,11 @@ class EventCollector:
                 f"Session {session_id} paused for clarification - "
                 f"skipping completion handling (clarification_required event already sent)"
             )
+
+            # BUG FIX (P1 #4): Persist partial costs even when pausing for clarification
+            # This ensures cost tracking is accurate even for interrupted sessions
+            await self._persist_partial_costs(session_id, final_state)
+
             # Still verify event persistence
             await self._verify_event_persistence(session_id)
             return
@@ -1083,6 +1088,52 @@ class EventCollector:
                 )
             except Exception as emit_error:
                 logger.error(f"Failed to emit status error event: {emit_error}")
+
+    async def _persist_partial_costs(self, session_id: str, final_state: dict) -> None:
+        """Persist partial costs to PostgreSQL for sessions that pause before completion.
+
+        BUG FIX (P1 #4): Ensures costs are tracked even for sessions that pause for
+        clarification or context insufficiency. Without this, sessions that pause
+        show $0.0000 in the database.
+
+        Args:
+            session_id: Session identifier
+            final_state: Current deliberation state with metrics
+        """
+        try:
+            from bo1.state.postgres_manager import update_session_status
+
+            # Extract total cost from metrics
+            metrics = final_state.get("metrics", {})
+            if hasattr(metrics, "total_cost"):
+                total_cost = metrics.total_cost
+            else:
+                total_cost = metrics.get("total_cost", 0.0) if isinstance(metrics, dict) else 0.0
+
+            # Only update if we have costs to persist
+            if total_cost > 0:
+                round_number = final_state.get("round_number", 0)
+                phase = final_state.get("current_node") or final_state.get("phase")
+
+                update_session_status(
+                    session_id=session_id,
+                    status="paused",  # Keep status as paused
+                    phase=phase,
+                    total_cost=total_cost,
+                    round_number=round_number,
+                )
+
+                logger.info(
+                    f"Persisted partial costs for paused session {session_id}: "
+                    f"${total_cost:.4f} (phase={phase}, round={round_number})"
+                )
+            else:
+                logger.debug(
+                    f"No costs to persist for paused session {session_id} (total_cost={total_cost})"
+                )
+
+        except Exception as e:
+            logger.warning(f"Failed to persist partial costs for {session_id}: {e}")
 
     async def _verify_event_persistence(self, session_id: str) -> None:
         """Verify that events were persisted to PostgreSQL by comparing counts with Redis.

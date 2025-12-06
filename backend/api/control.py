@@ -1029,6 +1029,40 @@ async def _submit_clarification_impl(
         # Handle skip request
         if request.skip:
             logger.info(f"User skipped clarification questions for session {session_id}")
+
+            # BUG FIX (P0 #2): Update checkpoint state to allow proper resume
+            # Without this, resume would fail because should_stop is still True
+            # and user_context_choice is not set.
+            try:
+                from bo1.graph.state import serialize_state_for_checkpoint
+
+                state_update = {
+                    "clarification_answers": {},  # Empty dict signals skip
+                    "should_stop": False,  # Reset stop flag so router continues
+                    "stop_reason": None,  # Clear stop reason
+                    "pending_clarification": None,  # Clear pending
+                    "user_context_choice": "continue",  # Signal to continue without answers
+                    "limited_context_mode": True,  # Flag that we're operating with limited info
+                }
+
+                # Get initialized checkpointer and graph
+                checkpointer = await get_checkpointer()
+                graph = create_deliberation_graph(checkpointer=checkpointer)
+                config = {"configurable": {"thread_id": session_id}}
+
+                # Serialize and update checkpoint
+                serialized_update = serialize_state_for_checkpoint(state_update)
+                await graph.aupdate_state(config, serialized_update, as_node="identify_gaps")
+
+                logger.info(
+                    f"Updated checkpoint for session {session_id} with skip signal - "
+                    f"will resume from identify_gaps edge"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to update checkpoint for skip on {session_id}: {e}. Resume may fail."
+                )
+
             # Clear pending clarification and allow resume
             metadata["pending_clarification"] = None
             metadata["status"] = "paused"

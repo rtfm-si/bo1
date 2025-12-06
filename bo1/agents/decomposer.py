@@ -159,6 +159,8 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
         )
 
         # Use new helper method instead of manual PromptRequest creation
+        # BUG FIX (P2 #5): Increased max_tokens from 2048 to 4096 to prevent JSON truncation
+        # Complex problems with 3-4 sub-problems can exceed 2048 tokens in the response
         response = await self._create_and_call_prompt(
             system=DECOMPOSER_SYSTEM_PROMPT,
             user_message=user_message,
@@ -166,6 +168,7 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             prefill="{",
             cache_system=False,
             temperature=0.0,
+            max_tokens=4096,  # BUG FIX: Increased from default 2048 to prevent truncation
         )
 
         # Validate JSON structure
@@ -398,6 +401,10 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             sub_problems_summary += f"{i}. {sp.get('goal', 'Unknown goal')}\n"
 
         # Create prompt
+        # BUG FIX (P2 #6): Improved prompt to reduce clarification aggressiveness
+        # - Explicitly instructs LLM to review existing context before asking questions
+        # - Limits critical questions to absolute essentials (2-3 max)
+        # - Emphasizes skipping questions when context is sufficient
         user_message = f"""<problem>
 {problem_description}
 </problem>
@@ -411,42 +418,50 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
 </existing_context>
 
 <task>
-Analyze what information is needed for a high-quality deliberation on this problem.
+IMPORTANT: Before generating any questions, carefully review the <existing_context> section above.
+DO NOT ask questions about information that has already been provided.
 
-Identify information gaps in two categories:
+Your goal is to identify ONLY the truly essential gaps that would prevent meaningful deliberation.
 
-1. **INTERNAL gaps**: Business-specific data that only the user can provide
-   Examples:
-   - Current metrics (revenue, churn rate, customer acquisition cost, etc.)
-   - Internal capabilities (team size, technical skills, etc.)
-   - Historical performance data
-   - Budget constraints
-   - Strategic priorities
+## Guidelines for Question Generation
 
-2. **EXTERNAL gaps**: Information that can be researched from public sources
-   Examples:
-   - Industry benchmarks (average SaaS churn rate, typical conversion rates, etc.)
-   - Market research (market size, growth trends, etc.)
-   - Competitor analysis (competitor pricing, features, positioning)
-   - Best practices (what successful companies have done)
-   - Technical standards or requirements
+1. **SKIP questions if context already covers them** - If the user provided ARR, churn, CAC, etc.,
+   do NOT ask about those metrics again. Assume the provided information is accurate.
 
-For each gap:
-- Write a clear, specific question
-- Classify priority as CRITICAL (essential for good recommendations) or NICE_TO_HAVE (helpful but not essential)
-- Explain why this information matters
+2. **Be extremely conservative with CRITICAL classification** - Only mark a question as CRITICAL if:
+   - The deliberation would be impossible or misleading without this information
+   - The information cannot be reasonably estimated or assumed
+   - Maximum 2-3 CRITICAL internal gaps (fewer is better)
 
-Respond with JSON in this format:
+3. **Prefer educated assumptions over questions** - If a reasonable assumption can be made,
+   note it in the reason but don't make it CRITICAL.
+
+4. **Internal gaps (user must provide):**
+   - Current metrics NOT already in context (revenue, churn, CAC if missing)
+   - Internal capabilities that affect feasibility
+   - Budget/timeline constraints if critical and unknown
+
+5. **External gaps (can be researched):**
+   - Industry benchmarks and market data
+   - Competitor information
+   - Best practices
+
+## Output Format
+
+Respond with JSON:
 {{
   "internal_gaps": [
-    {{"question": "...", "priority": "CRITICAL", "reason": "..."}}
+    {{"question": "...", "priority": "CRITICAL|NICE_TO_HAVE", "reason": "..."}}
   ],
   "external_gaps": [
     {{"question": "...", "priority": "NICE_TO_HAVE", "reason": "..."}}
   ]
 }}
 
-Be specific and targeted. Only include gaps that would materially improve deliberation quality.
+If the existing context is comprehensive, return empty arrays:
+{{"internal_gaps": [], "external_gaps": []}}
+
+Remember: Fewer, more targeted questions lead to better user experience. Only ask what you truly need.
 </task>
 """
 

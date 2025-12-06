@@ -127,9 +127,24 @@ async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, 
             f"has_parallelism={has_parallelism}, use_subgraph={use_subgraph}, batches={batches}"
         )
 
+        # BUG FIX (P0 #1): ALWAYS set current_sub_problem when NOT using subgraph
+        # This fixes the crash when resuming after clarification in sequential mode.
+        # When use_subgraph=False, we route to select_personas which requires current_sub_problem.
+        first_sub_problem = None
+        if not use_subgraph and sub_problems:
+            sp = sub_problems[0]
+            if isinstance(sp, dict):
+                first_sub_problem = SubProblem.model_validate(sp)
+            else:
+                first_sub_problem = sp
+            logger.info(
+                f"analyze_dependencies_node: Sequential mode - set current_sub_problem={first_sub_problem.id}"
+            )
+
         return {
             "execution_batches": batches,
             "parallel_mode": use_subgraph,  # Route to subgraph for any multi-sub-problem case
+            "current_sub_problem": first_sub_problem,  # BUG FIX: Set for sequential mode
             "current_node": "analyze_dependencies",
         }
 
@@ -137,10 +152,20 @@ async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, 
         # Circular dependency detected
         logger.error(f"analyze_dependencies_node: {e}. Falling back to sequential execution.")
 
+        # BUG FIX (P0 #1): Also set current_sub_problem in fallback case
+        first_sub_problem = None
+        if sub_problems:
+            sp = sub_problems[0]
+            if isinstance(sp, dict):
+                first_sub_problem = SubProblem.model_validate(sp)
+            else:
+                first_sub_problem = sp
+
         # Fallback: execute all sub-problems sequentially
         return {
             "execution_batches": [[i] for i in range(len(sub_problems))],
             "parallel_mode": False,
+            "current_sub_problem": first_sub_problem,  # BUG FIX: Set for sequential fallback
             "dependency_error": str(e),
             "current_node": "analyze_dependencies",
         }

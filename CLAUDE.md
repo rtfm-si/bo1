@@ -269,6 +269,33 @@ decompose_node → select_personas_node → initial_round_node
 4. Timeout watchdog (1 hour)
 5. Cost kill switch (tier-based)
 
+### Context Sufficiency Detection (Option D+E Hybrid)
+
+Detects when experts lack sufficient context and offers user choices:
+
+**Detection**: Monitors `meta_discussion_count` / `total_contributions_checked` ratio
+- Triggers when >50% of contributions indicate insufficient context
+- Patterns in `ResponseParser.INSUFFICIENT_CONTEXT_PATTERNS`
+
+**User Choices** (via `context_insufficient` SSE event → modal):
+1. **Provide More** - User adds context, deliberation continues
+2. **Continue Best Effort** - Experts forced to engage with explicit assumptions
+3. **End Meeting** - Early synthesis with available information
+
+**Key State Fields**:
+- `limited_context_mode` - True if partial clarification answers
+- `user_context_choice` - "continue" | "provide_more" | "end"
+- `meta_discussion_count` / `total_contributions_checked` - Ratio tracking
+- `consecutive_research_without_improvement` - Research loop prevention
+
+**Key Files**:
+- `bo1/llm/response_parser.py` - `is_context_insufficient_discussion()`
+- `bo1/graph/safety/loop_prevention.py` - `check_context_insufficiency()`
+- `bo1/prompts/persona.py` - `BEST_EFFORT_PROMPT`
+- `bo1/prompts/synthesis.py` - `LIMITED_CONTEXT_PROMPT_SECTION`
+- `backend/api/control.py` - `POST /{session_id}/context-choice`
+- `frontend/.../ContextInsufficientModal.svelte`
+
 ---
 
 ## Production Architecture

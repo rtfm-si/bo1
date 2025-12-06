@@ -336,6 +336,24 @@ class ContributionRepository(BaseRepository):
                     if result:
                         user_id = result["user_id"]
 
+                # user_id is required (NOT NULL constraint) - use fallback if still None
+                if user_id is None:
+                    # In MVP/dev mode, use test_user_1 as fallback
+                    import os
+
+                    if os.getenv("DEBUG", "").lower() == "true":
+                        user_id = "test_user_1"
+                        logger.warning(
+                            f"Using fallback user_id 'test_user_1' for facilitator decision "
+                            f"(session_id={session_id}). Session may not have user_id set."
+                        )
+                    else:
+                        logger.error(
+                            f"Cannot save facilitator decision: user_id is required but not found "
+                            f"(session_id={session_id}). Skipping save."
+                        )
+                        return {}
+
                 cur.execute(
                     """
                     INSERT INTO facilitator_decisions (

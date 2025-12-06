@@ -3,6 +3,51 @@
 These utilities are used in the recommendation system for parsing expert recommendations.
 """
 
+import re
+
+
+def extract_confidence_from_text(text: str) -> str | None:
+    """Extract confidence value from unstructured text using fallback patterns.
+
+    Used when <confidence> tag extraction fails. Tries multiple patterns
+    to find confidence level or score in the text.
+
+    Args:
+        text: Full response text to search
+
+    Returns:
+        Extracted confidence string or None if not found
+
+    Examples:
+        >>> extract_confidence_from_text("My confidence is high for this recommendation")
+        'high'
+        >>> extract_confidence_from_text("I have 85% confidence in this approach")
+        '85%'
+        >>> extract_confidence_from_text("Confidence: 0.75")
+        '0.75'
+    """
+    # Patterns to try (in order of preference)
+    patterns = [
+        # "confidence: high" or "confidence level: medium"
+        r"confidence(?:\s+level)?[:\s]+([a-z]+|\d+\.?\d*%?)",
+        # "I am/have [very] high/medium/low confidence"
+        r"(?:i\s+(?:am|have)\s+)?(?:very\s+)?(high|medium|moderate|low)\s+confidence",
+        # "with high confidence" or "with 80% confidence"
+        r"with\s+(?:a\s+)?(\d+\.?\d*%?|high|medium|moderate|low)\s+confidence",
+        # "confidence of 0.8" or "confidence of high"
+        r"confidence\s+of\s+(\d+\.?\d*%?|high|medium|moderate|low)",
+        # Just "high confidence" or "medium confidence" at word boundaries
+        r"\b(high|medium|moderate|low)\s+confidence\b",
+    ]
+
+    text_lower = text.lower()
+    for pattern in patterns:
+        match = re.search(pattern, text_lower)
+        if match:
+            return match.group(1)
+
+    return None
+
 
 def parse_confidence_level(confidence_str: str | None) -> float:
     """Parse confidence from string to 0-1 score.

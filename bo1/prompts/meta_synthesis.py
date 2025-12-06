@@ -314,7 +314,7 @@ REMEMBER: The "action" field should be rich, detailed, and actionable - NOT just
 <assistant_prefill>
 To ensure you generate ONLY valid JSON without markdown formatting, your response will be prefilled with the opening brace. Continue directly from here with valid JSON:
 
-{
+{{
 </assistant_prefill>
 
 Generate the JSON action plan now:

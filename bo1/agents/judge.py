@@ -13,7 +13,7 @@ import json
 import logging
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from bo1.graph.meeting_config import CRITICAL_ASPECTS
 from bo1.llm.broker import PromptBroker, PromptRequest
@@ -78,6 +78,34 @@ class JudgeOutput(BaseModel):
     next_round_focus_prompts: list[str] = Field(
         default_factory=list, description="Targeted prompts for next round if continuing"
     )
+
+    @field_validator("next_round_focus_prompts", mode="before")
+    @classmethod
+    def normalize_focus_prompts(cls, v: list[Any]) -> list[str]:
+        """Normalize focus prompts to strings.
+
+        LLM sometimes returns dicts with 'aspect' and 'prompt' fields instead of strings.
+        This validator converts both formats to a list of strings.
+        """
+        if not v:
+            return []
+
+        result = []
+        for item in v:
+            if isinstance(item, str):
+                result.append(item)
+            elif isinstance(item, dict):
+                # Handle dict format: {'aspect': '...', 'prompt': '...'}
+                prompt = item.get("prompt", "")
+                aspect = item.get("aspect", "")
+                if prompt:
+                    result.append(f"[{aspect}] {prompt}" if aspect else prompt)
+                elif aspect:
+                    result.append(aspect)
+            else:
+                # Fallback: convert to string
+                result.append(str(item))
+        return result
 
 
 # ============================================================================
@@ -347,7 +375,7 @@ Remember:
             prefill="{",  # Force JSON output format
             model=config.get("model", "haiku") if config else "haiku",
             temperature=config.get("temperature", 0.0) if config else 0.0,
-            max_tokens=config.get("max_tokens", 2000) if config else 2000,
+            max_tokens=config.get("max_tokens", 4096) if config else 4096,
             phase="judge",
             cache_system=True,  # TASK 1 FIX: Enable prompt caching (system prompt = static evaluation framework)
         )

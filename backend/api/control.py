@@ -129,6 +129,94 @@ async def load_state_from_checkpoint(session_id: str) -> dict[str, Any] | None:
     return _reconstruct_state_from_postgres(session_id)
 
 
+def _recover_problem_from_postgres(session_id: str) -> Any:
+    """Recover Problem object with sub_problems from PostgreSQL events.
+
+    Used when LangGraph checkpoint lost sub_problems during serialization.
+    This function does NOT check session status/phase - it just recovers the problem.
+
+    Args:
+        session_id: Session identifier
+
+    Returns:
+        Problem object with sub_problems, or None if not found
+    """
+    from bo1.models.problem import Problem, SubProblem
+    from bo1.state.postgres_manager import db_session, get_session_events
+
+    try:
+        # Get session metadata for problem_statement
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT problem_statement FROM sessions WHERE id = %s""",
+                    (session_id,),
+                )
+                session_row = cur.fetchone()
+
+        if not session_row:
+            logger.warning(f"Session {session_id} not found in PostgreSQL for problem recovery")
+            return None
+
+        # Get events to find decomposition_complete
+        events = get_session_events(session_id)
+        if not events:
+            logger.warning(f"No events found for session {session_id}")
+            return None
+
+        # Find decomposition_complete event for sub_problems
+        decomp_event = None
+        for event in events:
+            event_type = event.get("event_type") or event.get("data", {}).get("event_type")
+            if event_type == "decomposition_complete":
+                decomp_event = event
+                break
+
+        if not decomp_event:
+            logger.warning(f"No decomposition_complete event for session {session_id}")
+            return None
+
+        # Extract sub_problems from decomposition event
+        decomp_data = decomp_event.get("data", {})
+        if isinstance(decomp_data, dict) and "data" in decomp_data:
+            decomp_data = decomp_data["data"]  # Handle nested structure
+
+        sub_problems_data = decomp_data.get("sub_problems", [])
+        if not sub_problems_data:
+            logger.warning(f"decomposition_complete event has no sub_problems for {session_id}")
+            return None
+
+        # Build Problem object with sub_problems
+        sub_problems = [
+            SubProblem(
+                id=sp.get("id", f"sp_{i:03d}"),
+                goal=sp.get("goal", ""),
+                context=sp.get("context") or "",
+                rationale=sp.get("rationale") or "",
+                dependencies=sp.get("dependencies", []),
+                complexity_score=sp.get("complexity_score", 5),
+            )
+            for i, sp in enumerate(sub_problems_data)
+        ]
+
+        problem_description = session_row["problem_statement"] or ""
+        problem = Problem(
+            title=problem_description[:100],
+            description=problem_description,
+            context="",
+            sub_problems=sub_problems,
+        )
+
+        logger.info(
+            f"Recovered problem from PostgreSQL for {session_id}: {len(sub_problems)} sub_problems"
+        )
+        return problem
+
+    except Exception as e:
+        logger.error(f"Failed to recover problem from PostgreSQL for {session_id}: {e}")
+        return None
+
+
 def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
     """Reconstruct minimal deliberation state from PostgreSQL events.
 
@@ -655,30 +743,72 @@ async def resume_deliberation(
         }
 
         # Check if this is a clarification resume (has pending clarification answers)
-        # Use aupdate_state to inject answers INTO the checkpoint without restarting graph
+        # CRITICAL FIX: aupdate_state with as_node creates a NEW checkpoint branch that
+        # loses existing state like problem.sub_problems. We must load full state first.
         clarification_answers = metadata.get("clarification_answers_pending")
         if clarification_answers:
-            # Update checkpoint state IN PLACE using aupdate_state
-            # This injects answers without restarting the graph from entry point
             from bo1.graph.state import serialize_state_for_checkpoint
 
-            state_update = {
-                "clarification_answers": clarification_answers,
-                "should_stop": False,  # Reset stop flag so router continues
-                "stop_reason": None,  # Clear stop reason
-            }
-
-            # Serialize state update before saving
-            serialized_update = serialize_state_for_checkpoint(state_update)
-
             try:
+                # CRITICAL: Load FULL current state from checkpoint first
+                current_checkpoint = await graph.aget_state(config)
+                if current_checkpoint and current_checkpoint.values:
+                    full_state = dict(current_checkpoint.values)
+
+                    # Check if sub_problems exists (LangGraph may lose nested Pydantic models)
+                    problem = full_state.get("problem")
+                    if problem:
+                        if isinstance(problem, dict):
+                            sub_problems = problem.get("sub_problems", [])
+                        else:
+                            sub_problems = getattr(problem, "sub_problems", []) or []
+                        sub_problems_count = len(sub_problems) if sub_problems else 0
+                    else:
+                        sub_problems_count = 0
+
+                    logger.info(
+                        f"Loaded checkpoint for {session_id} (resume with answers): "
+                        f"problem={bool(problem)}, sub_problems={sub_problems_count}"
+                    )
+
+                    # CRITICAL FIX: If checkpoint has problem but NO sub_problems,
+                    # LangGraph's serialization lost them. Use PostgreSQL to recover.
+                    if problem and sub_problems_count == 0:
+                        logger.warning(
+                            f"Checkpoint for {session_id} has problem but NO sub_problems! "
+                            f"LangGraph serialization lost nested data. Recovering from PostgreSQL."
+                        )
+                        recovered_problem = _recover_problem_from_postgres(session_id)
+                        if recovered_problem:
+                            # Merge: use PostgreSQL's problem (with sub_problems) but keep
+                            # other checkpoint state that wasn't lost
+                            full_state["problem"] = recovered_problem
+                            logger.info(
+                                f"Recovered problem with {len(recovered_problem.sub_problems)} sub_problems from PostgreSQL"
+                            )
+                        else:
+                            logger.error(
+                                f"Failed to recover problem from PostgreSQL for {session_id}"
+                            )
+                else:
+                    # Fallback will be handled below
+                    raise ValueError("No checkpoint found")
+
+                # Merge our updates INTO the full state
+                full_state["clarification_answers"] = clarification_answers
+                full_state["should_stop"] = False  # Reset stop flag so router continues
+                full_state["stop_reason"] = None  # Clear stop reason
+
+                # Serialize the COMPLETE merged state
+                serialized_state = serialize_state_for_checkpoint(full_state)
+
                 # Use as_node="identify_gaps" to tell LangGraph to resume from
                 # the edge AFTER identify_gaps (the router will run next)
-                await graph.aupdate_state(config, serialized_update, as_node="identify_gaps")
+                await graph.aupdate_state(config, serialized_state, as_node="identify_gaps")
 
                 logger.info(
                     f"Updated checkpoint for session {session_id} with {len(clarification_answers)} "
-                    f"clarification answer(s) - will resume from identify_gaps edge"
+                    f"clarification answer(s) (preserved full state) - will resume from identify_gaps edge"
                 )
             except Exception as e:
                 logger.warning(
@@ -1031,31 +1161,82 @@ async def _submit_clarification_impl(
             logger.info(f"User skipped clarification questions for session {session_id}")
 
             # BUG FIX (P0 #2): Update checkpoint state to allow proper resume
-            # Without this, resume would fail because should_stop is still True
-            # and user_context_choice is not set.
+            # CRITICAL: aupdate_state with as_node creates a NEW checkpoint branch that
+            # loses existing state like problem.sub_problems. We must:
+            # 1. Load the FULL current checkpoint state first
+            # 2. Merge our updates INTO it
+            # 3. Save the complete merged state
             try:
                 from bo1.graph.state import serialize_state_for_checkpoint
-
-                state_update = {
-                    "clarification_answers": {},  # Empty dict signals skip
-                    "should_stop": False,  # Reset stop flag so router continues
-                    "stop_reason": None,  # Clear stop reason
-                    "pending_clarification": None,  # Clear pending
-                    "user_context_choice": "continue",  # Signal to continue without answers
-                    "limited_context_mode": True,  # Flag that we're operating with limited info
-                }
 
                 # Get initialized checkpointer and graph
                 checkpointer = await get_checkpointer()
                 graph = create_deliberation_graph(checkpointer=checkpointer)
                 config = {"configurable": {"thread_id": session_id}}
 
-                # Serialize and update checkpoint
-                serialized_update = serialize_state_for_checkpoint(state_update)
-                await graph.aupdate_state(config, serialized_update, as_node="identify_gaps")
+                # CRITICAL: Load FULL current state from checkpoint first
+                current_checkpoint = await graph.aget_state(config)
+                if current_checkpoint and current_checkpoint.values:
+                    full_state = dict(current_checkpoint.values)
+
+                    # Check if sub_problems exists (LangGraph may lose nested Pydantic models)
+                    problem = full_state.get("problem")
+                    if problem:
+                        if isinstance(problem, dict):
+                            sub_problems = problem.get("sub_problems", [])
+                        else:
+                            sub_problems = getattr(problem, "sub_problems", []) or []
+                        sub_problems_count = len(sub_problems) if sub_problems else 0
+                    else:
+                        sub_problems_count = 0
+
+                    logger.info(
+                        f"Loaded checkpoint for {session_id}: "
+                        f"problem={bool(problem)}, sub_problems={sub_problems_count}"
+                    )
+
+                    # CRITICAL FIX: If checkpoint has problem but NO sub_problems,
+                    # LangGraph's serialization lost them. Use PostgreSQL to recover.
+                    if problem and sub_problems_count == 0:
+                        logger.warning(
+                            f"Checkpoint for {session_id} has problem but NO sub_problems! "
+                            f"LangGraph serialization lost nested data. Recovering from PostgreSQL."
+                        )
+                        recovered_problem = _recover_problem_from_postgres(session_id)
+                        if recovered_problem:
+                            # Merge: use PostgreSQL's problem (with sub_problems) but keep
+                            # other checkpoint state that wasn't lost
+                            full_state["problem"] = recovered_problem
+                            logger.info(
+                                f"Recovered problem with {len(recovered_problem.sub_problems)} sub_problems from PostgreSQL"
+                            )
+                        else:
+                            logger.error(
+                                f"Failed to recover problem from PostgreSQL for {session_id}"
+                            )
+                else:
+                    # Fallback: reconstruct from PostgreSQL
+                    full_state = _reconstruct_state_from_postgres(session_id)
+                    if not full_state:
+                        raise ValueError("No checkpoint found and PostgreSQL reconstruction failed")
+                    logger.info(f"Reconstructed state from PostgreSQL for {session_id}")
+
+                # Merge our updates INTO the full state
+                full_state["clarification_answers"] = {}  # Empty dict signals skip
+                full_state["should_stop"] = False  # Reset stop flag so router continues
+                full_state["stop_reason"] = None  # Clear stop reason
+                full_state["pending_clarification"] = None  # Clear pending
+                full_state["user_context_choice"] = "continue"  # Signal to continue without answers
+                full_state["limited_context_mode"] = (
+                    True  # Flag that we're operating with limited info
+                )
+
+                # Serialize the COMPLETE merged state
+                serialized_state = serialize_state_for_checkpoint(full_state)
+                await graph.aupdate_state(config, serialized_state, as_node="identify_gaps")
 
                 logger.info(
-                    f"Updated checkpoint for session {session_id} with skip signal - "
+                    f"Updated checkpoint for session {session_id} with skip signal (preserved full state) - "
                     f"will resume from identify_gaps edge"
                 )
             except Exception as e:

@@ -11,6 +11,7 @@ from typing import Any
 from bo1.graph.state import DeliberationGraphState
 from bo1.models.recommendations import Recommendation
 from bo1.utils.confidence_parser import (
+    extract_confidence_from_text,
     parse_conditions,
     parse_confidence_level,
 )
@@ -202,10 +203,18 @@ class ResponseParser:
         # Extract and parse confidence
         confidence_str = extract_xml_tag(response_content, "confidence")
         if not confidence_str:
-            logger.warning(
-                f"⚠️ FALLBACK: Could not extract <confidence> tag from {persona.name} recommendation. "
-                f"Defaulting to 0.6 (medium)."
-            )
+            # Try fallback pattern matching from full text
+            confidence_str = extract_confidence_from_text(response_content)
+            if confidence_str:
+                logger.info(
+                    f"⚠️ FALLBACK: Extracted confidence '{confidence_str}' from {persona.name} "
+                    f"using fallback pattern matching (no <confidence> tag)."
+                )
+            else:
+                logger.warning(
+                    f"⚠️ FALLBACK: Could not extract confidence from {persona.name} recommendation. "
+                    f"Defaulting to 0.6 (medium)."
+                )
         confidence = parse_confidence_level(confidence_str)
 
         # Extract and parse conditions

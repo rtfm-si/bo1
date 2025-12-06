@@ -29,15 +29,46 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
     Returns:
         Dictionary with state updates
     """
+    from bo1.models.problem import SubProblem
+
     logger.info("select_personas_node: Starting persona selection")
 
     # Create selector agent
     selector = PersonaSelectorAgent()
 
-    # Get current sub-problem
-    current_sp = state["current_sub_problem"]
+    # Get current sub-problem - with defensive fallback for resume edge cases
+    current_sp = state.get("current_sub_problem")
+    sub_problem_index = state.get("sub_problem_index", 0)
+
     if not current_sp:
-        raise ValueError("No current sub-problem in state")
+        # BUG FIX (P0): Defensive fallback when current_sub_problem is not set
+        # This can happen when resuming from checkpoint after clarification
+        # if the routing skips analyze_dependencies_node
+        problem = state.get("problem")
+        if problem:
+            # Handle both dict (from checkpoint) and Problem object
+            if isinstance(problem, dict):
+                sub_problems = problem.get("sub_problems", [])
+            else:
+                sub_problems = problem.sub_problems or []
+
+            if sub_problems and sub_problem_index < len(sub_problems):
+                sp = sub_problems[sub_problem_index]
+                # Convert to SubProblem if it's a dict
+                if isinstance(sp, dict):
+                    current_sp = SubProblem.model_validate(sp)
+                else:
+                    current_sp = sp
+                logger.warning(
+                    f"select_personas_node: current_sub_problem was None, "
+                    f"using sub_problems[{sub_problem_index}] (id={current_sp.id}) as fallback"
+                )
+
+    if not current_sp:
+        raise ValueError(
+            f"No current sub-problem in state and could not determine from sub_problems "
+            f"(sub_problem_index={sub_problem_index})"
+        )
 
     # Handle both dict (from checkpoint) and Problem object
     problem = state["problem"]
@@ -81,11 +112,14 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Return state updates
     # Include recommendations for display (with rationale for each persona)
+    # BUG FIX (P0): Include current_sub_problem in return to ensure it's persisted
+    # for downstream nodes (important when recovered via fallback)
     return {
         "personas": personas,
         "persona_recommendations": recommended_personas,  # Save for display
         "phase": DeliberationPhase.SELECTION,
         "metrics": metrics,
         "current_node": "select_personas",
+        "current_sub_problem": current_sp,  # BUG FIX: Persist for downstream nodes
         "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
     }

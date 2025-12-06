@@ -243,13 +243,15 @@ class CostTracker:
         pricing = ANTHROPIC_PRICING.get(model, ANTHROPIC_PRICING["claude-sonnet-4-5-20250929"])
 
         # Regular tokens (non-cached input)
-        regular_input = input_tokens - cache_read_tokens - cache_creation_tokens
+        # Ensure non-negative: with high cache hit rates, reported token counts can vary
+        regular_input = max(0, input_tokens - cache_read_tokens - cache_creation_tokens)
         input_cost = (regular_input / 1_000_000) * pricing["input"]
         output_cost = (output_tokens / 1_000_000) * pricing["output"]
         cache_write_cost = (cache_creation_tokens / 1_000_000) * pricing["cache_write"]
         cache_read_cost = (cache_read_tokens / 1_000_000) * pricing["cache_read"]
 
-        total_cost = input_cost + output_cost + cache_write_cost + cache_read_cost
+        # Ensure total cost is non-negative (safeguard for edge cases)
+        total_cost = max(0.0, input_cost + output_cost + cache_write_cost + cache_read_cost)
 
         # What it would have cost without caching
         cost_without_cache = (input_tokens / 1_000_000) * pricing["input"] + (
@@ -486,25 +488,39 @@ class CostTracker:
                     record.cache_creation_tokens,
                     record.cache_read_tokens,
                 )
-                record.input_cost = costs[0]
-                record.output_cost = costs[1]
-                record.cache_write_cost = costs[2]
-                record.cache_read_cost = costs[3]
-                record.total_cost = costs[4]
-                record.cost_without_optimization = costs[5]
+                record.input_cost = max(0.0, costs[0])
+                record.output_cost = max(0.0, costs[1])
+                record.cache_write_cost = max(0.0, costs[2])
+                record.cache_read_cost = max(0.0, costs[3])
+                record.total_cost = max(0.0, costs[4])
+                record.cost_without_optimization = max(0.0, costs[5]) if costs[5] else None
                 if record.cache_read_tokens > 0:
                     record.optimization_type = "prompt_cache"
 
             elif provider == "voyage":
-                record.total_cost = CostTracker.calculate_voyage_cost(
-                    record.model_name or "voyage-3", record.input_tokens
+                record.total_cost = max(
+                    0.0,
+                    CostTracker.calculate_voyage_cost(
+                        record.model_name or "voyage-3", record.input_tokens
+                    ),
                 )
 
             elif provider == "brave":
-                record.total_cost = CostTracker.calculate_brave_cost(record.operation_type)
+                record.total_cost = max(
+                    0.0, CostTracker.calculate_brave_cost(record.operation_type)
+                )
 
             elif provider == "tavily":
-                record.total_cost = CostTracker.calculate_tavily_cost(record.operation_type)
+                record.total_cost = max(
+                    0.0, CostTracker.calculate_tavily_cost(record.operation_type)
+                )
+
+            # Final safeguard: ensure all costs are non-negative (DB constraint requires total_cost >= 0)
+            record.total_cost = max(0.0, record.total_cost)
+            record.input_cost = max(0.0, record.input_cost)
+            record.output_cost = max(0.0, record.output_cost)
+            record.cache_write_cost = max(0.0, record.cache_write_cost)
+            record.cache_read_cost = max(0.0, record.cache_read_cost)
 
             # Log to database
             CostTracker.log_cost(record)

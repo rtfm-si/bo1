@@ -180,6 +180,34 @@ async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
         # All questions answered (or no original questions) - continue to next node
         logger.info("identify_gaps_node: All clarification questions answered, continuing")
 
+        # Check for partial/incomplete answers and set limited_context_mode
+        limited_context_mode = False
+        partial_answer_reasons = []
+
+        if clarification_answers:
+            for question, answer in clarification_answers.items():
+                answer_str = str(answer).strip() if answer else ""
+
+                # Check for empty or very short answers (< 10 chars is likely unhelpful)
+                if not answer_str:
+                    partial_answer_reasons.append(f"Empty answer for: {question[:50]}...")
+                    limited_context_mode = True
+                elif len(answer_str) < 10:
+                    partial_answer_reasons.append(
+                        f"Very short answer ({len(answer_str)} chars) for: {question[:50]}..."
+                    )
+                    limited_context_mode = True
+
+            if limited_context_mode:
+                logger.warning(
+                    f"identify_gaps_node: Partial/incomplete answers detected - "
+                    f"enabling limited_context_mode. Reasons: {partial_answer_reasons}"
+                )
+            else:
+                logger.info(
+                    f"identify_gaps_node: All {len(clarification_answers)} answers appear complete"
+                )
+
         # Inject answers into problem context for use by downstream nodes
         # This ensures experts have access to the user's clarification responses
         if clarification_answers:
@@ -207,6 +235,8 @@ async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
             "pending_clarification": None,
             "problem": problem,  # Updated with clarification context
             "clarification_answers": None,  # Clear after processing
+            "limited_context_mode": limited_context_mode,  # NEW: Flag for partial answers
+            "context_insufficient_emitted": False,  # Reset for fresh detection
         }
 
     # Get sub-problems from problem (handle both dict and object)

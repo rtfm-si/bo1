@@ -1100,3 +1100,202 @@ async def _submit_clarification_impl(
             status_code=500,
             detail=f"Failed to submit clarification: {str(e)}",
         ) from e
+
+
+# =============================================================================
+# Context Insufficiency Choice (Option D+E Hybrid)
+# =============================================================================
+
+
+class ContextChoiceRequest(BaseModel):
+    """Request model for context insufficiency user choice.
+
+    When >50% of contributions indicate experts need more context,
+    the user is given 3 choices:
+    - provide_more: Provide additional context and continue
+    - continue: Proceed with best-effort analysis
+    - end: End meeting early with current insights
+    """
+
+    choice: str = Field(
+        ...,
+        description="User's choice: 'provide_more', 'continue', or 'end'",
+        examples=["continue"],
+    )
+    additional_context: str | None = Field(
+        None,
+        max_length=5000,
+        description="Additional context (required if choice is 'provide_more')",
+    )
+
+
+@router.post(
+    "/{session_id}/context-choice",
+    response_model=ControlResponse,
+    status_code=202,
+    summary="Submit context insufficiency choice",
+    description="Submit user's choice when experts indicate they need more context.",
+    responses={
+        202: {"description": "Choice submitted, deliberation will resume/end accordingly"},
+        400: {"description": "Invalid request", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("submit context choice")
+async def submit_context_choice(
+    session_id: str,
+    request: ContextChoiceRequest,
+    session_data: VerifiedSession,
+    redis_manager: RedisManager = Depends(get_redis_manager),
+) -> ControlResponse:
+    """Handle user's choice when context is insufficient.
+
+    This endpoint is called when the user responds to a context_insufficient event.
+    It updates the session state and prepares for resume.
+
+    Args:
+        session_id: Session identifier
+        request: User's choice and optional additional context
+        session_data: Verified session (user_id, metadata) from dependency
+        redis_manager: Redis manager instance
+
+    Returns:
+        ControlResponse with status and next steps
+    """
+    session_id = validate_session_id(session_id)
+    user_id, metadata = session_data
+
+    # Validate choice
+    valid_choices = {"provide_more", "continue", "end"}
+    if request.choice not in valid_choices:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid choice: {request.choice}. Must be one of: {valid_choices}",
+        )
+
+    # Validate additional_context for provide_more choice
+    if request.choice == "provide_more" and not request.additional_context:
+        raise HTTPException(
+            status_code=400,
+            detail="Additional context required when choice is 'provide_more'",
+        )
+
+    logger.info(f"Context choice received for session {session_id}: {request.choice}")
+
+    if request.choice == "end":
+        # End meeting early - trigger early synthesis
+        metadata["user_context_choice"] = "end"
+        metadata["status"] = "paused"  # Will trigger early synthesis on resume
+        metadata["updated_at"] = datetime.now(UTC).isoformat()
+        redis_manager.save_metadata(session_id, metadata)
+
+        # Update checkpoint state for early end
+        await _update_checkpoint_for_context_choice(session_id, "end", None)
+
+        return ControlResponse(
+            session_id=session_id,
+            action="context_choice",
+            status="success",
+            message="Meeting will end with current insights. Call /resume to generate synthesis.",
+        )
+
+    elif request.choice == "provide_more":
+        # Store additional context and prepare for resume
+        metadata["user_context_choice"] = "provide_more"
+        metadata["additional_context"] = request.additional_context
+        metadata["status"] = "paused"
+        metadata["updated_at"] = datetime.now(UTC).isoformat()
+        redis_manager.save_metadata(session_id, metadata)
+
+        # Update checkpoint state with additional context
+        await _update_checkpoint_for_context_choice(
+            session_id, "provide_more", request.additional_context
+        )
+
+        return ControlResponse(
+            session_id=session_id,
+            action="context_choice",
+            status="success",
+            message="Additional context received. Call /resume to continue deliberation.",
+        )
+
+    else:  # continue
+        # Continue with best effort mode
+        metadata["user_context_choice"] = "continue"
+        metadata["best_effort_mode"] = True
+        metadata["status"] = "paused"
+        metadata["updated_at"] = datetime.now(UTC).isoformat()
+        redis_manager.save_metadata(session_id, metadata)
+
+        # Update checkpoint state for best effort mode
+        await _update_checkpoint_for_context_choice(session_id, "continue", None)
+
+        return ControlResponse(
+            session_id=session_id,
+            action="context_choice",
+            status="success",
+            message="Continuing with best-effort analysis. Call /resume to continue deliberation.",
+        )
+
+
+async def _update_checkpoint_for_context_choice(
+    session_id: str,
+    choice: str,
+    additional_context: str | None,
+) -> bool:
+    """Update checkpoint state with context choice.
+
+    This updates the LangGraph checkpoint so that when the session resumes,
+    the graph knows which choice the user made.
+
+    Args:
+        session_id: Session identifier
+        choice: User's choice (provide_more, continue, end)
+        additional_context: Additional context if provided
+
+    Returns:
+        True if update successful, False otherwise
+    """
+    try:
+        # Load current state
+        state = await load_state_from_checkpoint(session_id)
+        if not state:
+            logger.warning(f"No checkpoint found for {session_id} to update context choice")
+            return False
+
+        # Update state with user choice
+        state["user_context_choice"] = choice
+        state["should_stop"] = False  # Clear stop flag to allow resume
+
+        if choice == "continue":
+            state["best_effort_prompt_injected"] = False  # Will be injected on next round
+            state["limited_context_mode"] = True
+        elif choice == "provide_more" and additional_context:
+            # Inject additional context into problem
+            problem = state.get("problem")
+            if problem:
+                if isinstance(problem, dict):
+                    current_context = problem.get("context", "") or ""
+                    problem["context"] = (
+                        current_context
+                        + f"\n\n## Additional Context (from user)\n{additional_context}"
+                    )
+                else:
+                    current_context = problem.context or ""
+                    problem.context = (
+                        current_context
+                        + f"\n\n## Additional Context (from user)\n{additional_context}"
+                    )
+                state["problem"] = problem
+        elif choice == "end":
+            # Set up for early synthesis
+            state["should_stop"] = True
+            state["stop_reason"] = "user_ended_early"
+
+        # Save updated state back to checkpoint
+        return await save_state_to_checkpoint(session_id, state)
+
+    except Exception as e:
+        logger.error(f"Failed to update checkpoint for context choice: {e}")
+        return False

@@ -44,6 +44,25 @@ class ResponseParser:
         r"understanding the specific communication",
     ]
 
+    # Patterns indicating expert is struggling with insufficient context
+    # (broader than META_DISCUSSION_PATTERNS - catches experts discussing LACK of information)
+    INSUFFICIENT_CONTEXT_PATTERNS = [
+        r"without (?:more|additional|further) (?:context|information|details)",
+        r"(?:need|require) more (?:context|information|specifics)",
+        r"unclear what (?:the|you) (?:want|need|expect)",
+        r"(?:missing|lack(?:ing)?|insufficient) (?:key |critical )?(?:details|information|context)",
+        r"to provide (?:a |more )?(?:specific|meaningful|actionable) (?:advice|recommendation)",
+        r"(?:hard|difficult|impossible) to (?:assess|evaluate|analyze) without",
+        r"what (?:exactly|specifically) (?:are|is) (?:the|your)",
+        r"(?:could|would) you (?:clarify|elaborate|provide)",
+        r"i(?:'m| am) not (?:clear|sure) (?:on|about) what",
+        r"the problem (?:statement |context )?(?:is |doesn't |lacks )",
+        r"i(?:'m| am) not seeing (?:a |the )?(?:problem|context|discussion)",
+        r"(?:problem|context|discussion) (?:appears? to be |seems? )?missing",
+        r"before (?:i can |we )(?:proceed|provide|offer)",
+        r"cannot (?:offer|provide|give) (?:specific|concrete|meaningful)",
+    ]
+
     @staticmethod
     def is_meta_discussion(content: str) -> bool:
         """Check if the content appears to be meta-discussion rather than substantive analysis.
@@ -66,6 +85,43 @@ class ResponseParser:
             if re.search(pattern, content_lower):
                 logger.warning(f"Meta-discussion pattern detected: {pattern}")
                 return True
+        return False
+
+    @staticmethod
+    def is_context_insufficient_discussion(content: str) -> bool:
+        """Check if contribution indicates expert is struggling with insufficient context.
+
+        This is broader than is_meta_discussion() - it catches when experts are
+        discussing the LACK of information rather than engaging with the problem itself.
+
+        Args:
+            content: The contribution text to check
+
+        Returns:
+            True if the content indicates expert needs more context to engage properly
+
+        Example:
+            >>> ResponseParser.is_context_insufficient_discussion(
+            ...     "Without more context about the business model, I cannot provide specific advice."
+            ... )
+            True
+            >>> ResponseParser.is_context_insufficient_discussion(
+            ...     "Based on typical startup patterns, I recommend focusing on unit economics."
+            ... )
+            False
+        """
+        content_lower = content.lower()
+
+        # First check existing meta-discussion patterns
+        if ResponseParser.is_meta_discussion(content):
+            return True
+
+        # Then check insufficient context patterns
+        for pattern in ResponseParser.INSUFFICIENT_CONTEXT_PATTERNS:
+            if re.search(pattern, content_lower):
+                logger.warning(f"Insufficient context pattern detected: {pattern}")
+                return True
+
         return False
 
     @staticmethod

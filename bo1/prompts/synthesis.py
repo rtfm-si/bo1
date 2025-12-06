@@ -329,6 +329,8 @@ SPECIFICITY: Concrete actions beat vague advice. "Talk to 3 customers this week"
 CONFIDENCE: State recommendations clearly. Acknowledge uncertainty honestly, but don't hedge everything.
 </principles>
 
+{limited_context_section}
+
 <problem>
 {problem_statement}
 </problem>
@@ -380,6 +382,7 @@ Generate a synthesis using EXACTLY this structure. Be concise but complete.
 
 [One paragraph. State the overall confidence level (High/Medium/Low) and why. Note where experts agreed strongly vs. where uncertainty remains. Be honest about what you don't know.]
 
+{limited_context_output_section}
 </output_format>
 
 <quality_checklist>
@@ -392,6 +395,60 @@ Before outputting, verify:
 - [ ] No business jargon ("leverage", "synergize", "optimize")
 - [ ] Total output is ~600-800 words (fits in token budget)
 </quality_checklist>"""
+
+
+# =============================================================================
+# Limited Context Mode Sections (Option D+E Hybrid)
+# =============================================================================
+
+LIMITED_CONTEXT_PROMPT_SECTION = """<limited_context_notice>
+IMPORTANT: This deliberation was conducted with LIMITED CONTEXT.
+
+The user acknowledged that complete information was not available. The experts have made
+their best effort to provide analysis based on available information, but this synthesis
+MUST include:
+
+1. An explicit "Assumptions & Limitations" section
+2. Clear marking of any recommendations that depend on unverified assumptions
+3. Reduced confidence level where context gaps exist
+4. Specific questions that would need to be answered for higher confidence
+
+Be transparent about what the board COULD NOT fully assess due to missing context.
+</limited_context_notice>
+"""
+
+LIMITED_CONTEXT_OUTPUT_SECTION = """
+## Assumptions & Limitations
+
+IMPORTANT: This analysis was conducted with incomplete context. The following assumptions were made:
+
+[List 3-5 key assumptions that the experts made in lieu of complete information. Be specific about what was assumed and what could change the recommendation if the assumption is wrong.]
+
+1. **[Assumption 1]**: [Why it was assumed and what would change if wrong]
+2. **[Assumption 2]**: [Why it was assumed and what would change if wrong]
+3. **[Assumption 3]**: [Why it was assumed and what would change if wrong]
+
+### Information That Would Increase Confidence
+
+[List 2-3 specific pieces of information that, if provided, would significantly improve the quality of this recommendation.]
+
+- **[Missing info 1]**: [Why it matters]
+- **[Missing info 2]**: [Why it matters]
+"""
+
+
+def get_limited_context_sections(limited_context_mode: bool) -> tuple[str, str]:
+    """Get the limited context sections for synthesis prompts.
+
+    Args:
+        limited_context_mode: Whether the deliberation was conducted with limited context
+
+    Returns:
+        Tuple of (prompt_section, output_section) to insert into templates
+    """
+    if limited_context_mode:
+        return LIMITED_CONTEXT_PROMPT_SECTION, LIMITED_CONTEXT_OUTPUT_SECTION
+    return "", ""
 
 
 def compose_synthesis_prompt(problem_statement: str, all_contributions_and_votes: str) -> str:

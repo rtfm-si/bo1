@@ -17,5 +17,6 @@ export { default as MeetingProgress } from './MeetingProgress.svelte';
 export { default as SubProblemTabs } from './SubProblemTabs.svelte';
 export { default as EventStream } from './EventStream.svelte';
 export { default as ClarificationForm } from './ClarificationForm.svelte';
+export { default as ContextInsufficientModal } from './ContextInsufficientModal.svelte';
 export { default as ExpertSummariesPanel } from './ExpertSummariesPanel.svelte';
 export { default as ResearchPanel } from './ResearchPanel.svelte';

@@ -476,6 +476,28 @@ export interface ClarificationRequestedEvent extends SSEEvent {
 }
 
 // ============================================================================
+// Event 26: Context Insufficient (Option D+E Hybrid)
+// ============================================================================
+
+export interface ContextInsufficientChoice {
+	id: 'provide_more' | 'continue' | 'end';
+	label: string;
+}
+
+export interface ContextInsufficientEvent extends SSEEvent {
+	event_type: 'context_insufficient';
+	data: {
+		meta_ratio: number;
+		expert_questions: string[];
+		reason: string;
+		round_number: number;
+		sub_problem_index: number;
+		choices: ContextInsufficientChoice[];
+		timeout_seconds: number;
+	};
+}
+
+// ============================================================================
 // Union Type for All Events
 // ============================================================================
 
@@ -508,7 +530,8 @@ export type DeliberationEvent =
 	| CompleteEvent
 	| ErrorEvent
 	| MeetingFailedEvent
-	| ClarificationRequestedEvent;
+	| ClarificationRequestedEvent
+	| ContextInsufficientEvent;
 
 // ============================================================================
 // Type Guards
@@ -584,4 +607,8 @@ export function isExpertSummariesEvent(event: SSEEvent): event is ExpertSummarie
 
 export function isResearchResultsEvent(event: SSEEvent): event is ResearchResultsEvent {
 	return event.event_type === 'research_results';
+}
+
+export function isContextInsufficientEvent(event: SSEEvent): event is ContextInsufficientEvent {
+	return event.event_type === 'context_insufficient';
 }

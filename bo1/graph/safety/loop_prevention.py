@@ -239,6 +239,22 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
         f"phase={current_phase}"
     )
 
+    # NEW: Check for context insufficiency (Option D+E Hybrid)
+    # Only check in early rounds (1-2) before normal stopping rules
+    context_check = check_context_insufficiency(state)
+    if context_check:
+        logger.warning(
+            f"Round {round_number}: Context insufficiency detected - "
+            f"{context_check['meta_count']}/{context_check['total_count']} meta-discussion"
+        )
+        # Mark that we've emitted this event (prevent duplicate emissions)
+        state["context_insufficient_emitted"] = True
+        state["should_stop"] = True
+        state["stop_reason"] = "context_insufficient"
+        # Store the detection info for event emission
+        state["context_insufficiency_info"] = context_check
+        return state
+
     # Evaluate stopping rules
     evaluator = StoppingRulesEvaluator()
     decision = evaluator.evaluate(state)
@@ -259,8 +275,120 @@ async def check_convergence_node(state: DeliberationGraphState) -> DeliberationG
 
 
 # ============================================================================
-# Multi-Criteria Stopping Rules (NEW)
+# Context Sufficiency Detection (Option D+E Hybrid)
 # ============================================================================
+
+
+def check_context_insufficiency(state: DeliberationGraphState) -> dict[str, Any] | None:
+    """Check if deliberation is suffering from insufficient context.
+
+    Triggers when:
+    1. Round 1 or 2 (early in deliberation)
+    2. >50% of contributions are meta-discussion (asking for more context)
+    3. context_insufficient_emitted is False (haven't already emitted this event)
+
+    When triggered, the graph should pause and emit a context_insufficient event
+    giving the user 3 choices: provide more context, continue with best effort,
+    or end the meeting early.
+
+    Args:
+        state: Current deliberation state
+
+    Returns:
+        Dict with detection info if context insufficient, None otherwise
+        Returns: {
+            "detected": True,
+            "meta_ratio": float,
+            "meta_count": int,
+            "total_count": int,
+            "round": int,
+            "expert_questions": list[str]
+        }
+    """
+    round_number = state.get("round_number", 1)
+
+    # Only check in rounds 1-2 (too early for normal convergence issues)
+    if round_number > 2:
+        return None
+
+    # Check if we've already emitted this event
+    if state.get("context_insufficient_emitted", False):
+        return None
+
+    # Check if user already made a choice (e.g., resuming after choice)
+    if state.get("user_context_choice") is not None:
+        return None
+
+    meta_count = state.get("meta_discussion_count", 0)
+    total_count = state.get("total_contributions_checked", 0)
+
+    # Need at least 3 contributions to assess
+    if total_count < 3:
+        return None
+
+    meta_ratio = meta_count / total_count
+
+    # Threshold: >50% meta-discussion indicates insufficient context
+    if meta_ratio > 0.50:
+        logger.warning(
+            f"Context insufficiency detected: {meta_count}/{total_count} "
+            f"({meta_ratio:.0%}) contributions are meta-discussion"
+        )
+
+        # Extract questions from meta-discussion contributions
+        expert_questions = _extract_expert_questions(state)
+
+        return {
+            "detected": True,
+            "meta_ratio": meta_ratio,
+            "meta_count": meta_count,
+            "total_count": total_count,
+            "round": round_number,
+            "expert_questions": expert_questions,
+        }
+
+    return None
+
+
+def _extract_expert_questions(state: DeliberationGraphState) -> list[str]:
+    """Extract questions experts are asking from meta-discussion contributions.
+
+    Parses recent contributions looking for question patterns that indicate
+    what information the experts need.
+
+    Args:
+        state: Current deliberation state
+
+    Returns:
+        List of extracted questions (up to 5)
+    """
+    import re
+
+    questions = []
+    contributions = state.get("contributions", [])
+
+    # Question patterns to look for
+    question_patterns = [
+        r"what (?:is|are) (?:the|your) (.+?)\?",
+        r"could you (?:clarify|specify|explain) (.+?)\?",
+        r"(?:need|require) (?:to know|information about) (.+?)(?:\.|$)",
+        r"unclear (?:what|how|whether) (.+?)(?:\.|$)",
+        r"what (?:exactly|specifically) (.+?)\?",
+    ]
+
+    # Check last 10 contributions
+    for contrib in contributions[-10:]:
+        content = contrib.content if hasattr(contrib, "content") else str(contrib)
+        content_lower = content.lower()
+
+        for pattern in question_patterns:
+            matches = re.findall(pattern, content_lower)
+            for match in matches:
+                question = match.strip().capitalize()
+                if question and len(question) > 5 and question not in questions:
+                    questions.append(question + "?")
+
+    return questions[:5]  # Limit to 5 questions
 
 
 # ============================================================================

@@ -561,6 +561,8 @@ def _build_round_state_update(
     Returns:
         Dictionary with state updates
     """
+    from bo1.llm.response_parser import ResponseParser
+
     # Update contributions
     all_contributions = list(state.get("contributions", []))
     all_contributions.extend(filtered_contributions)
@@ -571,6 +573,56 @@ def _build_round_state_update(
     experts_per_round.append(round_experts)
 
     next_round = round_number + 1
+
+    # NEW: Count meta-discussion contributions for context sufficiency detection
+    meta_discussion_count = state.get("meta_discussion_count", 0)
+    total_contributions_checked = state.get("total_contributions_checked", 0)
+
+    for contrib in filtered_contributions:
+        total_contributions_checked += 1
+        if ResponseParser.is_context_insufficient_discussion(contrib.content):
+            meta_discussion_count += 1
+            logger.warning(
+                f"Meta-discussion detected from {contrib.persona_code} in round {round_number}: "
+                f"'{contrib.content[:80]}...'"
+            )
+
+    # Calculate and log meta-discussion ratio
+    # Also track research loop counter for loop prevention
+    consecutive_research_without_improvement = state.get(
+        "consecutive_research_without_improvement", 0
+    )
+    research_results = state.get("research_results", [])
+
+    if total_contributions_checked > 0:
+        meta_ratio = meta_discussion_count / total_contributions_checked
+        if meta_ratio > 0.3:  # Log if >30% are meta-discussion
+            logger.warning(
+                f"High meta-discussion ratio: {meta_discussion_count}/{total_contributions_checked} "
+                f"({meta_ratio:.0%}) contributions indicate insufficient context"
+            )
+
+            # RESEARCH LOOP PREVENTION (Option D+E Hybrid - Phase 7)
+            # If we have research results but meta-discussion is still high,
+            # the research didn't help - increment the counter
+            if research_results and len(research_results) > 0:
+                consecutive_research_without_improvement += 1
+                logger.warning(
+                    f"🔄 Research loop counter incremented to {consecutive_research_without_improvement} "
+                    f"(research results: {len(research_results)}, but meta-discussion still high: {meta_ratio:.0%})"
+                )
+        else:
+            # Meta-discussion is acceptable - reset the counter if research helped
+            if (
+                research_results
+                and len(research_results) > 0
+                and consecutive_research_without_improvement > 0
+            ):
+                logger.info(
+                    f"✅ Research helped! Meta-discussion ratio improved to {meta_ratio:.0%}. "
+                    f"Resetting research loop counter."
+                )
+                consecutive_research_without_improvement = 0
 
     # Log completion
     if quality_results:
@@ -599,6 +651,11 @@ def _build_round_state_update(
         "sub_problem_index": state.get("sub_problem_index", 0),
         "pending_research_queries": pending_research_queries,
         "facilitator_guidance": facilitator_guidance,
+        # NEW: Context sufficiency tracking
+        "meta_discussion_count": meta_discussion_count,
+        "total_contributions_checked": total_contributions_checked,
+        # Research loop prevention counter
+        "consecutive_research_without_improvement": consecutive_research_without_improvement,
     }
 
 

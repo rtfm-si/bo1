@@ -11,6 +11,37 @@ from bo1.prompts.protocols import (
 )
 
 # =============================================================================
+# Best Effort Mode Prompt (Context Sufficiency - Option D+E Hybrid)
+# =============================================================================
+
+BEST_EFFORT_PROMPT = """<best_effort_mode>
+## IMPORTANT: LIMITED CONTEXT MODE
+
+The user has acknowledged that complete context is not available for this discussion.
+You MUST still provide your best expert analysis based on what IS available.
+
+**MANDATORY ENGAGEMENT RULES:**
+1. **Work with what you have** - Do NOT say "I don't have enough context" or similar
+2. **Make explicit assumptions** - If information is missing, state: "Assuming X is the case..."
+3. **Provide conditional recommendations** - "If X is true, then I recommend Y"
+4. **Flag uncertainties** - Clearly mark: "[ASSUMPTION]" or "[NEEDS VERIFICATION]"
+5. **Be actionable** - Even with limited info, suggest concrete next steps
+
+**DO NOT:**
+- Refuse to engage due to missing context
+- Only list what's unknown
+- Ask for more information (user has already provided what they can)
+- Produce generic advice that could apply to any situation
+
+**INSTEAD:**
+- Make reasonable assumptions based on your expertise
+- Provide your professional judgment even with uncertainty
+- Give the BEST answer possible given constraints
+- Trust your expertise to fill reasonable gaps
+</best_effort_mode>"""
+
+
+# =============================================================================
 # Challenge Phase Protocol (Rounds 3-4)
 # =============================================================================
 

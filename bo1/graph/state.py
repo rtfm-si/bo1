@@ -105,6 +105,16 @@ class DeliberationGraphState(TypedDict, total=False):
     parallel_mode: bool  # Whether parallel sub-problem execution is active
     dependency_error: str | None  # Error message if circular dependencies detected
 
+    # CONTEXT SUFFICIENCY (Option D+E Hybrid)
+    limited_context_mode: bool  # True if user provided partial/incomplete clarification answers
+    context_insufficient_emitted: bool  # Track if context_insufficient event was already emitted
+    context_insufficiency_info: dict[str, Any] | None  # Info about detected context insufficiency
+    user_context_choice: str | None  # "continue" | "provide_more" | "end" | None
+    best_effort_prompt_injected: bool  # Track if best effort prompt has been injected
+    consecutive_research_without_improvement: int  # Counter for research loop prevention
+    meta_discussion_count: int  # Count of meta-discussion contributions in current sub-problem
+    total_contributions_checked: int  # Total contributions checked for meta-discussion ratio
+
 
 def create_initial_state(
     session_id: str,
@@ -170,6 +180,15 @@ def create_initial_state(
         execution_batches=[],  # Will be populated by analyze_dependencies_node
         parallel_mode=False,  # Will be set based on dependency analysis
         dependency_error=None,  # Will be set if circular dependencies detected
+        # CONTEXT SUFFICIENCY (Option D+E Hybrid)
+        limited_context_mode=False,  # Will be set if user provides partial answers
+        context_insufficient_emitted=False,  # Track if event was emitted
+        context_insufficiency_info=None,  # Info about detected context insufficiency
+        user_context_choice=None,  # User's choice: continue/provide_more/end
+        best_effort_prompt_injected=False,  # Track if best effort prompt used
+        consecutive_research_without_improvement=0,  # Research loop counter
+        meta_discussion_count=0,  # Count of meta-discussion contributions
+        total_contributions_checked=0,  # Total contributions checked for ratio
     )
 
 

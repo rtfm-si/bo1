@@ -898,6 +898,66 @@ def phase_cost_breakdown_event(
     )
 
 
+def context_insufficient_event(
+    session_id: str,
+    meta_ratio: float,
+    expert_questions: list[str],
+    reason: str,
+    round_number: int,
+    sub_problem_index: int = 0,
+) -> str:
+    """Create SSE event for context insufficiency detection.
+
+    This event is emitted when >50% of contributions indicate experts
+    are struggling with insufficient context. It gives users 3 choices:
+    1. Provide additional details (answer expert questions)
+    2. Continue with available information (best effort mode)
+    3. End meeting with current insights
+
+    Args:
+        session_id: Session identifier
+        meta_ratio: Ratio of meta-discussion contributions (0.0-1.0)
+        expert_questions: Questions extracted from expert contributions
+        reason: Human-readable explanation of the insufficiency
+        round_number: Current round number
+        sub_problem_index: Sub-problem index for context
+
+    Returns:
+        SSE-formatted event string
+    """
+    return format_sse_event(
+        "context_insufficient",
+        {
+            "session_id": session_id,
+            "meta_ratio": round(meta_ratio, 2),
+            "expert_questions": expert_questions,
+            "reason": reason,
+            "round_number": round_number,
+            "sub_problem_index": sub_problem_index,
+            "choices": [
+                {
+                    "id": "provide_more",
+                    "label": "Provide Additional Details",
+                    "description": "Answer the questions our experts have raised",
+                },
+                {
+                    "id": "continue",
+                    "label": "Continue with Available Information",
+                    "description": "Proceed with best-effort analysis based on what we know",
+                },
+                {
+                    "id": "end",
+                    "label": "End Meeting",
+                    "description": "Generate summary with current insights and end",
+                },
+            ],
+            "timeout_seconds": 120,  # 2 minute timeout
+            "timeout_default": "continue",  # Default if no response
+            "timestamp": datetime.now(UTC).isoformat(),
+        },
+    )
+
+
 def quality_metrics_update_event(
     session_id: str,
     round_number: int,

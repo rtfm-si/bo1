@@ -128,7 +128,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates (synthesis report, phase=COMPLETE)
     """
     from bo1.llm.broker import PromptBroker, PromptRequest
-    from bo1.prompts.reusable_prompts import SYNTHESIS_LEAN_TEMPLATE
+    from bo1.prompts.reusable_prompts import SYNTHESIS_LEAN_TEMPLATE, get_limited_context_sections
 
     logger.info("synthesize_node: Starting synthesis with lean McKinsey-style template")
 
@@ -182,12 +182,21 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
             votes_text.append(f"Conditions: {', '.join(str(c) for c in conditions)}\n")
         votes_text.append("\n")
 
+    # Check for limited context mode (Option D+E Hybrid - Phase 8)
+    limited_context_mode = state.get("limited_context_mode", False)
+    prompt_section, output_section = get_limited_context_sections(limited_context_mode)
+
+    if limited_context_mode:
+        logger.info("synthesize_node: Limited context mode active - including assumptions section")
+
     # Compose synthesis prompt using lean McKinsey-style template
     synthesis_prompt = SYNTHESIS_LEAN_TEMPLATE.format(
         problem_statement=_get_problem_attr(problem, "description", ""),
         round_summaries="\n".join(round_summaries_text),
         final_round_contributions="\n".join(final_round_contributions),
         votes="\n".join(votes_text),
+        limited_context_section=prompt_section,
+        limited_context_output_section=output_section,
     )
 
     logger.info(

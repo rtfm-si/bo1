@@ -112,10 +112,30 @@ class FacilitatorAgent(BaseAgent):
         """Check if research/information is needed.
 
         Delegates to DeliberationAnalyzer for pattern detection.
+        Respects research loop prevention counter to avoid infinite research loops.
 
         Returns:
             dict with "query" and "reason" if research needed, None otherwise
         """
+        # RESEARCH LOOP PREVENTION (Option D+E Hybrid - Phase 7)
+        # Skip research if we've had consecutive research without improvement
+        consecutive_without_improvement = state.get("consecutive_research_without_improvement", 0)
+        if consecutive_without_improvement >= 2:
+            logger.warning(
+                f"🔄 Research loop prevented: {consecutive_without_improvement} consecutive "
+                f"research queries without improvement. Forcing continuation with available context."
+            )
+            return None
+
+        # Also skip research if we're in best effort mode (user chose to continue with limited context)
+        limited_context_mode = state.get("limited_context_mode", False)
+        user_context_choice = state.get("user_context_choice")
+        if limited_context_mode and user_context_choice == "continue":
+            logger.info(
+                "⏭️ Skipping research check: user chose to continue with limited context (best effort mode)"
+            )
+            return None
+
         return DeliberationAnalyzer.check_research_needed(state)
 
     def _count_contributions(self, contributions: list[Any]) -> dict[str, int]:

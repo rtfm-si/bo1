@@ -752,6 +752,52 @@ class EventCollector:
             f"should_stop={output.get('should_stop')} | "
             f"metrics={output.get('metrics')}"
         )
+
+        # NEW: Check for context insufficiency (Option D+E Hybrid)
+        stop_reason = output.get("stop_reason")
+        if stop_reason == "context_insufficient":
+            context_info = output.get("context_insufficiency_info", {})
+            logger.warning(
+                f"[CONTEXT INSUFFICIENT] Emitting context_insufficient event for {session_id} | "
+                f"meta_ratio={context_info.get('meta_ratio', 0):.0%} | "
+                f"questions={context_info.get('expert_questions', [])}"
+            )
+            # Emit context_insufficient event to pause and ask user for choice
+            self.publisher.publish_event(
+                session_id,
+                "context_insufficient",
+                {
+                    "meta_ratio": context_info.get("meta_ratio", 0),
+                    "expert_questions": context_info.get("expert_questions", []),
+                    "reason": (
+                        f"{context_info.get('meta_count', 0)} of "
+                        f"{context_info.get('total_count', 0)} contributions "
+                        f"indicate experts need more context to provide meaningful analysis."
+                    ),
+                    "round_number": output.get("round_number", 1),
+                    "sub_problem_index": output.get("sub_problem_index", 0),
+                    "choices": [
+                        {
+                            "id": "provide_more",
+                            "label": "Provide Additional Details",
+                            "description": "Answer the questions our experts have raised",
+                        },
+                        {
+                            "id": "continue",
+                            "label": "Continue with Available Information",
+                            "description": "Proceed with best-effort analysis",
+                        },
+                        {
+                            "id": "end",
+                            "label": "End Meeting",
+                            "description": "Generate summary with current insights",
+                        },
+                    ],
+                    "timeout_seconds": 120,
+                },
+            )
+            return  # Don't emit convergence event when context is insufficient
+
         await self._publish_node_event(session_id, output, "convergence")
 
     async def _handle_voting(self, session_id: str, output: dict) -> None:

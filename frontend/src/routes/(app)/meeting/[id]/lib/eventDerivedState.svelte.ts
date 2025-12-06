@@ -49,6 +49,14 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		return clarificationEvents.length > 0 ? clarificationEvents[clarificationEvents.length - 1] : undefined;
 	});
 
+	// Context insufficient event (Option D+E Hybrid)
+	const contextInsufficientEvent = $derived.by(() => {
+		const events = getEvents();
+		// Get the LAST context_insufficient event
+		const contextEvents = events.filter((e) => e.event_type === 'context_insufficient');
+		return contextEvents.length > 0 ? contextEvents[contextEvents.length - 1] : undefined;
+	});
+
 	const showConclusionTab = $derived.by(() => {
 		return (
 			metaSynthesisEvent !== undefined ||
@@ -76,6 +84,15 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 			(session?.status === 'active' || isPausedForClarification) &&
 			clarificationQuestions !== undefined
 		);
+	});
+
+	// Context insufficient - show modal when we have the event and session is paused
+	const needsContextChoice = $derived.by(() => {
+		const session = getSession();
+		// Show modal when session is paused for context choice
+		const isPausedForContext =
+			session?.status === 'paused' && session?.phase === 'context_insufficient';
+		return contextInsufficientEvent !== undefined && isPausedForContext;
 	});
 
 	const shouldHideDecomposition = $derived.by(() => {
@@ -119,6 +136,9 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		get clarificationRequiredEvent() {
 			return clarificationRequiredEvent;
 		},
+		get contextInsufficientEvent() {
+			return contextInsufficientEvent;
+		},
 		get showConclusionTab() {
 			return showConclusionTab;
 		},
@@ -130,6 +150,9 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		},
 		get needsClarification() {
 			return needsClarification;
+		},
+		get needsContextChoice() {
+			return needsContextChoice;
 		},
 		get shouldHideDecomposition() {
 			return shouldHideDecomposition;

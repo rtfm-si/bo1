@@ -26,9 +26,11 @@
 		SubProblemTabs,
 		EventStream,
 		ClarificationForm,
+		ContextInsufficientModal,
 		ExpertSummariesPanel,
 		ResearchPanel,
 	} from '$lib/components/meeting';
+	import type { ContextInsufficientEvent } from '$lib/api/sse-events';
 
 	// Import utilities
 	import { getEventPriority, type EventPriority } from '$lib/utils/event-humanization';
@@ -319,6 +321,13 @@
 		await startEventStream();
 	}
 
+	async function handleContextChoiceMade() {
+		// Reload session to get updated status
+		await loadSession();
+		// Restart event stream to continue receiving events
+		await startEventStream();
+	}
+
 	// ============================================================================
 	// PDF EXPORT
 	// ============================================================================
@@ -430,6 +439,15 @@
 				questions={eventState.clarificationQuestions}
 				reason={eventState.clarificationRequiredEvent?.data?.reason as string | undefined}
 				onSubmitted={handleClarificationSubmitted}
+			/>
+		{/if}
+
+		<!-- Context Insufficient Modal (Option D+E Hybrid) -->
+		{#if eventState.needsContextChoice && eventState.contextInsufficientEvent}
+			<ContextInsufficientModal
+				{sessionId}
+				eventData={(eventState.contextInsufficientEvent as ContextInsufficientEvent).data}
+				onChoiceMade={handleContextChoiceMade}
 			/>
 		{/if}
 

@@ -14,6 +14,7 @@ from bo1.data import get_persona_by_code
 from bo1.graph.state import DeliberationGraphState
 from bo1.models.state import ContributionMessage
 from bo1.prompts.reusable_prompts import (
+    BEST_EFFORT_PROMPT,
     compose_persona_contribution_prompt,
     compose_persona_prompt_hierarchical,
     get_round_phase_config,
@@ -28,6 +29,34 @@ class PromptBuilder:
     Handles the complex logic of selecting the appropriate prompt strategy
     based on available context (summaries, previous contributions, round phase).
     """
+
+    @staticmethod
+    def _should_inject_best_effort(state: DeliberationGraphState) -> bool:
+        """Check if best effort prompt should be injected.
+
+        Best effort mode is enabled when:
+        - limited_context_mode is True (user provided partial clarification answers)
+        - user_context_choice is "continue" (user chose to proceed with limited context)
+
+        Args:
+            state: Current deliberation state
+
+        Returns:
+            True if best effort prompt should be injected
+        """
+        limited_context_mode = state.get("limited_context_mode", False)
+        user_context_choice = state.get("user_context_choice")
+
+        should_inject = limited_context_mode and user_context_choice == "continue"
+
+        if should_inject:
+            logger.info(
+                "Best effort mode enabled: limited_context_mode=%s, user_context_choice=%s",
+                limited_context_mode,
+                user_context_choice,
+            )
+
+        return should_inject
 
     @staticmethod
     def build_persona_prompt(
@@ -82,7 +111,7 @@ class PromptBuilder:
 
         if round_summaries and round_number > 1:
             # Use hierarchical prompts (summaries + recent contributions)
-            return PromptBuilder._build_hierarchical_prompt(
+            system_prompt, user_message = PromptBuilder._build_hierarchical_prompt(
                 persona_data=persona_data,
                 persona_profile=persona_profile,
                 problem_statement=problem_statement,
@@ -95,7 +124,7 @@ class PromptBuilder:
             )
         else:
             # Use regular prompts (no summaries yet or early rounds)
-            return PromptBuilder._build_regular_prompt(
+            system_prompt, user_message = PromptBuilder._build_regular_prompt(
                 persona_data=persona_data,
                 problem_statement=problem_statement,
                 previous_contributions=previous_contributions,
@@ -103,6 +132,16 @@ class PromptBuilder:
                 round_number=round_number,
                 round_config=round_config,
             )
+
+        # Inject best effort prompt if context is limited and user chose to continue
+        if PromptBuilder._should_inject_best_effort(state):
+            system_prompt = f"{BEST_EFFORT_PROMPT}\n\n{system_prompt}"
+            logger.info(
+                f"Injected BEST_EFFORT_PROMPT for {persona_profile.display_name} "
+                f"(limited_context_mode=True, user_context_choice=continue)"
+            )
+
+        return system_prompt, user_message
 
     @staticmethod
     def _build_hierarchical_prompt(

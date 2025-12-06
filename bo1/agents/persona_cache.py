@@ -32,6 +32,15 @@ from bo1.utils.singleton import singleton
 logger = logging.getLogger(__name__)
 
 
+def _get_sp_attr(sp: SubProblem | dict[str, Any], attr: str, default: Any = None) -> Any:
+    """Safely get attribute from sub_problem (handles both dict and object)."""
+    if sp is None:
+        return default
+    if isinstance(sp, dict):
+        return sp.get(attr, default)
+    return getattr(sp, attr, default)
+
+
 class PersonaSelectionCache(BaseCache[SubProblem, list[PersonaProfile]]):
     """Semantic similarity-based persona selection cache with Redis backend.
 
@@ -86,7 +95,8 @@ class PersonaSelectionCache(BaseCache[SubProblem, list[PersonaProfile]]):
 
         try:
             # Generate embedding for problem goal
-            query_embedding = generate_embedding(problem.goal, input_type="query")
+            problem_goal = _get_sp_attr(problem, "goal", "")
+            query_embedding = generate_embedding(problem_goal, input_type="query")
 
             # Search cache for similar problems
             # Note: This iterates all keys - acceptable for moderate cache sizes (<1000 entries)
@@ -156,20 +166,21 @@ class PersonaSelectionCache(BaseCache[SubProblem, list[PersonaProfile]]):
 
         try:
             # Generate embedding
-            embedding = generate_embedding(problem.goal, input_type="document")
+            problem_goal = _get_sp_attr(problem, "goal", "")
+            embedding = generate_embedding(problem_goal, input_type="document")
 
             # Create cache key (hash of problem goal for uniqueness)
             import hashlib
 
-            problem_hash = hashlib.sha256(problem.goal.encode()).hexdigest()[:16]
+            problem_hash = hashlib.sha256(problem_goal.encode()).hexdigest()[:16]
             cache_key = f"personas:cache:{problem_hash}"
 
             # Store in cache
             cache_data = {
                 "embedding": embedding,
                 "personas": [p.model_dump() for p in personas],
-                "problem_goal": problem.goal,  # For debugging
-                "problem_complexity": problem.complexity_score,
+                "problem_goal": problem_goal,  # For debugging
+                "problem_complexity": _get_sp_attr(problem, "complexity_score", 5),
                 "cached_at": None,  # Redis doesn't need this, TTL handles it
             }
 

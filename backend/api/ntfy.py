@@ -1,8 +1,10 @@
-"""ntfy push notification service for admin alerts.
+"""ntfy push notification service for admin notifications.
 
-Handles:
-- Waitlist signup notifications
-- Meeting start notifications
+Topics:
+- Waitlist: User acquisition events
+- Meetings: Meeting start notifications
+- Reports: Standard performance updates (daily/weekly metrics)
+- Alerts: Warnings and abnormal events requiring attention
 """
 
 import logging
@@ -160,13 +162,16 @@ async def notify_database_report(
     details: str | None = None,
     priority: Literal["min", "low", "default", "high", "urgent"] = "default",
 ) -> bool:
-    r"""Send database monitoring report via ntfy.
+    r"""Send standard database performance report via ntfy.
+
+    Use this for routine, scheduled updates - NOT for warnings or issues.
+    For abnormal events, use notify_database_alert() instead.
 
     Args:
         report_type: Type of report (daily or weekly)
-        summary: Brief summary of database health
-        details: Optional detailed information
-        priority: Notification priority (default: "default")
+        summary: Brief summary of database metrics
+        details: Optional detailed performance information
+        priority: Notification priority (typically "low" or "default")
 
     Returns:
         True if notification sent successfully
@@ -208,21 +213,29 @@ async def notify_database_alert(
     title: str,
     message: str,
 ) -> bool:
-    """Send urgent database alert via ntfy to dedicated alerts topic.
+    """Send alert for warnings and abnormal events via ntfy.
+
+    Use this for issues requiring attention - NOT for routine updates.
+    For standard performance reports, use notify_database_report() instead.
 
     Args:
-        alert_type: Severity of alert
-        title: Alert title
-        message: Alert message
+        alert_type: Severity - "warning" for attention needed, "critical" for urgent
+        title: Alert title (will be prefixed with ⚠️)
+        message: Alert details
 
     Returns:
         True if notification sent successfully
 
     Example:
         >>> await notify_database_alert(
+        ...     alert_type="warning",
+        ...     title="High Table Growth",
+        ...     message="api_costs grew 50% this week - monitor closely"
+        ... )
+        >>> await notify_database_alert(
         ...     alert_type="critical",
-        ...     title="Table Growth Alert",
-        ...     message="api_costs table exceeded 500K rows - partitioning recommended"
+        ...     title="Database Connection Failed",
+        ...     message="Cannot connect to PostgreSQL - immediate action required"
         ... )
     """
     settings = _get_ntfy_settings()

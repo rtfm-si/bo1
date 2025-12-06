@@ -241,7 +241,9 @@ def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
         return None
 
 
-async def save_state_to_checkpoint(session_id: str, state: dict[str, Any]) -> bool:
+async def save_state_to_checkpoint(
+    session_id: str, state: dict[str, Any], as_node: str | None = None
+) -> bool:
     """Save deliberation state to LangGraph checkpoint.
 
     Updates the checkpoint with new state values. This is used when
@@ -251,6 +253,10 @@ async def save_state_to_checkpoint(session_id: str, state: dict[str, Any]) -> bo
     Args:
         session_id: Session identifier (used as thread_id in checkpoint)
         state: State dict to save
+        as_node: Optional node name to attribute this update to. When set,
+                 LangGraph will resume from the edge AFTER this node. This is
+                 critical for clarification flow - setting as_node="identify_gaps"
+                 tells LangGraph to run the router after identify_gaps on resume.
 
     Returns:
         True if saved successfully, False otherwise
@@ -266,10 +272,14 @@ async def save_state_to_checkpoint(session_id: str, state: dict[str, Any]) -> bo
         config = {"configurable": {"thread_id": session_id}}
 
         # Update state using graph's update_state method
-        # This preserves checkpoint history and metadata
-        await graph.aupdate_state(config, state)
+        # as_node parameter tells LangGraph which node this update is "from"
+        # so it knows where to resume execution
+        await graph.aupdate_state(config, state, as_node=as_node)
 
-        logger.debug(f"Saved state to checkpoint for session {session_id}")
+        logger.debug(
+            f"Saved state to checkpoint for session {session_id}"
+            + (f" (as_node={as_node})" if as_node else "")
+        )
         return True
 
     except Exception as e:
@@ -605,8 +615,9 @@ async def resume_deliberation(
                 detail=f"Session {session_id} is already running",
             )
 
-        # Create graph
-        graph = create_deliberation_graph()
+        # Create graph with checkpointer for state access
+        checkpointer = await get_checkpointer()
+        graph = create_deliberation_graph(checkpointer=checkpointer)
 
         # Create event collector for real-time streaming
         from backend.api.dependencies import get_event_publisher
@@ -614,14 +625,96 @@ async def resume_deliberation(
 
         event_collector = EventCollector(get_event_publisher())
 
-        # Resume from checkpoint (pass None as state to continue from checkpoint)
         from bo1.graph.safety.loop_prevention import DELIBERATION_RECURSION_LIMIT
 
         config = {
             "configurable": {"thread_id": session_id},
             "recursion_limit": DELIBERATION_RECURSION_LIMIT,
         }
-        coro = event_collector.collect_and_publish(session_id, graph, None, config)
+
+        # Check if this is a clarification resume (has pending clarification answers)
+        # Use aupdate_state to inject answers INTO the checkpoint without restarting graph
+        clarification_answers = metadata.get("clarification_answers_pending")
+        if clarification_answers:
+            # Update checkpoint state IN PLACE using aupdate_state
+            # This injects answers without restarting the graph from entry point
+            state_update = {
+                "clarification_answers": clarification_answers,
+                "should_stop": False,  # Reset stop flag so router continues
+                "stop_reason": None,  # Clear stop reason
+            }
+
+            try:
+                # Use as_node="identify_gaps" to tell LangGraph to resume from
+                # the edge AFTER identify_gaps (the router will run next)
+                await graph.aupdate_state(config, state_update, as_node="identify_gaps")
+
+                logger.info(
+                    f"Updated checkpoint for session {session_id} with {len(clarification_answers)} "
+                    f"clarification answer(s) - will resume from identify_gaps edge"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to update checkpoint for {session_id}: {e}. "
+                    f"Attempting PostgreSQL reconstruction fallback."
+                )
+
+                # Fallback: Reconstruct state from PostgreSQL
+                reconstructed = _reconstruct_state_from_postgres(session_id)
+                if reconstructed:
+                    # Add clarification answers to reconstructed state
+                    reconstructed["clarification_answers"] = clarification_answers
+                    reconstructed["should_stop"] = False
+                    reconstructed["stop_reason"] = None
+
+                    logger.info(
+                        f"Reconstructed state from PostgreSQL for {session_id}, "
+                        f"will restart with clarification answers"
+                    )
+
+                    # Start with reconstructed state (will re-run from entry point)
+                    # This is fallback - not ideal but better than failing
+                    coro = event_collector.collect_and_publish(
+                        session_id, graph, reconstructed, config
+                    )
+
+                    # Clear the pending flag and start session
+                    metadata.pop("clarification_answers_pending", None)
+                    redis_manager.save_metadata(session_id, metadata)
+
+                    # Start background task
+                    await session_manager.start_session(session_id, user_id, coro)
+
+                    # Update metadata
+                    now = datetime.now(UTC)
+                    metadata["status"] = "running"
+                    metadata["resumed_at"] = now.isoformat()
+                    metadata["updated_at"] = now.isoformat()
+                    redis_manager.save_metadata(session_id, metadata)
+
+                    return ControlResponse(
+                        session_id=session_id,
+                        action="resume",
+                        status="success",
+                        message="Deliberation resumed (reconstructed from database)",
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=410,
+                        detail="Session checkpoint expired and cannot be reconstructed. "
+                        "Please start a new meeting.",
+                    ) from e
+
+            # Clear the pending flag from metadata
+            metadata.pop("clarification_answers_pending", None)
+            redis_manager.save_metadata(session_id, metadata)
+
+            # Resume from checkpoint (None = use checkpoint, don't restart from entry)
+            # The graph will resume from the edge AFTER identify_gaps
+            coro = event_collector.collect_and_publish(session_id, graph, None, config)
+        else:
+            # Normal resume from checkpoint (no clarification answers)
+            coro = event_collector.collect_and_publish(session_id, graph, None, config)
 
         # Start background task
         await session_manager.start_session(session_id, user_id, coro)
@@ -946,46 +1039,12 @@ async def _submit_clarification_impl(
                 raise_on_unsafe=True,
             )
 
-        # Load state from LangGraph checkpoint (authoritative source during deliberation)
-        state = await load_state_from_checkpoint(session_id)
-        if not state:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to load state from checkpoint for session {session_id}. "
-                "The session may have expired or the checkpoint may be unavailable.",
-            )
-
-        # Inject clarification answers into problem context
-        if "problem" not in state:
-            state["problem"] = {}
-
-        # Build context string from answers
-        clarification_context = "\n\n## Clarification Answers\n"
-        for question, answer in answers_to_process.items():
-            clarification_context += f"- **Q:** {question}\n  **A:** {answer}\n"
-
-        # Append to existing context - handle both dict and object problem formats
-        problem = state["problem"]
-        if isinstance(problem, dict):
-            existing_context = problem.get("context", "") or ""
-            problem["context"] = existing_context + clarification_context
-        elif hasattr(problem, "context"):
-            problem.context = (problem.context or "") + clarification_context
-        else:
-            # Fallback: create new problem dict
-            state["problem"] = {"context": clarification_context}
-
-        # Store answers in state for identify_gaps_node to see
-        state["clarification_answers"] = answers_to_process
-
-        # Save updated state to checkpoint
-        if not await save_state_to_checkpoint(session_id, state):
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to save updated state to checkpoint for session {session_id}",
-            )
-
-        # Clear pending clarification from metadata
+        # Store answers in Redis metadata for the resume flow to pick up
+        # We don't modify the LangGraph checkpoint here because as_node doesn't
+        # properly merge state - it branches from an earlier checkpoint.
+        # Instead, the resume_deliberation endpoint will inject these answers
+        # into the checkpoint state before re-running the graph.
+        metadata["clarification_answers_pending"] = answers_to_process
         metadata["pending_clarification"] = None
         metadata["status"] = "paused"  # Mark as paused, ready to resume
         metadata["updated_at"] = datetime.now(UTC).isoformat()

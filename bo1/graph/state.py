@@ -73,6 +73,7 @@ class DeliberationGraphState(TypedDict, total=False):
     collect_context: bool  # Whether to collect business context
     business_context: dict[str, Any] | None  # Collected business context from user
     pending_clarification: dict[str, Any] | None  # Clarification question waiting for answer
+    clarification_answers: dict[str, str] | None  # Answers to clarification questions (for resume)
     phase_costs: dict[str, float]  # Cost tracking by phase
 
     # Meeting quality guidance
@@ -157,6 +158,7 @@ def create_initial_state(
         collect_context=collect_context,
         business_context=None,
         pending_clarification=None,
+        clarification_answers=None,
         phase_costs={},
         # NEW FIELDS FOR PARALLEL ARCHITECTURE
         current_phase="exploration",  # Start with exploration phase

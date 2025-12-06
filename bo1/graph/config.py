@@ -156,10 +156,36 @@ def create_deliberation_graph(
 
     # Router for identify_gaps: if critical gaps, END (pause for Q&A), else continue
     def route_after_identify_gaps(state: DeliberationGraphState) -> str:
-        """Route based on whether critical information gaps require user input."""
-        if state.get("should_stop") and state.get("stop_reason") == "clarification_needed":
+        """Route based on whether critical information gaps require user input.
+
+        After clarification answers are submitted, the checkpoint is updated with:
+        - clarification_answers: dict of question->answer pairs
+        - should_stop: False (reset to continue)
+        - stop_reason: None (cleared)
+
+        The router then sees should_stop=False and routes to "continue".
+        """
+        clarification_answers = state.get("clarification_answers")
+        should_stop = state.get("should_stop")
+        stop_reason = state.get("stop_reason")
+        pending = state.get("pending_clarification")
+
+        logger.info(
+            f"route_after_identify_gaps: should_stop={should_stop}, "
+            f"stop_reason={stop_reason}, has_answers={clarification_answers is not None}, "
+            f"has_pending={pending is not None}"
+        )
+
+        if should_stop and stop_reason == "clarification_needed":
             logger.info("route_after_identify_gaps: Pausing for clarification")
             return "END"
+
+        if clarification_answers:
+            logger.info(
+                f"route_after_identify_gaps: Resuming with {len(clarification_answers)} "
+                f"clarification answer(s) - continuing to deliberation"
+            )
+
         logger.info("route_after_identify_gaps: Continuing to deliberation")
         return "continue"
 

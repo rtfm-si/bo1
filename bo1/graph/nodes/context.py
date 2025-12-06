@@ -137,6 +137,12 @@ async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
     clarification_answers = state.get("clarification_answers")
     pending_clarification = state.get("pending_clarification")
 
+    # Debug logging to trace the clarification flow
+    logger.info(
+        f"identify_gaps_node: clarification_answers={clarification_answers is not None}, "
+        f"pending_clarification={pending_clarification is not None}"
+    )
+
     if clarification_answers and isinstance(clarification_answers, dict):
         answer_count = len(clarification_answers)
         logger.info(f"identify_gaps_node: Processing {answer_count} clarification answers")
@@ -173,13 +179,41 @@ async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
 
         # All questions answered (or no original questions) - continue to next node
         logger.info("identify_gaps_node: All clarification questions answered, continuing")
+
+        # Inject answers into problem context for use by downstream nodes
+        # This ensures experts have access to the user's clarification responses
+        if clarification_answers:
+            # Format answers as context addition
+            answer_context = "\n\n## User Clarifications\n"
+            for question, answer in clarification_answers.items():
+                answer_context += f"- **Q:** {question}\n  **A:** {answer}\n"
+
+            # Get current context and append answers
+            current_context = ""
+            if isinstance(problem, dict):
+                current_context = problem.get("context", "") or ""
+                problem["context"] = current_context + answer_context
+            else:
+                current_context = problem.context or ""
+                problem.context = current_context + answer_context
+
+            logger.info(
+                f"identify_gaps_node: Injected {len(clarification_answers)} clarification "
+                f"answer(s) into problem context ({len(answer_context)} chars added)"
+            )
+
         return {
             "current_node": "identify_gaps",
             "pending_clarification": None,
+            "problem": problem,  # Updated with clarification context
+            "clarification_answers": None,  # Clear after processing
         }
 
-    # Get sub-problems from problem
-    sub_problems = problem.sub_problems or []
+    # Get sub-problems from problem (handle both dict and object)
+    if isinstance(problem, dict):
+        sub_problems = problem.get("sub_problems", []) or []
+    else:
+        sub_problems = problem.sub_problems or []
     if not sub_problems:
         logger.info("identify_gaps_node: No sub-problems, skipping gap analysis")
         return {"current_node": "identify_gaps"}
@@ -192,18 +226,35 @@ async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     decomposer = DecomposerAgent()
 
-    sub_problems_dicts = [
-        {
-            "id": sp.id,
-            "goal": sp.goal,
-            "context": sp.context,
-            "complexity_score": sp.complexity_score,
-        }
-        for sp in sub_problems
-    ]
+    # Handle sub_problems as either objects or dicts
+    sub_problems_dicts = []
+    for sp in sub_problems:
+        if isinstance(sp, dict):
+            sub_problems_dicts.append(
+                {
+                    "id": sp.get("id", ""),
+                    "goal": sp.get("goal", ""),
+                    "context": sp.get("context", ""),
+                    "complexity_score": sp.get("complexity_score", 5),
+                }
+            )
+        else:
+            sub_problems_dicts.append(
+                {
+                    "id": sp.id,
+                    "goal": sp.goal,
+                    "context": sp.context,
+                    "complexity_score": sp.complexity_score,
+                }
+            )
+
+    # Get problem description (handle dict or object)
+    problem_description = (
+        problem.get("description", "") if isinstance(problem, dict) else problem.description
+    )
 
     response = await decomposer.identify_information_gaps(
-        problem_description=problem.description,
+        problem_description=problem_description,
         sub_problems=sub_problems_dicts,
         business_context=business_context if isinstance(business_context, dict) else None,
     )

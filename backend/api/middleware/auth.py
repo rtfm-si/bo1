@@ -74,41 +74,10 @@ def require_production_auth() -> None:
         raise RuntimeError(error_msg)
 
 
-async def get_current_user(
+async def _get_current_user_with_session(
     session: SessionContainer = Depends(verify_session()),
 ) -> dict[str, Any]:
-    """Get current authenticated user from SuperTokens session.
-
-    For MVP: Returns hardcoded user data (no auth required)
-    For Production: Uses SuperTokens session verification
-
-    Args:
-        session: SuperTokens session container (auto-validated by middleware)
-
-    Returns:
-        User data dictionary with user_id, email, role
-
-    Raises:
-        HTTPException: 401 if session is invalid (SuperTokens handles this)
-    """
-    # MVP: Skip authentication, return hardcoded user (only in DEBUG mode)
-    if not ENABLE_SUPERTOKENS_AUTH:
-        if not DEBUG_MODE:
-            logger.error("Auth bypass attempted in non-DEBUG mode - rejecting")
-            raise HTTPException(
-                status_code=500,
-                detail="Authentication misconfigured. Contact support.",
-            )
-        logger.debug("SuperTokens auth disabled (MVP/DEBUG mode), using hardcoded user")
-        return {
-            "user_id": DEFAULT_USER_ID,
-            "email": f"{DEFAULT_USER_ID}@test.com",
-            "role": "authenticated",
-            "subscription_tier": "free",
-            "is_admin": False,
-        }
-
-    # Production: Use SuperTokens session
+    """Internal function that requires SuperTokens session verification."""
     try:
         user_id = session.get_user_id()
         session_handle = session.get_handle()
@@ -140,6 +109,32 @@ async def get_current_user(
         ) from e
 
 
+async def _get_current_user_mvp() -> dict[str, Any]:
+    """MVP mode: Return hardcoded user without session verification."""
+    if not DEBUG_MODE:
+        logger.error("Auth bypass attempted in non-DEBUG mode - rejecting")
+        raise HTTPException(
+            status_code=500,
+            detail="Authentication misconfigured. Contact support.",
+        )
+    logger.debug("SuperTokens auth disabled (MVP/DEBUG mode), using hardcoded user")
+    return {
+        "user_id": DEFAULT_USER_ID,
+        "email": f"{DEFAULT_USER_ID}@test.com",
+        "role": "authenticated",
+        "subscription_tier": "free",
+        "is_admin": False,
+    }
+
+
+# Choose the correct dependency based on feature flag
+# This must be at module level so FastAPI picks the right one
+if ENABLE_SUPERTOKENS_AUTH:
+    get_current_user = _get_current_user_with_session
+else:
+    get_current_user = _get_current_user_mvp
+
+
 def require_auth(user: dict[str, Any]) -> dict[str, Any]:
     """Dependency to require authentication for an endpoint.
 
@@ -165,26 +160,11 @@ def require_auth(user: dict[str, Any]) -> dict[str, Any]:
     return user
 
 
-async def require_admin(
+async def _require_admin_with_session(
     session: SessionContainer = Depends(verify_session()),
 ) -> dict[str, Any]:
-    """Dependency to require admin access for an endpoint.
-
-    Usage:
-        @app.get("/admin/endpoint")
-        async def admin_route(user: dict = Depends(require_admin)):
-            return {"message": "Admin access granted"}
-
-    Args:
-        session: SuperTokens session container (auto-validated by middleware)
-
-    Returns:
-        User data if user is admin
-
-    Raises:
-        HTTPException: 401 if not authenticated, 403 if not admin
-    """
-    user = await get_current_user(session)
+    """Internal admin function with session verification."""
+    user = await _get_current_user_with_session(session)
 
     if not user or not user.get("user_id"):
         raise HTTPException(
@@ -201,3 +181,25 @@ async def require_admin(
 
     logger.info(f"Admin access granted to {user.get('user_id')}")
     return user
+
+
+async def _require_admin_mvp() -> dict[str, Any]:
+    """MVP mode admin function."""
+    user = await _get_current_user_mvp()
+
+    if not user or not user.get("user_id"):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+        )
+
+    # In MVP mode, allow admin access (for testing)
+    logger.info(f"Admin access granted to {user.get('user_id')} (MVP mode)")
+    return user
+
+
+# Choose the correct dependency based on feature flag
+if ENABLE_SUPERTOKENS_AUTH:
+    require_admin = _require_admin_with_session
+else:
+    require_admin = _require_admin_mvp

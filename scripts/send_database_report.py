@@ -289,18 +289,26 @@ async def send_report(report_type: str) -> None:
     print(f"Status: {status}")
     print(f"\nDetails:\n{details}")
 
-    # Send critical alerts separately
+    # Send alerts for warnings and critical issues (abnormal events)
     if status == "critical":
-        print("\n⚠️ Sending critical alert...")
+        print("\n🚨 Sending critical alert...")
         await notify_database_alert(
             alert_type="critical",
             title="Database Health Check Failed",
             message=f"{summary}\n\n{details[:500]}...",  # Truncate for alert
         )
+    elif status == "warning":
+        print("\n⚠️ Sending warning alert...")
+        await notify_database_alert(
+            alert_type="warning",
+            title=f"{report_type.title()} Report: Issues Detected",
+            message=f"{summary}\n\n{details[:500]}...",  # Truncate for alert
+        )
 
-    # Send regular report
+    # Send standard report (performance update, not warnings)
     print(f"\n📤 Sending {report_type} report via ntfy...")
-    priority = "default" if status == "ok" else "high"
+    # Reports are always low/default priority - alerts handle warnings
+    priority = "low" if status == "ok" else "default"
 
     success = await notify_database_report(
         report_type=report_type, summary=summary, details=details, priority=priority

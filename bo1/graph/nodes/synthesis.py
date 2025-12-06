@@ -18,6 +18,32 @@ from bo1.models.state import DeliberationPhase, SubProblemResult
 logger = logging.getLogger(__name__)
 
 
+def _get_problem_attr(problem: Any, attr: str, default: Any = None) -> Any:
+    """Safely get attribute from problem (handles both dict and object).
+
+    After checkpoint restoration, Problem objects may be deserialized as dicts.
+    This helper handles both cases.
+    """
+    if problem is None:
+        return default
+    if isinstance(problem, dict):
+        return problem.get(attr, default)
+    return getattr(problem, attr, default)
+
+
+def _get_subproblem_attr(sp: Any, attr: str, default: Any = None) -> Any:
+    """Safely get attribute from sub-problem (handles both dict and object).
+
+    After checkpoint restoration, SubProblem objects may be deserialized as dicts.
+    This helper handles both cases.
+    """
+    if sp is None:
+        return default
+    if isinstance(sp, dict):
+        return sp.get(attr, default)
+    return getattr(sp, attr, default)
+
+
 async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
     """Collect recommendations from all personas.
 
@@ -158,7 +184,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Compose synthesis prompt using lean McKinsey-style template
     synthesis_prompt = SYNTHESIS_LEAN_TEMPLATE.format(
-        problem_statement=problem.description,
+        problem_statement=_get_problem_attr(problem, "description", ""),
         round_summaries="\n".join(round_summaries_text),
         final_round_contributions="\n".join(final_round_contributions),
         votes="\n".join(votes_text),
@@ -258,10 +284,11 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     sub_problem_index = state.get("sub_problem_index", 0)
 
     # Enhanced logging for sub-problem progression (Bug #3 fix)
-    total_sub_problems = len(problem.sub_problems) if problem else 0
+    sub_problems = _get_problem_attr(problem, "sub_problems", [])
+    total_sub_problems = len(sub_problems) if sub_problems else 0
     logger.info(
         f"next_subproblem_node: Saving result for sub-problem {sub_problem_index + 1}/{total_sub_problems}: "
-        f"{current_sp.goal if current_sp else 'unknown'}"
+        f"{_get_subproblem_attr(current_sp, 'goal', 'unknown')}"
     )
 
     if not current_sp:
@@ -302,7 +329,7 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
                     response = await summarizer.summarize_round(
                         round_number=state.get("round_number", 1),
                         contributions=contribution_dicts,
-                        problem_statement=current_sp.goal,
+                        problem_statement=_get_subproblem_attr(current_sp, "goal", ""),
                         target_tokens=75,  # Concise summary for memory
                     )
 
@@ -328,8 +355,8 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Create SubProblemResult
     result = SubProblemResult(
-        sub_problem_id=current_sp.id,
-        sub_problem_goal=current_sp.goal,
+        sub_problem_id=_get_subproblem_attr(current_sp, "id", ""),
+        sub_problem_goal=_get_subproblem_attr(current_sp, "goal", ""),
         synthesis=synthesis or "",  # Ensure not None
         votes=votes,
         contribution_count=len(contributions),
@@ -347,11 +374,11 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     next_index = sub_problem_index + 1
 
     # Check if more sub-problems
-    if next_index < len(problem.sub_problems):
-        next_sp = problem.sub_problems[next_index]
+    if next_index < len(sub_problems):
+        next_sp = sub_problems[next_index]
 
         logger.info(
-            f"Moving to sub-problem {next_index + 1}/{len(problem.sub_problems)}: {next_sp.goal}"
+            f"Moving to sub-problem {next_index + 1}/{len(sub_problems)}: {_get_subproblem_attr(next_sp, 'goal', 'unknown')}"
         )
 
         return {
@@ -410,15 +437,25 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     if not sub_problem_results:
         raise ValueError("meta_synthesize_node called without sub_problem_results")
 
+    # Get sub_problems list (handles both dict and object)
+    meta_sub_problems = _get_problem_attr(problem, "sub_problems", [])
+
     # Format all sub-problem syntheses
     formatted_results = []
     total_cost = 0.0
     total_duration = 0.0
 
     for i, result in enumerate(sub_problem_results, 1):
-        # Find the sub-problem by ID
-        sp = next((sp for sp in problem.sub_problems if sp.id == result.sub_problem_id), None)
-        sp_goal = sp.goal if sp else result.sub_problem_goal
+        # Find the sub-problem by ID (handle both dict and object sub-problems)
+        sp = None
+        for sub_p in meta_sub_problems:
+            sp_id = sub_p.get("id") if isinstance(sub_p, dict) else sub_p.id
+            if sp_id == result.sub_problem_id:
+                sp = sub_p
+                break
+        sp_goal = (
+            (sp.get("goal") if isinstance(sp, dict) else sp.goal) if sp else result.sub_problem_goal
+        )
 
         # Format votes
         votes_summary = []
@@ -448,8 +485,8 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Create meta-synthesis prompt (structured JSON)
     meta_prompt = META_SYNTHESIS_ACTION_PLAN_PROMPT.format(
-        original_problem=problem.description,
-        problem_context=problem.context or "No additional context provided",
+        original_problem=_get_problem_attr(problem, "description", ""),
+        problem_context=_get_problem_attr(problem, "context") or "No additional context provided",
         sub_problem_count=len(sub_problem_results),
         all_sub_problem_syntheses="\n\n---\n\n".join(formatted_results),
     )
@@ -521,7 +558,7 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 
 ## Deliberation Summary
 
-- **Original problem**: {problem.description}
+- **Original problem**: {_get_problem_attr(problem, "description", "")}
 - **Sub-problems deliberated**: {len(sub_problem_results)}
 - **Total contributions**: {sum(r.contribution_count for r in sub_problem_results)}
 - **Total cost**: ${total_cost:.4f}

@@ -306,6 +306,7 @@ class ContributionRepository(BaseRepository):
         moderator_type: str | None = None,
         research_query: str | None = None,
         sub_problem_index: int | None = None,
+        user_id: str | None = None,
     ) -> dict[str, Any]:
         """Save facilitator decision to PostgreSQL.
 
@@ -318,6 +319,7 @@ class ContributionRepository(BaseRepository):
             moderator_type: Type of moderator intervention (if action=moderator)
             research_query: Research query (if action=research)
             sub_problem_index: Current sub-problem index
+            user_id: User identifier (fetched from session if not provided)
 
         Returns:
             Saved decision record
@@ -327,13 +329,20 @@ class ContributionRepository(BaseRepository):
 
         with db_session() as conn:
             with conn.cursor() as cur:
+                # Fetch user_id from session if not provided
+                if user_id is None:
+                    cur.execute("SELECT user_id FROM sessions WHERE id = %s", (session_id,))
+                    result = cur.fetchone()
+                    if result:
+                        user_id = result["user_id"]
+
                 cur.execute(
                     """
                     INSERT INTO facilitator_decisions (
                         session_id, round_number, sub_problem_index, action,
-                        reasoning, next_speaker, moderator_type, research_query
+                        reasoning, next_speaker, moderator_type, research_query, user_id
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id, session_id, round_number, action, created_at
                     """,
                     (
@@ -345,6 +354,7 @@ class ContributionRepository(BaseRepository):
                         next_speaker,
                         moderator_type,
                         research_query,
+                        user_id,
                     ),
                 )
                 result = cur.fetchone()

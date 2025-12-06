@@ -416,6 +416,7 @@ Analyze the discussion and decide the next action."""
 
             session_id = state.get("session_id", "unknown")
             sub_problem_index = state.get("sub_problem_index")
+            user_id = state.get("user_id")
 
             save_facilitator_decision(
                 session_id=session_id,
@@ -426,6 +427,7 @@ Analyze the discussion and decide the next action."""
                 moderator_type=decision.moderator_type,
                 research_query=decision.research_query,
                 sub_problem_index=sub_problem_index,
+                user_id=user_id,  # Pass user_id for RLS compliance
             )
             logger.debug(f"Saved facilitator decision to database: action={decision.action}")
         except Exception as e:

@@ -21,6 +21,7 @@ from bo1.graph.nodes.utils import get_phase_prompt, phase_prompt_short
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_accumulated_cost, track_aggregated_cost
 from bo1.models.state import DeliberationPhase
+from bo1.utils.checkpoint_helpers import get_problem_context, get_problem_description
 
 logger = logging.getLogger(__name__)
 
@@ -220,8 +221,8 @@ async def _generate_parallel_contributions(
         )
         task = engine._call_persona_async(
             persona_profile=expert,
-            problem_statement=problem.description if problem else "",
-            problem_context=problem.context if problem else "",
+            problem_statement=get_problem_description(problem),
+            problem_context=get_problem_context(problem),
             participant_list=participant_list,
             round_number=round_number,
             contribution_type=ContributionType.RESPONSE,
@@ -261,8 +262,8 @@ async def _generate_parallel_contributions(
             )
             retry_task = engine._call_persona_async(
                 persona_profile=expert,
-                problem_statement=problem.description if problem else "",
-                problem_context=problem.context if problem else "",
+                problem_statement=get_problem_description(problem),
+                problem_context=get_problem_context(problem),
                 participant_list=participant_list,
                 round_number=round_number,
                 contribution_type=ContributionType.RESPONSE,
@@ -646,10 +647,11 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Apply semantic deduplication
     filtered_contributions = await _apply_semantic_deduplication(contributions)
 
-    # Get problem context
+    # Get problem context (handle dict from checkpoint deserialization)
     problem = state.get("problem")
-    problem_context = problem.description if problem else "No problem context available"
-    problem_statement = problem.description if problem else None
+    problem_description = get_problem_description(problem)
+    problem_context = problem_description or "No problem context available"
+    problem_statement = problem_description or None
 
     # Initialize tracking objects
     metrics = ensure_metrics(state)

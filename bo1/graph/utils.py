@@ -18,6 +18,8 @@ def ensure_metrics(state: "DeliberationGraphState") -> "DeliberationMetrics":
     This helper eliminates the repeated pattern of checking if metrics
     exists in state and creating a new DeliberationMetrics object if not.
 
+    Handles checkpoint deserialization where metrics may be a dict.
+
     Args:
         state: Current graph state
 
@@ -28,11 +30,20 @@ def ensure_metrics(state: "DeliberationGraphState") -> "DeliberationMetrics":
         >>> metrics = ensure_metrics(state)
         >>> metrics.total_cost += 0.05
     """
+    from bo1.models.state import DeliberationMetrics
+
     metrics = state.get("metrics")
     if metrics is None:
-        from bo1.models.state import DeliberationMetrics
-
         metrics = DeliberationMetrics()
+    elif isinstance(metrics, dict):
+        # Handle checkpoint deserialization - reconstruct from dict
+        metrics = DeliberationMetrics(
+            total_cost=metrics.get("total_cost", 0.0),
+            total_tokens=metrics.get("total_tokens", 0),
+            phase_costs=metrics.get("phase_costs", {}),
+            start_time=metrics.get("start_time"),
+            end_time=metrics.get("end_time"),
+        )
     return metrics
 
 

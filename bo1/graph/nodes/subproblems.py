@@ -78,7 +78,11 @@ async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, 
     if not problem:
         raise ValueError("analyze_dependencies_node called without problem")
 
-    sub_problems = problem.sub_problems
+    # Handle both dict (from checkpoint) and Problem object
+    if isinstance(problem, dict):
+        sub_problems = problem.get("sub_problems", [])
+    else:
+        sub_problems = problem.sub_problems
 
     # Check if parallel sub-problems feature is enabled
     if not ENABLE_PARALLEL_SUBPROBLEMS or len(sub_problems) <= 1:

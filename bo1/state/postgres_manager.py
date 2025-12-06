@@ -353,6 +353,7 @@ def save_facilitator_decision(
     moderator_type: str | None = None,
     research_query: str | None = None,
     sub_problem_index: int | None = None,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     return contribution_repository.save_facilitator_decision(
         session_id,
@@ -363,4 +364,5 @@ def save_facilitator_decision(
         moderator_type,
         research_query,
         sub_problem_index,
+        user_id,
     )

@@ -3,6 +3,7 @@
 Consolidates parsing logic for structured responses from different agents.
 """
 
+import json
 import logging
 import re
 from typing import Any
@@ -379,3 +380,62 @@ class ResponseParser:
 
         # All checks passed
         return True, ""
+
+
+def extract_json_from_response(text: str) -> dict[str, Any]:
+    r"""Extract JSON from LLM response, stripping markdown/XML wrappers if present.
+
+    Handles common LLM output patterns (in order of preference):
+    1. Raw JSON: {"key": "value"}
+    2. XML wrapped: <json_output>{"key": "value"}</json_output>
+    3. Markdown wrapped: ```json\n{"key": "value"}\n```
+
+    This is the FALLBACK parser. Prefer using prefill="{" in PromptRequest
+    to prevent markdown wrapping in the first place.
+
+    Args:
+        text: Raw LLM response text
+
+    Returns:
+        Parsed JSON as dict
+
+    Raises:
+        json.JSONDecodeError: If JSON parsing fails after all extraction attempts
+    """
+    text = text.strip()
+
+    # Try raw JSON first (most common with prefill)
+    if text.startswith("{"):
+        try:
+            result: dict[str, Any] = json.loads(text)
+            return result
+        except json.JSONDecodeError:
+            pass  # Fall through to other patterns
+
+    # Pattern 1: XML tags <json_output>...</json_output>
+    xml_pattern = r"<json_output>\s*(.*?)\s*</json_output>"
+    match = re.search(xml_pattern, text, re.DOTALL)
+    if match:
+        result = json.loads(match.group(1).strip())
+        return result
+
+    # Pattern 2: Markdown code blocks ```json ... ``` or ``` ... ```
+    code_block_pattern = r"^```(?:json)?\s*\n?(.*?)\n?```$"
+    match = re.match(code_block_pattern, text, re.DOTALL)
+    if match:
+        result = json.loads(match.group(1).strip())
+        return result
+
+    # Pattern 3: Malformed markdown (leading ``` without proper closing)
+    if text.startswith("```"):
+        lines = text.split("\n")
+        if lines[-1].strip() == "```":
+            lines = lines[1:-1]
+        else:
+            lines = lines[1:]
+        result = json.loads("\n".join(lines).strip())
+        return result
+
+    # Last resort: try parsing as-is
+    result = json.loads(text)
+    return result

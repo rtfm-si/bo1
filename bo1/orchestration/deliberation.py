@@ -25,6 +25,7 @@ from bo1.orchestration.metrics_calculator import MetricsCalculator
 from bo1.orchestration.persona_executor import PersonaExecutor
 from bo1.orchestration.prompt_builder import PromptBuilder
 from bo1.prompts.reusable_prompts import get_round_phase_config
+from bo1.utils.checkpoint_helpers import get_sub_problem_context, get_sub_problem_goal
 from bo1.utils.logging_helpers import LogHelper
 
 logger = logging.getLogger(__name__)
@@ -131,8 +132,8 @@ class DeliberationEngine:
 
             task = self._call_persona_async(
                 persona_profile=persona_profile,
-                problem_statement=current_sp.goal,
-                problem_context=current_sp.context,
+                problem_statement=get_sub_problem_goal(current_sp),
+                problem_context=get_sub_problem_context(current_sp),
                 participant_list=participant_list,
                 round_number=0,
                 contribution_type=ContributionType.INITIAL,
@@ -381,8 +382,8 @@ class DeliberationEngine:
         logger.info(f"Round {round_number}: {speaker_profile.display_name} contributing")
 
         # Build context for this round
-        problem_statement = current_sp.goal
-        problem_context = current_sp.context or ""
+        problem_statement = get_sub_problem_goal(current_sp)
+        problem_context = get_sub_problem_context(current_sp)
         participant_list = ", ".join([p.display_name for p in personas])
 
         # Get previous contributions for context (all contributions so far)
@@ -494,7 +495,7 @@ class DeliberationEngine:
         problem_statement = None
         current_sp = self.state.get("current_sub_problem")
         if round_number == 1 and current_sp:
-            problem_statement = current_sp.goal
+            problem_statement = get_sub_problem_goal(current_sp)
 
         # Create background task
         logger.info(f"Triggering background summarization for Round {round_number}")

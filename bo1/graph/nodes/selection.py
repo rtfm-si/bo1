@@ -39,10 +39,14 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
     if not current_sp:
         raise ValueError("No current sub-problem in state")
 
+    # Handle both dict (from checkpoint) and Problem object
+    problem = state["problem"]
+    problem_context = problem.get("context", "") if isinstance(problem, dict) else problem.context
+
     # Call selector
     response = await selector.recommend_personas(
         sub_problem=current_sp,
-        problem_context=state["problem"].context,
+        problem_context=problem_context,
     )
 
     # Parse recommendations

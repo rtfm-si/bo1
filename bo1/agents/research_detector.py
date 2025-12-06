@@ -143,20 +143,26 @@ class ResearchDetector:
                     model=model,
                     max_tokens=500,
                     temperature=0.0,  # Deterministic for consistency
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[
+                        {"role": "user", "content": prompt},
+                        {"role": "assistant", "content": "{"},  # Prefill forces JSON start
+                    ],
                 )
 
                 # Track token usage
                 cost_record.input_tokens = response.usage.input_tokens
                 cost_record.output_tokens = response.usage.output_tokens
 
-            # Extract JSON response
+            # Extract JSON response (prepend the prefill we used)
             first_block = response.content[0] if response.content else None
-            content = first_block.text if first_block and hasattr(first_block, "text") else "{}"
+            raw_content = first_block.text if first_block and hasattr(first_block, "text") else "}"
+            content = "{" + raw_content  # Prepend the prefill character
 
-            # Parse JSON
+            # Parse JSON (use robust extraction as fallback)
+            from bo1.llm.response_parser import extract_json_from_response
+
             try:
-                result_data = json.loads(content)
+                result_data = extract_json_from_response(content)
                 result = ResearchNeeds(**result_data)
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Failed to parse research detection JSON: {e}\nContent: {content}")

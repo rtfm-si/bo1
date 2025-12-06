@@ -20,6 +20,19 @@ from bo1.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _get_sp_attr(sp: SubProblem | dict[str, Any], attr: str, default: Any = None) -> Any:
+    """Safely get attribute from sub_problem (handles both dict and object).
+
+    After checkpoint restoration, SubProblem objects may be deserialized as dicts.
+    This helper handles both cases.
+    """
+    if sp is None:
+        return default
+    if isinstance(sp, dict):
+        return sp.get(attr, default)
+    return getattr(sp, attr, default)
+
+
 # System prompt for persona selection
 SELECTOR_SYSTEM_PROMPT = """You are a persona selection expert for the Board of One deliberation system.
 
@@ -304,7 +317,9 @@ class PersonaSelectorAgent(BaseAgent):
             >>> len(recommendation["recommended_personas"])
             4
         """
-        logger.info(f"Recommending personas for sub-problem: {sub_problem.id}")
+        logger.info(
+            f"Recommending personas for sub-problem: {_get_sp_attr(sub_problem, 'id', 'unknown')}"
+        )
 
         # Step 1: Check semantic cache for similar problems
         cache = get_persona_cache()
@@ -351,11 +366,11 @@ class PersonaSelectorAgent(BaseAgent):
         # Compose selection request
         user_message = f"""## Problem to Deliberate
 
-**Goal**: {sub_problem.goal}
+**Goal**: {_get_sp_attr(sub_problem, "goal", "")}
 
-**Context**: {sub_problem.context}
+**Context**: {_get_sp_attr(sub_problem, "context", "")}
 
-**Complexity Score**: {sub_problem.complexity_score}/10
+**Complexity Score**: {_get_sp_attr(sub_problem, "complexity_score", 5)}/10
 
 **Additional Problem Context**: {problem_context or "None provided"}
 
@@ -489,7 +504,7 @@ Provide your recommendation as JSON following the format in your system prompt.
             fallback = self._get_default_recommendation()
             logger.warning(
                 f"⚠️ FALLBACK: Default personas selected: "
-                f"{[r['code'] for r in fallback['recommendations']]}"
+                f"{[r['code'] for r in fallback['recommended_personas']]}"
             )
             # Update response content with fallback
             response.content = json.dumps(fallback)

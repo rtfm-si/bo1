@@ -272,5 +272,11 @@ class PersonaExecutor:
             logger.debug(f"Saved contribution from {persona_profile.display_name} to database")
 
         except Exception as e:
-            # Log error but don't block deliberation if save fails
-            logger.error(f"Failed to save contribution to database: {e}")
+            # Enhanced logging for debugging database save failures
+            logger.error(
+                f"Failed to save contribution to database: {e!r}, "
+                f"type={type(e).__name__}, "
+                f"session_id={session_id}, "
+                f"persona_code={persona_profile.code}, "
+                f"round_number={contrib_msg.round_number}"
+            )

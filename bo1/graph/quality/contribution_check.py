@@ -260,13 +260,16 @@ Remember:
             temperature=config.get("temperature", 0.0) if config else 0.0,
             max_tokens=config.get("max_tokens", 500) if config else 500,
             phase="quality_check",
+            prefill="{",  # Force JSON output - prevents markdown wrapping
         )
 
         response = await broker.call(request)
 
-        # Parse JSON response
+        # Parse JSON response (use robust extraction for markdown-wrapped responses)
         response_text = response.content
-        result_dict = json.loads(response_text)
+        from bo1.llm.response_parser import extract_json_from_response
+
+        result_dict = extract_json_from_response(response_text)
 
         # Convert to Pydantic model
         result = QualityCheckResult(**result_dict)

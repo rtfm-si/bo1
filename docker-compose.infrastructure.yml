@@ -30,22 +30,18 @@ services:
 
   # ---------------------------------------------------------------------------
   # Redis: Shared cache for both blue and green
+  # NOTE: Using redis-stack for RedisJSON module (required by LangGraph AsyncRedisSaver)
   # ---------------------------------------------------------------------------
   redis:
-    image: redis:7.4.5-alpine3.21
+    image: redis/redis-stack-server:7.4.0-v1
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
-    command: >
-      redis-server
-      --appendonly yes
-      --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
-      --save 300 10
-      --requirepass ${REDIS_PASSWORD}
+    environment:
+      - REDIS_ARGS=--appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru --save 300 10 --requirepass ${REDIS_PASSWORD}
     healthcheck:
-      test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10

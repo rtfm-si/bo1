@@ -195,6 +195,15 @@ class DeliberationMetrics(BaseModel):
         default_factory=list,
         description="Detailed coverage assessment for each of the 8 critical aspects",
     )
+    # P2 FIX: Judge feedback for next round - enables exploration score improvement
+    next_round_focus_prompts: list[str] = Field(
+        default_factory=list,
+        description="Targeted prompts from Judge for aspects needing deeper exploration",
+    )
+    missing_critical_aspects: list[str] = Field(
+        default_factory=list,
+        description="Aspect names with 'none' or 'shallow' coverage that need attention",
+    )
 
     # Complexity scoring (Adaptive deliberation parameters)
     complexity_score: OptionalScore = Field(

@@ -57,6 +57,10 @@ class SubProblemGraphState(TypedDict, total=False):
     # Expert memory (from previous sub-problems)
     expert_memory: dict[str, str]
 
+    # P2 FIX: Judge feedback for next round - enables exploration score improvement
+    next_round_focus_prompts: list[str]
+    missing_critical_aspects: list[str]
+
     # Outputs
     votes: list[dict[str, Any]]
     synthesis: str | None
@@ -112,6 +116,9 @@ def create_subproblem_initial_state(
         current_phase="exploration",
         experts_per_round=[],
         expert_memory=expert_memory,
+        # P2 FIX: Initialize judge feedback fields
+        next_round_focus_prompts=[],
+        missing_critical_aspects=[],
         votes=[],
         synthesis=None,
         expert_summaries={},

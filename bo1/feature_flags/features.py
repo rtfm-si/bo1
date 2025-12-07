@@ -70,6 +70,22 @@ ENABLE_PARALLEL_SUBPROBLEMS = _parse_bool(os.getenv("ENABLE_PARALLEL_SUBPROBLEMS
 # Default to True (stable feature)
 ENABLE_PARALLEL_ROUNDS = _parse_bool(os.getenv("ENABLE_PARALLEL_ROUNDS"), default=True)
 
+# Enable speculative parallel execution with early context sharing
+# When True, dependent sub-problems can start early (when dependencies reach round 2)
+# instead of waiting for full completion. This can provide 40-60% time savings.
+# When False, falls back to strict sequential batch execution
+# Requires ENABLE_PARALLEL_SUBPROBLEMS=true to have effect
+# Default to True (recommended with parallel sub-problems enabled)
+ENABLE_SPECULATIVE_PARALLELISM = _parse_bool(
+    os.getenv("ENABLE_SPECULATIVE_PARALLELISM"), default=True
+)
+
+# Early start threshold: number of completed rounds before dependent SPs can start
+# Lower values = more parallelism but less context available
+# Recommended: 2 (after exploration phase completes)
+# Range: 1-3 (1 = aggressive parallelism, 3 = conservative)
+EARLY_START_THRESHOLD = int(os.getenv("EARLY_START_THRESHOLD", "2"))
+
 
 # ============================================================================
 # Sub-Problem Deliberation

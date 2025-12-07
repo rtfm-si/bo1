@@ -26,7 +26,7 @@ async def calculate_exploration_score_llm(
     contributions: list[Any],
     problem_statement: str,
     round_number: int = 1,
-) -> tuple[float, list[Any]]:
+) -> tuple[float, list[Any], list[str], list[str]]:
     """Calculate exploration score using LLM-based Judge Agent.
 
     This is the PREFERRED method for exploration scoring as it uses LLM to
@@ -36,7 +36,7 @@ async def calculate_exploration_score_llm(
     1. Call Judge Agent to analyze contributions
     2. Get aspect coverage assessments (none/shallow/deep)
     3. Map: none=0.0, shallow=0.5, deep=1.0
-    4. Return average across 8 aspects
+    4. Return average across 8 aspects PLUS focus prompts for next round
 
     Args:
         contributions: List of ContributionMessage objects
@@ -44,17 +44,19 @@ async def calculate_exploration_score_llm(
         round_number: Current round number
 
     Returns:
-        Tuple of (exploration_score, aspect_coverage_list)
+        Tuple of (exploration_score, aspect_coverage_list, focus_prompts, missing_aspects)
         - exploration_score: 0.0-1.0 (0.6+ required to end, 0.7+ = well explored)
         - aspect_coverage: List of AspectCoverage objects with details
+        - focus_prompts: Targeted prompts for next round (P2 FIX: no longer discarded!)
+        - missing_aspects: List of aspect names with none/shallow coverage
 
     Example:
-        >>> score, coverage = await calculate_exploration_score_llm(
+        >>> score, coverage, prompts, missing = await calculate_exploration_score_llm(
         ...     contributions, problem="Should we expand to EU?"
         ... )
         >>> print(f"Exploration: {score:.2f}")
-        >>> missing = [a.name for a in coverage if a.level == "none"]
         >>> print(f"Missing: {missing}")
+        >>> print(f"Focus prompts for next round: {prompts}")
     """
     try:
         # Import here to avoid circular dependency
@@ -67,21 +69,29 @@ async def calculate_exploration_score_llm(
             round_number=round_number,
         )
 
-        # Extract exploration score and coverage from judge output
+        # Extract all relevant fields from judge output
         exploration_score = judge_output.exploration_score
         aspect_coverage = judge_output.aspect_coverage
+        # P2 FIX: No longer discard focus prompts - these are critical for improvement!
+        focus_prompts = judge_output.next_round_focus_prompts
+        missing_aspects = judge_output.missing_critical_aspects
 
         logger.info(
             f"LLM exploration score: {exploration_score:.2f} "
             f"(deep: {sum(1 for a in aspect_coverage if a.level == 'deep')}/8, "
-            f"shallow: {sum(1 for a in aspect_coverage if a.level == 'shallow')}/8)"
+            f"shallow: {sum(1 for a in aspect_coverage if a.level == 'shallow')}/8, "
+            f"missing: {missing_aspects}, "
+            f"focus_prompts: {len(focus_prompts)})"
         )
 
-        return exploration_score, aspect_coverage
+        return exploration_score, aspect_coverage, focus_prompts, missing_aspects
 
     except Exception as e:
         logger.warning(f"LLM exploration calculation failed: {e}, falling back to heuristic")
-        return calculate_exploration_score_heuristic(contributions, problem_statement)
+        score, coverage = calculate_exploration_score_heuristic(contributions, problem_statement)
+        # Heuristic fallback - generate basic focus prompts from coverage
+        missing = [a.name for a in coverage if a.level in ("none", "shallow")]
+        return score, coverage, [], missing
 
 
 def calculate_exploration_score_heuristic(

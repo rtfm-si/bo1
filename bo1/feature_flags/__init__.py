@@ -5,8 +5,10 @@ Import flags from here rather than directly from features.py.
 """
 
 from .features import (
+    EARLY_START_THRESHOLD,
     ENABLE_PARALLEL_ROUNDS,
     ENABLE_PARALLEL_SUBPROBLEMS,
+    ENABLE_SPECULATIVE_PARALLELISM,
     ENABLE_SUPERTOKENS_AUTH,
     GOOGLE_OAUTH_ENABLED,
     USE_SUBGRAPH_DELIBERATION,
@@ -20,6 +22,8 @@ __all__ = [
     # Parallel Processing
     "ENABLE_PARALLEL_SUBPROBLEMS",
     "ENABLE_PARALLEL_ROUNDS",
+    "ENABLE_SPECULATIVE_PARALLELISM",
+    "EARLY_START_THRESHOLD",
     # Sub-Problem Deliberation
     "USE_SUBGRAPH_DELIBERATION",
 ]

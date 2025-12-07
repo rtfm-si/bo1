@@ -37,7 +37,8 @@
 			items: [
 				{ href: '/settings/context/overview', label: 'Overview', icon: '🏢' },
 				{ href: '/settings/context/strategic', label: 'Strategic', icon: '🎯' },
-				{ href: '/settings/context/metrics', label: 'Metrics', icon: '📊' }
+				{ href: '/settings/context/metrics', label: 'Metrics', icon: '📊' },
+				{ href: '/settings/context/insights', label: 'Insights', icon: '💡' }
 			]
 		},
 		{

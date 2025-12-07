@@ -53,8 +53,14 @@ import type {
 	TagListResponse,
 	ActionTagsUpdateRequest,
 	// Global Gantt types
-	GlobalGanttResponse
+	GlobalGanttResponse,
+	// Insights types
+	InsightsResponse,
+	ClarificationInsight
 } from './types';
+
+// Re-export types that are used by other modules
+export type { ClarificationInsight };
 
 // ============================================================================
 // Onboarding Types
@@ -549,6 +555,23 @@ export class ApiClient {
 
 	async deleteUserContext(): Promise<{ status: string }> {
 		return this.delete<{ status: string }>('/api/v1/context');
+	}
+
+	// ==========================================================================
+	// Insights Endpoints (Clarifications from Meetings)
+	// ==========================================================================
+
+	async getInsights(): Promise<InsightsResponse> {
+		return this.fetch<InsightsResponse>('/api/v1/context/insights');
+	}
+
+	async deleteInsight(question: string): Promise<{ status: string }> {
+		// Encode question as URL-safe base64
+		const questionHash = btoa(question)
+			.replace(/\+/g, '-')
+			.replace(/\//g, '_')
+			.replace(/=+$/, '');
+		return this.delete<{ status: string }>(`/api/v1/context/insights/${questionHash}`);
 	}
 
 	async submitClarification(sessionId: string, answer: string): Promise<ControlResponse> {

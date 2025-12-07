@@ -23,11 +23,13 @@ from backend.api.context.competitors import (
 )
 from backend.api.context.models import (
     BusinessContext,
+    ClarificationInsight,
     CompetitorDetectRequest,
     CompetitorDetectResponse,
     ContextResponse,
     EnrichmentRequest,
     EnrichmentResponse,
+    InsightsResponse,
     RefreshCheckResponse,
     TrendsRefreshRequest,
     TrendsRefreshResponse,
@@ -467,3 +469,149 @@ async def refresh_trends(
     industry = request.industry if request else None
 
     return await refresh_market_trends(user_id, industry)
+
+
+# =============================================================================
+# Phase 4: Insights Endpoints (Clarifications from Meetings)
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/insights",
+    response_model=InsightsResponse,
+    summary="Get accumulated insights from meetings",
+    description="""
+    Retrieve insights accumulated from user's meetings.
+
+    Currently includes:
+    - **Clarifications**: Q&A pairs from clarifying questions answered during meetings
+
+    These insights are automatically collected during meetings when users answer
+    clarifying questions. They help improve future meetings by providing
+    relevant context.
+
+    **Use Cases:**
+    - Display clarification history in settings
+    - Show what the system has learned about the user's business
+    - Allow users to review and potentially edit their responses
+    """,
+    responses={
+        200: {
+            "description": "Insights retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "clarifications": [
+                            {
+                                "question": "What is your primary revenue model?",
+                                "answer": "Subscription-based SaaS with annual contracts",
+                                "answered_at": "2025-01-15T12:00:00Z",
+                                "session_id": "bo1_abc123",
+                            }
+                        ],
+                        "total_count": 1,
+                    }
+                }
+            },
+        },
+    },
+)
+@handle_api_errors("get insights")
+async def get_insights(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> InsightsResponse:
+    """Get accumulated insights from user's meetings."""
+    user_id = extract_user_id(user)
+
+    # Load context from database
+    context_data = load_user_context(user_id)
+
+    if not context_data:
+        return InsightsResponse(clarifications=[], total_count=0)
+
+    # Extract clarifications from context
+    raw_clarifications = context_data.get("clarifications", {})
+    clarifications: list[ClarificationInsight] = []
+
+    for question, data in raw_clarifications.items():
+        if isinstance(data, dict):
+            # New format with metadata
+            clarifications.append(
+                ClarificationInsight(
+                    question=question,
+                    answer=data.get("answer", ""),
+                    answered_at=data.get("answered_at"),
+                    session_id=data.get("session_id"),
+                )
+            )
+        else:
+            # Legacy format (string value only)
+            clarifications.append(
+                ClarificationInsight(
+                    question=question,
+                    answer=str(data),
+                    answered_at=None,
+                    session_id=None,
+                )
+            )
+
+    # Sort by answered_at (newest first), with None values at the end
+    clarifications.sort(
+        key=lambda c: c.answered_at or datetime.min.replace(tzinfo=UTC),
+        reverse=True,
+    )
+
+    logger.info(f"Retrieved {len(clarifications)} clarification insights for user {user_id}")
+
+    return InsightsResponse(
+        clarifications=clarifications,
+        total_count=len(clarifications),
+    )
+
+
+@router.delete(
+    "/v1/context/insights/{question_hash}",
+    response_model=dict[str, str],
+    summary="Delete a specific clarification insight",
+    description="""
+    Delete a specific clarification from the user's insights.
+
+    The question_hash is a URL-safe base64 encoding of the question text.
+    This allows deleting clarifications that may contain special characters.
+    """,
+)
+@handle_api_errors("delete insight")
+async def delete_insight(
+    question_hash: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    """Delete a specific clarification insight."""
+    import base64
+
+    user_id = extract_user_id(user)
+
+    # Decode the question from the hash
+    try:
+        question = base64.urlsafe_b64decode(question_hash.encode()).decode("utf-8")
+    except Exception as e:
+        logger.warning(f"Failed to decode question hash: {e}")
+        raise HTTPException(status_code=400, detail="Invalid question hash") from None
+
+    # Load and update context
+    context_data = load_user_context(user_id)
+    if not context_data:
+        raise HTTPException(status_code=404, detail="No context found")
+
+    clarifications = context_data.get("clarifications", {})
+    if question not in clarifications:
+        raise HTTPException(status_code=404, detail="Clarification not found")
+
+    # Remove the clarification
+    del clarifications[question]
+    context_data["clarifications"] = clarifications
+
+    # Save updated context
+    save_user_context(user_id, context_data)
+    logger.info(f"Deleted clarification insight for user {user_id}: {question[:50]}...")
+
+    return {"status": "deleted"}

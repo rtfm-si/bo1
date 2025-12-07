@@ -338,3 +338,35 @@ class TrendsRefreshResponse(BaseModel):
     success: bool = Field(..., description="Whether refresh succeeded")
     trends: list[MarketTrend] = Field(default_factory=list, description="Market trends")
     error: str | None = Field(None, description="Error message if failed")
+
+
+# =============================================================================
+# Phase 4: Insights Models (Clarifications from Meetings)
+# =============================================================================
+
+
+class ClarificationInsight(BaseModel):
+    """A clarification answer from a meeting.
+
+    Captures user responses to clarifying questions asked during meetings.
+    These insights are accumulated over time and help improve future meetings.
+    """
+
+    question: str = Field(..., description="The clarifying question that was asked")
+    answer: str = Field(..., description="User's answer to the question")
+    answered_at: datetime | None = Field(None, description="When the answer was provided")
+    session_id: str | None = Field(None, description="Meeting ID where this was answered")
+
+
+class InsightsResponse(BaseModel):
+    """Response containing user's accumulated insights from meetings.
+
+    Insights are derived from:
+    - Clarification questions answered during meetings
+    - Future: Key decisions, preferences learned over time
+    """
+
+    clarifications: list[ClarificationInsight] = Field(
+        default_factory=list, description="Clarification Q&A from meetings"
+    )
+    total_count: int = Field(0, description="Total number of insights")

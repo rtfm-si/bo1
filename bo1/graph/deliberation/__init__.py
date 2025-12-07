@@ -12,6 +12,7 @@ Usage:
         extract_recommendation_from_synthesis,
         select_experts_for_round,
         deliberate_subproblem,
+        PartialContextProvider,
     )
 
 Module Structure:
@@ -20,6 +21,7 @@ Module Structure:
 - context.py: Context building between sub-problems
 - experts.py: Expert selection for deliberation rounds
 - engine.py: Single sub-problem deliberation orchestration
+- partial_context.py: Speculative parallel execution with early context sharing
 """
 
 from bo1.graph.deliberation.batch_sort import topological_batch_sort
@@ -30,6 +32,11 @@ from bo1.graph.deliberation.context import (
 )
 from bo1.graph.deliberation.engine import deliberate_subproblem
 from bo1.graph.deliberation.experts import select_experts_for_round
+from bo1.graph.deliberation.partial_context import (
+    PartialContext,
+    PartialContextProvider,
+    SubProblemProgress,
+)
 from bo1.graph.deliberation.phases import DeliberationPhase, PhaseManager
 
 __all__ = [
@@ -46,4 +53,8 @@ __all__ = [
     "select_experts_for_round",
     # Deliberation engine
     "deliberate_subproblem",
+    # Partial context for speculative parallelization
+    "PartialContextProvider",
+    "PartialContext",
+    "SubProblemProgress",
 ]

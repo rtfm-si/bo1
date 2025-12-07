@@ -107,8 +107,9 @@
 
 		try {
 			await apiClient.deleteSession(sessionId);
-			// Refresh sessions list after successful delete
-			await sessionsData.fetch();
+			// Refresh both sessions and actions lists after successful delete
+			// (deleting a session cascade soft-deletes its associated actions)
+			await Promise.all([sessionsData.fetch(), actionsData.fetch()]);
 		} catch (err) {
 			console.error('Failed to delete session:', err);
 			// Error will be reflected in sessionsData.error

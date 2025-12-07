@@ -7,6 +7,7 @@ This module contains nodes for the final stages of deliberation:
 - meta_synthesize_node: Creates cross-sub-problem meta-synthesis
 """
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -322,45 +323,58 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     if contributions:
         summarizer = SummarizerAgent()
 
-        for persona in personas:
-            # Get contributions from this expert
+        # P2 BATCH FIX: Run all expert summarizations in PARALLEL using asyncio.gather
+        # This reduces latency by 60-80% (from sequential N*200ms to parallel ~200ms)
+        async def summarize_expert(persona: Any) -> tuple[str, str, Any] | None:
+            """Summarize a single expert's contributions."""
             expert_contributions = [c for c in contributions if c.persona_code == persona.code]
+            if not expert_contributions:
+                return None
 
-            if expert_contributions:
-                try:
-                    # Convert contributions to dict format for summarizer
-                    contribution_dicts = [
-                        {"persona": c.persona_name, "content": c.content}
-                        for c in expert_contributions
-                    ]
+            # Convert contributions to dict format for summarizer
+            contribution_dicts = [
+                {"persona": c.persona_name, "content": c.content} for c in expert_contributions
+            ]
 
-                    # Summarize expert's contributions
-                    response = await summarizer.summarize_round(
-                        round_number=state.get("round_number", 1),
-                        contributions=contribution_dicts,
-                        problem_statement=_get_subproblem_attr(current_sp, "goal", ""),
-                        target_tokens=75,  # Concise summary for memory
-                    )
+            # Summarize expert's contributions
+            response = await summarizer.summarize_round(
+                round_number=state.get("round_number", 1),
+                contributions=contribution_dicts,
+                problem_statement=_get_subproblem_attr(current_sp, "goal", ""),
+                target_tokens=75,  # Concise summary for memory
+            )
 
-                    expert_summaries[persona.code] = response.content
+            return (persona.code, persona.display_name, response)
 
-                    # Track cost
-                    if metrics:
-                        phase_costs = metrics.phase_costs
-                        phase_costs["expert_memory"] = (
-                            phase_costs.get("expert_memory", 0.0) + response.cost_total
-                        )
+        # Run all summarizations in parallel
+        logger.info(f"Running {len(personas)} expert summarizations in parallel (BATCH)")
+        results = await asyncio.gather(
+            *[summarize_expert(p) for p in personas],
+            return_exceptions=True,
+        )
 
-                    logger.info(
-                        f"Generated memory summary for {persona.display_name}: "
-                        f"{response.token_usage.output_tokens} tokens, ${response.cost_total:.6f}"
-                    )
+        # Process results
+        total_memory_cost = 0.0
+        for gather_result in results:
+            if gather_result is None:
+                continue  # No contributions for this expert
+            if isinstance(gather_result, BaseException):
+                logger.warning(f"Expert summarization failed: {gather_result}")
+                continue
 
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to generate summary for {persona.display_name}: {e}. "
-                        f"Expert will not have memory for next sub-problem."
-                    )
+            persona_code, display_name, response = gather_result
+            expert_summaries[persona_code] = response.content
+            total_memory_cost += response.cost_total
+
+            logger.info(
+                f"Generated memory summary for {display_name}: "
+                f"{response.token_usage.output_tokens} tokens, ${response.cost_total:.6f}"
+            )
+
+        # Track total cost once (not per-expert)
+        if metrics and total_memory_cost > 0:
+            phase_costs = metrics.phase_costs
+            phase_costs["expert_memory"] = phase_costs.get("expert_memory", 0.0) + total_memory_cost
 
     # Create SubProblemResult
     result = SubProblemResult(
@@ -438,13 +452,37 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Get problem and sub-problem results
     problem = state.get("problem")
-    sub_problem_results = state.get("sub_problem_results", [])
+    sub_problem_results_raw = state.get("sub_problem_results", [])
 
     if not problem:
         raise ValueError("meta_synthesize_node called without problem")
 
-    if not sub_problem_results:
+    if not sub_problem_results_raw:
         raise ValueError("meta_synthesize_node called without sub_problem_results")
+
+    # P0 FIX: Normalize sub_problem_results from dicts back to SubProblemResult objects
+    # After checkpoint restoration, these may be dicts instead of Pydantic models
+    sub_problem_results: list[SubProblemResult] = []
+    for result in sub_problem_results_raw:
+        if isinstance(result, dict):
+            sub_problem_results.append(SubProblemResult.model_validate(result))
+            logger.debug(
+                f"meta_synthesize_node: Normalized dict result for {result.get('sub_problem_id', 'unknown')}"
+            )
+        else:
+            sub_problem_results.append(result)
+
+    # P0 DEBUG: Log synthesis lengths to diagnose 14-token issue
+    for i, result in enumerate(sub_problem_results):
+        synthesis_len = len(result.synthesis) if result.synthesis else 0
+        logger.info(
+            f"meta_synthesize_node: Sub-problem {i} ({result.sub_problem_id}) synthesis length: {synthesis_len} chars, "
+            f"votes: {len(result.votes)}, contributions: {result.contribution_count}"
+        )
+        if synthesis_len == 0:
+            logger.warning(
+                f"meta_synthesize_node: EMPTY SYNTHESIS for sub-problem {result.sub_problem_id}!"
+            )
 
     # Get sub_problems list (handles both dict and object)
     meta_sub_problems = _get_problem_attr(problem, "sub_problems", [])

@@ -192,6 +192,10 @@ async def parallel_round_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
         }
     )
 
+    # P2 FIX: Get focus prompts from state for targeted expert guidance
+    focus_prompts = state.get("next_round_focus_prompts", [])
+    missing_aspects = state.get("missing_critical_aspects", [])
+
     # Generate contributions with per-expert streaming
     async def generate_with_streaming(expert: PersonaProfile) -> ContributionMessage | None:
         """Generate contribution with streaming events."""
@@ -239,11 +243,24 @@ async def parallel_round_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
                 "convergence": "Focus on synthesis and actionable recommendations. Build consensus.",
             }
 
+            # P2 FIX: Build targeted guidance from judge feedback
+            # This is the critical fix - experts now receive specific direction on missing aspects
+            targeted_guidance = ""
+            if focus_prompts and round_number > 1:
+                targeted_guidance = "\n\n**IMPORTANT - Areas Needing Deeper Exploration:**\n"
+                for prompt in focus_prompts[:3]:  # Top 3 focus prompts
+                    targeted_guidance += f"• {prompt}\n"
+                if missing_aspects:
+                    targeted_guidance += f"\nMissing aspects: {', '.join(missing_aspects)}\n"
+                targeted_guidance += (
+                    "\nPlease address these gaps specifically in your contribution."
+                )
+
             system_prompt = f"""You are {expert.display_name}, a {expert.archetype}.
 
 Your expertise: {", ".join(expert.domain_expertise)}
 
-{phase_instructions.get(current_phase, "")}
+{phase_instructions.get(current_phase, "")}{targeted_guidance}
 
 Respond with your analysis and recommendations. Be specific and actionable.
 Use <thinking> tags for internal reasoning, then provide your contribution."""
@@ -374,6 +391,18 @@ async def check_convergence_sp_node(state: SubProblemGraphState) -> dict[str, An
     should_stop = result.get("should_stop", False)
     stop_reason = result.get("stop_reason")
 
+    # P2 FIX: Extract focus prompts from updated metrics for next round
+    updated_metrics = result.get("metrics")
+    focus_prompts: list[str] = []
+    missing_aspects: list[str] = []
+    if updated_metrics:
+        focus_prompts = getattr(updated_metrics, "next_round_focus_prompts", []) or []
+        missing_aspects = getattr(updated_metrics, "missing_critical_aspects", []) or []
+        logger.info(
+            f"check_convergence_sp_node: Sub-problem {sub_problem_index} - "
+            f"focus_prompts: {len(focus_prompts)}, missing: {missing_aspects}"
+        )
+
     # Emit convergence event
     writer(
         {
@@ -382,6 +411,7 @@ async def check_convergence_sp_node(state: SubProblemGraphState) -> dict[str, An
             "round_number": state["round_number"],
             "should_stop": should_stop,
             "stop_reason": stop_reason,
+            "missing_aspects": missing_aspects,  # P2 FIX: Include for UI
         }
     )
 
@@ -392,6 +422,10 @@ async def check_convergence_sp_node(state: SubProblemGraphState) -> dict[str, An
     return {
         "should_stop": should_stop,
         "stop_reason": stop_reason,
+        # P2 FIX: Pass focus prompts to next round for expert guidance
+        "next_round_focus_prompts": focus_prompts,
+        "missing_critical_aspects": missing_aspects,
+        "metrics": updated_metrics,  # Pass updated metrics back to state
     }
 
 

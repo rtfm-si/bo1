@@ -194,10 +194,29 @@ class DeliberationEngine:
         max_rounds = self.state.get("max_rounds", 10) if self.state else 10
         round_config = get_round_phase_config(round_number + 1, max_rounds)
 
+        # BUG FIX: Include clarification answers from problem.context
+        # The identify_gaps_node injects clarification answers into problem.context,
+        # but this context was never being passed to persona prompts
+        enriched_problem_statement = problem_statement
+        main_problem = self.state.get("problem") if self.state else None
+        if main_problem:
+            main_problem_context = (
+                main_problem.get("context", "")
+                if isinstance(main_problem, dict)
+                else getattr(main_problem, "context", "")
+            ) or ""
+            # If there are clarification answers in the main problem context, include them
+            if main_problem_context and "## User Clarifications" in main_problem_context:
+                enriched_problem_statement = f"{problem_statement}\n\n{main_problem_context}"
+                logger.info(
+                    f"Included clarification answers in problem statement "
+                    f"({len(main_problem_context)} chars)"
+                )
+
         # Build prompts using PromptBuilder
         system_prompt, user_message = PromptBuilder.build_persona_prompt(
             persona_profile=persona_profile,
-            problem_statement=problem_statement,
+            problem_statement=enriched_problem_statement,
             state=self.state,
             round_number=round_number,
             expert_memory=expert_memory,

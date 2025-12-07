@@ -150,6 +150,28 @@ export interface UserContextResponse {
 }
 
 // ============================================================================
+// Insights Types (Clarifications from Meetings)
+// ============================================================================
+
+/**
+ * A clarification answer from a meeting
+ */
+export interface ClarificationInsight {
+	question: string;
+	answer: string;
+	answered_at?: string;
+	session_id?: string;
+}
+
+/**
+ * Response containing user's accumulated insights
+ */
+export interface InsightsResponse {
+	clarifications: ClarificationInsight[];
+	total_count: number;
+}
+
+// ============================================================================
 // Admin Types
 // ============================================================================
 

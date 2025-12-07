@@ -81,9 +81,20 @@ python scripts/check_migration_history.py  # Verify migrations applied
 
 - **`ENABLE_PARALLEL_SUBPROBLEMS`** (default: false)
   - When true: Independent sub-problems execute concurrently (50-70% time reduction)
-  - When false: Sequential execution (safer, better UX due to event emission issues)
+  - When false: Sequential execution
   - Used in: `bo1/graph/nodes/subproblems.py`, `bo1/graph/config.py`
-  - **Warning**: See Known Issues section - causes poor UX due to missing event emission
+
+- **`ENABLE_SPECULATIVE_PARALLELISM`** (default: true)
+  - When true: Dependent sub-problems can start early when dependencies reach round 2
+  - When false: Falls back to strict batch-by-batch execution
+  - Requires: `ENABLE_PARALLEL_SUBPROBLEMS=true` to have effect
+  - Benefits: 40-60% time savings on dependency chains (SP0 -> SP1 -> SP2)
+  - Used in: `bo1/graph/nodes/subproblems.py`
+
+- **`EARLY_START_THRESHOLD`** (default: 2)
+  - Number of completed rounds before dependent sub-problems can start
+  - Range: 1-3 (1 = aggressive parallelism, 3 = conservative)
+  - Used in: `bo1/graph/nodes/subproblems.py`
 
 ### Sub-Problem Deliberation
 - **`USE_SUBGRAPH_DELIBERATION`** (default: false)

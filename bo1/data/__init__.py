@@ -68,10 +68,18 @@ def get_personas_by_category(category: str) -> list[dict[str, Any]]:
 
 
 def get_active_personas() -> list[dict[str, Any]]:
-    """Get all active personas (where is_active=True).
+    """Get all active standard personas for expert selection.
+
+    Filters by:
+    - is_active=True (persona is enabled)
+    - persona_type="standard" (excludes meta, moderator, research personas)
+
+    This ensures only regular experts are available for LLM selection,
+    excluding facilitators, moderators, and research personas which have
+    special roles in the deliberation process.
 
     Returns:
-        List of active persona dictionaries
+        List of active standard persona dictionaries
     """
     personas = load_personas()  # Returns tuple from cache
-    return [p for p in personas if p.get("is_active", True)]
+    return [p for p in personas if p.get("is_active", True) and p.get("persona_type") == "standard"]

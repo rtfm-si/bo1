@@ -162,11 +162,21 @@ export function createSessionStore() {
 				if (!session.research_results_by_subproblem) {
 					session.research_results_by_subproblem = {};
 				}
-				// Append new research results (don't replace)
 				if (!session.research_results_by_subproblem[subProblemIndex]) {
 					session.research_results_by_subproblem[subProblemIndex] = [];
 				}
-				session.research_results_by_subproblem[subProblemIndex].push(...payload.research_results);
+				// BUG FIX: Deduplicate by query to prevent duplicates on page refresh
+				// When historical events are replayed, the same research results would
+				// be appended multiple times without this check
+				const existingQueries = new Set(
+					session.research_results_by_subproblem[subProblemIndex].map((r: any) => r.query)
+				);
+				const newResults = payload.research_results.filter(
+					(r: any) => !existingQueries.has(r.query)
+				);
+				if (newResults.length > 0) {
+					session.research_results_by_subproblem[subProblemIndex].push(...newResults);
+				}
 			}
 
 			// Phase transitions

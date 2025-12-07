@@ -20,6 +20,27 @@ export interface SynthesisSection {
 	convergence_point?: string;
 	dissenting_views?: string;
 	warning?: string; // AI-generated content disclaimer
+	// JSON meta-synthesis fields (stored for direct access)
+	recommended_actions?: MetaSynthesisAction[];
+	problem_statement?: string;
+	sub_problems_addressed?: string[];
+}
+
+// JSON meta-synthesis format from backend
+export interface MetaSynthesisAction {
+	action: string;
+	rationale: string;
+	priority: string;
+	timeline: string;
+	success_metrics: string[];
+	risks: string[];
+}
+
+export interface MetaSynthesisJSON {
+	problem_statement: string;
+	sub_problems_addressed: string[];
+	recommended_actions: MetaSynthesisAction[];
+	synthesis_summary: string;
 }
 
 /**
@@ -61,10 +82,13 @@ function extractWarning(content: string): { content: string; warning: string | u
 	return { content, warning: undefined };
 }
 
+// String-only section keys (for markdown parsing - excludes array fields)
+type StringSectionKey = Exclude<keyof SynthesisSection, 'recommended_actions' | 'sub_problems_addressed'>;
+
 /**
  * Map common markdown header names to our section keys
  */
-const MARKDOWN_TO_SECTION_KEY: Record<string, keyof SynthesisSection> = {
+const MARKDOWN_TO_SECTION_KEY: Record<string, StringSectionKey> = {
 	'executive summary': 'executive_summary',
 	'the bottom line': 'executive_summary', // Lean template format
 	recommendation: 'recommendation',
@@ -181,8 +205,81 @@ export function isMarkdownFormatted(content: string): boolean {
 }
 
 /**
+ * Check if content appears to be JSON-formatted (meta-synthesis)
+ */
+export function isJSONFormatted(content: string): boolean {
+	const trimmed = content.trim();
+	return trimmed.startsWith('{') && trimmed.endsWith('}');
+}
+
+/**
+ * Parse JSON meta-synthesis format into SynthesisSection
+ */
+function parseMetaSynthesisJSON(content: string): SynthesisSection {
+	try {
+		const json: MetaSynthesisJSON = JSON.parse(content);
+		const sections: SynthesisSection = {};
+
+		// Map synthesis_summary to executive_summary
+		if (json.synthesis_summary) {
+			sections.executive_summary = json.synthesis_summary;
+		}
+
+		// Store problem_statement for recommendation context
+		if (json.problem_statement) {
+			sections.problem_statement = json.problem_statement;
+			sections.recommendation = `**Decision:** ${json.problem_statement}`;
+		}
+
+		// Store sub_problems_addressed
+		if (json.sub_problems_addressed?.length > 0) {
+			sections.sub_problems_addressed = json.sub_problems_addressed;
+		}
+
+		// Store recommended_actions directly for structured display
+		if (json.recommended_actions?.length > 0) {
+			sections.recommended_actions = json.recommended_actions;
+
+			// Also format as implementation_considerations for fallback display
+			const actionsList = json.recommended_actions.map((action, i) => {
+				const parts = [
+					`### ${i + 1}. ${action.action.split(':')[0] || 'Action ' + (i + 1)}`,
+					'',
+					action.action,
+					'',
+					`**Priority:** ${action.priority}`,
+					`**Timeline:** ${action.timeline}`,
+					'',
+					'**Rationale:**',
+					action.rationale,
+				];
+
+				if (action.success_metrics?.length > 0) {
+					parts.push('', '**Success Metrics:**');
+					action.success_metrics.forEach((m) => parts.push(`- ${m}`));
+				}
+
+				if (action.risks?.length > 0) {
+					parts.push('', '**Risks:**');
+					action.risks.forEach((r) => parts.push(`- ${r}`));
+				}
+
+				return parts.join('\n');
+			});
+
+			sections.implementation_considerations = actionsList.join('\n\n---\n\n');
+		}
+
+		return sections;
+	} catch (e) {
+		console.error('[xml-parser] Failed to parse JSON meta-synthesis:', e);
+		return {};
+	}
+}
+
+/**
  * Parse synthesis output into structured sections
- * Handles both XML format (<executive_summary>) and Markdown format (## Executive Summary)
+ * Handles JSON format (meta-synthesis), XML format (<executive_summary>), and Markdown format (## Executive Summary)
  */
 export function parseSynthesisXML(xmlString: string): SynthesisSection {
 	// First, strip any thinking tags (defense in depth - backend should do this too)
@@ -194,7 +291,16 @@ export function parseSynthesisXML(xmlString: string): SynthesisSection {
 
 	let sections: SynthesisSection = {};
 
-	// Try XML parsing first
+	// Try JSON parsing first (for meta-synthesis)
+	if (isJSONFormatted(cleanedContent)) {
+		sections = parseMetaSynthesisJSON(cleanedContent);
+		if (Object.keys(sections).length > 0) {
+			if (warning) sections.warning = warning;
+			return sections;
+		}
+	}
+
+	// Try XML parsing next
 	const xmlSectionNames = [
 		'executive_summary',
 		'recommendation',

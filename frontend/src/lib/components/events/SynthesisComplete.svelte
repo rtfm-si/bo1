@@ -7,7 +7,7 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import ActionableTasks from './ActionableTasks.svelte';
 	import MarkdownContent from '$lib/components/ui/MarkdownContent.svelte';
-	import { parseSynthesisXML, isXMLFormatted, isMarkdownFormatted, type SynthesisSection } from '$lib/utils/xml-parser';
+	import { parseSynthesisXML, isXMLFormatted, isMarkdownFormatted, type SynthesisSection, type MetaSynthesisAction } from '$lib/utils/xml-parser';
 
 	interface Props {
 		event: SynthesisCompleteEvent | MetaSynthesisCompleteEvent;
@@ -16,7 +16,7 @@
 	let { event }: Props = $props();
 
 	const isMeta = $derived(event.event_type === 'meta_synthesis_complete');
-	// Always try to parse - supports both XML (<tag>) and Markdown (## Header) formats
+	// Always try to parse - supports JSON, XML (<tag>), and Markdown (## Header) formats
 	const sections = $derived(parseSynthesisXML(event.data.synthesis));
 	// Check if we got meaningful parsed sections (not just raw content dumped in executive_summary)
 	const hasParsedSections = $derived(
@@ -25,8 +25,26 @@
 				sections.rationale ||
 				sections.convergence_point ||
 				sections.vote_breakdown ||
+				sections.recommended_actions?.length ||
 				Object.keys(sections).length > 2) // More than just executive_summary + warning
 	);
+	// Check if we have structured recommended_actions from JSON meta-synthesis
+	const hasStructuredActions = $derived(sections?.recommended_actions && sections.recommended_actions.length > 0);
+
+	function getPriorityColor(priority: string): string {
+		switch (priority?.toLowerCase()) {
+			case 'critical':
+				return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800';
+			case 'high':
+				return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-800';
+			case 'medium':
+				return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800';
+			case 'low':
+				return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800';
+			default:
+				return 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-300 border-slate-200 dark:border-slate-800';
+		}
+	}
 </script>
 
 <div class="space-y-3">
@@ -277,6 +295,75 @@
 		{/if}
 	</div>
 
-	<!-- Actionable Tasks Section (show for both synthesis_complete and meta_synthesis_complete) -->
-	<ActionableTasks sessionId={event.session_id} subProblemIndex={event.data.sub_problem_index} />
+	<!-- Recommended Actions Section -->
+	{#if hasStructuredActions && sections?.recommended_actions}
+		<!-- Display structured recommended_actions directly from JSON meta-synthesis -->
+		<div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+			<div class="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-3">
+				<h4 class="font-semibold text-amber-900 dark:text-amber-100 flex items-center gap-2">
+					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+					</svg>
+					Recommended Actions ({sections.recommended_actions.length})
+				</h4>
+			</div>
+			<div class="divide-y divide-slate-200 dark:divide-slate-700">
+				{#each sections.recommended_actions as action, i}
+					<div class="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+						<div class="flex items-start gap-3">
+							<span class="flex-shrink-0 w-6 h-6 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-medium">
+								{i + 1}
+							</span>
+							<div class="flex-1 min-w-0">
+								<div class="flex flex-wrap items-center gap-2 mb-2">
+									<h5 class="font-medium text-slate-900 dark:text-white">
+										{action.action.split(':')[0] || `Action ${i + 1}`}
+									</h5>
+									<span class="px-2 py-0.5 text-xs font-medium rounded border {getPriorityColor(action.priority)}">
+										{action.priority}
+									</span>
+									{#if action.timeline}
+										<span class="px-2 py-0.5 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded">
+											{action.timeline}
+										</span>
+									{/if}
+								</div>
+								<p class="text-sm text-slate-700 dark:text-slate-300 mb-3">
+									{action.action}
+								</p>
+								{#if action.rationale}
+									<div class="text-sm text-slate-600 dark:text-slate-400 mb-2">
+										<span class="font-medium">Rationale:</span> {action.rationale}
+									</div>
+								{/if}
+								{#if action.success_metrics?.length > 0}
+									<div class="mt-2">
+										<span class="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Success Metrics</span>
+										<ul class="mt-1 text-sm text-slate-600 dark:text-slate-400 list-disc list-inside">
+											{#each action.success_metrics as metric}
+												<li>{metric}</li>
+											{/each}
+										</ul>
+									</div>
+								{/if}
+								{#if action.risks?.length > 0}
+									<div class="mt-2">
+										<span class="text-xs font-medium text-red-500 dark:text-red-400 uppercase tracking-wider">Risks</span>
+										<ul class="mt-1 text-sm text-slate-600 dark:text-slate-400 list-disc list-inside">
+											{#each action.risks as risk}
+												<li>{risk}</li>
+											{/each}
+										</ul>
+									</div>
+								{/if}
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{:else}
+		<!-- Fallback: Use API-based ActionableTasks for non-JSON synthesis -->
+		<ActionableTasks sessionId={event.session_id} subProblemIndex={event.data.sub_problem_index} />
+	{/if}
 </div>

@@ -892,9 +892,11 @@
 							{events}
 							currentPhase={session.phase}
 							currentRound={session.round_number ?? null}
-							activeSubProblemIndex={view.activeSubProblemTab
-								? parseInt(view.activeSubProblemTab.replace('subproblem-', ''))
-								: null}
+							activeSubProblemIndex={(() => {
+								if (!view.activeSubProblemTab?.startsWith('subproblem-')) return null;
+								const index = parseInt(view.activeSubProblemTab.replace('subproblem-', ''));
+								return Number.isNaN(index) ? null : index;
+							})()}
 							totalSubProblems={memoized.subProblemTabs.length}
 						/>
 					</div>

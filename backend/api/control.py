@@ -799,6 +799,30 @@ async def resume_deliberation(
                 full_state["should_stop"] = False  # Reset stop flag so router continues
                 full_state["stop_reason"] = None  # Clear stop reason
 
+                # BUG FIX: Inject clarification answers directly into problem.context
+                # When graph resumes, identify_gaps_node is NOT re-run (as_node="identify_gaps"
+                # means resume from AFTER the node). So we must inject the answers here.
+                problem = full_state.get("problem")
+                if problem and clarification_answers:
+                    # Build answer context (same format as identify_gaps_node)
+                    answer_context = "\n\n## User Clarifications\n"
+                    for question, answer in clarification_answers.items():
+                        answer_context += f"- **Q:** {question}\n  **A:** {answer}\n"
+
+                    # Inject into problem.context
+                    if isinstance(problem, dict):
+                        current_context = problem.get("context", "") or ""
+                        problem["context"] = current_context + answer_context
+                    else:
+                        current_context = getattr(problem, "context", "") or ""
+                        problem.context = current_context + answer_context
+                    full_state["problem"] = problem
+
+                    logger.info(
+                        f"Injected {len(clarification_answers)} clarification answer(s) into "
+                        f"problem.context ({len(answer_context)} chars added)"
+                    )
+
                 # Serialize the COMPLETE merged state
                 serialized_state = serialize_state_for_checkpoint(full_state)
 
@@ -823,6 +847,21 @@ async def resume_deliberation(
                     reconstructed["clarification_answers"] = clarification_answers
                     reconstructed["should_stop"] = False
                     reconstructed["stop_reason"] = None
+
+                    # BUG FIX: Also inject answers into problem.context for fallback path
+                    problem = reconstructed.get("problem")
+                    if problem and clarification_answers:
+                        answer_context = "\n\n## User Clarifications\n"
+                        for question, answer in clarification_answers.items():
+                            answer_context += f"- **Q:** {question}\n  **A:** {answer}\n"
+
+                        if isinstance(problem, dict):
+                            current_context = problem.get("context", "") or ""
+                            problem["context"] = current_context + answer_context
+                        else:
+                            current_context = getattr(problem, "context", "") or ""
+                            problem.context = current_context + answer_context
+                        reconstructed["problem"] = problem
 
                     logger.info(
                         f"Reconstructed state from PostgreSQL for {session_id}, "

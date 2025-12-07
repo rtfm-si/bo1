@@ -4,6 +4,7 @@ This module contains the core deliberation orchestration logic for a single
 sub-problem, extracted from nodes.py to improve modularity and testability.
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -160,7 +161,7 @@ async def _generate_synthesis(
         prefill="<thinking>",
         model="sonnet",
         temperature=0.7,
-        max_tokens=3000,
+        max_tokens=4000,  # Increased from 3000 to avoid truncation
         phase="synthesis",
         agent_type="synthesizer",
     )
@@ -185,14 +186,15 @@ async def _generate_expert_summaries(
     round_number: int,
     metrics: DeliberationMetrics,
 ) -> dict[str, str]:
-    """Generate expert summaries for memory."""
+    """Generate expert summaries for memory (parallelized for speed)."""
     expert_summaries: dict[str, str] = {}
     summarizer = SummarizerAgent()
 
-    for persona in personas:
+    async def _summarize_persona(persona: PersonaProfile) -> tuple[str, str | None, Any | None]:
+        """Generate summary for a single persona. Returns (code, summary, response)."""
         expert_contributions = [c for c in contributions if c.persona_code == persona.code]
         if not expert_contributions:
-            continue
+            return (persona.code, None, None)
 
         try:
             contribution_dicts = [
@@ -204,10 +206,19 @@ async def _generate_expert_summaries(
                 problem_statement=sub_problem.goal,
                 target_tokens=75,
             )
-            expert_summaries[persona.code] = summary_response.content
-            track_phase_cost(metrics, "expert_memory", summary_response)
+            return (persona.code, summary_response.content, summary_response)
         except Exception as e:
             logger.warning(f"Failed to generate summary for {persona.display_name}: {e}")
+            return (persona.code, None, None)
+
+    # Run all summarizations in parallel
+    summary_results = await asyncio.gather(*[_summarize_persona(p) for p in personas])
+
+    # Collect results and track costs
+    for code, summary, response in summary_results:
+        if summary is not None:
+            expert_summaries[code] = summary
+            track_phase_cost(metrics, "expert_memory", response)
 
     return expert_summaries
 

@@ -1141,11 +1141,19 @@ class EventCollector:
         Compares Redis event count (temporary) with PostgreSQL event count (permanent)
         to detect persistence failures. Emits warning events if discrepancies are found.
 
+        Note: Adds a delay before verification to allow async persistence tasks to complete.
+        Event persistence runs via asyncio.create_task() and may not be finished immediately.
+
         Args:
             session_id: Session identifier
         """
         try:
             from bo1.state.postgres_manager import get_session_events
+
+            # Allow async persistence tasks to complete (they run via asyncio.create_task)
+            # This prevents false positives from the race condition where verification
+            # runs before all persistence tasks have finished
+            await asyncio.sleep(2.0)
 
             redis_event_count = self.publisher.redis.llen(f"events_history:{session_id}")
             pg_events = get_session_events(session_id)

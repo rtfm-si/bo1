@@ -23,52 +23,13 @@ from bo1.config import get_settings, resolve_model_alias
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
 from bo1.models.state import ContributionMessage
+from bo1.prompts.research_detector_prompts import (
+    RESEARCH_DETECTOR_PREFILL,
+    RESEARCH_DETECTOR_SYSTEM_PROMPT,
+    RESEARCH_DETECTOR_USER_TEMPLATE,
+)
 
 logger = logging.getLogger(__name__)
-
-# Detection prompt for identifying research opportunities
-RESEARCH_DETECTION_PROMPT = """Analyze this expert contribution for research needs:
-
-<contribution>
-{contribution}
-</contribution>
-
-<problem_context>
-{problem_context}
-</problem_context>
-
-Look for signals that external research would strengthen the argument:
-
-1. **Uncertainty signals**: "I think", "possibly", "might be", "not sure", "unclear", "uncertain"
-2. **Verifiable claims**: Statistics, market data, pricing info, dates, regulatory references
-3. **Information gaps**: Topics requiring current data (market trends, competitor info, tech specs)
-
-IMPORTANT: Only suggest research if it would materially improve the contribution.
-Do NOT suggest research for:
-- General opinions or subjective judgments
-- Common knowledge or basic facts
-- Personal experiences or anecdotes
-- Abstract philosophical points
-
-If research would help, provide 1-3 specific, actionable search queries.
-
-Output JSON only (no explanation):
-{{
-  "needs_research": true/false,
-  "confidence": 0.0-1.0,
-  "queries": ["specific search query 1", "specific search query 2"],
-  "reason": "brief explanation of why research would help",
-  "signals": ["list of specific uncertainty/claim signals found"]
-}}
-
-Example outputs:
-
-NEEDS RESEARCH:
-{{"needs_research": true, "confidence": 0.85, "queries": ["average B2B SaaS churn rate 2025"], "reason": "Claim about churn rate needs verification", "signals": ["I think the average churn is around 5-7%"]}}
-
-NO RESEARCH NEEDED:
-{{"needs_research": false, "confidence": 0.9, "queries": [], "reason": "Contribution is opinion-based without verifiable claims", "signals": []}}
-"""
 
 
 class ResearchNeeds(BaseModel):
@@ -117,8 +78,8 @@ class ResearchDetector:
             ...     print(f"Research needed: {needs.queries}")
         """
         try:
-            # Build prompt
-            prompt = RESEARCH_DETECTION_PROMPT.format(
+            # Build user message from template
+            user_message = RESEARCH_DETECTOR_USER_TEMPLATE.format(
                 contribution=contribution.content,
                 problem_context=problem_context,
             )
@@ -143,9 +104,10 @@ class ResearchDetector:
                     model=model,
                     max_tokens=500,
                     temperature=0.0,  # Deterministic for consistency
+                    system=RESEARCH_DETECTOR_SYSTEM_PROMPT,
                     messages=[
-                        {"role": "user", "content": prompt},
-                        {"role": "assistant", "content": "{"},  # Prefill forces JSON start
+                        {"role": "user", "content": user_message},
+                        {"role": "assistant", "content": RESEARCH_DETECTOR_PREFILL},
                     ],
                 )
 
@@ -156,7 +118,7 @@ class ResearchDetector:
             # Extract JSON response (prepend the prefill we used)
             first_block = response.content[0] if response.content else None
             raw_content = first_block.text if first_block and hasattr(first_block, "text") else "}"
-            content = "{" + raw_content  # Prepend the prefill character
+            content = RESEARCH_DETECTOR_PREFILL + raw_content  # Prepend the prefill character
 
             # Parse JSON (use robust extraction as fallback)
             from bo1.llm.response_parser import extract_json_from_response

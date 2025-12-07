@@ -11,6 +11,7 @@ Uses Haiku 4.5 for cost efficiency (~$0.002-0.005 per call).
 
 import json
 import logging
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -18,6 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 from bo1.graph.meeting_config import CRITICAL_ASPECTS
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.models.state import AspectCoverage
+from bo1.prompts.judge_prompts import JUDGE_PREFILL, JUDGE_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -109,201 +111,87 @@ class JudgeOutput(BaseModel):
 
 
 # ============================================================================
-# Judge System Prompt
+# JSON Repair Utilities
 # ============================================================================
 
-JUDGE_SYSTEM_PROMPT = """<system_role>
-You are a meeting quality analyst evaluating deliberation rounds for a multi-agent decision-making system.
+MAX_JSON_REPAIR_ATTEMPTS = 1  # Number of LLM retries after JSON repair fails
 
-Your role:
-- Assess exploration coverage across 8 critical decision aspects
-- Evaluate convergence, focus, and novelty
-- Determine if the deliberation should continue or conclude
-- Provide targeted guidance for next round if continuing
 
-You are analytical, thorough, and cite specific evidence from contributions.
-</system_role>
+def _repair_json(raw_text: str) -> str:
+    """Attempt to repair common JSON issues from LLM output.
 
-<assessment_framework>
-You must evaluate 8 critical aspects for ANY decision:
+    Fixes:
+    - Trailing commas before closing brackets
+    - Missing closing brackets/braces
+    - Unescaped newlines in strings
+    - Truncated JSON (attempts to close open structures)
 
-1. **problem_clarity**: Is the problem well-defined with measurable criteria?
-2. **objectives**: Are success criteria and goals explicit?
-3. **options_alternatives**: Have multiple approaches been considered and compared?
-4. **key_assumptions**: Are critical assumptions identified and validated?
-5. **risks_failure_modes**: What could go wrong? What are failure scenarios?
-6. **constraints**: What are the limitations (time, money, resources)?
-7. **stakeholders_impact**: Who is affected and how?
-8. **dependencies_unknowns**: What external factors could affect this decision?
+    Args:
+        raw_text: Raw JSON string from LLM
 
-For EACH aspect, classify coverage as:
-- **"none"**: Not mentioned or addressed at all
-- **shallow"**: Mentioned superficially without depth (e.g., "might be risky", "budget constraints")
-- **"deep"**: Thoroughly discussed with specifics, numbers, analysis, or evidence
+    Returns:
+        Repaired JSON string (may still be invalid)
+    """
+    text = raw_text.strip()
 
-IMPORTANT: Be strict. Generic statements without specifics = "shallow". Detailed analysis with evidence = "deep".
-</assessment_framework>
+    # Remove trailing commas before closing brackets
+    text = re.sub(r",\s*}", "}", text)
+    text = re.sub(r",\s*]", "]", text)
 
-<examples>
-Example 1 - SHALLOW vs DEEP for "risks_failure_modes":
+    # Count brackets to detect truncation
+    open_braces = text.count("{") - text.count("}")
+    open_brackets = text.count("[") - text.count("]")
 
-SHALLOW:
-- "We should consider the risks"
-- "This might fail"
-- "There are some concerns"
+    # Attempt to close truncated JSON
+    if open_braces > 0 or open_brackets > 0:
+        # Add missing closing brackets
+        text += "]" * max(0, open_brackets)
+        text += "}" * max(0, open_braces)
 
-DEEP:
-- "Three major risks: (1) Market timing - if we delay 6 months, competitor launches first, losing $500K; (2) Regulatory approval - FDA process takes 18 months, could delay revenue; (3) Technical debt - legacy system integration adds 40% dev time"
+    # Fix common unescaped characters in strings
+    # Replace literal newlines inside strings (between quotes)
+    # This is a simple heuristic - may not catch all cases
+    text = re.sub(r'(?<!\\)\n(?=[^"]*"[^"]*$)', "\\n", text)
 
----
+    return text
 
-Example 2 - SHALLOW vs DEEP for "objectives":
 
-SHALLOW:
-- "We want to grow"
-- "Success means profitability"
-- "Improve customer satisfaction"
+def _extract_json_from_text(raw_text: str) -> str:
+    """Extract JSON object from text that may contain markdown or prose.
 
-DEEP:
-- "Primary objective: Increase MRR from $50K to $75K within 6 months (50% growth). Secondary: Reduce churn from 8% to 5%. Success metrics: CAC <$150, LTV:CAC ratio >3:1"
+    Args:
+        raw_text: Raw text that may contain JSON embedded in markdown
 
----
+    Returns:
+        Extracted JSON string
+    """
+    text = raw_text.strip()
 
-Example 3 - SHALLOW vs DEEP for "stakeholders_impact":
+    # If it starts with {, assume it's already JSON
+    if text.startswith("{"):
+        return text
 
-SHALLOW:
-- "This will affect customers"
-- "We need to consider the team"
-- "Stakeholders should be informed"
+    # Look for JSON in markdown code blocks
+    json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if json_match:
+        return json_match.group(1)
 
-DEEP:
-- "Impact analysis: (1) Premium customers (500 users) lose advanced reporting feature, expect 5% churn ($2500 MRR loss), mitigate with 6-month grandfather clause; (2) Support team handles 30% more tickets during transition, hire 1 temp agent; (3) Sales team needs updated messaging, 2-week training"
+    # Look for a JSON object anywhere in the text
+    brace_start = text.find("{")
+    if brace_start != -1:
+        # Find matching closing brace
+        depth = 0
+        for i, char in enumerate(text[brace_start:]):
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[brace_start : brace_start + i + 1]
+        # If no matching brace found, return from first brace to end
+        return text[brace_start:]
 
----
-
-Example 4 - Coverage Assessment:
-
-Round 3 contributions:
-- "We should expand to Europe" (SHALLOW problem_clarity - no specifics)
-- "Target Germany first, Berlin office, hire 10 people by Q2" (DEEP problem_clarity - specific)
-- "Success = €5M ARR within 18 months, <€800K CAC" (DEEP objectives - measurable)
-- "Could do direct office or partner" (SHALLOW options - mentioned but not compared)
-- "Assumes GDPR compliance and hiring market availability" (DEEP assumptions - specific)
-- No mention of risks (NONE for risks_failure_modes)
-
-Assessment:
-- problem_clarity: deep (specific plan stated)
-- objectives: deep (measurable goals with numbers)
-- options_alternatives: shallow (alternatives mentioned but not analyzed)
-- key_assumptions: deep (specific assumptions listed)
-- risks_failure_modes: none (not discussed)
-- constraints: none (no budget/timeline discussed)
-- stakeholders_impact: none (not addressed)
-- dependencies_unknowns: none (not mentioned)
-
-Exploration score: (1.0 + 1.0 + 0.5 + 1.0 + 0.0 + 0.0 + 0.0 + 0.0) / 8 = 0.44
-
-Missing critical aspects: ["risks_failure_modes", "constraints", "stakeholders_impact", "dependencies_unknowns"]
-
-Recommendation: continue_targeted (insufficient exploration, missing critical risks)
-</examples>
-
-<focus_prompt_examples>
-Example 1 - Missing "risks_failure_modes" aspect:
-
-❌ WEAK FOCUS PROMPT:
-"Please discuss risks."
-
-✅ STRONG FOCUS PROMPT:
-"We've identified the opportunity and approach, but haven't discussed what could go wrong. From your domain expertise:
-1. What are the top 3 risks if we proceed with Option A?
-2. What failure scenarios should we plan for?
-3. What early warning signs would indicate things are going off track?
-
-For each risk, estimate likelihood and impact. Suggest mitigation strategies."
-
----
-
-Example 2 - Missing "stakeholders_impact" aspect:
-
-❌ WEAK FOCUS PROMPT:
-"Think about stakeholders."
-
-✅ STRONG FOCUS PROMPT:
-"We've focused on the business case but haven't analyzed stakeholder impact. Please assess:
-1. Who will be affected by this decision? (customers, team, partners, investors)
-2. What's the specific impact on each group? (positive and negative)
-3. Which stakeholders might resist? Why? How do we mitigate?
-4. Are there communication or change management needs we've overlooked?"
-
----
-
-Example 3 - Missing "constraints" aspect:
-
-❌ WEAK FOCUS PROMPT:
-"What are the constraints?"
-
-✅ STRONG FOCUS PROMPT:
-"The discussion has been aspirational but hasn't addressed real-world constraints. From your perspective:
-1. What are the hard constraints? (budget, timeline, resources, regulations)
-2. What trade-offs do these constraints force? (e.g., if budget is fixed, what's deprioritized?)
-3. Are there deal-breakers? (constraints that would kill the project)
-4. How do we maximize impact within these constraints?"
-</focus_prompt_examples>
-
-<thinking_process>
-Before your assessment:
-1. Review all contributions in this round carefully
-2. For each of the 8 aspects, find evidence in contributions
-3. Classify each aspect as none/shallow/deep based on examples above
-4. Calculate exploration score: sum(0.0=none, 0.5=shallow, 1.0=deep) / 8
-5. Identify missing critical aspects (none or shallow coverage)
-6. Assess convergence: Are experts agreeing or disagreeing?
-7. Assess focus: Are contributions on-topic or drifting?
-8. Assess novelty: Are new ideas emerging or repeating?
-9. Determine status and next steps based on completeness
-</thinking_process>
-
-<output_format>
-You MUST respond with a JSON object matching this schema:
-
-{
-  "round_number": <int>,
-  "exploration_score": <float 0-1>,
-  "aspect_coverage": [
-    {
-      "name": "<aspect_name>",
-      "level": "none|shallow|deep",
-      "notes": "<specific evidence from contributions>"
-    },
-    ... (all 8 aspects)
-  ],
-  "missing_critical_aspects": [<list of aspect names with none/shallow>],
-  "convergence_score": <float 0-1>,
-  "focus_score": <float 0-1>,
-  "novelty_score": <float 0-1>,
-  "status": "must_continue|continue_targeted|ready_to_decide|park_or_abort",
-  "rationale": [<list of reasons for status>],
-  "next_round_focus_prompts": [<targeted prompts for missing aspects>]
-}
-
-CRITICAL: Output ONLY valid JSON. No markdown, no prose, no explanations outside the JSON.
-</output_format>
-
-<quality_standards>
-High-quality deliberations require:
-- Exploration score ≥ 0.60 (at least 5/8 aspects discussed)
-- Risks MUST be addressed (cannot end with risks at "none")
-- Objectives MUST be clear (cannot end with objectives at "none")
-- Convergence + Exploration together (not just early agreement)
-
-Status guidelines:
-- "must_continue": Exploration < 0.50 or critical aspects missing (risks, objectives)
-- "continue_targeted": Exploration 0.50-0.70 and missing some aspects
-- "ready_to_decide": Exploration ≥ 0.70, convergence high, novelty low
-- "park_or_abort": Stalled debate (no progress, low novelty, no convergence improvement)
-</quality_standards>
-"""
+    return text
 
 
 # ============================================================================
@@ -366,45 +254,83 @@ Remember:
 </task>
 """
 
-    try:
-        # Call LLM (use Haiku 4.5 for cost efficiency)
-        broker = PromptBroker()
-        request = PromptRequest(
-            system=JUDGE_SYSTEM_PROMPT,
-            user_message=user_prompt,
-            prefill="{",  # Force JSON output format
-            model=config.get("model", "haiku") if config else "haiku",
-            temperature=config.get("temperature", 0.0) if config else 0.0,
-            max_tokens=config.get("max_tokens", 4096) if config else 4096,
-            phase="judge",
-            cache_system=True,  # TASK 1 FIX: Enable prompt caching (system prompt = static evaluation framework)
-        )
+    broker = PromptBroker()
+    response_text = ""
+    last_error: json.JSONDecodeError | Exception | None = None
 
-        response = await broker.call(request)
+    for attempt in range(MAX_JSON_REPAIR_ATTEMPTS + 1):
+        try:
+            # Call LLM (use Haiku 4.5 for cost efficiency)
+            request = PromptRequest(
+                system=JUDGE_SYSTEM_PROMPT,
+                user_message=user_prompt,
+                prefill=JUDGE_PREFILL,  # Force JSON output format
+                model=config.get("model", "haiku") if config else "haiku",
+                temperature=config.get("temperature", 0.0) if config else 0.0,
+                max_tokens=config.get("max_tokens", 4096) if config else 4096,
+                phase="judge",
+                cache_system=True,  # Enable prompt caching (system prompt = static evaluation framework)
+            )
 
-        # Parse JSON response
-        response_text = response.content
-        judge_output_dict = json.loads(response_text)
+            response = await broker.call(request)
+            response_text = response.content
 
-        # Convert to Pydantic model
-        judge_output = JudgeOutput(**judge_output_dict)
+            # Step 1: Extract JSON from any surrounding text
+            extracted_json = _extract_json_from_text(response_text)
 
-        logger.info(
-            f"Judge assessment complete - Exploration: {judge_output.exploration_score:.2f}, "
-            f"Status: {judge_output.status}, Missing: {judge_output.missing_critical_aspects}"
-        )
+            # Step 2: Try parsing raw extracted JSON
+            try:
+                judge_output_dict = json.loads(extracted_json)
+            except json.JSONDecodeError:
+                # Step 3: Try repairing JSON
+                repaired_json = _repair_json(extracted_json)
+                logger.info(f"Judge JSON repair attempt {attempt + 1}: trying repaired JSON")
+                judge_output_dict = json.loads(repaired_json)
 
-        return judge_output
+            # Convert to Pydantic model
+            judge_output = JudgeOutput(**judge_output_dict)
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse Judge output as JSON: {e}")
-        logger.error(f"Raw response: {response_text if 'response_text' in locals() else 'N/A'}")
-        # Fall back to heuristic
-        return _judge_round_heuristic(contributions, problem_statement, round_number)
+            logger.info(
+                f"Judge assessment complete - Exploration: {judge_output.exploration_score:.2f}, "
+                f"Status: {judge_output.status}, Missing: {judge_output.missing_critical_aspects}"
+            )
 
-    except Exception as e:
-        logger.error(f"Judge Agent failed: {e}, falling back to heuristic")
-        return _judge_round_heuristic(contributions, problem_statement, round_number)
+            return judge_output
+
+        except json.JSONDecodeError as e:
+            last_error = e
+            logger.warning(
+                f"Judge JSON parse failed (attempt {attempt + 1}/{MAX_JSON_REPAIR_ATTEMPTS + 1}): {e}"
+            )
+            if attempt < MAX_JSON_REPAIR_ATTEMPTS:
+                # Retry with stronger enforcement in prompt
+                user_prompt = f"""<CRITICAL>
+Your previous response was not valid JSON. You MUST output ONLY valid JSON with no markdown, no prose, no explanations.
+The JSON must be parseable by json.loads() directly.
+</CRITICAL>
+
+{user_prompt}"""
+                logger.info("Retrying Judge with stricter JSON enforcement")
+                continue
+            # Final attempt failed, fall through to heuristic
+
+        except Exception as e:
+            last_error = e
+            logger.error(f"Judge Agent error (attempt {attempt + 1}): {e}")
+            if attempt < MAX_JSON_REPAIR_ATTEMPTS:
+                continue
+            # Final attempt failed, fall through to heuristic
+
+    # All attempts failed, use heuristic fallback
+    logger.error(
+        f"Judge JSON parsing failed after {MAX_JSON_REPAIR_ATTEMPTS + 1} attempts: {last_error}"
+    )
+    logger.error(
+        f"Raw response: {response_text[:500]}..."
+        if len(response_text) > 500
+        else f"Raw response: {response_text}"
+    )
+    return _judge_round_heuristic(contributions, problem_statement, round_number)
 
 
 def _format_contributions_for_prompt(contributions: list[Any]) -> str:

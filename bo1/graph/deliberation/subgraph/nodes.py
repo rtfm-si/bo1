@@ -23,12 +23,14 @@ from bo1.graph.deliberation.subgraph.state import SubProblemGraphState
 from bo1.graph.safety.loop_prevention import check_convergence_node as _check_convergence
 from bo1.graph.utils import track_aggregated_cost, track_phase_cost
 from bo1.llm.broker import PromptBroker, PromptRequest
+from bo1.llm.response import LLMResponse
 from bo1.models.persona import PersonaProfile
 from bo1.models.state import ContributionMessage, ContributionType, DeliberationMetrics
 from bo1.orchestration.voting import collect_recommendations
 from bo1.prompts.reusable_prompts import (
     SYNTHESIS_PROMPT_TEMPLATE,
 )
+from bo1.state.repositories import contribution_repository
 
 logger = logging.getLogger(__name__)
 
@@ -237,9 +239,23 @@ async def parallel_round_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
             full_context = "\n".join(context_parts)
 
             # Phase-specific instructions
+            # P2 FIX: Strengthened challenge phase directive to force rigorous debate
             phase_instructions = {
                 "exploration": "Explore the problem space broadly. Surface new perspectives and considerations.",
-                "challenge": "Critically analyze previous contributions. Challenge weak arguments with evidence.",
+                "challenge": """**MANDATORY CHALLENGE MODE**
+
+Your primary role in this round is to STRESS-TEST ideas, not build consensus.
+
+You MUST:
+1. **Identify the WEAKEST argument** made so far (name it specifically)
+2. **Provide a concrete counterargument** with evidence or reasoning
+3. **Surface limitations** that others may have overlooked
+4. **Challenge emerging consensus** - if everyone agrees too quickly, find the holes
+
+DO NOT simply agree or build on ideas without critique.
+If you find yourself agreeing with everything, you are NOT doing your job.
+
+The best outcomes come from rigorous challenge. Your role is to make the final recommendation MORE robust by finding its weaknesses NOW.""",
                 "convergence": "Focus on synthesis and actionable recommendations. Build consensus.",
             }
 
@@ -293,6 +309,27 @@ Use <thinking> tags for internal reasoning, then provide your contribution."""
                 token_count=response.token_usage.total_tokens,
                 cost=response.cost_total,
             )
+
+            # P0 FIX: Persist contribution to database
+            # This was missing - contributions were only in memory/SSE stream
+            try:
+                contribution_repository.save_contribution(
+                    session_id=state["session_id"],
+                    persona_code=expert.code,
+                    content=content,
+                    round_number=round_number,
+                    phase="deliberation",
+                    cost=response.cost_total,
+                    tokens=response.token_usage.total_tokens,
+                    model=response.model,
+                )
+                logger.debug(
+                    f"Saved contribution for {expert.display_name} round {round_number} "
+                    f"to database (session: {state['session_id']})"
+                )
+            except Exception as e:
+                logger.error(f"Failed to save contribution to database: {e}")
+                # Don't fail the whole contribution if save fails - continue with event emission
 
             # Emit contribution event with content
             writer(
@@ -579,7 +616,7 @@ async def synthesize_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
         prefill="<thinking>",
         model="sonnet",
         temperature=0.7,
-        max_tokens=3000,
+        max_tokens=4000,  # Increased from 3000 to avoid truncation
         phase="synthesis",
         agent_type="synthesizer",
     )
@@ -598,33 +635,47 @@ async def synthesize_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
         }
     )
 
-    # Generate expert summaries for memory
+    # Generate expert summaries for memory (parallelized for speed)
     expert_summaries: dict[str, str] = {}
     summarizer = SummarizerAgent()
 
-    for persona in personas:
+    async def _summarize_persona(
+        persona: PersonaProfile,
+    ) -> tuple[str, str | None, LLMResponse | None]:
+        """Generate summary for a single persona. Returns (code, summary, response)."""
         expert_contributions = [c for c in contributions if c.persona_code == persona.code]
+        if not expert_contributions:
+            return (persona.code, None, None)
 
-        if expert_contributions:
-            try:
-                contribution_dicts = [
-                    {"persona": c.persona_name, "content": c.content} for c in expert_contributions
-                ]
+        try:
+            contribution_dicts = [
+                {"persona": c.persona_name, "content": c.content} for c in expert_contributions
+            ]
+            summary_response = await summarizer.summarize_round(
+                round_number=state["round_number"],
+                contributions=contribution_dicts,
+                problem_statement=sub_problem.goal,
+                target_tokens=75,
+            )
+            return (persona.code, summary_response.content, summary_response)
+        except Exception as e:
+            logger.warning(
+                f"Failed to generate summary for {persona.display_name} in sub-problem {sub_problem_index}: {e}"
+            )
+            return (persona.code, None, None)
 
-                summary_response = await summarizer.summarize_round(
-                    round_number=state["round_number"],
-                    contributions=contribution_dicts,
-                    problem_statement=sub_problem.goal,
-                    target_tokens=75,
-                )
+    # Run all summarizations in parallel
+    summary_results = await asyncio.gather(*[_summarize_persona(p) for p in personas])
 
-                expert_summaries[persona.code] = summary_response.content
-                track_phase_cost(metrics, "expert_memory", summary_response)
-
-            except Exception as e:
-                logger.warning(
-                    f"Failed to generate summary for {persona.display_name} in sub-problem {sub_problem_index}: {e}"
-                )
+    # Collect results and track costs
+    for result in summary_results:
+        code: str
+        summary: str | None
+        llm_response: LLMResponse | None
+        code, summary, llm_response = result
+        if summary is not None and llm_response is not None:
+            expert_summaries[code] = summary
+            track_phase_cost(metrics, "expert_memory", llm_response)
 
     logger.info(
         f"synthesize_sp_node: Synthesis complete for sub-problem {sub_problem_index} (cost: ${metrics.total_cost:.4f})"

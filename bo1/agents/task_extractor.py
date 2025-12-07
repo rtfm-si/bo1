@@ -11,6 +11,11 @@ from pydantic import BaseModel, Field
 from bo1.config import get_model_for_role
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
+from bo1.prompts.task_extractor_prompts import (
+    TASK_EXTRACTOR_PREFILL,
+    TASK_EXTRACTOR_SYSTEM_PROMPT,
+    TASK_EXTRACTOR_USER_TEMPLATE,
+)
 
 
 class ExtractedTask(BaseModel):
@@ -62,109 +67,6 @@ class TaskExtractionResult(BaseModel):
     synthesis_sections_analyzed: list[str]
 
 
-TASK_EXTRACTION_PROMPT = """You are analyzing a synthesis report from a multi-expert deliberation.
-
-Your task is to extract discrete, actionable tasks from the synthesis sections.
-
-<synthesis>
-{synthesis}
-</synthesis>
-
-<sub_problem_context>
-Sub-problem index: {sub_problem_index}
-Total sub-problems: {total_sub_problems}
-Other sub-problem goals: {other_sub_problem_goals}
-</sub_problem_context>
-
-Extract tasks following these rules:
-1. **Discrete** - Each task should be a single, completable action
-2. **Actionable** - Must be something the user can actually do (not abstract)
-3. **Well-structured** - Each task MUST include title, what_and_how, success criteria, kill criteria
-4. **Prioritized** - Assign priority based on impact and urgency mentioned in synthesis
-5. **Timed** - Include realistic timeline (e.g., "2 weeks", "1 month")
-6. **Dependencies** - CRITICAL: Identify what needs to happen before this task can start:
-   - Reference other tasks in THIS synthesis using their ID (e.g., "task_1")
-   - Reference tasks from OTHER sub-problems using format "sp{{index}}_task_{{n}}" (e.g., "sp0_task_2" for task 2 from sub-problem 0)
-   - Include external dependencies (e.g., "Access to customer contact list")
-
-**Output format (JSON):**
-```json
-{{
-  "tasks": [
-    {{
-      "id": "task_1",
-      "title": "Conduct enterprise pricing research",
-      "description": "Determine pricing sensitivity for enterprise tier through customer interviews",
-      "what_and_how": [
-        "Schedule 10-15 interviews with current enterprise prospects",
-        "Use Van Westendorp pricing model for survey questions",
-        "Analyze competitive pricing in similar B2B SaaS markets"
-      ],
-      "success_criteria": [
-        "Clear price range identified with >80% confidence",
-        "3+ pricing tiers defined with feature differentiation"
-      ],
-      "kill_criteria": [
-        "If <5 interviews completed after 2 weeks, pivot to survey approach",
-        "If pricing variance exceeds 3x between segments, split into separate initiatives"
-      ],
-      "dependencies": ["Access to customer contact list", "Sales team availability for intros"],
-      "timeline": "2 weeks",
-      "priority": "high",
-      "category": "research",
-      "source_section": "implementation_considerations",
-      "confidence": 0.9
-    }},
-    {{
-      "id": "task_2",
-      "title": "Build revenue comparison model",
-      "description": "Create financial model comparing subscription vs usage-based revenue",
-      "what_and_how": [
-        "Model 24-month projections for both pricing approaches",
-        "Include customer churn assumptions from industry benchmarks",
-        "Run sensitivity analysis on key variables"
-      ],
-      "success_criteria": [
-        "Clear recommendation supported by financial projections",
-        "Break-even point identified for each pricing model"
-      ],
-      "kill_criteria": [
-        "If data quality insufficient, use industry proxies with documented assumptions",
-        "Abandon if pricing research (task_1) doesn't complete"
-      ],
-      "dependencies": ["Pricing research complete (task_1)", "Finance team review", "Market analysis from sp0_task_3"],
-      "timeline": "1 week",
-      "priority": "high",
-      "category": "implementation",
-      "source_section": "implementation_considerations",
-      "confidence": 0.85
-    }}
-  ],
-  "total_tasks": 2,
-  "extraction_confidence": 0.88,
-  "synthesis_sections_analyzed": ["implementation_considerations", "timeline", "resources_required"]
-}}
-```
-
-**Important:**
-- Focus on **concrete tasks**, not general advice
-- Extract from: Implementation Considerations, Timeline, Resources Required, Open Questions, Unified Action Plan
-- Ignore vague recommendations like "consider user feedback" (too abstract)
-- Tasks should be specific enough to assign to someone
-- **title** should be 5-10 words, distinct from description
-- **what_and_how** must have 1-3 specific action bullets (not a repeat of the title)
-- **success_criteria** must have 1-2 measurable outcomes
-- **kill_criteria** must have 1-2 conditions for when to stop/replan
-- **dependencies** MUST include:
-  - Internal dependencies using "task_N" format (e.g., "task_1", "task_2")
-  - Cross-sub-problem dependencies using "spN_task_M" format (e.g., "sp0_task_3", "sp2_task_1")
-  - External dependencies (e.g., "Finance team review", "Customer data access")
-- **timeline** should be realistic (e.g., "3 days", "2 weeks", "1 month")
-- Set confidence based on how explicit the task is in the synthesis
-
-Extract tasks now. Output ONLY valid JSON, no additional commentary."""
-
-
 async def extract_tasks_from_synthesis(
     synthesis: str,
     session_id: str,
@@ -203,7 +105,7 @@ async def extract_tasks_from_synthesis(
     )
     other_goals_str = ", ".join(other_sub_problem_goals) if other_sub_problem_goals else "N/A"
 
-    prompt = TASK_EXTRACTION_PROMPT.format(
+    user_message = TASK_EXTRACTOR_USER_TEMPLATE.format(
         synthesis=synthesis,
         sub_problem_index=sp_index_str,
         total_sub_problems=total_sub_problems,
@@ -227,7 +129,11 @@ async def extract_tasks_from_synthesis(
         response = await client.messages.create(
             model=model,
             max_tokens=4000,
-            messages=[{"role": "user", "content": prompt}],
+            system=TASK_EXTRACTOR_SYSTEM_PROMPT,
+            messages=[
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": TASK_EXTRACTOR_PREFILL},
+            ],
             temperature=0.0,  # Deterministic extraction
         )
 
@@ -235,16 +141,16 @@ async def extract_tasks_from_synthesis(
         cost_record.input_tokens = response.usage.input_tokens
         cost_record.output_tokens = response.usage.output_tokens
 
-    # Parse JSON response
+    # Parse JSON response (prepend the prefill we used)
     first_block = response.content[0]
     if not hasattr(first_block, "text"):
         raise ValueError(f"Unexpected response type: {type(first_block)}")
-    content = first_block.text
+    content = TASK_EXTRACTOR_PREFILL + first_block.text
 
-    # Extract JSON from markdown code blocks if present
+    # Extract JSON from markdown code blocks if present (fallback)
     if "```json" in content:
         content = content.split("```json")[1].split("```")[0].strip()
-    elif "```" in content:
+    elif "```" in content and not content.startswith("{"):
         content = content.split("```")[1].split("```")[0].strip()
 
     data = json.loads(content)
@@ -295,7 +201,7 @@ def sync_extract_tasks_from_synthesis(
     )
     other_goals_str = ", ".join(other_sub_problem_goals) if other_sub_problem_goals else "N/A"
 
-    prompt = TASK_EXTRACTION_PROMPT.format(
+    user_message = TASK_EXTRACTOR_USER_TEMPLATE.format(
         synthesis=synthesis,
         sub_problem_index=sp_index_str,
         total_sub_problems=total_sub_problems,
@@ -319,7 +225,11 @@ def sync_extract_tasks_from_synthesis(
         response = client.messages.create(
             model=model,
             max_tokens=4000,
-            messages=[{"role": "user", "content": prompt}],
+            system=TASK_EXTRACTOR_SYSTEM_PROMPT,
+            messages=[
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": TASK_EXTRACTOR_PREFILL},
+            ],
             temperature=0.0,
         )
 
@@ -327,14 +237,16 @@ def sync_extract_tasks_from_synthesis(
         cost_record.input_tokens = response.usage.input_tokens
         cost_record.output_tokens = response.usage.output_tokens
 
+    # Parse JSON response (prepend the prefill we used)
     first_block = response.content[0]
     if not hasattr(first_block, "text"):
         raise ValueError(f"Unexpected response type: {type(first_block)}")
-    content = first_block.text
+    content = TASK_EXTRACTOR_PREFILL + first_block.text
 
+    # Extract JSON from markdown code blocks if present (fallback)
     if "```json" in content:
         content = content.split("```json")[1].split("```")[0].strip()
-    elif "```" in content:
+    elif "```" in content and not content.startswith("{"):
         content = content.split("```")[1].split("```")[0].strip()
 
     data = json.loads(content)

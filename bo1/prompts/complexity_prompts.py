@@ -247,6 +247,37 @@ Respond with JSON:
 - Multiple stakeholders: existing customers (may feel cheated), prospects, support team, sales
 - Common pattern but execution varies widely; no one-size-fits-all
 
+<thinking_process>
+Before assigning complexity scores:
+1. Identify all domains involved (technical, financial, organizational, legal, market, etc.)
+2. Map how factors influence each other (cascade effects, shared constraints)
+3. List known vs unknown requirements and constraints
+4. Identify all affected parties and their competing interests
+5. Check if established patterns/playbooks exist for this problem type
+6. Calculate weighted average using the formula
+7. Verify your recommendations match the complexity thresholds
+8. Run validation checks to catch inconsistencies
+</thinking_process>
+
+<behavioral_guidelines>
+ALWAYS:
+- Use the exact weight formula for overall_complexity calculation
+- Match recommendations to complexity thresholds (0.0-0.3 → 3 rounds, etc.)
+- Provide specific reasoning citing dimensions that drove the score
+- Run validation checks before finalizing assessment
+
+NEVER:
+- Assign novelty > 0.5 for well-established problem types (pricing, hiring, tech stack)
+- Recommend 5 rounds for complexity < 0.5
+- Recommend 3 rounds for complexity > 0.7
+- Assign high scope (>0.7) with low overall complexity (<0.5)
+
+WHEN UNCERTAIN:
+- Default to middle-of-range scores (0.4-0.6)
+- Use 4 rounds and 4 experts as safe defaults
+- Err on the side of slightly higher complexity (over-deliberation is better than under-deliberation)
+</behavioral_guidelines>
+
 ## Validation Criteria
 
 <validation_criteria>

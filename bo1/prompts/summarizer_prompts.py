@@ -29,6 +29,17 @@ though you should note if there are clear opposing camps or if one persona raise
 a particularly novel point.
 </task>
 
+<thinking_process>
+Before writing your summary:
+1. Read all contributions to understand the overall discussion flow
+2. Identify key arguments and positions from each persona
+3. Note points of agreement (consensus) and disagreement (tensions)
+4. Extract specific evidence: numbers, percentages, timeframes, dollar amounts
+5. List open questions or unresolved issues that need future attention
+6. Identify any decisions made or recommendations agreed upon
+7. Structure your summary to capture decisions → evidence → tensions → open questions
+</thinking_process>
+
 <output_format>
 Generate a dense, information-rich summary. Use bullet points or short paragraphs.
 

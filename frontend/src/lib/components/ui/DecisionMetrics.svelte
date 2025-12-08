@@ -108,9 +108,14 @@
 	);
 
 	// Translate metrics to user-friendly labels
-	// Override for completed meetings to show appropriate status
+	// Preserve actual quality metrics when meeting completes (Bug #2 fix)
 	const overallQuality = $derived.by((): QualityLabel | null => {
-		// If meeting is complete, show completion-appropriate label
+		// If we have metrics, always use the actual quality (even when complete)
+		if (metrics) {
+			return getOverallQuality(metrics);
+		}
+
+		// Fallback: meeting complete but no metrics yet
 		if (isMeetingComplete) {
 			return {
 				label: 'Discussion Complete',
@@ -120,8 +125,7 @@
 			};
 		}
 
-		if (!metrics) return null;
-		return getOverallQuality(metrics);
+		return null;
 	});
 
 	const convergenceMetaphor = $derived.by(() => {
@@ -360,12 +364,16 @@
 					overallQuality.color === 'amber' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400' :
 					'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
 				}">
-					{isMeetingComplete ? 'Complete' : overallQuality.color === 'green' ? 'Excellent' : overallQuality.color === 'amber' ? 'Good' : 'Early'}
+					{#if isMeetingComplete}
+						✓ Complete
+					{:else}
+						{overallQuality.color === 'green' ? 'Excellent' : overallQuality.color === 'amber' ? 'Good' : 'Early'}
+					{/if}
 				</span>
 			</div>
 
 			<p class="text-sm text-slate-600 dark:text-slate-400 mb-3">
-				{overallQuality.description}
+				{overallQuality.description}{#if isMeetingComplete && metrics} Experts have reached recommendations.{/if}
 			</p>
 
 			<!-- Optional: Show phase-specific insight (hidden when meeting complete - redundant) -->

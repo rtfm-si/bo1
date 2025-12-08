@@ -166,6 +166,26 @@ class ContributionRepository(BaseRepository):
                 row = cur.fetchone()
                 return row["embedding"] if row and row.get("embedding") else None
 
+    def count_by_session(self, session_id: str) -> int:
+        """Count contributions for a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Number of contributions for the session
+        """
+        self._validate_id(session_id, "session_id")
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) as count FROM contributions WHERE session_id = %s",
+                    (session_id,),
+                )
+                row = cur.fetchone()
+                return row["count"] if row else 0
+
     # =========================================================================
     # Recommendation Operations
     # =========================================================================

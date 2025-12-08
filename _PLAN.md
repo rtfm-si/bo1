@@ -1,34 +1,44 @@
-# Plan: Security Audit Remaining Items (H2, M4)
+# Plan: Prompts Conciseness Enhancement (Task #6)
 
 ## Summary
 
-- **H2**: Tighten CSP (remove unsafe-eval, consider nonces)
-- **M4**: Enable Redis authentication for all environments
+- Add conciseness directive to COMMUNICATION_PROTOCOL (shared across all persona prompts)
+- Reduce contribution length guidance from 150-250 words to 100-150 words
+- Add explicit anti-verbosity examples to BEHAVIORAL_GUIDELINES
+- Update synthesis templates to request shorter, punchier outputs
 
-## Remaining Tasks
+## Implementation Steps
 
-### H2 - CSP Hardening (HIGH)
-- Current: `'unsafe-inline' 'unsafe-eval'` in script-src
-- Challenge: SvelteKit may require these for hydration/SSR
-- Options:
-  1. Test without `'unsafe-eval'` - may break SvelteKit
-  2. Implement CSP nonces (requires server-side coordination)
-  3. Accept risk with documentation
+1. **Update COMMUNICATION_PROTOCOL** in `bo1/prompts/protocols.py`
+   - Change contribution guidance: "100-150 words" (was 150-250)
+   - Add: "Brevity over completeness. One insight > many points."
+   - Add: "Cut filler phrases: 'I think', 'It's worth noting', 'In my opinion'"
 
-### M4 - Redis Authentication (MEDIUM)
-- Current: Redis exposed without password in docker-compose
-- Fix: Add `requirepass` to Redis config
-- Risk: Dev-only, low priority for MVP
+2. **Add anti-verbosity examples** to BEHAVIORAL_GUIDELINES in `bo1/prompts/protocols.py`
+   - New NEVER item: "Write long contributions when a short one suffices"
+   - Add bad/good example pair showing verbose vs concise contribution
 
-## Status
+3. **Update persona.py user_message** in `compose_persona_contribution_prompt()`
+   - Change "(Public statement to the group - 2-4 paragraphs)" to "(Public statement - 1-2 paragraphs max)"
 
-All quick-win fixes completed:
-- ✅ H5: Docker default passwords removed
-- ✅ H1: DEBUG enforcement exists (`require_production_auth()`)
-- ✅ H3: Prompt injection coverage verified
-- ✅ M1: PII redaction in logs
-- ✅ M6: Input length limits exist
-- ✅ L1: Console.log removed
-- ✅ L3: @html usage verified safe (DOMPurify)
+4. **Update synthesis word budget** in `bo1/prompts/synthesis.py`
+   - SYNTHESIS_LEAN_TEMPLATE: "~600-800 words" → "~400-600 words"
+   - Add: "Every sentence must earn its place"
 
-Remaining items (H2, M4) require architectural decisions or are low priority.
+## Tests
+
+- Unit tests:
+  - None needed - prompt text changes only, no logic changes
+
+- Manual validation:
+  - Run a meeting and observe contribution lengths
+  - Compare synthesis output word count before/after
+  - Verify contributions remain substantive despite being shorter
+
+## Dependencies & Risks
+
+- Dependencies: None
+
+- Risks:
+  - Contributions may become too terse and lose nuance → mitigate by keeping "substantive" requirement
+  - Synthesis may omit important details → mitigate by keeping structure, just tightening prose

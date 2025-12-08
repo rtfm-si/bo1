@@ -1070,6 +1070,36 @@ class EventCollector:
                         f"Session completed but status may be inconsistent!"
                     )
 
+        # Send meeting completion notification (fire-and-forget)
+        if status_update_success:
+            try:
+                from backend.api.ntfy import notify_meeting_completed
+                from bo1.state.repositories import contribution_repository
+
+                # Get problem statement for notification
+                problem = final_state.get("problem")
+                if isinstance(problem, dict):
+                    problem_statement = problem.get("statement", "")
+                elif hasattr(problem, "statement"):
+                    problem_statement = problem.statement
+                else:
+                    problem_statement = ""
+
+                # Count contributions
+                contribution_count = contribution_repository.count_by_session(session_id)
+
+                # Fire-and-forget notification
+                asyncio.create_task(
+                    notify_meeting_completed(
+                        session_id=session_id,
+                        problem_statement=problem_statement,
+                        contribution_count=contribution_count,
+                        total_cost=total_cost,
+                    )
+                )
+            except Exception as notify_error:
+                logger.warning(f"Failed to send meeting completion notification: {notify_error}")
+
         # If status update failed, emit error event to frontend
         if not status_update_success:
             try:

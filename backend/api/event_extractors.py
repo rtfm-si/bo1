@@ -248,8 +248,12 @@ def extract_subproblem_info(output: dict[str, Any]) -> dict[str, Any]:
         "sub_problem_index": sub_problem_index,
         "sub_problem_id": get_field_safe(current_sub_problem, "id", ""),
         "goal": get_field_safe(current_sub_problem, "goal", ""),
-        "total_sub_problems": len(problem.sub_problems)
-        if problem and hasattr(problem, "sub_problems")
+        "total_sub_problems": len(
+            problem.get("sub_problems", [])
+            if isinstance(problem, dict)
+            else getattr(problem, "sub_problems", [])
+        )
+        if problem
         else 1,
     }
 

@@ -393,7 +393,7 @@ Before outputting, verify:
 - [ ] Risks are real but include mitigation
 - [ ] Confidence assessment is honest about uncertainty
 - [ ] No business jargon ("leverage", "synergize", "optimize")
-- [ ] Total output is ~600-800 words (fits in token budget)
+- [ ] Total output is ~400-600 words (every sentence must earn its place)
 </quality_checklist>"""
 
 

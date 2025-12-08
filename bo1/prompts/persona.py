@@ -217,12 +217,11 @@ Instead, IMMEDIATELY engage with the problem statement and provide substantive a
 </thinking>
 
 <contribution>
-(Public statement to the group - 2-4 paragraphs)
+(Public statement - 1-2 paragraphs max)
 
-[Start by referencing a specific previous contribution]
-[Provide your analysis with clear reasoning]
-[Challenge weak points or build on strong ones]
-[End with specific recommendations or questions]
+[Reference a specific previous contribution]
+[Your key insight with clear reasoning]
+[End with one specific recommendation]
 </contribution>
 
 Remember: This is round {round_number}. Focus on {phase_instruction.split("</debate_phase>")[0].split(">")[-1]} thinking.

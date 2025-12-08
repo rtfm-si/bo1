@@ -1,10 +1,9 @@
 """Integration test for Week 3 (Days 16-21): Cost Optimization & Context Management.
 
 Tests:
-1. Hierarchical context management (summarization)
+1. Summarization quality (preserves key info)
 2. Async summarization (non-blocking)
 3. Context growth (linear vs quadratic)
-4. Full deliberation with all optimizations
 """
 
 import asyncio
@@ -14,8 +13,6 @@ import pytest
 
 from bo1.agents.summarizer import SummarizerAgent
 from bo1.constants import TokenLimits
-from bo1.models.problem import Problem
-from bo1.orchestration.deliberation import DeliberationEngine
 
 logger = logging.getLogger(__name__)
 
@@ -204,183 +201,6 @@ async def test_context_growth_linear():
     )
 
 
-@pytest.mark.skip(reason="Requires full facilitator flow which is non-deterministic in tests")
-@pytest.mark.integration
-@pytest.mark.requires_llm
-@pytest.mark.asyncio
-async def test_full_deliberation_with_optimizations():
-    """Test complete deliberation with all Week 3 optimizations (Day 21).
-
-    Validates:
-    1. Hierarchical context (summaries + current round)
-    2. Async summarization (background processing)
-    3. Model optimization (right model for each role)
-    4. Cost tracking and metrics
-    """
-    from bo1.data import get_persona_by_code
-    from bo1.models.persona import PersonaProfile
-    from bo1.models.problem import SubProblem
-    from bo1.models.state import DeliberationState
-
-    # Create a simple problem for testing
-    problem = Problem(
-        title="Should I invest $10K in paid ads or content marketing?",
-        description=(
-            "I have $10K to spend on marketing. Paid ads give immediate results "
-            "but content marketing builds long-term value. Which should I prioritize?"
-        ),
-        context="Solo founder, SaaS product, $50K ARR, 18 months runway",
-        constraints=[],
-        sub_problems=[
-            SubProblem(
-                id="sp_001",
-                goal="Determine optimal marketing channel for $10K investment",
-                context="Solo founder, SaaS product, $50K ARR, 18 months runway",
-                complexity_score=5,
-            )
-        ],
-    )
-
-    # Select test personas
-    persona_codes = ["finance_strategist", "growth_hacker", "product_manager"]
-    personas = []
-    for code in persona_codes:
-        p_data = get_persona_by_code(code)
-        if p_data:
-            personas.append(PersonaProfile(**p_data))
-
-    # Create deliberation state
-    state = DeliberationState(
-        session_id="test_week3_optimizations",
-        problem=problem,
-        selected_personas=personas,
-        current_sub_problem=problem.sub_problems[0],
-    )
-
-    # Initialize deliberation engine
-    engine = DeliberationEngine(state=state)
-
-    # Run deliberation
-    logger.info("Starting full deliberation test with all optimizations...")
-
-    # Run initial round
-    contributions, llm_responses = await engine.run_initial_round()
-
-    # Validate initial state (initial round is round 0)
-    assert engine.state.current_round == 0
-    assert len(engine.state.selected_personas) >= 3  # Should have selected personas
-    assert len(engine.state.contributions) > 0  # Should have contributions
-
-    # Run one more round to test summarization (this becomes round 1)
-    await engine.run_round(round_number=1, max_rounds=3)
-
-    # Now we should be at round 1
-    assert engine.state.current_round == 1
-
-    # Run one more round to ensure summarization happened (round 2)
-    await engine.run_round(round_number=2, max_rounds=3)
-
-    # Validate summarization happened (should have summary of round 0 or 1)
-    assert len(engine.state.round_summaries) >= 1, (
-        "No round summaries created after multiple rounds"
-    )
-
-    # Validate context structure
-    # - Round summaries should be concise (100-150 tokens each)
-    for i, summary in enumerate(engine.state.round_summaries):
-        token_estimate = len(summary.split()) * 1.3
-        assert token_estimate < 250, f"Round {i + 1} summary too long: ~{token_estimate:.0f} tokens"
-
-    # Validate cost tracking
-    # Note: This test is skipped due to non-deterministic facilitator behavior
-    # Type ignores are for skipped test code
-    assert engine.state.cost_total > 0, "No cost tracking"  # type: ignore[attr-defined]
-    assert engine.state.cost_total < 0.50, (  # type: ignore[attr-defined]
-        f"Cost too high for 2 rounds: ${engine.state.cost_total:.4f}"  # type: ignore[attr-defined]
-    )
-
-    # Validate model allocation
-    # Personas should use Sonnet, summarization should use Haiku (validated in agent selection)
-
-    logger.info(
-        f"✓ Full deliberation completed with optimizations:\n"
-        f"  - Rounds: {engine.state.current_round}\n"
-        f"  - Personas: {len(engine.state.selected_personas)}\n"
-        f"  - Contributions: {len(engine.state.contributions)}\n"
-        f"  - Summaries: {len(engine.state.round_summaries)}\n"
-        f"  - Total cost: ${engine.state.cost_total:.4f}\n"  # type: ignore[attr-defined]
-        f"  - Cost per round: ${engine.state.cost_total / engine.state.current_round:.4f}"  # type: ignore[attr-defined]
-    )
-
-
-@pytest.mark.skip(reason="Requires full facilitator flow which is non-deterministic in tests")
-@pytest.mark.integration
-@pytest.mark.requires_llm
-@pytest.mark.asyncio
-async def test_summarization_with_background_processing():
-    """Test that DeliberationEngine uses background summarization correctly (Day 16-17)."""
-    from bo1.data import get_persona_by_code
-    from bo1.models.persona import PersonaProfile
-    from bo1.models.problem import SubProblem
-    from bo1.models.state import DeliberationState
-
-    problem = Problem(
-        title="Test problem",
-        description="Simple test for background summarization",
-        context="Testing context",
-        constraints=[],
-        sub_problems=[
-            SubProblem(
-                id="sp_001",
-                goal="Test background summarization",
-                context="Testing context",
-                complexity_score=5,
-            )
-        ],
-    )
-
-    # Select test personas
-    persona_codes = ["finance_strategist", "growth_hacker", "product_manager"]
-    personas = []
-    for code in persona_codes:
-        p_data = get_persona_by_code(code)
-        if p_data:
-            personas.append(PersonaProfile(**p_data))
-
-    # Create deliberation state
-    state = DeliberationState(
-        session_id="test_background_summarization",
-        problem=problem,
-        selected_personas=personas,
-        current_sub_problem=problem.sub_problems[0],
-    )
-
-    engine = DeliberationEngine(state=state)
-
-    # Run initial round
-    await engine.run_initial_round()
-
-    # Start next round - this should trigger background summarization
-    await engine.run_round(round_number=1, max_rounds=3)
-
-    # Check that a summary task was created (or completed)
-    # Note: By the time we check, the task might already be done due to fast Haiku processing
-    assert engine.pending_summary_task is not None or len(engine.state.round_summaries) > 0, (
-        "No background summarization task created"
-    )
-
-    # If task is still pending, wait for it
-    if engine.pending_summary_task and not engine.pending_summary_task.done():
-        await engine.pending_summary_task
-
-    # Verify summary was added to state
-    assert len(engine.state.round_summaries) >= 1, "Background summary not added to state"
-
-    logger.info(
-        f"✓ Background summarization working: {len(engine.state.round_summaries)} summaries created"
-    )
-
-
 if __name__ == "__main__":
     # Run tests manually for development
     logging.basicConfig(level=logging.INFO)
@@ -400,12 +220,6 @@ if __name__ == "__main__":
 
             print("\n3. Testing context growth (linear vs quadratic)...")
             await test_context_growth_linear()
-
-            print("\n4. Testing background summarization...")
-            await test_summarization_with_background_processing()
-
-            print("\n5. Testing full deliberation with optimizations...")
-            await test_full_deliberation_with_optimizations()
 
             print("\n" + "=" * 70)
             print("✅ ALL WEEK 3 TESTS PASSED")

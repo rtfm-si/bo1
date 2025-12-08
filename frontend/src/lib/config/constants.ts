@@ -50,7 +50,9 @@ export const HIDDEN_EVENT_TYPES = new Set([
 	'parallel_round_start',
 	'node_start',
 	'stream_connected',
-	'expert_summaries' // P2-004: Displayed via ExpertSummariesPanel, not event card
+	'expert_summaries', // P2-004: Displayed via ExpertSummariesPanel, not event card
+	'subproblem_started', // Bug #4: Technical event, not user-facing
+	'research_results' // Bug #4: Internal research data, not user-facing
 ]);
 
 // ============================================================================

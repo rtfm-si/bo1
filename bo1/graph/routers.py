@@ -4,11 +4,37 @@ Routers determine the next node to execute based on the current state.
 """
 
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from bo1.graph.state import DeliberationGraphState
 
 logger = logging.getLogger(__name__)
+
+
+def _get_problem_attr(problem: Any, attr: str, default: Any = None) -> Any:
+    """Safely get attribute from problem (handles both dict and object).
+
+    After checkpoint restoration, Problem objects may be deserialized as dicts.
+    This helper handles both cases.
+    """
+    if problem is None:
+        return default
+    if isinstance(problem, dict):
+        return problem.get(attr, default)
+    return getattr(problem, attr, default)
+
+
+def _get_subproblem_attr(sp: Any, attr: str, default: Any = None) -> Any:
+    """Safely get attribute from sub-problem (handles both dict and object).
+
+    After checkpoint restoration, SubProblem objects may be deserialized as dicts.
+    This helper handles both cases.
+    """
+    if sp is None:
+        return default
+    if isinstance(sp, dict):
+        return sp.get(attr, default)
+    return getattr(sp, attr, default)
 
 
 def route_phase(
@@ -158,7 +184,8 @@ def route_after_synthesis(
         logger.error("route_after_synthesis: No problem in state!")
         return "END"
 
-    total_sub_problems = len(problem.sub_problems)
+    sub_problems = _get_problem_attr(problem, "sub_problems", [])
+    total_sub_problems = len(sub_problems)
 
     logger.info(
         f"route_after_synthesis: Sub-problem {sub_problem_index + 1}/{total_sub_problems} complete, "
@@ -183,7 +210,7 @@ def route_after_synthesis(
     if len(sub_problem_results) < total_sub_problems:
         failed_count = total_sub_problems - len(sub_problem_results)
         completed_ids = {r.sub_problem_id for r in sub_problem_results}
-        expected_ids = [sp.id for sp in problem.sub_problems]
+        expected_ids = [_get_subproblem_attr(sp, "id") for sp in sub_problems]
         failed_ids = [sp_id for sp_id in expected_ids if sp_id not in completed_ids]
 
         logger.error(
@@ -202,7 +229,11 @@ def route_after_synthesis(
 
             if event_publisher and session_id:
                 # Get goals for failed sub-problems by ID
-                failed_goals = [sp.goal for sp in problem.sub_problems if sp.id in failed_ids]
+                failed_goals = [
+                    _get_subproblem_attr(sp, "goal")
+                    for sp in sub_problems
+                    if _get_subproblem_attr(sp, "id") in failed_ids
+                ]
 
                 event_publisher.publish_event(
                     session_id,

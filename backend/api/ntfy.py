@@ -156,6 +156,36 @@ async def notify_meeting_started(session_id: str, problem_statement: str) -> boo
     )
 
 
+async def notify_meeting_completed(
+    session_id: str,
+    problem_statement: str,
+    contribution_count: int,
+    total_cost: float,
+) -> bool:
+    """Send notification when a meeting completes.
+
+    Args:
+        session_id: The session/meeting ID
+        problem_statement: The problem that was deliberated
+        contribution_count: Number of contributions saved
+        total_cost: Total cost in USD
+
+    Returns:
+        True if notification sent successfully
+    """
+    settings = _get_ntfy_settings()
+    # Truncate problem statement for notification
+    truncated = problem_statement[:80] + "..." if len(problem_statement) > 80 else problem_statement
+
+    return await send_ntfy_alert(
+        topic=settings["ntfy_topic_meeting"],
+        title="Meeting Completed",
+        message=f"Session {session_id[:8]}...\n\n{truncated}\n\n📊 {contribution_count} contributions | ${total_cost:.2f}",
+        priority="default",
+        tags=["white_check_mark", "brain"],
+    )
+
+
 async def notify_database_report(
     report_type: Literal["daily", "weekly"],
     summary: str,

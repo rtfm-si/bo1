@@ -33,7 +33,6 @@ export const load: PageServerLoad = async ({ url, request }) => {
 			statusFilter: status
 		};
 	} catch (err) {
-		console.error('Failed to load waitlist:', err);
 		throw error(500, 'Failed to load waitlist');
 	}
 };
@@ -71,7 +70,6 @@ export const actions: Actions = {
 				message: result.message
 			};
 		} catch (err) {
-			console.error('Failed to approve entry:', err);
 			return fail(500, { error: 'Failed to approve entry' });
 		}
 	}

@@ -30,6 +30,22 @@ from bo1.state.repositories import user_repository
 logger = logging.getLogger(__name__)
 
 
+def _mask_email(email: str) -> str:
+    """Mask email for logging (PII redaction).
+
+    Args:
+        email: Email address to mask
+
+    Returns:
+        Masked email (e.g., 'abc***@domain.com')
+    """
+    if "@" in email:
+        local, domain = email.split("@", 1)
+        masked_local = local[:3] + "***" if len(local) > 3 else local[0] + "***"
+        return f"{masked_local}@{domain}"
+    return email[:3] + "***"
+
+
 def check_whitelist_db(email: str) -> bool:
     """Check if email is in database whitelist.
 
@@ -68,12 +84,12 @@ def is_whitelisted(email: str) -> bool:
     env_whitelist = os.getenv("BETA_WHITELIST", "").split(",")
     env_whitelist = [e.strip().lower() for e in env_whitelist if e.strip()]
     if email_lower in env_whitelist:
-        logger.info(f"Email {email_lower} found in env var whitelist")
+        logger.info(f"Email {_mask_email(email_lower)} found in env var whitelist")
         return True
 
     # Then check database
     if check_whitelist_db(email):
-        logger.info(f"Email {email_lower} found in database whitelist")
+        logger.info(f"Email {_mask_email(email_lower)} found in database whitelist")
         return True
 
     return False
@@ -179,14 +195,14 @@ def override_thirdparty_functions(
             if not is_whitelisted(email):
                 # Reject user - not on whitelist
                 logger.warning(
-                    f"Sign-in attempt rejected: {email.lower()} not whitelisted for closed beta"
+                    f"Sign-in attempt rejected: {_mask_email(email.lower())} not whitelisted for closed beta"
                 )
                 raise Exception(
                     f"Email {email} is not whitelisted for closed beta access. "
                     f"Please contact support to request access."
                 )
 
-            logger.info(f"Whitelist validation passed for: {email.lower()}")
+            logger.info(f"Whitelist validation passed for: {_mask_email(email.lower())}")
 
         # Call original sign_in_up
         result = await original_sign_in_up(
@@ -214,12 +230,14 @@ def override_thirdparty_functions(
                 subscription_tier="free",  # Default tier for new users
             )
             logger.info(
-                f"User synced to PostgreSQL: {email} (user_id: {user_id}, provider: {third_party_id})"
+                f"User synced to PostgreSQL: {_mask_email(email)} (user_id: {user_id}, provider: {third_party_id})"
             )
 
             # Check if user account is locked or deleted
             if is_user_locked_or_deleted(user_id):
-                logger.warning(f"Sign-in rejected: user {user_id} ({email}) is locked or deleted")
+                logger.warning(
+                    f"Sign-in rejected: user {user_id} ({_mask_email(email)}) is locked or deleted"
+                )
                 raise Exception("Your account has been locked or deleted. Please contact support.")
         except Exception as e:
             # Re-raise lock/delete exceptions
@@ -228,7 +246,7 @@ def override_thirdparty_functions(
             # Log but don't block authentication - user will be synced on next API call
             logger.error(f"Failed to sync user to PostgreSQL: {e}")
 
-        logger.info(f"User signed in: {email} (user_id: {result.user.id})")
+        logger.info(f"User signed in: {_mask_email(email)} (user_id: {result.user.id})")
 
         return result
 

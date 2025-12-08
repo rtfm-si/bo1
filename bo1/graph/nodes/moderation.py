@@ -1,15 +1,290 @@
-"""Moderator intervention node.
+"""Moderation and facilitation nodes.
 
-This module contains the moderator_intervene_node that handles moderator interventions
-during deliberation. ONLY triggers for premature unanimous agreement (before round 3).
+This module contains nodes for moderating and facilitating deliberation:
+- facilitator_decide_node: Decides next action (continue/vote/moderator/research)
+- moderator_intervene_node: Handles moderator interventions
 """
 
 import logging
+from dataclasses import asdict
 from typing import Any, Literal
 
+from bo1.agents.facilitator import FacilitatorAgent, FacilitatorDecision
 from bo1.graph.state import DeliberationGraphState
+from bo1.graph.utils import ensure_metrics, track_accumulated_cost
+from bo1.models.state import DeliberationPhase
 
 logger = logging.getLogger(__name__)
+
+
+async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, Any]:
+    """Make facilitator decision on next action (continue/vote/moderator).
+
+    This node wraps the FacilitatorAgent.decide_next_action() method
+    and updates the graph state with the facilitator's decision.
+
+    NEW: Checks for pending_research_queries from proactive detection and
+    automatically triggers research before making facilitator decision.
+
+    Args:
+        state: Current graph state
+
+    Returns:
+        Dictionary with state updates
+    """
+    logger.info("facilitator_decide_node: Making facilitator decision")
+
+    # PROACTIVE RESEARCH EXECUTION: Check for pending research queries from previous round
+    # If queries exist, automatically trigger research node without facilitator decision
+    pending_queries = state.get("pending_research_queries", [])
+    if pending_queries:
+        logger.info(
+            f"facilitator_decide_node: {len(pending_queries)} pending research queries detected. "
+            f"Triggering proactive research."
+        )
+
+        # Create a facilitator decision to trigger research
+        # Use the first query's reason as the decision reasoning
+        research_decision = FacilitatorDecision(
+            action="research",
+            reasoning=f"Proactive research triggered: {pending_queries[0].get('reason', 'Information gap detected')}",
+            next_speaker=None,
+            speaker_prompt=None,
+            research_query="; ".join(
+                [q.get("question", "") for q in pending_queries[:3]]
+            ),  # Batch up to 3 queries
+        )
+
+        # Return decision to route to research node
+        # Clear pending queries so they're processed by research_node
+        return {
+            "facilitator_decision": asdict(research_decision),
+            "round_number": state.get("round_number", 1),
+            "phase": DeliberationPhase.DISCUSSION,
+            "current_node": "facilitator_decide",
+            "sub_problem_index": state.get("sub_problem_index", 0),
+            # Note: pending_research_queries will be consumed by research_node
+        }
+
+    # Create facilitator agent
+    facilitator = FacilitatorAgent()
+
+    # Get current round number and max rounds
+    round_number = state.get("round_number", 1)
+    max_rounds = state.get("max_rounds", 6)
+
+    # Call facilitator to decide next action with v2 state
+    decision, llm_response = await facilitator.decide_next_action(
+        state=state,
+        round_number=round_number,
+        max_rounds=max_rounds,
+    )
+
+    # VALIDATION: Ensure decision is complete and valid (Issue #3 fix)
+    # This prevents silent failures when facilitator returns invalid decisions
+    personas = state.get("personas", [])
+    persona_codes = [p.code for p in personas]
+
+    if decision.action == "continue":
+        # Validate next_speaker exists in personas
+        if not decision.next_speaker:
+            logger.error(
+                "facilitator_decide_node: 'continue' action without next_speaker! "
+                "Falling back to first available persona."
+            )
+            # Fallback: select first persona
+            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
+            decision.reasoning = f"ERROR RECOVERY: Selected {decision.next_speaker} due to missing next_speaker in facilitator decision"
+
+        elif decision.next_speaker not in persona_codes:
+            logger.error(
+                f"facilitator_decide_node: Invalid next_speaker '{decision.next_speaker}' "
+                f"not in selected personas: {persona_codes}. Falling back to first available persona."
+            )
+            # Fallback: select first persona
+            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
+            decision.reasoning = f"ERROR RECOVERY: Selected {decision.next_speaker} because original speaker was invalid"
+
+    elif decision.action == "moderator":
+        # Validate moderator_type exists
+        if not decision.moderator_type:
+            logger.error(
+                "facilitator_decide_node: 'moderator' action without moderator_type! "
+                "Defaulting to contrarian moderator."
+            )
+            # Fallback: default to contrarian
+            decision.moderator_type = "contrarian"
+            decision.reasoning = "ERROR RECOVERY: Using contrarian moderator due to missing type"
+
+    elif decision.action == "research":
+        # Validate research_query exists
+        if not decision.research_query and not decision.reasoning:
+            logger.error(
+                "facilitator_decide_node: 'research' action without research_query or reasoning! "
+                "Overriding to 'continue' to prevent failure."
+            )
+            # Fallback: skip research, continue with discussion
+            decision.action = "continue"
+            decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
+            decision.reasoning = (
+                "ERROR RECOVERY: Skipping research due to missing query, continuing discussion"
+            )
+
+    # SAFETY CHECK: Prevent premature voting (Bug #3 fix)
+    # Override facilitator if trying to vote before minimum rounds
+    # NOTE: Research action is now fully implemented and no longer overridden
+    # NEW PARALLEL ARCHITECTURE: Reduced from 3 to 2 (with 3-5 experts per round, 2 rounds = 6-10 contributions)
+    min_rounds_before_voting = 2
+    if decision.action == "vote" and round_number < min_rounds_before_voting:
+        logger.warning(
+            f"Facilitator attempted to vote at round {round_number} (min: {min_rounds_before_voting}). "
+            f"Overriding to 'continue' for deeper exploration."
+        )
+        override_reason = f"Overridden: Minimum {min_rounds_before_voting} rounds required before voting. Need deeper exploration."
+
+        # Override decision to continue
+        # Select a persona who hasn't spoken much
+        personas = state.get("personas", [])
+        contributions = state.get("contributions", [])
+
+        # Count contributions per persona
+        contribution_counts: dict[str, int] = {}
+        for contrib in contributions:
+            persona_code = contrib.persona_code
+            contribution_counts[persona_code] = contribution_counts.get(persona_code, 0) + 1
+
+        # Find persona with fewest contributions
+        min_contributions = min(contribution_counts.values()) if contribution_counts else 0
+        candidates = [
+            p.code for p in personas if contribution_counts.get(p.code, 0) == min_contributions
+        ]
+
+        next_speaker = candidates[0] if candidates else personas[0].code if personas else "unknown"
+
+        # Override decision
+        decision = FacilitatorDecision(
+            action="continue",
+            reasoning=override_reason,
+            next_speaker=next_speaker,
+            speaker_prompt="Build on the discussion so far and add depth to the analysis.",
+        )
+
+    # SAFETY CHECK: Prevent infinite research loops (Bug fix)
+    # Check if facilitator is requesting research that's already been completed
+    if decision.action == "research":
+        completed_queries = state.get("completed_research_queries", [])
+
+        # Extract research query from facilitator reasoning
+        research_query = decision.reasoning[:200] if decision.reasoning else ""
+
+        # Check semantic similarity to completed queries
+        is_duplicate = False
+        if completed_queries and research_query:
+            from bo1.llm.embeddings import cosine_similarity, generate_embedding
+
+            try:
+                query_embedding = generate_embedding(research_query, input_type="query")
+
+                for completed in completed_queries:
+                    completed_embedding = completed.get("embedding")
+                    if not completed_embedding:
+                        continue
+
+                    similarity = cosine_similarity(query_embedding, completed_embedding)
+
+                    # High similarity threshold (0.85) = very similar query
+                    # Lowered from 0.90 to catch more similar queries (P1-RESEARCH-1)
+                    if similarity > 0.85:
+                        is_duplicate = True
+                        logger.warning(
+                            f"Research deduplication: Query too similar to completed research "
+                            f"(similarity={similarity:.3f}). Overriding to 'continue'. "
+                            f"Query: '{research_query[:50]}...' ~ '{completed.get('query', '')[:50]}...'"
+                        )
+                        break
+
+            except Exception as e:
+                logger.warning(
+                    f"Research deduplication check failed: {e}. Allowing research to proceed."
+                )
+
+        # Override to 'continue' if duplicate research detected
+        if is_duplicate:
+            # Select next speaker (same logic as premature voting override)
+            personas = state.get("personas", [])
+            contributions = state.get("contributions", [])
+
+            research_contrib_counts: dict[str, int] = {}
+            for contrib in contributions:
+                persona_code = contrib.persona_code
+                research_contrib_counts[persona_code] = (
+                    research_contrib_counts.get(persona_code, 0) + 1
+                )
+
+            min_contributions_research = (
+                min(research_contrib_counts.values()) if research_contrib_counts else 0
+            )
+            candidates_research = [
+                p.code
+                for p in personas
+                if research_contrib_counts.get(p.code, 0) == min_contributions_research
+            ]
+
+            next_speaker = (
+                candidates_research[0]
+                if candidates_research
+                else personas[0].code
+                if personas
+                else "unknown"
+            )
+
+            decision = FacilitatorDecision(
+                action="continue",
+                reasoning="Research already completed for this topic. Continuing deliberation with fresh perspectives.",
+                next_speaker=next_speaker,
+                speaker_prompt="Build on the research findings and add your unique perspective to the analysis.",
+            )
+
+    # Track cost in metrics (if LLM was called)
+    metrics = ensure_metrics(state)
+
+    if llm_response:
+        track_accumulated_cost(metrics, "facilitator_decision", llm_response)
+        cost_msg = f"(cost: ${llm_response.cost_total:.4f})"
+    else:
+        cost_msg = "(no LLM call)"
+
+    # Enhanced logging with sub_problem_index for debugging (Issue #3 fix)
+    sub_problem_index = state.get("sub_problem_index", 0)
+    logger.info(
+        f"facilitator_decide_node: Complete - action={decision.action}, "
+        f"next_speaker={decision.next_speaker if decision.action == 'continue' else 'N/A'}, "
+        f"sub_problem_index={sub_problem_index} {cost_msg}"
+    )
+
+    # Build state updates
+    state_updates: dict[str, Any] = {
+        "facilitator_decision": asdict(decision),
+        "round_number": round_number,  # Pass through current round for display
+        "phase": DeliberationPhase.DISCUSSION,
+        "metrics": metrics,
+        "current_node": "facilitator_decide",
+        "sub_problem_index": sub_problem_index,  # CRITICAL: Always preserve sub_problem_index (Issue #3 fix)
+    }
+
+    # If clarify action, set pending_clarification for clarification_node
+    if decision.action == "clarify":
+        state_updates["pending_clarification"] = {
+            "question": decision.clarification_question or decision.reasoning,
+            "reason": decision.clarification_reason or "Facilitator requested clarification",
+            "round_number": round_number,
+        }
+        logger.info(
+            f"facilitator_decide_node: Set pending_clarification for question: "
+            f"'{(decision.clarification_question or decision.reasoning)[:50]}...'"
+        )
+
+    return state_updates
 
 
 async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, Any]:
@@ -90,8 +365,6 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
     )
 
     # Track cost in metrics
-    from bo1.graph.utils import ensure_metrics, track_accumulated_cost
-
     metrics = ensure_metrics(state)
     phase_key = f"moderator_intervention_{moderator_type}"
     track_accumulated_cost(metrics, phase_key, llm_response)

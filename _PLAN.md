@@ -1,63 +1,34 @@
-# Deferred Cleanup Plan
-
-## 1. ~~Remove `postgres_manager.py` Shim Layer~~ COMPLETED
-
-**Status:** COMPLETED
-
-**What was done:**
-- Updated 34 files with direct repository imports
-- Deleted `bo1/state/postgres_manager.py`
-- Fixed malformed imports introduced by bulk replacement
-
----
-
-## 2. ~~Consolidate Console Implementations~~ NOT NEEDED
-
-**Analysis:** These are NOT duplicates - they're different layers:
-- `bo1/ui/console.py` - Low-level Rich UI wrapper (presentation layer)
-- `bo1/interfaces/console.py` - High-level adapter for running deliberations (orchestration layer)
-
-`interfaces/console.py` imports from `ui/console.py` - this is proper separation of concerns.
-
-**Status:** SKIPPED - architecture is correct
-
----
-
-## 3. ~~Consolidate Duplicate `get_user_info()` Endpoints~~ COMPLETED
-
-**Status:** COMPLETED
-
-**What was done:**
-- Analyzed all 4 implementations
-- Found `/api/auth/user` (supertokens_routes.py) was UNUSED by frontend
-- Frontend only uses `/api/auth/me` from auth.py
-- Removed entire `supertokens_routes.py` file (71 lines)
-- Updated main.py to remove the router
-
-**Note:** admin/users.py and admin/helpers.py serve different purposes (admin-only endpoints) and were kept.
-
----
-
-## 4. ~~Consolidate Event Extractors~~ ALREADY OPTIMIZED
-
-**Status:** SKIPPED - architecture is already well-structured
-
-**Analysis:**
-- File uses declarative `FieldExtractor` config pattern
-- `EventExtractorRegistry` provides centralized registration
-- 16 extract functions are semantically distinct (not duplicates)
-- Each handles different event types with different data shapes
-- No actual redundancy to consolidate
-
----
+# Plan: Security Audit Remaining Items (H2, M4)
 
 ## Summary
 
-| Task | Status |
-|------|--------|
-| postgres_manager.py removal | COMPLETED |
-| Console consolidation | SKIPPED (not duplicates) |
-| get_user_info() consolidation | COMPLETED |
-| Event extractors refactor | SKIPPED (already optimized) |
+- **H2**: Tighten CSP (remove unsafe-eval, consider nonces)
+- **M4**: Enable Redis authentication for all environments
 
-**All planned tasks completed or analyzed. No further refactoring needed.**
+## Remaining Tasks
+
+### H2 - CSP Hardening (HIGH)
+- Current: `'unsafe-inline' 'unsafe-eval'` in script-src
+- Challenge: SvelteKit may require these for hydration/SSR
+- Options:
+  1. Test without `'unsafe-eval'` - may break SvelteKit
+  2. Implement CSP nonces (requires server-side coordination)
+  3. Accept risk with documentation
+
+### M4 - Redis Authentication (MEDIUM)
+- Current: Redis exposed without password in docker-compose
+- Fix: Add `requirepass` to Redis config
+- Risk: Dev-only, low priority for MVP
+
+## Status
+
+All quick-win fixes completed:
+- ✅ H5: Docker default passwords removed
+- ✅ H1: DEBUG enforcement exists (`require_production_auth()`)
+- ✅ H3: Prompt injection coverage verified
+- ✅ M1: PII redaction in logs
+- ✅ M6: Input length limits exist
+- ✅ L1: Console.log removed
+- ✅ L3: @html usage verified safe (DOMPurify)
+
+Remaining items (H2, M4) require architectural decisions or are low priority.

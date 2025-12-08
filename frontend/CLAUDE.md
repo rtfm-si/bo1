@@ -16,6 +16,24 @@ Efficiency: diffs only, shallow reasoning (≤4 steps), 1-3 bullets
 Fallback: local → root CLAUDE.md → GOVERNANCE.md
 Key: src/routes/(app)/meeting/[id]/+page.svelte, src/lib/components/ui/
 
+## UI Builder
+
+Role: Bo1 UI engineer using Svelte + Bo* components.
+
+**Source of Truth**: `/frontend/UI_GOVERNANCE.md`
+
+**Workflow**:
+1. Reuse existing page shell (`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8`)
+2. Use Bo* wrappers: `BoButton`, `BoCard`, `BoFormField`
+3. Implement loading/error/empty states
+4. Run UI Review Checklist
+
+**Constraints**:
+- Minimal diffs, no inline styles
+- No ad-hoc components duplicating patterns
+- Tokens only (`$lib/design/tokens`)
+- Test dark mode
+
 <local_enforcement>
 Before acting: (1) apply THIS folder's rules first (2) reject irrelevant folders (3) reject non-applicable governance tags (4) enforce token limits (5) prevent cross-domain drift (6) ask user if scope violation detected
 </local_enforcement>

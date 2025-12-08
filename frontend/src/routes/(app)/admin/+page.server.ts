@@ -11,7 +11,6 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
 	try {
 		// Forward all cookies from the incoming request
 		const cookieHeader = request.headers.get('cookie') || '';
-		console.log('Loading admin stats with cookies:', cookieHeader ? 'present' : 'missing');
 
 		const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
 			headers: {
@@ -19,19 +18,14 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
 			}
 		});
 
-		console.log('Admin stats API status:', response.status);
-
 		if (!response.ok) {
 			const errorText = await response.text();
-			console.error('Admin stats API returned:', response.status, errorText);
 			throw error(response.status, `Failed to load admin stats: ${errorText}`);
 		}
 
 		const statsData = await response.json();
 
-		console.log('Admin stats response:', JSON.stringify(statsData));
-
-		const result = {
+		return {
 			stats: {
 				totalUsers: statsData.total_users || 0,
 				totalMeetings: statsData.total_meetings || 0,
@@ -40,12 +34,7 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
 				waitlistPending: statsData.waitlist_pending || 0
 			}
 		};
-
-		console.log('Returning stats:', JSON.stringify(result));
-
-		return result;
 	} catch (err) {
-		console.error('Failed to load admin stats:', err);
 		throw error(500, 'Failed to load admin stats');
 	}
 };

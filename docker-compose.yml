@@ -13,7 +13,7 @@ services:
     environment:
       - POSTGRES_DB=boardofone
       - POSTGRES_USER=bo1
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-bo1_dev_password}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     ports:
       - "5432:5432"
     volumes:
@@ -75,12 +75,12 @@ services:
       - REDIS_DB=0
 
       # PostgreSQL Configuration
-      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD:-bo1_dev_password}@postgres:5432/boardofone
+      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/boardofone
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=boardofone
       - POSTGRES_USER=bo1
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-bo1_dev_password}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
 
       # API Keys (loaded from .env)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -142,7 +142,7 @@ services:
         condition: service_healthy
     environment:
       # Database Configuration
-      - POSTGRESQL_CONNECTION_URI=postgresql://bo1:${POSTGRES_PASSWORD:-bo1_dev_password}@postgres:5432/boardofone
+      - POSTGRESQL_CONNECTION_URI=postgresql://bo1:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/boardofone
       - POSTGRESQL_TABLE_SCHEMA=supertokens
 
       # SuperTokens Configuration
@@ -185,7 +185,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
 
       # PostgreSQL Configuration
-      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD:-bo1_dev_password}@postgres:5432/boardofone
+      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/boardofone
 
       # API Keys
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}

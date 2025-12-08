@@ -38,7 +38,6 @@ export const load: PageServerLoad = async ({ url, request }) => {
 			perPage: data.per_page
 		};
 	} catch (err) {
-		console.error('Failed to load users:', err);
 		throw error(500, 'Failed to load users');
 	}
 };
@@ -78,7 +77,6 @@ export const actions: Actions = {
 
 			return { success: true };
 		} catch (err) {
-			console.error('Failed to update user:', err);
 			return fail(500, { error: 'Failed to update user' });
 		}
 	},
@@ -111,7 +109,6 @@ export const actions: Actions = {
 
 			return { success: true, action: 'locked' };
 		} catch (err) {
-			console.error('Failed to lock user:', err);
 			return fail(500, { error: 'Failed to lock user' });
 		}
 	},
@@ -142,7 +139,6 @@ export const actions: Actions = {
 
 			return { success: true, action: 'unlocked' };
 		} catch (err) {
-			console.error('Failed to unlock user:', err);
 			return fail(500, { error: 'Failed to unlock user' });
 		}
 	},
@@ -175,7 +171,6 @@ export const actions: Actions = {
 
 			return { success: true, action: hardDelete ? 'hard_deleted' : 'soft_deleted' };
 		} catch (err) {
-			console.error('Failed to delete user:', err);
 			return fail(500, { error: 'Failed to delete user' });
 		}
 	}

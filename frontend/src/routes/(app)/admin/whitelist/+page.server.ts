@@ -27,7 +27,6 @@ export const load: PageServerLoad = async ({ request }) => {
 			totalCount: data.total_count || 0
 		};
 	} catch (err) {
-		console.error('Failed to load whitelist:', err);
 		throw error(500, 'Failed to load whitelist');
 	}
 };
@@ -65,7 +64,6 @@ export const actions: Actions = {
 
 			return { success: true };
 		} catch (err) {
-			console.error('Failed to add to whitelist:', err);
 			return fail(500, { error: 'Failed to add email' });
 		}
 	},
@@ -96,7 +94,6 @@ export const actions: Actions = {
 
 			return { success: true };
 		} catch (err) {
-			console.error('Failed to remove from whitelist:', err);
 			return fail(500, { error: 'Failed to remove email' });
 		}
 	}

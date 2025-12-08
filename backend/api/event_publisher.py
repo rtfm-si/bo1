@@ -16,7 +16,7 @@ from typing import Any
 import redis
 
 from backend.api.metrics import metrics
-from bo1.state.postgres_manager import save_session_event
+from bo1.state.repositories import session_repository
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ async def retry_event(
     """
     try:
         # Attempt to persist to PostgreSQL
-        save_session_event(
+        session_repository.save_event(
             session_id=event["session_id"],
             event_type=event["event_type"],
             sequence=event["sequence"],
@@ -282,7 +282,7 @@ async def _persist_event_async(
     # Retry persistence without blocking (no sleep between attempts)
     for attempt in range(3):  # 3 immediate retry attempts
         try:
-            save_session_event(
+            session_repository.save_event(
                 session_id=session_id,
                 event_type=event_type,
                 sequence=sequence,
@@ -471,7 +471,7 @@ class EventPublisher:
                 # No event loop running (happens in sync tests or CLI)
                 # Fall back to synchronous persistence
                 try:
-                    save_session_event(
+                    session_repository.save_event(
                         session_id=session_id,
                         event_type=event_type,
                         sequence=sequence,

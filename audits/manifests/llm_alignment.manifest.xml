@@ -1,0 +1,54 @@
+# LLM Alignment Audit Manifest
+
+<audit_manifest>
+  <audit_type>llm_alignment</audit_type>
+
+  <purpose>
+    Ensure LLM prompts, persona behaviors, and agent outputs align with intended deliberation goals. Detect prompt injection risks and output consistency issues.
+  </purpose>
+
+  <scope>
+    - Prompt templates in bo1/prompts/
+    - Persona generation and behavior constraints
+    - Output parsing and validation
+    - Token usage efficiency
+    - Safety guardrails and content filtering
+  </scope>
+
+  <constraints>
+    - Follow GOVERNANCE.md llm_rules tag
+    - Do not execute LLM calls during audit
+    - Analyze prompts statically for injection vectors
+    - Respect MODEL_GUIDANCE reasoning limits
+  </constraints>
+
+  <required_inputs>
+    - bo1/prompts/*.py (all prompt templates)
+    - bo1/agents/facilitator.py, bo1/agents/researcher.py
+    - bo1/models/persona.py, bo1/models/recommendation.py
+    - bo1/llm/cost_tracker.py
+  </required_inputs>
+
+  <expected_outputs>
+    - Prompt quality assessment (clarity, specificity)
+    - Injection vulnerability report
+    - Token efficiency analysis per prompt type
+    - Persona consistency validation
+    - Alignment recommendations (max 5)
+  </expected_outputs>
+
+  <activation_conditions>
+    - After prompt modifications
+    - Before adding new agent types
+    - When LLM outputs show inconsistency
+    - Bi-weekly alignment check
+  </activation_conditions>
+
+  <run_pattern>
+    1. Catalog all prompt templates
+    2. Analyze for injection patterns (user input interpolation)
+    3. Check output format enforcement
+    4. Review persona constraint definitions
+    5. Output report to /audits/reports/llm_alignment.report.md
+  </run_pattern>
+</audit_manifest>

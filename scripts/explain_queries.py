@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from psycopg2.extras import RealDictCursor
 
-from bo1.state.postgres_manager import db_session
+from bo1.state.database import db_session
 
 
 def explain_query(query: str, params: tuple = None, description: str = "") -> None:

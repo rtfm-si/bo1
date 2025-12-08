@@ -92,12 +92,12 @@ async def collect_recommendations(
 
             # CRITICAL FIX: Save recommendation to database (Phase 1.2)
             try:
-                from bo1.state.postgres_manager import save_recommendation as save_rec_db
+                from bo1.state.repositories import contribution_repository
 
                 session_id = state.get("session_id", "unknown")
                 sub_problem_index = state.get("sub_problem_index")
 
-                save_rec_db(
+                contribution_repository.save_recommendation(
                     session_id=session_id,
                     persona_code=persona.code,
                     recommendation=recommendation.recommendation,

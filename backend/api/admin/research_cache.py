@@ -36,9 +36,9 @@ async def get_research_cache_stats(
     _admin: str = Depends(require_admin_any),
 ) -> ResearchCacheStats:
     """Get research cache analytics and statistics."""
-    from bo1.state.postgres_manager import get_research_cache_stats as get_stats
+    from bo1.state.repositories import cache_repository
 
-    stats = get_stats()
+    stats = cache_repository.get_stats()
     logger.info("Admin: Retrieved research cache statistics")
     return ResearchCacheStats(**stats)
 
@@ -62,9 +62,9 @@ async def delete_research_cache_entry(
     _admin: str = Depends(require_admin_any),
 ) -> ControlResponse:
     """Delete a specific research cache entry."""
-    from bo1.state.postgres_manager import delete_research_cache_entry as delete_entry
+    from bo1.state.repositories import cache_repository
 
-    deleted = delete_entry(cache_id)
+    deleted = cache_repository.delete(cache_id)
 
     if not deleted:
         raise HTTPException(
@@ -100,9 +100,9 @@ async def get_stale_research_cache_entries(
     _admin: str = Depends(require_admin_any),
 ) -> StaleEntriesResponse:
     """Get research cache entries older than specified days."""
-    from bo1.state.postgres_manager import get_stale_research_cache_entries as get_stale
+    from bo1.state.repositories import cache_repository
 
-    entries = get_stale(days_old)
+    entries = cache_repository.get_stale(days_old)
     logger.info(f"Admin: Retrieved {len(entries)} stale research cache entries (>{days_old} days)")
 
     return StaleEntriesResponse(

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 
-from bo1.state.postgres_manager import db_session
+from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
 

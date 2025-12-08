@@ -1,0 +1,50 @@
+# Architecture Flow Audit Manifest
+
+<audit_manifest>
+  <audit_type>architecture_flow</audit_type>
+
+  <purpose>
+    Validate end-to-end data and control flow through the multi-agent deliberation system. Ensure graph execution, state transitions, and persona orchestration align with design intent.
+  </purpose>
+
+  <scope>
+    - LangGraph node topology and edge definitions
+    - State machine transitions (problem → decompose → personas → rounds → synthesis)
+    - Inter-service communication patterns (API ↔ Graph ↔ LLM)
+    - Event propagation through SSE pipeline
+  </scope>
+
+  <constraints>
+    - Load only bo1/graph/, bo1/orchestration/, backend/api/event_collector.py
+    - Respect CONTEXT_BOUNDARY: no frontend unless explicitly needed
+    - Max 4 reasoning steps per finding
+    - Diffs only; no full file reproductions
+  </constraints>
+
+  <required_inputs>
+    - bo1/graph/config.py, bo1/graph/state.py, bo1/graph/nodes/
+    - bo1/orchestration/persona_executor.py, bo1/orchestration/voting.py
+    - backend/api/event_collector.py, backend/api/streaming.py
+  </required_inputs>
+
+  <expected_outputs>
+    - Flow diagram description (text-based)
+    - List of state transitions with validation status
+    - Identified bottlenecks or circular dependencies
+    - Recommendations (max 5 bullets)
+  </expected_outputs>
+
+  <activation_conditions>
+    - Before major graph refactors
+    - After adding new graph nodes
+    - Quarterly architecture review
+  </activation_conditions>
+
+  <run_pattern>
+    1. Read graph config and state definitions
+    2. Trace node execution order
+    3. Validate state transitions match expected flow
+    4. Check event propagation paths
+    5. Output report to /audits/reports/architecture_flow.report.md
+  </run_pattern>
+</audit_manifest>

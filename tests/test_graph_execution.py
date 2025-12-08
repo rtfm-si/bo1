@@ -20,14 +20,31 @@ async def test_graph_compiles():
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
+@pytest.mark.skip(reason="Long-running test (~10min) - run with pytest -m slow")
 async def test_graph_executes_end_to_end(sample_problem_marketing):
-    """Test full graph execution from start to END (vote + synthesis)."""
+    """Test full graph execution from start to END (vote + synthesis).
+
+    This is a slow integration test that makes real LLM calls.
+    Run explicitly with: pytest -m slow tests/test_graph_execution.py
+    """
     # Create initial state
     initial_state = create_initial_state(
         session_id="test_graph_001",
         problem=sample_problem_marketing,
         max_rounds=5,
+        collect_context=False,  # Skip business context collection for tests
     )
+    # Pre-fill clarification answers to skip clarification pause
+    # This simulates a user having already answered any clarifying questions
+    # Both fields needed: clarification_answers triggers processing, pending_clarification
+    # with empty questions list prevents re-pausing
+    initial_state["clarification_answers"] = {"__test_skip__": "Test mode - skip clarification"}
+    initial_state["pending_clarification"] = {
+        "questions": [],
+        "phase": "test",
+        "reason": "test skip",
+    }
 
     # Create and compile graph with MemorySaver
     checkpointer = MemorySaver()

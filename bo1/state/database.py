@@ -5,7 +5,7 @@ Provides:
 - db_session context manager with RLS support
 - Pool health monitoring
 
-This module extracts the core database infrastructure from postgres_manager.py
+This module provides the core database infrastructure
 to enable the Repository Pattern implementation.
 """
 

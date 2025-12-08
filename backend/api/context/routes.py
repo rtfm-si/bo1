@@ -46,11 +46,7 @@ from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import handle_api_errors
 from bo1.services.enrichment import EnrichmentService
-from bo1.state.postgres_manager import (
-    delete_user_context,
-    load_user_context,
-    save_user_context,
-)
+from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +119,7 @@ async def get_context(user: dict[str, Any] = Depends(get_current_user)) -> Conte
     user_id = extract_user_id(user)
 
     # Load context from database
-    context_data = load_user_context(user_id)
+    context_data = user_repository.get_context(user_id)
 
     if not context_data:
         return ContextResponse(exists=False, context=None, updated_at=None)
@@ -175,7 +171,7 @@ async def update_context(
     context_dict = context_model_to_dict(context)
 
     # Save to database
-    save_user_context(user_id, context_dict)
+    user_repository.save_context(user_id, context_dict)
 
     logger.info(f"Updated context for user {user_id}")
 
@@ -216,7 +212,7 @@ async def delete_context(user: dict[str, Any] = Depends(get_current_user)) -> di
     user_id = extract_user_id(user)
 
     # Delete from database
-    deleted = delete_user_context(user_id)
+    deleted = user_repository.delete_context(user_id)
 
     if not deleted:
         raise HTTPException(
@@ -273,14 +269,14 @@ async def enrich_context(
         context = enriched_to_context_model(enriched)
 
         # Auto-save: Merge enriched data with existing context
-        existing_context = load_user_context(user_id) or {}
+        existing_context = user_repository.get_context(user_id) or {}
         enriched_dict = enriched_data_to_dict(enriched)
 
         # Merge (preserve existing user values)
         merged_context = merge_context(existing_context, enriched_dict, preserve_existing=True)
 
         # Save merged context
-        save_user_context(user_id, merged_context)
+        user_repository.save_context(user_id, merged_context)
         logger.info(f"Auto-saved enriched context for user {user_id}")
 
         return EnrichmentResponse(
@@ -524,7 +520,7 @@ async def get_insights(
     user_id = extract_user_id(user)
 
     # Load context from database
-    context_data = load_user_context(user_id)
+    context_data = user_repository.get_context(user_id)
 
     if not context_data:
         return InsightsResponse(clarifications=[], total_count=0)
@@ -598,7 +594,7 @@ async def delete_insight(
         raise HTTPException(status_code=400, detail="Invalid question hash") from None
 
     # Load and update context
-    context_data = load_user_context(user_id)
+    context_data = user_repository.get_context(user_id)
     if not context_data:
         raise HTTPException(status_code=404, detail="No context found")
 
@@ -611,7 +607,7 @@ async def delete_insight(
     context_data["clarifications"] = clarifications
 
     # Save updated context
-    save_user_context(user_id, context_data)
+    user_repository.save_context(user_id, context_data)
     logger.info(f"Deleted clarification insight for user {user_id}: {question[:50]}...")
 
     return {"status": "deleted"}

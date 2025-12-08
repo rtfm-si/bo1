@@ -432,13 +432,13 @@ Analyze the discussion and decide the next action."""
 
         # CRITICAL FIX: Save facilitator decision to database (Phase 1.3)
         try:
-            from bo1.state.postgres_manager import save_facilitator_decision
+            from bo1.state.repositories import contribution_repository
 
             session_id = state.get("session_id", "unknown")
             sub_problem_index = state.get("sub_problem_index")
             user_id = state.get("user_id")
 
-            save_facilitator_decision(
+            contribution_repository.save_facilitator_decision(
                 session_id=session_id,
                 round_number=round_number,
                 action=decision.action,

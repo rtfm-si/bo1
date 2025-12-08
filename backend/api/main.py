@@ -34,7 +34,6 @@ from backend.api import (
     projects,
     sessions,
     streaming,
-    supertokens_routes,
     tags,
     waitlist,
 )
@@ -229,9 +228,6 @@ add_security_headers_middleware(app)
 # IMPORTANT: Register streaming router BEFORE sessions router to avoid
 # /{session_id} catch-all matching /{session_id}/stream
 app.include_router(health.router, prefix="/api", tags=["health"])
-app.include_router(
-    supertokens_routes.router, prefix="/api/auth", tags=["authentication"]
-)  # SuperTokens OAuth routes
 app.include_router(
     auth.router, prefix="/api/auth", tags=["authentication"]
 )  # Custom auth endpoints (e.g., /me)

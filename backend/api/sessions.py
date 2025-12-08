@@ -37,15 +37,6 @@ from backend.api.utils.validation import validate_session_id
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
 from bo1.security import check_for_injection
-from bo1.state.postgres_manager import (
-    ensure_user_exists,
-    get_session_events,
-    get_session_tasks,
-    get_user_sessions,
-    save_session,
-    save_session_tasks,
-    update_session_status,
-)
 from bo1.state.redis_manager import RedisManager
 from bo1.state.repositories.session_repository import session_repository
 from bo1.state.repositories.user_repository import user_repository
@@ -201,14 +192,14 @@ async def create_session(
             # Primary sync happens in SuperTokens sign_in_up() override (supertokens_config.py)
             # This is a fallback for edge cases where OAuth sync failed or for direct API calls
             user_email = user.get("email") if user else None
-            ensure_user_exists(
+            user_repository.ensure_exists(
                 user_id=user_id,
                 email=user_email,
                 auth_provider="supertokens",  # Unknown at this point, use generic
                 subscription_tier=user.get("subscription_tier", "free") if user else "free",
             )
 
-            save_session(
+            session_repository.create(
                 session_id=session_id,
                 user_id=user_id,
                 problem_statement=session_request.problem_statement,
@@ -291,7 +282,7 @@ async def list_sessions(
 
             # PRIMARY SOURCE: Query PostgreSQL for persistent session records
             try:
-                pg_sessions = get_user_sessions(
+                pg_sessions = session_repository.list_by_user(
                     user_id=user_id,
                     limit=limit,
                     offset=offset,
@@ -660,7 +651,7 @@ async def delete_session(
 
             # Also update PostgreSQL status to ensure consistency
             try:
-                update_session_status(session_id=session_id, status="deleted")
+                session_repository.update_status(session_id=session_id, status="deleted")
             except Exception as pg_err:
                 logger.warning(f"Failed to update PostgreSQL status for {session_id}: {pg_err}")
                 # Continue - Redis is the source of truth for active sessions
@@ -751,7 +742,7 @@ async def extract_tasks(
 
             # 1. Check PostgreSQL first for persistent storage (survives Redis expiry)
             try:
-                db_tasks = get_session_tasks(session_id)
+                db_tasks = session_repository.get_tasks(session_id)
                 if db_tasks:
                     logger.info(f"Returning tasks from PostgreSQL for session {session_id}")
                     return {
@@ -777,7 +768,7 @@ async def extract_tasks(
 
                 # Backfill to PostgreSQL if not already there (fixes missing task counts)
                 try:
-                    save_session_tasks(
+                    session_repository.save_tasks(
                         session_id=session_id,
                         tasks=cached_data.get("tasks", []),
                         total_tasks=cached_data.get("total_tasks", 0),
@@ -831,7 +822,7 @@ async def extract_tasks(
             else:
                 # Fall back to PostgreSQL for completed sessions where Redis expired
                 logger.info(f"Redis empty, reading events from PostgreSQL for session {session_id}")
-                pg_events = get_session_events(session_id)
+                pg_events = session_repository.get_events(session_id)
                 for event in pg_events:
                     event_type = event.get("event_type")
                     # PostgreSQL data column has nested structure: {"data": {...payload...}, ...}
@@ -954,7 +945,7 @@ async def extract_tasks(
 
             # 1. Save to PostgreSQL for long-term persistence (PRIMARY storage)
             try:
-                save_session_tasks(
+                session_repository.save_tasks(
                     session_id=session_id,
                     tasks=all_tasks,
                     total_tasks=len(all_tasks),

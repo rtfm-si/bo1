@@ -4,7 +4,7 @@ Provides singleton instances of:
 - RedisManager: Redis connection management
 - SessionManager: Active session management with ownership tracking
 - EventPublisher: Event publishing for SSE streaming
-- PostgreSQL connection pool (via postgres_manager)
+- PostgreSQL connection pool (via bo1.state.database)
 
 Also provides reusable dependencies for:
 - Authentication + session verification (get_verified_session)

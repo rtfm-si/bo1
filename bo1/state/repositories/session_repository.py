@@ -9,7 +9,6 @@ Handles:
 """
 
 import logging
-from datetime import datetime
 from typing import Any
 
 from psycopg2.extras import Json
@@ -688,82 +687,6 @@ class SessionRepository(BaseRepository):
             (session_id,),
         )
         return result["synthesis_text"] if result else None
-
-    # =========================================================================
-    # Session Clarifications
-    # =========================================================================
-
-    def save_clarification(
-        self,
-        session_id: str,
-        question: str,
-        asked_by_persona: str | None = None,
-        priority: str | None = None,
-        reason: str | None = None,
-        answer: str | None = None,
-        answered_at: datetime | None = None,
-        asked_at_round: int | None = None,
-    ) -> dict[str, Any]:
-        """Save a clarification question from an expert.
-
-        Args:
-            session_id: Session identifier
-            question: The clarification question
-            asked_by_persona: Persona code who asked
-            priority: CRITICAL or NICE_TO_HAVE
-            reason: Why this question is important
-            answer: User's answer
-            answered_at: When answer was provided
-            asked_at_round: Round number when asked
-
-        Returns:
-            Saved clarification record
-        """
-        with db_session() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO session_clarifications (
-                        session_id, question, asked_by_persona, priority,
-                        reason, answer, answered_at, asked_at_round
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id, session_id, question, asked_by_persona, priority,
-                              reason, answer, answered_at, asked_at_round, created_at
-                    """,
-                    (
-                        session_id,
-                        question,
-                        asked_by_persona,
-                        priority,
-                        reason,
-                        answer,
-                        answered_at,
-                        asked_at_round,
-                    ),
-                )
-                result = cur.fetchone()
-                return dict(result) if result else {}
-
-    def get_clarifications(self, session_id: str) -> list[dict[str, Any]]:
-        """Get all clarifications for a session.
-
-        Args:
-            session_id: Session identifier
-
-        Returns:
-            List of clarification records
-        """
-        return self._execute_query(
-            """
-            SELECT id, session_id, question, asked_by_persona, priority,
-                   reason, answer, answered_at, asked_at_round, created_at
-            FROM session_clarifications
-            WHERE session_id = %s
-            ORDER BY created_at ASC
-            """,
-            (session_id,),
-        )
 
 
 # Singleton instance for convenience

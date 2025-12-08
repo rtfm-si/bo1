@@ -201,11 +201,11 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # P1-RESEARCH-2: Early cache check for cross-session deduplication
     # Check if similar research exists in cache before calling ResearcherAgent
-    from bo1.state.postgres_manager import find_similar_research
+    from bo1.state.repositories import cache_repository
 
     try:
         query_embedding = generate_embedding(research_query, input_type="query")
-        cached_results = find_similar_research(
+        cached_results = cache_repository.find_similar(
             question_embedding=query_embedding,
             similarity_threshold=0.85,  # Same threshold as in-session dedup
             limit=1,

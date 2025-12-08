@@ -11,7 +11,7 @@ import pytest
 from fastapi import HTTPException
 
 from backend.api.utils.validation import validate_cache_id, validate_session_id, validate_user_id
-from bo1.state.postgres_manager import find_cached_research, get_stale_research_cache_entries
+from bo1.state.repositories import cache_repository
 
 
 class TestSessionIDValidation:
@@ -132,7 +132,7 @@ class TestSQLInjectionPrevention:
         """max_age_days must be a positive integer."""
         # Test with string (potential injection)
         with pytest.raises(ValueError) as exc_info:
-            find_cached_research(
+            cache_repository.find_by_embedding(
                 question_embedding=[0.1] * 1024,
                 max_age_days="90; DROP TABLE research_cache;--",  # type: ignore[arg-type]
             )
@@ -142,7 +142,7 @@ class TestSQLInjectionPrevention:
     def test_max_age_days_negative_validation(self):
         """Negative max_age_days should be rejected."""
         with pytest.raises(ValueError) as exc_info:
-            find_cached_research(
+            cache_repository.find_by_embedding(
                 question_embedding=[0.1] * 1024,
                 max_age_days=-1,
             )
@@ -153,7 +153,7 @@ class TestSQLInjectionPrevention:
         """days_old must be a positive integer."""
         # Test with string (potential injection)
         with pytest.raises(ValueError) as exc_info:
-            get_stale_research_cache_entries(
+            cache_repository.get_stale(
                 days_old="90; DROP TABLE research_cache;--",  # type: ignore[arg-type]
             )
 
@@ -162,7 +162,7 @@ class TestSQLInjectionPrevention:
     def test_days_old_negative_validation(self):
         """Negative days_old should be rejected."""
         with pytest.raises(ValueError) as exc_info:
-            get_stale_research_cache_entries(days_old=-1)
+            cache_repository.get_stale(days_old=-1)
 
         assert "must be non-negative" in str(exc_info.value)
 

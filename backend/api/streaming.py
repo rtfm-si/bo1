@@ -63,7 +63,7 @@ async def get_event_history(
     Raises:
         HTTPException: If session not found or retrieval fails
     """
-    from bo1.state.postgres_manager import get_session_events
+    from bo1.state.repositories import session_repository
 
     try:
         # Unpack verified session data
@@ -92,7 +92,7 @@ async def get_event_history(
         # If Redis is empty, fall back to PostgreSQL (permanent storage)
         if not events:
             logger.info(f"Redis empty for {session_id}, falling back to PostgreSQL")
-            pg_events = get_session_events(session_id)
+            pg_events = session_repository.get_events(session_id)
             for pg_event in pg_events:
                 # PostgreSQL stores the full payload in 'data' column
                 event_data = pg_event.get("data", {})

@@ -1,0 +1,55 @@
+# Data Model Audit Manifest
+
+<audit_manifest>
+  <audit_type>data_model</audit_type>
+
+  <purpose>
+    Validate data model consistency across database schema, Pydantic models, and API contracts. Detect schema drift and serialization mismatches.
+  </purpose>
+
+  <scope>
+    - Alembic migrations and current schema
+    - Pydantic models in bo1/models/
+    - State serialization (state_to_v1/v1_to_state)
+    - API request/response models
+    - Frontend TypeScript types alignment
+  </scope>
+
+  <constraints>
+    - Load only model definitions, not implementation code
+    - Cross-reference migrations with Pydantic models
+    - Respect CONTEXT_BOUNDARY when checking frontend types
+    - No database queries during audit
+  </constraints>
+
+  <required_inputs>
+    - migrations/versions/*.py
+    - bo1/models/*.py
+    - bo1/state/database.py
+    - backend/api/sessions.py (response models)
+    - frontend/src/lib/types/ (if TypeScript types exist)
+  </required_inputs>
+
+  <expected_outputs>
+    - Schema-to-model mapping table
+    - Drift detection report (mismatched fields)
+    - Nullable/required field consistency
+    - Serialization roundtrip validation
+    - Migration history integrity check
+  </expected_outputs>
+
+  <activation_conditions>
+    - After database migrations
+    - When adding new model fields
+    - Before API versioning changes
+    - Monthly schema health check
+  </activation_conditions>
+
+  <run_pattern>
+    1. Parse latest migration for schema definition
+    2. Compare against Pydantic model fields
+    3. Check state serialization functions
+    4. Validate API model alignment
+    5. Output report to /audits/reports/data_model.report.md
+  </run_pattern>
+</audit_manifest>

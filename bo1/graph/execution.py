@@ -12,8 +12,8 @@ import signal
 import time
 from typing import Any
 
-from bo1.state.postgres_manager import save_session_event
 from bo1.state.redis_manager import RedisManager
+from bo1.state.repositories import session_repository
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class SessionManager:
                 try:
                     # Get next sequence number for this session's events
                     # Error events use sequence 9999 as they're terminal and don't need ordering
-                    save_session_event(
+                    session_repository.save_event(
                         session_id=session_id,
                         event_type="error",
                         sequence=9999,  # Special sequence for terminal error events

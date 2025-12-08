@@ -1,0 +1,48 @@
+# Framework Pass 1 - Design & Implement Manifest
+
+<audit_manifest>
+  <audit_type>framework_pass1</audit_type>
+
+  <purpose>
+    Design and implement token-efficient governance and manifest framework using root-level governance files, nested per-folder CLAUDE.md, and nested manifest files.
+  </purpose>
+
+  <scope>
+    - Discover project structure (top 2-3 levels)
+    - Create root governance files (CLAUDE.md, GOVERNANCE.md, CONTEXT_BOUNDARY.md, MODEL_GUIDANCE.md, TASK_PATTERNS.md, TAGS.md, DOMAIN_KNOWLEDGE.md)
+    - Set up nested manifests and per-folder CLAUDE files
+  </scope>
+
+  <constraints>
+    - Token efficiency in reasoning and output
+    - Short bullet lists, diffs only
+    - No restatement of prompt
+    - Keep CLAUDE.md <= 150-200 lines
+    - Folder manifest.md <= 30-40 lines
+  </constraints>
+
+  <required_inputs>
+    - Repository tree (top 2-3 levels)
+    - Existing governance files (if any)
+    - Main domain folders identification
+  </required_inputs>
+
+  <expected_outputs>
+    - Root governance files created/updated
+    - Per-folder manifest.md files
+    - Per-folder CLAUDE.md files (where appropriate)
+    - Short summary of files created/updated
+  </expected_outputs>
+
+  <activation_conditions>
+    - Initial project setup
+    - Major restructuring of governance framework
+  </activation_conditions>
+
+  <run_pattern>
+    1. Inspect repo tree, identify domains
+    2. Create root governance files with tagged sections
+    3. Create folder-level manifests and CLAUDE.md
+    4. Output short summary only
+  </run_pattern>
+</audit_manifest>

@@ -1,0 +1,56 @@
+# Codebase Cleanup Audit Manifest
+
+<audit_manifest>
+  <audit_type>clean</audit_type>
+
+  <purpose>
+    Audit and clean the codebase: remove legacy/redundant code, consolidate duplicates, clean unused DB columns/tables, simplify complex code, improve maintainability.
+  </purpose>
+
+  <scope>
+    - Legacy/unused code detection across all domains
+    - Redundancy and duplication analysis
+    - Database schema cleanup (unused columns/tables)
+    - Code simplification and consolidation
+    - Migration planning and execution
+  </scope>
+
+  <constraints>
+    - Follow CLAUDE.md, GOVERNANCE, CONTEXT_BOUNDARY, MODEL_GUIDANCE, TASK_PATTERNS
+    - Breaking changes allowed (no live customers)
+    - End result MUST work (build passes, tests pass, migrations consistent)
+    - Use minimal diffs, no full-file dumps
+    - Keep explanations short (bullets)
+  </constraints>
+
+  <required_inputs>
+    - Repository structure (frontend, backend, agents, infra, sql/db, scripts)
+    - Import/reference analysis per file
+    - Database schema and migrations
+    - ORM/query code patterns
+  </required_inputs>
+
+  <expected_outputs>
+    - Classification of domains and legacy/unused areas
+    - Consolidation targets per domain
+    - Files marked DELETE NOW / REVIEW BEFORE DELETE
+    - Migration plan for DB cleanup
+    - Final summary: files removed, modules consolidated, DB changes applied
+  </expected_outputs>
+
+  <activation_conditions>
+    - Periodic codebase maintenance
+    - Before major feature work
+    - After significant feature deprecation
+  </activation_conditions>
+
+  <run_pattern>
+    1. Discover and classify codebase structure
+    2. Analyze redundancy and duplication
+    3. Detect legacy/unused code
+    4. Plan database/schema cleanup
+    5. Refactor and consolidate iteratively
+    6. Final validation (build, tests, migrations)
+    7. Write report to /_PLAN.md
+  </run_pattern>
+</audit_manifest>

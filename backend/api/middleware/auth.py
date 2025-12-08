@@ -85,9 +85,9 @@ async def _get_current_user_with_session(
         logger.info(f"Authenticated user via SuperTokens: {user_id}")
 
         # Fetch user data from database including is_admin flag
-        from bo1.state.postgres_manager import get_user
+        from bo1.state.repositories import user_repository
 
-        user_data = get_user(user_id)
+        user_data = user_repository.get(user_id)
 
         # Use database values if available, otherwise defaults
         return {

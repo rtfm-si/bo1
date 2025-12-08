@@ -1,92 +1,41 @@
-Meeting System Deep Dive Test
+<load_manifest path="audits/manifests/test.manifest.xml" />
 
-Objective
+<manifest_reference>
+Use the loaded audit manifest to:
 
-Start a new meeting via API calls (no UI), follow it through logs and database queries, actively participate when needed, and analyze every aspect of
-the system's performance.
+- enforce scope
+- enforce constraints
+- ensure required_inputs are gathered
+- produce exactly the expected_outputs
+- respect activation_conditions
+  </manifest_reference>
 
-Test Execution
+<audit_request>
+<audit_type>test</audit_type>
+<name>Meeting System Deep Dive Test (No UI)</name>
 
-1. Setup Monitoring
+  <goal>
+    Follow the purpose and scope defined in the manifest.
+    Run a full meeting via API only, monitor behaviour, analyze and report.
+  </goal>
 
-- Tail API container logs with timestamps
-- Set up database query monitoring
-- Prepare to capture all SSE events
+<test_scenario>
+"Should our startup pivot from B2B to B2C, or pursue a hybrid model? We have 18 months runway, 500 B2B customers, and see 10x larger B2C market opportunity but would need to rebuild our sales motion."
+</test_scenario>
 
-2. Create Meeting via API
+  <constraints>
+    - Follow manifest constraints.
+    - Follow CLAUDE.md, GOVERNANCE.md, CONTEXT_BOUNDARY, MODEL_GUIDANCE, TASK_PATTERNS.
+    - Keep reasoning shallow and outputs compact.
+    - Focus on evidence and actionable changes.
+    - No unnecessary file dumps.
+  </constraints>
 
-Start a meeting with a moderately complex decision that will exercise the full graph:
+  <steps>
+    Derive all steps from the manifest's <scope>, <required_inputs>, and <expected_outputs>.
+  </steps>
 
-Suggested test problem: "Should our startup pivot from B2B to B2C, or pursue a hybrid model? We have 18 months runway, 500 B2B customers, and see 10x
-larger B2C market opportunity but would need to rebuild our sales motion."
-
-3. Active Monitoring & Participation
-
-- Follow SSE event stream for the session
-- Watch for context_insufficient events - provide clarifying context if triggered
-- Monitor round progression, expert contributions, convergence signals
-
-4. Analysis Checklist
-
-Graph Flow Analysis:
-
-- Verify correct node sequence execution
-- Check for unexpected loops or repeated nodes
-- Confirm round limits respected
-- Validate convergence detection timing
-
-Timing & Performance:
-
-- Measure time per LLM call
-- Identify dead time between operations
-- Find redundant/duplicate calls
-- Calculate total deliberation time
-- Check for serialization where parallelization is possible
-
-Prompt Quality Scoring (1-10 scale):
-
-- Decomposition prompt → quality of sub-problems generated
-- Persona selection prompt → relevance of experts chosen
-- Contribution prompts → depth and usefulness of responses
-- Facilitator decision prompts → appropriateness of flow decisions
-- Synthesis prompts → coherence and actionability of final output
-
-Response Quality Scoring (1-10 scale):
-
-- Expert contributions: Are they substantive or generic?
-- Do experts build on each other or repeat points?
-- Is semantic deduplication working (0.80 threshold)?
-- Final synthesis: Actionable? Addresses original problem?
-
-Error Detection:
-
-- Any unhandled exceptions in logs
-- JSON parsing failures
-- Database connection issues
-- Rate limiting triggers
-- Timeout or loop prevention activations
-
-5. Parallelization Opportunities
-
-Identify any sequential operations that could run concurrently:
-
-- Expert contributions within a round (should already be parallel)
-- Sub-problem deliberations (flag-controlled)
-- Database writes vs LLM calls
-
-6. Deliverables
-
-After meeting completes, provide:
-
-1. Timeline diagram of all operations with durations
-2. Prompt scorecard with specific improvement suggestions
-3. Response quality report with examples
-4. Performance bottleneck list ordered by impact
-5. Bug/error list if any found
-6. Parallelization recommendations with expected time savings
-
-Write the analysis to a file in root
-
----
-
-Execute this test, participate as needed, and deliver a comprehensive analysis.
+<output_format> 1. Timeline overview: bullet sequence with durations, note bottlenecks. 2. Prompt scorecard: each prompt type 1-10 + improvement bullets. 3. Response quality: scores + concrete examples (good + bad). 4. Performance bottlenecks: ordered by impact with suggested fixes. 5. Bugs/errors: list with locations and root causes. 6. Parallelisation opportunities: where to add concurrency.
+Write report to /meeting_system_deep_dive.md
+</output_format>
+</audit_request>

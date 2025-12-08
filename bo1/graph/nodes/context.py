@@ -13,7 +13,7 @@ from typing import Any
 
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_phase_cost
-from bo1.state.postgres_manager import load_user_context
+from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
     if user_id:
         logger.info(f"Loading saved business context for user_id: {user_id}")
         try:
-            saved_context = load_user_context(user_id)
+            saved_context = user_repository.get_context(user_id)
             if saved_context:
                 logger.info("Found saved business context")
                 business_context = saved_context

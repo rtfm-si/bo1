@@ -30,8 +30,8 @@ def publisher(mock_redis):
     return EventPublisher(mock_redis)
 
 
-@patch("backend.api.event_publisher.save_session_event")
-def test_publish_event_basic(mock_save, publisher, mock_redis):
+@patch("backend.api.event_publisher.session_repository")
+def test_publish_event_basic(mock_repo, publisher, mock_redis):
     """Test basic event publishing."""
     session_id = "bo1_test123"
     event_type = "decomposition_complete"
@@ -48,8 +48,8 @@ def test_publish_event_basic(mock_save, publisher, mock_redis):
     assert channel == f"events:{session_id}"
 
 
-@patch("backend.api.event_publisher.save_session_event")
-def test_publish_event_json_serialization(mock_save, publisher, mock_redis):
+@patch("backend.api.event_publisher.session_repository")
+def test_publish_event_json_serialization(mock_repo, publisher, mock_redis):
     """Test that event payload is correctly JSON serialized."""
     session_id = "bo1_test123"
     event_type = "contribution"
@@ -132,8 +132,8 @@ def test_publish_event_json_serialization_error(publisher, mock_redis):
     assert mock_redis.publish.call_count == 0
 
 
-@patch("backend.api.event_publisher.save_session_event")
-def test_publish_multiple_events(mock_save, publisher, mock_redis):
+@patch("backend.api.event_publisher.session_repository")
+def test_publish_multiple_events(mock_repo, publisher, mock_redis):
     """Test publishing multiple events to same session."""
     session_id = "bo1_test123"
     events = [
@@ -172,8 +172,8 @@ def test_publish_event_channel_format(publisher, mock_redis):
         assert channel == f"events:{session_id}"
 
 
-@patch("backend.api.event_publisher.save_session_event")
-def test_publish_event_empty_data(mock_save, publisher, mock_redis):
+@patch("backend.api.event_publisher.session_repository")
+def test_publish_event_empty_data(mock_repo, publisher, mock_redis):
     """Test publishing event with empty data."""
     session_id = "bo1_test123"
     event_type = "decomposition_started"
@@ -194,8 +194,8 @@ def test_publish_event_empty_data(mock_save, publisher, mock_redis):
     assert "session_id" in message
 
 
-@patch("backend.api.event_publisher.save_session_event")
-def test_publish_event_complex_data(mock_save, publisher, mock_redis):
+@patch("backend.api.event_publisher.session_repository")
+def test_publish_event_complex_data(mock_repo, publisher, mock_redis):
     """Test publishing event with complex nested data."""
     session_id = "bo1_test123"
     event_type = "phase_cost_breakdown"

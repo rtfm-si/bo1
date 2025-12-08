@@ -1,0 +1,55 @@
+# Observability Audit Manifest
+
+<audit_manifest>
+  <audit_type>observability</audit_type>
+
+  <purpose>
+    Assess logging, metrics, tracing, and alerting coverage. Ensure production issues can be diagnosed from available telemetry.
+  </purpose>
+
+  <scope>
+    - Structured logging patterns and levels
+    - Error handling and exception propagation
+    - Health check endpoints
+    - Cost and usage tracking
+    - Event stream observability
+  </scope>
+
+  <constraints>
+    - Focus on observability gaps, not implementation details
+    - Do not expose sensitive data patterns
+    - Respect GOVERNANCE security constraints
+    - Audit configuration, not runtime behavior
+  </constraints>
+
+  <required_inputs>
+    - backend/api/health.py
+    - bo1/llm/cost_tracker.py
+    - backend/api/event_collector.py
+    - Logging configuration in backend/api/main.py
+    - Any monitoring config files
+  </required_inputs>
+
+  <expected_outputs>
+    - Logging coverage map (which components log what)
+    - Missing observability points
+    - Health check completeness assessment
+    - Alert threshold recommendations
+    - Tracing correlation ID coverage
+  </expected_outputs>
+
+  <activation_conditions>
+    - Before production deployment
+    - After adding new services/components
+    - When debugging production issues is difficult
+    - Quarterly observability review
+  </activation_conditions>
+
+  <run_pattern>
+    1. Inventory logging statements by component
+    2. Check health endpoint coverage
+    3. Verify error propagation includes context
+    4. Assess cost tracking completeness
+    5. Output report to /audits/reports/observability.report.md
+  </run_pattern>
+</audit_manifest>

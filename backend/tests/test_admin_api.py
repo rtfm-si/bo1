@@ -31,38 +31,36 @@ def mock_admin_key():
 
 @pytest.fixture
 def mock_redis_manager():
-    """Mock RedisManager."""
-    with patch("backend.api.admin.RedisManager") as mock:
-        manager = MagicMock()
-        manager.is_available = True
-        manager.load_metadata.return_value = {
-            "status": "running",
-            "user_id": "test_user_1",
-            "started_at": datetime.now(UTC).isoformat(),
-            "cost": 0.15,
-            "phase": "discussion",
-        }
-        manager.load_state.return_value = {
-            "round_number": 2,
-            "contributions": [],
-        }
-        mock.return_value = manager
+    """Mock RedisManager via get_redis_manager dependency."""
+    manager = MagicMock()
+    manager.is_available = True
+    manager.load_metadata.return_value = {
+        "status": "running",
+        "user_id": "test_user_1",
+        "started_at": datetime.now(UTC).isoformat(),
+        "cost": 0.15,
+        "phase": "discussion",
+    }
+    manager.load_state.return_value = {
+        "round_number": 2,
+        "contributions": [],
+    }
+    with patch("backend.api.dependencies.get_redis_manager", return_value=manager):
         yield manager
 
 
 @pytest.fixture
 def mock_session_manager():
-    """Mock SessionManager."""
-    with patch("backend.api.admin._get_session_manager") as mock:
-        manager = MagicMock()
-        manager.active_executions = {
-            "session-1": MagicMock(),
-            "session-2": MagicMock(),
-            "session-3": MagicMock(),
-        }
-        manager.admin_kill_session = AsyncMock(return_value=True)
-        manager.admin_kill_all_sessions = AsyncMock(return_value=3)
-        mock.return_value = manager
+    """Mock SessionManager via get_session_manager dependency."""
+    manager = MagicMock()
+    manager.active_executions = {
+        "session-1": MagicMock(),
+        "session-2": MagicMock(),
+        "session-3": MagicMock(),
+    }
+    manager.admin_kill_session = AsyncMock(return_value=True)
+    manager.admin_kill_all_sessions = AsyncMock(return_value=3)
+    with patch("backend.api.dependencies.get_session_manager", return_value=manager):
         yield manager
 
 

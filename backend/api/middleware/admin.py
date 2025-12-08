@@ -16,7 +16,7 @@ from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from bo1.config import get_settings
-from bo1.state.postgres_manager import get_user
+from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ async def require_admin_session(
     user_id = session.get_user_id()
 
     # Get user from database to check admin status
-    user_data = get_user(user_id)
+    user_data = user_repository.get(user_id)
 
     if not user_data:
         logger.warning(f"Admin access attempted by unknown user: {user_id}")
@@ -158,7 +158,7 @@ async def require_admin_any(
         session = await verify_session()(request)
         if session:
             user_id = session.get_user_id()
-            user_data = get_user(user_id)
+            user_data = user_repository.get(user_id)
 
             if user_data and user_data.get("is_admin", False):
                 logger.debug(f"Admin access granted via session for user: {user_id}")

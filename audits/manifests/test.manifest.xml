@@ -1,0 +1,59 @@
+# Meeting System Deep Dive Test Manifest
+
+<audit_manifest>
+  <audit_type>test</audit_type>
+
+  <purpose>
+    Run a full meeting via API only, monitor behaviour (logs, DB, SSE), analyze graph flow, timing, prompt quality, response quality, and produce actionable improvement recommendations.
+  </purpose>
+
+  <scope>
+    - Meeting API execution (no UI)
+    - SSE event stream monitoring
+    - Graph/flow node sequence validation
+    - Timing and performance analysis
+    - Prompt quality scoring (1-10)
+    - Response quality scoring (1-10)
+    - Error detection and parallelisation review
+  </scope>
+
+  <constraints>
+    - Follow CLAUDE.md, GOVERNANCE, CONTEXT_BOUNDARY, MODEL_GUIDANCE, TASK_PATTERNS
+    - Keep reasoning shallow, outputs concise (bullets)
+    - Use minimal diffs, no full-file dumps
+    - Focus on evidence and actionable changes
+  </constraints>
+
+  <required_inputs>
+    - Meeting start API endpoint
+    - SSE stream connection
+    - Container/API logs with timestamps
+    - DB query visibility
+    - Test scenario decision text
+  </required_inputs>
+
+  <expected_outputs>
+    - Timeline overview with key operations and durations
+    - Prompt scorecard (1-10 per prompt type + improvements)
+    - Response quality summary with examples
+    - Performance bottlenecks ordered by impact
+    - Bugs/errors list with locations and root causes
+    - Parallelisation opportunities with expected savings
+  </expected_outputs>
+
+  <activation_conditions>
+    - After meeting system changes
+    - Before major releases
+    - Performance regression investigation
+    - Prompt/response quality review
+  </activation_conditions>
+
+  <run_pattern>
+    1. Set up monitoring (logs, DB, SSE)
+    2. Start meeting via API with test scenario
+    3. Monitor and participate (provide clarifications)
+    4. Analyze graph flow, timing, prompts, responses, errors
+    5. Review parallelisation opportunities
+    6. Write report to /meeting_system_deep_dive.md
+  </run_pattern>
+</audit_manifest>

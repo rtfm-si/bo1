@@ -111,7 +111,13 @@ def sample_problem_marketing():
     return Problem(
         title="Marketing Budget Decision",
         description="Should I invest $50K in SEO or paid ads?",
-        context="Solo founder, B2B SaaS, $100K ARR",
+        context=(
+            "Solo founder running a B2B SaaS with $100K ARR. "
+            "Current customer acquisition is through word of mouth and organic traffic. "
+            "Target market is small businesses in the US. "
+            "Average deal size is $500/month with 12-month contracts. "
+            "No dedicated marketing team, founder handles all marketing."
+        ),
     )
 
 

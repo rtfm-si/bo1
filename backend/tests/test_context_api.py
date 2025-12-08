@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.api.main import app
-from bo1.state.postgres_manager import delete_user_context
+from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def db_cleanup() -> None:
 
     # Cleanup after test
     try:
-        delete_user_context("test_user_1")
+        user_repository.delete_context("test_user_1")
     except Exception as e:
         # Ignore cleanup errors (user may not exist)
         logger.debug(f"Cleanup failed (expected if user doesn't exist): {e}")

@@ -32,8 +32,9 @@ from bo1.graph.execution import PermissionError, SessionManager
 from bo1.graph.state import create_initial_state
 from bo1.models.problem import Problem
 from bo1.security import check_for_injection
-from bo1.state.postgres_manager import update_session_status
+from bo1.state.database import db_session
 from bo1.state.redis_manager import RedisManager
+from bo1.state.repositories import session_repository
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +143,7 @@ def _recover_problem_from_postgres(session_id: str) -> Any:
         Problem object with sub_problems, or None if not found
     """
     from bo1.models.problem import Problem, SubProblem
-    from bo1.state.postgres_manager import db_session, get_session_events
+    from bo1.state.repositories import session_repository
 
     try:
         # Get session metadata for problem_statement
@@ -159,7 +160,7 @@ def _recover_problem_from_postgres(session_id: str) -> Any:
             return None
 
         # Get events to find decomposition_complete
-        events = get_session_events(session_id)
+        events = session_repository.get_events(session_id)
         if not events:
             logger.warning(f"No events found for session {session_id}")
             return None
@@ -230,7 +231,7 @@ def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
         Reconstructed state dict, or None if reconstruction not possible
     """
     from bo1.models.problem import Problem, SubProblem
-    from bo1.state.postgres_manager import db_session, get_session_events
+    from bo1.state.repositories import session_repository
 
     try:
         # Get session metadata
@@ -256,7 +257,7 @@ def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
             return None
 
         # Get events to reconstruct state
-        events = get_session_events(session_id)
+        events = session_repository.get_events(session_id)
         if not events:
             logger.warning(f"No events found for session {session_id}")
             return None
@@ -575,7 +576,7 @@ async def start_deliberation(
 
         # Update session status to 'running' in PostgreSQL
         try:
-            update_session_status(session_id=session_id, status="running")
+            session_repository.update_status(session_id=session_id, status="running")
             logger.info(
                 f"Started deliberation for session {session_id} (status updated in PostgreSQL)"
             )
@@ -1000,7 +1001,7 @@ async def kill_deliberation(
 
         # Update session status to 'killed' in PostgreSQL
         try:
-            update_session_status(session_id=session_id, status="killed")
+            session_repository.update_status(session_id=session_id, status="killed")
             logger.info(
                 f"Killed deliberation for session {session_id}. Reason: {reason} (status updated in PostgreSQL)"
             )
@@ -1334,10 +1335,10 @@ async def _submit_clarification_impl(
         # ISSUE #4 FIX: Persist clarification answers to user's business context
         # This ensures future meetings can benefit from the clarifications
         try:
-            from bo1.state.postgres_manager import load_user_context, save_user_context
+            from bo1.state.repositories import user_repository
 
             # Load existing business context
-            existing_context = load_user_context(user_id) or {}
+            existing_context = user_repository.get_context(user_id) or {}
 
             # Add/update clarifications section
             clarifications = existing_context.get("clarifications", {})
@@ -1350,7 +1351,7 @@ async def _submit_clarification_impl(
             existing_context["clarifications"] = clarifications
 
             # Save updated context
-            save_user_context(user_id, existing_context)
+            user_repository.save_context(user_id, existing_context)
             logger.info(
                 f"Persisted {len(answers_to_process)} clarification(s) to business context "
                 f"for user {user_id}"

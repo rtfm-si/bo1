@@ -41,7 +41,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
-from bo1.state.postgres_manager import db_session
+from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
 

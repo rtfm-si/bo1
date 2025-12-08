@@ -249,7 +249,7 @@ class PersonaExecutor:
             return
 
         try:
-            from bo1.state.postgres_manager import save_contribution
+            from bo1.state.repositories import contribution_repository
 
             session_id = self.state.get("session_id", "unknown")
             phase_name = self.state.get("phase", "unknown")
@@ -258,7 +258,7 @@ class PersonaExecutor:
             if hasattr(phase_name, "value"):
                 phase_name = phase_name.value
 
-            save_contribution(
+            contribution_repository.save_contribution(
                 session_id=session_id,
                 persona_code=persona_profile.code,
                 content=contrib_msg.content,

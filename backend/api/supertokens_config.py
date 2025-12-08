@@ -25,7 +25,7 @@ from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 
 from backend.api.utils.db_helpers import execute_query, exists
 from bo1.feature_flags import GOOGLE_OAUTH_ENABLED
-from bo1.state.postgres_manager import ensure_user_exists
+from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +207,7 @@ def override_thirdparty_functions(
         # PostgreSQL is the source of truth for persistent data; Redis is for transient state
         try:
             user_id = result.user.id
-            ensure_user_exists(
+            user_repository.ensure_exists(
                 user_id=user_id,
                 email=email,
                 auth_provider=third_party_id,  # "google", "linkedin", "github"

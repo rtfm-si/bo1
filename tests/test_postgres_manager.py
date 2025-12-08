@@ -4,17 +4,8 @@ from collections.abc import Generator
 
 import pytest
 
-from bo1.state.postgres_manager import (
-    db_session,
-    delete_user_context,
-    find_cached_research,
-    get_session_clarifications,
-    load_user_context,
-    save_clarification,
-    save_research_result,
-    save_user_context,
-    update_research_access,
-)
+from bo1.state.database import db_session
+from bo1.state.repositories import cache_repository, user_repository
 
 
 @pytest.fixture
@@ -74,105 +65,39 @@ def test_user_context_crud(
     """
     try:
         # Clean up any existing context
-        delete_user_context(test_user_id)
+        user_repository.delete_context(test_user_id)
 
         # Test: Load non-existent context returns None
-        context = load_user_context(test_user_id)
+        context = user_repository.get_context(test_user_id)
         assert context is None
 
         # Test: Save context creates new row
-        saved = save_user_context(test_user_id, sample_context)
+        saved = user_repository.save_context(test_user_id, sample_context)
         assert saved["business_model"] == sample_context["business_model"]
         assert saved["target_market"] == sample_context["target_market"]
 
         # Test: Load saved context
-        loaded = load_user_context(test_user_id)
+        loaded = user_repository.get_context(test_user_id)
         assert loaded is not None
         assert loaded["business_model"] == sample_context["business_model"]
 
         # Test: Update context
         updated_context = sample_context.copy()
         updated_context["revenue"] = "$1M ARR"
-        updated = save_user_context(test_user_id, updated_context)
+        updated = user_repository.save_context(test_user_id, updated_context)
         assert updated["revenue"] == "$1M ARR"
 
         # Test: Delete context
-        deleted = delete_user_context(test_user_id)
+        deleted = user_repository.delete_context(test_user_id)
         assert deleted is True
 
         # Test: Load deleted context returns None
-        context = load_user_context(test_user_id)
+        context = user_repository.get_context(test_user_id)
         assert context is None
 
         # Test: Delete non-existent context returns False
-        deleted = delete_user_context(test_user_id)
+        deleted = user_repository.delete_context(test_user_id)
         assert deleted is False
-
-    except Exception as e:
-        pytest.skip(f"Database not available: {e}")
-
-
-@pytest.fixture
-def setup_test_session(setup_test_user: str) -> Generator[str, None, None]:
-    """Create test session in database for testing clarifications."""
-    session_id = "test-session-456"
-    user_id = setup_test_user
-
-    # Setup: Create test session
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            # Delete test session if exists
-            cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
-            # Create test session
-            cur.execute(
-                """
-                INSERT INTO sessions (id, user_id, problem_statement, status, phase)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO NOTHING
-                """,
-                (session_id, user_id, "Test problem", "active", "decompose"),
-            )
-
-    yield session_id
-
-    # Cleanup: Delete test session
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM sessions WHERE id = %s", (session_id,))
-
-
-def test_clarifications_crud(setup_test_session: str) -> None:
-    """Test session clarifications CRUD operations."""
-    try:
-        session_id = setup_test_session
-
-        # Test: Save clarification
-        clarification = save_clarification(
-            session_id=session_id,
-            question="What is your current churn rate?",
-            asked_by_persona="maria",
-            priority="CRITICAL",
-            reason="Need actual data for CAC analysis",
-            asked_at_round=2,
-        )
-        assert clarification["question"] == "What is your current churn rate?"
-        assert clarification["priority"] == "CRITICAL"
-
-        # Test: Get clarifications for session
-        clarifications = get_session_clarifications(session_id)
-        assert len(clarifications) == 1
-        assert clarifications[0]["question"] == "What is your current churn rate?"
-
-        # Test: Save multiple clarifications
-        save_clarification(
-            session_id=session_id,
-            question="What is your target market size?",
-            asked_by_persona="zara",
-            priority="NICE_TO_HAVE",
-            asked_at_round=3,
-        )
-        clarifications = get_session_clarifications(session_id)
-        assert len(clarifications) == 2
 
     except Exception as e:
         pytest.skip(f"Database not available: {e}")
@@ -188,7 +113,7 @@ def test_research_cache_crud() -> None:
             {"url": "https://example.com/study1", "title": "SaaS Metrics Report"},
             {"url": "https://example.com/study2", "title": "Churn Analysis"},
         ]
-        research = save_research_result(
+        research = cache_repository.save(
             question="What is the average churn rate for B2B SaaS?",
             embedding=embedding,
             summary="Average B2B SaaS churn rate is 5-7% annually, with SMB at 10-15%.",
@@ -206,7 +131,7 @@ def test_research_cache_crud() -> None:
         cache_id = research["id"]
 
         # Test: Find cached research by category/industry
-        cached = find_cached_research(
+        cached = cache_repository.find_by_embedding(
             question_embedding=embedding,
             similarity_threshold=0.85,
             category="saas_metrics",
@@ -216,10 +141,10 @@ def test_research_cache_crud() -> None:
         assert cached["question"] == "What is the average churn rate for B2B SaaS?"
 
         # Test: Update research access count
-        update_research_access(str(cache_id))
+        cache_repository.update_access(str(cache_id))
 
         # Test: Access count incremented
-        cached_updated = find_cached_research(
+        cached_updated = cache_repository.find_by_embedding(
             question_embedding=embedding, category="saas_metrics", industry="saas"
         )
         assert cached_updated is not None

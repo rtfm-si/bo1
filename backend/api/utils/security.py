@@ -48,7 +48,7 @@ async def verify_session_ownership(
     """
     # Import here to avoid circular dependency
     from backend.api.dependencies import get_redis_manager
-    from bo1.state.postgres_manager import get_session_metadata
+    from bo1.state.repositories import session_repository
 
     # Load metadata if not provided
     if session_metadata is None:
@@ -59,7 +59,7 @@ async def verify_session_ownership(
     # This handles cases where Redis was restarted but session exists in DB
     if not session_metadata:
         logger.debug(f"Session {session_id} not in Redis, checking PostgreSQL fallback")
-        session_metadata = get_session_metadata(session_id)
+        session_metadata = session_repository.get_metadata(session_id)
         if session_metadata:
             logger.info(f"Session {session_id} loaded from PostgreSQL fallback")
 

@@ -93,8 +93,8 @@ def test_event_collector_handler_methods_exist(event_collector):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-@patch("backend.api.event_publisher.save_session_event")
-async def test_event_collector_decomposition_handler(mock_save, redis_manager, event_collector):
+@patch("backend.api.event_publisher.session_repository")
+async def test_event_collector_decomposition_handler(mock_repo, redis_manager, event_collector):
     """Test that decomposition handler publishes correct events."""
     session_id = "test_decomp_123"
     channel = f"events:{session_id}"

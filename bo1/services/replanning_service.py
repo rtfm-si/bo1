@@ -10,8 +10,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 from bo1.services.replanning_context import replanning_context_builder
-from bo1.state.postgres_manager import db_session, save_session
+from bo1.state.database import db_session
 from bo1.state.redis_manager import RedisManager
+from bo1.state.repositories import session_repository
 from bo1.state.repositories.action_repository import action_repository
 from bo1.state.repositories.project_repository import project_repository
 from bo1.utils.logging import get_logger
@@ -120,7 +121,7 @@ class ReplanningService:
 
         # Save to PostgreSQL
         try:
-            save_session(
+            session_repository.create(
                 session_id=session_id,
                 user_id=user_id,
                 problem_statement=problem_statement,

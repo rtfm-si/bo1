@@ -1,6 +1,6 @@
 """Check waitlist entries in the database."""
 
-from bo1.state.postgres_manager import db_session
+from bo1.state.database import db_session
 
 
 def check_waitlist() -> None:

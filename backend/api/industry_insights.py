@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors
-from bo1.state.postgres_manager import load_user_context
+from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
 
@@ -231,7 +231,7 @@ async def get_insights_for_user(
         user_id = extract_user_id(user)
 
         # Get user's industry from context
-        context_data = load_user_context(user_id)
+        context_data = user_repository.get_context(user_id)
         industry = context_data.get("industry") if context_data else None
 
         if not industry:

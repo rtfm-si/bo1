@@ -1,0 +1,55 @@
+# Performance Scalability Audit Manifest
+
+<audit_manifest>
+  <audit_type>performance_scalability</audit_type>
+
+  <purpose>
+    Identify performance bottlenecks and scalability constraints in the deliberation pipeline, database queries, and concurrent session handling.
+  </purpose>
+
+  <scope>
+    - Database query patterns and index usage
+    - LLM call parallelization and batching
+    - Redis caching effectiveness
+    - Concurrent session handling capacity
+    - Memory and CPU hotspots in graph execution
+  </scope>
+
+  <constraints>
+    - Focus on measurable metrics, not speculation
+    - Load only relevant repository queries and async patterns
+    - Respect GOVERNANCE performance thresholds
+    - No load testing execution; analysis only
+  </constraints>
+
+  <required_inputs>
+    - bo1/state/repositories/*.py
+    - bo1/graph/execution.py
+    - bo1/llm/cost_tracker.py
+    - scripts/benchmark_indexes.py, scripts/explain_queries.py
+    - Database schema from migrations/
+  </required_inputs>
+
+  <expected_outputs>
+    - Query complexity analysis (N+1 detection, missing indexes)
+    - Parallelization opportunities identified
+    - Caching gap analysis
+    - Scalability limits (sessions/sec estimate)
+    - Priority-ranked optimization recommendations
+  </expected_outputs>
+
+  <activation_conditions>
+    - Before production deployment
+    - After significant database schema changes
+    - When response times degrade
+    - Monthly performance review
+  </activation_conditions>
+
+  <run_pattern>
+    1. Review repository query patterns
+    2. Check index coverage via benchmark scripts
+    3. Analyze async/await patterns in execution
+    4. Identify caching opportunities
+    5. Output report to /audits/reports/performance_scalability.report.md
+  </run_pattern>
+</audit_manifest>

@@ -36,11 +36,7 @@ from bo1.config import get_settings
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
 from bo1.llm.embeddings import generate_embedding
-from bo1.state.postgres_manager import (
-    find_cached_research,
-    save_research_result,
-    update_research_access,
-)
+from bo1.state.repositories import cache_repository
 
 logger = logging.getLogger(__name__)
 
@@ -284,7 +280,7 @@ class ResearcherAgent:
         # Step 2: Check cache with similarity threshold
         freshness_days = self._get_freshness_days(category)
         try:
-            cached_result = find_cached_research(
+            cached_result = cache_repository.find_by_embedding(
                 question_embedding=embedding,
                 similarity_threshold=0.85,
                 category=category,
@@ -298,7 +294,7 @@ class ResearcherAgent:
         if cached_result:
             # CACHE HIT - Track semantic cache savings
             try:
-                update_research_access(str(cached_result["id"]))
+                cache_repository.update_access(str(cached_result["id"]))
             except Exception as e:
                 logger.warning(f"Failed to update access count: {e}")
 
@@ -389,7 +385,7 @@ class ResearcherAgent:
 
             if has_sources and has_good_confidence and not is_rate_limited:
                 try:
-                    save_research_result(
+                    cache_repository.save(
                         question=question,
                         embedding=embedding,
                         summary=research_result["summary"],

@@ -19,7 +19,7 @@ from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
 from backend.api.utils.errors import handle_api_errors
-from bo1.state.postgres_manager import get_user
+from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ async def get_user_info(
     logger.info(f"User info requested: user_id={user_id}, session={session_handle}")
 
     # Fetch complete user data from PostgreSQL
-    user_data = get_user(user_id)
+    user_data = user_repository.get(user_id)
 
     if user_data:
         return {

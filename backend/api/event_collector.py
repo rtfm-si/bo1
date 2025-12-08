@@ -16,11 +16,7 @@ from backend.api.event_publisher import EventPublisher
 from bo1.config import get_settings, resolve_model_alias
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
-from bo1.state.postgres_manager import (
-    save_session_synthesis,
-    update_session_phase,
-    update_session_status,
-)
+from bo1.state.repositories import session_repository
 from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
@@ -178,7 +174,7 @@ class EventCollector:
 
         # Update session status to 'failed' in PostgreSQL
         try:
-            update_session_status(session_id=session_id, status="failed")
+            session_repository.update_status(session_id=session_id, status="failed")
         except Exception as db_error:
             logger.error(f"Failed to update session {session_id} status to failed: {db_error}")
 
@@ -446,7 +442,7 @@ class EventCollector:
     async def _handle_decomposition(self, session_id: str, output: dict) -> None:
         """Handle decompose node completion."""
         # Update phase in database for dashboard display
-        update_session_phase(session_id, "decomposition")
+        session_repository.update_phase(session_id, "decomposition")
 
         # P1-004 FIX: Emit working status at START of decomposition
         self._emit_working_status(
@@ -513,7 +509,7 @@ class EventCollector:
 
             # Update session status to paused and phase to clarification_needed
             # Update PostgreSQL
-            update_session_status(
+            session_repository.update_status(
                 session_id=session_id,
                 status="paused",
                 phase="clarification_needed",
@@ -544,7 +540,7 @@ class EventCollector:
     async def _handle_persona_selection(self, session_id: str, output: dict) -> None:
         """Handle select_personas node completion - publishes multiple events."""
         # Update phase in database for dashboard display
-        update_session_phase(session_id, "selection")
+        session_repository.update_phase(session_id, "selection")
 
         personas = output.get("personas", [])
         persona_recommendations = output.get("persona_recommendations", [])
@@ -614,7 +610,7 @@ class EventCollector:
             output: Node output state
         """
         # Update phase in database for dashboard display
-        update_session_phase(session_id, "exploration")
+        session_repository.update_phase(session_id, "exploration")
 
         # Extract sub_problem_index for tab filtering
         sub_problem_index = output.get("sub_problem_index", 0)
@@ -683,7 +679,7 @@ class EventCollector:
         sub_problem_index = output.get("sub_problem_index", 0)
 
         # Update phase in database for dashboard display
-        update_session_phase(session_id, current_phase)
+        session_repository.update_phase(session_id, current_phase)
         personas = output.get("personas", [])
 
         # Extract experts for the just-completed round
@@ -803,7 +799,7 @@ class EventCollector:
     async def _handle_voting(self, session_id: str, output: dict) -> None:
         """Handle vote node completion."""
         # Update phase in database for dashboard display
-        update_session_phase(session_id, "voting")
+        session_repository.update_phase(session_id, "voting")
 
         # AUDIT FIX (Issue #4): Emit working status BEFORE voting starts
         self._emit_working_status(
@@ -817,7 +813,7 @@ class EventCollector:
     async def _handle_synthesis(self, session_id: str, output: dict) -> None:
         """Handle synthesize node completion."""
         # Update phase in database for dashboard display
-        update_session_phase(session_id, "synthesis")
+        session_repository.update_phase(session_id, "synthesis")
 
         # AUDIT FIX (Issue #4): Emit working status BEFORE synthesis starts
         self._emit_working_status(
@@ -857,7 +853,7 @@ class EventCollector:
         synthesis_text = output.get("synthesis")
         if synthesis_text:
             try:
-                save_session_synthesis(session_id, synthesis_text)
+                session_repository.save_synthesis(session_id, synthesis_text)
                 logger.info(f"Saved synthesis to PostgreSQL for session {session_id}")
             except Exception as e:
                 logger.error(f"Failed to save synthesis to PostgreSQL for {session_id}: {e}")
@@ -891,7 +887,7 @@ class EventCollector:
         synthesis_text = output.get("meta_synthesis")
         if synthesis_text:
             try:
-                save_session_synthesis(session_id, synthesis_text)
+                session_repository.save_synthesis(session_id, synthesis_text)
                 logger.info(f"Saved meta-synthesis to PostgreSQL for session {session_id}")
             except Exception as e:
                 logger.error(f"Failed to save meta-synthesis to PostgreSQL for {session_id}: {e}")
@@ -1007,9 +1003,9 @@ class EventCollector:
         # This guards against: graph completes with different stop_reason but phase was set
         # to clarification_needed by _handle_identify_gaps earlier
         try:
-            from bo1.state.postgres_manager import get_session
+            from bo1.state.repositories import session_repository
 
-            current_session = get_session(session_id)
+            current_session = session_repository.get(session_id)
             if current_session:
                 current_phase = current_session.get("phase")
                 if current_phase in ("clarification_needed", "context_insufficient"):
@@ -1040,7 +1036,7 @@ class EventCollector:
         # Retry loop with exponential backoff
         for attempt in range(3):  # 3 attempts with exponential backoff
             try:
-                update_session_status(
+                session_repository.update_status(
                     session_id=session_id,
                     status="completed",
                     phase=phase,
@@ -1101,7 +1097,7 @@ class EventCollector:
             final_state: Current deliberation state with metrics
         """
         try:
-            from bo1.state.postgres_manager import update_session_status
+            from bo1.state.repositories import session_repository
 
             # Extract total cost from metrics
             metrics = final_state.get("metrics", {})
@@ -1115,7 +1111,7 @@ class EventCollector:
                 round_number = final_state.get("round_number", 0)
                 phase = final_state.get("current_node") or final_state.get("phase")
 
-                update_session_status(
+                session_repository.update_status(
                     session_id=session_id,
                     status="paused",  # Keep status as paused
                     phase=phase,
@@ -1148,7 +1144,7 @@ class EventCollector:
             session_id: Session identifier
         """
         try:
-            from bo1.state.postgres_manager import get_session_events
+            from bo1.state.repositories import session_repository
 
             # Allow async persistence tasks to complete (they run via asyncio.create_task)
             # This prevents false positives from the race condition where verification
@@ -1156,7 +1152,7 @@ class EventCollector:
             await asyncio.sleep(2.0)
 
             redis_event_count = self.publisher.redis.llen(f"events_history:{session_id}")
-            pg_events = get_session_events(session_id)
+            pg_events = session_repository.get_events(session_id)
             pg_event_count = len(pg_events)
 
             if pg_event_count < redis_event_count:

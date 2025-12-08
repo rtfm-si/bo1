@@ -16,7 +16,7 @@ from backend.api.context.models import (
 )
 from backend.api.context.services import auto_save_competitors
 from bo1.config import get_settings
-from bo1.state.postgres_manager import load_user_context
+from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ async def detect_competitors_for_user(
     logger.info(f"Detecting competitors for user {user_id}")
 
     # Load user context
-    context_data = load_user_context(user_id)
+    context_data = user_repository.get_context(user_id)
 
     # First, check if we already have enriched competitors
     if context_data:
@@ -262,7 +262,7 @@ async def refresh_market_trends(
 
     # Get industry from request or saved context
     if not industry:
-        context_data = load_user_context(user_id)
+        context_data = user_repository.get_context(user_id)
         if context_data:
             industry = context_data.get("industry")
 

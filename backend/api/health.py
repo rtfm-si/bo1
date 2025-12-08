@@ -20,6 +20,8 @@ from anthropic import Anthropic
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from bo1.state.repositories.session_repository import session_repository
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -358,7 +360,7 @@ async def health_check_db_pool() -> PoolHealthResponse:
     Returns:
         Pool health status with configuration and test results
     """
-    from bo1.state.postgres_manager import get_pool_health
+    from bo1.state.database import get_pool_health
 
     health = get_pool_health()
     status = "healthy" if health["healthy"] else "unhealthy"
@@ -714,7 +716,6 @@ async def health_check_persistence() -> PersistenceHealthResponse:
     """
     try:
         from backend.api.event_publisher import get_dlq_depth, get_queue_depth
-        from bo1.state.postgres_manager import get_session_events
 
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
         redis_client = redis.from_url(redis_url)
@@ -776,7 +777,7 @@ async def health_check_persistence() -> PersistenceHealthResponse:
             redis_count = redis_client.llen(redis_key)
 
             # Get PostgreSQL count
-            pg_events = get_session_events(session_id)
+            pg_events = session_repository.get_events(session_id)
             postgres_count = len(pg_events) if pg_events else 0
 
             total_redis += redis_count

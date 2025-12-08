@@ -26,12 +26,9 @@ from backend.api.event_publisher import EventPublisher
 from bo1.graph.config import create_deliberation_graph
 from bo1.graph.state import create_initial_state
 from bo1.models.problem import Problem
-from bo1.state.postgres_manager import (
-    db_session,
-    get_session_events,
-    save_session,
-)
+from bo1.state.database import db_session
 from bo1.state.redis_manager import RedisManager
+from bo1.state.repositories import session_repository
 from tests.utils.assertions import (
     assert_personas_selected,
     assert_state_valid,
@@ -182,7 +179,7 @@ async def test_complete_meeting_lifecycle(
 
         # Save session to PostgreSQL
         with db_session():
-            save_session(
+            session_repository.create(
                 session_id=test_session_id,
                 user_id="e2e_test_user",
                 problem_statement=simple_problem.description,
@@ -298,7 +295,7 @@ async def test_complete_meeting_lifecycle(
         # ==========================================================================
 
         # Check session events were saved
-        events = get_session_events(test_session_id)
+        events = session_repository.get_events(test_session_id)
         assert len(events) > 0, "No events saved to database"
 
         # Verify key event types present

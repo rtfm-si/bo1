@@ -1,0 +1,55 @@
+# API Contract Audit Manifest
+
+<audit_manifest>
+  <audit_type>api_contract</audit_type>
+
+  <purpose>
+    Validate API endpoint consistency, authentication enforcement, request/response schemas, and backward compatibility guarantees.
+  </purpose>
+
+  <scope>
+    - FastAPI route definitions
+    - Authentication/authorization middleware
+    - Request validation and error responses
+    - SSE event schema consistency
+    - OpenAPI spec accuracy
+  </scope>
+
+  <constraints>
+    - Load only route definitions and middleware
+    - Do not make actual API calls
+    - Follow GOVERNANCE security tag for auth checks
+    - Terminology mapping: UI=meeting/decision/expert; API=session/problem_statement/persona
+  </constraints>
+
+  <required_inputs>
+    - backend/api/main.py (route registration)
+    - backend/api/sessions.py, backend/api/streaming.py
+    - backend/api/middleware/auth.py
+    - backend/api/dependencies.py
+    - SSE event schemas in backend/api/event_publisher.py
+  </required_inputs>
+
+  <expected_outputs>
+    - Endpoint inventory with auth requirements
+    - Schema validation coverage
+    - Breaking change risk assessment
+    - Error response consistency report
+    - SSE event contract documentation
+  </expected_outputs>
+
+  <activation_conditions>
+    - Before API changes ship
+    - After adding new endpoints
+    - When frontend reports contract violations
+    - Monthly API health check
+  </activation_conditions>
+
+  <run_pattern>
+    1. Extract all route definitions
+    2. Map authentication requirements per endpoint
+    3. Validate request/response model coverage
+    4. Check SSE event schemas
+    5. Output report to /audits/reports/api_contract.report.md
+  </run_pattern>
+</audit_manifest>

@@ -15,12 +15,7 @@ from datetime import UTC, datetime
 # Add project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from bo1.state.postgres_manager import (
-    get_session,
-    get_user_sessions,
-    save_session,
-    update_session_status,
-)
+from bo1.state.repositories import session_repository
 
 
 def test_session_persistence() -> None:
@@ -35,7 +30,7 @@ def test_session_persistence() -> None:
     test_user_id = "test_user_123"
 
     try:
-        result = save_session(
+        result = session_repository.create(
             session_id=test_session_id,
             user_id=test_user_id,
             problem_statement="Test problem: How to verify PostgreSQL persistence?",
@@ -52,7 +47,7 @@ def test_session_persistence() -> None:
     # Test 2: Retrieve the session
     print("\n[TEST 2] Retrieving session from PostgreSQL...")
     try:
-        session = get_session(test_session_id)
+        session = session_repository.get(test_session_id)
         if session:
             print(f"✅ Session retrieved: {session['id']}")
             print(f"   Problem: {session['problem_statement'][:50]}...")
@@ -67,7 +62,7 @@ def test_session_persistence() -> None:
     # Test 3: Update session status
     print("\n[TEST 3] Updating session status...")
     try:
-        updated = update_session_status(
+        updated = session_repository.update_status(
             session_id=test_session_id,
             status="running",
             phase="decomposition",
@@ -76,7 +71,7 @@ def test_session_persistence() -> None:
         if updated:
             print("✅ Session status updated")
             # Verify the update
-            session = get_session(test_session_id)
+            session = session_repository.get(test_session_id)
             if session:
                 print(f"   New status: {session['status']}")
                 print(f"   Phase: {session['phase']}")
@@ -91,7 +86,7 @@ def test_session_persistence() -> None:
     # Test 4: List user sessions
     print("\n[TEST 4] Listing user sessions...")
     try:
-        sessions = get_user_sessions(user_id=test_user_id, limit=10)
+        sessions = session_repository.list_by_user(user_id=test_user_id, limit=10)
         print(f"✅ Found {len(sessions)} sessions for user {test_user_id}")
         for s in sessions:
             print(f"   - {s['id']}: {s['status']} (created: {s['created_at']})")
@@ -102,7 +97,7 @@ def test_session_persistence() -> None:
     # Test 5: Update to completed status with synthesis
     print("\n[TEST 5] Updating session to completed with synthesis...")
     try:
-        updated = update_session_status(
+        updated = session_repository.update_status(
             session_id=test_session_id,
             status="completed",
             total_cost=0.42,
@@ -111,7 +106,7 @@ def test_session_persistence() -> None:
         if updated:
             print("✅ Session marked as completed")
             # Verify the update
-            session = get_session(test_session_id)
+            session = session_repository.get(test_session_id)
             if session:
                 print(f"   Status: {session['status']}")
                 print(f"   Total cost: ${session['total_cost']}")
@@ -126,7 +121,7 @@ def test_session_persistence() -> None:
     # Test 6: Filter sessions by status
     print("\n[TEST 6] Filtering sessions by status...")
     try:
-        completed_sessions = get_user_sessions(
+        completed_sessions = session_repository.list_by_user(
             user_id=test_user_id, limit=10, status_filter="completed"
         )
         print(f"✅ Found {len(completed_sessions)} completed sessions")

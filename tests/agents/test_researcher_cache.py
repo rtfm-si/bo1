@@ -5,11 +5,7 @@ Tests for Day 37: Semantic research cache for external information gaps.
 
 import pytest
 
-from bo1.state.postgres_manager import (
-    find_cached_research,
-    save_research_result,
-    update_research_access,
-)
+from bo1.state.repositories import cache_repository
 
 
 @pytest.mark.integration
@@ -20,7 +16,7 @@ def test_save_research_result_basic():
     embedding = [0.1] * 1024
 
     # Save research result
-    result = save_research_result(
+    result = cache_repository.save(
         question="What is average SaaS churn rate?",
         embedding=embedding,
         summary="Average B2B SaaS churn rate is 5-7% monthly.",
@@ -50,7 +46,7 @@ def test_find_cached_research_by_category():
     # Save a research result
     # Use unique embedding pattern to avoid collision with other tests
     embedding = [0.2 if i % 3 == 0 else 0.3 for i in range(1024)]
-    save_research_result(
+    cache_repository.save(
         question="What is typical SaaS CAC payback period?",
         embedding=embedding,
         summary="Typical SaaS CAC payback is 12-18 months.",
@@ -61,7 +57,7 @@ def test_find_cached_research_by_category():
 
     # Find by category using same embedding pattern
     query_embedding = [0.2 if i % 3 == 0 else 0.3 for i in range(1024)]
-    cached = find_cached_research(
+    cached = cache_repository.find_by_embedding(
         question_embedding=query_embedding,
         category="saas_metrics",
     )
@@ -78,7 +74,7 @@ def test_find_cached_research_by_industry():
     """Test finding cached research by industry."""
     # Save a research result
     embedding = [0.3] * 1024
-    save_research_result(
+    cache_repository.save(
         question="What is average ecommerce conversion rate?",
         embedding=embedding,
         summary="Average ecommerce conversion rate is 2-3%.",
@@ -89,7 +85,7 @@ def test_find_cached_research_by_industry():
 
     # Find by industry
     query_embedding = [0.3] * 1024
-    cached = find_cached_research(
+    cached = cache_repository.find_by_embedding(
         question_embedding=query_embedding,
         industry="ecommerce",
     )
@@ -106,7 +102,7 @@ def test_find_cached_research_no_match():
     query_embedding = [0.4] * 1024
 
     # Find non-existent category
-    cached = find_cached_research(
+    cached = cache_repository.find_by_embedding(
         question_embedding=query_embedding,
         category="non_existent_category",
     )
@@ -126,7 +122,7 @@ def test_find_cached_research_stale_result():
     # Save a research result (will use freshness_days=90 by default)
     # Use unique embedding pattern to avoid collision with other tests
     embedding = [0.5 if i % 2 == 0 else 0.4 for i in range(1024)]
-    save_research_result(
+    cache_repository.save(
         question="What is SaaS magic number?",
         embedding=embedding,
         summary="SaaS magic number measures sales efficiency.",
@@ -138,7 +134,7 @@ def test_find_cached_research_stale_result():
     # Find with max_age_days=1 (only results from last day)
     # Use same embedding pattern
     query_embedding = [0.5 if i % 2 == 0 else 0.4 for i in range(1024)]
-    cached = find_cached_research(
+    cached = cache_repository.find_by_embedding(
         question_embedding=query_embedding,
         category="saas_metrics",
         max_age_days=1,
@@ -155,7 +151,7 @@ def test_update_research_access():
     """Test updating access count for cached research."""
     # Save a research result
     embedding = [0.6] * 1024
-    result = save_research_result(
+    result = cache_repository.save(
         question="What is net revenue retention?",
         embedding=embedding,
         summary="Net revenue retention measures revenue growth from existing customers.",
@@ -166,7 +162,7 @@ def test_update_research_access():
     cache_id = result["id"]
 
     # Update access
-    update_research_access(cache_id)
+    cache_repository.update_access(cache_id)
 
     # Verify access count incremented
     # Note: We can't easily verify this without re-fetching from DB
@@ -179,7 +175,7 @@ def test_find_cached_research_returns_most_recent():
     """Test that most recent result is returned when multiple matches exist."""
     # Save two results in same category
     embedding1 = [0.7] * 1024
-    save_research_result(
+    cache_repository.save(
         question="Old question about pricing",
         embedding=embedding1,
         summary="Old pricing data",
@@ -189,7 +185,7 @@ def test_find_cached_research_returns_most_recent():
 
     # Wait a moment then save newer result
     embedding2 = [0.7] * 1024
-    save_research_result(
+    cache_repository.save(
         question="New question about pricing",
         embedding=embedding2,
         summary="New pricing data",
@@ -199,7 +195,7 @@ def test_find_cached_research_returns_most_recent():
 
     # Find should return most recent
     query_embedding = [0.7] * 1024
-    cached = find_cached_research(
+    cached = cache_repository.find_by_embedding(
         question_embedding=query_embedding,
         category="pricing",
     )
@@ -217,7 +213,7 @@ def test_save_research_result_with_cost_tracking():
     """Test saving research result with cost tracking."""
     embedding = [0.8] * 1024
 
-    result = save_research_result(
+    result = cache_repository.save(
         question="What is average ACV for B2B SaaS?",
         embedding=embedding,
         summary="Average ACV for B2B SaaS is $10-50K.",
@@ -238,7 +234,7 @@ def test_find_cached_research_with_combined_filters():
     """Test finding with both category and industry filters."""
     # Save a result
     embedding = [0.9] * 1024
-    save_research_result(
+    cache_repository.save(
         question="What is SaaS gross margin benchmark?",
         embedding=embedding,
         summary="Typical SaaS gross margin is 70-80%.",
@@ -249,7 +245,7 @@ def test_find_cached_research_with_combined_filters():
 
     # Find with both filters
     query_embedding = [0.9] * 1024
-    cached = find_cached_research(
+    cached = cache_repository.find_by_embedding(
         question_embedding=query_embedding,
         category="saas_metrics",
         industry="saas",

@@ -24,12 +24,12 @@ def upgrade() -> None:
     - votes: Never written to; code uses in-memory state for recommendations
     - schema_migrations: Legacy migration tracker; now using Alembic
     """
-    # Drop votes table (has FK to sessions and personas, but nothing references it)
-    op.drop_index("idx_votes_session_id", table_name="votes", if_exists=True)
-    op.drop_table("votes")
+    # Drop votes table if exists (has FK to sessions and personas, but nothing references it)
+    op.execute("DROP INDEX IF EXISTS idx_votes_session_id")
+    op.execute("DROP TABLE IF EXISTS votes")
 
-    # Drop legacy schema_migrations table
-    op.drop_table("schema_migrations")
+    # Drop legacy schema_migrations table if exists
+    op.execute("DROP TABLE IF EXISTS schema_migrations")
 
 
 def downgrade() -> None:

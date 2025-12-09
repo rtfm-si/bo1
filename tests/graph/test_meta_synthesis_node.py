@@ -41,7 +41,7 @@ def mock_broker_success():
         mock_instance = MagicMock()
         mock_response = LLMResponse(
             content=json_response,
-            model="claude-sonnet-4-20250514",
+            model="sonnet",  # Use alias
             token_usage=TokenUsage(input_tokens=500, output_tokens=200),
             duration_ms=2000,
         )
@@ -58,7 +58,7 @@ def mock_broker_invalid_json():
         mock_instance = MagicMock()
         mock_response = LLMResponse(
             content="This is plain text, not JSON at all...",
-            model="claude-sonnet-4-20250514",
+            model="sonnet",  # Use alias
             token_usage=TokenUsage(input_tokens=500, output_tokens=100),
             duration_ms=1500,
         )

@@ -23,7 +23,12 @@ class CreateSessionRequest(BaseModel):
         ...,
         min_length=10,
         max_length=10000,
-        description="Strategic question for deliberation",
+        description=(
+            "Strategic question for deliberation. "
+            "Security: Input is validated against injection patterns. "
+            "Rejected: <script> tags (XSS), SQL injection patterns "
+            "(DROP TABLE, DELETE FROM, UNION SELECT, etc.)."
+        ),
         examples=["Should we invest $500K in expanding to the European market?"],
     )
     problem_context: dict[str, Any] | None = Field(

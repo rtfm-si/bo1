@@ -36,7 +36,7 @@ from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
-from bo1.security import check_for_injection
+from bo1.security import check_for_injection, sanitize_for_prompt
 from bo1.state.redis_manager import RedisManager
 from bo1.state.repositories.session_repository import session_repository
 from bo1.state.repositories.user_repository import user_repository
@@ -58,6 +58,24 @@ router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
         400: {
             "description": "Invalid request",
             "model": ErrorResponse,
+        },
+        422: {
+            "description": "Validation error (injection pattern detected)",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "xss_rejected": {
+                            "summary": "XSS attempt rejected",
+                            "value": {"detail": "Problem statement cannot contain script tags"},
+                        },
+                        "sql_injection_rejected": {
+                            "summary": "SQL injection rejected",
+                            "value": {"detail": "Problem statement contains invalid SQL patterns"},
+                        },
+                    }
+                }
+            },
         },
         429: {
             "description": "Rate limit exceeded",
@@ -122,6 +140,10 @@ async def create_session(
             raise_on_unsafe=True,
         )
 
+        # Sanitize problem statement for safe prompt interpolation
+        # Escapes XML-like tags to prevent prompt structure manipulation
+        sanitized_problem = sanitize_for_prompt(session_request.problem_statement)
+
         # Generate session ID
         session_id = redis_manager.create_session()
 
@@ -174,7 +196,7 @@ async def create_session(
             "user_id": user_id,  # SECURITY: Track session ownership
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
-            "problem_statement": session_request.problem_statement,
+            "problem_statement": sanitized_problem,
             "problem_context": merged_context,
         }
 
@@ -202,7 +224,7 @@ async def create_session(
             session_repository.create(
                 session_id=session_id,
                 user_id=user_id,
-                problem_statement=session_request.problem_statement,
+                problem_statement=sanitized_problem,
                 problem_context=merged_context if merged_context else None,
                 status="created",
             )
@@ -232,7 +254,7 @@ async def create_session(
             phase=None,
             created_at=now,
             updated_at=now,
-            problem_statement=truncate_text(session_request.problem_statement),
+            problem_statement=truncate_text(sanitized_problem),
             cost=None,
         )
 

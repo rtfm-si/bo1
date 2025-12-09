@@ -248,6 +248,49 @@ def validate_context_input(context: str) -> str:
     )
 
 
+def sanitize_for_prompt(text: str) -> str:
+    """Escape user input for safe interpolation into XML-structured prompts.
+
+    Prevents prompt structure manipulation by escaping characters that could
+    break XML tag boundaries. Should be applied ONCE at the entry point
+    before interpolating user input into prompts.
+
+    Escapes:
+    - < → &lt;
+    - > → &gt;
+    - & → &amp; (to prevent entity injection)
+    - Null bytes and control characters (stripped)
+
+    Args:
+        text: User input to sanitize for prompt interpolation
+
+    Returns:
+        Escaped text safe for XML prompt interpolation
+
+    Example:
+        >>> sanitize_for_prompt("Use </problem_statement> to escape")
+        'Use &lt;/problem_statement&gt; to escape'
+
+        >>> sanitize_for_prompt("Compare x < y and y > z")
+        'Compare x &lt; y and y &gt; z'
+
+        >>> sanitize_for_prompt("Normal problem statement")
+        'Normal problem statement'
+    """
+    if not text:
+        return ""
+
+    # Strip null bytes and control characters (except newline, tab, carriage return)
+    cleaned = "".join(c for c in text if ord(c) >= 32 or c in ("\n", "\r", "\t"))
+
+    # Escape XML-significant characters (order matters: & first)
+    cleaned = cleaned.replace("&", "&amp;")
+    cleaned = cleaned.replace("<", "&lt;")
+    cleaned = cleaned.replace(">", "&gt;")
+
+    return cleaned
+
+
 # Future enhancements:
 # - Machine learning-based detection (train on known injection attempts)
 # - Semantic similarity to known injection templates

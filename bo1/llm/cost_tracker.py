@@ -318,6 +318,37 @@ class CostTracker:
         return TAVILY_PRICING.get(search_type, TAVILY_PRICING["basic_search"])
 
     @staticmethod
+    def _emit_cache_metrics(record: CostRecord) -> None:
+        """Emit cache hit/miss metrics for monitoring (P1: prompt cache monitoring).
+
+        Args:
+            record: CostRecord with cache token info
+        """
+        try:
+            from backend.api.metrics import metrics
+
+            # Track cache hits/misses
+            if record.cache_hit:
+                metrics.increment("llm.cache.hits")
+                # Track tokens saved from cache
+                if record.cache_read_tokens > 0:
+                    metrics.observe("llm.cache.tokens_saved", float(record.cache_read_tokens))
+                # Track cost saved (difference vs without cache)
+                if (
+                    record.cost_without_optimization
+                    and record.total_cost < record.cost_without_optimization
+                ):
+                    cost_saved = record.cost_without_optimization - record.total_cost
+                    metrics.observe("llm.cache.cost_saved", cost_saved)
+            else:
+                metrics.increment("llm.cache.misses")
+        except ImportError:
+            # Metrics not available (e.g., in CLI mode)
+            pass
+        except Exception as e:
+            logger.debug(f"Failed to emit cache metrics: {e}")
+
+    @staticmethod
     def log_cost(record: CostRecord) -> str:
         """Persist cost record to database.
 
@@ -521,6 +552,9 @@ class CostTracker:
             record.output_cost = max(0.0, record.output_cost)
             record.cache_write_cost = max(0.0, record.cache_write_cost)
             record.cache_read_cost = max(0.0, record.cache_read_cost)
+
+            # Emit cache metrics (P1: prompt cache monitoring)
+            CostTracker._emit_cache_metrics(record)
 
             # Log to database
             CostTracker.log_cost(record)

@@ -8,6 +8,7 @@ import logging
 import re
 from typing import Any
 
+from bo1.constants import TokenLimits
 from bo1.graph.state import DeliberationGraphState
 from bo1.models.recommendations import Recommendation
 from bo1.utils.confidence_parser import (
@@ -19,6 +20,13 @@ from bo1.utils.extraction import ResponseExtractor
 from bo1.utils.xml_parsing import extract_xml_tag
 
 logger = logging.getLogger(__name__)
+
+# Valid facilitator actions (duplicated here to avoid circular import)
+# Canonical definition is in bo1.agents.facilitator.VALID_FACILITATOR_ACTIONS
+VALID_FACILITATOR_ACTIONS: set[str] = {"continue", "vote", "research", "moderator", "clarify"}
+
+# Metrics tracking for facilitator action parsing
+_facilitator_parse_stats = {"success": 0, "fallback": 0}
 
 
 class ResponseParser:
@@ -236,6 +244,9 @@ class ResponseParser:
         """Parse facilitator decision from response content.
 
         This extracts the decision action and associated parameters.
+        Uses a two-step approach:
+        1. Try extracting from <action> or <decision> XML tags (more reliable)
+        2. Fall back to keyword matching if no valid XML tag found
 
         Args:
             content: LLM response content
@@ -254,25 +265,54 @@ class ResponseParser:
             - clarification_question: str | None (for "clarify")
             - clarification_reason: str | None (for "clarify")
         """
-        content_lower = content.lower()
+        action: str | None = None
+        used_fallback = False
 
-        # Detect action type
-        if "option a" in content_lower or "continue discussion" in content_lower:
+        # Step 1: Try XML tag extraction first (more reliable)
+        for tag_name in ["action", "decision"]:
+            extracted = extract_xml_tag(content, tag_name)
+            if extracted:
+                normalized = extracted.lower().strip()
+                if normalized in VALID_FACILITATOR_ACTIONS:
+                    action = normalized
+                    break
+
+        # Step 2: Fall back to keyword matching if XML extraction failed
+        if action is None:
+            content_lower = content.lower()
+            used_fallback = True
+
+            if "option a" in content_lower or "continue discussion" in content_lower:
+                action = "continue"
+            elif (
+                "option b" in content_lower
+                or "transition" in content_lower
+                or "vote" in content_lower
+            ):
+                action = "vote"
+            elif "option c" in content_lower or "research" in content_lower:
+                action = "research"
+            elif "option d" in content_lower or "moderator" in content_lower:
+                action = "moderator"
+            elif "option e" in content_lower or "clarif" in content_lower:
+                action = "clarify"
+
+        # Step 3: Validate and default if still no valid action
+        if action is None or action not in VALID_FACILITATOR_ACTIONS:
+            _facilitator_parse_stats["fallback"] += 1
+            session_id = state.get("session_id", "unknown")
+            logger.warning(
+                f"Facilitator action parse failed. "
+                f"session_id={session_id}, "
+                f"content_preview={content[:150]!r}..., "
+                f"defaulting to 'continue'"
+            )
             action = "continue"
-        elif (
-            "option b" in content_lower or "transition" in content_lower or "vote" in content_lower
-        ):
-            action = "vote"
-        elif "option c" in content_lower or "research" in content_lower:
-            action = "research"
-        elif "option d" in content_lower or "moderator" in content_lower:
-            action = "moderator"
-        elif "option e" in content_lower or "clarif" in content_lower:
-            action = "clarify"
         else:
-            # Default to continue if unclear
-            logger.warning("Could not parse facilitator action clearly, defaulting to 'continue'")
-            action = "continue"
+            if used_fallback:
+                _facilitator_parse_stats["fallback"] += 1
+            else:
+                _facilitator_parse_stats["success"] += 1
 
         # Extract reasoning
         reasoning = extract_xml_tag(content, "thinking") or content[:500]
@@ -420,11 +460,22 @@ class ResponseParser:
 
         # Pattern 4: Insufficient substance (too short to be meaningful)
         word_count = len(content.split())
-        if word_count < 20:
+        if word_count < TokenLimits.MIN_CONTRIBUTION_WORDS:
             logger.warning(
                 f"Malformed response from {persona_name}: Too short ({word_count} words)"
             )
             return False, f"Insufficient substance: only {word_count} words"
+
+        # Pattern 4b: Overlength contribution (exceeds word limit)
+        if word_count > TokenLimits.MAX_CONTRIBUTION_WORDS:
+            logger.warning(
+                f"Overlength response from {persona_name}: {word_count} words "
+                f"(max {TokenLimits.MAX_CONTRIBUTION_WORDS})"
+            )
+            return (
+                False,
+                f"Overlength: {word_count} words, max {TokenLimits.MAX_CONTRIBUTION_WORDS}",
+            )
 
         # Pattern 5: Starting with defensive language
         defensive_starts = [
@@ -445,6 +496,51 @@ class ResponseParser:
 
         # All checks passed
         return True, ""
+
+    @staticmethod
+    def truncate_contribution(
+        content: str, max_words: int = TokenLimits.MAX_CONTRIBUTION_WORDS
+    ) -> str:
+        """Truncate contribution to max word count, preferring sentence boundaries.
+
+        Args:
+            content: The contribution content to truncate
+            max_words: Maximum allowed words (default: TokenLimits.MAX_CONTRIBUTION_WORDS)
+
+        Returns:
+            Truncated content with [truncated] marker if shortened
+
+        Example:
+            >>> long_text = "Word " * 400
+            >>> result = ResponseParser.truncate_contribution(long_text, max_words=300)
+            >>> len(result.split()) <= 301  # 300 words + [truncated] marker
+            True
+        """
+        words = content.split()
+        if len(words) <= max_words:
+            return content
+
+        # Take first max_words
+        truncated_words = words[:max_words]
+        truncated_text = " ".join(truncated_words)
+
+        # Try to find last sentence boundary within truncated text
+        sentence_endings = [". ", "! ", "? ", ".\n", "!\n", "?\n"]
+        last_boundary = -1
+        for ending in sentence_endings:
+            pos = truncated_text.rfind(ending)
+            if pos > last_boundary:
+                last_boundary = pos + len(ending) - 1  # Include the punctuation
+
+        # Use sentence boundary if it preserves at least 50% of content
+        min_preserve = max_words // 2
+        if last_boundary > 0:
+            boundary_text = truncated_text[: last_boundary + 1].strip()
+            if len(boundary_text.split()) >= min_preserve:
+                return f"{boundary_text} [truncated]"
+
+        # Fall back to word boundary
+        return f"{truncated_text} [truncated]"
 
 
 def extract_json_from_response(text: str) -> dict[str, Any]:

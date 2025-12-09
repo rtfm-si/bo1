@@ -20,6 +20,7 @@ from bo1.security.prompt_injection import (
 from bo1.security.prompt_validation import (
     PromptInjectionError,
     detect_prompt_injection,
+    sanitize_for_prompt,
     sanitize_user_input,
     validate_context_input,
     validate_problem_statement,
@@ -29,6 +30,7 @@ __all__ = [
     # Pattern-based (fast, sync)
     "detect_prompt_injection",
     "sanitize_user_input",
+    "sanitize_for_prompt",
     "validate_problem_statement",
     "validate_context_input",
     "PromptInjectionError",

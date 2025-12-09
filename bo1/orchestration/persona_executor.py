@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any
 
 from bo1.config import MODEL_BY_ROLE, resolve_model_alias
+from bo1.constants import TokenLimits
 from bo1.graph.state import DeliberationGraphState
 from bo1.llm.broker import PromptBroker, PromptRequest, get_model_for_phase
 from bo1.llm.client import ClaudeClient
@@ -139,6 +140,22 @@ class PersonaExecutor:
             )
             token_usage = retry_token_usage
 
+        # Check for overlength contribution
+        word_count = len(contribution.split())
+        if word_count > TokenLimits.MAX_CONTRIBUTION_WORDS:
+            logger.warning(
+                f"⚠️ Overlength contribution from {persona_profile.display_name}: "
+                f"{word_count} words (max {TokenLimits.MAX_CONTRIBUTION_WORDS})"
+            )
+            # Truncate at sentence boundary (cheaper than retry)
+            contribution = ResponseParser.truncate_contribution(
+                contribution, TokenLimits.MAX_CONTRIBUTION_WORDS
+            )
+            logger.info(
+                f"Truncated {persona_profile.display_name} contribution to "
+                f"{len(contribution.split())} words"
+            )
+
         # Calculate cost
         cost = token_usage.calculate_cost(self.model_name)
 
@@ -152,6 +169,7 @@ class PersonaExecutor:
             round_number=round_number,
             token_count=token_usage.total_tokens,
             cost=cost,
+            model=self.model_id,  # Track which model was used
         )
 
         # Create LLM response for metrics tracking

@@ -16,6 +16,7 @@ from bo1.models.state import (
     ContributionMessage,
     ContributionType,
     DeliberationMetrics,
+    DeliberationPhaseType,
 )
 
 # ============================================================================
@@ -483,3 +484,160 @@ def test_models_reject_incompatible_types():
             cost=None,
             round_number=0,
         )
+
+
+@pytest.mark.unit
+def test_contribution_message_new_fields_optional():
+    """Test: New DB-aligned fields are optional with None defaults."""
+    # Create with only original required fields
+    contribution = ContributionMessage(
+        persona_code="test",
+        persona_name="Test Persona",
+        content="Test content",
+        round_number=1,
+    )
+
+    # New fields should default to None
+    assert contribution.id is None
+    assert contribution.session_id is None
+    assert contribution.model is None
+    assert contribution.phase is None
+    assert contribution.embedding is None
+
+
+@pytest.mark.unit
+def test_contribution_message_new_fields_set():
+    """Test: New DB-aligned fields can be set."""
+    contribution = ContributionMessage(
+        persona_code="ceo",
+        persona_name="CEO",
+        content="Strategic analysis...",
+        round_number=2,
+        id=42,
+        session_id="bo1_test123",
+        model="claude-sonnet-4-20250514",
+        phase=DeliberationPhaseType.EXPLORATION,
+        embedding=[0.1, 0.2, 0.3],
+    )
+
+    assert contribution.id == 42
+    assert contribution.session_id == "bo1_test123"
+    assert contribution.model == "claude-sonnet-4-20250514"
+    assert contribution.phase == DeliberationPhaseType.EXPLORATION
+    assert contribution.embedding == [0.1, 0.2, 0.3]
+
+
+@pytest.mark.unit
+def test_contribution_message_from_db_row():
+    """Test: from_db_row() factory converts DB dict correctly."""
+    from datetime import datetime
+
+    db_row = {
+        "id": 123,
+        "session_id": "bo1_abc",
+        "persona_code": "cfo",
+        "content": "Financial analysis...",
+        "round_number": 3,
+        "phase": "challenge",
+        "cost": 0.0025,
+        "tokens": 150,
+        "model": "claude-haiku-3-5-20241022",
+        "created_at": datetime(2025, 1, 15, 10, 30),
+    }
+
+    msg = ContributionMessage.from_db_row(db_row)
+
+    assert msg.id == 123
+    assert msg.session_id == "bo1_abc"
+    assert msg.persona_code == "cfo"
+    assert msg.persona_name == "cfo"  # Falls back to persona_code
+    assert msg.content == "Financial analysis..."
+    assert msg.round_number == 3
+    assert msg.phase == DeliberationPhaseType.CHALLENGE
+    assert msg.cost == 0.0025
+    assert msg.token_count == 150  # Maps from 'tokens' to 'token_count'
+    assert msg.model == "claude-haiku-3-5-20241022"
+    assert msg.timestamp == datetime(2025, 1, 15, 10, 30)
+
+
+@pytest.mark.unit
+def test_contribution_message_embedding_excluded_from_dump():
+    """Test: embedding field excluded from model_dump() by default."""
+    contribution = ContributionMessage(
+        persona_code="test",
+        persona_name="Test",
+        content="Content",
+        round_number=1,
+        embedding=[0.1] * 1024,  # Large vector
+    )
+
+    dumped = contribution.model_dump()
+    assert "embedding" not in dumped
+
+
+@pytest.mark.unit
+def test_contribution_message_phase_enum_values():
+    """Test: phase field accepts all DeliberationPhaseType enum values."""
+    for phase in DeliberationPhaseType:
+        contribution = ContributionMessage(
+            persona_code="test",
+            persona_name="Test",
+            content="Content",
+            round_number=1,
+            phase=phase,
+        )
+        assert contribution.phase == phase
+
+
+@pytest.mark.unit
+def test_contribution_message_phase_string_still_works():
+    """Test: phase field still accepts string for backward compatibility."""
+    contribution = ContributionMessage(
+        persona_code="test",
+        persona_name="Test",
+        content="Content",
+        round_number=1,
+        phase="exploration",  # String value
+    )
+    assert contribution.phase == "exploration"
+
+
+@pytest.mark.unit
+def test_contribution_message_from_db_row_converts_phase_to_enum():
+    """Test: from_db_row converts phase string to enum."""
+    db_row = {
+        "id": 1,
+        "session_id": "bo1_test",
+        "persona_code": "ceo",
+        "content": "Test",
+        "round_number": 1,
+        "phase": "convergence",
+        "cost": 0.001,
+        "tokens": 100,
+        "model": "test-model",
+        "created_at": datetime.now(),
+    }
+
+    msg = ContributionMessage.from_db_row(db_row)
+    assert msg.phase == DeliberationPhaseType.CONVERGENCE
+    assert isinstance(msg.phase, DeliberationPhaseType)
+
+
+@pytest.mark.unit
+def test_contribution_message_from_db_row_handles_invalid_phase():
+    """Test: from_db_row handles invalid phase gracefully."""
+    db_row = {
+        "id": 1,
+        "session_id": "bo1_test",
+        "persona_code": "ceo",
+        "content": "Test",
+        "round_number": 1,
+        "phase": "invalid_phase",  # Not a valid enum value
+        "cost": 0.001,
+        "tokens": 100,
+        "model": "test-model",
+        "created_at": datetime.now(),
+    }
+
+    msg = ContributionMessage.from_db_row(db_row)
+    assert msg.phase is None  # Falls back to None for invalid values

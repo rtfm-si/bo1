@@ -39,6 +39,15 @@ class MetricsCollector:
         """
         self.counters[name] = self.counters.get(name, 0) + value
 
+    def decrement(self, name: str, value: int = 1) -> None:
+        """Decrement a counter metric.
+
+        Args:
+            name: Metric name (e.g., 'sse.connections.active')
+            value: Amount to decrement (default: 1)
+        """
+        self.counters[name] = self.counters.get(name, 0) - value
+
     def observe(self, name: str, value: float) -> None:
         """Record a histogram observation.
 
@@ -77,6 +86,30 @@ class MetricsCollector:
             "histograms": {
                 name: self._histogram_stats(values) for name, values in self.histograms.items()
             },
+            "cache": self._get_cache_stats(),
+        }
+
+    def _get_cache_stats(self) -> dict[str, float]:
+        """Calculate LLM cache statistics (P1: prompt cache monitoring).
+
+        Returns:
+            Dictionary with cache hits, misses, hit_rate, tokens_saved, cost_saved
+        """
+        hits = self.counters.get("llm.cache.hits", 0)
+        misses = self.counters.get("llm.cache.misses", 0)
+        total = hits + misses
+
+        # Get histogram summaries for tokens and cost saved
+        tokens_saved_hist = self.histograms.get("llm.cache.tokens_saved", [])
+        cost_saved_hist = self.histograms.get("llm.cache.cost_saved", [])
+
+        return {
+            "hits": hits,
+            "misses": misses,
+            "total_calls": total,
+            "hit_rate": hits / total if total > 0 else 0.0,
+            "tokens_saved": sum(tokens_saved_hist) if tokens_saved_hist else 0.0,
+            "cost_saved": sum(cost_saved_hist) if cost_saved_hist else 0.0,
         }
 
     def _histogram_stats(self, values: list[float]) -> dict[str, float]:

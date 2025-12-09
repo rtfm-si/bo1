@@ -33,6 +33,7 @@ from bo1.graph.state import create_initial_state
 from bo1.models.problem import Problem
 from bo1.security import check_for_injection
 from bo1.state.database import db_session
+from bo1.state.redis_lock import LockTimeout, session_lock
 from bo1.state.redis_manager import RedisManager
 from bo1.state.repositories import session_repository
 
@@ -562,7 +563,12 @@ async def start_deliberation(
             "configurable": {"thread_id": session_id},
             "recursion_limit": DELIBERATION_RECURSION_LIMIT,
         }
-        coro = event_collector.collect_and_publish(session_id, graph, state, config)
+        # Extract request_id for correlation tracing
+        request_id = getattr(request.state, "request_id", None)
+
+        coro = event_collector.collect_and_publish(
+            session_id, graph, state, config, request_id=request_id
+        )
 
         # Start background task
         await session_manager.start_session(session_id, user_id, coro)
@@ -574,12 +580,16 @@ async def start_deliberation(
 
         asyncio.create_task(notify_meeting_started(session_id, problem_statement))
 
-        # Update session status to 'running' in PostgreSQL
+        # Update session status to 'running' in PostgreSQL (with distributed lock)
         try:
-            session_repository.update_status(session_id=session_id, status="running")
-            logger.info(
-                f"Started deliberation for session {session_id} (status updated in PostgreSQL)"
-            )
+            with session_lock(redis_manager.redis, session_id, timeout_seconds=5.0):
+                session_repository.update_status(session_id=session_id, status="running")
+                logger.info(
+                    f"Started deliberation for session {session_id} (status updated in PostgreSQL)"
+                )
+        except LockTimeout:
+            logger.warning(f"Could not acquire lock for session {session_id} status update")
+            # Don't fail - session is running, status update is secondary
         except Exception as e:
             logger.error(f"Failed to update session status in PostgreSQL: {e}")
             # Don't fail the request - session is running in Redis
@@ -593,6 +603,12 @@ async def start_deliberation(
 
     except HTTPException:
         raise
+    except LockTimeout as e:
+        logger.warning(f"Lock timeout starting session {session_id}: {e}")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Session {session_id} is being modified by another request",
+        ) from e
     except Exception as e:
         logger.error(f"Failed to start deliberation for session {session_id}: {e}")
         raise HTTPException(
@@ -683,6 +699,7 @@ async def pause_deliberation(
 )
 @handle_api_errors("resume deliberation")
 async def resume_deliberation(
+    request: Request,
     session_id: str,
     session_data: VerifiedSession,
     session_manager: SessionManager = Depends(get_session_manager),
@@ -693,6 +710,7 @@ async def resume_deliberation(
     Loads the checkpoint from Redis and continues graph execution.
 
     Args:
+        request: FastAPI request object
         session_id: Session identifier
         session_data: Verified session (user_id, metadata) from dependency
         session_manager: Session manager instance
@@ -871,8 +889,9 @@ async def resume_deliberation(
 
                     # Start with reconstructed state (will re-run from entry point)
                     # This is fallback - not ideal but better than failing
+                    request_id = getattr(request.state, "request_id", None)
                     coro = event_collector.collect_and_publish(
-                        session_id, graph, reconstructed, config
+                        session_id, graph, reconstructed, config, request_id=request_id
                     )
 
                     # Clear the pending flag and start session
@@ -908,10 +927,16 @@ async def resume_deliberation(
 
             # Resume from checkpoint (None = use checkpoint, don't restart from entry)
             # The graph will resume from the edge AFTER identify_gaps
-            coro = event_collector.collect_and_publish(session_id, graph, None, config)
+            request_id = getattr(request.state, "request_id", None)
+            coro = event_collector.collect_and_publish(
+                session_id, graph, None, config, request_id=request_id
+            )
         else:
             # Normal resume from checkpoint (no clarification answers)
-            coro = event_collector.collect_and_publish(session_id, graph, None, config)
+            request_id = getattr(request.state, "request_id", None)
+            coro = event_collector.collect_and_publish(
+                session_id, graph, None, config, request_id=request_id
+            )
 
         # Start background task
         await session_manager.start_session(session_id, user_id, coro)
@@ -962,6 +987,7 @@ async def kill_deliberation(
     session_id: str,
     kill_request: KillRequest | None = None,
     user: dict[str, Any] = Depends(get_current_user),
+    redis_manager: RedisManager = Depends(get_redis_manager),
 ) -> ControlResponse:
     """Kill a running deliberation (user must own the session).
 
@@ -972,6 +998,7 @@ async def kill_deliberation(
         session_id: Session identifier
         kill_request: Optional kill request with reason
         user: Authenticated user data
+        redis_manager: Redis manager instance
 
     Returns:
         ControlResponse with kill confirmation
@@ -999,12 +1026,16 @@ async def kill_deliberation(
                 detail=f"Session not found or not running: {session_id}",
             )
 
-        # Update session status to 'killed' in PostgreSQL
+        # Update session status to 'killed' in PostgreSQL (with distributed lock)
         try:
-            session_repository.update_status(session_id=session_id, status="killed")
-            logger.info(
-                f"Killed deliberation for session {session_id}. Reason: {reason} (status updated in PostgreSQL)"
-            )
+            with session_lock(redis_manager.redis, session_id, timeout_seconds=5.0):
+                session_repository.update_status(session_id=session_id, status="killed")
+                logger.info(
+                    f"Killed deliberation for session {session_id}. Reason: {reason} (status updated in PostgreSQL)"
+                )
+        except LockTimeout:
+            logger.warning(f"Could not acquire lock for session {session_id} killed status update")
+            # Don't fail - session is already killed, status update is secondary
         except Exception as e:
             logger.error(f"Failed to update killed session status in PostgreSQL: {e}")
             # Don't fail the request - session is already killed

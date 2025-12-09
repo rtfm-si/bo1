@@ -16,6 +16,7 @@ from typing import Any
 import redis
 
 from backend.api.metrics import metrics
+from bo1.context import get_request_id
 from bo1.state.repositories import session_repository
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,168 @@ FAILED_EVENTS_KEY = "failed_events:queue"
 FAILED_EVENTS_DLQ_KEY = "failed_events:dlq"
 MAX_RETRIES = 5
 RETRY_DELAYS = [60, 120, 300, 600, 1800]  # 1min, 2min, 5min, 10min, 30min
+
+# Semaphore to limit concurrent event persistence tasks
+# Set below pool max (20) to leave headroom for other operations
+PERSIST_SEMAPHORE_LIMIT = 15
+_persist_semaphore: asyncio.Semaphore | None = None
+
+# Batch persistence configuration
+BATCH_FLUSH_INTERVAL_MS = 100  # Flush every 100ms
+BATCH_MAX_SIZE = 10  # Flush when buffer reaches 10 events
+BATCH_MAX_BUFFER = 100  # Cap buffer to prevent unbounded growth
+
+# Batch persistence state
+_batch_buffer: list[tuple[str, str, int, dict[str, Any]]] = []
+_batch_lock: asyncio.Lock | None = None
+_batch_flush_task: asyncio.Task[None] | None = None
+
+
+def _get_persist_semaphore() -> asyncio.Semaphore:
+    """Get or create the persistence semaphore.
+
+    Lazy initialization to avoid issues with event loop not running at import time.
+    """
+    global _persist_semaphore
+    if _persist_semaphore is None:
+        _persist_semaphore = asyncio.Semaphore(PERSIST_SEMAPHORE_LIMIT)
+    return _persist_semaphore
+
+
+def _get_batch_lock() -> asyncio.Lock:
+    """Get or create the batch buffer lock."""
+    global _batch_lock
+    if _batch_lock is None:
+        _batch_lock = asyncio.Lock()
+    return _batch_lock
+
+
+async def _flush_batch() -> None:
+    """Flush pending events to PostgreSQL using batch insert.
+
+    Called periodically or when buffer reaches threshold.
+    Falls back to individual inserts on batch failure.
+    """
+    global _batch_buffer
+    lock = _get_batch_lock()
+
+    async with lock:
+        if not _batch_buffer:
+            return
+
+        events_to_flush = _batch_buffer.copy()
+        _batch_buffer = []
+
+    if not events_to_flush:
+        return
+
+    flush_start = time.perf_counter()
+    try:
+        count = session_repository.save_events_batch(events_to_flush)
+        flush_ms = (time.perf_counter() - flush_start) * 1000
+        metrics.observe("event.batch_persist_ms", flush_ms)
+        metrics.increment("event.batch_persisted", count)
+        logger.debug(f"Batch persisted {count} events in {flush_ms:.1f}ms")
+    except Exception as e:
+        logger.warning(f"Batch persist failed, falling back to individual: {e}")
+        # Fallback to individual inserts
+        for sid, etype, seq, data in events_to_flush:
+            try:
+                session_repository.save_event(sid, etype, seq, data)
+            except Exception as ind_error:
+                logger.error(f"Individual persist failed for {etype}: {ind_error}")
+                metrics.increment("event.persist_failed")
+
+
+async def _batch_flush_loop() -> None:
+    """Background loop that flushes batch buffer periodically."""
+    while True:
+        await asyncio.sleep(BATCH_FLUSH_INTERVAL_MS / 1000.0)
+        try:
+            await _flush_batch()
+        except Exception as e:
+            logger.error(f"Batch flush loop error: {e}")
+
+
+def start_batch_flush_task() -> None:
+    """Start the background batch flush task if not already running."""
+    global _batch_flush_task
+    if _batch_flush_task is None or _batch_flush_task.done():
+        try:
+            _batch_flush_task = asyncio.create_task(_batch_flush_loop())
+            logger.info("Started batch event persistence task")
+        except RuntimeError:
+            # No event loop
+            pass
+
+
+def stop_batch_flush_task() -> None:
+    """Stop the background batch flush task."""
+    global _batch_flush_task
+    if _batch_flush_task and not _batch_flush_task.done():
+        _batch_flush_task.cancel()
+        _batch_flush_task = None
+
+
+async def add_to_batch(
+    session_id: str,
+    event_type: str,
+    sequence: int,
+    data: dict[str, Any],
+) -> None:
+    """Add an event to the batch buffer for deferred persistence.
+
+    Triggers immediate flush if buffer reaches threshold.
+
+    Args:
+        session_id: Session identifier
+        event_type: Event type
+        sequence: Event sequence number
+        data: Event payload
+    """
+    global _batch_buffer
+    lock = _get_batch_lock()
+
+    async with lock:
+        if len(_batch_buffer) >= BATCH_MAX_BUFFER:
+            # Cap reached, drop oldest to prevent unbounded growth
+            logger.warning("Batch buffer full, dropping oldest event")
+            _batch_buffer.pop(0)
+
+        _batch_buffer.append((session_id, event_type, sequence, data))
+        should_flush = len(_batch_buffer) >= BATCH_MAX_SIZE
+
+    if should_flush:
+        await _flush_batch()
+
+
+async def flush_session_events(session_id: str) -> None:
+    """Flush all pending events for a specific session.
+
+    Call this when a session completes to ensure all events are persisted.
+
+    Args:
+        session_id: Session identifier to flush events for
+    """
+    global _batch_buffer
+    lock = _get_batch_lock()
+
+    async with lock:
+        session_events = [e for e in _batch_buffer if e[0] == session_id]
+        _batch_buffer = [e for e in _batch_buffer if e[0] != session_id]
+
+    if session_events:
+        try:
+            session_repository.save_events_batch(session_events)
+            logger.debug(f"Flushed {len(session_events)} events for session {session_id}")
+        except Exception as e:
+            logger.error(f"Failed to flush session events: {e}")
+            # Fallback to individual
+            for sid, etype, seq, data in session_events:
+                try:
+                    session_repository.save_event(sid, etype, seq, data)
+                except Exception as fallback_err:
+                    logger.warning(f"Failed to save event {etype} for {sid}: {fallback_err}")
 
 
 async def queue_failed_event(
@@ -252,6 +415,23 @@ async def get_dlq_depth(redis_client: redis.Redis) -> int:  # type: ignore[type-
         return -1
 
 
+async def _persist_event_with_semaphore(
+    redis_client: redis.Redis,  # type: ignore[type-arg]
+    session_id: str,
+    event_type: str,
+    sequence: int,
+    payload: dict[str, Any],
+    channel: str,
+) -> None:
+    """Wrapper that acquires semaphore before persisting event.
+
+    Limits concurrent persistence tasks to prevent pool exhaustion.
+    """
+    semaphore = _get_persist_semaphore()
+    async with semaphore:
+        await _persist_event_async(redis_client, session_id, event_type, sequence, payload, channel)
+
+
 async def _persist_event_async(
     redis_client: redis.Redis,  # type: ignore[type-arg]
     session_id: str,
@@ -422,14 +602,18 @@ class EventPublisher:
         self._sequence_counters[session_id] += 1
         sequence = self._sequence_counters[session_id]
 
-        # Add timestamp and session_id to all events
+        # Add timestamp, session_id, sequence, and request_id to all events
         timestamp = datetime.now(UTC).isoformat()
+        request_id = get_request_id()
         payload = {
             "event_type": event_type,
             "session_id": session_id,
+            "sequence": sequence,
             "timestamp": timestamp,
             "data": data,
         }
+        if request_id:
+            payload["request_id"] = request_id
 
         # P2-005: Track event publish timing
         publish_start = time.perf_counter()
@@ -456,9 +640,10 @@ class EventPublisher:
             # Events are immediately available in Redis for SSE streaming.
             # PostgreSQL persistence runs in background to avoid blocking.
             # CRITICAL: Events MUST be persisted for meeting replay.
+            # Uses semaphore to limit concurrent tasks and prevent pool exhaustion.
             try:
                 asyncio.create_task(
-                    _persist_event_async(
+                    _persist_event_with_semaphore(
                         redis_client=self.redis,
                         session_id=session_id,
                         event_type=event_type,

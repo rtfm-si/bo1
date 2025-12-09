@@ -106,6 +106,12 @@ class TokenLimits:
     SNIPPET_MAX_LENGTH = 300
     """Maximum length for extracted snippets"""
 
+    MAX_CONTRIBUTION_WORDS = 300
+    """Maximum words per contribution (truncate/retry if exceeded)"""
+
+    MIN_CONTRIBUTION_WORDS = 20
+    """Minimum words for substantive contribution"""
+
 
 class VotingThresholds:
     """Thresholds for voting and consensus detection."""

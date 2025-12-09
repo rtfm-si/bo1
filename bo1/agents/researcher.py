@@ -33,6 +33,9 @@ from bo1.agents.research_consolidation import (
 from bo1.agents.research_metrics import ResearchMetric, track_research_metric
 from bo1.agents.research_rate_limiter import get_rate_limiter
 from bo1.config import get_settings
+from bo1.llm.circuit_breaker import (
+    get_service_circuit_breaker,
+)
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
 from bo1.llm.embeddings import generate_embedding
@@ -562,6 +565,19 @@ class ResearcherAgent:
                 "cost": 0.0,
             }
 
+        # Check circuit breaker before making API call
+        breaker = get_service_circuit_breaker("brave")
+        if breaker.state.value == "open":
+            logger.warning("Brave circuit breaker is OPEN - fast-failing search request")
+            return {
+                "summary": "[Brave Search unavailable - service circuit breaker open]",
+                "sources": [],
+                "confidence": "low",
+                "tokens_used": 0,
+                "cost": 0.0,
+                "circuit_breaker_open": True,
+            }
+
         # P2-RESEARCH-4: Apply rate limiting
         limiter = get_rate_limiter("brave_free")  # TODO: Detect API tier from settings
         wait_time = await limiter.acquire()
@@ -591,6 +607,8 @@ class ResearcherAgent:
                     )
                     response.raise_for_status()
                     results_data = response.json()
+                    # Record success for circuit breaker
+                    breaker._record_success_sync()
                 # Cost is calculated automatically by CostTracker
 
             search_results = [
@@ -679,6 +697,9 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
             }
 
         except httpx.HTTPStatusError as e:
+            # Record failure for circuit breaker (server errors and rate limits)
+            if e.response.status_code >= 500 or e.response.status_code == 429:
+                breaker._record_failure_sync(e)
             logger.error(f"Brave Search API error: {e.response.status_code} - {e.response.text}")
             return {
                 "summary": f"[Search API error: {e.response.status_code}]",
@@ -688,6 +709,8 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
                 "cost": 0.0,
             }
         except Exception as e:
+            # Record failure for circuit breaker (connection errors, timeouts)
+            breaker._record_failure_sync(e)
             logger.error(f"Research failed: {e}")
             return {
                 "summary": f"[Research error: {str(e)[:100]}]",

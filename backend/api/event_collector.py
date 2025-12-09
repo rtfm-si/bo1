@@ -12,8 +12,9 @@ from anthropic import AsyncAnthropic
 
 from backend.api.dependencies import get_redis_manager
 from backend.api.event_extractors import get_event_registry
-from backend.api.event_publisher import EventPublisher
+from backend.api.event_publisher import EventPublisher, flush_session_events
 from bo1.config import get_settings, resolve_model_alias
+from bo1.context import set_request_id
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
 from bo1.state.repositories import session_repository
@@ -57,6 +58,8 @@ class EventCollector:
         "meta_synthesis": "_handle_meta_synthesis",
         "meta_synthesize": "_handle_meta_synthesis",  # Support both node names
         "research": "_handle_research",  # P2-006: Research results
+        "context_collection": "_handle_context_collection",  # P1: UI feedback
+        "analyze_dependencies": "_handle_dependency_analysis",  # P1: UI feedback
     }
 
     def __init__(self, publisher: EventPublisher) -> None:
@@ -300,6 +303,7 @@ class EventCollector:
         graph: Any,  # CompiledStateGraph
         initial_state: Any,  # DeliberationGraphState | None
         config: dict[str, Any],
+        request_id: str | None = None,
     ) -> Any:  # Final DeliberationGraphState
         """Execute graph and publish all events to Redis.
 
@@ -315,6 +319,7 @@ class EventCollector:
             graph: Compiled LangGraph instance
             initial_state: Initial graph state (or None to resume from checkpoint)
             config: Graph execution config (includes thread_id, recursion_limit)
+            request_id: Correlation ID for request tracing (optional)
 
         Returns:
             Final deliberation state
@@ -324,10 +329,24 @@ class EventCollector:
         """
         from bo1.feature_flags import USE_SUBGRAPH_DELIBERATION
 
-        if USE_SUBGRAPH_DELIBERATION:
-            return await self._collect_with_custom_events(session_id, graph, initial_state, config)
-        else:
-            return await self._collect_with_astream_events(session_id, graph, initial_state, config)
+        # Set request_id in context for propagation through graph execution
+        token = set_request_id(request_id) if request_id else None
+
+        try:
+            if USE_SUBGRAPH_DELIBERATION:
+                return await self._collect_with_custom_events(
+                    session_id, graph, initial_state, config
+                )
+            else:
+                return await self._collect_with_astream_events(
+                    session_id, graph, initial_state, config
+                )
+        finally:
+            # Reset context if we set it
+            if token:
+                from bo1.context import reset_request_id
+
+                reset_request_id(token)
 
     async def _collect_with_custom_events(
         self,
@@ -637,16 +656,29 @@ class EventCollector:
             sub_problem_index=sub_problem_index,
         )
 
-        # Publish individual contributions
+        # PERF: Batch summarize all contributions in parallel
         contributions = output.get("contributions", [])
-        for contrib in contributions:
-            await self._publish_contribution(
-                session_id,
-                contrib,
-                round_number=1,
-                sub_problem_index=sub_problem_index,
-                personas=personas,
-            )
+        if contributions:
+            # Extract (content, persona_name) for batch summarization
+            items = []
+            for contrib in contributions:
+                if hasattr(contrib, "content"):
+                    items.append((contrib.content, contrib.persona_name))
+                else:
+                    items.append((contrib.get("content", ""), contrib.get("persona_name", "")))
+
+            summaries = await self._batch_summarize_contributions(items)
+
+            # Publish contributions with pre-computed summaries
+            for contrib, summary in zip(contributions, summaries, strict=True):
+                await self._publish_contribution(
+                    session_id,
+                    contrib,
+                    round_number=1,
+                    sub_problem_index=sub_problem_index,
+                    personas=personas,
+                    summary=summary,
+                )
 
     async def _handle_facilitator_decision(self, session_id: str, output: dict) -> None:
         """Handle facilitator_decide node completion."""
@@ -708,18 +740,32 @@ class EventCollector:
             },
         )
 
-        # Emit contribution events for each contribution in this round
+        # PERF: Filter contributions for this round, then batch summarize in parallel
+        round_contributions = []
         for contribution in contributions:
             contrib_round = (
                 contribution.round_number
                 if hasattr(contribution, "round_number")
                 else contribution.get("round_number", 0)
             )
-
-            # Only publish contributions from the just-completed round
             if contrib_round == completed_round:
+                round_contributions.append(contribution)
+
+        if round_contributions:
+            # Extract (content, persona_name) for batch summarization
+            items = []
+            for contrib in round_contributions:
+                if hasattr(contrib, "content"):
+                    items.append((contrib.content, contrib.persona_name))
+                else:
+                    items.append((contrib.get("content", ""), contrib.get("persona_name", "")))
+
+            summaries = await self._batch_summarize_contributions(items)
+
+            # Publish contributions with pre-computed summaries
+            for contrib, summary in zip(round_contributions, summaries, strict=True):
                 await self._publish_contribution(
-                    session_id, contribution, completed_round, sub_problem_index, personas
+                    session_id, contrib, completed_round, sub_problem_index, personas, summary
                 )
 
     async def _handle_moderator(self, session_id: str, output: dict) -> None:
@@ -906,6 +952,68 @@ class EventCollector:
         else:
             logger.debug(f"[RESEARCH] No research results to publish for session {session_id}")
 
+    async def _handle_context_collection(self, session_id: str, output: dict) -> None:
+        """Handle context_collection node completion (P1: UI feedback gap).
+
+        Emits context_collection_complete event with business context summary.
+        """
+        business_context = output.get("business_context", {})
+        metrics = output.get("metrics", {})
+
+        # Truncate context for event payload if too long
+        context_summary = ""
+        if isinstance(business_context, dict):
+            context_summary = business_context.get("summary", "")[:500]
+        elif isinstance(business_context, str):
+            context_summary = business_context[:500]
+
+        event_data = {
+            "context_loaded": bool(business_context),
+            "context_summary": context_summary,
+            "metrics_count": len(metrics) if isinstance(metrics, dict) else 0,
+        }
+
+        self.publisher.publish_event(session_id, "context_collection_complete", event_data)
+        logger.info(
+            f"[CONTEXT] Published context_collection_complete for session {session_id}: "
+            f"context_loaded={event_data['context_loaded']}, metrics_count={event_data['metrics_count']}"
+        )
+
+    async def _handle_dependency_analysis(self, session_id: str, output: dict) -> None:
+        """Handle analyze_dependencies node completion (P1: UI feedback gap).
+
+        Emits dependency_analysis_complete event with execution batch info.
+        """
+        execution_batches = output.get("execution_batches", [])
+        parallel_mode = output.get("parallel_mode", False)
+
+        # Extract batch summary
+        batch_info = []
+        for i, batch in enumerate(execution_batches):
+            if isinstance(batch, list):
+                # Batch is list of sub-problem indices or objects
+                sp_ids = []
+                for sp in batch:
+                    if isinstance(sp, dict):
+                        sp_ids.append(sp.get("id", str(sp)))
+                    elif hasattr(sp, "id"):
+                        sp_ids.append(sp.id)
+                    else:
+                        sp_ids.append(str(sp))
+                batch_info.append({"batch_index": i, "sub_problem_ids": sp_ids})
+
+        event_data = {
+            "batch_count": len(execution_batches),
+            "parallel_mode": parallel_mode,
+            "batches": batch_info,
+        }
+
+        self.publisher.publish_event(session_id, "dependency_analysis_complete", event_data)
+        logger.info(
+            f"[DEPS] Published dependency_analysis_complete for session {session_id}: "
+            f"batch_count={event_data['batch_count']}, parallel_mode={parallel_mode}"
+        )
+
     async def _handle_completion(self, session_id: str, final_state: dict) -> None:
         """Handle deliberation completion - orchestrates cost breakdown, completion event, status update, and verification.
 
@@ -929,8 +1037,14 @@ class EventCollector:
             await self._verify_event_persistence(session_id)
             return
 
+        # Flush any pending batch events before completion
+        await flush_session_events(session_id)
+
         # Publish cost breakdown
         self._publish_cost_breakdown(session_id, final_state)
+
+        # Check for cost anomaly (>$1.00 threshold)
+        self._check_cost_anomaly(session_id)
 
         # Publish completion event
         self._publish_completion_event(session_id, final_state)
@@ -966,6 +1080,37 @@ class EventCollector:
                     "total_cost": total_cost,
                 },
             )
+
+    def _check_cost_anomaly(self, session_id: str, threshold: float = 1.00) -> None:
+        """Check if session cost exceeds threshold and log warning.
+
+        Args:
+            session_id: Session identifier
+            threshold: Cost threshold in USD (default $1.00)
+        """
+        try:
+            costs = CostTracker.get_session_costs(session_id)
+            total_cost = costs.get("total_cost", 0.0)
+
+            if total_cost > threshold:
+                logger.warning(
+                    f"[COST ANOMALY] Session {session_id} exceeded ${threshold:.2f} threshold: "
+                    f"total=${total_cost:.4f}, by_provider={costs.get('by_provider', {})}, "
+                    f"total_calls={costs.get('total_calls', 0)}"
+                )
+                # Emit cost_anomaly event for dashboard visibility
+                self.publisher.publish_event(
+                    session_id,
+                    "cost_anomaly",
+                    {
+                        "total_cost": total_cost,
+                        "threshold": threshold,
+                        "by_provider": costs.get("by_provider", {}),
+                        "total_calls": costs.get("total_calls", 0),
+                    },
+                )
+        except Exception as e:
+            logger.error(f"Failed to check cost anomaly for session {session_id}: {e}")
 
     def _publish_completion_event(self, session_id: str, final_state: dict) -> None:
         """Publish completion event with extracted data from final state.
@@ -1293,6 +1438,39 @@ class EventCollector:
             logger.error(f"Failed to summarize contribution for {persona_name}: {e}")
             return self._create_fallback_summary(persona_name, content)
 
+    async def _batch_summarize_contributions(
+        self, items: list[tuple[str, str]]
+    ) -> list[dict | None]:
+        """Summarize multiple contributions in parallel using asyncio.gather.
+
+        PERF: Reduces latency from O(n) sequential calls to O(1) parallel calls.
+        For 3-5 contributions, this saves ~4-10 seconds per round.
+
+        Args:
+            items: List of (content, persona_name) tuples to summarize
+
+        Returns:
+            List of summary dicts in same order as input (None for failures)
+        """
+        if not items:
+            return []
+
+        tasks = [self._summarize_contribution(content, name) for content, name in items]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Convert exceptions to None, log errors
+        summaries = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                persona_name = items[i][1]
+                logger.error(f"Batch summarization failed for {persona_name}: {result}")
+                summaries.append(self._create_fallback_summary(persona_name, items[i][0]))
+            else:
+                summaries.append(result)
+
+        logger.info(f"Batch summarized {len(items)} contributions in parallel")
+        return summaries
+
     def _extract_first_json_object(self, text: str) -> dict | None:
         """Extract first complete JSON object using brace counting.
 
@@ -1391,6 +1569,7 @@ class EventCollector:
         round_number: int,
         sub_problem_index: int = 0,
         personas: list = None,
+        summary: dict | None = None,
     ) -> None:
         """Publish a contribution event with AI summary.
 
@@ -1400,6 +1579,7 @@ class EventCollector:
             round_number: Current round number
             sub_problem_index: Sub-problem index for tab filtering
             personas: List of personas for looking up domain expertise
+            summary: Pre-computed summary (skips LLM call if provided)
         """
         # Extract contribution fields
         if hasattr(contrib, "persona_code"):
@@ -1453,8 +1633,9 @@ class EventCollector:
                 f"personas_available={[p.code if hasattr(p, 'code') else p.get('code') for p in personas] if personas else []}"
             )
 
-        # Generate AI summary for better UX
-        summary = await self._summarize_contribution(content, persona_name)
+        # Use pre-computed summary or generate one (fallback for direct calls)
+        if summary is None:
+            summary = await self._summarize_contribution(content, persona_name)
 
         logger.info(
             f"[CONTRIBUTION DEBUG] Summary generation result | "

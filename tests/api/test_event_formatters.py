@@ -248,3 +248,44 @@ def test_all_events_have_timestamp():
         from datetime import datetime
 
         datetime.fromisoformat(data["timestamp"])  # Should not raise
+
+
+def test_format_sse_event_includes_version():
+    """Test that format_sse_event includes event_version in payload (P1: SSE versioning)."""
+    import json
+
+    from backend.api.events import SSE_EVENT_VERSION, format_sse_event
+
+    result = format_sse_event("test_event", {"message": "hello"})
+
+    # Parse the data JSON
+    data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
+    data_json = data_line[6:]
+    data = json.loads(data_json)
+
+    # Verify event_version is present and correct
+    assert "event_version" in data
+    assert data["event_version"] == SSE_EVENT_VERSION
+    assert data["event_version"] == 1
+    assert data["message"] == "hello"
+
+
+def test_all_events_include_version():
+    """Test that all event formatters include event_version."""
+    import json
+
+    events = [
+        session_started_event("test", "Problem", 5, "user"),
+        decomposition_started_event("test"),
+        contribution_event("test", "CFO", "Zara", "Content", 1),
+        error_event("test", "Test error"),
+        complete_event("test", "Final output", 0.25, 5),
+    ]
+
+    for event in events:
+        data_line = [line for line in event.split("\n") if line.startswith("data: ")][0]
+        data_json = data_line[6:]
+        data = json.loads(data_json)
+
+        assert "event_version" in data, f"event_version missing in event: {event[:50]}..."
+        assert data["event_version"] == 1

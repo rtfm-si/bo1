@@ -13,8 +13,10 @@ from typing import Any
 
 from psycopg2.extras import Json
 
+from bo1.models.session import Session
 from bo1.state.database import db_session
 from bo1.state.repositories.base import BaseRepository
+from bo1.utils.retry import retry_db
 
 logger = logging.getLogger(__name__)
 
@@ -74,14 +76,42 @@ class SessionRepository(BaseRepository):
                 result = cur.fetchone()
                 return dict(result) if result else {}
 
+    def create_session(
+        self,
+        session_id: str,
+        user_id: str,
+        problem_statement: str,
+        problem_context: dict[str, Any] | None = None,
+        status: str = "created",
+    ) -> Session | None:
+        """Create a new session and return typed Session model.
+
+        Args:
+            session_id: Session identifier (e.g., bo1_uuid)
+            user_id: User who created the session
+            problem_statement: Original problem statement
+            problem_context: Additional context as dict (optional)
+            status: Initial status (default: 'created')
+
+        Returns:
+            Session model instance, or None if creation failed
+        """
+        row = self.create(session_id, user_id, problem_statement, problem_context, status)
+        if not row:
+            return None
+        return Session.from_db_row(row)
+
     def get(self, session_id: str) -> dict[str, Any] | None:
-        """Get a single session by ID.
+        """Get a single session by ID as dict (backward compat).
 
         Args:
             session_id: Session identifier
 
         Returns:
-            Session record with all fields, or None if not found
+            Session record as dict, or None if not found
+
+        Note:
+            Use get_session() for typed Session model.
         """
         return self._execute_one(
             """
@@ -94,6 +124,26 @@ class SessionRepository(BaseRepository):
             (session_id,),
         )
 
+    def get_session(self, session_id: str) -> Session | None:
+        """Get a single session by ID as typed Session model.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Session model instance, or None if not found
+
+        Example:
+            >>> session = session_repository.get_session("bo1_abc123")
+            >>> if session:
+            ...     print(session.status, session.problem_statement)
+        """
+        row = self.get(session_id)
+        if row is None:
+            return None
+        return Session.from_db_row(row)
+
+    @retry_db(max_attempts=3, base_delay=0.5)
     def update_status(
         self,
         session_id: str,
@@ -200,19 +250,19 @@ class SessionRepository(BaseRepository):
         """
         with db_session() as conn:
             with conn.cursor() as cur:
+                # Use LEFT JOINs + conditional aggregation instead of correlated subqueries
+                # This reduces 4 subqueries per row to a single pass with FILTER clauses
                 query = """
                     SELECT s.id, s.user_id, s.problem_statement, s.problem_context, s.status,
                            s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
                            s.synthesis_text, s.final_recommendation,
-                           (SELECT COUNT(*)::int FROM session_events se
-                            WHERE se.session_id = s.id AND se.event_type = 'persona_selected') as expert_count,
-                           (SELECT COUNT(*)::int FROM session_events se
-                            WHERE se.session_id = s.id AND se.event_type = 'contribution') as contribution_count,
-                           (SELECT st.total_tasks FROM session_tasks st
-                            WHERE st.session_id = s.id) as task_count,
-                           (SELECT COUNT(*)::int FROM session_events se
-                            WHERE se.session_id = s.id AND se.event_type = 'subproblem_started') as focus_area_count
+                           COUNT(*) FILTER (WHERE se.event_type = 'persona_selected')::int as expert_count,
+                           COUNT(*) FILTER (WHERE se.event_type = 'contribution')::int as contribution_count,
+                           COALESCE(MAX(st.total_tasks), 0)::int as task_count,
+                           COUNT(*) FILTER (WHERE se.event_type = 'subproblem_started')::int as focus_area_count
                     FROM sessions s
+                    LEFT JOIN session_events se ON se.session_id = s.id
+                    LEFT JOIN session_tasks st ON st.session_id = s.id
                     WHERE s.user_id = %s
                 """
                 params: list[Any] = [user_id]
@@ -224,7 +274,12 @@ class SessionRepository(BaseRepository):
                     query += " AND s.status = %s"
                     params.append(status_filter)
 
-                query += " ORDER BY s.created_at DESC LIMIT %s OFFSET %s"
+                query += """
+                    GROUP BY s.id, s.user_id, s.problem_statement, s.problem_context, s.status,
+                             s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
+                             s.synthesis_text, s.final_recommendation
+                    ORDER BY s.created_at DESC LIMIT %s OFFSET %s
+                """
                 params.extend([limit, offset])
 
                 cur.execute(query, params)
@@ -273,6 +328,7 @@ class SessionRepository(BaseRepository):
     # Session Events
     # =========================================================================
 
+    @retry_db(max_attempts=3, base_delay=0.5)
     def save_event(
         self,
         session_id: str,
@@ -308,6 +364,44 @@ class SessionRepository(BaseRepository):
                 )
                 result = cur.fetchone()
                 return dict(result) if result else {}
+
+    @retry_db(max_attempts=3, base_delay=0.5)
+    def save_events_batch(
+        self,
+        events: list[tuple[str, str, int, dict[str, Any]]],
+    ) -> int:
+        """Save multiple session events to PostgreSQL in a single batch.
+
+        Uses executemany for efficient batch insertion. On conflict (duplicate
+        session_id + sequence + created_at), events are skipped silently.
+
+        Args:
+            events: List of (session_id, event_type, sequence, data) tuples
+
+        Returns:
+            Number of events successfully inserted
+        """
+        if not events:
+            return 0
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Prepare data with Json wrapper for each event
+                prepared = [(sid, etype, seq, Json(data), sid) for sid, etype, seq, data in events]
+                cur.executemany(
+                    """
+                    INSERT INTO session_events (
+                        session_id, event_type, sequence, data, user_id
+                    )
+                    VALUES (%s, %s, %s, %s, (
+                        SELECT user_id FROM sessions WHERE id = %s
+                    ))
+                    ON CONFLICT (session_id, sequence, created_at) DO NOTHING
+                    """,
+                    prepared,
+                )
+                # rowcount may not be accurate for ON CONFLICT, return event count
+                return len(events)
 
     def get_events(self, session_id: str) -> list[dict[str, Any]]:
         """Get all events for a session.
@@ -647,6 +741,7 @@ class SessionRepository(BaseRepository):
     # Session Synthesis
     # =========================================================================
 
+    @retry_db(max_attempts=3, base_delay=0.5)
     def save_synthesis(self, session_id: str, synthesis_text: str) -> bool:
         """Save synthesis text to sessions table.
 

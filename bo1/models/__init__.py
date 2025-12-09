@@ -13,11 +13,13 @@ from .recommendations import (
     Recommendation,
     RecommendationAggregation,
 )
+from .session import Session, SessionStatus
 from .state import (
     ContributionMessage,
     ContributionType,
     DeliberationMetrics,
     DeliberationPhase,
+    DeliberationPhaseType,
 )
 
 __all__ = [
@@ -32,8 +34,12 @@ __all__ = [
     "SubProblem",
     "Constraint",
     "ConstraintType",
+    # Session models
+    "Session",
+    "SessionStatus",
     # State models
     "DeliberationPhase",
+    "DeliberationPhaseType",
     "DeliberationMetrics",
     "ContributionMessage",
     "ContributionType",

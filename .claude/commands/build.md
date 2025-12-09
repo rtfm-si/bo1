@@ -65,7 +65,7 @@ For each Implementation Step in `_PLAN.md`:
 
 ## STEP 3 – TESTS & VALIDATIONS
 
-1. From `_PLAN.md`’s Tests section, identify:
+1. From `_PLAN.md`'s Tests section, identify:
 
    - Unit tests to add/modify.
    - Integration/flow tests to add/modify.
@@ -76,11 +76,16 @@ For each Implementation Step in `_PLAN.md`:
    - Create/extend test files with minimal, focused cases.
    - Prefer deterministic tests that directly validate the new behaviour.
 
-3. Run tests or clearly specify commands:
+3. Run tests – USE TARGETED TESTING BY DEFAULT:
 
-   - Detect likely test command(s) (e.g. `pytest`, `npm test`, `pnpm test`, `go test ./...`, etc.).
-   - Run the appropriate test suite(s) if allowed in this environment.
-   - If tests fail, prioritise fixing issues tied to this plan.
+   - **Default (low/medium risk):** Run only the test file(s) directly related to changed code.
+     - Example: Changed `event_collector.py` → run `pytest tests/api/test_event_collector.py`
+   - **High risk only:** Run the full test suite (`pytest tests/ --ignore=tests/integration`) when:
+     - Changing shared utilities, base classes, or core infrastructure
+     - Modifying database schema or migrations
+     - Altering authentication/authorization logic
+     - Refactoring imports or module structure
+   - If targeted tests fail, fix issues before considering broader suite.
 
 4. For manual validation:
    - Document clear, short steps an operator can run locally (e.g. API call, CLI command, UI flow).

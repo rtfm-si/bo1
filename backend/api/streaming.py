@@ -11,7 +11,7 @@ import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
 from backend.api.dependencies import VerifiedSession, get_redis_manager
@@ -103,10 +103,28 @@ async def get_event_history(
 
         logger.info(f"Retrieved {len(events)} historical events for session {session_id}")
 
+        # Find last_event_id from events for resume support
+        last_event_id = None
+        last_sequence = 0
+        for event in events:
+            seq = event.get("sequence", 0)
+            if seq > last_sequence:
+                last_sequence = seq
+        if last_sequence > 0:
+            from backend.api.events import make_event_id
+
+            last_event_id = make_event_id(session_id, last_sequence)
+
+        # Check if session is resumable (running or completed)
+        status = metadata.get("status") if metadata else None
+        can_resume = status in ["running", "completed"]
+
         return {
             "session_id": session_id,
             "events": events,
             "count": len(events),
+            "last_event_id": last_event_id,
+            "can_resume": can_resume,
         }
 
     except HTTPException:
@@ -285,24 +303,32 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
         return events.format_sse_event(event_type, data)
 
 
-async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
+async def stream_session_events(
+    session_id: str,
+    last_event_id: str | None = None,
+) -> AsyncGenerator[str, None]:
     r"""Stream deliberation events for a session via SSE using Redis PubSub.
 
-    This replaces the old polling approach with real-time event streaming
-    from Redis PubSub channels. Events are published by EventCollector during
-    graph execution.
+    Supports session resume via Last-Event-ID header. If provided, replays
+    any missed events from history before streaming new events.
 
     Args:
         session_id: Session identifier
+        last_event_id: Optional Last-Event-ID from SSE reconnection (format: session_id:sequence)
 
     Yields:
-        SSE-formatted event strings
+        SSE-formatted event strings with id field for resume support
 
     Examples:
         >>> async for event in stream_session_events("bo1_abc123"):
-        ...     print(event)  # SSE formatted: "event: node_start\ndata: {...}\n\n"
+        ...     print(event)  # SSE formatted: "id: bo1_abc123:1\nevent: node_start\ndata: {...}\n\n"
+        >>> # Resume from event 5:
+        >>> async for event in stream_session_events("bo1_abc123", "bo1_abc123:5"):
+        ...     print(event)  # Events with sequence > 5
     """
     import json
+
+    from backend.api.events import make_event_id, parse_event_id
 
     redis_manager = get_redis_manager()
     redis_client = redis_manager.redis
@@ -310,17 +336,81 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
     # Create pubsub connection
     pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
     channel = f"events:{session_id}"
+    history_key = f"events_history:{session_id}"
+
+    # SSE lifecycle tracking (P1: observability)
+    connect_time = time.time()
+    events_sent = 0
+
+    # Parse last_event_id to get resume sequence
+    resume_from_sequence = 0
+    if last_event_id:
+        parsed = parse_event_id(last_event_id)
+        if parsed:
+            _, resume_from_sequence = parsed
+            logger.info(
+                f"[SSE RESUME] session={session_id}, resuming from sequence {resume_from_sequence}"
+            )
+            metrics.increment("sse.resume_attempts")
+
+    # Track seen sequences to dedupe between replay and live
+    seen_sequences: set[int] = set()
 
     try:
-        # Frontend loads historical events via REST API (/api/v1/sessions/{id}/events)
-        # So we don't replay history here - just subscribe to new events
-        # This avoids duplicates and ensures clean separation of concerns
+        # Subscribe to PubSub FIRST to avoid missing events during replay
         pubsub.subscribe(channel)
+
+        # Increment active SSE connections metric
+        metrics.increment("sse.connections.active")
 
         # Send connection confirmation event
         yield node_start_event("stream_connected", session_id)
+        events_sent += 1
 
-        logger.info(f"SSE client subscribed to {channel} (history loaded via REST API)")
+        # Log SSE connection lifecycle
+        logger.info(
+            f"[SSE CONNECT] session={session_id}, channel={channel}, "
+            f"last_event_id={last_event_id}, timestamp={connect_time:.3f}"
+        )
+
+        # REPLAY: If resuming, fetch missed events from history
+        if resume_from_sequence > 0:
+            try:
+                historical_events = redis_client.lrange(history_key, 0, -1)
+                replay_count = 0
+
+                for event_data in historical_events:
+                    try:
+                        payload = json.loads(event_data)
+                        seq = payload.get("sequence", 0)
+
+                        # Only replay events AFTER the last seen sequence
+                        if seq > resume_from_sequence:
+                            event_type = payload.get("event_type")
+                            data = payload.get("data", {})
+                            event_id = make_event_id(session_id, seq)
+
+                            # Track as seen to dedupe later
+                            seen_sequences.add(seq)
+
+                            # Format and yield with event ID
+                            sse_event = format_sse_for_type(event_type, data)
+                            # Inject event ID into SSE output
+                            sse_event = f"id: {event_id}\n{sse_event}"
+                            yield sse_event
+                            events_sent += 1
+                            replay_count += 1
+                    except (json.JSONDecodeError, KeyError):
+                        continue
+
+                if replay_count > 0:
+                    logger.info(
+                        f"[SSE REPLAY] session={session_id}, replayed {replay_count} events"
+                    )
+                    metrics.increment("sse.events_replayed", replay_count)
+
+            except Exception as e:
+                logger.warning(f"Failed to replay events for {session_id}: {e}")
 
         # Track keepalive timing
         last_keepalive = time.time()
@@ -347,10 +437,24 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
                     payload = json.loads(message["data"])
                     event_type = payload.get("event_type")
                     data = payload.get("data", {})
+                    seq = payload.get("sequence", 0)
+
+                    # Dedupe: skip if already sent during replay
+                    if seq in seen_sequences:
+                        continue
+
+                    # Create event ID for SSE resume support
+                    event_id = make_event_id(session_id, seq) if seq > 0 else None
 
                     # Format as SSE using event formatters
                     sse_event = format_sse_for_type(event_type, data)
+
+                    # Inject event ID for resume support
+                    if event_id:
+                        sse_event = f"id: {event_id}\n{sse_event}"
+
                     yield sse_event
+                    events_sent += 1
 
                     # Reset keepalive timer on message
                     last_keepalive = time.time()
@@ -389,12 +493,24 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
         logger.error(f"Error streaming session {session_id}: {e}", exc_info=True)
         yield error_event(session_id, str(e), error_type=type(e).__name__)
     finally:
+        # Calculate connection duration
+        disconnect_time = time.time()
+        duration_seconds = disconnect_time - connect_time
+
+        # Decrement active SSE connections metric
+        metrics.decrement("sse.connections.active")
+
+        # Log SSE disconnect lifecycle
+        logger.info(
+            f"[SSE DISCONNECT] session={session_id}, duration_seconds={duration_seconds:.2f}, "
+            f"events_sent={events_sent}"
+        )
+
         try:
             pubsub.unsubscribe(channel)
             pubsub.close()
         except Exception as e:
             logger.warning(f"Error closing pubsub for session {session_id}: {e}")
-        logger.info(f"SSE client disconnected from {channel}")
 
 
 @router.get(
@@ -402,6 +518,11 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
     summary="Stream deliberation events via SSE",
     description="""
     Stream real-time deliberation events for a session using Server-Sent Events (SSE).
+
+    **Session Resume Support:**
+    If the client disconnects and reconnects, include the `Last-Event-ID` header
+    with the ID from the last received event. The server will replay any missed
+    events before resuming live streaming.
 
     Event types:
     - `node_start` - Node execution started
@@ -418,7 +539,11 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
     responses={
         200: {
             "description": "SSE event stream",
-            "content": {"text/event-stream": {"example": "event: node_start\ndata: {...}\n\n"}},
+            "content": {
+                "text/event-stream": {
+                    "example": "id: bo1_abc123:1\nevent: node_start\ndata: {...}\n\n"
+                }
+            },
         },
         404: {"description": "Session not found"},
         500: {"description": "Internal server error"},
@@ -427,12 +552,16 @@ async def stream_session_events(session_id: str) -> AsyncGenerator[str, None]:
 async def stream_deliberation(
     session_id: str,
     session_data: VerifiedSession,
+    last_event_id: str | None = Header(None, alias="Last-Event-ID"),
 ) -> StreamingResponse:
     """Stream deliberation events via Server-Sent Events.
+
+    Supports session resume via Last-Event-ID header.
 
     Args:
         session_id: Session identifier
         session_data: Verified session (user_id, metadata) from dependency
+        last_event_id: Optional Last-Event-ID header for resume support
 
     Returns:
         StreamingResponse with SSE events
@@ -481,11 +610,14 @@ async def stream_deliberation(
 
         # Status is "running" or "completed" - proceed to streaming
         # Events flow through Redis PubSub, and history is available via /events endpoint
-        logger.info(f"SSE connection established for session {session_id} (status: {status})")
+        logger.info(
+            f"SSE connection established for session {session_id} "
+            f"(status: {status}, last_event_id: {last_event_id})"
+        )
 
-        # Return streaming response
+        # Return streaming response with resume support
         return StreamingResponse(
-            stream_session_events(session_id),
+            stream_session_events(session_id, last_event_id=last_event_id),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",

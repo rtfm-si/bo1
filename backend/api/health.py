@@ -876,3 +876,96 @@ async def health_check_persistence() -> PersistenceHealthResponse:
                 "timestamp": datetime.now(UTC).isoformat(),
             },
         ) from e
+
+
+class CircuitBreakerStatus(BaseModel):
+    """Status of a single circuit breaker."""
+
+    state: str = Field(..., description="Circuit state: closed, open, half_open")
+    failure_count: int = Field(..., description="Current failure count")
+    success_count: int = Field(..., description="Success count (in half_open)")
+    uptime_seconds: float = Field(..., description="Seconds since last state change")
+    is_open: bool = Field(..., description="True if circuit is open (rejecting)")
+    is_half_open: bool = Field(..., description="True if circuit is testing")
+
+
+class CircuitBreakersHealthResponse(BaseModel):
+    """Circuit breakers health response."""
+
+    status: str = Field(..., description="Overall status")
+    component: str = Field(default="circuit_breakers", description="Component name")
+    healthy: bool = Field(..., description="True if all circuits closed")
+    services: dict[str, CircuitBreakerStatus] = Field(
+        ..., description="Per-service circuit breaker status"
+    )
+    message: str = Field(..., description="Status message")
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+
+
+@router.get(
+    "/health/circuit-breakers",
+    response_model=CircuitBreakersHealthResponse,
+    summary="Circuit breakers health check",
+    description="""
+    Check status of all circuit breakers for external APIs.
+
+    **Services monitored:**
+    - anthropic: Claude API
+    - voyage: Voyage AI embeddings
+    - brave: Brave Search API
+
+    **States:**
+    - closed: Normal operation
+    - open: Service unavailable, requests fast-fail
+    - half_open: Testing recovery
+
+    **Use Cases:**
+    - Monitor external API health
+    - Diagnose service outages
+    - Verify recovery after incidents
+    """,
+)
+async def health_check_circuit_breakers() -> CircuitBreakersHealthResponse:
+    """Circuit breakers health check.
+
+    Returns:
+        Status of all circuit breakers
+    """
+    from bo1.llm.circuit_breaker import get_all_circuit_breaker_status
+
+    statuses = get_all_circuit_breaker_status()
+
+    # Convert to response model
+    services = {name: CircuitBreakerStatus(**status) for name, status in statuses.items()}
+
+    # Check if any circuit is open
+    any_open = any(s.is_open for s in services.values())
+    any_half_open = any(s.is_half_open for s in services.values())
+
+    if any_open:
+        status = "degraded"
+        healthy = False
+        open_services = [n for n, s in services.items() if s.is_open]
+        message = f"Circuit breakers OPEN: {', '.join(open_services)}"
+    elif any_half_open:
+        status = "recovering"
+        healthy = True
+        recovering_services = [n for n, s in services.items() if s.is_half_open]
+        message = f"Testing recovery: {', '.join(recovering_services)}"
+    elif not services:
+        status = "healthy"
+        healthy = True
+        message = "No circuit breakers initialized yet"
+    else:
+        status = "healthy"
+        healthy = True
+        message = f"All circuits closed ({len(services)} services)"
+
+    return CircuitBreakersHealthResponse(
+        status=status,
+        component="circuit_breakers",
+        healthy=healthy,
+        services=services,
+        message=message,
+        timestamp=datetime.now(UTC).isoformat(),
+    )

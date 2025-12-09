@@ -9,6 +9,7 @@ Handles:
 from datetime import UTC, datetime
 from typing import Any
 
+from bo1.security import sanitize_for_prompt
 from bo1.services.replanning_context import replanning_context_builder
 from bo1.state.database import db_session
 from bo1.state.redis_manager import RedisManager
@@ -90,9 +91,11 @@ class ReplanningService:
 
         # 2. Build replanning context
         related_context = replanning_context_builder.gather_related_context(action_id, user_id)
-        problem_statement = replanning_context_builder.build_replan_problem_statement(
+        raw_problem_statement = replanning_context_builder.build_replan_problem_statement(
             action, additional_context
         )
+        # Sanitize for safe prompt interpolation
+        problem_statement = sanitize_for_prompt(raw_problem_statement)
         problem_context = replanning_context_builder.build_problem_context(related_context)
 
         # 3. Create new session

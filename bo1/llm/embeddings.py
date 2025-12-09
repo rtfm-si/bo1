@@ -5,7 +5,7 @@ Uses Voyage AI's voyage-3 model (1024 dimensions) for:
 - Question matching with cosine similarity
 - Cost: ~$0.00006 per 1K tokens (10x cheaper than OpenAI ada-002)
 
-Includes retry logic with exponential backoff for resilience.
+Includes retry logic with exponential backoff and circuit breaker for resilience.
 """
 
 import logging
@@ -14,6 +14,10 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from bo1.constants import EmbeddingsConfig
+from bo1.llm.circuit_breaker import (
+    CircuitBreakerOpenError,
+    get_service_circuit_breaker,
+)
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
 
@@ -138,6 +142,7 @@ def generate_embedding(
 
     Raises:
         ValueError: If text is empty or API key is missing
+        CircuitBreakerOpenError: If Voyage API circuit breaker is open
         Exception: If API call fails after retries
     """
     if not text or not text.strip():
@@ -153,10 +158,28 @@ def generate_embedding(
     if voyageai is None:
         raise ImportError("voyageai package is not installed. Install with: pip install voyageai")
 
+    # Check circuit breaker before making API call
+    breaker = get_service_circuit_breaker("voyage")
+    if breaker.state.value == "open":
+        logger.warning("Voyage circuit breaker is OPEN - fast-failing embedding request")
+        raise CircuitBreakerOpenError(
+            "Voyage AI service unavailable (circuit breaker open). Embedding request rejected."
+        )
+
     # mypy doesn't know about voyageai.Client, but it exists at runtime
     client = voyageai.Client(api_key=api_key)  # type: ignore[attr-defined]
 
-    return _call_voyage_api_with_retry(client, text, model, input_type)
+    try:
+        result: list[float] = breaker.call_sync(
+            _call_voyage_api_with_retry, client, text, model, input_type
+        )
+        return result
+    except CircuitBreakerOpenError:
+        raise
+    except Exception:
+        # The retry logic inside _call_voyage_api_with_retry handles retries
+        # Circuit breaker records the failure
+        raise
 
 
 def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:

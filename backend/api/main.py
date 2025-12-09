@@ -38,6 +38,7 @@ from backend.api import (
     waitlist,
 )
 from backend.api.middleware.auth import require_admin
+from backend.api.middleware.correlation_id import CorrelationIdMiddleware
 from backend.api.middleware.rate_limit import limiter
 from backend.api.middleware.security_headers import add_security_headers_middleware
 from backend.api.supertokens_config import add_supertokens_middleware, init_supertokens
@@ -73,10 +74,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         print(f"⚠️  Failed to start persistence worker: {e}")
         # Don't fail startup if worker can't start (not critical)
 
+    # Start batch event persistence task
+    from backend.api.event_publisher import start_batch_flush_task
+
+    start_batch_flush_task()
+    print("✓ Batch event persistence task started")
+
     yield
 
     # Shutdown
     print("Shutting down Board of One API...")
+
+    # Stop batch event persistence task and flush remaining events
+    from backend.api.event_publisher import _flush_batch, stop_batch_flush_task
+
+    try:
+        stop_batch_flush_task()
+        await _flush_batch()  # Final flush on shutdown
+        print("✓ Batch event persistence task stopped")
+    except Exception as e:
+        print(f"⚠️  Failed to stop batch persistence: {e}")
 
     # Stop persistence retry worker
     from backend.api.persistence_worker import stop_persistence_worker
@@ -223,6 +240,10 @@ app.add_middleware(
 # IMPORTANT: Add AFTER GZip (middleware executes in reverse order)
 # This ensures security headers are added to all responses including compressed ones
 add_security_headers_middleware(app)
+
+# Add correlation ID middleware for request tracing
+# Generates/extracts X-Request-ID header and stores in request.state
+app.add_middleware(CorrelationIdMiddleware)
 
 # Include routers
 # IMPORTANT: Register streaming router BEFORE sessions router to avoid

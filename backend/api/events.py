@@ -2,6 +2,8 @@
 
 Provides functions to format deliberation events as SSE messages for
 real-time streaming to web clients.
+
+Includes sequence tracking for session resume support via Last-Event-ID.
 """
 
 import json
@@ -10,6 +12,69 @@ from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+# SSE event version for forward compatibility
+SSE_EVENT_VERSION = 1
+
+
+def get_next_sequence(redis_client: Any, session_id: str) -> int:
+    """Get the next sequence number for a session's events.
+
+    Uses Redis INCR for atomic sequence generation.
+
+    Args:
+        redis_client: Redis client instance
+        session_id: Session identifier
+
+    Returns:
+        Next sequence number (1-indexed)
+    """
+    if redis_client is None:
+        return 0  # No Redis = no sequence tracking
+
+    key = f"event_sequence:{session_id}"
+    return redis_client.incr(key)
+
+
+def make_event_id(session_id: str, sequence: int) -> str:
+    """Create event ID from session and sequence.
+
+    Format: {session_id}:{sequence}
+
+    Args:
+        session_id: Session identifier
+        sequence: Event sequence number
+
+    Returns:
+        Event ID string
+    """
+    return f"{session_id}:{sequence}"
+
+
+def parse_event_id(event_id: str) -> tuple[str, int] | None:
+    """Parse event ID into session_id and sequence.
+
+    Args:
+        event_id: Event ID string (format: session_id:sequence)
+
+    Returns:
+        Tuple of (session_id, sequence) or None if invalid
+    """
+    if not event_id or ":" not in event_id:
+        return None
+
+    try:
+        # Handle session IDs that contain colons (e.g., "bo1_abc123:456")
+        parts = event_id.rsplit(":", 1)
+        if len(parts) != 2:
+            return None
+
+        session_id, seq_str = parts
+        sequence = int(seq_str)
+        return (session_id, sequence)
+    except (ValueError, IndexError):
+        return None
 
 
 def format_sse_event(
@@ -25,13 +90,13 @@ def format_sse_event(
         event_id: Optional event ID for client tracking
 
     Returns:
-        SSE-formatted string
+        SSE-formatted string with event_version field
 
     Examples:
         >>> event = format_sse_event("test", {"message": "hello"})
         >>> print(event)
         event: test
-        data: {"message": "hello"}
+        data: {"message": "hello", "event_version": 1}
 
         >>>
     """
@@ -44,8 +109,11 @@ def format_sse_event(
     # Add event type
     lines.append(f"event: {event_type}")
 
+    # Add event_version to data for forward compatibility (P1: SSE versioning)
+    versioned_data = {**data, "event_version": SSE_EVENT_VERSION}
+
     # Add data as JSON
-    data_json = json.dumps(data)
+    data_json = json.dumps(versioned_data)
     lines.append(f"data: {data_json}")
 
     # SSE format requires double newline at end

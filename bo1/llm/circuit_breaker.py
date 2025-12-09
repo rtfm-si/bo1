@@ -1,7 +1,7 @@
-"""Circuit breaker pattern for Anthropic API resilience.
+"""Circuit breaker pattern for external API resilience.
 
 Implements the circuit breaker pattern to prevent cascading failures
-when the Anthropic API is experiencing issues.
+when external APIs (Anthropic, Voyage, Brave) are experiencing issues.
 
 States:
 - CLOSED: Normal operation, requests pass through
@@ -258,6 +258,98 @@ class CircuitBreaker:
             f"(failures={self.failure_count}, successes={self.success_count})"
         )
 
+    def call_sync(
+        self,
+        func: Callable[..., Any],
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Execute sync function with circuit breaker protection.
+
+        Args:
+            func: Sync function to call
+            *args: Positional arguments to pass to func
+            **kwargs: Keyword arguments to pass to func
+
+        Returns:
+            Result from successful function call
+
+        Raises:
+            CircuitBreakerOpenError: If circuit is open (fast-fail)
+        """
+        # Check recovery (sync version)
+        self._check_recovery_sync()
+
+        # If circuit is open, fail immediately
+        if self.state == CircuitState.OPEN:
+            logger.error(
+                f"Circuit breaker OPEN: Fast-fail without calling API. "
+                f"Failed {self.failure_count}x, will retry in "
+                f"{self.config.recovery_timeout}s"
+            )
+            raise CircuitBreakerOpenError(
+                f"Circuit breaker is OPEN. Service unavailable. (Failed {self.failure_count} times)"
+            )
+
+        try:
+            result = func(*args, **kwargs)
+            self._record_success_sync()
+            return result
+        except Exception as e:
+            self._record_failure_sync(e)
+            raise
+
+    def _check_recovery_sync(self) -> None:
+        """Sync version of recovery check."""
+        if self.state != CircuitState.OPEN:
+            return
+        elapsed = time.time() - self.last_failure_time
+        if elapsed >= self.config.recovery_timeout:
+            self._set_state_sync(CircuitState.HALF_OPEN)
+
+    def _record_success_sync(self) -> None:
+        """Sync version of success recording."""
+        if self.state == CircuitState.HALF_OPEN:
+            self.success_count += 1
+            if self.success_count >= self.config.success_threshold:
+                self._set_state_sync(CircuitState.CLOSED)
+        elif self.state == CircuitState.CLOSED:
+            self.failure_count = 0
+
+    def _record_failure_sync(self, error: Exception) -> None:
+        """Sync version of failure recording."""
+        if isinstance(error, self.config.excluded_exceptions):
+            return
+
+        # Count all errors for non-Anthropic services
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+
+        logger.warning(
+            f"Circuit breaker: Failure {self.failure_count}/{self.config.failure_threshold} - "
+            f"{type(error).__name__}: {str(error)[:100]}"
+        )
+
+        if self.failure_count >= self.config.failure_threshold:
+            self._set_state_sync(CircuitState.OPEN)
+
+    def _set_state_sync(self, new_state: CircuitState) -> None:
+        """Sync version of state transition."""
+        old_state = self.state
+        self.state = new_state
+        self.last_state_change = time.time()
+
+        if new_state == CircuitState.CLOSED:
+            self.failure_count = 0
+            self.success_count = 0
+        elif new_state == CircuitState.HALF_OPEN:
+            self.success_count = 0
+
+        logger.warning(
+            f"Circuit breaker: {old_state.value.upper()} -> {new_state.value.upper()} "
+            f"(failures={self.failure_count}, successes={self.success_count})"
+        )
+
     def get_status(self) -> dict[str, Any]:
         """Get current circuit breaker status.
 
@@ -281,20 +373,62 @@ class CircuitBreakerOpenError(Exception):
     pass
 
 
-# Global circuit breaker instance for Anthropic API
-_global_breaker: CircuitBreaker | None = None
+# Global circuit breaker registry for per-service instances
+_circuit_breakers: dict[str, CircuitBreaker] = {}
+
+
+# Service-specific configurations
+SERVICE_CONFIGS: dict[str, dict[str, int]] = {
+    "anthropic": {
+        "failure_threshold": 5,
+        "recovery_timeout": 60,
+        "success_threshold": 2,
+    },
+    "voyage": {
+        "failure_threshold": 8,  # Higher threshold - embeddings have retries
+        "recovery_timeout": 30,  # Shorter recovery - embeddings are fast
+        "success_threshold": 2,
+    },
+    "brave": {
+        "failure_threshold": 5,
+        "recovery_timeout": 45,  # Rate limit sensitive
+        "success_threshold": 2,
+    },
+}
+
+
+def get_service_circuit_breaker(service: str) -> CircuitBreaker:
+    """Get or create circuit breaker for a specific service.
+
+    Args:
+        service: Service name ("anthropic", "voyage", "brave")
+
+    Returns:
+        CircuitBreaker instance for the service
+
+    Example:
+        >>> breaker = get_service_circuit_breaker("voyage")
+        >>> result = await breaker.call(voyage_api_func, ...)
+    """
+    if service not in _circuit_breakers:
+        config_params = SERVICE_CONFIGS.get(service, SERVICE_CONFIGS["anthropic"])
+        config = CircuitBreakerConfig(
+            failure_threshold=config_params["failure_threshold"],
+            recovery_timeout=config_params["recovery_timeout"],
+            success_threshold=config_params["success_threshold"],
+        )
+        _circuit_breakers[service] = CircuitBreaker(config)
+        logger.debug(f"Created circuit breaker for service: {service}")
+    return _circuit_breakers[service]
 
 
 def get_circuit_breaker() -> CircuitBreaker:
-    """Get or create the global circuit breaker instance.
+    """Get or create the global circuit breaker instance (Anthropic).
 
     Returns:
-        Global CircuitBreaker instance
+        Global CircuitBreaker instance for Anthropic
     """
-    global _global_breaker
-    if _global_breaker is None:
-        _global_breaker = CircuitBreaker()
-    return _global_breaker
+    return get_service_circuit_breaker("anthropic")
 
 
 async def call_with_circuit_breaker(
@@ -325,7 +459,7 @@ async def call_with_circuit_breaker(
 
 
 def get_circuit_breaker_status() -> dict[str, Any]:
-    """Get global circuit breaker status.
+    """Get global circuit breaker status (Anthropic).
 
     Returns:
         Status dict from circuit breaker
@@ -334,11 +468,29 @@ def get_circuit_breaker_status() -> dict[str, Any]:
     return breaker.get_status()
 
 
+def get_all_circuit_breaker_status() -> dict[str, dict[str, Any]]:
+    """Get status of all circuit breakers.
+
+    Returns:
+        Dict mapping service name to status dict
+    """
+    return {service: breaker.get_status() for service, breaker in _circuit_breakers.items()}
+
+
 def reset_circuit_breaker() -> None:
-    """Reset the global circuit breaker to initial state.
+    """Reset the global circuit breaker (Anthropic) to initial state.
 
     Useful for testing or manual recovery.
     """
-    global _global_breaker
-    _global_breaker = CircuitBreaker()
-    logger.info("Circuit breaker reset to initial CLOSED state")
+    reset_service_circuit_breaker("anthropic")
+
+
+def reset_service_circuit_breaker(service: str) -> None:
+    """Reset a specific service's circuit breaker.
+
+    Args:
+        service: Service name to reset
+    """
+    if service in _circuit_breakers:
+        del _circuit_breakers[service]
+    logger.info(f"Circuit breaker reset for service: {service}")

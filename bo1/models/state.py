@@ -110,27 +110,100 @@ class ContributionType(str, Enum):
     VOTE = "vote"  # Vote contribution
 
 
-class ContributionMessage(BaseModel):
-    """A single contribution from a persona in the deliberation."""
+class DeliberationPhaseType(str, Enum):
+    """Phase of the deliberation within a round.
 
+    These map to the DB `phase` column in the contributions table.
+    Distinct from ContributionType (what kind) and DeliberationPhase (workflow stage).
+    """
+
+    EXPLORATION = "exploration"  # Initial exploration of the problem space
+    CHALLENGE = "challenge"  # Critical examination and debate
+    CONVERGENCE = "convergence"  # Moving toward consensus
+
+
+class ContributionMessage(BaseModel):
+    """A single contribution from a persona in the deliberation.
+
+    Aligned with DB contributions table schema. New fields are optional
+    for backward compatibility.
+    """
+
+    # Core fields (required)
     persona_code: str = Field(..., description="Code of the persona making this contribution")
     persona_name: str = Field(..., description="Display name of the persona")
     content: str = Field(..., description="The contribution content (markdown)")
+    round_number: int = Field(..., ge=0, description="Round number (0 = initial)")
+
+    # Optional fields from original model
     thinking: str | None = Field(
         None, description="Internal thinking process (from <thinking> tag)"
     )
     contribution_type: ContributionType = Field(
         default=ContributionType.INITIAL, description="Type of contribution"
     )
-    round_number: int = Field(..., ge=0, description="Round number (0 = initial)")
     timestamp: datetime = Field(default_factory=datetime.now, description="When this was created")
     token_count: int | None = Field(None, description="Token count for this contribution")
     cost: float | None = Field(None, description="Cost in USD for generating this contribution")
+
+    # New fields aligned with DB schema
+    id: int | None = Field(default=None, description="DB row ID (assigned by database)")
+    session_id: str | None = Field(default=None, description="Session FK (set on persist)")
+    model: str | None = Field(
+        default=None, description="LLM model used (e.g., claude-sonnet-4-20250514)"
+    )
+    phase: DeliberationPhaseType | str | None = Field(
+        default=None, description="Deliberation phase (exploration/challenge/convergence)"
+    )
+    embedding: list[float] | None = Field(
+        default=None, description="Voyage embedding vector (1024 dims)", exclude=True
+    )
 
     @property
     def tokens_used(self) -> int:
         """Alias for token_count for backward compatibility."""
         return self.token_count or 0
+
+    @classmethod
+    def from_db_row(cls, row: dict[str, Any]) -> "ContributionMessage":
+        """Create ContributionMessage from database row dict.
+
+        Args:
+            row: Dict from psycopg2 cursor with contributions table columns
+
+        Returns:
+            ContributionMessage instance with mapped fields
+
+        Example:
+            >>> row = {"id": 1, "session_id": "bo1_123", "persona_code": "ceo", ...}
+            >>> msg = ContributionMessage.from_db_row(row)
+        """
+        # Convert phase string to enum if present
+        phase_str = row.get("phase")
+        phase_enum: DeliberationPhaseType | None = None
+        if phase_str:
+            try:
+                phase_enum = DeliberationPhaseType(phase_str)
+            except ValueError:
+                pass  # Keep as None if invalid phase value
+
+        return cls(
+            id=row.get("id"),
+            session_id=row.get("session_id"),
+            persona_code=row["persona_code"],
+            persona_name=row.get("persona_name", row["persona_code"]),  # Fallback to code
+            content=row["content"],
+            round_number=row["round_number"],
+            thinking=row.get("thinking"),
+            phase=phase_enum,
+            cost=float(row.get("cost", 0)) if row.get("cost") is not None else None,
+            token_count=row.get("tokens"),  # DB column is 'tokens', model is 'token_count'
+            model=row.get("model"),
+            embedding=row.get("embedding"),
+            # contribution_type not in DB, default to RESPONSE for existing data
+            contribution_type=ContributionType.RESPONSE,
+            timestamp=row.get("created_at", datetime.now()),
+        )
 
     model_config = ConfigDict(
         json_schema_extra={

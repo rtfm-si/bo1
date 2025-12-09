@@ -4,12 +4,14 @@ Provides:
 - Connection pool management
 - db_session context manager with RLS support
 - Pool health monitoring
+- Connection timeout handling
 
 This module provides the core database infrastructure
 to enable the Repository Pattern implementation.
 """
 
 import logging
+import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from functools import lru_cache
@@ -19,6 +21,13 @@ from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 
 from bo1.config import Settings
+
+
+class ConnectionTimeoutError(Exception):
+    """Raised when connection pool is exhausted and timeout exceeded."""
+
+    pass
+
 
 logger = logging.getLogger(__name__)
 
@@ -132,9 +141,82 @@ def reset_connection_pool() -> None:
             _connection_pool = None
 
 
+def check_pool_health_and_recover() -> bool:
+    """Check pool health and attempt recovery if unhealthy.
+
+    Returns:
+        True if pool is healthy (or recovered), False otherwise
+    """
+    health = get_pool_health()
+
+    if health["healthy"]:
+        return True
+
+    logger.warning(f"Pool unhealthy: {health.get('error')}. Attempting recovery...")
+
+    try:
+        reset_connection_pool()
+        # Re-check after reset
+        new_health = get_pool_health()
+        if new_health["healthy"]:
+            logger.info("Pool recovered successfully after reset")
+            return True
+        else:
+            logger.error(f"Pool still unhealthy after reset: {new_health.get('error')}")
+            return False
+    except Exception as e:
+        logger.error(f"Pool recovery failed: {e}")
+        return False
+
+
+def _getconn_with_timeout(
+    pool_instance: pool.ThreadedConnectionPool,
+    timeout: float,
+) -> Any:
+    """Get connection from pool with timeout.
+
+    Uses polling with short sleeps to implement timeout since psycopg2's
+    ThreadedConnectionPool.getconn() blocks indefinitely.
+
+    Args:
+        pool_instance: The connection pool
+        timeout: Maximum time to wait in seconds
+
+    Returns:
+        Database connection
+
+    Raises:
+        ConnectionTimeoutError: If timeout exceeded waiting for connection
+    """
+    start = time.monotonic()
+    poll_interval = 0.1  # 100ms between attempts
+
+    while True:
+        try:
+            # Try non-blocking getconn
+            conn = pool_instance.getconn()
+            return conn
+        except pool.PoolError as e:
+            elapsed = time.monotonic() - start
+            if elapsed >= timeout:
+                raise ConnectionTimeoutError(
+                    f"Connection pool exhausted after {timeout}s: {e}"
+                ) from e
+
+            # Wait and retry
+            remaining = timeout - elapsed
+            sleep_time = min(poll_interval, remaining)
+            time.sleep(sleep_time)
+
+
+# Default connection timeout in seconds
+DEFAULT_CONNECTION_TIMEOUT = 5.0
+
+
 @contextmanager
 def db_session(
     user_id: str | None = None,
+    timeout: float = DEFAULT_CONNECTION_TIMEOUT,
 ) -> Generator[Any, None, None]:
     """Context manager for database transactions with RLS support.
 
@@ -144,12 +226,17 @@ def db_session(
     Args:
         user_id: Optional user ID for RLS policies. When provided, sets
                  app.current_user_id session variable for RLS enforcement.
+        timeout: Maximum time to wait for a connection from the pool (default: 5s).
+                 Raises ConnectionTimeoutError if exceeded.
 
     Yields:
         psycopg2.extensions.connection: PostgreSQL connection from pool
+
+    Raises:
+        ConnectionTimeoutError: If pool is exhausted and timeout exceeded
     """
     pool_instance = get_connection_pool()
-    conn = pool_instance.getconn()
+    conn = _getconn_with_timeout(pool_instance, timeout)
 
     try:
         if user_id:

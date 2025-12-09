@@ -1,4 +1,5 @@
 # DOMAIN_KNOWLEDGE.md
+
 GOVERNANCE LOCK: Do NOT alter, expand, or reinterpret without explicit user request.
 DO NOT LOAD unless task requires domain context.
 
@@ -23,6 +24,7 @@ MUST NOT exceed defined limits
 <cost_model>
 Sonnet (main, cached), Haiku (summarize); 90% cache target
 Tier limits prevent runaway
+Do NOT expose costs to non-admin end users
 MUST NOT bypass cost controls
 </cost_model>
 

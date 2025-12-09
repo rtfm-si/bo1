@@ -261,3 +261,71 @@ class TestMetricsIntegration:
         stats = collector.get_stats()
         # Should have 10 * 100 = 1000 increments
         assert stats["counters"]["test.concurrent"] == 1000
+
+
+class TestCacheStats:
+    """Test cache statistics calculation (P1: prompt cache monitoring)."""
+
+    def test_get_cache_stats_calculates_hit_rate(self):
+        """Test that cache hit rate is calculated correctly."""
+        collector = MetricsCollector()
+
+        # Simulate 3 cache hits and 2 misses
+        collector.increment("llm.cache.hits", 3)
+        collector.increment("llm.cache.misses", 2)
+
+        stats = collector.get_stats()
+        cache = stats["cache"]
+
+        assert cache["hits"] == 3
+        assert cache["misses"] == 2
+        assert cache["total_calls"] == 5
+        assert cache["hit_rate"] == pytest.approx(0.6)  # 3/5 = 0.6
+
+    def test_get_cache_stats_zero_calls(self):
+        """Test that cache stats handle zero calls gracefully."""
+        collector = MetricsCollector()
+
+        stats = collector.get_stats()
+        cache = stats["cache"]
+
+        assert cache["hits"] == 0
+        assert cache["misses"] == 0
+        assert cache["total_calls"] == 0
+        assert cache["hit_rate"] == 0.0  # No division by zero
+
+    def test_get_cache_stats_tokens_saved(self):
+        """Test that tokens saved are aggregated correctly."""
+        collector = MetricsCollector()
+
+        collector.observe("llm.cache.tokens_saved", 1000.0)
+        collector.observe("llm.cache.tokens_saved", 500.0)
+        collector.observe("llm.cache.tokens_saved", 250.0)
+
+        stats = collector.get_stats()
+        cache = stats["cache"]
+
+        assert cache["tokens_saved"] == 1750.0
+
+    def test_get_cache_stats_cost_saved(self):
+        """Test that cost saved is aggregated correctly."""
+        collector = MetricsCollector()
+
+        collector.observe("llm.cache.cost_saved", 0.05)
+        collector.observe("llm.cache.cost_saved", 0.03)
+
+        stats = collector.get_stats()
+        cache = stats["cache"]
+
+        assert cache["cost_saved"] == pytest.approx(0.08)
+
+    def test_get_cache_stats_included_in_get_stats(self):
+        """Test that cache stats are included in the main stats output."""
+        collector = MetricsCollector()
+        collector.increment("llm.cache.hits", 1)
+
+        stats = collector.get_stats()
+
+        assert "cache" in stats
+        assert "counters" in stats
+        assert "histograms" in stats

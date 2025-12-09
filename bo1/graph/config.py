@@ -11,6 +11,7 @@ from typing import Any
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 from langgraph.graph import END, StateGraph
 
+from bo1.graph.checkpointer import LoggingCheckpointerWrapper
 from bo1.graph.nodes import (
     clarification_node,  # Pre-meeting context collection
     context_collection_node,
@@ -73,7 +74,9 @@ def create_deliberation_graph(
 
         # Create AsyncRedisSaver - let it create its own Redis client
         # AsyncRedisSaver handles decode_responses internally
-        actual_checkpointer = AsyncRedisSaver(redis_url)
+        base_checkpointer = AsyncRedisSaver(redis_url)
+        # Wrap with logging for observability (P1: checkpoint operation logging)
+        actual_checkpointer = LoggingCheckpointerWrapper(base_checkpointer)
         # Log without exposing password
         auth_status = " (with auth)" if redis_password else ""
         logger.info(

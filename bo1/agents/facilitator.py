@@ -28,6 +28,21 @@ logger = logging.getLogger(__name__)
 
 FacilitatorAction = Literal["continue", "vote", "research", "moderator", "clarify"]
 
+# Valid action values as a set for validation
+VALID_FACILITATOR_ACTIONS: set[str] = {"continue", "vote", "research", "moderator", "clarify"}
+
+
+def is_valid_facilitator_action(action: str) -> bool:
+    """Check if an action string is a valid FacilitatorAction.
+
+    Args:
+        action: Action string to validate
+
+    Returns:
+        True if action is valid, False otherwise
+    """
+    return action.lower().strip() in VALID_FACILITATOR_ACTIONS
+
 
 @dataclass
 class FacilitatorDecision:

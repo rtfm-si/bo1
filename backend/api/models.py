@@ -986,18 +986,16 @@ class GanttDependency(BaseModel):
     """Dependency data for Gantt chart.
 
     Attributes:
-        from_: Source action UUID
-        to: Target action UUID
-        type: Dependency type
+        action_id: Source action UUID
+        depends_on_id: Target action UUID
+        dependency_type: Dependency type
         lag_days: Buffer days
     """
 
-    from_: str = Field(..., alias="from", description="Source action UUID")
-    to: str = Field(..., description="Target action UUID")
-    type: str = Field(..., description="Dependency type")
+    action_id: str = Field(..., description="Source action UUID")
+    depends_on_id: str = Field(..., description="Target action UUID")
+    dependency_type: str = Field(..., description="Dependency type")
     lag_days: int = Field(..., description="Buffer days")
-
-    model_config = {"populate_by_name": True}
 
 
 class GanttProjectData(BaseModel):

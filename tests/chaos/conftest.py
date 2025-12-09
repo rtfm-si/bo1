@@ -336,6 +336,6 @@ async def async_timeout(seconds: float) -> AsyncGenerator[None, None]:
 
 @pytest.fixture
 def mock_async_sleep() -> Generator[AsyncMock, None, None]:
-    """Mock asyncio.sleep to speed up tests."""
+    """Mock asyncio.sleep to speed up tests. Use explicitly where needed."""
     with patch("asyncio.sleep", new_callable=AsyncMock) as mock:
         yield mock

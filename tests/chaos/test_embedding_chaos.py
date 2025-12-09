@@ -259,11 +259,11 @@ class TestEmbeddingTimeout:
         """Embedding timeout raises appropriate error."""
 
         async def slow_embed() -> list[float]:
-            await asyncio.sleep(10)
+            await asyncio.sleep(0.5)  # Long enough to trigger timeout
             return [0.1]
 
         with pytest.raises(asyncio.TimeoutError):
-            async with asyncio.timeout(0.1):
+            async with asyncio.timeout(0.01):  # Short timeout
                 await slow_embed()
 
     @pytest.mark.asyncio

@@ -309,31 +309,114 @@ async def get_global_gantt(
     all_dependencies: list[GanttDependency] = []
     today = date.today()
 
+    # First pass: collect all actions and their dependencies
+    action_data_map: dict[str, dict] = {}
+    deps_map: dict[str, list[tuple[str, int]]] = {}  # action_id -> [(depends_on_id, lag_days)]
+
     for action in actions:
         action_id = str(action.get("id", ""))
+        action_data_map[action_id] = action
 
-        # Calculate dates
-        start_date = action.get("target_start_date") or action.get("estimated_start_date")
-        end_date = action.get("target_end_date") or action.get("estimated_end_date")
+        # Get dependencies for this action
+        deps = action_repository.get_dependencies(action_id)
+        deps_map[action_id] = []
+        for dep in deps:
+            depends_on_id = str(dep.get("depends_on_action_id", ""))
+            lag_days = dep.get("lag_days", 0)
+            deps_map[action_id].append((depends_on_id, lag_days))
+            all_dependencies.append(
+                GanttDependency(
+                    action_id=action_id,
+                    depends_on_id=depends_on_id,
+                    dependency_type=dep.get("dependency_type", "finish_to_start"),
+                    lag_days=lag_days,
+                )
+            )
+
+    # Auto-schedule: calculate dates based on dependencies (topological sort)
+    # Track computed end dates for dependency resolution
+    computed_end_dates: dict[str, date] = {}
+    computed_start_dates: dict[str, date] = {}
+
+    def compute_dates(action_id: str, visited: set[str]) -> tuple[date, date]:
+        """Recursively compute start/end dates respecting dependencies."""
+        if action_id in computed_end_dates:
+            return computed_start_dates[action_id], computed_end_dates[action_id]
+
+        # Prevent cycles
+        if action_id in visited:
+            return today, today + timedelta(days=7)
+        visited.add(action_id)
+
+        action = action_data_map.get(action_id)
+        if not action:
+            return today, today + timedelta(days=7)
+
         duration_days = action.get("estimated_duration_days") or 7
 
-        # Default to today if no dates
-        if not start_date:
-            start_date = today
-        if not end_date:
+        # Check if action has explicit dates set
+        explicit_start = action.get("target_start_date") or action.get("estimated_start_date")
+        explicit_end = action.get("target_end_date") or action.get("estimated_end_date")
+
+        # Calculate earliest start based on dependencies
+        earliest_start = today
+        action_deps = deps_map.get(action_id, [])
+
+        if action_deps:
+            for dep_id, lag_days in action_deps:
+                if dep_id in action_data_map:
+                    _, dep_end = compute_dates(dep_id, visited.copy())
+                    dep_earliest = dep_end + timedelta(days=lag_days)
+                    if dep_earliest > earliest_start:
+                        earliest_start = dep_earliest
+
+        # Use explicit dates if set, otherwise use computed
+        if explicit_start:
+            original_start = explicit_start
+            start_date = max(explicit_start, earliest_start) if action_deps else explicit_start
+        else:
+            original_start = earliest_start
+            start_date = earliest_start
+
+        # Calculate how much we shifted the start due to dependencies
+        start_shift = (start_date - original_start).days if start_date > original_start else 0
+
+        if explicit_end:
+            # Shift end date by same amount if start was pushed forward
+            end_date = explicit_end + timedelta(days=start_shift)
+        else:
             end_date = start_date + timedelta(days=duration_days)
 
-        # Map status to progress
+        # Ensure end is always after start (minimum 1 day duration)
+        if end_date <= start_date:
+            end_date = start_date + timedelta(days=max(duration_days, 1))
+
+        computed_start_dates[action_id] = start_date
+        computed_end_dates[action_id] = end_date
+        return start_date, end_date
+
+    # Compute dates for all actions
+    for action_id in action_data_map:
+        compute_dates(action_id, set())
+
+    # Second pass: build gantt_actions with computed dates
+    progress_map = {
+        "todo": 0,
+        "in_progress": 50,
+        "blocked": 25,
+        "in_review": 75,
+        "done": 100,
+        "cancelled": 100,
+    }
+
+    for action_id, action in action_data_map.items():
+        start_date = computed_start_dates.get(action_id, today)
+        end_date = computed_end_dates.get(action_id, today + timedelta(days=7))
         status = action.get("status", "todo")
-        progress_map = {
-            "todo": 0,
-            "in_progress": 50,
-            "blocked": 25,
-            "in_review": 75,
-            "done": 100,
-            "cancelled": 100,
-        }
         progress = progress_map.get(status, 0)
+
+        # Build dependency string for frappe-gantt
+        dep_ids = [dep_id for dep_id, _ in deps_map.get(action_id, [])]
 
         gantt_actions.append(
             GanttActionData(
@@ -344,35 +427,12 @@ async def get_global_gantt(
                 else str(start_date),
                 end=end_date.isoformat() if hasattr(end_date, "isoformat") else str(end_date),
                 progress=progress,
-                dependencies="",  # Will be populated from dependencies table
+                dependencies=",".join(dep_ids),
                 status=status,
                 priority=action.get("priority", "medium"),
                 session_id=action.get("source_session_id", ""),
             )
         )
-
-        # Get dependencies for this action
-        deps = action_repository.get_dependencies(action_id)
-        for dep in deps:
-            all_dependencies.append(
-                GanttDependency(
-                    action_id=action_id,
-                    depends_on_id=str(dep.get("depends_on_action_id", "")),
-                    dependency_type=dep.get("dependency_type", "finish_to_start"),
-                    lag_days=dep.get("lag_days", 0),
-                )
-            )
-
-    # Update dependencies string in gantt_actions
-    deps_map: dict[str, list[str]] = {}
-    for dep in all_dependencies:
-        if dep.action_id not in deps_map:
-            deps_map[dep.action_id] = []
-        deps_map[dep.action_id].append(dep.depends_on_id)
-
-    for action in gantt_actions:
-        if action.id in deps_map:
-            action.dependencies = ",".join(deps_map[action.id])
 
     return GlobalGanttResponse(
         actions=gantt_actions,

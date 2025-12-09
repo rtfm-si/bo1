@@ -202,7 +202,14 @@
 
 		try {
 			isUpdatingStatus = true;
-			await apiClient.updateTaskStatus(action.session_id, actionId, newStatus);
+			// Use dedicated action status endpoints
+			if (newStatus === 'in_progress' && action.status === 'todo') {
+				await apiClient.startAction(actionId);
+			} else if (newStatus === 'done') {
+				await apiClient.completeAction(actionId);
+			} else {
+				await apiClient.updateActionStatus(actionId, newStatus);
+			}
 			action = { ...action, status: newStatus };
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to update status';

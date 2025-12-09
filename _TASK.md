@@ -363,3 +363,43 @@
 ### Backlog Review [META]
 
 - [ ] [META][P1] Review MVP doc and add any incomplete tasks to \_TASK.md
+
+---
+
+## Bug fixes (from \_TODO.md, 2025-12-09)
+
+### Working Status Timer [BUG-TIMER]
+
+- [x] [BUG][P1] Fix working status timer estimates (shows "2-4 seconds" but takes 30s+) ✅ Removed misleading time estimates
+- [x] [BUG][P1] Improve working status timer accuracy or remove time estimates ✅ Now shows elapsed time only
+
+### Expert Contribution Quality [BUG-DELIB]
+
+- [x] [BUG][P1] Reduce expert repetition across rounds (detect when topic fully explored) ✅ Novelty detection + semantic dedup working
+- [ ] [BUG][P1] Enforce max 1 contribution per expert per round - STILL BROKEN (experts contribute 2x in round 1)
+- [x] [BUG][P1] Add signal detection when nothing new to add (topic exhausted) ✅ Judge novelty_score + should_exit_early() implemented
+
+### Productive Disagreement [BUG-DELIB]
+
+- [ ] [BUG-DELIB][P1] Add "stalled disagreement" detection (conflict > 0.7 AND novelty < 0.40 for 2+ rounds)
+- [ ] [BUG-DELIB][P1] Add Facilitator "Acknowledge Impasse" option to guide experts toward resolution
+- [ ] [BUG-DELIB][P1] Guide experts to: find common ground, disagree-and-commit, or propose conditional recommendations
+- [ ] [BUG-DELIB][P1] Trigger early synthesis when topic exhausted even without consensus (reduces cost, improves UX)
+
+### Meeting Output [BUG-OUTPUT]
+
+- [x] [BUG][P1] Add actions to PDF report export ✅ Added actions section to PDF generator with status/priority badges
+
+### Context Persistence [BUG-CONTEXT]
+
+- [x] [BUG][P1] Persist clarifying question answers to settings > context > insights/metrics ✅ Added clarifications column + CONTEXT_FIELDS entry
+
+### Gantt Chart API [BUG-GANTT]
+
+- [x] [BUG][P1] Fix Gantt API validation error (GanttDependency missing from/to/type fields) ✅ Fixed field names
+- [ ] [BUG][P2] Gantt chart month view renders bars incorrectly (wrong positioning/sizing)
+
+### Navigation & Routing [BUG-NAV]
+
+- [ ] [BUG][P1] /meeting breadcrumb link returns 404 (no meetings list page exists)
+- [ ] [BUG][P1] Clicking action in dashboard navigates to meeting instead of action detail page

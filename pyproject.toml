@@ -133,7 +133,7 @@ warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra -q --strict-markers --cov=bo1 --cov-report=term-missing"
+addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
 pythonpath = [".", "backend"]
 asyncio_mode = "auto"
@@ -142,6 +142,7 @@ markers = [
     "unit: mark test as unit test",
     "integration: mark test as integration test",
     "requires_llm: mark test as requiring LLM API calls",
+    "chaos: mark test as chaos/resilience test",
 ]
 
 [tool.coverage.run]

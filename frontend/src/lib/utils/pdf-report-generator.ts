@@ -10,6 +10,7 @@
  */
 
 import type { SSEEvent } from '$lib/api/sse-events';
+import type { ActionStatus } from '$lib/api/types';
 import { formatMarkdownToHtml, parseSynthesisSections } from './markdown-formatter';
 import {
 	extractExperts,
@@ -39,6 +40,19 @@ interface SessionInfo {
 }
 
 /**
+ * Action data for PDF report
+ */
+export interface ReportAction {
+	id: string;
+	title: string;
+	description: string;
+	status: ActionStatus;
+	priority: 'high' | 'medium' | 'low';
+	timeline: string;
+	target_end_date: string | null;
+}
+
+/**
  * Parameters for generateReportHTML function
  */
 export interface ReportGeneratorParams {
@@ -48,6 +62,8 @@ export interface ReportGeneratorParams {
 	events: SSEEvent[];
 	/** Session ID for footer metadata */
 	sessionId: string;
+	/** Optional actions to include in report */
+	actions?: ReportAction[];
 }
 
 /**
@@ -104,6 +120,92 @@ function renderSection(sectionNum: number, title: string, content: string, boxCl
 }
 
 /**
+ * Format a date string to a readable format
+ */
+function formatDate(dateStr: string | null): string {
+	if (!dateStr) return 'Not set';
+	try {
+		return new Date(dateStr).toLocaleDateString('en-GB', {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric'
+		});
+	} catch {
+		return 'Not set';
+	}
+}
+
+/**
+ * Get status badge class
+ */
+function getStatusClass(status: ActionStatus): string {
+	const statusClasses: Record<ActionStatus, string> = {
+		todo: 'status-todo',
+		in_progress: 'status-in-progress',
+		blocked: 'status-blocked',
+		in_review: 'status-in-review',
+		done: 'status-done',
+		cancelled: 'status-cancelled'
+	};
+	return statusClasses[status] || 'status-todo';
+}
+
+/**
+ * Get priority badge class
+ */
+function getPriorityClass(priority: 'high' | 'medium' | 'low'): string {
+	return `priority-${priority}`;
+}
+
+/**
+ * Render an action item HTML
+ */
+function renderActionItem(action: ReportAction): string {
+	const statusLabel = action.status.replace('_', ' ');
+	return `
+		<div class="action-item">
+			<div class="action-header">
+				<span class="action-title">${action.title}</span>
+				<div class="action-badges">
+					<span class="action-status ${getStatusClass(action.status)}">${statusLabel}</span>
+					<span class="action-priority ${getPriorityClass(action.priority)}">${action.priority}</span>
+				</div>
+			</div>
+			<div class="action-description">${action.description}</div>
+			<div class="action-meta">
+				<span class="action-timeline">${action.timeline}</span>
+				${action.target_end_date ? `<span class="action-due">Due: ${formatDate(action.target_end_date)}</span>` : ''}
+			</div>
+		</div>`;
+}
+
+/**
+ * Render actions section HTML
+ */
+function renderActionsSection(actions: ReportAction[], sectionNum: number): string {
+	if (!actions || actions.length === 0) return '';
+
+	// Sort by priority (high first) then by status
+	const sortedActions = [...actions].sort((a, b) => {
+		const priorityOrder = { high: 0, medium: 1, low: 2 };
+		const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+		if (priorityDiff !== 0) return priorityDiff;
+		return a.status.localeCompare(b.status);
+	});
+
+	return `
+		<div class="section">
+			<div class="section-header">
+				<span class="section-number">${sectionNum}</span>
+				<span class="section-title">Action Items</span>
+			</div>
+			<div class="actions-section">
+				${sortedActions.map((action) => renderActionItem(action)).join('')}
+			</div>
+		</div>`;
+}
+
+/**
  * Generate HTML report from session data and events.
  *
  * Creates a professionally formatted HTML document that can be
@@ -116,7 +218,7 @@ function renderSection(sectionNum: number, title: string, content: string, boxCl
  * @returns Complete HTML document as a string
  */
 export function generateReportHTML(params: ReportGeneratorParams): string {
-	const { session, events, sessionId } = params;
+	const { session, events, sessionId, actions } = params;
 
 	if (!session) return '';
 
@@ -131,7 +233,8 @@ export function generateReportHTML(params: ReportGeneratorParams): string {
 	const durationMins = calculateDuration(session.created_at, events);
 	const reportDate = formatReportDate();
 
-	// Build synthesis sections HTML
+	// Build synthesis sections HTML and track section count for actions
+	let lastSectionNum = 0;
 	const buildSynthesisSections = (): string => {
 		const sectionStart = subProblems.length > 0 ? 3 : 2;
 		let sectionNum = sectionStart;
@@ -171,9 +274,18 @@ export function generateReportHTML(params: ReportGeneratorParams): string {
 		// Full synthesis fallback (if nothing else parsed)
 		if (!html && synthesis) {
 			html = renderSection(sectionStart, 'Analysis', formatMarkdownToHtml(synthesis), 'full-analysis');
+			sectionNum++;
 		}
 
+		// Track the last section number for actions section
+		lastSectionNum = sectionNum;
 		return html;
+	};
+
+	// Build actions section HTML
+	const buildActionsSection = (): string => {
+		if (!actions || actions.length === 0) return '';
+		return renderActionsSection(actions, lastSectionNum);
 	};
 
 	return `<!DOCTYPE html>
@@ -259,6 +371,9 @@ export function generateReportHTML(params: ReportGeneratorParams): string {
 
 		<!-- Synthesis Sections (dynamic based on format) -->
 		${buildSynthesisSections()}
+
+		<!-- Action Items -->
+		${buildActionsSection()}
 
 		<!-- Footer -->
 		<div class="footer">

@@ -6,7 +6,7 @@
 	import { fade } from 'svelte/transition';
 	import { CheckCircle, AlertCircle, Download } from 'lucide-svelte';
 	import { user } from '$lib/stores/auth';
-	import { generateReportHTML } from '$lib/utils/pdf-report-generator';
+	import { generateReportHTML, type ReportAction } from '$lib/utils/pdf-report-generator';
 
 	// Import DynamicEventComponent (reusable wrapper for dynamic event component loading)
 	import DynamicEventComponent from '$lib/components/events/DynamicEventComponent.svelte';
@@ -112,6 +112,7 @@
 	let autoScroll = $state(true);
 	let retryCount = $derived(store.retryCount);
 	let connectionStatus = $derived(store.connectionStatus);
+	let reportActions = $state<ReportAction[]>([]);
 
 	// ============================================================================
 	// EFFECTS
@@ -346,7 +347,27 @@
 				alert('Session data not loaded');
 				return;
 			}
-			const reportHTML = generateReportHTML({ session, events, sessionId });
+
+			// Load actions if not already loaded
+			if (reportActions.length === 0) {
+				try {
+					const actionsResponse = await apiClient.getSessionActions(sessionId);
+					reportActions = actionsResponse.tasks.map((task) => ({
+						id: task.id,
+						title: task.title,
+						description: task.description || '',
+						status: task.status,
+						priority: (task.priority as 'high' | 'medium' | 'low') || 'medium',
+						timeline: task.timeline || '',
+						target_end_date: task.suggested_completion_date || null,
+					}));
+				} catch {
+					// Continue without actions if fetch fails
+					console.warn('Could not load actions for PDF export');
+				}
+			}
+
+			const reportHTML = generateReportHTML({ session, events, sessionId, actions: reportActions });
 			reportWindow.document.write(reportHTML);
 			reportWindow.document.close();
 			setTimeout(() => reportWindow.print(), 500);

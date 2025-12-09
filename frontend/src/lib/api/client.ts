@@ -629,6 +629,25 @@ export class ApiClient {
 		return this.delete<{ message: string; action_id: string }>(`/api/v1/actions/${actionId}`);
 	}
 
+	async startAction(actionId: string): Promise<{ message: string; action_id: string }> {
+		return this.post<{ message: string; action_id: string }>(`/api/v1/actions/${actionId}/start`);
+	}
+
+	async completeAction(actionId: string): Promise<{ message: string; action_id: string }> {
+		return this.post<{ message: string; action_id: string }>(`/api/v1/actions/${actionId}/complete`);
+	}
+
+	async updateActionStatus(
+		actionId: string,
+		status: ActionStatus,
+		blockingReason?: string
+	): Promise<{ message: string; action_id: string; status: string }> {
+		return this.patch<{ message: string; action_id: string; status: string }>(
+			`/api/v1/actions/${actionId}/status`,
+			{ status, blocking_reason: blockingReason }
+		);
+	}
+
 	async getGlobalGantt(params?: {
 		status_filter?: ActionStatus;
 		project_id?: string;

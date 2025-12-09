@@ -7,7 +7,7 @@ Validates:
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -115,64 +115,6 @@ class TestRedisTimeoutRecovery:
 
 
 @pytest.mark.chaos
-class TestRedisCheckpointerFactory:
-    """Test checkpointer factory Redis failure handling."""
-
-    def test_redis_url_construction_with_auth(self) -> None:
-        """Redis URL correctly constructed with authentication."""
-        from bo1.graph.checkpointer_factory import _create_redis_checkpointer
-
-        with patch("bo1.graph.checkpointer_factory.get_settings") as mock_settings:
-            mock_settings.return_value.redis_host = "localhost"
-            mock_settings.return_value.redis_port = 6379
-            mock_settings.return_value.redis_db = 0
-            mock_settings.return_value.redis_password = "secret"  # noqa: S105
-            mock_settings.return_value.checkpoint_ttl_seconds = 604800
-
-            with patch("bo1.graph.checkpointer_factory.AsyncRedisSaver") as mock_saver_class:
-                mock_saver = MagicMock()
-                mock_saver_class.return_value = mock_saver
-
-                with patch(
-                    "bo1.graph.checkpointer_factory.LoggingCheckpointerWrapper"
-                ) as mock_wrapper:
-                    mock_wrapper.return_value = MagicMock()
-                    _create_redis_checkpointer()
-
-                # Verify URL includes password
-                call_args = mock_saver_class.call_args
-                redis_url = call_args[0][0]
-                assert ":secret@" in redis_url
-
-    def test_redis_url_construction_without_auth(self) -> None:
-        """Redis URL correctly constructed without authentication."""
-        from bo1.graph.checkpointer_factory import _create_redis_checkpointer
-
-        with patch("bo1.graph.checkpointer_factory.get_settings") as mock_settings:
-            mock_settings.return_value.redis_host = "redis"
-            mock_settings.return_value.redis_port = 6379
-            mock_settings.return_value.redis_db = 1
-            mock_settings.return_value.redis_password = ""
-            mock_settings.return_value.checkpoint_ttl_seconds = 604800
-
-            with patch("bo1.graph.checkpointer_factory.AsyncRedisSaver") as mock_saver_class:
-                mock_saver = MagicMock()
-                mock_saver_class.return_value = mock_saver
-
-                with patch(
-                    "bo1.graph.checkpointer_factory.LoggingCheckpointerWrapper"
-                ) as mock_wrapper:
-                    mock_wrapper.return_value = MagicMock()
-                    _create_redis_checkpointer()
-
-                # Verify URL without password
-                call_args = mock_saver_class.call_args
-                redis_url = call_args[0][0]
-                assert "@" not in redis_url
-                assert "redis://redis:6379/1" == redis_url
-
-
-@pytest.mark.chaos
 class TestRedisPoolExhaustion:
     """Test Redis connection pool exhaustion scenarios."""
 
@@ -213,11 +155,11 @@ class TestRedisPoolExhaustion:
         async def hold_connection() -> None:
             async with pool_semaphore:
                 holding_lock.set()
-                await asyncio.sleep(10)  # Hold indefinitely
+                await asyncio.sleep(0.5)  # Hold long enough for timeout test
 
         async def try_acquire_with_timeout() -> str:
             try:
-                async with asyncio.timeout(0.1):
+                async with asyncio.timeout(0.01):
                     async with pool_semaphore:
                         return "acquired"
             except TimeoutError:

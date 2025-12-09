@@ -175,6 +175,8 @@ class UserRepository(BaseRepository):
         "last_refresh_prompt",
         "onboarding_completed",
         "onboarding_completed_at",
+        # Clarification answers from meetings
+        "clarifications",
     ]
 
     @classmethod
@@ -260,6 +262,7 @@ class UserRepository(BaseRepository):
             "seo_structure",
             "detected_competitors",
             "keywords",
+            "clarifications",
         }
 
         values = []

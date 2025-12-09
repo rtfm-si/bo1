@@ -29,6 +29,7 @@ async def select_experts_for_round(
     Balancing Rules:
     - No expert in >50% of recent 4 rounds
     - Each expert 15-25% of total contributions (balanced)
+    - Max 1 contribution per expert per round (enforced)
 
     Args:
         state: Current deliberation state
@@ -41,6 +42,19 @@ async def select_experts_for_round(
     personas = state.get("personas", [])
     contributions = state.get("contributions", [])
     experts_per_round = state.get("experts_per_round", [])
+
+    # BUG FIX: Filter out experts who already contributed in this round
+    experts_this_round: set[str] = set()
+    for contrib in contributions:
+        if hasattr(contrib, "round_number") and contrib.round_number == round_number:
+            experts_this_round.add(contrib.persona_code)
+
+    if experts_this_round:
+        logger.info(
+            f"Filtering {len(experts_this_round)} experts who already contributed in round {round_number}: "
+            f"{experts_this_round}"
+        )
+        personas = [p for p in personas if p.code not in experts_this_round]
 
     if not personas:
         logger.warning("No personas available for selection")

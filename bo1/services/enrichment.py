@@ -335,16 +335,27 @@ Return ONLY valid JSON, no other text."""
         except Exception as e:
             logger.error(f"Claude extraction failed: {e}")
             # Return basic context from metadata only
-            # All other fields default to None via Field(None, ...)
             return EnrichedContext(
                 company_name=website_data.get("title"),
                 website=url,
+                industry=None,
+                business_model=None,
+                pricing_model=None,
+                target_market=None,
                 product_description=website_data.get("description"),
+                product_categories=None,
+                main_value_proposition=None,
+                brand_positioning=None,
+                brand_tone=None,
+                brand_maturity=None,
                 tech_stack=website_data.get("detected_tech"),
                 seo_structure={
                     "title": website_data.get("title"),
                     "description": website_data.get("description"),
                 },
+                keywords=None,
+                detected_competitors=None,
+                ideal_customer_profile=None,
                 enrichment_source="scrape",
                 confidence="low",
             )

@@ -77,7 +77,6 @@ class EventCollector:
         self,
         session_id: str,
         phase: str,
-        estimated_duration: str,
         sub_problem_index: int = 0,
     ) -> None:
         """Emit a working_status event to indicate ongoing processing.
@@ -89,7 +88,6 @@ class EventCollector:
         Args:
             session_id: Session identifier
             phase: Human-readable description of current phase (e.g., "Experts finalizing recommendations...")
-            estimated_duration: Estimated time for this phase (e.g., "10-15 seconds")
             sub_problem_index: Sub-problem index for tab filtering (default: 0)
         """
         self.publisher.publish_event(
@@ -97,7 +95,6 @@ class EventCollector:
             "working_status",
             {
                 "phase": phase,
-                "estimated_duration": estimated_duration,
                 "sub_problem_index": sub_problem_index,
             },
         )
@@ -467,7 +464,6 @@ class EventCollector:
         self._emit_working_status(
             session_id,
             phase="Breaking down your decision into key areas...",
-            estimated_duration="5-10 seconds",
             sub_problem_index=output.get("sub_problem_index", 0),
         )
 
@@ -569,7 +565,6 @@ class EventCollector:
         self._emit_working_status(
             session_id,
             phase="Assembling the right experts for your question...",
-            estimated_duration="3-5 seconds",
             sub_problem_index=sub_problem_index,
         )
 
@@ -638,11 +633,10 @@ class EventCollector:
         personas = output.get("personas", [])
 
         # P1-004 FIX (MAJOR GAP): Emit working status at START of initial round
-        # This is the longest phase (15-30s) and was previously missing status updates
+        # This is the longest phase and was previously missing status updates
         self._emit_working_status(
             session_id,
             phase="Experts are sharing their initial perspectives...",
-            estimated_duration="15-30 seconds",
             sub_problem_index=sub_problem_index,
         )
 
@@ -686,7 +680,6 @@ class EventCollector:
         self._emit_working_status(
             session_id,
             phase="Guiding the discussion deeper...",
-            estimated_duration="2-4 seconds",
             sub_problem_index=output.get("sub_problem_index", 0),
         )
         await self._publish_node_event(session_id, output, "facilitator_decision")
@@ -723,7 +716,6 @@ class EventCollector:
         self._emit_working_status(
             session_id,
             phase=f"Experts are discussing (round {completed_round})...",
-            estimated_duration="8-12 seconds",
             sub_problem_index=sub_problem_index,
         )
 
@@ -774,7 +766,6 @@ class EventCollector:
         self._emit_working_status(
             session_id,
             phase="Ensuring balanced perspectives...",
-            estimated_duration="2-4 seconds",
             sub_problem_index=output.get("sub_problem_index", 0),
         )
         await self._publish_node_event(session_id, output, "moderator_intervention")
@@ -785,7 +776,6 @@ class EventCollector:
         self._emit_working_status(
             session_id,
             phase="Checking for emerging agreement...",
-            estimated_duration="2-3 seconds",
             sub_problem_index=output.get("sub_problem_index", 0),
         )
         logger.info(
@@ -851,7 +841,6 @@ class EventCollector:
         self._emit_working_status(
             session_id,
             phase="Experts are finalizing their recommendations...",
-            estimated_duration="10-15 seconds",
             sub_problem_index=output.get("sub_problem_index", 0),
         )
         await self._publish_node_event(session_id, output, "voting_complete", registry_key="voting")
@@ -865,7 +854,6 @@ class EventCollector:
         self._emit_working_status(
             session_id,
             phase="Bringing together the key insights...",
-            estimated_duration="5-8 seconds",
             sub_problem_index=output.get("sub_problem_index", 0),
         )
         # Publish event
@@ -924,7 +912,6 @@ class EventCollector:
         self._emit_working_status(
             session_id,
             phase="Crafting your final recommendation...",
-            estimated_duration="8-12 seconds",
         )
         # Publish event
         await self._publish_node_event(session_id, output, "meta_synthesis_complete")

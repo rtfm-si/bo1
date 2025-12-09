@@ -199,6 +199,15 @@
 				filter: brightness(1.1);
 				cursor: pointer;
 			}
+
+			/* Force labels to display consistently outside bars on the right */
+			.gantt .bar-label {
+				text-anchor: start !important;
+				dominant-baseline: central !important;
+			}
+			.gantt .bar-label.big {
+				text-anchor: start !important;
+			}
 		`;
 		document.head.appendChild(style);
 	}

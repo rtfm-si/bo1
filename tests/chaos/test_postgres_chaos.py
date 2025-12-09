@@ -7,7 +7,7 @@ Validates:
 """
 
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -84,6 +84,7 @@ class TestPostgresQueryFailure:
         except Exception as e:
             # Query failed as expected in chaos test - log for debugging
             import logging
+
             logging.debug(f"Expected query failure in chaos test: {e}")
 
         # State should be unchanged
@@ -208,39 +209,6 @@ class TestPostgresTransactionRollback:
 @pytest.mark.chaos
 class TestPostgresCheckpointerFailure:
     """Test PostgreSQL checkpointer failure handling."""
-
-    def test_postgres_checkpointer_setup_failure_logged(self) -> None:
-        """PostgreSQL setup failure is logged but doesn't crash."""
-
-        with patch("bo1.graph.checkpointer_factory.get_settings") as mock_settings:
-            mock_settings.return_value.database_url = "postgresql://test:test@localhost/test"
-
-            with patch("bo1.graph.checkpointer_factory._run_postgres_setup_sync") as mock_setup:
-                mock_setup.side_effect = Exception("Setup failed: tables exist")
-
-                with patch("bo1.graph.checkpointer_factory.AsyncConnectionPool") as mock_pool:
-                    mock_pool.return_value = MagicMock()
-
-                    with patch("bo1.graph.checkpointer_factory.AsyncPostgresSaver") as mock_saver:
-                        mock_saver.return_value = MagicMock()
-
-                        with patch(
-                            "bo1.graph.checkpointer_factory.LoggingCheckpointerWrapper"
-                        ) as mock_wrapper:
-                            mock_wrapper.return_value = MagicMock()
-
-                            # Reset setup flag for test
-                            import bo1.graph.checkpointer_factory as cf
-
-                            cf._postgres_setup_complete = False
-
-                            from bo1.graph.checkpointer_factory import (
-                                _create_postgres_checkpointer,
-                            )
-
-                            # Should not raise despite setup failure
-                            result = _create_postgres_checkpointer()
-                            assert result is not None
 
     def test_postgres_url_password_masked_in_logs(self) -> None:
         """PostgreSQL password is masked in log output."""

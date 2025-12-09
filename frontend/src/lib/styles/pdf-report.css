@@ -367,6 +367,120 @@ body {
 	margin-bottom: 6px;
 }
 
+/* Actions Section */
+.actions-section {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.action-item {
+	background: var(--bg-subtle);
+	border: 1px solid var(--border-color);
+	border-radius: 8px;
+	padding: 16px;
+}
+
+.action-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 12px;
+	margin-bottom: 8px;
+}
+
+.action-title {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--text-primary);
+	flex: 1;
+}
+
+.action-badges {
+	display: flex;
+	gap: 6px;
+	flex-shrink: 0;
+}
+
+.action-status,
+.action-priority {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	padding: 3px 8px;
+	border-radius: 4px;
+}
+
+/* Status badges */
+.status-todo {
+	background: #f3f4f6;
+	color: #6b7280;
+}
+
+.status-in-progress {
+	background: #dbeafe;
+	color: #1d4ed8;
+}
+
+.status-blocked {
+	background: #fee2e2;
+	color: #dc2626;
+}
+
+.status-in-review {
+	background: #fef3c7;
+	color: #d97706;
+}
+
+.status-done {
+	background: #d1fae5;
+	color: #059669;
+}
+
+.status-cancelled {
+	background: #f3f4f6;
+	color: #9ca3af;
+	text-decoration: line-through;
+}
+
+/* Priority badges */
+.priority-high {
+	background: #fee2e2;
+	color: #dc2626;
+}
+
+.priority-medium {
+	background: #fef3c7;
+	color: #d97706;
+}
+
+.priority-low {
+	background: #e0e7ff;
+	color: #4f46e5;
+}
+
+.action-description {
+	font-size: 12px;
+	line-height: 1.6;
+	color: var(--text-secondary);
+	margin-bottom: 8px;
+}
+
+.action-meta {
+	display: flex;
+	gap: 16px;
+	font-size: 11px;
+	color: var(--text-muted);
+}
+
+.action-timeline,
+.action-due {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
 /* Footer */
 .footer {
 	margin-top: 48px;

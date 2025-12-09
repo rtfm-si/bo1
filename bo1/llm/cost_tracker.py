@@ -318,6 +318,48 @@ class CostTracker:
         return TAVILY_PRICING.get(search_type, TAVILY_PRICING["basic_search"])
 
     @staticmethod
+    def _emit_prometheus_metrics(record: CostRecord) -> None:
+        """Emit Prometheus metrics for Grafana dashboards.
+
+        Args:
+            record: CostRecord with all API call details
+        """
+        try:
+            from backend.api.metrics import prom_metrics
+
+            # Record request duration
+            if record.latency_ms:
+                prom_metrics.observe_llm_request(
+                    provider=record.provider,
+                    model=record.model_name,
+                    operation=record.operation_type,
+                    duration_seconds=record.latency_ms / 1000.0,
+                    node=record.node_name,
+                )
+
+            # Record token usage
+            prom_metrics.record_tokens(
+                provider=record.provider,
+                model=record.model_name,
+                input_tokens=record.input_tokens,
+                output_tokens=record.output_tokens,
+                cache_read_tokens=record.cache_read_tokens,
+                cache_write_tokens=record.cache_creation_tokens,
+            )
+
+            # Record cost
+            prom_metrics.record_cost(
+                provider=record.provider,
+                model=record.model_name,
+                cost_dollars=record.total_cost,
+            )
+        except ImportError:
+            # Metrics not available (e.g., in CLI mode)
+            pass
+        except Exception as e:
+            logger.debug(f"Failed to emit Prometheus metrics: {e}")
+
+    @staticmethod
     def _emit_cache_metrics(record: CostRecord) -> None:
         """Emit cache hit/miss metrics for monitoring (P1: prompt cache monitoring).
 
@@ -325,9 +367,9 @@ class CostTracker:
             record: CostRecord with cache token info
         """
         try:
-            from backend.api.metrics import metrics
+            from backend.api.metrics import metrics, prom_metrics
 
-            # Track cache hits/misses
+            # Track cache hits/misses (in-memory metrics)
             if record.cache_hit:
                 metrics.increment("llm.cache.hits")
                 # Track tokens saved from cache
@@ -342,11 +384,50 @@ class CostTracker:
                     metrics.observe("llm.cache.cost_saved", cost_saved)
             else:
                 metrics.increment("llm.cache.misses")
+
+            # Prometheus metrics for Grafana
+            prom_metrics.record_cache_hit(record.cache_hit)
         except ImportError:
             # Metrics not available (e.g., in CLI mode)
             pass
         except Exception as e:
             logger.debug(f"Failed to emit cache metrics: {e}")
+
+    @staticmethod
+    def _check_token_budget(record: CostRecord) -> None:
+        """Check if input tokens exceed budget threshold and log warning.
+
+        Helps identify bloated prompts that may need optimization.
+
+        Args:
+            record: CostRecord with input token count and context
+        """
+        try:
+            from bo1.config import get_settings
+
+            settings = get_settings()
+            threshold = settings.token_budget_warning_threshold
+
+            if record.input_tokens > threshold:
+                prompt_name = record.metadata.get("prompt_name", "unknown")
+                logger.warning(
+                    f"Token budget exceeded: {record.input_tokens:,} tokens "
+                    f"(threshold: {threshold:,}) | "
+                    f"prompt={prompt_name} node={record.node_name} "
+                    f"phase={record.phase} model={record.model_name}"
+                )
+
+                # Emit metric for monitoring dashboards
+                try:
+                    from backend.api.metrics import metrics
+
+                    metrics.increment("llm.token_budget.violations")
+                    metrics.observe("llm.input_tokens.exceeded", float(record.input_tokens))
+                except ImportError:
+                    pass
+
+        except Exception as e:
+            logger.debug(f"Failed to check token budget: {e}")
 
     @staticmethod
     def log_cost(record: CostRecord) -> str:
@@ -556,8 +637,114 @@ class CostTracker:
             # Emit cache metrics (P1: prompt cache monitoring)
             CostTracker._emit_cache_metrics(record)
 
+            # Check token budget and emit warning (P2: token budget tracking)
+            CostTracker._check_token_budget(record)
+
+            # Emit Prometheus metrics for Grafana dashboards
+            CostTracker._emit_prometheus_metrics(record)
+
             # Log to database
             CostTracker.log_cost(record)
+
+    # Track sessions that have already received warnings (to avoid duplicates)
+    _warned_sessions: set[str] = set()
+    _exceeded_sessions: set[str] = set()
+
+    @classmethod
+    def check_budget(
+        cls,
+        session_id: str,
+        current_cost: float,
+        budget: float | None = None,
+        warning_threshold: float | None = None,
+    ) -> tuple[bool, bool]:
+        """Check if session cost has crossed budget thresholds.
+
+        Emits warnings/alerts via logging and Prometheus metrics.
+        Tracks state to avoid duplicate warnings per session.
+
+        Args:
+            session_id: Session identifier
+            current_cost: Current cumulative cost for session
+            budget: Cost budget in USD (default: from settings)
+            warning_threshold: Warning threshold 0-1 (default: from settings)
+
+        Returns:
+            Tuple of (warning_triggered, exceeded_triggered) - True only on first crossing
+
+        Examples:
+            >>> warning, exceeded = CostTracker.check_budget("bo1_abc", 0.45)
+            >>> if warning:
+            ...     print("Budget warning triggered!")
+        """
+        from bo1.config import get_settings
+
+        settings = get_settings()
+        budget = budget or settings.session_cost_budget
+        warning_threshold = warning_threshold or settings.cost_warning_threshold
+
+        warning_triggered = False
+        exceeded_triggered = False
+
+        percent_used = current_cost / budget if budget > 0 else 0.0
+
+        # Check warning threshold (80% by default)
+        if percent_used >= warning_threshold and session_id not in cls._warned_sessions:
+            cls._warned_sessions.add(session_id)
+            warning_triggered = True
+            logger.warning(
+                f"Cost budget warning: session={session_id} "
+                f"cost=${current_cost:.4f} budget=${budget:.2f} "
+                f"used={percent_used:.1%} threshold={warning_threshold:.0%}"
+            )
+            # Emit Prometheus metric
+            cls._emit_budget_alert_metric(session_id, "warning", current_cost, budget)
+
+        # Check exceeded threshold (100%)
+        if percent_used >= 1.0 and session_id not in cls._exceeded_sessions:
+            cls._exceeded_sessions.add(session_id)
+            exceeded_triggered = True
+            logger.warning(
+                f"Cost budget EXCEEDED: session={session_id} "
+                f"cost=${current_cost:.4f} budget=${budget:.2f} "
+                f"used={percent_used:.1%}"
+            )
+            # Emit Prometheus metric
+            cls._emit_budget_alert_metric(session_id, "exceeded", current_cost, budget)
+
+        return warning_triggered, exceeded_triggered
+
+    @staticmethod
+    def _emit_budget_alert_metric(
+        session_id: str, alert_type: str, current_cost: float, budget: float
+    ) -> None:
+        """Emit Prometheus metric for budget alert.
+
+        Args:
+            session_id: Session identifier
+            alert_type: Alert type ('warning' or 'exceeded')
+            current_cost: Current cost
+            budget: Budget threshold
+        """
+        try:
+            from backend.api.metrics import prom_metrics
+
+            prom_metrics.record_budget_alert(alert_type, current_cost, budget)
+        except ImportError:
+            # Metrics not available (e.g., in CLI mode)
+            pass
+        except Exception as e:
+            logger.debug(f"Failed to emit budget alert metric: {e}")
+
+    @classmethod
+    def reset_session_budget_state(cls, session_id: str) -> None:
+        """Reset budget tracking state for a session (for testing).
+
+        Args:
+            session_id: Session identifier to reset
+        """
+        cls._warned_sessions.discard(session_id)
+        cls._exceeded_sessions.discard(session_id)
 
     @staticmethod
     def get_session_costs(session_id: str) -> dict[str, Any]:

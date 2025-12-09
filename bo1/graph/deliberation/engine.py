@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from bo1.agents.selector import PersonaSelectorAgent
 from bo1.agents.summarizer import SummarizerAgent
-from bo1.data import get_persona_by_code
+from bo1.data import get_persona_profile_by_code
 from bo1.graph.safety.loop_prevention import check_convergence_node, get_adaptive_max_rounds
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import track_aggregated_cost, track_phase_cost
@@ -52,9 +52,9 @@ async def _select_personas_for_subproblem(
 
     personas = []
     for code in persona_codes:
-        persona_dict = get_persona_by_code(code)
-        if persona_dict:
-            personas.append(PersonaProfile.model_validate(persona_dict))
+        persona = get_persona_profile_by_code(code)
+        if persona:
+            personas.append(persona)
 
     track_phase_cost(metrics, "persona_selection", response)
 

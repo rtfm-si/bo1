@@ -9,9 +9,14 @@ import logging
 from typing import Any
 
 from bo1.agents.selector import PersonaSelectorAgent
+from bo1.config import get_settings
 from bo1.graph.state import DeliberationGraphState
-from bo1.graph.utils import ensure_metrics, track_phase_cost
-from bo1.models.persona import PersonaProfile
+from bo1.graph.utils import (
+    calculate_problem_complexity,
+    calculate_target_expert_count,
+    ensure_metrics,
+    track_phase_cost,
+)
 from bo1.models.state import DeliberationPhase
 
 logger = logging.getLogger(__name__)
@@ -33,7 +38,21 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     logger.info("select_personas_node: Starting persona selection")
 
-    # Create selector agent
+    # Calculate problem complexity and target expert count
+    settings = get_settings()
+    complexity_score = calculate_problem_complexity(state)
+    target_count = calculate_target_expert_count(
+        complexity_score,
+        min_experts=settings.min_experts,
+        max_experts=settings.max_experts,
+        threshold_simple=settings.complexity_threshold_simple,
+    )
+
+    logger.info(
+        f"select_personas_node: Complexity={complexity_score:.2f}, target_experts={target_count}"
+    )
+
+    # Create selector agent with target count
     selector = PersonaSelectorAgent()
 
     # Get current sub-problem - with defensive fallback for resume edge cases
@@ -74,10 +93,11 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
     problem = state["problem"]
     problem_context = problem.get("context", "") if isinstance(problem, dict) else problem.context
 
-    # Call selector
+    # Call selector with target count for adaptive expert selection
     response = await selector.recommend_personas(
         sub_problem=current_sp,
         problem_context=problem_context,
+        target_count=target_count,
     )
 
     # Parse recommendations
@@ -88,15 +108,13 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     logger.info(f"Persona codes: {persona_codes}")
 
-    # Load persona profiles
-    from bo1.data import get_persona_by_code
+    # Load persona profiles (uses cached PersonaProfile instances)
+    from bo1.data import get_persona_profile_by_code
 
     personas = []
     for code in persona_codes:
-        persona_dict = get_persona_by_code(code)
-        if persona_dict:
-            # Convert dict to PersonaProfile using Pydantic
-            persona = PersonaProfile.model_validate(persona_dict)
+        persona = get_persona_profile_by_code(code)
+        if persona:
             personas.append(persona)
         else:
             logger.warning(f"Persona '{code}' not found, skipping")
@@ -122,4 +140,6 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
         "current_node": "select_personas",
         "current_sub_problem": current_sp,  # BUG FIX: Persist for downstream nodes
         "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
+        "problem_complexity": complexity_score,  # Observability: track complexity score
+        "target_expert_count": target_count,  # Observability: track target count
     }

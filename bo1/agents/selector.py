@@ -52,11 +52,12 @@ class PersonaSelectorAgent(BaseAgent):
         self,
         sub_problem: SubProblem,
         problem_context: str = "",
+        target_count: int | None = None,
     ) -> LLMResponse:
         """Recommend personas for a given sub-problem with semantic caching.
 
-        Uses LLM to analyze the problem and recommend 3-5 expert personas
-        based on domain expertise, complexity, and perspective diversity.
+        Uses LLM to analyze the problem and recommend the specified number of
+        expert personas based on domain expertise and perspective diversity.
 
         Checks semantic cache first - if similar problem found (similarity >0.90),
         returns cached personas to save $0.01-0.02 per call.
@@ -64,6 +65,7 @@ class PersonaSelectorAgent(BaseAgent):
         Args:
             sub_problem: The sub-problem to deliberate on
             problem_context: Additional context about the overall problem
+            target_count: Target number of experts (3-5, default: adaptive based on complexity)
 
         Returns:
             LLMResponse with:
@@ -132,7 +134,10 @@ class PersonaSelectorAgent(BaseAgent):
         # Build persona catalog summary for LLM
         persona_catalog = self._format_persona_catalog(available_personas)
 
-        # Compose selection request
+        # Calculate effective target count (default to 4 if not specified)
+        effective_target = target_count if target_count is not None else 4
+
+        # Compose selection request with explicit target count
         user_message = f"""## Problem to Deliberate
 
 **Goal**: {_get_sp_attr(sub_problem, "goal", "")}
@@ -149,8 +154,11 @@ class PersonaSelectorAgent(BaseAgent):
 
 ## Instructions
 
-Analyze this problem and recommend 3-5 personas from the catalog above.
+Analyze this problem and recommend EXACTLY {effective_target} personas from the catalog above.
 Ensure domain coverage, perspective diversity, and appropriate expertise depth.
+
+IMPORTANT: Select exactly {effective_target} personas - no more, no less. This count is optimized
+for the problem complexity (simpler problems need fewer experts, complex problems need more).
 
 Provide your recommendation as JSON following the format in your system prompt.
 """
@@ -229,8 +237,16 @@ Provide your recommendation as JSON following the format in your system prompt.
                     selected_personas.append(persona)
                     seen_domains.update(persona_domains)
 
-            # Ensure we have at least 2 personas (in case filtering was too aggressive)
-            if len(selected_personas) < 2 and len(persona_codes) >= 2:
+            # Log if count doesn't match target (for observability)
+            if len(selected_personas) != effective_target:
+                logger.info(
+                    f"Expert count mismatch: target={effective_target}, selected={len(selected_personas)} "
+                    f"(before={len(persona_codes)}, after domain filtering)"
+                )
+
+            # Ensure we have at least min(2, target) personas (in case filtering was too aggressive)
+            min_required = min(2, effective_target)
+            if len(selected_personas) < min_required and len(persona_codes) >= min_required:
                 logger.warning(
                     f"Domain overlap filtering reduced selection to {len(selected_personas)} personas. "
                     f"Reverting to original selection."

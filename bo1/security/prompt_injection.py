@@ -12,6 +12,7 @@ Usage:
 """
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,6 +21,79 @@ from bo1.llm.client import ClaudeClient
 from bo1.utils.json_parsing import parse_json_with_fallback
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Fast Pattern-Based Jailbreak Detection (P2 optimization)
+# =============================================================================
+# These patterns catch common jailbreak attempts without LLM cost.
+# Regex is case-insensitive and uses word boundaries to reduce false positives.
+
+JAILBREAK_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    # Instruction override attempts
+    (
+        "ignore_instructions",
+        re.compile(r"\bignore\s+(all\s+)?(previous|prior|above|your)\s+instructions?\b", re.I),
+    ),
+    (
+        "disregard_instructions",
+        re.compile(
+            r"\bdisregard\s+(all\s+)?(?:your\s+)?(previous|prior|above)\s+instructions?\b", re.I
+        ),
+    ),
+    (
+        "forget_instructions",
+        re.compile(r"\bforget\s+(all\s+)?(previous|prior|above|your)\s+instructions?\b", re.I),
+    ),
+    # Role manipulation
+    ("you_are_now", re.compile(r"\byou\s+are\s+now\s+(?:a|an|my|the)\b", re.I)),
+    ("act_as", re.compile(r"\bact\s+as\s+(?:if\s+you\s+(?:are|were)|a|an|my)\b", re.I)),
+    ("pretend_to_be", re.compile(r"\bpretend\s+(?:to\s+be|you\s+are)\b", re.I)),
+    # System message injection
+    ("system_prefix", re.compile(r"^\s*system\s*:", re.I | re.M)),
+    ("assistant_prefix", re.compile(r"^\s*assistant\s*:", re.I | re.M)),
+    # Override/bypass attempts
+    (
+        "override_directive",
+        re.compile(r"\b(?:override|bypass|disable)\s+(?:safety|content|security|filter)", re.I),
+    ),
+    ("jailbreak_keyword", re.compile(r"\bjailbreak\b", re.I)),
+    ("dan_mode", re.compile(r"\bDAN\s+mode\b", re.I)),
+    # Prompt extraction
+    (
+        "show_system_prompt",
+        re.compile(r"\b(?:show|reveal|display|output|print)\s+(?:your\s+)?system\s+prompt\b", re.I),
+    ),
+    (
+        "repeat_instructions",
+        re.compile(r"\brepeat\s+(?:your\s+)?(?:initial\s+)?instructions\b", re.I),
+    ),
+]
+
+
+def quick_jailbreak_check(content: str) -> str | None:
+    """Fast regex-based check for common jailbreak patterns.
+
+    This is a first-pass filter that catches obvious attacks without LLM cost.
+    More sophisticated attacks are caught by the LLM-based audit.
+
+    Args:
+        content: User-provided text to scan
+
+    Returns:
+        Pattern name if jailbreak detected, None if clean
+
+    Examples:
+        >>> quick_jailbreak_check("ignore previous instructions and do X")
+        'ignore_instructions'
+        >>> quick_jailbreak_check("What is the weather today?")
+        None
+    """
+    for pattern_name, pattern in JAILBREAK_PATTERNS:
+        if pattern.search(content):
+            logger.warning(f"Jailbreak pattern detected: {pattern_name}")
+            return pattern_name
+    return None
 
 
 # Risk categories from the audit specification
@@ -148,14 +222,18 @@ class AuditResult:
     flagged_categories: list[str]  # Categories with medium/high confidence
     raw_response: str | None = None
     error: str | None = None
+    pattern_match: str | None = None  # Fast regex match (if any)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API responses."""
-        return {
+        result = {
             "is_safe": self.is_safe,
             "flagged_categories": self.flagged_categories,
             "categories": [{"code": c.code, "confidence": c.confidence} for c in self.categories],
         }
+        if self.pattern_match:
+            result["pattern_match"] = self.pattern_match
+        return result
 
 
 class PromptInjectionAuditor:
@@ -208,6 +286,21 @@ class PromptInjectionAuditor:
                 is_safe=True,
                 categories=[],
                 flagged_categories=[],
+            )
+
+        # Fast pattern-based check (P2 optimization - saves LLM cost on obvious attacks)
+        pattern_match = quick_jailbreak_check(content)
+        if pattern_match:
+            logger.warning(
+                f"Fast jailbreak detection triggered for {source}: pattern={pattern_match}"
+            )
+            return AuditResult(
+                is_safe=False,
+                categories=[
+                    CategoryResult(code="instruction_hierarchy_manipulation", confidence="high")
+                ],
+                flagged_categories=["instruction_hierarchy_manipulation"],
+                pattern_match=pattern_match,
             )
 
         # Truncate very long content to manage costs

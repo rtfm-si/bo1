@@ -637,3 +637,107 @@ def test_check_cost_anomaly_custom_threshold():
     call_args = mock_publisher.publish_event.call_args
     event_data = call_args[0][2]
     assert event_data["threshold"] == 0.50
+
+
+# ============================================================================
+# Event Verification Delay Tests (ARCH: P2 configurable delay)
+# ============================================================================
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_verify_event_persistence_uses_configurable_delay():
+    """Test _verify_event_persistence respects event_verification_delay_seconds setting."""
+    from unittest.mock import MagicMock, patch
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    mock_publisher.redis.llen.return_value = 5
+    collector = EventCollector(publisher=mock_publisher)
+
+    # Mock session_repository
+    mock_events = [MagicMock() for _ in range(5)]
+
+    # Track sleep calls
+    sleep_calls = []
+
+    async def mock_sleep(seconds):
+        sleep_calls.append(seconds)
+
+    with patch("backend.api.event_collector.asyncio.sleep", mock_sleep):
+        with patch("backend.api.event_collector.session_repository") as mock_repo:
+            mock_repo.get_events.return_value = mock_events
+            # Use default settings (2.0 seconds)
+            await collector._verify_event_persistence("test-session")
+
+    assert len(sleep_calls) == 1
+    assert sleep_calls[0] == 2.0  # Default delay
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_verify_event_persistence_skips_sleep_when_delay_zero():
+    """Test _verify_event_persistence skips sleep when delay is 0."""
+    from unittest.mock import MagicMock, patch
+
+    from backend.api.event_collector import EventCollector
+    from bo1.config import Settings
+
+    mock_publisher = MagicMock()
+    mock_publisher.redis.llen.return_value = 5
+    collector = EventCollector(publisher=mock_publisher)
+
+    mock_events = [MagicMock() for _ in range(5)]
+
+    sleep_calls = []
+
+    async def mock_sleep(seconds):
+        sleep_calls.append(seconds)
+
+    # Create settings with delay=0
+    mock_settings = MagicMock(spec=Settings)
+    mock_settings.event_verification_delay_seconds = 0.0
+
+    with patch("backend.api.event_collector.asyncio.sleep", mock_sleep):
+        with patch("backend.api.event_collector.get_settings", return_value=mock_settings):
+            with patch("backend.api.event_collector.session_repository") as mock_repo:
+                mock_repo.get_events.return_value = mock_events
+                await collector._verify_event_persistence("test-session")
+
+    # Sleep should NOT be called when delay is 0
+    assert len(sleep_calls) == 0
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_verify_event_persistence_uses_custom_delay():
+    """Test _verify_event_persistence uses custom delay value."""
+    from unittest.mock import MagicMock, patch
+
+    from backend.api.event_collector import EventCollector
+    from bo1.config import Settings
+
+    mock_publisher = MagicMock()
+    mock_publisher.redis.llen.return_value = 5
+    collector = EventCollector(publisher=mock_publisher)
+
+    mock_events = [MagicMock() for _ in range(5)]
+
+    sleep_calls = []
+
+    async def mock_sleep(seconds):
+        sleep_calls.append(seconds)
+
+    # Create settings with custom delay
+    mock_settings = MagicMock(spec=Settings)
+    mock_settings.event_verification_delay_seconds = 0.5
+
+    with patch("backend.api.event_collector.asyncio.sleep", mock_sleep):
+        with patch("backend.api.event_collector.get_settings", return_value=mock_settings):
+            with patch("backend.api.event_collector.session_repository") as mock_repo:
+                mock_repo.get_events.return_value = mock_events
+                await collector._verify_event_persistence("test-session")
+
+    assert len(sleep_calls) == 1
+    assert sleep_calls[0] == 0.5

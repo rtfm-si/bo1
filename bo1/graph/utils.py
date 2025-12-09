@@ -131,3 +131,99 @@ def track_aggregated_cost(
     metrics.phase_costs[phase_name] = total_cost
     metrics.total_cost += total_cost
     metrics.total_tokens += total_tokens
+
+
+def calculate_problem_complexity(state: "DeliberationGraphState") -> float:
+    """Calculate overall problem complexity score (0-1) from state.
+
+    Factors:
+    - Number of sub-problems (1=simple, 3+=complex)
+    - Average sub-problem complexity scores (1-10)
+    - Dependency depth (batch count from execution_batches)
+
+    Args:
+        state: Current graph state with problem/sub-problems
+
+    Returns:
+        Complexity score between 0.0 (simple) and 1.0 (very complex)
+
+    Example:
+        >>> complexity = calculate_problem_complexity(state)
+        >>> target_experts = calculate_target_expert_count(complexity)
+    """
+    problem = state.get("problem")
+    if not problem:
+        return 0.5  # Default middle complexity
+
+    # Handle both dict (from checkpoint) and Problem object
+    if isinstance(problem, dict):
+        sub_problems = problem.get("sub_problems", [])
+    else:
+        sub_problems = problem.sub_problems or []
+
+    if not sub_problems:
+        return 0.3  # Single implicit problem = low complexity
+
+    # Factor 1: Number of sub-problems (normalized: 1->0.2, 5->1.0)
+    num_sub_problems = len(sub_problems)
+    num_factor = min((num_sub_problems - 1) / 4, 1.0) * 0.4  # 0-0.4 range
+
+    # Factor 2: Average complexity score (normalized: 1-10 -> 0-1)
+    complexity_scores = []
+    for sp in sub_problems:
+        if isinstance(sp, dict):
+            score = sp.get("complexity_score", 5)
+        else:
+            score = getattr(sp, "complexity_score", 5)
+        complexity_scores.append(score)
+
+    avg_complexity = sum(complexity_scores) / len(complexity_scores) if complexity_scores else 5
+    complexity_factor = (avg_complexity - 1) / 9 * 0.4  # 0-0.4 range
+
+    # Factor 3: Dependency depth (from execution_batches if available)
+    execution_batches = state.get("execution_batches", [])
+    num_batches = len(execution_batches) if execution_batches else 1
+    batch_factor = min((num_batches - 1) / 3, 1.0) * 0.2  # 0-0.2 range
+
+    # Combine factors (weights sum to 1.0)
+    total_complexity = num_factor + complexity_factor + batch_factor
+
+    return min(max(total_complexity, 0.0), 1.0)  # Clamp to 0-1
+
+
+def calculate_target_expert_count(
+    complexity_score: float,
+    min_experts: int = 3,
+    max_experts: int = 5,
+    threshold_simple: float = 0.4,
+) -> int:
+    """Calculate target number of experts based on problem complexity.
+
+    Args:
+        complexity_score: Problem complexity (0-1)
+        min_experts: Minimum experts for simple problems (default: 3)
+        max_experts: Maximum experts for complex problems (default: 5)
+        threshold_simple: Complexity threshold for using min_experts (default: 0.4)
+
+    Returns:
+        Target expert count (integer between min_experts and max_experts)
+
+    Example:
+        >>> calculate_target_expert_count(0.3)  # Simple
+        3
+        >>> calculate_target_expert_count(0.7)  # Complex
+        4
+        >>> calculate_target_expert_count(0.9)  # Very complex
+        5
+    """
+    if complexity_score < threshold_simple:
+        return min_experts
+
+    # Linear interpolation from min to max based on complexity
+    # For complexity 0.4 -> min, complexity 1.0 -> max
+    range_start = threshold_simple
+    range_end = 1.0
+    position = (complexity_score - range_start) / (range_end - range_start)
+
+    expert_count = min_experts + position * (max_experts - min_experts)
+    return int(round(expert_count))

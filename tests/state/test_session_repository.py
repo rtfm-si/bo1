@@ -109,8 +109,8 @@ class TestListByUserQuery:
         assert results[0]["task_count"] == 0
         assert results[0]["focus_area_count"] == 0
 
-    def test_list_by_user_query_uses_filter_clause(self, mock_connection, mock_cursor):
-        """Verify the executed query uses FILTER clause pattern."""
+    def test_list_by_user_query_uses_denormalized_counts(self, mock_connection, mock_cursor):
+        """Verify the executed query reads denormalized counts from sessions."""
         from bo1.state.repositories.session_repository import SessionRepository
 
         mock_cursor.fetchall.return_value = []
@@ -125,11 +125,14 @@ class TestListByUserQuery:
         mock_cursor.execute.assert_called_once()
         executed_query = mock_cursor.execute.call_args[0][0]
 
-        # Verify FILTER clause is used (not subqueries)
-        assert "FILTER (WHERE" in executed_query
-        assert "LEFT JOIN session_events" in executed_query
+        # Verify denormalized columns are selected directly
+        assert "s.expert_count" in executed_query
+        assert "s.contribution_count" in executed_query
+        assert "s.focus_area_count" in executed_query
+        # task_count still uses JOIN
         assert "LEFT JOIN session_tasks" in executed_query
-        assert "GROUP BY" in executed_query
+        # No aggregation needed for denormalized counts
+        assert "GROUP BY" not in executed_query
 
     def test_list_by_user_excludes_deleted_by_default(self, mock_connection, mock_cursor):
         """Verify deleted sessions excluded by default."""
@@ -162,6 +165,94 @@ class TestListByUserQuery:
         # user_id, status_filter, limit, offset
         assert params[0] == "user_test"
         assert "completed" in params
+
+
+class TestSaveEventCountIncrements:
+    """Test save_event and save_events_batch increment denormalized counts."""
+
+    @pytest.fixture
+    def mock_cursor(self):
+        """Create a mock cursor with context manager support."""
+        cursor = MagicMock()
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        # fetchone returns a result dict (event was inserted)
+        cursor.fetchone.return_value = {
+            "id": 1,
+            "session_id": "bo1_test",
+            "event_type": "contribution",
+            "sequence": 1,
+            "created_at": datetime.now(),
+        }
+        return cursor
+
+    @pytest.fixture
+    def mock_connection(self, mock_cursor):
+        """Create a mock connection."""
+        conn = MagicMock()
+        conn.__enter__ = MagicMock(return_value=conn)
+        conn.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = mock_cursor
+        return conn
+
+    def test_save_event_increments_expert_count(self, mock_connection, mock_cursor):
+        """Verify persona_selected event increments expert_count."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_event("bo1_test", "persona_selected", 1, {"persona": "expert"})
+
+        # Check that UPDATE was called with expert_count increment
+        calls = mock_cursor.execute.call_args_list
+        update_call = [c for c in calls if "expert_count = expert_count + 1" in str(c)]
+        assert len(update_call) == 1
+
+    def test_save_event_increments_contribution_count(self, mock_connection, mock_cursor):
+        """Verify contribution event increments contribution_count."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_event("bo1_test", "contribution", 1, {"content": "test"})
+
+        calls = mock_cursor.execute.call_args_list
+        update_call = [c for c in calls if "contribution_count = contribution_count + 1" in str(c)]
+        assert len(update_call) == 1
+
+    def test_save_event_increments_focus_area_count(self, mock_connection, mock_cursor):
+        """Verify subproblem_started event increments focus_area_count."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_event("bo1_test", "subproblem_started", 1, {"subproblem": "test"})
+
+        calls = mock_cursor.execute.call_args_list
+        update_call = [c for c in calls if "focus_area_count = focus_area_count + 1" in str(c)]
+        assert len(update_call) == 1
+
+    def test_save_event_no_increment_for_other_types(self, mock_connection, mock_cursor):
+        """Verify non-trackable event types don't trigger count increment."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_event("bo1_test", "synthesis_complete", 1, {"text": "done"})
+
+        # Only INSERT should be called, no UPDATE for counts
+        calls = mock_cursor.execute.call_args_list
+        # Should have exactly 1 call (the INSERT)
+        assert len(calls) == 1
+        assert "INSERT INTO session_events" in str(calls[0])
 
 
 class TestSaveEventsBatch:
@@ -205,6 +296,33 @@ class TestSaveEventsBatch:
         # Verify the prepared data has 3 tuples
         prepared_data = mock_cursor.executemany.call_args[0][1]
         assert len(prepared_data) == 3
+
+    def test_save_events_batch_increments_counts(self, mock_connection, mock_cursor):
+        """Verify batch insert increments denormalized counts."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        events = [
+            ("bo1_test1", "persona_selected", 1, {"persona": "a"}),
+            ("bo1_test1", "persona_selected", 2, {"persona": "b"}),
+            ("bo1_test1", "contribution", 3, {"content": "first"}),
+            ("bo1_test1", "subproblem_started", 4, {"sp": "test"}),
+        ]
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_events_batch(events)
+
+        # Check UPDATE was called with batched increments
+        calls = mock_cursor.execute.call_args_list
+        # Should have UPDATE call with all three count columns
+        update_calls = [c for c in calls if "UPDATE sessions SET" in str(c)]
+        assert len(update_calls) == 1
+        update_query = str(update_calls[0])
+        assert "expert_count = expert_count +" in update_query
+        assert "contribution_count = contribution_count +" in update_query
+        assert "focus_area_count = focus_area_count +" in update_query
 
     def test_save_events_batch_empty_list(self, mock_connection, mock_cursor):
         """Verify empty list returns 0 without DB call."""

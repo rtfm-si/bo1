@@ -329,3 +329,110 @@ class TestCacheStats:
         assert "cache" in stats
         assert "counters" in stats
         assert "histograms" in stats
+
+
+class TestPrometheusMetrics:
+    """Tests for Prometheus metrics."""
+
+    def test_normalize_model_sonnet(self) -> None:
+        """Test model name normalization for Sonnet."""
+        from backend.api.metrics import prom_metrics
+
+        # Use global instance to avoid duplicate registration
+        assert prom_metrics._normalize_model("claude-sonnet-4-5-20250929") == "sonnet-4.5"
+        assert prom_metrics._normalize_model("claude-sonnet-4.5-latest") == "sonnet-4.5"
+
+    def test_normalize_model_haiku(self) -> None:
+        """Test model name normalization for Haiku."""
+        from backend.api.metrics import prom_metrics
+
+        assert prom_metrics._normalize_model("claude-haiku-4-5-20251001") == "haiku-4.5"
+        assert prom_metrics._normalize_model("claude-3-5-haiku-20241022") == "haiku-3.5"
+
+    def test_normalize_model_opus(self) -> None:
+        """Test model name normalization for Opus."""
+        from backend.api.metrics import prom_metrics
+
+        assert prom_metrics._normalize_model("claude-opus-4-20250514") == "opus-4"
+
+    def test_normalize_model_voyage(self) -> None:
+        """Test model name normalization for Voyage."""
+        from backend.api.metrics import prom_metrics
+
+        assert prom_metrics._normalize_model("voyage-3") == "voyage-3"
+        assert prom_metrics._normalize_model("voyage-3-large") == "voyage-3-large"
+
+    def test_normalize_model_unknown(self) -> None:
+        """Test model name normalization for unknown models."""
+        from backend.api.metrics import prom_metrics
+
+        assert prom_metrics._normalize_model(None) == "unknown"
+        assert (
+            prom_metrics._normalize_model("some-very-long-model-name-that-exceeds")
+            == "some-very-long-model"
+        )
+
+    def test_record_cost_zero(self) -> None:
+        """Test that zero cost is not recorded."""
+        from backend.api.metrics import prom_metrics
+
+        # This should not raise any errors
+        prom_metrics.record_cost("anthropic", "sonnet-4.5", 0.0)
+
+    def test_record_tokens(self) -> None:
+        """Test token recording does not raise."""
+        from backend.api.metrics import prom_metrics
+
+        # This should not raise any errors
+        prom_metrics.record_tokens(
+            provider="anthropic",
+            model="claude-sonnet-4-5-20250929",
+            input_tokens=1000,
+            output_tokens=200,
+            cache_read_tokens=500,
+            cache_write_tokens=100,
+        )
+
+    def test_record_event(self) -> None:
+        """Test event recording does not raise."""
+        from backend.api.metrics import prom_metrics
+
+        prom_metrics.record_event("contribution", "success")
+        prom_metrics.record_event("error", "error")
+
+    def test_sse_connection_tracking(self) -> None:
+        """Test SSE connection gauge operations."""
+        from backend.api.metrics import prom_metrics
+
+        # These should not raise any errors
+        prom_metrics.sse_connection_opened()
+        prom_metrics.sse_connection_closed()
+
+
+class TestPrometheusEndpoint:
+    """Tests for /metrics endpoint."""
+
+    @pytest.fixture
+    def client(self):
+        """Create test client."""
+        from fastapi.testclient import TestClient
+
+        from backend.api.main import app
+
+        return TestClient(app)
+
+    def test_metrics_endpoint_exists(self, client) -> None:
+        """Test that /metrics endpoint exists and returns prometheus format."""
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        # Prometheus format starts with # HELP or metric names
+        content = response.text
+        assert "http_request" in content or "# HELP" in content or "# TYPE" in content
+
+    def test_metrics_endpoint_content_type(self, client) -> None:
+        """Test that /metrics returns correct content type."""
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        # Prometheus metrics use text/plain or openmetrics format
+        content_type = response.headers.get("content-type", "")
+        assert "text/plain" in content_type or "text/openmetrics" in content_type

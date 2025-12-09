@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi.errors import RateLimitExceeded
 
 from backend.api import (
@@ -25,6 +26,7 @@ from backend.api import (
     auth,
     billing,
     business_metrics,
+    client_errors,
     competitors,
     context,
     control,
@@ -37,6 +39,7 @@ from backend.api import (
     tags,
     waitlist,
 )
+from backend.api.middleware.api_version import API_VERSION, ApiVersionMiddleware
 from backend.api.middleware.auth import require_admin
 from backend.api.middleware.correlation_id import CorrelationIdMiddleware
 from backend.api.middleware.rate_limit import limiter
@@ -245,6 +248,9 @@ add_security_headers_middleware(app)
 # Generates/extracts X-Request-ID header and stores in request.state
 app.add_middleware(CorrelationIdMiddleware)
 
+# Add API version header to all responses
+app.add_middleware(ApiVersionMiddleware)
+
 # Include routers
 # IMPORTANT: Register streaming router BEFORE sessions router to avoid
 # /{session_id} catch-all matching /{session_id}/stream
@@ -265,7 +271,13 @@ app.include_router(competitors.router, prefix="/api", tags=["competitors"])
 app.include_router(onboarding.router, prefix="/api", tags=["onboarding"])
 app.include_router(control.router, prefix="/api", tags=["deliberation-control"])
 app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])
+app.include_router(client_errors.router, prefix="/api", tags=["client-errors"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
+
+# Initialize Prometheus metrics instrumentation
+# Exposes /metrics endpoint for Prometheus scraping
+# SECURITY: /metrics is not rate limited but should be internal-only (via network rules)
+Instrumentator().instrument(app).expose(app, include_in_schema=False)
 
 
 @app.exception_handler(Exception)
@@ -358,6 +370,19 @@ async def root() -> dict[str, str]:
     }
 
 
+@app.get("/api/version", tags=["health"])
+async def api_version() -> dict[str, str]:
+    """Get API version information.
+
+    Returns version metadata for client compatibility checks.
+    This endpoint is version-agnostic (not under /v1/).
+    """
+    return {
+        "api_version": API_VERSION,
+        "app_version": app.version,
+    }
+
+
 @app.get("/admin/info")
 async def admin_info(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     """Admin-only API information endpoint.
@@ -370,13 +395,14 @@ async def admin_info(user: dict[str, Any] = Depends(require_admin)) -> dict[str,
     """
     return {
         "message": "Board of One API - Admin Panel",
-        "version": "1.0.0",
+        "version": app.version,
+        "api_version": API_VERSION,
         "admin_user": user.get("email"),
         "admin_id": user.get("user_id"),
         "documentation": {
-            "swagger": "/admin/docs",
-            "redoc": "/admin/redoc",
-            "openapi_spec": "/admin/openapi.json",
+            "swagger": "/api/v1/docs",
+            "redoc": "/api/v1/redoc",
+            "openapi_spec": "/api/v1/openapi.json",
         },
         "services": {
             "api": "Running",
@@ -386,8 +412,8 @@ async def admin_info(user: dict[str, Any] = Depends(require_admin)) -> dict[str,
     }
 
 
-@app.get("/admin/docs", response_class=HTMLResponse, include_in_schema=False)
-async def admin_docs(user: dict[str, Any] = Depends(require_admin)) -> HTMLResponse:
+@app.get("/api/v1/docs", response_class=HTMLResponse, include_in_schema=False)
+async def api_docs(user: dict[str, Any] = Depends(require_admin)) -> HTMLResponse:
     """Admin-only Swagger UI documentation.
 
     Args:
@@ -397,14 +423,14 @@ async def admin_docs(user: dict[str, Any] = Depends(require_admin)) -> HTMLRespo
         Swagger UI HTML
     """
     return get_swagger_ui_html(
-        openapi_url="/admin/openapi.json",
-        title=f"{app.title} - Admin Documentation",
+        openapi_url="/api/v1/openapi.json",
+        title=f"{app.title} - API Documentation (v{API_VERSION})",
         swagger_favicon_url="/favicon.ico",
     )
 
 
-@app.get("/admin/redoc", response_class=HTMLResponse, include_in_schema=False)
-async def admin_redoc(user: dict[str, Any] = Depends(require_admin)) -> HTMLResponse:
+@app.get("/api/v1/redoc", response_class=HTMLResponse, include_in_schema=False)
+async def api_redoc(user: dict[str, Any] = Depends(require_admin)) -> HTMLResponse:
     """Admin-only ReDoc documentation.
 
     Args:
@@ -414,23 +440,28 @@ async def admin_redoc(user: dict[str, Any] = Depends(require_admin)) -> HTMLResp
         ReDoc HTML
     """
     return get_redoc_html(
-        openapi_url="/admin/openapi.json",
-        title=f"{app.title} - Admin Documentation",
+        openapi_url="/api/v1/openapi.json",
+        title=f"{app.title} - API Documentation (v{API_VERSION})",
         redoc_favicon_url="/favicon.ico",
     )
 
 
-@app.get("/admin/openapi.json", include_in_schema=False)
-async def admin_openapi(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
-    """Admin-only OpenAPI specification.
+@app.get("/api/v1/openapi.json", include_in_schema=False)
+async def api_openapi(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    """Admin-only OpenAPI specification with version metadata.
 
     Args:
         user: Admin user data
 
     Returns:
-        OpenAPI JSON spec
+        OpenAPI JSON spec with version info
     """
-    return app.openapi()
+    spec = app.openapi()
+    # Ensure version info is in spec
+    if "info" in spec:
+        spec["info"]["version"] = app.version
+        spec["info"]["x-api-version"] = API_VERSION
+    return spec
 
 
 if __name__ == "__main__":

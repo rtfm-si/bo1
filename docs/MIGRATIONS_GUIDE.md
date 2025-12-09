@@ -589,6 +589,55 @@ curl https://boardof.one/api/health/db
 
 ---
 
+## Consolidated Baseline (New Deployments)
+
+For **new deployments**, we provide a consolidated baseline migration that creates the entire schema in one operation, avoiding the need to run 50+ incremental migrations.
+
+### When to Use Consolidated Baseline
+
+- Fresh database setup for new environments
+- Development/staging environment recreation
+- Disaster recovery scenarios
+
+### How to Use
+
+```bash
+# Option 1: Use helper script
+./scripts/init_db.sh
+
+# Option 2: Manual process
+# 1. Apply consolidated baseline
+alembic upgrade 0001_consolidated_baseline@consolidated
+
+# 2. Stamp to current head (marks incremental migrations as applied)
+alembic stamp d1_add_session_counts
+```
+
+### For Existing Deployments
+
+Continue using standard incremental migrations:
+
+```bash
+alembic upgrade head
+```
+
+The consolidated baseline is a separate branch (`consolidated`) that doesn't affect existing migration chains.
+
+### Updating the Baseline
+
+When adding significant new migrations, the baseline should be refreshed:
+
+```bash
+# 1. Export current schema
+pg_dump -U bo1 -d boardofone --schema-only -n public -T alembic_version > migrations/consolidated_baseline.sql
+
+# 2. Clean up the SQL (remove \restrict, CREATE SCHEMA public)
+
+# 3. Update the stamp target in init_db.sh to new head
+```
+
+---
+
 ## Migration History
 
 Recent migrations (newest first):
@@ -603,3 +652,47 @@ Recent migrations (newest first):
 8. `ced8f3f148bb` - Initial schema
 
 Full history: `uv run alembic history`
+
+---
+
+## LangGraph Checkpoint Tables (PostgreSQL Backend)
+
+When using PostgreSQL as the checkpoint backend (`CHECKPOINT_BACKEND=postgres`), LangGraph automatically creates its own tables for checkpoint storage. These are **not** managed by Alembic.
+
+### Auto-Setup
+
+The `checkpointer_factory.py` calls `AsyncPostgresSaver.setup()` on first use, which creates:
+
+- `checkpoints` - Main checkpoint storage
+- `checkpoint_blobs` - Large binary data
+- `checkpoint_writes` - Write tracking
+
+### Manual Setup (Optional)
+
+If you prefer to run setup manually before first use:
+
+```bash
+# Via Python
+python -c "
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from bo1.config import get_settings
+settings = get_settings()
+saver = AsyncPostgresSaver.from_conn_string(settings.database_url)
+saver.setup()
+print('Checkpoint tables created')
+"
+```
+
+### Switching Backends
+
+To switch from Redis to PostgreSQL checkpointing:
+
+```bash
+# Set environment variable
+export CHECKPOINT_BACKEND=postgres
+
+# Restart application
+docker-compose restart api
+```
+
+**Note**: Existing checkpoints are not migrated between backends. In-progress sessions should complete before switching.

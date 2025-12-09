@@ -3,16 +3,26 @@
 This module provides in-memory metrics collection with minimal overhead (<1ms per request).
 Metrics are used for debugging, optimization, and monitoring system health.
 
+Includes Prometheus-compatible metrics for Grafana dashboards:
+- llm_request_duration_seconds: LLM request latency histogram
+- llm_tokens_total: Token usage by provider/model/type
+- llm_cost_dollars_total: Cost tracking by provider/model
+- session_events_total: SSE event counts
+- active_sse_connections: Current SSE connection gauge
+
 Example:
-    >>> from backend.api.metrics import metrics
+    >>> from backend.api.metrics import metrics, prom_metrics
     >>> metrics.increment("api.sessions.get.success")
     >>> metrics.observe("api.sessions.get.duration", 0.15)
+    >>> prom_metrics.observe_llm_request("anthropic", "claude-sonnet-4-5", "completion", 1.5)
     >>> stats = metrics.get_stats()
 """
 
 import time
 from dataclasses import dataclass, field
 from typing import Any
+
+from prometheus_client import Counter, Gauge, Histogram
 
 
 @dataclass
@@ -214,3 +224,216 @@ class track_api_call:  # noqa: N801 - Context manager uses lowercase for readabi
             metrics.increment(f"{self.metric_prefix}.success")
         else:
             metrics.increment(f"{self.metric_prefix}.error")
+
+
+# =============================================================================
+# Prometheus Metrics (for Grafana dashboards)
+# =============================================================================
+
+
+class PrometheusMetrics:
+    """Prometheus metrics for LLM and API observability.
+
+    Uses low-cardinality labels to avoid metric explosion:
+    - provider: anthropic, voyage, brave, tavily
+    - model: normalized model name (e.g., "sonnet-4.5", "haiku-4.5")
+    - operation: completion, embedding, search
+    - token_type: input, output, cache_read, cache_write
+    - event_type: contribution, synthesis, error, etc.
+    - status: success, error
+    """
+
+    def __init__(self) -> None:
+        """Initialize Prometheus metrics."""
+        # LLM request duration histogram (in seconds)
+        self.llm_request_duration = Histogram(
+            "llm_request_duration_seconds",
+            "LLM request latency in seconds",
+            ["provider", "model", "operation", "node"],
+            buckets=[0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0],
+        )
+
+        # Token usage counter
+        self.llm_tokens = Counter(
+            "llm_tokens_total",
+            "Total tokens used by LLM calls",
+            ["provider", "model", "token_type"],
+        )
+
+        # Cost counter (in dollars)
+        self.llm_cost = Counter(
+            "llm_cost_dollars_total",
+            "Total LLM cost in USD",
+            ["provider", "model"],
+        )
+
+        # SSE events counter
+        self.session_events = Counter(
+            "session_events_total",
+            "Total SSE events emitted",
+            ["event_type", "status"],
+        )
+
+        # Active SSE connections gauge
+        self.active_sse_connections = Gauge(
+            "active_sse_connections",
+            "Current number of active SSE connections",
+        )
+
+        # Cache hit/miss counter
+        self.llm_cache = Counter(
+            "llm_cache_total",
+            "LLM prompt cache hits and misses",
+            ["result"],  # hit, miss
+        )
+
+        # Budget alerts counter
+        self.budget_alerts = Counter(
+            "session_budget_alerts_total",
+            "Session cost budget alerts (warning at 80%, exceeded at 100%)",
+            ["alert_type"],  # warning, exceeded
+        )
+
+    def _normalize_model(self, model: str | None) -> str:
+        """Normalize model name to low-cardinality label.
+
+        Examples:
+            claude-sonnet-4-5-20250929 -> sonnet-4.5
+            claude-haiku-4-5-20251001 -> haiku-4.5
+            voyage-3 -> voyage-3
+        """
+        if not model:
+            return "unknown"
+        model_lower = model.lower()
+        if "sonnet-4-5" in model_lower or "sonnet-4.5" in model_lower:
+            return "sonnet-4.5"
+        if "haiku-4-5" in model_lower or "haiku-4.5" in model_lower:
+            return "haiku-4.5"
+        if "opus-4" in model_lower:
+            return "opus-4"
+        if "3-5-haiku" in model_lower or "haiku-3-5" in model_lower:
+            return "haiku-3.5"
+        if "voyage" in model_lower:
+            return model_lower
+        return model[:20]  # Truncate long model names
+
+    def observe_llm_request(
+        self,
+        provider: str,
+        model: str | None,
+        operation: str,
+        duration_seconds: float,
+        node: str | None = None,
+    ) -> None:
+        """Record LLM request duration.
+
+        Args:
+            provider: Provider name (anthropic, voyage, etc.)
+            model: Model name
+            operation: Operation type (completion, embedding, search)
+            duration_seconds: Request duration in seconds
+            node: Graph node name (optional)
+        """
+        normalized_model = self._normalize_model(model)
+        self.llm_request_duration.labels(
+            provider=provider,
+            model=normalized_model,
+            operation=operation,
+            node=node or "unknown",
+        ).observe(duration_seconds)
+
+    def record_tokens(
+        self,
+        provider: str,
+        model: str | None,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        cache_read_tokens: int = 0,
+        cache_write_tokens: int = 0,
+    ) -> None:
+        """Record token usage.
+
+        Args:
+            provider: Provider name
+            model: Model name
+            input_tokens: Number of input tokens
+            output_tokens: Number of output tokens
+            cache_read_tokens: Tokens read from cache
+            cache_write_tokens: Tokens written to cache
+        """
+        normalized_model = self._normalize_model(model)
+        if input_tokens > 0:
+            self.llm_tokens.labels(
+                provider=provider,
+                model=normalized_model,
+                token_type="input",  # noqa: S106
+            ).inc(input_tokens)
+        if output_tokens > 0:
+            self.llm_tokens.labels(
+                provider=provider,
+                model=normalized_model,
+                token_type="output",  # noqa: S106
+            ).inc(output_tokens)
+        if cache_read_tokens > 0:
+            self.llm_tokens.labels(
+                provider=provider,
+                model=normalized_model,
+                token_type="cache_read",  # noqa: S106
+            ).inc(cache_read_tokens)
+        if cache_write_tokens > 0:
+            self.llm_tokens.labels(
+                provider=provider,
+                model=normalized_model,
+                token_type="cache_write",  # noqa: S106
+            ).inc(cache_write_tokens)
+
+    def record_cost(self, provider: str, model: str | None, cost_dollars: float) -> None:
+        """Record cost in USD.
+
+        Args:
+            provider: Provider name
+            model: Model name
+            cost_dollars: Cost in USD
+        """
+        if cost_dollars > 0:
+            normalized_model = self._normalize_model(model)
+            self.llm_cost.labels(provider=provider, model=normalized_model).inc(cost_dollars)
+
+    def record_event(self, event_type: str, status: str = "success") -> None:
+        """Record SSE event emission.
+
+        Args:
+            event_type: Event type (contribution, synthesis, error, etc.)
+            status: Status (success, error)
+        """
+        self.session_events.labels(event_type=event_type, status=status).inc()
+
+    def record_cache_hit(self, hit: bool) -> None:
+        """Record cache hit or miss.
+
+        Args:
+            hit: True for cache hit, False for miss
+        """
+        self.llm_cache.labels(result="hit" if hit else "miss").inc()
+
+    def sse_connection_opened(self) -> None:
+        """Increment active SSE connections."""
+        self.active_sse_connections.inc()
+
+    def sse_connection_closed(self) -> None:
+        """Decrement active SSE connections."""
+        self.active_sse_connections.dec()
+
+    def record_budget_alert(self, alert_type: str, current_cost: float, budget: float) -> None:
+        """Record budget alert (warning or exceeded).
+
+        Args:
+            alert_type: Alert type ('warning' or 'exceeded')
+            current_cost: Current session cost
+            budget: Budget threshold
+        """
+        self.budget_alerts.labels(alert_type=alert_type).inc()
+
+
+# Global Prometheus metrics instance
+prom_metrics = PrometheusMetrics()

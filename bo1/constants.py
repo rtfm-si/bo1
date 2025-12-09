@@ -243,6 +243,12 @@ class EmbeddingsConfig:
     DIMENSIONS = 1024
     """Voyage-3 embedding dimensions"""
 
+    BATCH_SIZE = 5
+    """Number of texts to batch before API call"""
+
+    BATCH_TIMEOUT_SECONDS = 60.0
+    """Max wait time before flushing partial batch"""
+
 
 # =============================================================================
 # CIRCUIT BREAKER CONFIGURATION

@@ -153,6 +153,16 @@ class Settings(BaseSettings):
     redis_password: str = Field(default="", description="Redis password (if required)")
     redis_url: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
 
+    # Checkpoint Configuration
+    checkpoint_backend: Literal["redis", "postgres"] = Field(
+        default="redis",
+        description="Checkpoint storage backend: 'redis' (default) or 'postgres'",
+    )
+    checkpoint_ttl_seconds: int = Field(
+        default=604800,  # 7 days
+        description="TTL for checkpoint expiration in seconds (default: 7 days)",
+    )
+
     # PostgreSQL Configuration (v2+, Week 3.5)
     database_url: str = Field(
         default="postgresql://bo1:bo1_dev_password@localhost:5432/boardofone",
@@ -164,12 +174,38 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
         default="INFO", description="Logging level"
     )
+    log_format: Literal["text", "json"] = Field(
+        default="text",
+        description="Log output format: 'text' for human-readable, 'json' for structured",
+    )
+    log_json_indent: int | None = Field(
+        default=None,
+        description="JSON indentation for logs (None=compact, 2=pretty). Only used when log_format='json'",
+    )
     verbose_libs: bool = Field(
         default=False, description="Show debug logs from third-party libraries"
     )
 
     # Cost Limits
     max_cost_per_session: float = Field(default=1.00, description="Maximum cost per session in USD")
+    session_cost_budget: float = Field(
+        default=0.50, description="Default session cost budget in USD for alerting"
+    )
+    cost_warning_threshold: float = Field(
+        default=0.80, description="Threshold (0-1) at which to emit budget warning (default: 80%)"
+    )
+
+    # Adaptive Expert Count (cost optimization)
+    min_experts: int = Field(
+        default=3, description="Minimum number of expert personas for simple problems"
+    )
+    max_experts: int = Field(
+        default=5, description="Maximum number of expert personas for complex problems"
+    )
+    complexity_threshold_simple: float = Field(
+        default=0.4,
+        description="Complexity score threshold (0-1) below which to use min_experts",
+    )
 
     # A/B Testing
     ab_testing_enabled: bool = Field(default=True, description="Enable A/B testing")
@@ -228,6 +264,12 @@ class Settings(BaseSettings):
             return set()
         return {email.strip().lower() for email in self.beta_whitelist.split(",") if email.strip()}
 
+    # Token Budget Monitoring
+    token_budget_warning_threshold: int = Field(
+        default=50_000,
+        description="Input token count threshold for bloated prompt warnings (default: 50k)",
+    )
+
     # Feature Flags (Sprint Optimizations - Week 1)
     # LLM Response Caching
     enable_llm_response_cache: bool = Field(
@@ -261,6 +303,13 @@ class Settings(BaseSettings):
     enable_sse_streaming: bool = Field(
         default=False,
         description="Enable real-time SSE streaming via LangGraph astream_events (vs polling). See STREAMING_IMPLEMENTATION_PLAN.md",
+    )
+
+    # Event Verification
+    event_verification_delay_seconds: float = Field(
+        default=2.0,
+        description="Delay before verifying event persistence (allows async tasks to complete). "
+        "Set to 0 to disable delay entirely. Minimum recommended: 0.5s to avoid false warnings.",
     )
 
     # Cache Configuration (Centralized)

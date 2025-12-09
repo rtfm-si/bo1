@@ -353,6 +353,7 @@ async def _check_contribution_quality(
     round_number: int,
     metrics: Any,
     facilitator_guidance: dict[str, Any],
+    quality_cache: Any | None = None,
 ) -> tuple[list[Any], dict[str, Any]]:
     """Check quality of contributions and update facilitator guidance.
 
@@ -365,6 +366,7 @@ async def _check_contribution_quality(
         round_number: Current round number
         metrics: Metrics object for cost tracking
         facilitator_guidance: Existing facilitator guidance dict
+        quality_cache: Optional QualityCheckCache for caching results
 
     Returns:
         Tuple of (quality_results, updated_facilitator_guidance)
@@ -378,6 +380,8 @@ async def _check_contribution_quality(
         quality_results, quality_responses = await check_contributions_quality(
             contributions=contributions,
             problem_context=problem_context,
+            cache=quality_cache,
+            round_number=round_number,
         )
 
         # Track cost for quality checks
@@ -714,6 +718,11 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     metrics = ensure_metrics(state)
     facilitator_guidance = state.get("facilitator_guidance") or {}
 
+    # Create quality check cache for this round (avoids re-checking duplicate content)
+    from bo1.graph.quality.contribution_check import QualityCheckCache
+
+    quality_cache = QualityCheckCache()
+
     # Check contribution quality
     quality_results, facilitator_guidance = await _check_contribution_quality(
         contributions=filtered_contributions,
@@ -721,6 +730,7 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         round_number=round_number,
         metrics=metrics,
         facilitator_guidance=facilitator_guidance,
+        quality_cache=quality_cache,
     )
 
     # Summarize the round

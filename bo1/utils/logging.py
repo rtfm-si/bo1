@@ -3,20 +3,114 @@
 Provides:
 - Consistent logger creation with structured formatting
 - Structured logging context helpers
+- JSON logging format for production observability
 - Standard log format across all modules
 """
 
+import json
 import logging
 import sys
+from contextvars import ContextVar
+from datetime import UTC, datetime
 from typing import Any
 
+# Context variable for correlation ID (set by middleware, read by logger)
+correlation_id_var: ContextVar[str | None] = ContextVar("correlation_id", default=None)
+
 # Standard log format: timestamp, level, module, message
-LOG_FORMAT = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+TEXT_LOG_FORMAT = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# For backward compatibility
+LOG_FORMAT = TEXT_LOG_FORMAT
+
+
+class JsonFormatter(logging.Formatter):
+    """JSON log formatter for structured logging.
+
+    Outputs logs as JSON objects with consistent fields:
+    - timestamp: ISO 8601 format
+    - level: Log level name
+    - logger: Logger name
+    - message: Log message
+    - trace_id: Correlation ID (if available)
+    - context: Additional context fields (if provided via extra)
+    """
+
+    def __init__(self, indent: int | None = None) -> None:
+        """Initialize JSON formatter.
+
+        Args:
+            indent: JSON indentation level (None for compact, 2 for pretty)
+        """
+        super().__init__()
+        self.indent = indent
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format log record as JSON.
+
+        Args:
+            record: Log record to format
+
+        Returns:
+            JSON string representation of log record
+        """
+        # Base log structure
+        log_dict: dict[str, Any] = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+
+        # Add correlation ID if available
+        trace_id = correlation_id_var.get()
+        if trace_id:
+            log_dict["trace_id"] = trace_id
+
+        # Add structured context if provided via extra
+        if hasattr(record, "log_context") and record.log_context:
+            log_dict["context"] = record.log_context
+
+        # Add exception info if present
+        if record.exc_info:
+            log_dict["exception"] = self.formatException(record.exc_info)
+
+        return json.dumps(log_dict, default=str, indent=self.indent)
+
+
+def _get_log_format() -> str:
+    """Get configured log format from settings.
+
+    Returns:
+        'text' or 'json'
+    """
+    try:
+        from bo1.config import get_settings
+
+        return get_settings().log_format
+    except Exception:
+        return "text"
+
+
+def _get_json_indent() -> int | None:
+    """Get configured JSON indent from settings.
+
+    Returns:
+        Indent value or None for compact
+    """
+    try:
+        from bo1.config import get_settings
+
+        return get_settings().log_json_indent
+    except Exception:
+        return None
 
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """Get a configured logger with standardized formatting.
+
+    Uses JSON formatter when LOG_FORMAT=json, otherwise text formatter.
 
     Args:
         name: Logger name (typically __name__ from calling module)
@@ -28,14 +122,23 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     Example:
         >>> logger = get_logger(__name__)
         >>> logger.info("Starting process")
-        2025-01-23 10:30:45 - INFO - bo1.module - Starting process
+        # Text mode: 2025-01-23 10:30:45 - INFO - bo1.module - Starting process
+        # JSON mode: {"timestamp": "...", "level": "INFO", "logger": "bo1.module", "message": "Starting process"}
     """
     logger = logging.getLogger(name)
 
     # Only configure if not already configured
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
+
+        # Select formatter based on config
+        log_format = _get_log_format()
+        formatter: logging.Formatter
+        if log_format == "json":
+            formatter = JsonFormatter(indent=_get_json_indent())
+        else:
+            formatter = logging.Formatter(TEXT_LOG_FORMAT, datefmt=DATE_FORMAT)
+
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         logger.setLevel(level)
@@ -45,6 +148,9 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
 
 def log_with_context(logger: logging.Logger, level: int, msg: str, **context: Any) -> None:
     """Log message with structured context for better observability.
+
+    In text mode, appends context as key=value pairs.
+    In JSON mode, includes context as a nested object.
 
     Args:
         logger: Logger instance to use
@@ -58,15 +164,42 @@ def log_with_context(logger: logging.Logger, level: int, msg: str, **context: An
         ...     logger, logging.INFO, "Session started",
         ...     session_id="abc123", user_id="user456", problem_type="investment"
         ... )
-        2025-01-23 10:30:45 - INFO - bo1.module - Session started | session_id=abc123 user_id=user456 problem_type=investment
+        # Text: 2025-01-23 10:30:45 - INFO - bo1.module - Session started | session_id=abc123 user_id=user456
+        # JSON: {"timestamp": "...", "message": "Session started", "context": {"session_id": "abc123", ...}}
     """
-    if context:
-        context_str = " ".join(f"{k}={v}" for k, v in context.items())
-        formatted_msg = f"{msg} | {context_str}"
-    else:
-        formatted_msg = msg
+    log_format = _get_log_format()
 
-    logger.log(level, formatted_msg)
+    if log_format == "json":
+        # In JSON mode, pass context via extra for formatter to handle
+        logger.log(level, msg, extra={"log_context": context} if context else {})
+    else:
+        # In text mode, format as key=value pairs
+        if context:
+            context_str = " ".join(f"{k}={v}" for k, v in context.items())
+            formatted_msg = f"{msg} | {context_str}"
+        else:
+            formatted_msg = msg
+        logger.log(level, formatted_msg)
+
+
+def set_correlation_id(trace_id: str | None) -> None:
+    """Set correlation ID for current context.
+
+    Should be called by middleware at request start.
+
+    Args:
+        trace_id: Correlation ID (typically from X-Request-ID header)
+    """
+    correlation_id_var.set(trace_id)
+
+
+def get_correlation_id() -> str | None:
+    """Get current correlation ID.
+
+    Returns:
+        Correlation ID if set, None otherwise
+    """
+    return correlation_id_var.get()
 
 
 def log_llm_call(
@@ -97,7 +230,6 @@ def log_llm_call(
         ...     cost=0.0045, duration_ms=2340.5,
         ...     agent="persona_selector", phase="selection"
         ... )
-        2025-01-23 10:30:45 - INFO - bo1.llm - LLM call complete | model=claude-sonnet-4.5 prompt_tokens=1500 completion_tokens=300 cost=$0.0045 duration_ms=2340.5 agent=persona_selector phase=selection
     """
     log_with_context(
         logger,
@@ -136,7 +268,6 @@ def log_cache_operation(
         ...     logger, operation="get", cache_type="persona",
         ...     hit=True, key="persona_selector_abc123"
         ... )
-        2025-01-23 10:30:45 - INFO - bo1.cache - Cache HIT | operation=get cache_type=persona key=persona_selector_abc123
     """
     result = "HIT" if hit else "MISS"
     context = {"operation": operation, "cache_type": cache_type, **extra}
@@ -166,7 +297,6 @@ def log_error_with_context(
         ...         logger, e, "Failed to process session",
         ...         session_id="abc123", user_id="user456"
         ...     )
-        2025-01-23 10:30:45 - ERROR - bo1.module - Failed to process session | error_type=ValueError error=invalid input session_id=abc123 user_id=user456
     """
     log_with_context(
         logger,

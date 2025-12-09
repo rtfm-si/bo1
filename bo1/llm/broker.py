@@ -213,6 +213,7 @@ class PromptBroker:
                     persona_name=cost_ctx.get("persona_name"),
                     round_number=cost_ctx.get("round_number"),
                     sub_problem_index=cost_ctx.get("sub_problem_index"),
+                    metadata={"prompt_name": cost_ctx.get("prompt_name", request.agent_type)},
                 ) as cost_record:
                     # Make the LLM call with circuit breaker protection
                     async def _make_api_call() -> tuple[str, Any]:

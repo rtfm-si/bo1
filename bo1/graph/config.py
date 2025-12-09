@@ -5,13 +5,11 @@ and checkpointing configuration.
 """
 
 import logging
-import os
 from typing import Any
 
-from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 from langgraph.graph import END, StateGraph
 
-from bo1.graph.checkpointer import LoggingCheckpointerWrapper
+from bo1.graph.checkpointer_factory import create_checkpointer
 from bo1.graph.nodes import (
     clarification_node,  # Pre-meeting context collection
     context_collection_node,
@@ -52,36 +50,10 @@ def create_deliberation_graph(
     logger.info("Creating deliberation graph with multi-round loop")
 
     # Handle checkpointer configuration
-    actual_checkpointer: Any = None  # RedisSaver, MemorySaver, or other checkpointer
+    actual_checkpointer: Any = None
     if checkpointer is None:
-        # Auto-create from environment
-        # Construct URL from individual env vars to support Docker environments
-        # where REDIS_HOST may differ from localhost
-        redis_host = os.getenv("REDIS_HOST", "localhost")
-        redis_port = os.getenv("REDIS_PORT", "6379")
-        redis_db = os.getenv("REDIS_DB", "0")
-        redis_password = os.getenv("REDIS_PASSWORD", "")
-
-        # Build Redis URL with optional password authentication
-        if redis_password:
-            redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
-        else:
-            redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
-
-        # Configure TTL: 7 days (604800 seconds) for checkpoint expiration
-        # This prevents Redis from growing indefinitely with old checkpoints
-        ttl_seconds = int(os.getenv("CHECKPOINT_TTL_SECONDS", "604800"))
-
-        # Create AsyncRedisSaver - let it create its own Redis client
-        # AsyncRedisSaver handles decode_responses internally
-        base_checkpointer = AsyncRedisSaver(redis_url)
-        # Wrap with logging for observability (P1: checkpoint operation logging)
-        actual_checkpointer = LoggingCheckpointerWrapper(base_checkpointer)
-        # Log without exposing password
-        auth_status = " (with auth)" if redis_password else ""
-        logger.info(
-            f"Created Async Redis checkpointer: {redis_host}:{redis_port}/{redis_db}{auth_status} (TTL: {ttl_seconds}s)"
-        )
+        # Auto-create from environment using factory (respects CHECKPOINT_BACKEND)
+        actual_checkpointer = create_checkpointer()
     elif checkpointer is False:
         # Explicitly disabled (for tests)
         actual_checkpointer = None

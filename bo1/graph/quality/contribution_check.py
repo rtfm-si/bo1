@@ -15,8 +15,10 @@ Architecture:
 - Complements full Judge assessment at convergence
 """
 
+import hashlib
 import json
 import logging
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -60,6 +62,105 @@ class QualityCheckResult(BaseModel):
     actionability_score: float = Field(
         ..., ge=0.0, le=1.0, description="Actionability: 0=abstract theory, 1=concrete next steps"
     )
+
+
+# ============================================================================
+# Quality Check Cache
+# ============================================================================
+
+
+@dataclass
+class QualityCheckCache:
+    """In-memory cache for quality check results.
+
+    Caches QualityCheckResult by content+context hash to avoid redundant LLM calls
+    for the same contribution within a session.
+
+    Cache keys include both contribution content and problem context to ensure
+    context-sensitive caching.
+    """
+
+    _cache: dict[str, tuple[int, QualityCheckResult]] = field(default_factory=dict)
+    _hits: int = field(default=0)
+    _misses: int = field(default=0)
+
+    @staticmethod
+    def _make_key(content: str, problem_context: str) -> str:
+        """Create cache key from content and context hash."""
+        combined = f"{content.strip()}|{problem_context.strip()}"
+        return hashlib.sha256(combined.encode()).hexdigest()[:32]
+
+    def get(self, content: str, problem_context: str) -> QualityCheckResult | None:
+        """Get cached quality result if available.
+
+        Args:
+            content: Contribution text
+            problem_context: Problem description
+
+        Returns:
+            Cached QualityCheckResult or None if not found
+        """
+        key = self._make_key(content, problem_context)
+        entry = self._cache.get(key)
+        if entry is not None:
+            self._hits += 1
+            logger.debug(f"Quality check cache HIT (key={key[:8]}...)")
+            return entry[1]
+        self._misses += 1
+        return None
+
+    def put(
+        self,
+        content: str,
+        problem_context: str,
+        result: QualityCheckResult,
+        round_number: int,
+    ) -> None:
+        """Store quality result in cache.
+
+        Args:
+            content: Contribution text
+            problem_context: Problem description
+            result: Quality check result to cache
+            round_number: Round when this result was computed
+        """
+        key = self._make_key(content, problem_context)
+        self._cache[key] = (round_number, result)
+        logger.debug(f"Quality check cache STORE (key={key[:8]}..., round={round_number})")
+
+    def invalidate_before_round(self, round_number: int) -> int:
+        """Remove cache entries from rounds before the given round.
+
+        Args:
+            round_number: Remove entries with round < this value
+
+        Returns:
+            Number of entries removed
+        """
+        keys_to_remove = [k for k, (r, _) in self._cache.items() if r < round_number]
+        for k in keys_to_remove:
+            del self._cache[k]
+        if keys_to_remove:
+            logger.debug(
+                f"Quality check cache invalidated {len(keys_to_remove)} entries "
+                f"(rounds < {round_number})"
+            )
+        return len(keys_to_remove)
+
+    def clear(self) -> None:
+        """Clear all cache entries."""
+        self._cache.clear()
+        logger.debug("Quality check cache cleared")
+
+    @property
+    def stats(self) -> dict[str, int | float]:
+        """Cache statistics for monitoring."""
+        return {
+            "size": len(self._cache),
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": round(self._hits / max(1, self._hits + self._misses), 2),
+        }
 
 
 # ============================================================================
@@ -196,6 +297,8 @@ async def quick_quality_check(
     problem_context: str,
     persona_name: str = "Unknown",
     config: dict[str, Any] | None = None,
+    cache: QualityCheckCache | None = None,
+    round_number: int = 1,
 ) -> tuple[QualityCheckResult, Any | None]:
     """Fast quality check using Haiku for individual contribution.
 
@@ -207,10 +310,12 @@ async def quick_quality_check(
         problem_context: Brief context about the problem being solved
         persona_name: Name of the persona who made the contribution (for logging)
         config: Optional LLM config (temperature, model, etc.)
+        cache: Optional cache to avoid redundant LLM calls for same contribution
+        round_number: Current round number (for cache storage)
 
     Returns:
         Tuple of (QualityCheckResult, LLMResponse) for cost tracking
-        LLMResponse is None if heuristic fallback was used
+        LLMResponse is None if heuristic fallback was used or cache hit
 
     Raises:
         ValueError: If LLM call fails or output cannot be parsed
@@ -228,6 +333,13 @@ async def quick_quality_check(
     from bo1.llm.broker import PromptBroker, PromptRequest
 
     logger.debug(f"Quick quality check for contribution from {persona_name}")
+
+    # Check cache first
+    if cache is not None:
+        cached_result = cache.get(contribution, problem_context)
+        if cached_result is not None:
+            logger.debug(f"Quality check cache hit for {persona_name}")
+            return cached_result, None
 
     # Build user prompt
     user_prompt = f"""<problem_context>
@@ -279,17 +391,27 @@ Remember:
             f"Shallow={result.is_shallow}, Weak={result.weak_aspects}"
         )
 
+        # Cache the result
+        if cache is not None:
+            cache.put(contribution, problem_context, result, round_number)
+
         return result, response
 
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse quality check output as JSON: {e}")
         logger.error(f"Raw response: {response_text if 'response_text' in locals() else 'N/A'}")
         # Fall back to heuristic
-        return _quality_check_heuristic(contribution, persona_name), None
+        heuristic_result = _quality_check_heuristic(contribution, persona_name)
+        if cache is not None:
+            cache.put(contribution, problem_context, heuristic_result, round_number)
+        return heuristic_result, None
 
     except Exception as e:
         logger.error(f"Quality check failed: {e}, falling back to heuristic")
-        return _quality_check_heuristic(contribution, persona_name), None
+        heuristic_result = _quality_check_heuristic(contribution, persona_name)
+        if cache is not None:
+            cache.put(contribution, problem_context, heuristic_result, round_number)
+        return heuristic_result, None
 
 
 def _quality_check_heuristic(
@@ -409,6 +531,8 @@ async def check_contributions_quality(
     contributions: list[Any],  # list[ContributionMessage]
     problem_context: str,
     config: dict[str, Any] | None = None,
+    cache: QualityCheckCache | None = None,
+    round_number: int = 1,
 ) -> tuple[list[QualityCheckResult], list[Any]]:
     """Check quality for multiple contributions in parallel.
 
@@ -418,16 +542,21 @@ async def check_contributions_quality(
         contributions: List of ContributionMessage objects
         problem_context: Brief problem description for context
         config: Optional LLM config
+        cache: Optional cache to avoid redundant LLM calls
+        round_number: Current round number (for cache storage)
 
     Returns:
         Tuple of (quality_results, llm_responses) for cost tracking
         - quality_results: List of QualityCheckResult objects (same order as input)
-        - llm_responses: List of LLMResponse objects (None for heuristic fallbacks)
+        - llm_responses: List of LLMResponse objects (None for heuristic fallbacks/cache hits)
 
     Example:
         >>> contributions = [contrib1, contrib2, contrib3]
         >>> problem = "Should we expand to Europe?"
-        >>> results, responses = await check_contributions_quality(contributions, problem)
+        >>> cache = QualityCheckCache()
+        >>> results, responses = await check_contributions_quality(
+        ...     contributions, problem, cache=cache, round_number=1
+        ... )
         >>> shallow_count = sum(1 for r in results if r.is_shallow)
         >>> print(f"{shallow_count}/{len(results)} contributions are shallow")
     """
@@ -447,6 +576,8 @@ async def check_contributions_quality(
             problem_context=problem_context,
             persona_name=persona_name,
             config=config,
+            cache=cache,
+            round_number=round_number,
         )
         tasks.append(task)
 
@@ -461,10 +592,16 @@ async def check_contributions_quality(
     # Log summary
     shallow_count = sum(1 for r in quality_results if r.is_shallow)
     avg_quality = sum(r.quality_score for r in quality_results) / len(quality_results)
+    llm_calls = sum(1 for r in llm_responses if r is not None)
+
+    cache_info = ""
+    if cache is not None:
+        stats = cache.stats
+        cache_info = f", cache_hits={stats['hits']}, cache_size={stats['size']}"
 
     logger.info(
         f"Quality check complete: {shallow_count}/{len(quality_results)} shallow, "
-        f"avg quality: {avg_quality:.2f}"
+        f"avg quality: {avg_quality:.2f}, llm_calls={llm_calls}{cache_info}"
     )
 
     return quality_results, llm_responses

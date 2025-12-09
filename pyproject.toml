@@ -46,12 +46,17 @@ dependencies = [
     "scipy>=1.16.0,<2.0", # Current stable scientific computing
     "langgraph>=1.0.3,<2.0", # Graph orchestration, cap before 2.0
     "langgraph-checkpoint-redis>=0.2.1,<1.0", # Redis checkpointing (0.2.1 requires redis>=6.4.0)
+    "langgraph-checkpoint-postgres>=2.0.7,<4.0", # PostgreSQL checkpointing (alternative backend)
+    "psycopg[binary,pool]>=3.2.0,<4.0", # Psycopg 3 for async postgres (langgraph-checkpoint-postgres)
     "langgraph-prebuilt>=1.0.5,<2.0", # LangGraph prebuilt nodes (1.0.5)
     "langchain-core>=1.0.7,<2.0", # LangChain core (1.0.7)
     "langsmith>=0.4.44,<1.0", # LangSmith tracing (0.4.44)
     "starlette>=0.50.0,<1.0", # Starlette ASGI framework (0.50.0)
     "networkx>=3.5", # Graph library
     "resend>=2.19.0",
+    # Observability
+    "prometheus-client>=0.21.0",  # Prometheus metrics
+    "prometheus-fastapi-instrumentator>=7.0.0",  # FastAPI auto-instrumentation
 ]
 
 [project.optional-dependencies]

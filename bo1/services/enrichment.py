@@ -336,7 +336,7 @@ Return ONLY valid JSON, no other text."""
             logger.error(f"Claude extraction failed: {e}")
             # Return basic context from metadata only
             # All other fields default to None via Field(None, ...)
-            return EnrichedContext(  # type: ignore[call-arg]
+            return EnrichedContext(
                 company_name=website_data.get("title"),
                 website=url,
                 product_description=website_data.get("description"),

@@ -238,6 +238,9 @@ class SessionRepository(BaseRepository):
     ) -> list[dict[str, Any]]:
         """List sessions for a user with pagination and summary counts.
 
+        Uses denormalized counts from sessions table (expert_count, contribution_count,
+        focus_area_count) for fast reads. Only task_count requires JOIN to session_tasks.
+
         Args:
             user_id: User identifier
             limit: Maximum sessions to return (default: 50)
@@ -250,18 +253,15 @@ class SessionRepository(BaseRepository):
         """
         with db_session() as conn:
             with conn.cursor() as cur:
-                # Use LEFT JOINs + conditional aggregation instead of correlated subqueries
-                # This reduces 4 subqueries per row to a single pass with FILTER clauses
+                # Read denormalized counts directly from sessions table
+                # Only task_count requires JOIN (less frequent, acceptable overhead)
                 query = """
                     SELECT s.id, s.user_id, s.problem_statement, s.problem_context, s.status,
                            s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
                            s.synthesis_text, s.final_recommendation,
-                           COUNT(*) FILTER (WHERE se.event_type = 'persona_selected')::int as expert_count,
-                           COUNT(*) FILTER (WHERE se.event_type = 'contribution')::int as contribution_count,
-                           COALESCE(MAX(st.total_tasks), 0)::int as task_count,
-                           COUNT(*) FILTER (WHERE se.event_type = 'subproblem_started')::int as focus_area_count
+                           s.expert_count, s.contribution_count, s.focus_area_count,
+                           COALESCE(st.total_tasks, 0)::int as task_count
                     FROM sessions s
-                    LEFT JOIN session_events se ON se.session_id = s.id
                     LEFT JOIN session_tasks st ON st.session_id = s.id
                     WHERE s.user_id = %s
                 """
@@ -274,12 +274,7 @@ class SessionRepository(BaseRepository):
                     query += " AND s.status = %s"
                     params.append(status_filter)
 
-                query += """
-                    GROUP BY s.id, s.user_id, s.problem_statement, s.problem_context, s.status,
-                             s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
-                             s.synthesis_text, s.final_recommendation
-                    ORDER BY s.created_at DESC LIMIT %s OFFSET %s
-                """
+                query += " ORDER BY s.created_at DESC LIMIT %s OFFSET %s"
                 params.extend([limit, offset])
 
                 cur.execute(query, params)
@@ -328,6 +323,57 @@ class SessionRepository(BaseRepository):
     # Session Events
     # =========================================================================
 
+    # Event types that increment denormalized counts
+    _COUNT_EVENT_TYPES = {
+        "persona_selected": "expert_count",
+        "contribution": "contribution_count",
+        "subproblem_started": "focus_area_count",
+    }
+
+    def _increment_session_count(self, cur: Any, session_id: str, event_type: str) -> None:
+        """Increment denormalized session count for trackable event types.
+
+        Args:
+            cur: Database cursor (within active transaction)
+            session_id: Session identifier
+            event_type: Event type to check for count increment
+        """
+        column = self._COUNT_EVENT_TYPES.get(event_type)
+        if column:
+            # Safe: column name is from controlled _COUNT_EVENT_TYPES dict
+            cur.execute(
+                f"UPDATE sessions SET {column} = {column} + 1 WHERE id = %s",  # noqa: S608
+                (session_id,),
+            )
+
+    def _increment_session_counts_batch(
+        self, cur: Any, session_id: str, event_types: list[str]
+    ) -> None:
+        """Increment denormalized session counts for multiple events.
+
+        Args:
+            cur: Database cursor (within active transaction)
+            session_id: Session identifier
+            event_types: List of event types to count
+        """
+        # Count occurrences of each trackable event type
+        increments: dict[str, int] = {}
+        for event_type in event_types:
+            column = self._COUNT_EVENT_TYPES.get(event_type)
+            if column:
+                increments[column] = increments.get(column, 0) + 1
+
+        if not increments:
+            return
+
+        # Build single UPDATE with all increments
+        set_clauses = [f"{col} = {col} + %s" for col in increments]
+        # Safe: column names from controlled _COUNT_EVENT_TYPES dict
+        cur.execute(
+            f"UPDATE sessions SET {', '.join(set_clauses)} WHERE id = %s",  # noqa: S608
+            (*increments.values(), session_id),
+        )
+
     @retry_db(max_attempts=3, base_delay=0.5)
     def save_event(
         self,
@@ -363,6 +409,11 @@ class SessionRepository(BaseRepository):
                     (session_id, event_type, sequence, Json(data), session_id),
                 )
                 result = cur.fetchone()
+
+                # Increment denormalized counts for trackable event types
+                if result:
+                    self._increment_session_count(cur, session_id, event_type)
+
                 return dict(result) if result else {}
 
     @retry_db(max_attempts=3, base_delay=0.5)
@@ -400,6 +451,17 @@ class SessionRepository(BaseRepository):
                     """,
                     prepared,
                 )
+
+                # Increment denormalized counts grouped by session_id
+                from collections import defaultdict
+
+                session_events: dict[str, list[str]] = defaultdict(list)
+                for sid, etype, _, _ in events:
+                    session_events[sid].append(etype)
+
+                for sid, event_types in session_events.items():
+                    self._increment_session_counts_batch(cur, sid, event_types)
+
                 # rowcount may not be accurate for ON CONFLICT, return event count
                 return len(events)
 

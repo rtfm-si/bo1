@@ -115,6 +115,10 @@ test-integration: ## Run integration tests only (using pytest markers)
 test-coverage: ## Run tests with coverage report (excludes LLM tests)
 	docker-compose run --rm bo1 pytest --cov=bo1 --cov-report=html --cov-report=term -m "not requires_llm"
 
+.PHONY: test-chaos
+test-chaos: ## Run chaos/fault injection tests (validates recovery paths)
+	docker-compose run --rm bo1 pytest tests/chaos -m "chaos" -v --timeout=300
+
 # =============================================================================
 # Code Quality Commands (In Docker)
 # =============================================================================

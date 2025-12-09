@@ -27,6 +27,9 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - REDIS_PASSWORD=${REDIS_PASSWORD}
 
+      # Checkpoint Configuration (redis or postgres)
+      - CHECKPOINT_BACKEND=${CHECKPOINT_BACKEND:-redis}
+
       # PostgreSQL Configuration
       - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/boardofone
 

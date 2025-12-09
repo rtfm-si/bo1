@@ -37,6 +37,8 @@ async def check_semantic_novelty(
     This function compares a new contribution against all previous contributions
     using semantic embeddings to detect repetition or paraphrasing.
 
+    Uses batch embedding for previous contributions to reduce API calls.
+
     Args:
         new_contribution: The new contribution text to check
         previous_contributions: List of previous contribution texts to compare against
@@ -65,45 +67,60 @@ async def check_semantic_novelty(
         return True, 0.0
 
     try:
-        from bo1.llm.embeddings import cosine_similarity, generate_embedding
+        from bo1.llm.embeddings import (
+            cosine_similarity,
+            generate_embedding,
+            generate_embeddings_batch,
+        )
 
-        # Generate embedding for new contribution
+        # Generate embedding for new contribution (needs immediate result)
         new_embedding = generate_embedding(new_contribution, input_type="document")
+
+        # Filter valid previous contributions
+        valid_prev = [p for p in previous_contributions if p and p.strip()]
+        if not valid_prev:
+            return True, 0.0
+
+        # Batch embed all previous contributions in single API call
+        try:
+            prev_embeddings = generate_embeddings_batch(valid_prev, input_type="document")
+            logger.debug(f"Semantic dedup: batched {len(valid_prev)} previous contributions")
+        except Exception as batch_err:
+            logger.warning(
+                f"Batch embedding failed ({batch_err}), falling back to individual calls"
+            )
+            # Fallback to individual calls if batch fails
+            prev_embeddings = []
+            for prev_contrib in valid_prev:
+                try:
+                    emb = generate_embedding(prev_contrib, input_type="document")
+                    prev_embeddings.append(emb)
+                except Exception:
+                    prev_embeddings.append([])
 
         # Compare against all previous contributions
         max_similarity = 0.0
 
-        for prev_contrib in previous_contributions:
-            if not prev_contrib or not prev_contrib.strip():
+        for prev_contrib, prev_embedding in zip(valid_prev, prev_embeddings, strict=True):
+            if not prev_embedding:
                 continue
 
-            try:
-                # Generate embedding for previous contribution
-                prev_embedding = generate_embedding(prev_contrib, input_type="document")
+            # Calculate cosine similarity
+            similarity = cosine_similarity(new_embedding, prev_embedding)
 
-                # Calculate cosine similarity
-                similarity = cosine_similarity(new_embedding, prev_embedding)
+            # Track maximum
+            max_similarity = max(max_similarity, similarity)
 
-                # Track maximum
-                max_similarity = max(max_similarity, similarity)
-
-                # Early exit if we find high similarity
-                if similarity > threshold:
-                    logger.info(
-                        f"Semantic deduplication: High similarity detected "
-                        f"(score: {similarity:.3f} > threshold: {threshold:.3f})"
-                    )
-                    logger.debug(
-                        f"New: '{new_contribution[:50]}...' ≈ Previous: '{prev_contrib[:50]}...'"
-                    )
-                    return False, similarity
-
-            except Exception as e:
-                logger.warning(
-                    f"Failed to generate embedding for previous contribution: {e}. "
-                    "Skipping comparison."
+            # Early exit if we find high similarity
+            if similarity > threshold:
+                logger.info(
+                    f"Semantic deduplication: High similarity detected "
+                    f"(score: {similarity:.3f} > threshold: {threshold:.3f})"
                 )
-                continue
+                logger.debug(
+                    f"New: '{new_contribution[:50]}...' ≈ Previous: '{prev_contrib[:50]}...'"
+                )
+                return False, similarity
 
         # All comparisons below threshold = novel
         is_novel = max_similarity <= threshold

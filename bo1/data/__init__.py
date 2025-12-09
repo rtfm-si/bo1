@@ -8,7 +8,10 @@ import json
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from bo1.models.persona import PersonaProfile
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,7 @@ def load_personas() -> tuple[dict[str, Any], ...]:
         return tuple(personas_list)
 
 
+@lru_cache(maxsize=256)
 def get_persona_by_code(code: str) -> dict[str, Any] | None:
     """Get a single persona by their code.
 
@@ -44,6 +48,10 @@ def get_persona_by_code(code: str) -> dict[str, Any] | None:
 
     Returns:
         Persona dictionary or None if not found
+
+    Note:
+        Uses lru_cache for O(1) repeated lookups during meeting execution.
+        First call performs O(n) scan; subsequent calls return cached result.
     """
     personas = load_personas()
     persona = next((p for p in personas if p["code"] == code), None)
@@ -83,3 +91,29 @@ def get_active_personas() -> list[dict[str, Any]]:
     """
     personas = load_personas()  # Returns tuple from cache
     return [p for p in personas if p.get("is_active", True) and p.get("persona_type") == "standard"]
+
+
+@lru_cache(maxsize=256)
+def get_persona_profile_by_code(code: str) -> "PersonaProfile | None":
+    """Get a PersonaProfile instance by code, with caching.
+
+    This factory caches constructed PersonaProfile objects to avoid repeated
+    Pydantic validation during meeting execution when the same persona is
+    referenced multiple times (e.g., across rounds).
+
+    Args:
+        code: Persona code (e.g., "growth_hacker", "finance_strategist")
+
+    Returns:
+        Cached PersonaProfile instance or None if not found
+
+    Note:
+        First call constructs and caches the model; subsequent calls return
+        the same instance. Safe because PersonaProfile is treated as immutable.
+    """
+    from bo1.models.persona import PersonaProfile
+
+    persona_dict = get_persona_by_code(code)
+    if persona_dict is None:
+        return None
+    return PersonaProfile.model_validate(persona_dict)

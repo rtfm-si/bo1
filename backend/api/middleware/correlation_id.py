@@ -2,6 +2,7 @@
 
 Generates or extracts X-Request-ID header for end-to-end request tracing.
 Stores in request.state.request_id for downstream access.
+Also sets contextvars for structured logging integration.
 """
 
 import uuid
@@ -10,6 +11,8 @@ from collections.abc import Callable
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
+
+from bo1.utils.logging import set_correlation_id
 
 REQUEST_ID_HEADER = "X-Request-ID"
 
@@ -35,10 +38,17 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         # Store in request state for downstream access
         request.state.request_id = request_id
 
-        # Process request
-        response = await call_next(request)
+        # Set in contextvars for structured logging
+        set_correlation_id(request_id)
 
-        # Add to response headers
-        response.headers[REQUEST_ID_HEADER] = request_id
+        try:
+            # Process request
+            response = await call_next(request)
 
-        return response
+            # Add to response headers
+            response.headers[REQUEST_ID_HEADER] = request_id
+
+            return response
+        finally:
+            # Clear correlation ID after request
+            set_correlation_id(None)

@@ -1324,7 +1324,9 @@ class EventCollector:
             # Allow async persistence tasks to complete (they run via asyncio.create_task)
             # This prevents false positives from the race condition where verification
             # runs before all persistence tasks have finished
-            await asyncio.sleep(2.0)
+            delay = get_settings().event_verification_delay_seconds
+            if delay > 0:
+                await asyncio.sleep(delay)
 
             redis_event_count = self.publisher.redis.llen(f"events_history:{session_id}")
             pg_events = session_repository.get_events(session_id)

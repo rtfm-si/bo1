@@ -1,6 +1,6 @@
 """Add composite index on session_events(session_id, sequence) for event ordering.
 
-Revision ID: c1_add_session_events_sequence_index
+Revision ID: c1_events_seq_idx
 Revises: b3_user_id_fac_decisions
 Create Date: 2025-12-09
 
@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "c1_add_session_events_sequence_index"
+revision: str = "c1_events_seq_idx"
 down_revision: str | Sequence[str] | None = "b3_user_id_fac_decisions"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

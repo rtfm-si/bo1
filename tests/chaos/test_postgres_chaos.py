@@ -81,8 +81,10 @@ class TestPostgresQueryFailure:
             # If successful, would modify state
             session_state["contributions"].append("c")
             session_state["round"] = 3
-        except Exception:
-            pass  # Query failed (expected in chaos test)  # noqa: S110
+        except Exception as e:
+            # Query failed as expected in chaos test - log for debugging
+            import logging
+            logging.debug(f"Expected query failure in chaos test: {e}")
 
         # State should be unchanged
         assert session_state == state_before

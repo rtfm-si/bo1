@@ -20,6 +20,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    """Update datasets RLS policy to exclude soft-deleted records."""
     # Drop existing policy
     op.execute("DROP POLICY IF EXISTS users_own_datasets ON datasets;")
 
@@ -35,6 +36,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Restore original datasets RLS policy without soft-delete filter."""
     # Restore original policy without soft-delete filter
     op.execute("DROP POLICY IF EXISTS users_own_datasets ON datasets;")
     op.execute("""

@@ -26,7 +26,7 @@ def spaces_client(mock_boto3_client):
     reset_spaces_client()
     client = SpacesClient(
         access_key="test_key",
-        secret_key="test_secret",
+        secret_key="test_secret",  # noqa: S106
         region="nyc3",
         bucket="test-bucket",
         endpoint_url="https://nyc3.digitaloceanspaces.com",

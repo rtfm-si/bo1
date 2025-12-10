@@ -23,6 +23,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    """Add deprecation comments to unused columns for v2.0 removal."""
     # Add deprecation comments to unused columns
     op.execute(
         "COMMENT ON COLUMN sessions.max_rounds IS 'DEPRECATED: Remove in v2.0 - Default 10, no graph logic references';"
@@ -39,6 +40,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove deprecation comments from columns."""
     # Remove deprecation comments
     op.execute("COMMENT ON COLUMN sessions.max_rounds IS NULL;")
     op.execute("COMMENT ON COLUMN session_clarifications.asked_at_round IS NULL;")

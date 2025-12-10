@@ -97,8 +97,8 @@ class TestDataAnalysisNode:
                 "cost": 0.01,
             }
         ]
-        with patch("bo1.agents.data_analyst.DataAnalysisAgent") as MockAgent:
-            mock_instance = MockAgent.return_value
+        with patch("bo1.agents.data_analyst.DataAnalysisAgent") as mock_agent_class:
+            mock_instance = mock_agent_class.return_value
             mock_instance.analyze_dataset = AsyncMock(return_value=mock_results)
 
             result = await data_analysis_node(state)
@@ -137,8 +137,8 @@ class TestDataAnalysisNode:
                 "cost": 0.0,
             }
         ]
-        with patch("bo1.agents.data_analyst.DataAnalysisAgent") as MockAgent:
-            mock_instance = MockAgent.return_value
+        with patch("bo1.agents.data_analyst.DataAnalysisAgent") as mock_agent_class:
+            mock_instance = mock_agent_class.return_value
             mock_instance.analyze_dataset = AsyncMock(return_value=mock_results)
 
             result = await data_analysis_node(state)
@@ -180,8 +180,8 @@ class TestDataAnalysisNode:
                 "cost": 0.0,
             }
         ]
-        with patch("bo1.agents.data_analyst.DataAnalysisAgent") as MockAgent:
-            mock_instance = MockAgent.return_value
+        with patch("bo1.agents.data_analyst.DataAnalysisAgent") as mock_agent_class:
+            mock_instance = mock_agent_class.return_value
             mock_instance.analyze_dataset = AsyncMock(return_value=mock_results)
 
             result = await data_analysis_node(state)

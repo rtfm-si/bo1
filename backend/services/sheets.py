@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Google Sheets API base URL
 SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"  # noqa: S105
 
 # URL patterns for Google Sheets
 SHEETS_URL_PATTERNS = [
@@ -41,7 +41,8 @@ MAX_CELLS = 500_000  # Max total cells (API limit is 10M but we're conservative)
 class SheetsError(Exception):
     """Error during Google Sheets operation."""
 
-    def __init__(self, message: str, spreadsheet_id: str | None = None):
+    def __init__(self, message: str, spreadsheet_id: str | None = None) -> None:
+        """Initialize SheetsError."""
         self.spreadsheet_id = spreadsheet_id
         super().__init__(message)
 
@@ -64,7 +65,7 @@ class SheetsClient:
     Only supports public sheets (anyone with link can view).
     """
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None) -> None:
         """Initialize Sheets client.
 
         Args:
@@ -306,7 +307,7 @@ class OAuthSheetsClient:
 
     def __init__(
         self, user_id: str, access_token: str, refresh_token: str | None, expires_at: str | None
-    ):
+    ) -> None:
         """Initialize OAuth Sheets client.
 
         Args:

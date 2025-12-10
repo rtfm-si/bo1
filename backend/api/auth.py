@@ -35,7 +35,7 @@ router = APIRouter()
 
 # Google OAuth endpoints
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"  # noqa: S105
 
 # Sheets scope for incremental auth
 SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly"

@@ -248,7 +248,7 @@ def generate_chart_png(df: pd.DataFrame, spec: ChartSpec) -> bytes:
     return png_bytes
 
 
-def _build_matplotlib_figure(df: pd.DataFrame, spec: ChartSpec):
+def _build_matplotlib_figure(df: pd.DataFrame, spec: ChartSpec) -> tuple[Any, int]:
     """Build a matplotlib figure for PNG export.
 
     Returns:

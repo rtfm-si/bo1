@@ -55,7 +55,7 @@ def _format_profile_for_prompt(profile_dict: dict[str, Any]) -> str:
 def _compute_profile_hash(profile_dict: dict[str, Any]) -> str:
     """Compute hash of profile for cache key."""
     content = json.dumps(profile_dict, sort_keys=True, default=str)
-    return hashlib.md5(content.encode()).hexdigest()[:12]
+    return hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 async def generate_dataset_summary(

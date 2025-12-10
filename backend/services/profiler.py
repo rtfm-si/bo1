@@ -30,7 +30,8 @@ class ColumnProfile:
         name: str,
         inferred_type: ColumnType,
         stats: ColumnStats,
-    ):
+    ) -> None:
+        """Initialize ColumnProfile."""
         self.name = name
         self.inferred_type = inferred_type
         self.stats = stats
@@ -54,7 +55,8 @@ class DatasetProfile:
         row_count: int,
         column_count: int,
         columns: list[ColumnProfile],
-    ):
+    ) -> None:
+        """Initialize DatasetProfile."""
         self.dataset_id = dataset_id
         self.row_count = row_count
         self.column_count = column_count

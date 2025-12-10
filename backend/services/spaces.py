@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 class SpacesError(Exception):
     """Error during Spaces operation."""
 
-    def __init__(self, message: str, operation: str, key: str | None = None):
+    def __init__(self, message: str, operation: str, key: str | None = None) -> None:
+        """Initialize SpacesError."""
         self.operation = operation
         self.key = key
         super().__init__(f"Spaces {operation} failed: {message}")
@@ -38,7 +39,7 @@ class SpacesClient:
         region: str | None = None,
         bucket: str | None = None,
         endpoint_url: str | None = None,
-    ):
+    ) -> None:
         """Initialize Spaces client.
 
         Args:

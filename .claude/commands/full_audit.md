@@ -5,19 +5,19 @@ Run ALL defined audits sequentially (not in parallel), collect the issues they f
 
 Audits to run (in this order, sequentially):
 
-1. architecture_flow
-2. performance_scalability
-3. llm_alignment
-4. data_model
-5. observability
-6. api_contract
-7. reliability
-8. cost_optimisation
+1. architecture_flow `.claude/commands/audit/architecture_flow.md`
+2. performance_scalability `.claude/commands/audit/performance_scalability.md`
+3. llm_alignment `.claude/commands/audit/llm_alignment.md`
+4. data_model `.claude/commands/audit/data_model.md`
+5. observability `.claude/commands/audit/observability.md`
+6. api_contract `.claude/commands/audit/api_contract.md`
+7. reliability `.claude/commands/audit/reliability.md`
+8. cost_optimisation `.claude/commands/audit/cost_optimisation.md`
 
 OPTIONAL (if present and wired as audits):
 
-- secure (red/blue team)
-- clean
+- secure (red/blue team) `.claude/commands/secure.md`
+- clean `.claude/commands/clean.md`
 
 CONSTRAINTS
 

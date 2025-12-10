@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 class CSVValidationError(Exception):
     """Error during CSV validation."""
 
-    def __init__(self, message: str, field: str | None = None):
+    def __init__(self, message: str, field: str | None = None) -> None:
+        """Initialize CSVValidationError."""
         self.field = field
         super().__init__(message)
 

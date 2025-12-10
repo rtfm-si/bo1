@@ -129,7 +129,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates (synthesis report, phase=COMPLETE)
     """
     from bo1.llm.broker import PromptBroker, PromptRequest
-    from bo1.prompts.reusable_prompts import SYNTHESIS_LEAN_TEMPLATE, get_limited_context_sections
+    from bo1.prompts import SYNTHESIS_LEAN_TEMPLATE, get_limited_context_sections
 
     logger.info("synthesize_node: Starting synthesis with lean McKinsey-style template")
 
@@ -446,7 +446,7 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates (meta-synthesis JSON action plan, phase=COMPLETE)
     """
     from bo1.llm.broker import PromptBroker, PromptRequest
-    from bo1.prompts.reusable_prompts import META_SYNTHESIS_ACTION_PLAN_PROMPT
+    from bo1.prompts import META_SYNTHESIS_ACTION_PLAN_PROMPT
 
     logger.info("meta_synthesize_node: Starting meta-synthesis (structured JSON)")
 

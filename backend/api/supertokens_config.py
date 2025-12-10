@@ -67,10 +67,7 @@ def check_whitelist_db(email: str) -> bool:
 
 
 def is_whitelisted(email: str) -> bool:
-    """Check if email is whitelisted (env var or database).
-
-    Checks environment variable first for backwards compatibility,
-    then falls back to database check.
+    """Check if email is whitelisted (database-managed).
 
     Args:
         email: Email address to check (case-insensitive)
@@ -80,14 +77,7 @@ def is_whitelisted(email: str) -> bool:
     """
     email_lower = email.lower()
 
-    # Check env var first (backwards compat)
-    env_whitelist = os.getenv("BETA_WHITELIST", "").split(",")
-    env_whitelist = [e.strip().lower() for e in env_whitelist if e.strip()]
-    if email_lower in env_whitelist:
-        logger.info(f"Email {_mask_email(email_lower)} found in env var whitelist")
-        return True
-
-    # Then check database
+    # Check database whitelist
     if check_whitelist_db(email):
         logger.info(f"Email {_mask_email(email_lower)} found in database whitelist")
         return True
@@ -155,7 +145,12 @@ def get_oauth_providers() -> list[ProviderInput]:
                             thirdparty.ProviderClientConfig(
                                 client_id=client_id,
                                 client_secret=client_secret,
-                                scope=["openid", "email", "profile"],
+                                scope=[
+                                    "openid",
+                                    "email",
+                                    "profile",
+                                    "https://www.googleapis.com/auth/spreadsheets.readonly",
+                                ],
                             )
                         ],
                     )
@@ -232,6 +227,34 @@ def override_thirdparty_functions(
             logger.info(
                 f"User synced to PostgreSQL: {_mask_email(email)} (user_id: {user_id}, provider: {third_party_id})"
             )
+
+            # Save Google OAuth tokens for Sheets API access
+            if third_party_id == "google" and oauth_tokens:
+                from datetime import UTC, datetime, timedelta
+
+                access_token = oauth_tokens.get("access_token")
+                refresh_token = oauth_tokens.get("refresh_token")
+                expires_in = oauth_tokens.get("expires_in")  # seconds
+                scope = oauth_tokens.get("scope", "")
+
+                # Calculate expiry timestamp
+                expires_at = None
+                if expires_in:
+                    expires_at = (
+                        datetime.now(UTC) + timedelta(seconds=int(expires_in))
+                    ).isoformat()
+
+                if access_token:
+                    user_repository.save_google_tokens(
+                        user_id=user_id,
+                        access_token=access_token,
+                        refresh_token=refresh_token,
+                        expires_at=expires_at,
+                        scopes=scope,
+                    )
+                    logger.info(
+                        f"Saved Google OAuth tokens for user {user_id} (scopes: {scope[:50]}...)"
+                    )
 
             # Check if user account is locked or deleted
             if is_user_locked_or_deleted(user_id):

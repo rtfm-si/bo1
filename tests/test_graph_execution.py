@@ -7,7 +7,11 @@ from bo1.graph.config import create_deliberation_graph
 from bo1.graph.state import create_initial_state
 from tests.utils.assertions import assert_personas_selected, assert_sub_problems_created
 
-pytestmark = pytest.mark.requires_llm
+# These tests require real LLM API calls - skip by default
+pytestmark = [
+    pytest.mark.requires_llm,
+    pytest.mark.skip(reason="Requires LLM API - run with -m requires_llm"),
+]
 
 
 @pytest.mark.asyncio

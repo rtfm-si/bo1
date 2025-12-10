@@ -13,7 +13,7 @@ from typing import Any
 from bo1.data import get_persona_by_code
 from bo1.graph.state import DeliberationGraphState
 from bo1.models.state import ContributionMessage
-from bo1.prompts.reusable_prompts import (
+from bo1.prompts import (
     BEST_EFFORT_PROMPT,
     compose_persona_contribution_prompt,
     compose_persona_prompt_hierarchical,

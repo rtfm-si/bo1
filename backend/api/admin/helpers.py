@@ -8,7 +8,6 @@ This module contains:
 These services extract reusable logic from admin routers to reduce duplication.
 """
 
-import os
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -135,11 +134,8 @@ class AdminQueryService:
         total_meetings = session_stats["total_meetings"] if session_stats else 0
         total_cost = float(session_stats["total_cost"]) if session_stats else 0.0
 
-        # Get whitelist count (db + env)
-        db_whitelist_count = count_rows("beta_whitelist")
-        env_whitelist = os.getenv("BETA_WHITELIST", "")
-        env_emails = [e.strip().lower() for e in env_whitelist.split(",") if e.strip()]
-        whitelist_count = db_whitelist_count + len(env_emails)
+        # Get whitelist count (database-managed)
+        whitelist_count = count_rows("beta_whitelist")
 
         # Get pending waitlist count
         waitlist_pending = count_rows("waitlist", where="status = 'pending'")

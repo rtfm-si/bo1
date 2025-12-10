@@ -596,7 +596,7 @@
 					>
 						{#if isLoading}
 							<div class="space-y-4 p-4">
-								{#each Array(5) as _, i}
+								{#each Array(5) as _, i (i)}
 									<EventCardSkeleton />
 								{/each}
 							</div>

@@ -6,8 +6,6 @@ Provides:
 - DELETE /api/admin/beta-whitelist/{email} - Remove email from whitelist
 """
 
-import os
-
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.api.admin.helpers import (
@@ -47,10 +45,6 @@ async def list_beta_whitelist(
     _admin: str = Depends(require_admin_any),
 ) -> BetaWhitelistResponse:
     """List all whitelisted emails for closed beta."""
-    # Get env-based whitelist
-    env_whitelist = os.getenv("BETA_WHITELIST", "")
-    env_emails = [e.strip().lower() for e in env_whitelist.split(",") if e.strip()]
-
     rows = execute_query(
         """
         SELECT id, email, added_by, notes, created_at
@@ -61,21 +55,11 @@ async def list_beta_whitelist(
     )
     entries = [_row_to_whitelist_entry(row) for row in rows]
 
-    # Get unique db emails for deduplication
-    db_emails = {e.email.lower() for e in entries}
-    # Only count env emails not already in db
-    unique_env_emails = [e for e in env_emails if e not in db_emails]
-
-    total_count = len(entries) + len(unique_env_emails)
-
-    logger.info(
-        f"Admin: Retrieved {len(entries)} db + {len(unique_env_emails)} env whitelist entries"
-    )
+    logger.info(f"Admin: Retrieved {len(entries)} whitelist entries")
 
     return BetaWhitelistResponse(
-        total_count=total_count,
+        total_count=len(entries),
         emails=entries,
-        env_emails=env_emails,
     )
 
 

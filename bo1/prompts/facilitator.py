@@ -146,6 +146,20 @@ Do NOT overuse - only for genuinely blocking information gaps.
 
 - Question: [Specific question for the user]
 - Reason: [Why this information is needed to proceed]
+
+OPTION F - Analyze Attached Dataset
+Use when experts need quantitative insights from an attached dataset:
+- Revenue, sales, or performance trends
+- Customer segmentation or behavior patterns
+- Correlation between metrics
+- Aggregate statistics (totals, averages, distributions)
+
+Only available when datasets are attached to this session.
+Specify the dataset and specific analysis questions.
+
+- Dataset: [Dataset ID to analyze]
+- Questions: [List of specific analysis questions]
+- Reason: [Why this analysis would inform the discussion]
 </decision>
 
 <decision_examples>
@@ -318,6 +332,16 @@ ROTATION GUIDELINES:
         )
         metrics_lines.append("- Low novelty but exploration gaps = Continue with focused prompts")
         metrics_lines.append("- High novelty + Low convergence = Healthy debate, continue")
+        metrics_lines.append(
+            "- High conflict (>0.70) + Low novelty (<0.40) = IMPASSE - guide toward resolution"
+        )
+        metrics_lines.append("")
+        metrics_lines.append("IMPASSE RESOLUTION (if high conflict + low novelty for 2+ rounds):")
+        metrics_lines.append("1. Find common ground: What do experts agree on?")
+        metrics_lines.append(
+            "2. Disagree-and-commit: Acknowledge disagreement, recommend majority view"
+        )
+        metrics_lines.append("3. Conditional recommendations: 'If X then A, if Y then B' format")
         metrics_lines.append("</quality_metrics>")
 
         metrics_context = "\n".join(metrics_lines)

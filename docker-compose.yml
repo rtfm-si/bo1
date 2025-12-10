@@ -104,7 +104,6 @@ services:
 
       # Authentication & Authorization (SuperTokens)
       - CLOSED_BETA_MODE=${CLOSED_BETA_MODE:-false}
-      - BETA_WHITELIST=${BETA_WHITELIST}
     volumes:
       # Mount source code for hot reload (development)
       - ./bo1:/app/bo1

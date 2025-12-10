@@ -115,6 +115,15 @@ class DeliberationGraphState(TypedDict, total=False):
     meta_discussion_count: int  # Count of meta-discussion contributions in current sub-problem
     total_contributions_checked: int  # Total contributions checked for meta-discussion ratio
 
+    # STALLED DISAGREEMENT DETECTION (Productive Disagreement fix)
+    high_conflict_low_novelty_rounds: (
+        int  # Consecutive rounds with conflict > 0.7 AND novelty < 0.40
+    )
+
+    # DATA ANALYSIS INTEGRATION (EPIC 4)
+    attached_datasets: list[str]  # Dataset IDs attached to this session
+    data_analysis_results: list[dict[str, Any]]  # Results from data analysis during deliberation
+
 
 def create_initial_state(
     session_id: str,
@@ -189,6 +198,11 @@ def create_initial_state(
         consecutive_research_without_improvement=0,  # Research loop counter
         meta_discussion_count=0,  # Count of meta-discussion contributions
         total_contributions_checked=0,  # Total contributions checked for ratio
+        # STALLED DISAGREEMENT DETECTION
+        high_conflict_low_novelty_rounds=0,  # Consecutive rounds with conflict > 0.7 AND novelty < 0.40
+        # DATA ANALYSIS INTEGRATION (EPIC 4)
+        attached_datasets=[],  # Dataset IDs attached to this session
+        data_analysis_results=[],  # Results from data analysis during deliberation
     )
 
 

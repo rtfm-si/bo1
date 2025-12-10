@@ -2,15 +2,17 @@
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/auth';
 	import { apiClient } from '$lib/api/client';
-	import type { SessionResponse, AllActionsResponse, TaskWithSessionContext } from '$lib/api/types';
+	import type { SessionResponse, AllActionsResponse, TaskWithSessionContext, ActionStatsResponse } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import ContextRefreshBanner from '$lib/components/ui/ContextRefreshBanner.svelte';
+	import CompletionTrendsChart from '$lib/components/ui/CompletionTrendsChart.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { getSessionStatusColor } from '$lib/utils/colors';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { createLogger } from '$lib/utils/debug';
+	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, needsAttention, getDueDateRelativeText } from '$lib/utils/due-dates';
 
 	const log = createLogger('Dashboard');
 
@@ -18,6 +20,8 @@
 	const sessionsData = useDataFetch(() => apiClient.listSessions());
 	// Fetch outstanding actions (todo and doing only)
 	const actionsData = useDataFetch(() => apiClient.getAllActions());
+	// Fetch action stats for completion trends chart
+	const statsData = useDataFetch(() => apiClient.getActionStats(14));
 
 	// Derived state for template compatibility
 	const sessions = $derived<SessionResponse[]>(sessionsData.data?.sessions || []);
@@ -49,14 +53,34 @@
 		actionsData.data ? ((actionsData.data.by_status.todo || 0) + (actionsData.data.by_status.in_progress || 0)) : 0
 	);
 
+	// Actions needing attention (overdue or due today)
+	const actionsNeedingAttention = $derived.by<TaskWithSessionContext[]>(() => {
+		if (!actionsData.data?.sessions) return [];
+		const allTasks = actionsData.data.sessions.flatMap((s) => s.tasks as TaskWithSessionContext[]);
+		return allTasks
+			.filter((t) => (t.status === 'todo' || t.status === 'in_progress') && needsAttention(t.suggested_completion_date))
+			.sort((a, b) => {
+				// Overdue first, then due-today
+				const statusA = getDueDateStatus(a.suggested_completion_date);
+				const statusB = getDueDateStatus(b.suggested_completion_date);
+				if (statusA === 'overdue' && statusB !== 'overdue') return -1;
+				if (statusB === 'overdue' && statusA !== 'overdue') return 1;
+				// Then by priority
+				const priorityOrder = { high: 0, medium: 1, low: 2 };
+				return (priorityOrder[a.priority as keyof typeof priorityOrder] || 2) -
+					(priorityOrder[b.priority as keyof typeof priorityOrder] || 2);
+			});
+	});
+
 	// Check if user is admin for cost display
 	const isAdmin = $derived($user?.is_admin ?? false);
 
 	onMount(() => {
 		log.log('Loading sessions for user:', $user?.email);
-		// Auth is already verified by parent layout, safe to load sessions and actions
+		// Auth is already verified by parent layout, safe to load sessions, actions, and stats
 		sessionsData.fetch();
 		actionsData.fetch();
+		statsData.fetch();
 	});
 
 	async function loadSessions() {
@@ -128,6 +152,177 @@
 		<!-- Context refresh reminder -->
 		<ContextRefreshBanner />
 
+		<!-- Quick Actions Panel -->
+		<div class="mb-8">
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+				<!-- New Meeting -->
+				<a
+					href="/meeting/new"
+					class="group flex items-center gap-4 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/30 hover:border-brand-300 dark:hover:border-brand-700 transition-all duration-200"
+				>
+					<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-brand-100 dark:bg-brand-800/50 group-hover:bg-brand-200 dark:group-hover:bg-brand-800 transition-colors">
+						<svg class="w-6 h-6 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+						</svg>
+					</div>
+					<div class="flex-1 min-w-0">
+						<h3 class="text-sm font-semibold text-brand-900 dark:text-brand-100">Start New Meeting</h3>
+						<p class="text-xs text-brand-600 dark:text-brand-400">Get expert perspectives on a decision</p>
+					</div>
+					<svg class="w-5 h-5 text-brand-400 dark:text-brand-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+					</svg>
+				</a>
+
+				<!-- View Actions -->
+				<a
+					href="/actions"
+					class="group flex items-center gap-4 p-4 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all duration-200"
+				>
+					<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-700 group-hover:bg-neutral-200 dark:group-hover:bg-neutral-600 transition-colors">
+						<svg class="w-6 h-6 text-neutral-600 dark:text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+						</svg>
+					</div>
+					<div class="flex-1 min-w-0">
+						<h3 class="text-sm font-semibold text-neutral-900 dark:text-white">View All Actions</h3>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400">Track and manage your tasks</p>
+					</div>
+					<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+					</svg>
+				</a>
+
+				<!-- Settings -->
+				<a
+					href="/settings"
+					class="group flex items-center gap-4 p-4 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all duration-200"
+				>
+					<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-700 group-hover:bg-neutral-200 dark:group-hover:bg-neutral-600 transition-colors">
+						<svg class="w-6 h-6 text-neutral-600 dark:text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+						</svg>
+					</div>
+					<div class="flex-1 min-w-0">
+						<h3 class="text-sm font-semibold text-neutral-900 dark:text-white">Settings</h3>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400">Configure your business context</p>
+					</div>
+					<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+					</svg>
+				</a>
+			</div>
+		</div>
+
+		<!-- Completion Trends Chart -->
+		{#if statsData.data?.daily && statsData.data.daily.length > 0}
+			<div class="mb-8">
+				<div class="flex items-center justify-between mb-4">
+					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
+						<svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+						</svg>
+						Completion Trends
+					</h2>
+					<div class="flex items-center gap-4 text-sm text-neutral-500 dark:text-neutral-400">
+						<span class="flex items-center gap-1.5">
+							<span class="font-medium text-brand-600 dark:text-brand-400">{statsData.data.totals.completed}</span>
+							completed
+						</span>
+						<span class="flex items-center gap-1.5">
+							<span class="font-medium text-warning-600 dark:text-warning-400">{statsData.data.totals.in_progress}</span>
+							in progress
+						</span>
+						<span class="flex items-center gap-1.5">
+							<span class="font-medium text-neutral-600 dark:text-neutral-300">{statsData.data.totals.todo}</span>
+							to do
+						</span>
+					</div>
+				</div>
+
+				<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-4">
+					<CompletionTrendsChart data={statsData.data.daily} days={14} />
+				</div>
+			</div>
+		{/if}
+
+		<!-- Actions Needing Attention (overdue + due today) -->
+		{#if actionsNeedingAttention.length > 0}
+			<div class="mb-8">
+				<div class="flex items-center justify-between mb-4">
+					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
+						<svg class="w-5 h-5 text-error-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+						</svg>
+						Needs Attention
+						<span class="px-2 py-0.5 text-sm font-medium bg-error-100 dark:bg-error-900/30 text-error-700 dark:text-error-300 rounded-full">
+							{actionsNeedingAttention.length}
+						</span>
+					</h2>
+					<a href="/actions" class="text-sm text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1">
+						View all actions
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+						</svg>
+					</a>
+				</div>
+
+				<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border-2 border-error-200 dark:border-error-800 overflow-hidden">
+					<div class="divide-y divide-neutral-200 dark:divide-neutral-700">
+						{#each actionsNeedingAttention as action (action.id + '-attention')}
+							{@const dueDateStatus = getDueDateStatus(action.suggested_completion_date)}
+							<a
+								href="/actions/{action.id}"
+								class="flex items-center gap-4 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors {dueDateStatus === 'overdue' ? 'bg-error-50/50 dark:bg-error-900/10' : 'bg-warning-50/50 dark:bg-warning-900/10'}"
+							>
+								<!-- Alert indicator -->
+								<div class="flex-shrink-0">
+									<span class="flex items-center justify-center w-8 h-8 rounded-full {dueDateStatus === 'overdue' ? 'bg-error-100 dark:bg-error-900/30' : 'bg-warning-100 dark:bg-warning-900/30'}">
+										{#if dueDateStatus === 'overdue'}
+											<svg class="w-4 h-4 text-error-600 dark:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+											</svg>
+										{:else}
+											<svg class="w-4 h-4 text-warning-600 dark:text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+											</svg>
+										{/if}
+									</span>
+								</div>
+
+								<!-- Action content -->
+								<div class="flex-1 min-w-0">
+									<div class="flex items-center gap-2 mb-1">
+										<span class="font-medium text-neutral-900 dark:text-white truncate">
+											{action.title}
+										</span>
+										<span class={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border ${getDueDateBadgeClasses(dueDateStatus)}`}>
+											{getDueDateLabel(dueDateStatus)}
+										</span>
+										<Badge variant={action.priority === 'high' ? 'error' : action.priority === 'medium' ? 'warning' : 'success'}>
+											{action.priority}
+										</Badge>
+									</div>
+									<div class="flex items-center gap-3 text-sm text-neutral-500 dark:text-neutral-400">
+										<span class={dueDateStatus === 'overdue' ? 'text-error-600 dark:text-error-400 font-medium' : 'text-warning-600 dark:text-warning-400'}>
+											{getDueDateRelativeText(action.suggested_completion_date)}
+										</span>
+										<span class="truncate">From: {truncateProblem(action.problem_statement, 40)}</span>
+									</div>
+								</div>
+
+								<!-- Arrow -->
+								<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+								</svg>
+							</a>
+						{/each}
+					</div>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Outstanding Actions Section (at top per UX best practices) -->
 		{#if outstandingActions.length > 0}
 			<div class="mb-8">
@@ -155,7 +350,7 @@
 					<div class="divide-y divide-neutral-200 dark:divide-neutral-700">
 						{#each outstandingActions as action (action.id + '-' + action.session_id)}
 							<a
-								href="/meeting/{action.session_id}"
+								href="/actions/{action.id}"
 								class="flex items-center gap-4 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors"
 							>
 								<!-- Status indicator -->
@@ -187,6 +382,21 @@
 										<Badge variant={action.priority === 'high' ? 'error' : action.priority === 'medium' ? 'warning' : 'success'}>
 											{action.priority}
 										</Badge>
+										{#if getDueDateStatus(action.suggested_completion_date) === 'overdue' || getDueDateStatus(action.suggested_completion_date) === 'due-today' || getDueDateStatus(action.suggested_completion_date) === 'due-soon'}
+											{@const dueDateStatus = getDueDateStatus(action.suggested_completion_date)}
+											<span class={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border ${getDueDateBadgeClasses(dueDateStatus)}`}>
+												{#if dueDateStatus === 'overdue'}
+													<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+													</svg>
+												{:else}
+													<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+													</svg>
+												{/if}
+												{getDueDateLabel(dueDateStatus)}
+											</span>
+										{/if}
 									</div>
 									<div class="text-sm text-neutral-500 dark:text-neutral-400 truncate">
 										From: {truncateProblem(action.problem_statement, 60)}
@@ -214,7 +424,7 @@
 		{#if isLoading}
 			<!-- Loading State -->
 			<div class="space-y-4">
-				{#each Array(3) as _, i}
+				{#each Array(3) as _, i (i)}
 					<ShimmerSkeleton type="card" />
 				{/each}
 			</div>

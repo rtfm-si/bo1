@@ -15,6 +15,7 @@ const SEGMENT_LABELS: Record<string, string> = {
 	dashboard: 'Dashboard',
 	actions: 'Actions',
 	projects: 'Projects',
+	datasets: 'Datasets',
 	meeting: 'Meetings',
 	settings: 'Settings',
 	account: 'Account',

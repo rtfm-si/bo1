@@ -65,7 +65,6 @@ services:
 
       # Closed Beta Configuration
       - CLOSED_BETA_MODE=${CLOSED_BETA_MODE:-true}
-      - BETA_WHITELIST=${BETA_WHITELIST}
 
       # ntfy Push Notifications
       - NTFY_SERVER=${NTFY_SERVER:-https://ntfy.boardof.one}

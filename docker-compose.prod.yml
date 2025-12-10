@@ -160,7 +160,6 @@ services:
 
       # Closed Beta Configuration
       - CLOSED_BETA_MODE=${CLOSED_BETA_MODE:-true}
-      - BETA_WHITELIST=${BETA_WHITELIST}
 
       # Application Configuration
       - DEBUG=false

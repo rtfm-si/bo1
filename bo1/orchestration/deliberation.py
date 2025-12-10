@@ -24,7 +24,7 @@ from bo1.models.state import (
 from bo1.orchestration.metrics_calculator import MetricsCalculator
 from bo1.orchestration.persona_executor import PersonaExecutor
 from bo1.orchestration.prompt_builder import PromptBuilder
-from bo1.prompts.reusable_prompts import get_round_phase_config
+from bo1.prompts import get_round_phase_config
 from bo1.utils.checkpoint_helpers import get_sub_problem_context, get_sub_problem_goal
 from bo1.utils.logging_helpers import LogHelper
 
@@ -135,7 +135,7 @@ class DeliberationEngine:
                 problem_statement=get_sub_problem_goal(current_sp),
                 problem_context=get_sub_problem_context(current_sp),
                 participant_list=participant_list,
-                round_number=0,
+                round_number=1,  # Initial round IS round 1 (fixes double-contribution bug)
                 contribution_type=ContributionType.INITIAL,
                 expert_memory=expert_memory,
             )

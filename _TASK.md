@@ -4,55 +4,56 @@
 
 #### EPIC 1: Data Ingestion
 
-- [ ] [DATA][P1] Implement DO Spaces storage wrapper (boto3 S3-compatible client)
-- [ ] [DATA][P1] Add `DO_SPACES_*` env vars to config
-- [ ] [DATA][P1] Add retry logic and error handling to Spaces client
-- [ ] [DATA][P1] Create datasets/dataset_profiles/dataset_analyses/dataset_insights migration
-- [ ] [DATA][P1] Implement CSV upload endpoint with size/header validation
-- [ ] [DATA][P1] Implement Google Sheets integration (OAuth flow + import)
-- [ ] [DATA][P1] Implement dataset list/delete endpoints
+- [x] [DATA][P1] Implement DO Spaces storage wrapper (boto3 S3-compatible client) ✅ backend/services/spaces.py
+- [x] [DATA][P1] Add `DO_SPACES_*` env vars to config ✅ bo1/config.py
+- [x] [DATA][P1] Add retry logic and error handling to Spaces client ✅ SpacesError + exponential backoff
+- [x] [DATA][P1] Create datasets/dataset_profiles migration ✅ f1_create_datasets_tables.py
+- [x] [DATA][P1] Implement CSV upload endpoint with size/header validation ✅ POST /api/v1/datasets/upload + csv_utils.py
+- [x] [DATA][P1] Implement Google Sheets integration (OAuth flow + import) ✅ Public sheets via API key + Private sheets via OAuth (backend/services/sheets.py OAuthSheetsClient, POST /v1/auth/google/sheets/connect)
+- [x] [DATA][P1] Implement dataset list/delete endpoints ✅ backend/api/datasets.py
 
 #### EPIC 2: Profiling & Summary
 
-- [ ] [DATA][P1] Implement DataFrame loading (CSV from Spaces, Sheets via API)
-- [ ] [DATA][P1] Implement type inference (dates, currencies, percentages)
-- [ ] [DATA][P1] Compute per-column statistics (null_count, unique_count, min/max/mean)
-- [ ] [DATA][P1] Implement LLM summary generation for dataset profiles
-- [ ] [DATA][P1] Create `data_profile_dataset` Claude tool with Redis caching
+- [x] [DATA][P1] Implement DataFrame loading (CSV from Spaces, Sheets via API) ✅ backend/services/dataframe_loader.py
+- [x] [DATA][P1] Implement type inference (dates, currencies, percentages) ✅ backend/services/type_inference.py
+- [x] [DATA][P1] Compute per-column statistics (null_count, unique_count, min/max/mean) ✅ backend/services/statistics.py + POST /api/v1/datasets/{id}/profile
+- [x] [DATA][P1] Implement LLM summary generation for dataset profiles ✅ backend/services/summary_generator.py + Redis caching
+- [x] [DATA][P1] Create dataset profile service with Redis caching ✅ bo1/tools/data_profile.py (NOTE: defined as Claude tool but not invoked - profiling triggered via REST endpoint)
 
 #### EPIC 3: Query & Analysis
 
-- [ ] [DATA][P1] Implement QuerySpec model (aggregate/filter/trend/compare/correlate)
-- [ ] [DATA][P1] Implement QueryEngine filter/group/aggregate operations
-- [ ] [DATA][P1] Add DuckDB backend for large datasets (>100K rows - do we need duckdb? we already have postgres, would sqllite be better?)
-- [ ] [DATA][P1] Implement result pagination
-- [ ] [DATA][P1] Implement ChartGenerator (line/bar/pie/scatter/heat with matplotlib/plotly)
-- [ ] [DATA][P1] Upload charts to Spaces and store metadata
-- [ ] [DATA][P1] Create `data_run_query` Claude tool
-- [ ] [DATA][P1] Create `data_generate_chart` Claude tool
+- [x] [DATA][P1] Implement QuerySpec model (aggregate/filter/trend/compare/correlate) ✅ backend/api/models.py (FilterSpec, AggregateSpec, GroupBySpec, TrendSpec, CompareSpec, CorrelateSpec, QuerySpec)
+- [x] [DATA][P1] Implement QueryEngine filter/group/aggregate operations ✅ backend/services/query_engine.py + execute_query()
+- [ ] [DATA][P2] Add DuckDB backend for large datasets (>100K rows) - defer until needed
+- [x] [DATA][P1] Implement result pagination ✅ QuerySpec.limit/offset + QueryResult.has_more
+- [x] [DATA][P1] Create query API endpoint ✅ POST /api/v1/datasets/{id}/query
+- [x] [DATA][P1] Implement ChartGenerator service (line/bar/pie/scatter with plotly) ✅ backend/services/chart_generator.py
+- [x] [DATA][P1] Create chart API endpoint ✅ POST /api/v1/datasets/{id}/chart
+- [x] [DATA][P1] Upload charts to Spaces and store metadata ✅ g2_create_dataset_analyses.py + chart persistence in POST /chart
 
-#### EPIC 4: Insight Storage
+#### EPIC 4: Meeting Data Integration
 
-- [ ] [DATA][P1] Create `analysis_store_run` tool (persist analysis runs)
-- [ ] [DATA][P1] Create `analysis_store_insight` tool (extract reusable insights)
-- [ ] [DATA][P1] Create `analysis_get_recent_context` tool (context retrieval)
-- [ ] [DATA][P1] Implement Redis-backed session state helpers
+- [x] [DATA][P1] Create DataAnalysisAgent (mirrors ResearcherAgent pattern) ✅ bo1/agents/data_analyst.py
+- [x] [DATA][P1] Add Facilitator `analyze_data` action type ✅ FacilitatorAction Literal + VALID_FACILITATOR_ACTIONS
+- [x] [DATA][P1] Implement DataAnalysisAgent.analyze_dataset() - calls query/chart endpoints ✅ Calls /api/v1/datasets/{id}/query and /chart
+- [x] [DATA][P1] Implement DataAnalysisAgent.format_analysis_context() - formats results for LLM ✅ XML-formatted context
+- [x] [DATA][P1] Inject dataset analysis into meeting context (like research results) ✅ data_analysis_node + graph routing
 
-#### EPIC 5: Orchestration
+#### EPIC 5: Dataset Q&A (Standalone)
 
-- [ ] [DATA][P1] Create data analyst system prompt (orchestrator prompt)
-- [ ] [DATA][P1] Test multi-step analysis flows
-- [ ] [DATA][P1] Implement `/v1/datasets/{dataset_id}/ask` endpoint with SSE streaming
-- [ ] [DATA][P1] Inject attached dataset insights into meeting context
+- [x] [DATA][P1] Create data analyst system prompt for Q&A flow ✅ bo1/prompts/data_analyst.py
+- [x] [DATA][P1] Implement `/v1/datasets/{dataset_id}/ask` endpoint with SSE streaming ✅ backend/api/datasets.py
+- [x] [DATA][P1] Implement multi-turn conversation state (Redis-backed) ✅ backend/services/conversation_repo.py
+- [x] [DATA][P1] Test multi-step analysis flows ✅ tests/api/test_dataset_ask.py (18 tests)
 
 #### EPIC 6: UI
 
-- [ ] [DATA][P1] Implement dataset list page with drag-drop CSV upload
-- [ ] [DATA][P1] Implement Google Sheets URL input on dataset list page
-- [ ] [DATA][P1] Implement dataset detail page with profile summary
-- [ ] [DATA][P1] Implement "Ask a question" chat interface on dataset detail
-- [ ] [DATA][P1] Show analysis history and chart gallery on dataset detail
-- [ ] [DATA][P1] Add dataset attachment selector to meeting creation
+- [x] [DATA][P1] Implement dataset list page with drag-drop CSV upload ✅ frontend/src/routes/(app)/datasets/+page.svelte
+- [x] [DATA][P1] Implement Google Sheets URL input on dataset list page ✅ frontend/src/routes/(app)/datasets/+page.svelte
+- [x] [DATA][P1] Implement dataset detail page with profile summary ✅ frontend/src/routes/(app)/datasets/[dataset_id]/+page.svelte
+- [x] [DATA][P1] Implement "Ask a question" chat interface on dataset detail ✅ frontend/src/lib/components/dataset/DatasetChat.svelte
+- [x] [DATA][P1] Show analysis history and chart gallery on dataset detail ✅ AnalysisGallery.svelte + GET /api/v1/datasets/{id}/analyses
+- [x] [DATA][P1] Add dataset attachment selector to meeting creation ✅ g3_add_dataset_sessions.py + Svelte 5 selector + ownership validation
 
 ### P1  Stripe Integration [P1-STRIPE]
 
@@ -77,22 +78,22 @@
 
 #### Dashboard Overhaul
 
-- [ ] [UX][P1] Add "Actions needing attention" section (overdue, due today)
-- [ ] [UX][P1] Add progress visualization (completion trends)
-- [ ] [UX][P1] Add quick actions panel (new meeting, view actions)
+- [x] [UX][P1] Add "Actions needing attention" section (overdue, due today) ✅ Added to dashboard with overdue/due-today filtering
+- [x] [UX][P1] Add progress visualization (completion trends) ✅ Added CompletionTrendsChart component with /api/v1/actions/stats endpoint
+- [x] [UX][P1] Add quick actions panel (new meeting, view actions) ✅ Added 3-card quick actions grid to dashboard
 - [ ] [UX][P1] Add new user onboarding checklist
 
 #### Navigation Improvements
 
 - [ ] [UX][P1] Group related sidebar items (Decisions, Actions, Data)
-- [ ] [UX][P1] Add "� Back to meeting" from action detail
+- [x] [UX][P1] Add "Back to meeting" from action detail ✅ Added header link in action detail page
 - [ ] [UX][P1] Add loading skeletons for async content
 
 #### Actions Page Polish
 
-- [ ] [UX][P1] Add filter by status, due date, meeting to actions page
+- [x] [UX][P1] Add filter by status, due date, meeting to actions page ✅ Added status and due date dropdowns
 - [ ] [UX][P1] Add bulk actions (mark multiple complete)
-- [ ] [UX][P1] Add due date warnings (overdue = red, due soon = amber)
+- [x] [UX][P1] Add due date warnings (overdue = red, due soon = amber) ✅ Added to dashboard, actions page, action detail
 
 ### P1  Email Notifications [P1-EMAIL]
 
@@ -376,15 +377,15 @@
 ### Expert Contribution Quality [BUG-DELIB]
 
 - [x] [BUG][P1] Reduce expert repetition across rounds (detect when topic fully explored) ✅ Novelty detection + semantic dedup working
-- [ ] [BUG][P1] Enforce max 1 contribution per expert per round - STILL BROKEN (experts contribute 2x in round 1)
+- [x] [BUG][P1] Enforce max 1 contribution per expert per round ✅ Fixed round numbering mismatch + added guard
 - [x] [BUG][P1] Add signal detection when nothing new to add (topic exhausted) ✅ Judge novelty_score + should_exit_early() implemented
 
 ### Productive Disagreement [BUG-DELIB]
 
-- [ ] [BUG-DELIB][P1] Add "stalled disagreement" detection (conflict > 0.7 AND novelty < 0.40 for 2+ rounds)
-- [ ] [BUG-DELIB][P1] Add Facilitator "Acknowledge Impasse" option to guide experts toward resolution
-- [ ] [BUG-DELIB][P1] Guide experts to: find common ground, disagree-and-commit, or propose conditional recommendations
-- [ ] [BUG-DELIB][P1] Trigger early synthesis when topic exhausted even without consensus (reduces cost, improves UX)
+- [x] [BUG-DELIB][P1] Add "stalled disagreement" detection (conflict > 0.7 AND novelty < 0.40 for 2+ rounds) ✅ detect_stalled_disagreement() + counter tracking
+- [x] [BUG-DELIB][P1] Add Facilitator "Acknowledge Impasse" option to guide experts toward resolution ✅ \_handle_impasse_intervention() in facilitator.py
+- [x] [BUG-DELIB][P1] Guide experts to: find common ground, disagree-and-commit, or propose conditional recommendations ✅ Resolution options in impasse guidance
+- [x] [BUG-DELIB][P1] Trigger early synthesis when topic exhausted even without consensus (reduces cost, improves UX) ✅ force_synthesis after 3+ stalled rounds
 
 ### Meeting Output [BUG-OUTPUT]
 
@@ -401,5 +402,5 @@
 
 ### Navigation & Routing [BUG-NAV]
 
-- [ ] [BUG][P1] /meeting breadcrumb link returns 404 (no meetings list page exists)
-- [ ] [BUG][P1] Clicking action in dashboard navigates to meeting instead of action detail page
+- [x] [BUG][P1] /meeting breadcrumb link returns 404 (no meetings list page exists) ✅ Created /meeting/+page.svelte
+- [x] [BUG][P1] Clicking action in dashboard navigates to meeting instead of action detail page ✅ Fixed href to /actions/{id}

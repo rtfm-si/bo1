@@ -110,6 +110,12 @@
 						Projects
 					</a>
 					<a
+						href="/datasets"
+						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+					>
+						Datasets
+					</a>
+					<a
 						href="/settings"
 						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
 					>
@@ -188,6 +194,13 @@
 						onclick={closeMobileMenu}
 					>
 						Projects
+					</a>
+					<a
+						href="/datasets"
+						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+						onclick={closeMobileMenu}
+					>
+						Datasets
 					</a>
 					<a
 						href="/settings"

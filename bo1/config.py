@@ -94,6 +94,24 @@ class Settings(BaseSettings):
     # Email Configuration (Resend)
     resend_api_key: str = Field(default="", description="Resend API key for transactional emails")
 
+    # DigitalOcean Spaces Configuration (S3-compatible object storage)
+    do_spaces_key: str = Field(default="", description="DO Spaces access key ID")
+    do_spaces_secret: str = Field(default="", description="DO Spaces secret access key")
+    do_spaces_region: str = Field(default="lon1", description="DO Spaces region")
+    do_spaces_bucket: str = Field(default="bo1-quark-hilbert", description="DO Spaces bucket name")
+    do_spaces_endpoint: str = Field(
+        default="", description="DO Spaces endpoint URL (e.g., https://lon1.digitaloceanspaces.com)"
+    )
+
+    @property
+    def do_spaces_endpoint_url(self) -> str:
+        """Get the DO Spaces endpoint URL, auto-generating if not set."""
+        if self.do_spaces_endpoint:
+            return self.do_spaces_endpoint
+        if self.do_spaces_region:
+            return f"https://{self.do_spaces_region}.digitaloceanspaces.com"
+        return ""
+
     # Admin Configuration
     admin_api_key: str = Field(default="", description="API key for admin endpoints")
 
@@ -126,6 +144,11 @@ class Settings(BaseSettings):
     # OAuth Configuration
     google_oauth_client_id: str = Field(default="", description="Google OAuth client ID")
     google_oauth_client_secret: str = Field(default="", description="Google OAuth client secret")
+
+    # Google Sheets API Configuration
+    google_api_key: str = Field(
+        default="", description="Google API key for Sheets access (public sheets only)"
+    )
 
     # Cookie Configuration
     cookie_secure: bool = Field(default=False, description="Use secure cookies (HTTPS only)")
@@ -233,36 +256,11 @@ class Settings(BaseSettings):
             return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
         return set()
 
-    # Beta Whitelist (Closed Beta Access Control)
-    # DEPRECATED: Use database-managed whitelist instead (see backend/api/admin.py)
-    # This environment variable approach will be removed in v2.0
+    # Closed Beta Access Control (database-managed via beta_whitelist table)
     closed_beta_mode: bool = Field(
         default=False,
         description="Enable closed beta mode - only whitelisted emails can authenticate",
     )
-    beta_whitelist: str = Field(
-        default="",
-        description="DEPRECATED: Use database-managed whitelist instead. "
-        "Comma-separated list of whitelisted emails for closed beta (e.g., 'alice@example.com,bob@company.com')",
-    )
-
-    @property
-    def beta_whitelist_emails(self) -> set[str]:
-        """Parse beta whitelist into a set of lowercase emails.
-
-        DEPRECATED: This property is deprecated in favor of database-managed whitelist.
-        Will be removed in v2.0. Use admin API endpoints to manage whitelist instead.
-        """
-        if self.beta_whitelist:
-            logger.warning(
-                "DEPRECATION WARNING: BETA_WHITELIST environment variable is deprecated. "
-                "Please migrate to database-managed whitelist using admin API endpoints. "
-                "This will be removed in v2.0."
-            )
-
-        if not self.beta_whitelist:
-            return set()
-        return {email.strip().lower() for email in self.beta_whitelist.split(",") if email.strip()}
 
     # Token Budget Monitoring
     token_budget_warning_threshold: int = Field(

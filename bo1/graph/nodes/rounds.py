@@ -18,6 +18,7 @@ from bo1.graph.deliberation import (
     select_experts_for_round as _select_experts_for_round,
 )
 from bo1.graph.nodes.utils import get_phase_prompt, phase_prompt_short
+from bo1.graph.quality.stopping_rules import update_stalled_disagreement_counter
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_accumulated_cost, track_aggregated_cost
 from bo1.models.state import DeliberationPhase
@@ -60,11 +61,12 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     )
 
     # Return state updates (include personas for event collection)
-    # Set round_number=1 since initial_round IS round 1
+    # Set round_number=2 since initial_round completed round 1
+    # parallel_round_node will then execute round 2 (prevents double-contribution bug)
     return {
         "contributions": contributions,
         "phase": DeliberationPhase.DISCUSSION,
-        "round_number": 1,  # Initial round is round 1
+        "round_number": 2,  # Next round to execute (initial_round completed round 1)
         "metrics": metrics,
         "current_node": "initial_round",
         "personas": state.get("personas", []),  # Include for event publishing
@@ -660,6 +662,8 @@ def _build_round_state_update(
         "total_contributions_checked": total_contributions_checked,
         # Research loop prevention counter
         "consecutive_research_without_improvement": consecutive_research_without_improvement,
+        # Stalled disagreement counter (updated based on current metrics)
+        "high_conflict_low_novelty_rounds": update_stalled_disagreement_counter(state),
     }
 
 
@@ -686,6 +690,33 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Get current round and phase
     round_number = state.get("round_number", 1)
+
+    # GUARD: Check if this round already has contributions (prevents double-contribution bug)
+    # This can happen due to graph retries or checkpoint edge cases
+    existing_contributions = state.get("contributions", [])
+    round_contributions = []
+    for c in existing_contributions:
+        # Handle both ContributionMessage objects and dicts (from checkpoint deserialization)
+        c_round = (
+            c.round_number
+            if hasattr(c, "round_number")
+            else c.get("round_number")
+            if hasattr(c, "get")
+            else None
+        )
+        if c_round == round_number:
+            round_contributions.append(c)
+    if round_contributions:
+        logger.warning(
+            f"parallel_round_node: Round {round_number} already has {len(round_contributions)} "
+            f"contributions - skipping to avoid double contribution. "
+            f"Incrementing round_number to {round_number + 1}."
+        )
+        # Return minimal state update that advances to next round
+        return {
+            "round_number": round_number + 1,
+            "current_node": "parallel_round_skipped",
+        }
     max_rounds = state.get("max_rounds", 6)
     current_phase = _determine_phase(round_number, max_rounds)
     logger.info(f"Round {round_number}/{max_rounds}: Phase = {current_phase}")

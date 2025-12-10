@@ -36,6 +36,10 @@ class CreateSessionRequest(BaseModel):
         description="Optional context dictionary (max 50KB)",
         examples=[{"budget": 500000, "timeline": "Q2 2025", "market": "B2B SaaS"}],
     )
+    dataset_id: str | None = Field(
+        None,
+        description="Optional dataset UUID to attach for data-driven deliberations",
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -1214,3 +1218,582 @@ class GlobalGanttResponse(BaseModel):
 
     actions: list[GanttActionData] = Field(..., description="List of actions")
     dependencies: list[GanttDependency] = Field(..., description="List of dependencies")
+
+
+# =============================================================================
+# Action Stats Models (Dashboard Progress Visualization)
+# =============================================================================
+
+
+class DailyActionStat(BaseModel):
+    """Daily action statistics.
+
+    Attributes:
+        date: Date (YYYY-MM-DD)
+        completed_count: Actions completed on this date
+        created_count: Actions created on this date
+    """
+
+    date: str = Field(..., description="Date (YYYY-MM-DD)")
+    completed_count: int = Field(default=0, description="Actions completed")
+    created_count: int = Field(default=0, description="Actions created")
+
+
+class ActionStatsTotals(BaseModel):
+    """Total action counts by status.
+
+    Attributes:
+        completed: Total completed actions
+        in_progress: Total in-progress actions
+        todo: Total todo actions
+    """
+
+    completed: int = Field(default=0, description="Total completed")
+    in_progress: int = Field(default=0, description="Total in progress")
+    todo: int = Field(default=0, description="Total to do")
+
+
+class ActionStatsResponse(BaseModel):
+    """Response model for action statistics.
+
+    Attributes:
+        daily: Daily action stats for last N days
+        totals: Total counts by status
+    """
+
+    daily: list[DailyActionStat] = Field(..., description="Daily stats")
+    totals: ActionStatsTotals = Field(..., description="Total counts")
+
+
+# =============================================================================
+# Dataset Models (Data Analysis Platform)
+# =============================================================================
+
+
+class SourceType(str):
+    """Dataset source type enum values."""
+
+    CSV = "csv"
+    SHEETS = "sheets"
+    API = "api"
+
+
+class DatasetCreate(BaseModel):
+    """Request model for creating a dataset.
+
+    Attributes:
+        name: Dataset name
+        description: Optional description
+        source_type: Source type (csv, sheets, api)
+        source_uri: Original source location (e.g., Google Sheets URL)
+    """
+
+    name: str = Field(..., min_length=1, max_length=255, description="Dataset name")
+    description: str | None = Field(None, max_length=5000, description="Dataset description")
+    source_type: str = Field(
+        default="csv",
+        pattern="^(csv|sheets|api)$",
+        description="Source type",
+    )
+    source_uri: str | None = Field(None, description="Original source location")
+
+
+class DatasetProfileResponse(BaseModel):
+    """Response model for a dataset column profile.
+
+    Attributes:
+        id: Profile UUID
+        column_name: Column name
+        data_type: Inferred data type
+        null_count: Count of null values
+        unique_count: Count of unique values
+        min_value: Minimum value
+        max_value: Maximum value
+        mean_value: Mean value (numeric columns)
+        sample_values: Sample values list
+    """
+
+    id: str = Field(..., description="Profile UUID")
+    column_name: str = Field(..., description="Column name")
+    data_type: str = Field(..., description="Inferred data type")
+    null_count: int | None = Field(None, description="Null value count")
+    unique_count: int | None = Field(None, description="Unique value count")
+    min_value: str | None = Field(None, description="Minimum value")
+    max_value: str | None = Field(None, description="Maximum value")
+    mean_value: float | None = Field(None, description="Mean value")
+    sample_values: list[Any] | None = Field(None, description="Sample values")
+
+
+class DatasetResponse(BaseModel):
+    """Response model for a dataset.
+
+    Attributes:
+        id: Dataset UUID
+        user_id: Owner user ID
+        name: Dataset name
+        description: Dataset description
+        source_type: Source type
+        source_uri: Original source location
+        file_key: Spaces object key
+        row_count: Number of rows
+        column_count: Number of columns
+        file_size_bytes: File size in bytes
+        created_at: Creation timestamp
+        updated_at: Last update timestamp
+    """
+
+    id: str = Field(..., description="Dataset UUID")
+    user_id: str = Field(..., description="Owner user ID")
+    name: str = Field(..., description="Dataset name")
+    description: str | None = Field(None, description="Dataset description")
+    source_type: str = Field(..., description="Source type")
+    source_uri: str | None = Field(None, description="Original source location")
+    file_key: str | None = Field(None, description="Spaces object key")
+    row_count: int | None = Field(None, description="Number of rows")
+    column_count: int | None = Field(None, description="Number of columns")
+    file_size_bytes: int | None = Field(None, description="File size in bytes")
+    created_at: str = Field(..., description="Creation timestamp (ISO)")
+    updated_at: str = Field(..., description="Last update timestamp (ISO)")
+
+
+class DatasetDetailResponse(DatasetResponse):
+    """Response model for dataset with profile.
+
+    Attributes:
+        profiles: Column profiles
+        summary: LLM-generated dataset summary
+    """
+
+    profiles: list[DatasetProfileResponse] = Field(
+        default_factory=list, description="Column profiles"
+    )
+    summary: str | None = Field(None, description="LLM-generated dataset summary")
+
+
+class DatasetListResponse(BaseModel):
+    """Response model for listing datasets.
+
+    Attributes:
+        datasets: List of datasets
+        total: Total count
+        limit: Page size
+        offset: Page offset
+    """
+
+    datasets: list[DatasetResponse] = Field(..., description="List of datasets")
+    total: int = Field(..., description="Total count")
+    limit: int = Field(..., description="Page size")
+    offset: int = Field(..., description="Page offset")
+
+
+# =============================================================================
+# Query Models (Data Analysis Platform - EPIC 3)
+# =============================================================================
+
+
+class FilterOperator(str):
+    """Filter operator enum values."""
+
+    EQ = "eq"
+    NE = "ne"
+    GT = "gt"
+    LT = "lt"
+    GTE = "gte"
+    LTE = "lte"
+    CONTAINS = "contains"
+    IN = "in"
+
+
+class AggregateFunction(str):
+    """Aggregate function enum values."""
+
+    SUM = "sum"
+    AVG = "avg"
+    MIN = "min"
+    MAX = "max"
+    COUNT = "count"
+    DISTINCT = "distinct"
+
+
+class TrendInterval(str):
+    """Trend interval enum values."""
+
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    QUARTER = "quarter"
+    YEAR = "year"
+
+
+class CorrelationMethod(str):
+    """Correlation method enum values."""
+
+    PEARSON = "pearson"
+    SPEARMAN = "spearman"
+
+
+class QueryType(str):
+    """Query type enum values."""
+
+    FILTER = "filter"
+    AGGREGATE = "aggregate"
+    TREND = "trend"
+    COMPARE = "compare"
+    CORRELATE = "correlate"
+
+
+class FilterSpec(BaseModel):
+    """Filter specification for query operations.
+
+    Attributes:
+        field: Column name to filter on
+        operator: Filter operator
+        value: Value to compare against
+    """
+
+    field: str = Field(..., min_length=1, description="Column name to filter on")
+    operator: str = Field(
+        ...,
+        pattern="^(eq|ne|gt|lt|gte|lte|contains|in)$",
+        description="Filter operator",
+    )
+    value: Any = Field(..., description="Value to compare against")
+
+
+class AggregateSpec(BaseModel):
+    """Aggregate specification for query operations.
+
+    Attributes:
+        field: Column name to aggregate
+        function: Aggregate function
+        alias: Optional output column name
+    """
+
+    field: str = Field(..., min_length=1, description="Column name to aggregate")
+    function: str = Field(
+        ...,
+        pattern="^(sum|avg|min|max|count|distinct)$",
+        description="Aggregate function",
+    )
+    alias: str | None = Field(None, description="Output column name")
+
+
+class GroupBySpec(BaseModel):
+    """GroupBy specification for query operations.
+
+    Attributes:
+        fields: Columns to group by
+        aggregates: Aggregations to apply
+    """
+
+    fields: list[str] = Field(..., min_length=1, description="Columns to group by")
+    aggregates: list[AggregateSpec] = Field(..., min_length=1, description="Aggregations to apply")
+
+
+class TrendSpec(BaseModel):
+    """Trend specification for time-series analysis.
+
+    Attributes:
+        date_field: Column containing date/datetime values
+        value_field: Column to compute trends on
+        interval: Time interval for grouping
+        aggregate_function: How to aggregate values within intervals
+    """
+
+    date_field: str = Field(..., min_length=1, description="Date column")
+    value_field: str = Field(..., min_length=1, description="Value column")
+    interval: str = Field(
+        default="month",
+        pattern="^(day|week|month|quarter|year)$",
+        description="Time interval",
+    )
+    aggregate_function: str = Field(
+        default="sum",
+        pattern="^(sum|avg|min|max|count)$",
+        description="Aggregate function for interval",
+    )
+
+
+class CompareSpec(BaseModel):
+    """Comparison specification for category analysis.
+
+    Attributes:
+        group_field: Column to group/segment by
+        value_field: Column to compare
+        comparison_type: Type of comparison (absolute or percentage)
+        aggregate_function: How to aggregate values per group
+    """
+
+    group_field: str = Field(..., min_length=1, description="Column to segment by")
+    value_field: str = Field(..., min_length=1, description="Column to compare")
+    comparison_type: str = Field(
+        default="absolute",
+        pattern="^(absolute|percentage)$",
+        description="Comparison type",
+    )
+    aggregate_function: str = Field(
+        default="sum",
+        pattern="^(sum|avg|min|max|count)$",
+        description="Aggregate function",
+    )
+
+
+class CorrelateSpec(BaseModel):
+    """Correlation specification for column relationship analysis.
+
+    Attributes:
+        field_a: First column for correlation
+        field_b: Second column for correlation
+        method: Correlation method
+    """
+
+    field_a: str = Field(..., min_length=1, description="First column")
+    field_b: str = Field(..., min_length=1, description="Second column")
+    method: str = Field(
+        default="pearson",
+        pattern="^(pearson|spearman)$",
+        description="Correlation method",
+    )
+
+
+class QuerySpec(BaseModel):
+    """Full query specification.
+
+    Attributes:
+        query_type: Type of query operation
+        filters: Filter conditions (for all query types)
+        group_by: GroupBy specification (for aggregate)
+        trend: Trend specification (for trend)
+        compare: Comparison specification (for compare)
+        correlate: Correlation specification (for correlate)
+        limit: Maximum rows to return
+        offset: Rows to skip
+    """
+
+    query_type: str = Field(
+        ...,
+        pattern="^(filter|aggregate|trend|compare|correlate)$",
+        description="Query type",
+    )
+    filters: list[FilterSpec] | None = Field(None, description="Filter conditions")
+    group_by: GroupBySpec | None = Field(None, description="GroupBy specification")
+    trend: TrendSpec | None = Field(None, description="Trend specification")
+    compare: CompareSpec | None = Field(None, description="Comparison specification")
+    correlate: CorrelateSpec | None = Field(None, description="Correlation specification")
+    limit: int = Field(default=100, ge=1, le=1000, description="Max rows to return")
+    offset: int = Field(default=0, ge=0, description="Rows to skip")
+
+
+class QueryResultResponse(BaseModel):
+    """Response model for query results.
+
+    Attributes:
+        rows: Query result rows
+        columns: Column names
+        total_count: Total rows before pagination
+        has_more: Whether more rows exist
+        query_type: Type of query executed
+    """
+
+    rows: list[dict[str, Any]] = Field(..., description="Query result rows")
+    columns: list[str] = Field(..., description="Column names")
+    total_count: int = Field(..., description="Total rows before pagination")
+    has_more: bool = Field(..., description="Whether more rows exist")
+    query_type: str = Field(..., description="Type of query executed")
+
+
+# =============================================================================
+# Chart Models
+# =============================================================================
+
+
+class ChartSpec(BaseModel):
+    """Chart specification for generating visualizations.
+
+    Attributes:
+        chart_type: Type of chart to generate
+        x_field: Column for x-axis
+        y_field: Column for y-axis (or values for pie)
+        group_field: Optional column for grouping/coloring
+        title: Chart title
+        filters: Optional filters to apply before charting
+    """
+
+    chart_type: str = Field(
+        ...,
+        pattern="^(line|bar|pie|scatter)$",
+        description="Chart type: line, bar, pie, or scatter",
+    )
+    x_field: str = Field(..., min_length=1, description="Column for x-axis (or names for pie)")
+    y_field: str = Field(..., min_length=1, description="Column for y-axis (or values for pie)")
+    group_field: str | None = Field(None, description="Optional column for grouping/coloring")
+    title: str | None = Field(None, max_length=200, description="Chart title")
+    filters: list[FilterSpec] | None = Field(None, description="Optional filters before charting")
+    width: int = Field(default=800, ge=200, le=2000, description="Chart width in pixels")
+    height: int = Field(default=600, ge=200, le=2000, description="Chart height in pixels")
+
+
+class ChartResultResponse(BaseModel):
+    """Response model for chart generation.
+
+    Attributes:
+        figure_json: Plotly figure JSON for frontend rendering
+        chart_type: Type of chart generated
+        width: Chart width in pixels
+        height: Chart height in pixels
+        row_count: Number of data points in chart
+        analysis_id: ID of saved analysis record (if persisted)
+    """
+
+    figure_json: dict[str, Any] = Field(
+        ..., description="Plotly figure JSON for frontend rendering"
+    )
+    chart_type: str = Field(..., description="Type of chart generated")
+    width: int = Field(..., description="Chart width in pixels")
+    height: int = Field(..., description="Chart height in pixels")
+    row_count: int = Field(..., description="Number of data points in chart")
+    analysis_id: str | None = Field(None, description="ID of saved analysis record")
+
+
+class DatasetAnalysisResponse(BaseModel):
+    """Response model for a dataset analysis.
+
+    Attributes:
+        id: Analysis UUID
+        dataset_id: Dataset UUID
+        query_spec: Query specification used
+        chart_spec: Chart specification used
+        chart_url: Presigned URL to chart image
+        title: Display title
+        created_at: Creation timestamp
+    """
+
+    id: str = Field(..., description="Analysis UUID")
+    dataset_id: str = Field(..., description="Dataset UUID")
+    query_spec: dict[str, Any] | None = Field(None, description="Query specification")
+    chart_spec: dict[str, Any] | None = Field(None, description="Chart specification")
+    chart_url: str | None = Field(None, description="Presigned URL to chart image")
+    title: str | None = Field(None, description="Display title")
+    created_at: str = Field(..., description="Creation timestamp")
+
+
+class DatasetAnalysisListResponse(BaseModel):
+    """Response model for listing dataset analyses."""
+
+    analyses: list[DatasetAnalysisResponse] = Field(..., description="List of analyses")
+    total: int = Field(..., description="Total count")
+
+
+# =============================================================================
+# Dataset Q&A Models (EPIC 5)
+# =============================================================================
+
+
+class ImportSheetsRequest(BaseModel):
+    """Request model for importing a Google Sheet as a dataset.
+
+    Attributes:
+        url: Google Sheets URL
+        name: Optional dataset name (defaults to sheet title)
+        description: Optional description
+    """
+
+    url: str = Field(
+        ...,
+        min_length=10,
+        max_length=500,
+        description="Google Sheets URL",
+    )
+    name: str | None = Field(
+        None,
+        min_length=1,
+        max_length=255,
+        description="Dataset name (defaults to sheet title)",
+    )
+    description: str | None = Field(
+        None,
+        max_length=5000,
+        description="Dataset description",
+    )
+
+
+class AskRequest(BaseModel):
+    """Request model for dataset Q&A.
+
+    Attributes:
+        question: Natural language question about the dataset
+        conversation_id: Optional conversation ID to continue a thread
+    """
+
+    question: str = Field(
+        ...,
+        min_length=3,
+        max_length=2000,
+        description="Question about the dataset",
+    )
+    conversation_id: str | None = Field(
+        None,
+        description="Conversation ID to continue (omit for new conversation)",
+    )
+
+
+class ConversationMessage(BaseModel):
+    """A single message in a dataset conversation.
+
+    Attributes:
+        role: Message role (user or assistant)
+        content: Message content
+        timestamp: When the message was created
+        query_spec: Optional query spec if generated
+        chart_spec: Optional chart spec if generated
+        query_result: Optional query result summary
+    """
+
+    role: str = Field(..., pattern="^(user|assistant)$", description="Message role")
+    content: str = Field(..., description="Message content")
+    timestamp: str = Field(..., description="ISO timestamp")
+    query_spec: dict[str, Any] | None = Field(None, description="Query spec if generated")
+    chart_spec: dict[str, Any] | None = Field(None, description="Chart spec if generated")
+    query_result: dict[str, Any] | None = Field(None, description="Query result summary")
+
+
+class ConversationResponse(BaseModel):
+    """Response model for a conversation.
+
+    Attributes:
+        id: Conversation UUID
+        dataset_id: Dataset UUID
+        created_at: Creation timestamp
+        updated_at: Last message timestamp
+        message_count: Number of messages
+    """
+
+    id: str = Field(..., description="Conversation UUID")
+    dataset_id: str = Field(..., description="Dataset UUID")
+    created_at: str = Field(..., description="Creation timestamp (ISO)")
+    updated_at: str = Field(..., description="Last message timestamp (ISO)")
+    message_count: int = Field(..., description="Number of messages")
+
+
+class ConversationDetailResponse(ConversationResponse):
+    """Response model for conversation with messages.
+
+    Attributes:
+        messages: List of conversation messages
+    """
+
+    messages: list[ConversationMessage] = Field(
+        default_factory=list, description="Conversation messages"
+    )
+
+
+class ConversationListResponse(BaseModel):
+    """Response model for listing conversations.
+
+    Attributes:
+        conversations: List of conversations
+        total: Total count
+    """
+
+    conversations: list[ConversationResponse] = Field(..., description="List of conversations")
+    total: int = Field(..., description="Total count")

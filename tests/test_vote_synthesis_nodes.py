@@ -18,7 +18,11 @@ from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
 from bo1.models.state import ContributionMessage, DeliberationPhase
 
-pytestmark = pytest.mark.requires_llm
+# These tests require real LLM API calls - skip by default
+pytestmark = [
+    pytest.mark.requires_llm,
+    pytest.mark.skip(reason="Requires LLM API - run with -m requires_llm"),
+]
 
 
 @pytest.fixture

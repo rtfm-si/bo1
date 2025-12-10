@@ -30,6 +30,7 @@ from backend.api import (
     competitors,
     context,
     control,
+    datasets,
     health,
     industry_insights,
     onboarding,
@@ -264,6 +265,7 @@ app.include_router(actions.router, prefix="/api", tags=["actions"])
 app.include_router(tags.router, prefix="/api", tags=["tags"])
 app.include_router(projects.router, prefix="/api", tags=["projects"])
 app.include_router(context.router, prefix="/api", tags=["context"])
+app.include_router(datasets.router, prefix="/api", tags=["datasets"])
 app.include_router(business_metrics.router, prefix="/api", tags=["business-metrics"])
 app.include_router(billing.router, prefix="/api", tags=["billing"])
 app.include_router(industry_insights.router, prefix="/api", tags=["industry-insights"])

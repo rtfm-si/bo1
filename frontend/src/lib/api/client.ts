@@ -56,7 +56,24 @@ import type {
 	GlobalGanttResponse,
 	// Insights types
 	InsightsResponse,
-	ClarificationInsight
+	ClarificationInsight,
+	// Action Stats types
+	ActionStatsResponse,
+	// Query types (Data Analysis)
+	QuerySpec,
+	QueryResultResponse,
+	// Dataset types (Data Analysis)
+	Dataset,
+	DatasetDetailResponse,
+	DatasetListResponse,
+	DatasetProfile,
+	ChartSpec,
+	ChartResultResponse,
+	DatasetAnalysis,
+	DatasetAnalysisListResponse,
+	// Conversation types (Dataset Q&A)
+	ConversationResponse,
+	ConversationListResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -658,6 +675,11 @@ export class ApiClient {
 		return this.fetch<GlobalGanttResponse>(endpoint);
 	}
 
+	async getActionStats(days?: number): Promise<ActionStatsResponse> {
+		const endpoint = withQueryString('/api/v1/actions/stats', days ? { days } : {});
+		return this.fetch<ActionStatsResponse>(endpoint);
+	}
+
 	// ==========================================================================
 	// Admin Endpoints - Users
 	// ==========================================================================
@@ -1013,6 +1035,232 @@ export class ApiClient {
 	 */
 	async setActionTags(actionId: string, tagIds: string[]): Promise<TagResponse[]> {
 		return this.put<TagResponse[]>(`/api/v1/actions/${actionId}/tags`, { tag_ids: tagIds });
+	}
+
+	// ==========================================================================
+	// Dataset Query Endpoints (Data Analysis Platform)
+	// ==========================================================================
+
+	/**
+	 * Execute a structured query against a dataset
+	 */
+	async executeDatasetQuery(datasetId: string, query: QuerySpec): Promise<QueryResultResponse> {
+		return this.post<QueryResultResponse>(`/api/v1/datasets/${datasetId}/query`, query);
+	}
+
+	// ==========================================================================
+	// Dataset Endpoints (Data Analysis Platform - EPIC 6)
+	// ==========================================================================
+
+	/**
+	 * List user's datasets
+	 */
+	async getDatasets(params?: { limit?: number; offset?: number }): Promise<DatasetListResponse> {
+		const endpoint = withQueryString('/api/v1/datasets', params || {});
+		return this.fetch<DatasetListResponse>(endpoint);
+	}
+
+	/**
+	 * Get a single dataset with profile
+	 */
+	async getDataset(datasetId: string): Promise<DatasetDetailResponse> {
+		return this.fetch<DatasetDetailResponse>(`/api/v1/datasets/${datasetId}`);
+	}
+
+	/**
+	 * Upload a CSV dataset
+	 * Note: Uses FormData, not JSON
+	 */
+	async uploadDataset(file: File, name: string, description?: string): Promise<Dataset> {
+		const formData = new FormData();
+		formData.append('file', file);
+		formData.append('name', name);
+		if (description) {
+			formData.append('description', description);
+		}
+
+		const url = `${this.baseUrl}/api/v1/datasets/upload`;
+		const response = await fetch(url, {
+			method: 'POST',
+			credentials: 'include',
+			body: formData
+			// Note: Don't set Content-Type header - browser sets it with boundary
+		});
+
+		if (!response.ok) {
+			let error;
+			try {
+				error = await response.json();
+			} catch {
+				error = { detail: response.statusText };
+			}
+			throw new ApiClientError(error.detail || 'Upload failed', response.status, error);
+		}
+
+		return response.json();
+	}
+
+	/**
+	 * Import a Google Sheet as a dataset
+	 */
+	async importSheetsDataset(url: string, name?: string, description?: string): Promise<Dataset> {
+		return this.post<Dataset>('/api/v1/datasets/import-sheets', {
+			url,
+			name,
+			description
+		});
+	}
+
+	/**
+	 * Delete a dataset
+	 */
+	async deleteDataset(datasetId: string): Promise<void> {
+		return this.delete<void>(`/api/v1/datasets/${datasetId}`);
+	}
+
+	/**
+	 * Trigger profiling for a dataset
+	 */
+	async profileDataset(datasetId: string): Promise<{ profiles: DatasetProfile[]; summary: string }> {
+		return this.post<{ profiles: DatasetProfile[]; summary: string }>(`/api/v1/datasets/${datasetId}/profile`);
+	}
+
+	/**
+	 * Generate a chart from dataset
+	 */
+	async generateChart(datasetId: string, spec: ChartSpec): Promise<ChartResultResponse> {
+		return this.post<ChartResultResponse>(`/api/v1/datasets/${datasetId}/chart`, spec);
+	}
+
+	/**
+	 * Get analysis history for a dataset (charts/queries)
+	 */
+	async getDatasetAnalyses(datasetId: string, limit?: number): Promise<DatasetAnalysisListResponse> {
+		const endpoint = withQueryString(`/api/v1/datasets/${datasetId}/analyses`, { limit });
+		return this.fetch<DatasetAnalysisListResponse>(endpoint);
+	}
+
+	/**
+	 * Ask a question about a dataset with SSE streaming
+	 * Returns an object with connect() that yields SSE events
+	 */
+	askDataset(
+		datasetId: string,
+		question: string,
+		conversationId?: string | null
+	): {
+		connect: () => AsyncGenerator<{ event: string; data: string }, void, unknown>;
+		abort: () => void;
+	} {
+		const abortController = new AbortController();
+		const url = `${this.baseUrl}/api/v1/datasets/${datasetId}/ask`;
+
+		const connect = async function* () {
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Accept: 'text/event-stream'
+				},
+				credentials: 'include',
+				signal: abortController.signal,
+				body: JSON.stringify({
+					question,
+					conversation_id: conversationId
+				})
+			});
+
+			if (!response.ok) {
+				const error = await response.text();
+				throw new Error(`Ask failed: ${response.status} - ${error}`);
+			}
+
+			const reader = response.body?.getReader();
+			if (!reader) {
+				throw new Error('No response body');
+			}
+
+			const decoder = new TextDecoder();
+			let buffer = '';
+
+			try {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split('\n');
+					buffer = lines.pop() || '';
+
+					let currentEvent = 'message';
+					for (const line of lines) {
+						if (line.startsWith('event:')) {
+							currentEvent = line.slice(6).trim();
+						} else if (line.startsWith('data:')) {
+							const data = line.slice(5).trim();
+							yield { event: currentEvent, data };
+							currentEvent = 'message';
+						}
+					}
+				}
+			} finally {
+				reader.releaseLock();
+			}
+		};
+
+		return {
+			connect,
+			abort: () => abortController.abort()
+		};
+	}
+
+	/**
+	 * Get conversations for a dataset
+	 */
+	async getConversations(datasetId: string): Promise<ConversationListResponse> {
+		return this.fetch<ConversationListResponse>(`/api/v1/datasets/${datasetId}/conversations`);
+	}
+
+	/**
+	 * Get a specific conversation
+	 */
+	async getConversation(datasetId: string, conversationId: string): Promise<ConversationResponse> {
+		return this.fetch<ConversationResponse>(
+			`/api/v1/datasets/${datasetId}/conversations/${conversationId}`
+		);
+	}
+
+	/**
+	 * Delete a conversation
+	 */
+	async deleteConversation(datasetId: string, conversationId: string): Promise<void> {
+		await this.delete<void>(`/api/v1/datasets/${datasetId}/conversations/${conversationId}`);
+	}
+
+	// ============================================================================
+	// Google Sheets Connection Methods
+	// ============================================================================
+
+	/**
+	 * Get Google Sheets connection status for current user
+	 */
+	async getSheetsConnectionStatus(): Promise<{ connected: boolean; scopes: string | null }> {
+		return this.fetch<{ connected: boolean; scopes: string | null }>('/api/v1/auth/google/sheets/status');
+	}
+
+	/**
+	 * Get the URL to initiate Google Sheets OAuth flow
+	 * User should be redirected to this URL to connect their Google account
+	 */
+	getSheetsConnectUrl(): string {
+		return `${this.baseUrl}/api/v1/auth/google/sheets/connect`;
+	}
+
+	/**
+	 * Disconnect Google Sheets (revoke access)
+	 */
+	async disconnectSheets(): Promise<{ success: boolean }> {
+		return this.delete<{ success: boolean }>('/api/v1/auth/google/sheets/disconnect');
 	}
 }
 

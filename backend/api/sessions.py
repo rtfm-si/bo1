@@ -38,9 +38,12 @@ from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
 from bo1.security import check_for_injection, sanitize_for_prompt
 from bo1.state.redis_manager import RedisManager
+from bo1.state.repositories.dataset_repository import DatasetRepository
 from bo1.state.repositories.session_repository import session_repository
 from bo1.state.repositories.user_repository import user_repository
 from bo1.utils.logging import get_logger
+
+dataset_repository = DatasetRepository()
 
 logger = get_logger(__name__)
 
@@ -144,6 +147,17 @@ async def create_session(
         # Escapes XML-like tags to prevent prompt structure manipulation
         sanitized_problem = sanitize_for_prompt(session_request.problem_statement)
 
+        # Validate dataset_id ownership if provided
+        validated_dataset_id: str | None = None
+        if session_request.dataset_id:
+            dataset = dataset_repository.get_by_id(session_request.dataset_id, user_id)
+            if not dataset:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Dataset not found or not owned by user",
+                )
+            validated_dataset_id = session_request.dataset_id
+
         # Generate session ID
         session_id = redis_manager.create_session()
 
@@ -227,6 +241,7 @@ async def create_session(
                 problem_statement=sanitized_problem,
                 problem_context=merged_context if merged_context else None,
                 status="created",
+                dataset_id=validated_dataset_id,
             )
             logger.info(
                 f"Created session: {session_id} for user: {user_id} (saved to both Redis and PostgreSQL)"

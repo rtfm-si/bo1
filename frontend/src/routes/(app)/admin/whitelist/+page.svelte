@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
-	import { Plus, Trash2, Mail, Lock } from 'lucide-svelte';
+	import { Plus, Trash2, Mail } from 'lucide-svelte';
 
 	interface WhitelistEntry {
 		id: string;
@@ -14,7 +14,6 @@
 	let { data, form } = $props();
 
 	let entries = $state<WhitelistEntry[]>(data.entries || []);
-	let envEmails = $state<string[]>(data.envEmails || []);
 	let totalCount = $state(data.totalCount || 0);
 	let newEmail = $state('');
 	let newNotes = $state('');
@@ -24,15 +23,8 @@
 	// Update local state when data changes
 	$effect(() => {
 		entries = data.entries || [];
-		envEmails = data.envEmails || [];
 		totalCount = data.totalCount || 0;
 	});
-
-	// Check if an email is only in env (not in db)
-	function isEnvOnly(email: string): boolean {
-		const dbEmails = entries.map(e => e.email.toLowerCase());
-		return envEmails.includes(email.toLowerCase()) && !dbEmails.includes(email.toLowerCase());
-	}
 </script>
 
 <svelte:head>
@@ -121,90 +113,64 @@
 				</Button>
 			</form>
 		</div>
-			<!-- Env-based Whitelist (if any) -->
-			{#if envEmails.length > 0}
-				<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 overflow-hidden mb-6">
-					<div class="px-6 py-4 border-b border-amber-200 dark:border-amber-800 flex items-center gap-2">
-						<Lock class="w-4 h-4 text-amber-600 dark:text-amber-400" />
-						<h2 class="text-lg font-semibold text-amber-900 dark:text-amber-100">
-							Environment Whitelist ({envEmails.length})
-						</h2>
-					</div>
-					<div class="px-6 py-4">
-						<p class="text-sm text-amber-700 dark:text-amber-300 mb-3">
-							These emails are set via BETA_WHITELIST environment variable and cannot be edited here.
-						</p>
-						<ul class="space-y-1">
-							{#each envEmails as email}
-								<li class="text-amber-900 dark:text-amber-100 font-mono text-sm">
-									{email}
-								</li>
-							{/each}
-						</ul>
-					</div>
-				</div>
-			{/if}
 
-			<!-- Database Whitelist -->
-			<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
-				<div class="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
-					<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
-						Database Whitelist ({entries.length})
-					</h2>
-					<p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-						Emails added via admin panel. Total whitelisted: {totalCount}
+		<!-- Whitelist Entries -->
+		<div class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+			<div class="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
+				<h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
+					Whitelisted Emails ({totalCount})
+				</h2>
+			</div>
+
+			{#if entries.length === 0}
+				<div class="p-8 text-center">
+					<Mail class="w-12 h-12 text-neutral-400 mx-auto mb-2" />
+					<p class="text-neutral-600 dark:text-neutral-400">No whitelisted emails yet</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-500 mt-1">
+						Add emails above to allow beta access
 					</p>
 				</div>
-
-				{#if entries.length === 0}
-					<div class="p-8 text-center">
-						<Mail class="w-12 h-12 text-neutral-400 mx-auto mb-2" />
-						<p class="text-neutral-600 dark:text-neutral-400">No database entries yet</p>
-						<p class="text-sm text-neutral-500 dark:text-neutral-500 mt-1">
-							Add emails above to persist them in the database
-						</p>
-					</div>
-				{:else}
-					<div class="divide-y divide-neutral-200 dark:divide-neutral-700">
-						{#each entries as entry (entry.id)}
-							<div class="px-6 py-4 flex items-center justify-between hover:bg-neutral-50 dark:hover:bg-neutral-700/50">
-								<div>
-									<p class="font-medium text-neutral-900 dark:text-white">{entry.email}</p>
-									<p class="text-sm text-neutral-500 dark:text-neutral-400">
-										{#if entry.notes}
-											{entry.notes} &bull;
-										{/if}
-										Added {new Date(entry.created_at).toLocaleDateString()}
-									</p>
-								</div>
-								<form
-									method="POST"
-									action="?/remove"
-									use:enhance={() => {
-										if (!confirm(`Remove ${entry.email} from whitelist?`)) {
-											return () => {};
-										}
-										isRemoving = true;
-										return async ({ update }) => {
-											isRemoving = false;
-											await update();
-										};
-									}}
-								>
-									<input type="hidden" name="email" value={entry.email} />
-									<button
-										type="submit"
-										disabled={isRemoving}
-										class="p-2 text-neutral-400 hover:text-error-500 dark:hover:text-error-400 transition-colors disabled:opacity-50"
-										aria-label="Remove from whitelist"
-									>
-										<Trash2 class="w-5 h-5" />
-									</button>
-								</form>
+			{:else}
+				<div class="divide-y divide-neutral-200 dark:divide-neutral-700">
+					{#each entries as entry (entry.id)}
+						<div class="px-6 py-4 flex items-center justify-between hover:bg-neutral-50 dark:hover:bg-neutral-700/50">
+							<div>
+								<p class="font-medium text-neutral-900 dark:text-white">{entry.email}</p>
+								<p class="text-sm text-neutral-500 dark:text-neutral-400">
+									{#if entry.notes}
+										{entry.notes} &bull;
+									{/if}
+									Added {new Date(entry.created_at).toLocaleDateString()}
+								</p>
 							</div>
-						{/each}
-					</div>
-				{/if}
-			</div>
+							<form
+								method="POST"
+								action="?/remove"
+								use:enhance={() => {
+									if (!confirm(`Remove ${entry.email} from whitelist?`)) {
+										return () => {};
+									}
+									isRemoving = true;
+									return async ({ update }) => {
+										isRemoving = false;
+										await update();
+									};
+								}}
+							>
+								<input type="hidden" name="email" value={entry.email} />
+								<button
+									type="submit"
+									disabled={isRemoving}
+									class="p-2 text-neutral-400 hover:text-error-500 dark:hover:text-error-400 transition-colors disabled:opacity-50"
+									aria-label="Remove from whitelist"
+								>
+									<Trash2 class="w-5 h-5" />
+								</button>
+							</form>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
 	</main>
 </div>

@@ -69,6 +69,7 @@ def create_deliberation_graph(
 
     # TARGETED MODERATOR: Restored for premature consensus detection (rounds 1-2 only)
     from bo1.graph.nodes import (
+        data_analysis_node,
         facilitator_decide_node,
         meta_synthesize_node,
         moderator_intervene_node,  # RESTORED: Premature consensus detection only
@@ -109,6 +110,7 @@ def create_deliberation_graph(
         "moderator_intervene", moderator_intervene_node
     )  # RESTORED: Premature consensus detection
     workflow.add_node("research", research_node)  # Mid-meeting automated research (RESTORED)
+    workflow.add_node("data_analysis", data_analysis_node)  # Dataset analysis during deliberation
     workflow.add_node("check_convergence", check_convergence_node)  # Day 24
     workflow.add_node("cost_guard", cost_guard_node)  # Cost budget check
     workflow.add_node("vote", vote_node)  # Day 31
@@ -218,6 +220,7 @@ def create_deliberation_graph(
             "vote": "vote",
             "moderator_intervene": "moderator_intervene",  # RESTORED: Premature consensus detection
             "research": "research",  # Mid-meeting automated research (RESTORED)
+            "data_analysis": "data_analysis",  # Dataset analysis during deliberation
             "clarification": "clarification",  # Request clarification from user
             "END": END,
         },
@@ -235,6 +238,9 @@ def create_deliberation_graph(
 
     # research -> parallel_round (continue deliberation with research results)
     workflow.add_edge("research", "parallel_round")
+
+    # data_analysis -> parallel_round (continue deliberation with analysis results)
+    workflow.add_edge("data_analysis", "parallel_round")
 
     # parallel_round -> cost_guard (check budget before convergence)
     workflow.add_edge("parallel_round", "cost_guard")

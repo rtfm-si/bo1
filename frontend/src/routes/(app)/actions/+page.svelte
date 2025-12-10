@@ -23,11 +23,16 @@
 	import { Button } from '$lib/components/ui';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import GlobalGanttChart from '$lib/components/actions/GlobalGanttChart.svelte';
+	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses } from '$lib/utils/due-dates';
 
 	// Filter state
 	let selectedMeetingId = $state<string | null>(null);
 	let selectedProjectId = $state<string | null>(null);
 	let selectedTagIds = $state<string[]>([]);
+	let selectedStatus = $state<ActionStatus | 'all'>('all');
+	let selectedDueDate = $state<'all' | 'overdue' | 'due-today' | 'due-soon' | 'no-date'>('all');
+
+	type DueDateFilterOption = 'all' | 'overdue' | 'due-today' | 'due-soon' | 'no-date';
 
 	// View mode state (kanban or gantt)
 	let viewMode = $state<'kanban' | 'gantt'>('kanban');
@@ -111,14 +116,35 @@
 			: []
 	);
 
-	// Get all tasks flattened with session context (filtered by selected meeting - client-side filter for meeting)
+	// Get all tasks flattened with session context (filtered by selected meeting, status, due date - client-side)
 	const allTasks = $derived.by<TaskWithSessionContext[]>(() => {
 		if (!actionsData?.sessions) return [];
-		const tasks = actionsData.sessions.flatMap((s) => s.tasks as TaskWithSessionContext[]);
-		// Meeting filter is applied server-side via session_id, but also filter client-side for UI responsiveness
+		let tasks = actionsData.sessions.flatMap((s) => s.tasks as TaskWithSessionContext[]);
+
+		// Meeting filter (also applied server-side, but filter client-side for UI responsiveness)
 		if (selectedMeetingId) {
-			return tasks.filter((t) => t.session_id === selectedMeetingId);
+			tasks = tasks.filter((t) => t.session_id === selectedMeetingId);
 		}
+
+		// Status filter
+		if (selectedStatus !== 'all') {
+			tasks = tasks.filter((t) => t.status === selectedStatus);
+		}
+
+		// Due date filter
+		if (selectedDueDate !== 'all') {
+			tasks = tasks.filter((t) => {
+				const status = getDueDateStatus(t.suggested_completion_date);
+				switch (selectedDueDate) {
+					case 'overdue': return status === 'overdue';
+					case 'due-today': return status === 'due-today';
+					case 'due-soon': return status === 'due-soon';
+					case 'no-date': return status === null;
+					default: return true;
+				}
+			});
+		}
+
 		return tasks;
 	});
 
@@ -132,6 +158,8 @@
 		selectedMeetingId = null;
 		selectedProjectId = null;
 		selectedTagIds = [];
+		selectedStatus = 'all';
+		selectedDueDate = 'all';
 		fetchData();
 	}
 
@@ -208,7 +236,8 @@
 
 	// Check if any filters are active
 	const hasActiveFilters = $derived(
-		selectedMeetingId !== null || selectedProjectId !== null || selectedTagIds.length > 0
+		selectedMeetingId !== null || selectedProjectId !== null || selectedTagIds.length > 0 ||
+		selectedStatus !== 'all' || selectedDueDate !== 'all'
 	);
 
 	onMount(() => {
@@ -288,6 +317,41 @@
 									{meeting.title} ({meeting.taskCount})
 								</option>
 							{/each}
+						</select>
+					</div>
+
+					<!-- Status Filter -->
+					<div class="flex items-center gap-2">
+						<label for="status-filter" class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+							Status:
+						</label>
+						<select
+							id="status-filter"
+							bind:value={selectedStatus}
+							class="px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 min-w-[140px]"
+						>
+							<option value="all">All statuses</option>
+							<option value="todo">To Do</option>
+							<option value="in_progress">In Progress</option>
+							<option value="done">Done</option>
+						</select>
+					</div>
+
+					<!-- Due Date Filter -->
+					<div class="flex items-center gap-2">
+						<label for="due-date-filter" class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+							Due:
+						</label>
+						<select
+							id="due-date-filter"
+							bind:value={selectedDueDate}
+							class="px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 min-w-[140px]"
+						>
+							<option value="all">All dates</option>
+							<option value="overdue">Overdue</option>
+							<option value="due-today">Due Today</option>
+							<option value="due-soon">Due Soon</option>
+							<option value="no-date">No Due Date</option>
 						</select>
 					</div>
 
@@ -434,13 +498,13 @@
 		{#if isLoading}
 			<!-- Loading State -->
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-				{#each Array(3) as _}
+				{#each Array(3) as _, i (i)}
 					<div
 						class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4"
 					>
 						<ShimmerSkeleton type="text" />
 						<div class="mt-4 space-y-3">
-							{#each Array(3) as _}
+							{#each Array(3) as _, j (j)}
 								<ShimmerSkeleton type="card" />
 							{/each}
 						</div>
@@ -625,6 +689,21 @@
 													class="text-xs px-2 py-0.5 bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 rounded"
 												>
 													{task.timeline}
+												</span>
+											{/if}
+											{#if getDueDateStatus(task.suggested_completion_date) === 'overdue' || getDueDateStatus(task.suggested_completion_date) === 'due-today' || getDueDateStatus(task.suggested_completion_date) === 'due-soon'}
+												{@const dueDateStatus = getDueDateStatus(task.suggested_completion_date)}
+												<span class={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border ${getDueDateBadgeClasses(dueDateStatus)}`}>
+													{#if dueDateStatus === 'overdue'}
+														<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+														</svg>
+													{:else}
+														<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+														</svg>
+													{/if}
+													{getDueDateLabel(dueDateStatus)}
 												</span>
 											{/if}
 										</div>

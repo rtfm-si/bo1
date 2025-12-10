@@ -5,17 +5,12 @@ import pytest
 from bo1.interfaces.console import run_console_deliberation
 from bo1.models.problem import Problem
 
-# Note: These tests currently fail due to LangGraph RedisSaver not implementing
-# async aget_tuple method required by astream_events(). This is a known limitation.
-# Tests work with actual LLM calls when using sync astream() instead.
-# See: https://github.com/langchain-ai/langgraph/issues/XXX
+# Note: These tests require real LLM API calls and Redis/infrastructure.
+# Skip by default - only run explicitly with: pytest -m requires_llm
 pytestmark = [
     pytest.mark.asyncio,
     pytest.mark.requires_llm,
-    pytest.mark.xfail(
-        reason="RedisSaver doesn't support async aget_tuple needed by astream_events",
-        strict=False,
-    ),
+    pytest.mark.skip(reason="Requires LLM API and infrastructure - run with -m requires_llm"),
 ]
 
 

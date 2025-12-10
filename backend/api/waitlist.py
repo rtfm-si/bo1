@@ -7,7 +7,6 @@ Handles:
 """
 
 import logging
-import os
 import re
 from datetime import UTC, datetime
 from typing import Literal
@@ -21,9 +20,6 @@ from backend.api.utils.errors import handle_api_errors
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/waitlist", tags=["waitlist"])
-
-# Email whitelist (move to database/environment variable in production)
-BETA_WHITELIST = os.getenv("BETA_WHITELIST", "").split(",")
 
 
 class WaitlistRequest(BaseModel):
@@ -57,14 +53,9 @@ async def _send_waitlist_notification(email: str) -> None:
 
 
 def is_whitelisted(email: str) -> bool:
-    """Check if email is in closed beta whitelist (env OR database)."""
+    """Check if email is in closed beta whitelist (database-managed)."""
     email_lower = email.lower()
 
-    # Check env-based whitelist first (fast)
-    if email_lower in [e.strip().lower() for e in BETA_WHITELIST if e.strip()]:
-        return True
-
-    # Check database whitelist
     try:
         return exists(
             "beta_whitelist",

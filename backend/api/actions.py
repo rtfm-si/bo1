@@ -19,6 +19,8 @@ from backend.api.models import (
     ActionDatesResponse,
     ActionDatesUpdate,
     ActionDetailResponse,
+    ActionStatsResponse,
+    ActionStatsTotals,
     ActionStatusUpdate,
     ActionTagsUpdate,
     ActionUpdateCreate,
@@ -26,6 +28,7 @@ from backend.api.models import (
     ActionUpdatesResponse,
     AllActionsResponse,
     BlockActionRequest,
+    DailyActionStat,
     DependencyCreate,
     DependencyListResponse,
     DependencyResponse,
@@ -437,6 +440,115 @@ async def get_global_gantt(
     return GlobalGanttResponse(
         actions=gantt_actions,
         dependencies=all_dependencies,
+    )
+
+
+# =============================================================================
+# Action Stats Endpoint (Dashboard Progress Visualization)
+# =============================================================================
+
+
+@router.get(
+    "/stats",
+    response_model=ActionStatsResponse,
+    summary="Get action statistics",
+    description="Get daily action completion/creation stats and totals for dashboard visualization.",
+    responses={
+        200: {"description": "Stats retrieved successfully"},
+    },
+)
+@handle_api_errors("get action stats")
+async def get_action_stats(
+    user_data: dict = Depends(get_current_user),
+    days: int = Query(30, ge=7, le=90, description="Number of days to include (7-90)"),
+) -> ActionStatsResponse:
+    """Get action statistics for dashboard progress visualization.
+
+    Args:
+        user_data: Current user from auth
+        days: Number of days to include (default 30, max 90)
+
+    Returns:
+        ActionStatsResponse with daily stats and totals
+    """
+    user_id = user_data.get("user_id")
+    logger.info(f"Fetching action stats for user {user_id} (last {days} days)")
+
+    # Get daily stats using SQL aggregation
+    daily_query = """
+        WITH date_series AS (
+            SELECT generate_series(
+                CURRENT_DATE - INTERVAL '%s days',
+                CURRENT_DATE,
+                '1 day'::interval
+            )::date AS date
+        ),
+        completed_counts AS (
+            SELECT DATE(actual_end_date) AS date, COUNT(*) AS count
+            FROM actions
+            WHERE user_id = %s
+              AND status IN ('done', 'cancelled')
+              AND actual_end_date IS NOT NULL
+              AND actual_end_date >= CURRENT_DATE - INTERVAL '%s days'
+              AND deleted_at IS NULL
+            GROUP BY DATE(actual_end_date)
+        ),
+        created_counts AS (
+            SELECT DATE(created_at) AS date, COUNT(*) AS count
+            FROM actions
+            WHERE user_id = %s
+              AND created_at >= CURRENT_DATE - INTERVAL '%s days'
+              AND deleted_at IS NULL
+            GROUP BY DATE(created_at)
+        )
+        SELECT
+            ds.date,
+            COALESCE(cc.count, 0) AS completed_count,
+            COALESCE(cr.count, 0) AS created_count
+        FROM date_series ds
+        LEFT JOIN completed_counts cc ON ds.date = cc.date
+        LEFT JOIN created_counts cr ON ds.date = cr.date
+        ORDER BY ds.date DESC
+    """
+
+    daily_rows = execute_query(
+        daily_query,
+        (days, user_id, days, user_id, days),
+        fetch="all",
+    )
+
+    daily_stats = [
+        DailyActionStat(
+            date=row["date"].isoformat(),
+            completed_count=row["completed_count"],
+            created_count=row["created_count"],
+        )
+        for row in (daily_rows or [])
+    ]
+
+    # Get totals by status
+    totals_query = """
+        SELECT
+            COALESCE(SUM(CASE WHEN status IN ('done', 'cancelled') THEN 1 ELSE 0 END), 0) AS completed,
+            COALESCE(SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END), 0) AS in_progress,
+            COALESCE(SUM(CASE WHEN status = 'todo' THEN 1 ELSE 0 END), 0) AS todo
+        FROM actions
+        WHERE user_id = %s AND deleted_at IS NULL
+    """
+
+    totals_row = execute_query(totals_query, (user_id,), fetch="one")
+
+    totals = ActionStatsTotals(
+        completed=totals_row["completed"] if totals_row else 0,
+        in_progress=totals_row["in_progress"] if totals_row else 0,
+        todo=totals_row["todo"] if totals_row else 0,
+    )
+
+    logger.info(f"Found {len(daily_stats)} daily stats for user {user_id}")
+
+    return ActionStatsResponse(
+        daily=daily_stats,
+        totals=totals,
     )
 
 

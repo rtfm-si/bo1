@@ -328,6 +328,128 @@ class UserRepository(BaseRepository):
         )
         return deleted > 0
 
+    # =========================================================================
+    # Google OAuth Tokens
+    # =========================================================================
+
+    def save_google_tokens(
+        self,
+        user_id: str,
+        access_token: str,
+        refresh_token: str | None,
+        expires_at: str | None,
+        scopes: str | None,
+    ) -> bool:
+        """Save Google OAuth tokens for a user.
+
+        Args:
+            user_id: User identifier
+            access_token: Google access token
+            refresh_token: Google refresh token (for token refresh)
+            expires_at: ISO timestamp when access token expires
+            scopes: Comma-separated list of authorized scopes
+
+        Returns:
+            True if saved successfully
+        """
+        import json
+
+        tokens = {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_at": expires_at,
+        }
+
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET google_oauth_tokens = %s,
+                            google_oauth_scopes = %s,
+                            google_tokens_updated_at = NOW(),
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (json.dumps(tokens), scopes, user_id),
+                    )
+                    return bool(cur.rowcount and cur.rowcount > 0)
+        except Exception as e:
+            logger.error(f"Failed to save Google tokens for user {user_id}: {e}")
+            return False
+
+    def get_google_tokens(self, user_id: str) -> dict[str, Any] | None:
+        """Get Google OAuth tokens for a user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Dict with access_token, refresh_token, expires_at, scopes or None
+        """
+        try:
+            result = self._execute_one(
+                """
+                SELECT google_oauth_tokens, google_oauth_scopes, google_tokens_updated_at
+                FROM users
+                WHERE id = %s
+                """,
+                (user_id,),
+            )
+            if result and result.get("google_oauth_tokens"):
+                tokens: dict[str, Any] = result["google_oauth_tokens"]
+                tokens["scopes"] = result.get("google_oauth_scopes")
+                tokens["updated_at"] = result.get("google_tokens_updated_at")
+                return tokens
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get Google tokens for user {user_id}: {e}")
+            return None
+
+    def has_google_sheets_connected(self, user_id: str) -> bool:
+        """Check if user has Google Sheets connected.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if user has valid Google OAuth tokens with sheets scope
+        """
+        tokens = self.get_google_tokens(user_id)
+        if not tokens:
+            return False
+        scopes = tokens.get("scopes", "")
+        return "spreadsheets" in scopes
+
+    def clear_google_tokens(self, user_id: str) -> bool:
+        """Clear Google OAuth tokens for a user (disconnect).
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if cleared successfully
+        """
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET google_oauth_tokens = NULL,
+                            google_oauth_scopes = NULL,
+                            google_tokens_updated_at = NULL,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (user_id,),
+                    )
+                    return True
+        except Exception as e:
+            logger.error(f"Failed to clear Google tokens for user {user_id}: {e}")
+            return False
+
 
 # Validate SQL identifiers at module load time (defense-in-depth)
 UserRepository._validate_sql_identifiers()

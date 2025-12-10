@@ -414,16 +414,14 @@ class BetaWhitelistResponse(BaseModel):
     """Response model for beta whitelist list.
 
     Attributes:
-        total_count: Total number of whitelisted emails (db + env)
+        total_count: Total number of whitelisted emails
         emails: List of whitelist entries from database
-        env_emails: List of emails from BETA_WHITELIST env var (read-only)
     """
 
-    total_count: int = Field(..., description="Total number of whitelisted emails (db + env)")
+    total_count: int = Field(..., description="Total number of whitelisted emails")
     emails: list[BetaWhitelistEntry] = Field(
         ..., description="List of whitelist entries from database"
     )
-    env_emails: list[str] = Field(default=[], description="Emails from BETA_WHITELIST env var")
 
 
 class AddWhitelistRequest(BaseModel):

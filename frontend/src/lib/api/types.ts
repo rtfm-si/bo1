@@ -7,6 +7,7 @@
 export interface CreateSessionRequest {
 	problem_statement: string;
 	problem_context?: Record<string, unknown>;
+	dataset_id?: string;
 }
 
 export interface SessionResponse {
@@ -867,4 +868,313 @@ export interface GlobalGanttDependency {
 export interface GlobalGanttResponse {
 	actions: GlobalGanttActionData[];
 	dependencies: GlobalGanttDependency[];
+}
+
+// ============================================================================
+// Action Stats Types (Dashboard Progress Visualization)
+// ============================================================================
+
+/**
+ * Daily action statistics
+ */
+export interface DailyActionStat {
+	date: string;
+	completed_count: number;
+	created_count: number;
+}
+
+/**
+ * Total action counts by status
+ */
+export interface ActionStatsTotals {
+	completed: number;
+	in_progress: number;
+	todo: number;
+}
+
+/**
+ * Action stats response
+ */
+export interface ActionStatsResponse {
+	daily: DailyActionStat[];
+	totals: ActionStatsTotals;
+}
+
+// ============================================================================
+// Query Types (Data Analysis Platform - EPIC 3)
+// ============================================================================
+
+/**
+ * Filter operators for query operations
+ */
+export type FilterOperator = 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains' | 'in';
+
+/**
+ * Aggregate functions for query operations
+ */
+export type AggregateFunction = 'sum' | 'avg' | 'min' | 'max' | 'count' | 'distinct';
+
+/**
+ * Time intervals for trend analysis
+ */
+export type TrendInterval = 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+/**
+ * Correlation methods
+ */
+export type CorrelationMethod = 'pearson' | 'spearman';
+
+/**
+ * Query types
+ */
+export type QueryType = 'filter' | 'aggregate' | 'trend' | 'compare' | 'correlate';
+
+/**
+ * Filter specification
+ */
+export interface FilterSpec {
+	field: string;
+	operator: FilterOperator;
+	value: unknown;
+}
+
+/**
+ * Aggregate specification
+ */
+export interface AggregateSpec {
+	field: string;
+	function: AggregateFunction;
+	alias?: string | null;
+}
+
+/**
+ * GroupBy specification
+ */
+export interface GroupBySpec {
+	fields: string[];
+	aggregates: AggregateSpec[];
+}
+
+/**
+ * Trend specification
+ */
+export interface TrendSpec {
+	date_field: string;
+	value_field: string;
+	interval?: TrendInterval;
+	aggregate_function?: 'sum' | 'avg' | 'min' | 'max' | 'count';
+}
+
+/**
+ * Comparison specification
+ */
+export interface CompareSpec {
+	group_field: string;
+	value_field: string;
+	comparison_type?: 'absolute' | 'percentage';
+	aggregate_function?: 'sum' | 'avg' | 'min' | 'max' | 'count';
+}
+
+/**
+ * Correlation specification
+ */
+export interface CorrelateSpec {
+	field_a: string;
+	field_b: string;
+	method?: CorrelationMethod;
+}
+
+/**
+ * Full query specification
+ */
+export interface QuerySpec {
+	query_type: QueryType;
+	filters?: FilterSpec[] | null;
+	group_by?: GroupBySpec | null;
+	trend?: TrendSpec | null;
+	compare?: CompareSpec | null;
+	correlate?: CorrelateSpec | null;
+	limit?: number;
+	offset?: number;
+}
+
+/**
+ * Query result response
+ */
+export interface QueryResultResponse {
+	rows: Record<string, unknown>[];
+	columns: string[];
+	total_count: number;
+	has_more: boolean;
+	query_type: QueryType;
+}
+
+// ============================================================================
+// Dataset Types (Data Analysis Platform - EPIC 6)
+// ============================================================================
+
+/**
+ * Dataset source type
+ */
+export type DatasetSourceType = 'csv' | 'sheets' | 'api';
+
+/**
+ * Dataset column profile
+ */
+export interface DatasetProfile {
+	id: string;
+	column_name: string;
+	data_type: string;
+	null_count: number | null;
+	unique_count: number | null;
+	min_value: string | null;
+	max_value: string | null;
+	mean_value: number | null;
+	sample_values: unknown[] | null;
+}
+
+/**
+ * Dataset response (summary)
+ */
+export interface Dataset {
+	id: string;
+	user_id: string;
+	name: string;
+	description: string | null;
+	source_type: DatasetSourceType;
+	source_uri: string | null;
+	file_key: string | null;
+	row_count: number | null;
+	column_count: number | null;
+	file_size_bytes: number | null;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * Dataset detail response (with profile)
+ */
+export interface DatasetDetailResponse extends Dataset {
+	profiles: DatasetProfile[];
+	summary: string | null;
+}
+
+/**
+ * Dataset list response
+ */
+export interface DatasetListResponse {
+	datasets: Dataset[];
+	total: number;
+	limit: number;
+	offset: number;
+}
+
+/**
+ * Dataset upload response
+ */
+export interface DatasetUploadResponse extends Dataset {}
+
+/**
+ * Chart types
+ */
+export type ChartType = 'line' | 'bar' | 'pie' | 'scatter';
+
+/**
+ * Chart specification
+ */
+export interface ChartSpec {
+	chart_type: ChartType;
+	x_field: string;
+	y_field: string;
+	group_field?: string | null;
+	title?: string | null;
+	filters?: FilterSpec[] | null;
+	width?: number;
+	height?: number;
+}
+
+/**
+ * Chart result response
+ */
+export interface ChartResultResponse {
+	figure_json: Record<string, unknown>;
+	chart_type: ChartType;
+	width: number;
+	height: number;
+	row_count: number;
+	analysis_id?: string | null;
+}
+
+/**
+ * Dataset analysis record (chart/query history)
+ */
+export interface DatasetAnalysis {
+	id: string;
+	dataset_id: string;
+	query_spec?: Record<string, unknown> | null;
+	chart_spec?: ChartSpec | null;
+	chart_url?: string | null;
+	title?: string | null;
+	created_at: string;
+}
+
+/**
+ * Dataset analysis list response
+ */
+export interface DatasetAnalysisListResponse {
+	analyses: DatasetAnalysis[];
+	total: number;
+}
+
+// ============================================================================
+// Dataset Q&A / Conversation Types
+// ============================================================================
+
+/**
+ * Ask request for dataset Q&A
+ */
+export interface AskRequest {
+	question: string;
+	conversation_id?: string | null;
+}
+
+/**
+ * Single message in a dataset conversation
+ */
+export interface ConversationMessage {
+	role: 'user' | 'assistant';
+	content: string;
+	timestamp: string;
+	query_spec?: Record<string, unknown> | null;
+	chart_spec?: ChartSpec | null;
+	query_result?: Record<string, unknown> | null;
+}
+
+/**
+ * Conversation response from API
+ */
+export interface ConversationResponse {
+	id: string;
+	dataset_id: string;
+	messages: ConversationMessage[];
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * List of conversations response
+ */
+export interface ConversationListResponse {
+	conversations: ConversationResponse[];
+}
+
+/**
+ * SSE event types for dataset Q&A streaming
+ */
+export type DatasetAskEventType = 'token' | 'query_spec' | 'chart_spec' | 'done' | 'error';
+
+export interface DatasetAskEvent {
+	type: DatasetAskEventType;
+	data: string | Record<string, unknown>;
+	conversation_id?: string;
 }

@@ -80,12 +80,17 @@ class StoppingRulesEvaluator:
         if deadlock_result:
             return deadlock_result
 
-        # Check 5: Convergence threshold
+        # Check 5: Stalled disagreement (high conflict + low novelty)
+        stalled_result = self.check_stalled_disagreement(state)
+        if stalled_result:
+            return stalled_result
+
+        # Check 6: Convergence threshold
         convergence_result = self.check_convergence_threshold(state)
         if convergence_result:
             return convergence_result
 
-        # Check 6: Multi-criteria quality thresholds (if enough contributions)
+        # Check 7: Multi-criteria quality thresholds (if enough contributions)
         contributions = state.get("contributions", [])
         if len(contributions) >= 3:
             quality_result = self.check_quality_thresholds(state)
@@ -193,6 +198,63 @@ class StoppingRulesEvaluator:
                         "action": "Call on different experts or ask for new perspectives",
                     },
                 )
+        return None
+
+    def check_stalled_disagreement(self, state: DeliberationGraphState) -> StoppingDecision | None:
+        """Check for stalled disagreement (high conflict + low novelty for 2+ rounds).
+
+        Stalled disagreement indicates experts are stuck in an impasse:
+        - High conflict (>0.70): Strong disagreement persists
+        - Low novelty (<0.40): Same arguments being repeated
+
+        Args:
+            state: Current deliberation state
+
+        Returns:
+            StoppingDecision if stalled, None otherwise
+        """
+        stalled_info = detect_stalled_disagreement(state)
+
+        if not stalled_info["stalled"]:
+            return None
+
+        round_number = state.get("round_number", 1)
+        rounds_stuck = stalled_info["rounds_stuck"]
+        resolution = stalled_info["resolution"]
+
+        if resolution == "force_synthesis":
+            # Stuck for 3+ rounds - force early synthesis
+            logger.warning(
+                f"Round {round_number}: Stalled disagreement for {rounds_stuck} rounds - "
+                f"forcing early synthesis"
+            )
+            return StoppingDecision(
+                should_stop=True,
+                stop_reason="stalled_disagreement",
+            )
+        elif resolution == "guidance":
+            # Stuck for 2+ rounds - provide impasse guidance to facilitator
+            logger.info(
+                f"Round {round_number}: Stalled disagreement detected ({rounds_stuck} rounds) - "
+                f"providing impasse guidance"
+            )
+            return StoppingDecision(
+                should_stop=False,
+                facilitator_guidance={
+                    "type": "impasse_intervention",
+                    "issue": f"Experts stuck in disagreement for {rounds_stuck} rounds "
+                    f"(high conflict, low novelty)",
+                    "conflict_score": stalled_info.get("conflict_score", 0.0),
+                    "novelty_score": stalled_info.get("novelty_score", 0.0),
+                    "resolution_options": [
+                        "Find common ground on shared facts and goals",
+                        "Disagree-and-commit: acknowledge disagreement, recommend majority view",
+                        "Propose conditional recommendations (if X then A, if Y then B)",
+                    ],
+                    "action": "Guide experts toward resolution using one of the above strategies",
+                },
+            )
+
         return None
 
     def check_convergence_threshold(self, state: DeliberationGraphState) -> StoppingDecision | None:
@@ -745,3 +807,138 @@ def should_continue_targeted(state: DeliberationGraphState, config: Any) -> tupl
 
     targeted = len(focus_prompts) > 0
     return targeted, focus_prompts
+
+
+# ============================================================================
+# Stalled Disagreement Detection (Productive Disagreement fix)
+# ============================================================================
+
+# Thresholds for stalled disagreement
+STALLED_CONFLICT_THRESHOLD = 0.70  # High conflict level
+STALLED_NOVELTY_THRESHOLD = 0.40  # Low novelty (repeating arguments)
+STALLED_ROUNDS_FOR_GUIDANCE = 2  # Rounds before providing impasse guidance
+STALLED_ROUNDS_FOR_SYNTHESIS = 3  # Rounds before forcing early synthesis
+
+
+def detect_stalled_disagreement(state: DeliberationGraphState) -> dict[str, Any]:
+    """Detect if deliberation is stuck in stalled disagreement.
+
+    Stalled disagreement occurs when:
+    - conflict_score > 0.70 (high disagreement)
+    - novelty_score < 0.40 (experts repeating same arguments)
+    - This pattern persists for 2+ consecutive rounds
+
+    Args:
+        state: Current deliberation state
+
+    Returns:
+        Dict with stalled disagreement info:
+        - stalled: bool (True if stalled disagreement detected)
+        - rounds_stuck: int (number of consecutive rounds in this state)
+        - resolution: str (recommended action: "guidance" or "force_synthesis")
+
+    Example:
+        >>> stalled_info = detect_stalled_disagreement(state)
+        >>> if stalled_info["stalled"]:
+        ...     print(f"Impasse detected: {stalled_info['rounds_stuck']} rounds")
+    """
+    metrics = state.get("metrics")
+    if not metrics:
+        return {"stalled": False, "rounds_stuck": 0, "resolution": None}
+
+    conflict_score = metrics.conflict_score if metrics.conflict_score is not None else 0.0
+    novelty_score = metrics.novelty_score if metrics.novelty_score is not None else 0.5
+
+    # Get current counter from state
+    rounds_stuck = state.get("high_conflict_low_novelty_rounds", 0)
+
+    # Check if current round meets stalled criteria
+    is_stalled_pattern = (
+        conflict_score > STALLED_CONFLICT_THRESHOLD and novelty_score < STALLED_NOVELTY_THRESHOLD
+    )
+
+    if not is_stalled_pattern:
+        # Pattern broken - not stalled
+        return {"stalled": False, "rounds_stuck": 0, "resolution": None}
+
+    # Pattern detected - check how many rounds we've been stuck
+    if rounds_stuck >= STALLED_ROUNDS_FOR_SYNTHESIS:
+        # Stuck for 3+ rounds - force early synthesis
+        logger.warning(
+            f"[STALLED_DISAGREEMENT] {rounds_stuck} consecutive rounds with "
+            f"conflict={conflict_score:.2f} > {STALLED_CONFLICT_THRESHOLD}, "
+            f"novelty={novelty_score:.2f} < {STALLED_NOVELTY_THRESHOLD} - forcing synthesis"
+        )
+        return {
+            "stalled": True,
+            "rounds_stuck": rounds_stuck,
+            "resolution": "force_synthesis",
+            "conflict_score": conflict_score,
+            "novelty_score": novelty_score,
+        }
+    elif rounds_stuck >= STALLED_ROUNDS_FOR_GUIDANCE:
+        # Stuck for 2+ rounds - provide impasse guidance
+        logger.info(
+            f"[STALLED_DISAGREEMENT] {rounds_stuck} consecutive rounds with "
+            f"conflict={conflict_score:.2f} > {STALLED_CONFLICT_THRESHOLD}, "
+            f"novelty={novelty_score:.2f} < {STALLED_NOVELTY_THRESHOLD} - providing guidance"
+        )
+        return {
+            "stalled": True,
+            "rounds_stuck": rounds_stuck,
+            "resolution": "guidance",
+            "conflict_score": conflict_score,
+            "novelty_score": novelty_score,
+        }
+
+    # Pattern detected but not enough rounds yet - just tracking
+    return {
+        "stalled": False,
+        "rounds_stuck": rounds_stuck,
+        "resolution": None,
+        "conflict_score": conflict_score,
+        "novelty_score": novelty_score,
+    }
+
+
+def update_stalled_disagreement_counter(state: DeliberationGraphState) -> int:
+    """Update the stalled disagreement counter based on current metrics.
+
+    Call this at the end of each round to track consecutive stalled rounds.
+
+    Args:
+        state: Current deliberation state
+
+    Returns:
+        Updated counter value (to be stored in state)
+    """
+    metrics = state.get("metrics")
+    if not metrics:
+        return 0
+
+    conflict_score = metrics.conflict_score if metrics.conflict_score is not None else 0.0
+    novelty_score = metrics.novelty_score if metrics.novelty_score is not None else 0.5
+
+    current_count = state.get("high_conflict_low_novelty_rounds", 0)
+
+    # Check if current round meets stalled criteria
+    is_stalled_pattern = (
+        conflict_score > STALLED_CONFLICT_THRESHOLD and novelty_score < STALLED_NOVELTY_THRESHOLD
+    )
+
+    if is_stalled_pattern:
+        # Increment counter
+        new_count = current_count + 1
+        logger.debug(
+            f"[STALLED_COUNTER] Incrementing: {current_count} -> {new_count} "
+            f"(conflict={conflict_score:.2f}, novelty={novelty_score:.2f})"
+        )
+        return new_count
+    else:
+        # Reset counter - pattern broken
+        if current_count > 0:
+            logger.debug(
+                f"[STALLED_COUNTER] Resetting: {current_count} -> 0 "
+                f"(conflict={conflict_score:.2f}, novelty={novelty_score:.2f})"
+            )
+        return 0

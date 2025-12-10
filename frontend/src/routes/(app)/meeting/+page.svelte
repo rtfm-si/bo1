@@ -1,0 +1,234 @@
+<script lang="ts">
+	/**
+	 * Meetings List Page - Shows all user meetings
+	 *
+	 * Accessed via /meeting breadcrumb from meeting detail pages.
+	 */
+	import { onMount } from 'svelte';
+	import { apiClient } from '$lib/api/client';
+	import type { SessionResponse } from '$lib/api/types';
+	import { ShimmerSkeleton } from '$lib/components/ui/loading';
+	import { Button } from '$lib/components/ui';
+	import { getSessionStatusColor } from '$lib/utils/colors';
+	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
+
+	let isLoading = $state(true);
+	let error = $state<string | null>(null);
+	let sessions = $state<SessionResponse[]>([]);
+
+	async function fetchSessions() {
+		isLoading = true;
+		error = null;
+		try {
+			const response = await apiClient.listSessions();
+			sessions = response.sessions || [];
+		} catch (err) {
+			console.error('Failed to fetch sessions:', err);
+			error = err instanceof Error ? err.message : 'Failed to load meetings';
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	onMount(() => {
+		fetchSessions();
+	});
+
+	function truncateProblem(problem: string, maxLength: number = 80): string {
+		if (problem.length <= maxLength) return problem;
+		return problem.substring(0, maxLength) + '...';
+	}
+
+	function humanizePhase(phase: string | null): string {
+		if (!phase) return 'Starting';
+		const phaseMap: Record<string, string> = {
+			decomposition: 'Analyzing',
+			decompose: 'Analyzing',
+			problem_decomposition: 'Analyzing',
+			selection: 'Selecting Experts',
+			exploration: 'Exploring Ideas',
+			challenge: 'Deep Analysis',
+			convergence: 'Building Consensus',
+			voting: 'Collecting Votes',
+			synthesis: 'Synthesizing',
+			meta_synthesis: 'Final Synthesis',
+			complete: 'Completed',
+			completed: 'Completed',
+			failed: 'Failed',
+			killed: 'Stopped'
+		};
+		return phaseMap[phase.toLowerCase()] || phase.replace(/_/g, ' ');
+	}
+
+	async function handleDelete(sessionId: string, event: MouseEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		if (!confirm('Are you sure you want to delete this meeting? This cannot be undone.')) {
+			return;
+		}
+		try {
+			await apiClient.deleteSession(sessionId);
+			await fetchSessions();
+		} catch (err) {
+			console.error('Failed to delete session:', err);
+		}
+	}
+</script>
+
+<svelte:head>
+	<title>Meetings - Board of One</title>
+</svelte:head>
+
+<div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
+	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Header -->
+		<div class="flex items-center justify-between mb-6">
+			<h1 class="text-2xl font-bold text-neutral-900 dark:text-white">Meetings</h1>
+			<a href="/meeting/new">
+				<Button variant="brand" size="md">
+					{#snippet children()}
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+						</svg>
+						New Meeting
+					{/snippet}
+				</Button>
+			</a>
+		</div>
+
+		{#if isLoading}
+			<div class="space-y-4">
+				{#each Array(3) as _, i (i)}
+					<ShimmerSkeleton type="card" />
+				{/each}
+			</div>
+		{:else if error}
+			<div class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg p-6">
+				<div class="flex items-center gap-3">
+					<svg class="w-6 h-6 text-error-600 dark:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+					</svg>
+					<div>
+						<h3 class="text-lg font-semibold text-error-900 dark:text-error-200">Error Loading Meetings</h3>
+						<p class="text-sm text-error-700 dark:text-error-300">{error}</p>
+					</div>
+				</div>
+				<div class="mt-4">
+					<Button variant="danger" size="md" onclick={fetchSessions}>
+						{#snippet children()}Retry{/snippet}
+					</Button>
+				</div>
+			</div>
+		{:else if sessions.length === 0}
+			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-12 text-center">
+				<svg class="w-16 h-16 mx-auto text-neutral-400 dark:text-neutral-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+				</svg>
+				<h2 class="text-2xl font-semibold text-neutral-900 dark:text-white mb-2">No meetings yet</h2>
+				<p class="text-neutral-600 dark:text-neutral-400 mb-6 max-w-md mx-auto">
+					Get started by creating your first strategic decision meeting.
+				</p>
+				<a href="/meeting/new">
+					<Button variant="brand" size="lg">
+						{#snippet children()}
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+							</svg>
+							Start Your First Meeting
+						{/snippet}
+					</Button>
+				</a>
+			</div>
+		{:else}
+			<div class="space-y-4">
+				{#each sessions as session (session.id)}
+					<a
+						href="/meeting/{session.id}"
+						class="block bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6 hover:shadow-md hover:border-brand-300 dark:hover:border-brand-700 transition-all duration-200"
+					>
+						<div class="flex items-start justify-between gap-4">
+							<div class="flex-1 min-w-0">
+								<div class="flex items-center gap-3 mb-2">
+									<span class="px-2.5 py-1 text-xs font-medium rounded-full {getSessionStatusColor(session.status)}">
+										{session.status}
+									</span>
+									<span class="text-xs text-neutral-500 dark:text-neutral-400">
+										Created {formatCompactRelativeTime(session.created_at)}
+									</span>
+									{#if session.last_activity_at}
+										<span class="text-xs text-neutral-500 dark:text-neutral-400">
+											<span class="inline-block w-1.5 h-1.5 bg-neutral-400 dark:bg-neutral-500 rounded-full mr-1"></span>
+											Activity {formatCompactRelativeTime(session.last_activity_at)}
+										</span>
+									{/if}
+									{#if session.status === 'active'}
+										<span class="flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">
+											<span class="inline-block w-2 h-2 bg-brand-600 dark:bg-brand-400 rounded-full animate-pulse"></span>
+											Active
+										</span>
+									{/if}
+								</div>
+
+								<h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">
+									{truncateProblem(session.problem_statement)}
+								</h3>
+
+								<div class="flex items-center gap-4 text-sm text-neutral-600 dark:text-neutral-400">
+									{#if session.status !== 'completed'}
+										<span class="flex items-center gap-1.5">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+											</svg>
+											{humanizePhase(session.phase)}
+										</span>
+									{/if}
+									{#if session.expert_count}
+										<span class="flex items-center gap-1.5">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+											</svg>
+											{session.expert_count} experts
+										</span>
+									{/if}
+									{#if session.contribution_count}
+										<span class="flex items-center gap-1.5">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+											</svg>
+											{session.contribution_count} insights
+										</span>
+									{/if}
+									{#if session.task_count}
+										<span class="flex items-center gap-1.5">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+											</svg>
+											{session.task_count} actions
+										</span>
+									{/if}
+								</div>
+							</div>
+
+							<div class="flex items-center gap-2 flex-shrink-0">
+								<button
+									onclick={(e) => handleDelete(session.id, e)}
+									class="p-2 hover:bg-error-50 dark:hover:bg-error-900/20 rounded-lg transition-colors duration-200 group"
+									title="Delete meeting"
+									aria-label="Delete meeting"
+								>
+									<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 group-hover:text-error-600 dark:group-hover:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+									</svg>
+								</button>
+
+								<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+								</svg>
+							</div>
+						</div>
+					</a>
+				{/each}
+			</div>
+		{/if}
+	</main>
+</div>

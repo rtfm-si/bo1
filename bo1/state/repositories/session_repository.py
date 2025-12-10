@@ -35,6 +35,7 @@ class SessionRepository(BaseRepository):
         problem_statement: str,
         problem_context: dict[str, Any] | None = None,
         status: str = "created",
+        dataset_id: str | None = None,
     ) -> dict[str, Any]:
         """Save a new session to PostgreSQL.
 
@@ -44,6 +45,7 @@ class SessionRepository(BaseRepository):
             problem_statement: Original problem statement
             problem_context: Additional context as dict (optional)
             status: Initial status (default: 'created')
+            dataset_id: Optional dataset UUID to attach for data-driven deliberations
 
         Returns:
             Saved session record with timestamps
@@ -53,17 +55,18 @@ class SessionRepository(BaseRepository):
                 cur.execute(
                     """
                     INSERT INTO sessions (
-                        id, user_id, problem_statement, problem_context, status
+                        id, user_id, problem_statement, problem_context, status, dataset_id
                     )
-                    VALUES (%s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO UPDATE
                     SET user_id = EXCLUDED.user_id,
                         problem_statement = EXCLUDED.problem_statement,
                         problem_context = EXCLUDED.problem_context,
                         status = EXCLUDED.status,
+                        dataset_id = EXCLUDED.dataset_id,
                         updated_at = NOW()
                     RETURNING id, user_id, problem_statement, problem_context, status,
-                              phase, total_cost, round_number, created_at, updated_at
+                              phase, total_cost, round_number, created_at, updated_at, dataset_id
                     """,
                     (
                         session_id,
@@ -71,6 +74,7 @@ class SessionRepository(BaseRepository):
                         problem_statement,
                         Json(problem_context) if problem_context else None,
                         status,
+                        dataset_id,
                     ),
                 )
                 result = cur.fetchone()

@@ -23,7 +23,6 @@ export const load: PageServerLoad = async ({ request }) => {
 
 		return {
 			entries: data.emails || [],
-			envEmails: data.env_emails || [],
 			totalCount: data.total_count || 0
 		};
 	} catch (err) {

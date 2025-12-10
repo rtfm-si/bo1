@@ -4,10 +4,14 @@
 	import { isAuthenticated } from '$lib/stores/auth';
 	import { apiClient } from '$lib/api/client';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
+	import type { Dataset } from '$lib/api/types';
 
-	let problemStatement = '';
-	let isSubmitting = false;
-	let error: string | null = null;
+	let problemStatement = $state('');
+	let isSubmitting = $state(false);
+	let error = $state<string | null>(null);
+	let datasets = $state<Dataset[]>([]);
+	let selectedDatasetId = $state<string | null>(null);
+	let loadingDatasets = $state(false);
 
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
@@ -16,10 +20,28 @@
 			}
 		});
 
+		// Load user's datasets for the selector
+		loadDatasets();
+
 		return unsubscribe;
 	});
 
-	async function handleSubmit() {
+	async function loadDatasets() {
+		try {
+			loadingDatasets = true;
+			const response = await apiClient.getDatasets({ limit: 100 });
+			datasets = response.datasets;
+		} catch (err) {
+			console.warn('Failed to load datasets:', err);
+			// Non-blocking - user can still create meeting without dataset
+		} finally {
+			loadingDatasets = false;
+		}
+	}
+
+	async function handleSubmit(event: SubmitEvent) {
+		event.preventDefault();
+
 		if (!problemStatement.trim()) {
 			error = 'Please describe your decision';
 			return;
@@ -34,9 +56,10 @@
 			isSubmitting = true;
 			error = null;
 
-			// Create session
+			// Create session with optional dataset
 			const sessionData = await apiClient.createSession({
-				problem_statement: problemStatement.trim()
+				problem_statement: problemStatement.trim(),
+				dataset_id: selectedDatasetId || undefined
 			});
 
 			const sessionId = sessionData.id;
@@ -57,7 +80,8 @@
 	function handleKeyPress(event: KeyboardEvent) {
 		// Allow Ctrl+Enter or Cmd+Enter to submit
 		if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-			handleSubmit();
+			const form = (event.target as HTMLElement).closest('form');
+			if (form) form.requestSubmit();
 		}
 	}
 
@@ -106,7 +130,7 @@
 	<!-- Main Content -->
 	<main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-8">
-			<form on:submit|preventDefault={handleSubmit} class="space-y-6">
+			<form onsubmit={handleSubmit} class="space-y-6">
 				<!-- Problem Statement Input -->
 				<div>
 					<label for="problem" class="block text-lg font-semibold text-slate-900 dark:text-white mb-2">
@@ -118,7 +142,7 @@
 					<textarea
 						id="problem"
 						bind:value={problemStatement}
-						on:keydown={handleKeyPress}
+						onkeydown={handleKeyPress}
 						placeholder="Example: Should we raise a Series A round now or wait 6 months to improve our metrics? Our current burn rate is $200K/month, we have 8 months of runway, and our MRR growth is 15%..."
 						rows="8"
 						class="w-full px-4 py-3 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-lg focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 transition-colors duration-200"
@@ -144,16 +168,50 @@
 					</div>
 				</div>
 
+				<!-- Dataset Selector -->
+				{#if datasets.length > 0 || loadingDatasets}
+					<div>
+						<label for="dataset" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+							Attach Dataset (Optional)
+						</label>
+						<p class="text-sm text-slate-500 dark:text-slate-400 mb-3">
+							Include data from your datasets for data-driven analysis.
+						</p>
+						{#if loadingDatasets}
+							<div class="flex items-center gap-2 text-sm text-slate-500">
+								<Spinner size="sm" variant="neutral" ariaLabel="Loading datasets" />
+								Loading datasets...
+							</div>
+						{:else}
+							<select
+								id="dataset"
+								bind:value={selectedDatasetId}
+								class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none text-slate-900 dark:text-white transition-colors duration-200"
+							>
+								<option value={null}>None - Problem-focused deliberation</option>
+								{#each datasets as dataset (dataset.id)}
+									<option value={dataset.id}>
+										{dataset.name}
+										{#if dataset.row_count}
+											({dataset.row_count.toLocaleString()} rows)
+										{/if}
+									</option>
+								{/each}
+							</select>
+						{/if}
+					</div>
+				{/if}
+
 				<!-- Examples -->
 				<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4">
 					<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">
 						Need inspiration? Try one of these examples:
 					</h3>
 					<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-						{#each examples as example}
+						{#each examples as example, i (i)}
 							<button
 								type="button"
-								on:click={() => useExample(example)}
+								onclick={() => useExample(example)}
 								class="text-left p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-sm transition-all duration-200 text-sm text-slate-700 dark:text-slate-300"
 							>
 								"{example.substring(0, 80)}{example.length > 80 ? '...' : ''}"

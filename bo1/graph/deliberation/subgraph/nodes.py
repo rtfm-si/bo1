@@ -27,9 +27,7 @@ from bo1.llm.response import LLMResponse
 from bo1.models.persona import PersonaProfile
 from bo1.models.state import ContributionMessage, ContributionType, DeliberationMetrics
 from bo1.orchestration.voting import collect_recommendations
-from bo1.prompts.reusable_prompts import (
-    SYNTHESIS_PROMPT_TEMPLATE,
-)
+from bo1.prompts import SYNTHESIS_PROMPT_TEMPLATE
 from bo1.state.repositories import contribution_repository
 
 logger = logging.getLogger(__name__)

@@ -27,6 +27,7 @@
 		ExternalLink,
 		X
 	} from 'lucide-svelte';
+	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, getEffectiveDueDate } from '$lib/utils/due-dates';
 
 	// Helper function to format dates nicely
 	function formatDate(dateStr: string | null | undefined): string {
@@ -267,10 +268,11 @@
 				<button
 					onclick={goBack}
 					class="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+					aria-label="Back to actions list"
 				>
 					<ArrowLeft class="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
 				</button>
-				<div class="flex-1 min-w-0">
+				<div class="flex-1 min-w-0 flex items-center gap-3">
 					<h1 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 truncate">
 						{#if isLoading}
 							<span class="animate-pulse bg-neutral-200 dark:bg-neutral-700 rounded h-6 w-48 inline-block"></span>
@@ -280,6 +282,16 @@
 							Action Not Found
 						{/if}
 					</h1>
+					{#if action?.session_id}
+						<a
+							href="/meeting/{action.session_id}"
+							class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 bg-brand-50 dark:bg-brand-900/20 hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded-lg transition-colors"
+						>
+							<ExternalLink class="w-4 h-4" />
+							<span class="hidden sm:inline">Back to Meeting</span>
+							<span class="sm:hidden">Meeting</span>
+						</a>
+					{/if}
 				</div>
 			</div>
 		</div>
@@ -423,11 +435,25 @@
 
 				<!-- Dates & Schedule -->
 				{#if hasAnyDates(action)}
+					{@const effectiveDueDate = getEffectiveDueDate(action)}
+					{@const dueDateStatus = getDueDateStatus(effectiveDueDate)}
 					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
-						<h2 class="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-4">
-							<CalendarDays class="w-4 h-4 text-brand-500" />
-							Schedule & Dates
-						</h2>
+						<div class="flex items-center justify-between mb-4">
+							<h2 class="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
+								<CalendarDays class="w-4 h-4 text-brand-500" />
+								Schedule & Dates
+							</h2>
+							{#if dueDateStatus === 'overdue' || dueDateStatus === 'due-soon'}
+								<span class={`inline-flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-full border ${getDueDateBadgeClasses(dueDateStatus)}`}>
+									{#if dueDateStatus === 'overdue'}
+										<AlertTriangle class="w-4 h-4" />
+									{:else}
+										<Clock class="w-4 h-4" />
+									{/if}
+									{getDueDateLabel(dueDateStatus)}
+								</span>
+							{/if}
+						</div>
 
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 							<!-- Duration -->

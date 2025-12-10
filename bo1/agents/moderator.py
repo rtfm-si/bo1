@@ -14,7 +14,7 @@ from typing import Literal
 
 from bo1.agents.base import BaseAgent
 from bo1.llm.response import LLMResponse
-from bo1.prompts.reusable_prompts import compose_moderator_prompt
+from bo1.prompts import compose_moderator_prompt
 from bo1.utils.xml_parsing import extract_xml_tag
 
 logger = logging.getLogger(__name__)

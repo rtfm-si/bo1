@@ -16,7 +16,7 @@ from bo1.graph.state import DeliberationGraphState
 from bo1.llm.broker import PromptBroker
 from bo1.llm.response import LLMResponse
 from bo1.llm.response_parser import ResponseParser
-from bo1.prompts.reusable_prompts import compose_facilitator_prompt
+from bo1.prompts import compose_facilitator_prompt
 from bo1.state.discussion_formatter import format_discussion_history
 from bo1.utils.deliberation_analysis import DeliberationAnalyzer
 from bo1.utils.error_logger import ErrorLogger
@@ -26,10 +26,17 @@ from bo1.utils.xml_parsing import extract_xml_tag_with_fallback
 
 logger = logging.getLogger(__name__)
 
-FacilitatorAction = Literal["continue", "vote", "research", "moderator", "clarify"]
+FacilitatorAction = Literal["continue", "vote", "research", "moderator", "clarify", "analyze_data"]
 
 # Valid action values as a set for validation
-VALID_FACILITATOR_ACTIONS: set[str] = {"continue", "vote", "research", "moderator", "clarify"}
+VALID_FACILITATOR_ACTIONS: set[str] = {
+    "continue",
+    "vote",
+    "research",
+    "moderator",
+    "clarify",
+    "analyze_data",
+}
 
 
 def is_valid_facilitator_action(action: str) -> bool:
@@ -67,6 +74,9 @@ class FacilitatorDecision:
     moderator_focus: str | None = None
     # For "research" action
     research_query: str | None = None
+    # For "analyze_data" action
+    dataset_id: str | None = None
+    analysis_questions: list[str] | None = None
     # For "vote" action (transition)
     phase_summary: str | None = None
     # For "clarify" action
@@ -300,6 +310,63 @@ class FacilitatorAgent(BaseAgent):
 
         return None  # No rotation override needed
 
+    def _handle_impasse_intervention(
+        self,
+        state: DeliberationGraphState,
+        guidance: dict[str, Any],
+        round_number: int,
+    ) -> FacilitatorDecision | None:
+        """Handle impasse intervention when stalled disagreement is detected.
+
+        Generates guidance for experts to resolve the impasse through:
+        - Finding common ground on shared facts/goals
+        - Disagree-and-commit (acknowledge disagreement, recommend majority view)
+        - Conditional recommendations (if X then A, if Y then B)
+
+        Args:
+            state: Current deliberation state
+            guidance: Facilitator guidance dict from stopping rules
+            round_number: Current round number
+
+        Returns:
+            FacilitatorDecision with impasse resolution prompt, or None
+        """
+        issue = guidance.get("issue", "Experts stuck in disagreement")
+        resolution_options = guidance.get("resolution_options", [])
+        conflict_score = guidance.get("conflict_score", 0.0)
+        novelty_score = guidance.get("novelty_score", 0.0)
+
+        logger.info(
+            f"⚠️ Impasse intervention triggered (round {round_number}): "
+            f"conflict={conflict_score:.2f}, novelty={novelty_score:.2f}"
+        )
+
+        # Build impasse resolution prompt for experts
+        resolution_prompt = (
+            "We've been discussing this for several rounds without new progress. "
+            "Let's move toward resolution:\n\n"
+        )
+
+        if resolution_options:
+            resolution_prompt += "Consider one of these approaches:\n"
+            for i, option in enumerate(resolution_options, 1):
+                resolution_prompt += f"{i}. {option}\n"
+            resolution_prompt += "\n"
+
+        resolution_prompt += (
+            "Focus on: What can we agree on? What's the strongest argument "
+            "for the majority position? Are there conditions under which "
+            "the minority view would be preferred?"
+        )
+
+        return FacilitatorDecision(
+            action="continue",
+            reasoning=f"Impasse detected: {issue}. Guiding toward resolution.",
+            speaker_prompt=resolution_prompt,
+            # In parallel architecture, all experts will see this guidance
+            next_speaker=None,  # Let all experts respond with resolution focus
+        )
+
     async def decide_next_action(
         self, state: DeliberationGraphState, round_number: int, max_rounds: int
     ) -> tuple[FacilitatorDecision, LLMResponse | None]:
@@ -314,6 +381,15 @@ class FacilitatorAgent(BaseAgent):
             Tuple of (decision, llm_response)
         """
         logger.info(f"Facilitator deciding next action for round {round_number}/{max_rounds}")
+
+        # Check for impasse intervention guidance (from stopping rules)
+        facilitator_guidance = state.get("facilitator_guidance")
+        if facilitator_guidance and facilitator_guidance.get("type") == "impasse_intervention":
+            impasse_decision = self._handle_impasse_intervention(
+                state, facilitator_guidance, round_number
+            )
+            if impasse_decision:
+                return impasse_decision, None
 
         # Check for research needs FIRST (fastest check)
         research_needed = self._check_research_needed(state)
@@ -521,7 +597,7 @@ Consider:
         Returns:
             Tuple of (synthesis_report, LLMResponse)
         """
-        from bo1.prompts.reusable_prompts import SYNTHESIS_PROMPT_TEMPLATE
+        from bo1.prompts import SYNTHESIS_PROMPT_TEMPLATE
 
         logger.info("Generating synthesis report")
 

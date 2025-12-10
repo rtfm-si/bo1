@@ -8,8 +8,8 @@
 	import { env } from '$env/dynamic/public';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 
-	let isLoading = false;
-	let error: string | null = null;
+	let isLoading = $state(false);
+	let error = $state<string | null>(null);
 
 	// Redirect if already authenticated
 	onMount(() => {
@@ -130,7 +130,7 @@
 
 			<!-- Google Sign-in Button -->
 			<button
-				on:click={handleGoogleSignIn}
+				onclick={handleGoogleSignIn}
 				disabled={isLoading}
 				class="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
 			>

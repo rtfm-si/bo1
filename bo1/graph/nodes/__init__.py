@@ -32,6 +32,9 @@ from bo1.graph.nodes.context import (
     context_collection_node,
     identify_gaps_node,
 )
+
+# Data Analysis
+from bo1.graph.nodes.data_analysis import data_analysis_node
 from bo1.graph.nodes.decomposition import decompose_node
 
 # Moderation (consolidated from archived/moderation.py)
@@ -90,6 +93,8 @@ __all__ = [
     "moderator_intervene_node",
     # Research
     "research_node",
+    # Data Analysis
+    "data_analysis_node",
     # Synthesis
     "vote_node",
     "synthesize_node",

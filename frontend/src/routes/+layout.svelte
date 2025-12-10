@@ -6,6 +6,9 @@
 	import { initAuth } from '$lib/stores/auth';
 	import { initSuperTokens } from '$lib/supertokens';
 	import { themeStore } from '$lib/stores/theme';
+	import type { Snippet } from 'svelte';
+
+	let { children }: { children: Snippet } = $props();
 
 	onMount(() => {
 		// Initialize SuperTokens SDK first
@@ -51,6 +54,6 @@
 	</script>
 </svelte:head>
 
-<slot />
+{@render children()}
 
 <CookieConsent />

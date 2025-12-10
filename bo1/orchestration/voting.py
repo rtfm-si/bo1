@@ -11,7 +11,7 @@ from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
 from bo1.llm.response_parser import ResponseParser
 from bo1.models.recommendations import ConsensusLevel, Recommendation, RecommendationAggregation
-from bo1.prompts.reusable_prompts import RECOMMENDATION_SYSTEM_PROMPT, RECOMMENDATION_USER_MESSAGE
+from bo1.prompts import RECOMMENDATION_SYSTEM_PROMPT, RECOMMENDATION_USER_MESSAGE
 from bo1.state.discussion_formatter import format_discussion_history
 from bo1.utils.error_logger import ErrorLogger
 from bo1.utils.json_parsing import parse_json_with_fallback

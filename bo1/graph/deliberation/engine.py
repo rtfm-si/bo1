@@ -21,7 +21,7 @@ from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
 from bo1.models.state import DeliberationMetrics, DeliberationPhase, SubProblemResult
 from bo1.orchestration.voting import collect_recommendations
-from bo1.prompts.reusable_prompts import SYNTHESIS_PROMPT_TEMPLATE
+from bo1.prompts import SYNTHESIS_PROMPT_TEMPLATE
 
 if TYPE_CHECKING:
     pass

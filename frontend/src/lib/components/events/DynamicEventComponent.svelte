@@ -63,6 +63,7 @@
 		'meta_synthesis_complete': () => import('./ActionPlan.svelte'),
 		'synthesis_complete': () => import('./SynthesisComplete.svelte'),
 		'subproblem_complete': () => import('./SubProblemProgress.svelte'),
+		'subproblem_waiting': () => import('./SubProblemWaiting.svelte'),
 		'phase_cost_breakdown': () => import('./PhaseTable.svelte'),
 		'complete': () => import('./DeliberationComplete.svelte'),
 		'error': () => import('./ErrorEvent.svelte'),

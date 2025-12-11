@@ -83,7 +83,7 @@ class RedisManager:
             # Note: decode_responses=True returns str, but Redis typing is complex
             # Different redis-py versions have different type parameter requirements
             # Using bare redis.Redis for compatibility across versions
-            self.redis: redis.Redis | None = redis.Redis(connection_pool=self.pool)  # type: ignore[type-arg]
+            self.redis: redis.Redis | None = redis.Redis(connection_pool=self.pool)  # type: ignore[type-arg,unused-ignore]
 
             # Test connection
             assert self.redis is not None  # Type guard: checked by is_available
@@ -118,7 +118,7 @@ class RedisManager:
         return session_id
 
     @property
-    def client(self) -> redis.Redis | None:  # type: ignore[type-arg]
+    def client(self) -> redis.Redis | None:  # type: ignore[type-arg,unused-ignore]
         """Backward compatibility: alias for self.redis.
 
         Returns:
@@ -277,19 +277,17 @@ class RedisManager:
         try:
             # Scan for all session keys (both session: and metadata: prefixes)
             assert self.redis is not None  # Type guard: checked by is_available
-            session_keys = self.redis.keys("session:bo1_*")
-            metadata_keys = self.redis.keys("metadata:bo1_*")
+            session_keys = cast(list[str], self.redis.keys("session:bo1_*"))
+            metadata_keys = cast(list[str], self.redis.keys("metadata:bo1_*"))
 
             # Extract session IDs from both sources
             session_ids_set: set[str] = set()
 
             if session_keys:
-                keys_list = cast(list[str], list(session_keys))
-                session_ids_set.update(key.replace("session:", "") for key in keys_list)
+                session_ids_set.update(key.replace("session:", "") for key in session_keys)
 
             if metadata_keys:
-                keys_list = cast(list[str], list(metadata_keys))
-                session_ids_set.update(key.replace("metadata:", "") for key in keys_list)
+                session_ids_set.update(key.replace("metadata:", "") for key in metadata_keys)
 
             return list(session_ids_set)
 
@@ -508,7 +506,7 @@ class RedisManager:
         try:
             key = f"user_sessions:{user_id}"
             assert self.redis is not None
-            session_ids = self.redis.smembers(key)
+            session_ids = cast(set[str], self.redis.smembers(key))
 
             if not session_ids:
                 return []

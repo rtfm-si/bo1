@@ -1213,6 +1213,57 @@ class EventCollector:
             except Exception as notify_error:
                 logger.warning(f"Failed to send meeting completion notification: {notify_error}")
 
+            # Record cost to user's period aggregate (admin monitoring)
+            try:
+                from backend.services import user_cost_tracking as uct
+                from backend.services.alerts import alert_user_cost_threshold
+
+                # Get user_id from session (already fetched above)
+                user_id = current_session.get("user_id") if current_session else None
+                if user_id and total_cost > 0:
+                    # Convert USD to cents
+                    cost_cents = int(total_cost * 100)
+                    _, budget_result = uct.record_session_cost(
+                        user_id=user_id,
+                        session_id=session_id,
+                        cost_cents=cost_cents,
+                    )
+                    logger.debug(f"Recorded session cost for user {user_id}: {cost_cents} cents")
+
+                    # Send alert if threshold crossed
+                    if budget_result and budget_result.should_alert:
+                        # Get user email for alert
+                        email = None
+                        try:
+                            from bo1.state.database import db_session as get_db
+
+                            with get_db() as conn:
+                                with conn.cursor() as cur:
+                                    cur.execute(
+                                        "SELECT email FROM users WHERE user_id = %s",
+                                        (user_id,),
+                                    )
+                                    row = cur.fetchone()
+                                    if row:
+                                        email = row["email"]
+                        except Exception as e:
+                            logger.debug("Could not fetch user email for alert: %s", e)
+
+                        # Fire-and-forget alert
+                        asyncio.create_task(
+                            alert_user_cost_threshold(
+                                user_id=user_id,
+                                email=email,
+                                current_cost_cents=budget_result.current_cost_cents,
+                                limit_cents=budget_result.limit_cents or 0,
+                                status=budget_result.status.value,
+                            )
+                        )
+                        # Mark alert sent
+                        uct.mark_alert_sent(user_id)
+            except Exception as cost_error:
+                logger.warning(f"Failed to record user cost tracking: {cost_error}")
+
         # If status update failed, emit error event to frontend
         if not status_update_success:
             try:

@@ -2,11 +2,12 @@
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/auth';
 	import { apiClient } from '$lib/api/client';
-	import type { SessionResponse, AllActionsResponse, TaskWithSessionContext, ActionStatsResponse } from '$lib/api/types';
+	import type { SessionResponse, AllActionsResponse, TaskWithSessionContext, ActionStatsResponse, UserContextResponse } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import ContextRefreshBanner from '$lib/components/ui/ContextRefreshBanner.svelte';
+	import OnboardingChecklist from '$lib/components/ui/OnboardingChecklist.svelte';
 	import CompletionTrendsChart from '$lib/components/ui/CompletionTrendsChart.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { getSessionStatusColor } from '$lib/utils/colors';
@@ -22,11 +23,33 @@
 	const actionsData = useDataFetch(() => apiClient.getAllActions());
 	// Fetch action stats for completion trends chart
 	const statsData = useDataFetch(() => apiClient.getActionStats(14));
+	// Fetch user context for onboarding checklist
+	const contextData = useDataFetch(() => apiClient.getUserContext());
 
 	// Derived state for template compatibility
 	const sessions = $derived<SessionResponse[]>(sessionsData.data?.sessions || []);
 	const isLoading = $derived(sessionsData.isLoading);
 	const error = $derived(sessionsData.error);
+
+	// Onboarding state
+	let onboardingDismissed = $state(false);
+
+	// Show onboarding only for new users who haven't dismissed or completed it
+	const showOnboarding = $derived(
+		!onboardingDismissed &&
+		!contextData.data?.context?.onboarding_completed &&
+		sessions.length < 3
+	);
+
+	async function dismissOnboarding() {
+		onboardingDismissed = true;
+		// Persist to backend
+		try {
+			await apiClient.updateUserContext({ onboarding_completed: true });
+		} catch (err) {
+			console.error('Failed to save onboarding dismissal:', err);
+		}
+	}
 
 	// Outstanding actions (todo + in_progress, sorted by priority)
 	const outstandingActions = $derived.by<TaskWithSessionContext[]>(() => {
@@ -77,10 +100,11 @@
 
 	onMount(() => {
 		log.log('Loading sessions for user:', $user?.email);
-		// Auth is already verified by parent layout, safe to load sessions, actions, and stats
+		// Auth is already verified by parent layout, safe to load sessions, actions, stats, and context
 		sessionsData.fetch();
 		actionsData.fetch();
 		statsData.fetch();
+		contextData.fetch();
 	});
 
 	async function loadSessions() {
@@ -149,6 +173,15 @@
 
 	<!-- Main Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Onboarding checklist for new users -->
+		{#if showOnboarding}
+			<OnboardingChecklist
+				userContext={contextData.data?.context}
+				sessionCount={sessions.length}
+				onDismiss={dismissOnboarding}
+			/>
+		{/if}
+
 		<!-- Context refresh reminder -->
 		<ContextRefreshBanner />
 
@@ -216,7 +249,18 @@
 		</div>
 
 		<!-- Completion Trends Chart -->
-		{#if statsData.data?.daily && statsData.data.daily.length > 0}
+		{#if statsData.isLoading}
+			<div class="mb-8">
+				<div class="flex items-center justify-between mb-4">
+					<div class="h-6 w-40 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse"></div>
+					<div class="flex gap-4">
+						<div class="h-4 w-20 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse"></div>
+						<div class="h-4 w-20 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse"></div>
+					</div>
+				</div>
+				<ShimmerSkeleton type="chart" height="200px" />
+			</div>
+		{:else if statsData.data?.daily && statsData.data.daily.length > 0}
 			<div class="mb-8">
 				<div class="flex items-center justify-between mb-4">
 					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
@@ -248,7 +292,21 @@
 		{/if}
 
 		<!-- Actions Needing Attention (overdue + due today) -->
-		{#if actionsNeedingAttention.length > 0}
+		{#if actionsData.isLoading}
+			<div class="mb-8">
+				<div class="flex items-center justify-between mb-4">
+					<div class="h-6 w-36 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse"></div>
+					<div class="h-4 w-24 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse"></div>
+				</div>
+				<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+					<div class="divide-y divide-neutral-200 dark:divide-neutral-700">
+						{#each Array(3) as _, i (i)}
+							<ShimmerSkeleton type="list-item" />
+						{/each}
+					</div>
+				</div>
+			</div>
+		{:else if actionsNeedingAttention.length > 0}
 			<div class="mb-8">
 				<div class="flex items-center justify-between mb-4">
 					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white flex items-center gap-2">

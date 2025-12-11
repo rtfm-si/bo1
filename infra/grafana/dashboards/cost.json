@@ -1,0 +1,118 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "row",
+      "title": "Cost Overview",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "type": "stat",
+      "title": "Today's LLM Spend",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "sum(increase(bo1_llm_cost_cents_total[24h])) / 100 or vector(0)", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 50 }, { "color": "red", "value": 100 }] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "This Week's Spend",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "sum(increase(bo1_llm_cost_cents_total[7d])) / 100 or vector(0)", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "This Month's Spend",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "sum(increase(bo1_llm_cost_cents_total[30d])) / 100 or vector(0)", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "Avg Cost per Session",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "(sum(increase(bo1_llm_cost_cents_total[24h])) / sum(increase(bo1_sessions_total{status=\"completed\"}[24h]))) / 100 or vector(0)", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "row",
+      "title": "Cost Trends",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false
+    },
+    {
+      "type": "timeseries",
+      "title": "Daily LLM Spend",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "sum(increase(bo1_llm_cost_cents_total[1h])) / 100", "legendFormat": "Hourly Spend", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 50 } } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Cumulative Monthly Spend",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "sum(bo1_llm_cost_cents_total) / 100 or vector(0)", "legendFormat": "Total Spend", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20 } } }
+    },
+    {
+      "type": "row",
+      "title": "Cost Breakdown",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "collapsed": false
+    },
+    {
+      "type": "piechart",
+      "title": "Cost by Model",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "sum(increase(bo1_llm_cost_cents_total[24h])) by (model) / 100", "legendFormat": "{{model}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "legend": { "displayMode": "table", "placement": "right" } }
+    },
+    {
+      "type": "table",
+      "title": "Top 10 Users by Spend (24h)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "topk(10, sum(increase(bo1_llm_cost_cents_total[24h])) by (user_id) / 100)", "format": "table", "instant": true, "refId": "A" }],
+      "transformations": [{ "id": "organize", "options": { "excludeByName": { "Time": true }, "renameByName": { "user_id": "User ID", "Value": "Spend ($)" } } }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Cost per Model Over Time",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "sum(rate(bo1_llm_cost_cents_total[1h])) by (model) * 3600 / 100", "legendFormat": "{{model}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "stacking": { "mode": "normal" } } } }
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["cost", "llm", "billing"],
+  "templating": { "list": [] },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Cost Dashboard",
+  "uid": "bo1-cost",
+  "version": 1
+}

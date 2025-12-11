@@ -7,7 +7,7 @@
 	 */
 
 	interface Props {
-		type?: 'text' | 'card' | 'avatar' | 'button' | 'custom';
+		type?: 'text' | 'card' | 'avatar' | 'button' | 'list-item' | 'stat-card' | 'chart' | 'custom';
 		lines?: number;
 		class?: string;
 		width?: string;
@@ -65,6 +65,55 @@
 		role="status"
 		aria-label="Loading button"
 	>
+		<span class="sr-only">Loading...</span>
+	</div>
+{:else if type === 'list-item'}
+	<!-- Action/task list item skeleton -->
+	<div class="skeleton-shimmer rounded-lg p-4 {className}" role="status" aria-label="Loading list item">
+		<div class="flex items-center gap-4">
+			<div class="w-8 h-8 rounded-full bg-neutral-200/50 dark:bg-neutral-700/50 flex-shrink-0"></div>
+			<div class="flex-1 min-w-0 space-y-2">
+				<div class="flex items-center gap-2">
+					<div class="h-4 w-1/3 rounded bg-neutral-200/50 dark:bg-neutral-700/50"></div>
+					<div class="h-5 w-16 rounded-full bg-neutral-200/50 dark:bg-neutral-700/50"></div>
+					<div class="h-5 w-12 rounded-full bg-neutral-200/50 dark:bg-neutral-700/50"></div>
+				</div>
+				<div class="h-3 w-2/3 rounded bg-neutral-200/50 dark:bg-neutral-700/50"></div>
+			</div>
+			<div class="w-5 h-5 rounded bg-neutral-200/50 dark:bg-neutral-700/50 flex-shrink-0"></div>
+		</div>
+		<span class="sr-only">Loading...</span>
+	</div>
+{:else if type === 'stat-card'}
+	<!-- Stats/metric card skeleton -->
+	<div class="skeleton-shimmer rounded-lg p-4 {className}" role="status" aria-label="Loading stats">
+		<div class="space-y-3">
+			<div class="h-3 w-1/2 rounded bg-neutral-200/50 dark:bg-neutral-700/50"></div>
+			<div class="h-8 w-2/3 rounded bg-neutral-200/50 dark:bg-neutral-700/50"></div>
+			<div class="h-3 w-1/3 rounded bg-neutral-200/50 dark:bg-neutral-700/50"></div>
+		</div>
+		<span class="sr-only">Loading...</span>
+	</div>
+{:else if type === 'chart'}
+	<!-- Chart/visualization area skeleton -->
+	<div class="skeleton-shimmer rounded-lg {className}" role="status" aria-label="Loading chart">
+		<div class="p-4 space-y-4" style:height={height || '200px'}>
+			<div class="flex items-center justify-between">
+				<div class="h-4 w-1/4 rounded bg-neutral-200/50 dark:bg-neutral-700/50"></div>
+				<div class="flex gap-2">
+					<div class="h-3 w-16 rounded bg-neutral-200/50 dark:bg-neutral-700/50"></div>
+					<div class="h-3 w-16 rounded bg-neutral-200/50 dark:bg-neutral-700/50"></div>
+				</div>
+			</div>
+			<div class="flex-1 flex items-end gap-2 pt-4">
+				{#each Array(7) as _, i (i)}
+					<div
+						class="flex-1 rounded-t bg-neutral-200/50 dark:bg-neutral-700/50"
+						style:height="{20 + Math.random() * 60}%"
+					></div>
+				{/each}
+			</div>
+		</div>
 		<span class="sr-only">Loading...</span>
 	</div>
 {:else}

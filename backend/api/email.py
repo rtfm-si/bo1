@@ -1,15 +1,27 @@
-"""Email service using Resend for transactional emails.
+"""Email service and API endpoints using Resend for transactional emails.
 
 Handles:
 - Waitlist approval notifications
 - Welcome emails for beta users
+- Email preference management
+- Unsubscribe handling
 """
 
+import json
 import logging
 
 import resend
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+from supertokens_python.recipe.session import SessionContainer
+from supertokens_python.recipe.session.framework.fastapi import verify_session
 
+from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
+from backend.api.utils.errors import handle_api_errors
+from backend.services.email import validate_unsubscribe_token
 from bo1.config import get_settings
+from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
 
@@ -188,3 +200,205 @@ def send_beta_welcome_email(email: str) -> dict | None:
     except Exception as e:
         logger.error(f"Unexpected error sending beta welcome email to {email}: {e}", exc_info=True)
         return None
+
+
+# =============================================================================
+# Email Preferences API
+# =============================================================================
+
+router = APIRouter(tags=["email"])
+
+
+class EmailPreferences(BaseModel):
+    """User email notification preferences."""
+
+    meeting_emails: bool = True
+    reminder_emails: bool = True
+    digest_emails: bool = True
+
+
+class EmailPreferencesResponse(BaseModel):
+    """Response for email preferences endpoint."""
+
+    preferences: EmailPreferences
+
+
+@router.get("/v1/user/email-preferences", response_model=EmailPreferencesResponse)
+@limiter.limit(AUTH_RATE_LIMIT)
+@handle_api_errors("get email preferences")
+async def get_email_preferences(
+    request: Request, session: SessionContainer = Depends(verify_session())
+) -> EmailPreferencesResponse:
+    """Get current user's email notification preferences."""
+    user_id = session.get_user_id()
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT email_preferences FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+
+        if row and row.get("email_preferences"):
+            prefs_data = row["email_preferences"]
+            prefs = EmailPreferences(**prefs_data)
+        else:
+            prefs = EmailPreferences()  # Defaults
+
+        return EmailPreferencesResponse(preferences=prefs)
+
+    except Exception as e:
+        logger.error(f"Failed to get email preferences for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get email preferences") from None
+
+
+@router.patch("/v1/user/email-preferences", response_model=EmailPreferencesResponse)
+@limiter.limit(AUTH_RATE_LIMIT)
+@handle_api_errors("update email preferences")
+async def update_email_preferences(
+    request: Request,
+    preferences: EmailPreferences,
+    session_obj: SessionContainer = Depends(verify_session()),
+) -> EmailPreferencesResponse:
+    """Update current user's email notification preferences."""
+    user_id = session_obj.get_user_id()
+
+    try:
+        prefs_json = json.dumps(preferences.model_dump())
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET email_preferences = %s, updated_at = NOW()
+                    WHERE id = %s
+                    RETURNING email_preferences
+                    """,
+                    (prefs_json, user_id),
+                )
+                row = cur.fetchone()
+
+        if row:
+            return EmailPreferencesResponse(preferences=preferences)
+        else:
+            raise HTTPException(status_code=404, detail="User not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update email preferences for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update email preferences") from None
+
+
+@router.get("/v1/email/unsubscribe", response_class=HTMLResponse)
+@limiter.limit("10/minute")
+async def unsubscribe(
+    request: Request,
+    token: str = Query(..., description="Signed unsubscribe token"),
+) -> HTMLResponse:
+    """Handle email unsubscribe link.
+
+    Validates the token and updates user's email preferences.
+    Returns an HTML page confirming the unsubscribe action.
+    """
+    # Validate token
+    result = validate_unsubscribe_token(token)
+    if not result:
+        logger.warning(f"Invalid unsubscribe token: {token[:20]}...")
+        return HTMLResponse(
+            content=_render_unsubscribe_page(
+                success=False,
+                message="Invalid or expired unsubscribe link. Please try again from a recent email.",
+            ),
+            status_code=400,
+        )
+
+    user_id, email_type = result
+
+    try:
+        # Update preferences based on email_type
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Get current preferences
+                cur.execute(
+                    "SELECT email_preferences FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                prefs = (row.get("email_preferences") or {}) if row else {}
+
+                # Update based on type
+                if email_type == "all":
+                    prefs["meeting_emails"] = False
+                    prefs["reminder_emails"] = False
+                    prefs["digest_emails"] = False
+                    message = "You have been unsubscribed from all emails."
+                elif email_type == "reminders":
+                    prefs["reminder_emails"] = False
+                    message = "You have been unsubscribed from action reminder emails."
+                elif email_type == "digest":
+                    prefs["digest_emails"] = False
+                    message = "You have been unsubscribed from weekly digest emails."
+                else:
+                    prefs[f"{email_type}_emails"] = False
+                    message = f"You have been unsubscribed from {email_type} emails."
+
+                # Save updated preferences
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET email_preferences = %s, updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (json.dumps(prefs), user_id),
+                )
+
+        logger.info(f"User {user_id} unsubscribed from {email_type} emails")
+        return HTMLResponse(
+            content=_render_unsubscribe_page(success=True, message=message),
+            status_code=200,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to unsubscribe user {user_id}: {e}")
+        return HTMLResponse(
+            content=_render_unsubscribe_page(
+                success=False,
+                message="An error occurred. Please try again later.",
+            ),
+            status_code=500,
+        )
+
+
+def _render_unsubscribe_page(success: bool, message: str) -> str:
+    """Render simple HTML page for unsubscribe confirmation."""
+    status_color = "#10b981" if success else "#ef4444"
+
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unsubscribe - Board of One</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5; }}
+.container {{ max-width: 500px; margin: 80px auto; padding: 40px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }}
+.icon {{ width: 60px; height: 60px; border-radius: 50%; background: {status_color}; color: white; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 20px; font-size: 30px; }}
+h1 {{ margin: 0 0 10px 0; font-size: 24px; }}
+p {{ color: #666; margin: 0 0 20px 0; }}
+a {{ color: #2563eb; text-decoration: none; }}
+a:hover {{ text-decoration: underline; }}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="icon">{"&#10003;" if success else "&#10007;"}</div>
+<h1>{"Success" if success else "Error"}</h1>
+<p>{message}</p>
+<p><a href="https://boardof.one/settings">Manage email preferences</a></p>
+</div>
+</body>
+</html>"""

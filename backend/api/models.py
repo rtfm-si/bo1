@@ -1890,3 +1890,175 @@ class SessionCostBreakdown(BaseModel):
     by_sub_problem: list[SubProblemCost] = Field(
         default_factory=list, description="Cost breakdown per sub-problem"
     )
+
+
+# =============================================================================
+# Admin Cost Analytics Models
+# =============================================================================
+
+
+class CostSummaryResponse(BaseModel):
+    """Cost totals for different time periods.
+
+    Attributes:
+        today: Total cost today in USD
+        this_week: Total cost this week in USD
+        this_month: Total cost this month in USD
+        all_time: Total cost all time in USD
+        session_count_today: Sessions today
+        session_count_week: Sessions this week
+        session_count_month: Sessions this month
+        session_count_total: Total sessions
+    """
+
+    today: float = Field(default=0.0, description="Total cost today (USD)")
+    this_week: float = Field(default=0.0, description="Total cost this week (USD)")
+    this_month: float = Field(default=0.0, description="Total cost this month (USD)")
+    all_time: float = Field(default=0.0, description="Total cost all time (USD)")
+    session_count_today: int = Field(default=0, description="Sessions today")
+    session_count_week: int = Field(default=0, description="Sessions this week")
+    session_count_month: int = Field(default=0, description="Sessions this month")
+    session_count_total: int = Field(default=0, description="Total sessions")
+
+
+class UserCostItem(BaseModel):
+    """Cost summary for a single user.
+
+    Attributes:
+        user_id: User identifier
+        email: User email (if available)
+        total_cost: Total cost in USD
+        session_count: Number of sessions
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    email: str | None = Field(None, description="User email")
+    total_cost: float = Field(..., description="Total cost (USD)")
+    session_count: int = Field(..., description="Number of sessions")
+
+
+class UserCostsResponse(BaseModel):
+    """Response for per-user cost breakdown.
+
+    Attributes:
+        users: List of user cost items
+        total: Total number of users
+        limit: Page size
+        offset: Page offset
+    """
+
+    users: list[UserCostItem] = Field(..., description="User cost items")
+    total: int = Field(..., description="Total users with costs")
+    limit: int = Field(..., description="Page size")
+    offset: int = Field(..., description="Page offset")
+
+
+class DailyCostItem(BaseModel):
+    """Cost summary for a single day.
+
+    Attributes:
+        date: Date (YYYY-MM-DD)
+        total_cost: Total cost in USD
+        session_count: Number of sessions
+    """
+
+    date: str = Field(..., description="Date (YYYY-MM-DD)")
+    total_cost: float = Field(..., description="Total cost (USD)")
+    session_count: int = Field(..., description="Number of sessions")
+
+
+class DailyCostsResponse(BaseModel):
+    """Response for daily cost breakdown.
+
+    Attributes:
+        days: List of daily cost items
+        start_date: Start of date range
+        end_date: End of date range
+    """
+
+    days: list[DailyCostItem] = Field(..., description="Daily cost items")
+    start_date: str = Field(..., description="Start date (YYYY-MM-DD)")
+    end_date: str = Field(..., description="End date (YYYY-MM-DD)")
+
+
+# =============================================================================
+# User Cost Tracking (Admin Only)
+# =============================================================================
+
+
+class UserCostPeriodItem(BaseModel):
+    """Cost totals for a user's billing period (admin only).
+
+    Attributes:
+        user_id: User identifier
+        period_start: Start of period (YYYY-MM-DD)
+        period_end: End of period (YYYY-MM-DD)
+        total_cost_cents: Total cost in cents
+        session_count: Number of sessions
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    period_start: str = Field(..., description="Period start (YYYY-MM-DD)")
+    period_end: str = Field(..., description="Period end (YYYY-MM-DD)")
+    total_cost_cents: int = Field(..., description="Total cost in cents")
+    session_count: int = Field(..., description="Number of sessions")
+
+
+class UserBudgetSettingsItem(BaseModel):
+    """Budget settings for a user (admin only).
+
+    Attributes:
+        user_id: User identifier
+        monthly_cost_limit_cents: Monthly limit in cents (null = unlimited)
+        alert_threshold_pct: Percentage threshold for alerting
+        hard_limit_enabled: Whether to block when limit exceeded
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    monthly_cost_limit_cents: int | None = Field(None, description="Monthly limit (cents)")
+    alert_threshold_pct: int = Field(80, description="Alert threshold percentage")
+    hard_limit_enabled: bool = Field(False, description="Block when exceeded")
+
+
+class UserCostDetailResponse(BaseModel):
+    """Detailed cost info for a user (admin only).
+
+    Attributes:
+        user_id: User identifier
+        email: User email
+        current_period: Current period cost data
+        budget_settings: Budget configuration
+        history: Historical periods
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    email: str | None = Field(None, description="User email")
+    current_period: UserCostPeriodItem | None = Field(None, description="Current period")
+    budget_settings: UserBudgetSettingsItem | None = Field(None, description="Budget settings")
+    history: list[UserCostPeriodItem] = Field(default_factory=list, description="History")
+
+
+class TopUsersCostResponse(BaseModel):
+    """Top users by cost (admin only, abuse detection).
+
+    Attributes:
+        period_start: Period queried
+        users: List of users sorted by cost descending
+    """
+
+    period_start: str = Field(..., description="Period start (YYYY-MM-DD)")
+    users: list[UserCostPeriodItem] = Field(..., description="Users by cost desc")
+
+
+class UpdateBudgetSettingsRequest(BaseModel):
+    """Request to update user budget settings (admin only).
+
+    Attributes:
+        monthly_cost_limit_cents: Monthly limit in cents (null = unlimited)
+        alert_threshold_pct: Percentage threshold for alerting
+        hard_limit_enabled: Whether to block when limit exceeded
+    """
+
+    monthly_cost_limit_cents: int | None = Field(None, description="Monthly limit (cents)")
+    alert_threshold_pct: int | None = Field(None, ge=1, le=100, description="Alert threshold %")
+    hard_limit_enabled: bool | None = Field(None, description="Block when exceeded")

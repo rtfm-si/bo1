@@ -178,6 +178,58 @@
 		fetchData();
 	}
 
+	// Selection state for bulk actions
+	let selectedTaskIds = $state<Set<string>>(new Set());
+	let isBulkUpdating = $state(false);
+
+	// Selection helper functions
+	function toggleTaskSelection(taskId: string, event: Event) {
+		event.preventDefault();
+		event.stopPropagation();
+		const newSet = new Set(selectedTaskIds);
+		if (newSet.has(taskId)) {
+			newSet.delete(taskId);
+		} else {
+			newSet.add(taskId);
+		}
+		selectedTaskIds = newSet;
+	}
+
+	function selectAllVisible() {
+		const newSet = new Set(selectedTaskIds);
+		for (const task of allTasks) {
+			newSet.add(task.id);
+		}
+		selectedTaskIds = newSet;
+	}
+
+	function deselectAll() {
+		selectedTaskIds = new Set();
+	}
+
+	const selectedCount = $derived(selectedTaskIds.size);
+	const allVisibleSelected = $derived(
+		allTasks.length > 0 && allTasks.every(t => selectedTaskIds.has(t.id))
+	);
+
+	// Bulk status update
+	async function handleBulkStatusChange(newStatus: ActionStatus) {
+		if (selectedTaskIds.size === 0) return;
+		isBulkUpdating = true;
+		try {
+			const tasksToUpdate = allTasks.filter(t => selectedTaskIds.has(t.id));
+			await Promise.all(
+				tasksToUpdate.map(t => apiClient.updateTaskStatus(t.session_id, t.id, newStatus))
+			);
+			selectedTaskIds = new Set();
+			await fetchData();
+		} catch (err) {
+			console.error('Failed to bulk update tasks:', err);
+		} finally {
+			isBulkUpdating = false;
+		}
+	}
+
 	// Status update handler
 	let updatingTaskId = $state<string | null>(null);
 	let deletingTaskId = $state<string | null>(null);
@@ -457,10 +509,61 @@
 						</button>
 					{/if}
 
-					<!-- Active filter count -->
-					<span class="ml-auto text-sm text-neutral-500 dark:text-neutral-400">
-						{actionsData.total_tasks} actions
+					<!-- Select All / Active filter count -->
+					<div class="ml-auto flex items-center gap-3">
+						{#if viewMode === 'kanban' && allTasks.length > 0}
+							<label class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 cursor-pointer">
+								<input
+									type="checkbox"
+									checked={allVisibleSelected}
+									onchange={() => allVisibleSelected ? deselectAll() : selectAllVisible()}
+									class="rounded border-neutral-300 text-brand-600 focus:ring-brand-500"
+								/>
+								Select all
+							</label>
+						{/if}
+						<span class="text-sm text-neutral-500 dark:text-neutral-400">
+							{actionsData.total_tasks} actions
+						</span>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Bulk Action Bar -->
+			{#if selectedCount > 0}
+				<div class="mb-4 flex items-center gap-4 p-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 rounded-lg">
+					<span class="text-sm font-medium text-brand-700 dark:text-brand-300">
+						{selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
 					</span>
+					<div class="flex items-center gap-2">
+						<button
+							onclick={() => handleBulkStatusChange('done')}
+							disabled={isBulkUpdating}
+							class="px-3 py-1.5 text-sm font-medium bg-success-600 hover:bg-success-700 text-white rounded transition-colors disabled:opacity-50"
+						>
+							{isBulkUpdating ? 'Updating...' : 'Mark Complete'}
+						</button>
+						<button
+							onclick={() => handleBulkStatusChange('in_progress')}
+							disabled={isBulkUpdating}
+							class="px-3 py-1.5 text-sm font-medium bg-warning-600 hover:bg-warning-700 text-white rounded transition-colors disabled:opacity-50"
+						>
+							Start
+						</button>
+						<button
+							onclick={() => handleBulkStatusChange('todo')}
+							disabled={isBulkUpdating}
+							class="px-3 py-1.5 text-sm font-medium bg-neutral-600 hover:bg-neutral-700 text-white rounded transition-colors disabled:opacity-50"
+						>
+							To Do
+						</button>
+					</div>
+					<button
+						onclick={deselectAll}
+						class="ml-auto text-sm text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
+					>
+						Clear selection
+					</button>
 				</div>
 			{/if}
 
@@ -496,16 +599,19 @@
 		</div>
 
 		{#if isLoading}
-			<!-- Loading State -->
+			<!-- Loading State - Kanban skeleton -->
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 				{#each Array(3) as _, i (i)}
 					<div
 						class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4"
 					>
-						<ShimmerSkeleton type="text" />
-						<div class="mt-4 space-y-3">
+						<div class="flex items-center gap-2 mb-4">
+							<div class="h-5 w-20 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse"></div>
+							<div class="h-5 w-6 bg-neutral-200 dark:bg-neutral-700 rounded-full animate-pulse"></div>
+						</div>
+						<div class="space-y-3">
 							{#each Array(3) as _, j (j)}
-								<ShimmerSkeleton type="card" />
+								<ShimmerSkeleton type="list-item" />
 							{/each}
 						</div>
 					</div>
@@ -648,9 +754,10 @@
 							{:else}
 								{#each columnTasks as task (task.id + '-' + task.session_id)}
 									{@const isUpdating = updatingTaskId === task.id}
+									{@const isSelected = selectedTaskIds.has(task.id)}
 									<a
 										href="/actions/{task.id}"
-										class="relative block bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 transition-all hover:shadow-md hover:border-brand-300 dark:hover:border-brand-600"
+										class="relative block bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 transition-all hover:shadow-md hover:border-brand-300 dark:hover:border-brand-600 {isSelected ? 'ring-2 ring-brand-500 border-brand-400' : ''}"
 										class:opacity-50={isUpdating}
 										style="border-left: 3px solid {task.priority === 'high'
 											? 'var(--color-error-500)'
@@ -658,8 +765,19 @@
 												? 'var(--color-warning-500)'
 												: 'var(--color-success-500)'}"
 									>
+										<!-- Selection Checkbox -->
+										<div class="absolute top-2 right-2 z-10">
+											<input
+												type="checkbox"
+												checked={isSelected}
+												onclick={(e) => toggleTaskSelection(task.id, e)}
+												class="rounded border-neutral-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+												aria-label="Select task: {task.title}"
+											/>
+										</div>
+
 										<!-- Task Title -->
-										<h4 class="font-medium text-neutral-900 dark:text-white text-sm mb-1">
+										<h4 class="font-medium text-neutral-900 dark:text-white text-sm mb-1 pr-6">
 											{task.title}
 										</h4>
 

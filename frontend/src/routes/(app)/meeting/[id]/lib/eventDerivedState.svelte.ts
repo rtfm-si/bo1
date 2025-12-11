@@ -58,12 +58,25 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 	});
 
 	const showConclusionTab = $derived.by(() => {
+		const session = getSession();
+		const tabsLength = getSubProblemTabsLength();
+
+		// For multi-sub-problem meetings, only show conclusion when:
+		// 1. Meta-synthesis is available (all sub-problems done + combined), OR
+		// 2. Session is explicitly completed
+		// Don't show conclusion tab early just because one sub-problem finished
+		if (tabsLength > 1) {
+			return metaSynthesisEvent !== undefined || session?.status === 'completed';
+		}
+
+		// For single sub-problem (atomic problem), show conclusion when:
+		// 1. Synthesis is complete, OR
+		// 2. Session is completed
 		return (
-			metaSynthesisEvent !== undefined ||
 			synthesisCompleteEvent !== undefined ||
 			(subProblemCompleteEvents.length > 0 &&
 				subProblemCompleteEvents.some((e) => e.data.synthesis)) ||
-			getSession()?.status === 'completed'
+			session?.status === 'completed'
 		);
 	});
 

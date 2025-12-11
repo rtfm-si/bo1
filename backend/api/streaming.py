@@ -11,7 +11,7 @@ import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
 from backend.api.dependencies import VerifiedSession, get_redis_manager
@@ -20,9 +20,45 @@ from backend.api.events import (
     node_start_event,
 )
 from backend.api.metrics import metrics
+from backend.api.middleware.auth import get_current_user
 from backend.api.models import ErrorResponse
+from backend.api.utils.auth_helpers import is_admin
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.validation import validate_session_id
+
+# SSE event types that contain sensitive cost data (admin-only)
+COST_EVENT_TYPES = {"phase_cost_breakdown", "cost_anomaly"}
+
+# Fields within events that contain cost data (strip for non-admin)
+COST_FIELDS = {"cost", "total_cost", "phase_costs", "by_provider"}
+
+
+def strip_cost_data_from_event(event: dict) -> dict:
+    """Remove cost data from an event payload for non-admin users.
+
+    Args:
+        event: SSE event payload dict
+
+    Returns:
+        Event with cost fields stripped
+    """
+    # Skip cost-only events entirely
+    event_type = event.get("type")
+    if event_type in COST_EVENT_TYPES:
+        return None
+
+    # Strip cost fields from other events
+    result = {}
+    for key, value in event.items():
+        if key in COST_FIELDS:
+            continue  # Skip cost fields
+        if isinstance(value, dict):
+            # Recursively strip from nested dicts
+            result[key] = {k: v for k, v in value.items() if k not in COST_FIELDS}
+        else:
+            result[key] = value
+    return result
+
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +111,18 @@ router = APIRouter(prefix="/v1/sessions", tags=["streaming"])
 async def get_event_history(
     session_id: str,
     session_data: VerifiedSession,
+    current_user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Get historical events for a session.
 
     Checks Redis first (transient storage), then PostgreSQL (permanent storage).
 
+    Security: Cost data is stripped from events for non-admin users.
+
     Args:
         session_id: Session identifier
         session_data: Verified session (user_id, metadata) from dependency
+        current_user: Current authenticated user (for admin check)
 
     Returns:
         Dict with events array and count
@@ -90,6 +130,7 @@ async def get_event_history(
     Raises:
         HTTPException: If session not found or retrieval fails
     """
+    user_is_admin = is_admin(current_user)
     from bo1.state.repositories import session_repository
 
     try:
@@ -129,6 +170,15 @@ async def get_event_history(
                 logger.info(f"Loaded {len(events)} events from PostgreSQL fallback")
 
         logger.info(f"Retrieved {len(events)} historical events for session {session_id}")
+
+        # Security: Strip cost data from events for non-admin users
+        if not user_is_admin:
+            filtered_events = []
+            for event in events:
+                filtered = strip_cost_data_from_event(event)
+                if filtered is not None:  # None means skip entirely
+                    filtered_events.append(filtered)
+            events = filtered_events
 
         # Find last_event_id from events for resume support
         last_event_id = None
@@ -333,15 +383,19 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
 async def stream_session_events(
     session_id: str,
     last_event_id: str | None = None,
+    strip_cost_data: bool = False,
 ) -> AsyncGenerator[str, None]:
     r"""Stream deliberation events for a session via SSE using Redis PubSub.
 
     Supports session resume via Last-Event-ID header. If provided, replays
     any missed events from history before streaming new events.
 
+    Security: When strip_cost_data=True, cost-related fields are stripped from events.
+
     Args:
         session_id: Session identifier
         last_event_id: Optional Last-Event-ID from SSE reconnection (format: session_id:sequence)
+        strip_cost_data: If True, strip cost data from events (for non-admin users)
 
     Yields:
         SSE-formatted event strings with id field for resume support
@@ -415,6 +469,13 @@ async def stream_session_events(
                         if seq > resume_from_sequence:
                             event_type = payload.get("event_type")
                             data = payload.get("data", {})
+
+                            # Security: Filter cost data for non-admin users
+                            if strip_cost_data:
+                                if event_type in COST_EVENT_TYPES:
+                                    continue  # Skip cost-only events entirely
+                                data = strip_cost_data_from_event(data) or data
+
                             event_id = make_event_id(session_id, seq)
 
                             # Track as seen to dedupe later
@@ -469,6 +530,12 @@ async def stream_session_events(
                     # Dedupe: skip if already sent during replay
                     if seq in seen_sequences:
                         continue
+
+                    # Security: Filter cost data for non-admin users
+                    if strip_cost_data:
+                        if event_type in COST_EVENT_TYPES:
+                            continue  # Skip cost-only events entirely
+                        data = strip_cost_data_from_event(data) or data
 
                     # Create event ID for SSE resume support
                     event_id = make_event_id(session_id, seq) if seq > 0 else None
@@ -631,15 +698,19 @@ async def stream_session_events(
 async def stream_deliberation(
     session_id: str,
     session_data: VerifiedSession,
+    current_user: dict = Depends(get_current_user),
     last_event_id: str | None = Header(None, alias="Last-Event-ID"),
 ) -> StreamingResponse:
     """Stream deliberation events via Server-Sent Events.
 
     Supports session resume via Last-Event-ID header.
 
+    Security: Cost data is stripped from events for non-admin users.
+
     Args:
         session_id: Session identifier
         session_data: Verified session (user_id, metadata) from dependency
+        current_user: Current authenticated user (for admin check)
         last_event_id: Optional Last-Event-ID header for resume support
 
     Returns:
@@ -648,6 +719,7 @@ async def stream_deliberation(
     Raises:
         HTTPException: If session not found
     """
+    user_is_admin = is_admin(current_user)
     try:
         # Unpack verified session data
         user_id, metadata = session_data
@@ -695,8 +767,11 @@ async def stream_deliberation(
         )
 
         # Return streaming response with resume support
+        # Security: Pass admin flag to filter cost events for non-admin users
         return StreamingResponse(
-            stream_session_events(session_id, last_event_id=last_event_id),
+            stream_session_events(
+                session_id, last_event_id=last_event_id, strip_cost_data=not user_is_admin
+            ),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",

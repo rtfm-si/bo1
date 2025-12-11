@@ -1,0 +1,144 @@
+groups:
+  - name: slo_alerts
+    rules:
+      # High Error Rate - Warning
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 1%)"
+
+      # High Error Rate - Critical
+      - alert: HighErrorRateCritical
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      # High Latency P95 - Warning
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P95 latency detected"
+          description: "P95 latency is {{ $value | humanizeDuration }} (threshold: 1s)"
+
+      # High Latency P95 - Critical
+      - alert: HighLatencyP95Critical
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical P95 latency detected"
+          description: "P95 latency is {{ $value | humanizeDuration }} (threshold: 2s)"
+
+      # Low Availability
+      - alert: LowAvailability
+        expr: |
+          (
+            sum(rate(http_requests_total{status!~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m]))
+          ) < 0.99
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low availability detected"
+          description: "Availability is {{ $value | humanizePercentage }} (threshold: 99%)"
+
+      # Session Completion Low
+      - alert: SessionCompletionLow
+        expr: |
+          (
+            sum(bo1_sessions_total{status="completed"})
+            / sum(bo1_sessions_total{status="started"})
+          ) < 0.90
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low session completion rate"
+          description: "Session completion is {{ $value | humanizePercentage }} (threshold: 90%)"
+
+      # Burn Rate High (1h window consuming >10% of monthly error budget)
+      - alert: BurnRateHigh
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[1h]))
+            / sum(rate(http_requests_total[1h]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error budget burn rate"
+          description: "1h error rate is {{ $value | humanizePercentage }}, burning error budget too fast"
+
+  - name: infrastructure_alerts
+    rules:
+      # API Down
+      - alert: APIDown
+        expr: up{job="bo1-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bo1 API is down"
+          description: "The API service has been unreachable for more than 1 minute"
+
+      # Redis Down
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been unreachable for more than 1 minute"
+
+      # PostgreSQL Down
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL has been unreachable for more than 1 minute"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            container_memory_usage_bytes{name=~"bo1.*"}
+            / container_spec_memory_limit_bytes{name=~"bo1.*"}
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage in {{ $labels.name }}"
+          description: "Memory usage is {{ $value | humanizePercentage }} of limit"

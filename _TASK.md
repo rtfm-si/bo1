@@ -55,24 +55,24 @@
 - [x] [DATA][P1] Show analysis history and chart gallery on dataset detail ✅ AnalysisGallery.svelte + GET /api/v1/datasets/{id}/analyses
 - [x] [DATA][P1] Add dataset attachment selector to meeting creation ✅ g3_add_dataset_sessions.py + Svelte 5 selector + ownership validation
 
-### P1  Stripe Integration [P1-STRIPE]
+### P4 Stripe Integration [P4-STRIPE]
 
-- [ ] [BILLING][P1] Create Stripe account and configure products/prices (Free/Starter/Pro)
-- [ ] [BILLING][P1] Add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` to env
-- [ ] [BILLING][P1] Install `stripe` package
-- [ ] [BILLING][P1] Implement Stripe webhook handler endpoint
-- [ ] [BILLING][P1] Handle key webhook events (checkout.session.completed, subscription.updated/deleted, invoice.payment_failed)
-- [ ] [BILLING][P1] Add idempotency checks to webhook handler
-- [ ] [BILLING][P1] Implement checkout session creation endpoint
-- [ ] [BILLING][P1] Handle checkout success/cancel redirects
-- [ ] [BILLING][P1] Implement billing portal session creation
-- [ ] [BILLING][P1] Store stripe_customer_id in users table
-- [ ] [BILLING][P1] Implement tier checking middleware
-- [ ] [BILLING][P1] Add meeting limit checks to session creation
-- [ ] [BILLING][P1] Add graceful upgrade prompts on limit reached
-- [ ] [BILLING][P1] Add Checkout button integration to billing settings
-- [ ] [BILLING][P1] Fix Portal button stub in billing settings
-- [ ] [BILLING][P1] Show upgrade prompts when near usage limit
+- [ ] [BILLING][P4] Create Stripe account and configure products/prices (Free/Starter/Pro)
+- [ ] [BILLING][P4] Add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` to env
+- [ ] [BILLING][P4] Install `stripe` package
+- [ ] [BILLING][P4] Implement Stripe webhook handler endpoint
+- [ ] [BILLING][P4] Handle key webhook events (checkout.session.completed, subscription.updated/deleted, invoice.payment_failed)
+- [ ] [BILLING][P4] Add idempotency checks to webhook handler
+- [ ] [BILLING][P4] Implement checkout session creation endpoint
+- [ ] [BILLING][P4] Handle checkout success/cancel redirects
+- [ ] [BILLING][P4] Implement billing portal session creation
+- [ ] [BILLING][P4] Store stripe_customer_id in users table
+- [ ] [BILLING][P4] Implement tier checking middleware
+- [ ] [BILLING][P4] Add meeting limit checks to session creation
+- [ ] [BILLING][P4] Add graceful upgrade prompts on limit reached
+- [ ] [BILLING][P4] Add Checkout button integration to billing settings
+- [ ] [BILLING][P4] Fix Portal button stub in billing settings
+- [ ] [BILLING][P4] Show upgrade prompts when near usage limit
 
 ### P1  Critical UX Fixes [P1-UI]
 
@@ -81,29 +81,30 @@
 - [x] [UX][P1] Add "Actions needing attention" section (overdue, due today) ✅ Added to dashboard with overdue/due-today filtering
 - [x] [UX][P1] Add progress visualization (completion trends) ✅ Added CompletionTrendsChart component with /api/v1/actions/stats endpoint
 - [x] [UX][P1] Add quick actions panel (new meeting, view actions) ✅ Added 3-card quick actions grid to dashboard
-- [ ] [UX][P1] Add new user onboarding checklist
+- [x] [UX][P1] Add new user onboarding checklist ✅ OnboardingChecklist.svelte on dashboard with 3-step guide
 
 #### Navigation Improvements
 
-- [ ] [UX][P1] Group related sidebar items (Decisions, Actions, Data)
+- [x] [UX][P1] Group related sidebar items (Decisions, Actions, Data) ✅ Header nav now uses NavDropdown with Work (Actions, Projects) and Data (Datasets) groups
+- [x] [UX][P1] Improve UI for navigation items (Decisions, Actions, Data) - remove duplication and consolidate ✅ Removed breadcrumbs from top-level pages, grouped nav with dropdowns
 - [x] [UX][P1] Add "Back to meeting" from action detail ✅ Added header link in action detail page
-- [ ] [UX][P1] Add loading skeletons for async content
+- [x] [UX][P1] Add loading skeletons for async content ✅ Extended ShimmerSkeleton with list-item/stat-card/chart variants, added to Dashboard/Actions pages
 
 #### Actions Page Polish
 
 - [x] [UX][P1] Add filter by status, due date, meeting to actions page ✅ Added status and due date dropdowns
-- [ ] [UX][P1] Add bulk actions (mark multiple complete)
+- [x] [UX][P1] Add bulk actions (mark multiple complete) ✅ Added checkboxes, select all, bulk action bar with Mark Complete/Start/To Do
 - [x] [UX][P1] Add due date warnings (overdue = red, due soon = amber) ✅ Added to dashboard, actions page, action detail
 
-### P1  Email Notifications [P1-EMAIL]
+### P1 Email Notifications [P1-EMAIL] ✅ COMPLETE
 
-- [ ] [EMAIL][P1] Choose email provider and configure domain (SPF, DKIM)
-- [ ] [EMAIL][P1] Add `EMAIL_*` env vars to config
-- [ ] [EMAIL][P1] Implement email sender service (Resend or similar)
-- [ ] [EMAIL][P1] Create welcome email template (on signup)
-- [ ] [EMAIL][P1] Create meeting completed email template (summary + actions)
-- [ ] [EMAIL][P1] Create action due reminder template (24h before)
-- [ ] [EMAIL][P1] Create weekly digest template (actions summary)
+- [x] [EMAIL][P1] Choose email provider and configure domain (SPF, DKIM) ✅ Resend configured
+- [x] [EMAIL][P1] Add EMAIL env vars to config ✅ RESEND_API_KEY in config.py
+- [x] [EMAIL][P1] Implement email sender service ✅ backend/services/email.py
+- [x] [EMAIL][P1] Create welcome email template ✅ render_welcome_email() + supertokens hook
+- [x] [EMAIL][P1] Create meeting completed email template ✅ render_meeting_completed_email()
+- [x] [EMAIL][P1] Create action reminder template ✅ render_action_reminder_email()
+- [x] [EMAIL][P1] Create weekly digest template ✅ render_weekly_digest_email()
 
 ### P2  Polish & Growth
 
@@ -186,13 +187,13 @@
 
 ### GDPR User Rights [GDPR]
 
-- [ ] [GDPR][P1] Implement GET /api/v1/user/export endpoint (Art. 15 data export)
-- [ ] [GDPR][P1] Implement DELETE /api/v1/user/delete endpoint with anonymization (Art. 17)
-- [ ] [GDPR][P1] Create audit logging for data export/deletion requests
-- [ ] [GDPR][P1] Clarify data retention policy duration (365 days vs compliance needs)
-- [ ] [GDPR][P1] Implement user-configurable retention period setting
-- [ ] [GDPR][P1] Implement scheduled cleanup job for expired sessions
-- [ ] [GDPR][P1] Add rate limiting to export endpoint (1 request per 24h)
+- [x] [GDPR][P1] Implement GET /api/v1/user/export endpoint (Art. 15 data export) ✅ backend/api/user.py
+- [x] [GDPR][P1] Implement DELETE /api/v1/user/delete endpoint with anonymization (Art. 17) ✅ backend/api/user.py
+- [x] [GDPR][P1] Create audit logging for data export/deletion requests ✅ backend/services/audit.py + l1_add_gdpr_audit_log.py
+- [ ] [GDPR][P2] Clarify data retention policy duration (365 days vs compliance needs)
+- [ ] [GDPR][P2] Implement user-configurable retention period setting
+- [x] [GDPR][P1] Implement scheduled cleanup job for expired sessions ✅ backend/jobs/session_cleanup.py
+- [x] [GDPR][P1] Add rate limiting to export endpoint (1 request per 24h) ✅ via audit.get_recent_export_request()
 
 ### Promotions System [PROMO]
 
@@ -214,48 +215,50 @@
 
 ### Stripe Integration (Checkout & Webhooks) [STRIPE-EXT]
 
-- [ ] [STRIPE][P1] Implement Stripe webhook signature validation
-- [ ] [STRIPE][P1] Handle invoice.payment_failed webhook
-- [ ] [STRIPE][P1] Implement replay attack prevention (reject old timestamps)
-- [ ] [STRIPE][P1] Implement webhook idempotency
-- [ ] [STRIPE][P1] Create billing/success page
-- [ ] [STRIPE][P1] Create billing/cancel page
-- [ ] [STRIPE][P1] Implement Stripe Customer Portal endpoint
+- [ ] [STRIPE][P4] Implement Stripe webhook signature validation
+- [ ] [STRIPE][P4] Handle invoice.payment_failed webhook
+- [ ] [STRIPE][P4] Implement replay attack prevention (reject old timestamps)
+- [ ] [STRIPE][P4] Implement webhook idempotency
+- [ ] [STRIPE][P4] Create billing/success page
+- [ ] [STRIPE][P4] Create billing/cancel page
+- [ ] [STRIPE][P4] Implement Stripe Customer Portal endpoint
 
 ### Email Integration (Resend) [EMAIL-EXT]
 
-- [ ] [EMAIL][P1] Create Resend account and configure domain (SPF, DKIM)
-- [ ] [EMAIL][P1] Create backend/services/email.py service
-- [ ] [EMAIL][P1] Create backend/services/email_templates.py
-- [ ] [EMAIL][P1] Implement welcome email trigger on signup
-- [ ] [EMAIL][P1] Implement payment receipt email trigger on Stripe webhook
-- [ ] [EMAIL][P1] Add unsubscribe link to all emails
-- [ ] [EMAIL][P1] Create email preferences page
-- [ ] [EMAIL][P1] Test email deliverability across clients
+- [x] [EMAIL][P1] Create Resend account and configure domain (SPF, DKIM) ✅ Prod configured
+- [x] [EMAIL][P1] Create backend/services/email.py service ✅ send_email(), send_email_async(), retries
+- [x] [EMAIL][P1] Create backend/services/email_templates.py ✅ welcome, meeting_completed, action_reminder, weekly_digest
+- [x] [EMAIL][P1] Implement welcome email trigger on signup ✅ supertokens_config.py hook
+- [ ] [EMAIL][P4] Implement payment receipt email trigger on Stripe webhook - blocked on Stripe integration
+- [x] [EMAIL][P1] Add unsubscribe link to all emails ✅ generate_unsubscribe_token() + /v1/email/unsubscribe endpoint
+- [ ] [EMAIL][P2] Create email preferences page (frontend) - API exists at GET/PATCH /v1/user/email-preferences
+- [ ] [EMAIL][P2] Test email deliverability across clients
 
 ### Production Monitoring [MONITORING]
 
-- [ ] [MONITORING][P1] Create backend/services/monitoring.py for runaway session detection
-- [ ] [MONITORING][P1] Create admin session kill endpoint
-- [ ] [MONITORING][P1] Implement ntfy.sh alert integration
-- [ ] [MONITORING][P1] Create backend/services/analytics.py for cost aggregation
-- [ ] [MONITORING][P1] Create admin cost analytics endpoints
-- [ ] [MONITORING][P1] Create admin CLI cost report script
-- [ ] [MONITORING][P1] Implement per-tier rate limiting middleware
-- [ ] [MONITORING][P1] Implement advanced health checks (readiness/liveness probes)
-- [ ] [MONITORING][P1] Implement graceful shutdown handler
-- [ ] [MONITORING][P1] Create Kubernetes deployment manifest
-- [ ] [MONITORING][P1] Implement vendor outage detection and degraded mode
-- [ ] [MONITORING][P1] Implement per-user cost tracking and budget thresholds
-- [ ] [MONITORING][P1] Create feature flag service
-- [ ] [MONITORING][P1] Define SLIs/SLOs and create Grafana SLO dashboard
-- [ ] [MONITORING][P1] Instrument FastAPI with Prometheus metrics
-- [ ] [MONITORING][P1] Create Grafana dashboards (API, deliberation, cost, infrastructure)
-- [ ] [MONITORING][P1] Configure Prometheus alerting rules
-- [ ] [MONITORING][P1] Configure structured JSON logging with context fields
+- [x] [MONITORING][P1] Create backend/services/monitoring.py for runaway session detection ✅ detect_runaway_sessions() + RunawaySessionResult
+- [x] [MONITORING][P1] Create admin session kill endpoint ✅ POST /api/admin/sessions/{id}/kill + POST /api/admin/sessions/kill-all (already existed)
+- [x] [MONITORING][P1] Implement ntfy.sh alert integration ✅ backend/services/alerts.py with alert_runaway_session(), alert_session_killed()
+- [x] [MONITORING][P1] Create session_kills audit table migration ✅ m1_add_session_kills.py
+- [x] [MONITORING][P1] Create background monitoring job ✅ backend/jobs/session_monitoring.py (CLI + async)
+- [x] [MONITORING][P1] Create backend/services/analytics.py for cost aggregation ✅ backend/services/analytics.py (CostSummary, UserCost, DailyCost, CostReport)
+- [x] [MONITORING][P1] Create admin cost analytics endpoints ✅ GET /api/admin/analytics/costs, /costs/users, /costs/daily
+- [x] [MONITORING][P1] Create admin CLI cost report script ✅ backend/scripts/cost_report.py (text/json/csv formats)
+- [x] [MONITORING][P1] Implement per-tier rate limiting middleware ✅ backend/api/middleware/rate_limit.py (Redis-backed, per-tier limits via RateLimits constants)
+- [x] [MONITORING][P1] Implement advanced health checks (readiness/liveness probes) ✅ /api/health (liveness), /api/ready (readiness with Postgres+Redis checks)
+- [x] [MONITORING][P1] Implement graceful shutdown handler ✅ backend/api/main.py (SIGTERM/SIGINT handlers, in-flight request draining, 30s timeout)
+- [ ] [MONITORING][P1] Create Kubernetes deployment manifest - are we using kubernetes?
+- [x] [MONITORING][P1] Implement vendor outage detection and degraded mode ✅ vendor_health.py + service_monitor.py + ServiceStatusBanner.svelte + /api/v1/status + ntfy alerts
+- [x] [MONITORING][P1] Implement per-user cost tracking and budget thresholds ✅ user_cost_tracking.py + admin endpoints + ntfy alerts + session block on exceed
+- [x] [MONITORING][P1] Create feature flag service ✅ backend/services/feature_flags.py + admin API + require_feature() helper + Redis caching
+- [x] [MONITORING][P1] Define SLIs/SLOs and create Grafana SLO dashboard ✅ docs/slo.md + infra/grafana/dashboards/slo.json + recording rules
+- [x] [MONITORING][P1] Instrument FastAPI with Prometheus metrics ✅ middleware/metrics.py + custom business metrics (sessions, LLM costs, requests) + /metrics endpoint
+- [x] [MONITORING][P1] Create Grafana dashboards (API, deliberation, cost, infrastructure) ✅ infra/grafana/dashboards/{api,deliberation,cost,infrastructure}.json
+- [x] [MONITORING][P1] Configure Prometheus alerting rules ✅ infra/prometheus/alerts/slo.yml + infra/alertmanager/config.yml + docker-compose monitoring profile
+- [x] [MONITORING][P1] Configure structured JSON logging with context fields ✅ bo1/utils/logging.py (JsonFormatter, log_format setting, correlation_id integration)
 - [ ] [MONITORING][P1] Setup Grafana Loki for log aggregation
 - [ ] [MONITORING][P1] Implement audit logging middleware
-- [ ] [MONITORING][P1] Add security headers middleware
+- [x] [MONITORING][P1] Add security headers middleware ✅ backend/api/middleware/security_headers.py (X-Frame-Options, HSTS, CSP, etc.)
 
 ### Admin Dashboard [ADMIN-UI]
 
@@ -288,9 +291,9 @@
 - [ ] [DEPLOY][P1] Draft terms of service
 - [ ] [DEPLOY][P1] Create privacy policy and terms of service pages
 - [ ] [DEPLOY][P1] Sign DPAs with data processors (Supabase, Resend, Sentry)
-- [ ] [DEPLOY][P1] Create GitHub Actions CI workflow (test.yml)
+- [x] [DEPLOY][P1] Create GitHub Actions CI workflow (test.yml) ✅ .github/workflows/ci.yml (lint, typecheck, pytest, coverage)
 - [ ] [DEPLOY][P1] Create staging deployment workflow (deploy-staging.yml)
-- [ ] [DEPLOY][P1] Create production deployment workflow (deploy-production.yml)
+- [x] [DEPLOY][P1] Create production deployment workflow (deploy-production.yml) ✅ .github/workflows/deploy-production.yml (blue-green, security scan, health checks)
 - [ ] [DEPLOY][P1] Configure GitHub secrets
 - [ ] [DEPLOY][P1] Purchase domain and configure DNS
 - [ ] [DEPLOY][P1] Setup SSL/TLS with Let's Encrypt
@@ -322,11 +325,11 @@
 - [ ] [ADMIN][P1] Extend admin pages with cost tracking and reporting views
 - [ ] [ADMIN][P1] Implement onboarding pipeline analytics (funnel metrics)
 - [ ] [ADMIN][P1] Implement app usage metrics dashboard (DAU, sessions, actions)
-- [ ] [SECURITY][P1] Audit API to verify costs not exposed to non-admin users
+- [x] [SECURITY][P1] Audit API to verify costs not exposed to non-admin users ✅ Fixed: GET /sessions/{id}/costs now admin-only, SessionResponse.cost stripped for non-admin, SSE cost events filtered
 
 ### Governance Audits [AUDIT]
 
-- [ ] [AUDIT][P1] Run governance audit: clean (code quality, lint, format)
+- [x] [AUDIT][P1] Run governance audit: clean (code quality, lint, format) ✅ ruff check/format, mypy, svelte-check, pre-commit all pass
 - [ ] [AUDIT][P1] Run governance audit: secure (security scan)
 - [ ] [AUDIT][P1] Run governance audit: full (comprehensive review)
 
@@ -353,13 +356,13 @@
 
 ### Onboarding Flow [ONBOARDING]
 
-- [ ] [ONBOARDING][P1] Implement new account → business context → first question flow
-- [ ] [ONBOARDING][P1] Generate demo questions derived from business context
+- [x] [ONBOARDING][P1] Implement new account → business context → first question flow ✅ backend/api/onboarding.py + frontend/src/routes/(app)/onboarding/+page.svelte (pre-existing) + welcome page redirect
+- [x] [ONBOARDING][P1] Generate demo questions derived from business context ✅ backend/services/demo_questions.py + GET /api/v1/context/demo-questions + frontend/src/routes/(app)/welcome/+page.svelte
 
 ### Integrations [INTEGRATIONS]
 
 - [ ] [INTEGRATIONS][P2] Implement Google Calendar integration for actions (sync due dates)
-- [ ] [LLM][P1] Implement OpenAI fallback when Anthropic unavailable
+- [x] [LLM][P1] Implement OpenAI fallback when Anthropic unavailable ✅ Provider-agnostic tier system (core/fast) + circuit breaker fallback
 
 ### Backlog Review [META]
 
@@ -404,3 +407,97 @@
 
 - [x] [BUG][P1] /meeting breadcrumb link returns 404 (no meetings list page exists) ✅ Created /meeting/+page.svelte
 - [x] [BUG][P1] Clicking action in dashboard navigates to meeting instead of action detail page ✅ Fixed href to /actions/{id}
+
+---
+
+## Task backlog (from \_TODO.md, 2025-12-11)
+
+### Gantt Chart UX [GANTT-UX]
+
+- [x] [UX][P1] Fix Gantt click-drag: only click-and-release should open action; click-drag should not trigger navigation ✅ Drag detection via mouse events, 5px threshold
+- [ ] [UX][P2] Clarify scope of: "are the dates persisted on drag?" (confirm Gantt drag-to-reschedule saves to DB)
+- [ ] [UX][P2] Improve Gantt colour coding by project and/or status
+
+### Action Tracking Enhancements [ACTION-TRACK]
+
+- [ ] [UX][P2] Show full action details in exported PDF/report (not just title)
+- [ ] [UX][P2] Track action delays and early start/finish dates for variance analysis
+- [ ] [UX][P2] Add progress measurement to actions (percentage, points, or expanded status states)
+
+### Projects System (Partial) [PROJECTS-PARTIAL]
+
+- [ ] [PROJECTS][P2] Allow actions/meetings to be assigned to projects
+- [ ] [PROJECTS][P2] Implement action dependencies between projects
+
+### Admin Observability [ADMIN-OBS]
+
+- [ ] [ADMIN][P1] Extend admin pages with user metrics (signup rate, active users)
+- [ ] [ADMIN][P1] Extend admin pages with usage metrics (meeting count, action count, API calls)
+- [ ] [ADMIN][P2] Add admin access link to Grafana dashboard
+- [ ] [ADMIN][P2] Add admin access link to Prometheus dashboard
+- [ ] [ADMIN][P2] Add admin access link to Sentry error tracking
+- [ ] [ADMIN][P2] Add admin view of onboarding funnel analytics
+
+### Navigation & Header [NAV-HEADER]
+
+- [x] [UX][P1] Highlight header nav link for current/active page ✅ Header.svelte isActive() with $page store
+
+### Data Analysis Persistence [DATA-PERSIST]
+
+- [x] [BUG][P1] Persist analysis clarifying questions/answers so they are available in future sessions ✅ Added clarifications JSONB column to datasets, auto-detect Q&A patterns, inject prior context into prompts
+
+### Dashboard Redesign [DASH-REDESIGN]
+
+- [ ] [UX][P2] Replace dashboard completion trend bar chart with GitHub-style heatmap (meetings run, completed, tasks started, planned)
+
+### Dev Workflow [DEV-FLOW]
+
+- [ ] [DEV][P2] Clarify scope of: "update live MCP prompt (fix.md) - dev server is running via docker only, stop if inaccessible"
+- [ ] [UX][P2] Add observability for slow/failing/repeated operations (timing, error tracking)
+- [ ] [DEV][P3] Automate plan→build flow loop using hooks
+
+### Deliberation Improvements [DELIB-IMPROVE]
+
+- [ ] [DELIB][P2] Evaluate adding pragmatist/realist expert persona to improve actionable recommendations
+
+### Insights System [INSIGHTS]
+
+- [ ] [UX][P2] Improve insights display format and presentation
+- [ ] [UX][P2] Allow re-answering or editing insights so future meetings have up-to-date context
+
+---
+
+## Task backlog (from \_TODO.md, 2025-12-11)
+
+### Sub-Problem Meeting UI [SUBPROBLEM-UI]
+
+- [x] [BUG][P1] Fix meeting UI not auto-displaying meeting events (requires manual refresh) ✅ Added subproblem_waiting to SSE EVENT_TYPES + verified $state.raw reactivity
+- [x] [BUG][P1] Fix sub-problem showing "meeting complete" twice but not showing experts selected or their contributions ✅ Fixed singleton event deduplication in sessionStore.svelte.ts
+- [x] [UX][P1] Mask or replace "subproblem_waiting" technical event with user-friendly message ("Waiting for sub-problems 1, 2 to complete..."), these should disappear when the meeting starts and new content appears ✅ Created SubProblemWaiting.svelte component
+- [x] [BUG][P1] Fix summary showing sub-problem 1 completed before all sub-problems finished (timing/sequencing issue) ✅ Fixed showConclusionTab logic to require meta_synthesis for multi-SP meetings
+
+### Meeting Page UI Issues [MEETING-UI]
+
+- [x] [BUG][P0] Parse and format synthesis JSON in Executive Summary (currently displays raw JSON with curly braces) ✅ Fixed frontend xml-parser.ts to handle JSON+footer format
+- [x] [BUG][P1] Fix page header to show "Meeting Complete" instead of "Meeting in Progress" for completed meetings ✅ MeetingHeader.svelte now status-aware
+- [x] [BUG][P1] Populate sidebar metrics (Rounds, Contributions, Risks) from session events instead of showing 0 ✅ DecisionMetrics already derives from events (verified)
+- [x] [BUG][P1] Fix Focus Area tab switching (clicking tabs doesn't change displayed content) ✅ Added tab validation in viewState.svelte.ts
+- [ ] [UX][P2] Show descriptive sub-problem goals in Focus Area tab labels instead of "Focus Area 1"
+- [ ] [UX][P2] Hide or update "Connected" indicator for completed meetings
+- [ ] [UX][P2] Humanize meeting breadcrumb with problem statement excerpt instead of raw ID
+- [x] [UX][P1] Auto-scroll to clarification input when user action required (not obvious input is needed) ✅ Added scrollIntoView effect + attention animation + auto-focus
+- [ ] [TEST][P2] Add E2E test for completed meeting view (header, synthesis, tabs, metrics)
+
+### Early Meeting Termination [MEETING-TERMINATE]
+
+- [ ] [UX][P2] Add early meeting termination option when critical blocker identified in sub-problem
+- [ ] [UX][P2] Add user prompts for critical blockers: provide info, continue best-endeavours, or cancel
+- [ ] [BILLING][P2] Implement partial meeting billing (only completed meetings count toward usage)
+
+---
+
+## Task backlog (from \_TODO.md, 2025-12-11)
+
+### Storage Organization [STORAGE-ORG]
+
+- [ ] [STORAGE][P2] Implement workspace/user folder hierarchy for DO Spaces uploads (organize user files under workspace_id/user_id paths)

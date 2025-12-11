@@ -79,7 +79,9 @@ def _create_redis_checkpointer() -> Any:
         try:
             import redis
 
-            client = redis.from_url(redis_url, socket_connect_timeout=2)
+            client = redis.from_url(  # type: ignore[no-untyped-call,unused-ignore]
+                redis_url, socket_connect_timeout=2
+            )
             client.ping()
             client.close()
         except Exception as e:
@@ -321,7 +323,7 @@ def _check_redis_health(info: dict[str, Any]) -> dict[str, Any]:
     else:
         redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
-    client = redis.from_url(redis_url)
+    client = redis.from_url(redis_url)  # type: ignore[no-untyped-call,unused-ignore]
     client.ping()
     client.close()
 

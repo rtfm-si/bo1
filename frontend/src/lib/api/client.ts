@@ -97,6 +97,18 @@ export interface OnboardingStatus {
 	completed_at: string | null;
 }
 
+export interface DemoQuestion {
+	question: string;
+	category: string;
+	relevance: string;
+}
+
+export interface DemoQuestionsResponse {
+	questions: DemoQuestion[];
+	generated: boolean;
+	cached: boolean;
+}
+
 export interface EnrichmentRequest {
 	url: string;
 }
@@ -572,6 +584,11 @@ export class ApiClient {
 
 	async deleteUserContext(): Promise<{ status: string }> {
 		return this.delete<{ status: string }>('/api/v1/context');
+	}
+
+	async getDemoQuestions(refresh: boolean = false): Promise<DemoQuestionsResponse> {
+		const endpoint = refresh ? '/api/v1/context/demo-questions?refresh=true' : '/api/v1/context/demo-questions';
+		return this.fetch<DemoQuestionsResponse>(endpoint);
 	}
 
 	// ==========================================================================

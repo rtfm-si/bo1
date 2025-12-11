@@ -206,10 +206,50 @@ export function isMarkdownFormatted(content: string): boolean {
 
 /**
  * Check if content appears to be JSON-formatted (meta-synthesis)
+ * Handles JSON with trailing markdown footer (e.g., JSON + "---" + footer)
  */
 export function isJSONFormatted(content: string): boolean {
 	const trimmed = content.trim();
-	return trimmed.startsWith('{') && trimmed.endsWith('}');
+	// Check if starts with { - may have trailing markdown footer
+	if (!trimmed.startsWith('{')) return false;
+	// Pure JSON ends with }
+	if (trimmed.endsWith('}')) return true;
+	// JSON + footer pattern: {...}\n\n---
+	// Find the last } before any --- delimiter
+	const delimiterIndex = trimmed.indexOf('\n\n---');
+	if (delimiterIndex > 0) {
+		const jsonPart = trimmed.substring(0, delimiterIndex).trim();
+		return jsonPart.endsWith('}');
+	}
+	return false;
+}
+
+/**
+ * Extract JSON portion from content that may have trailing markdown footer
+ */
+function extractJSONFromContent(content: string): string {
+	const trimmed = content.trim();
+	// If pure JSON, return as-is
+	if (trimmed.endsWith('}')) return trimmed;
+	// Look for JSON + footer pattern: {...}\n\n---
+	const delimiterIndex = trimmed.indexOf('\n\n---');
+	if (delimiterIndex > 0) {
+		return trimmed.substring(0, delimiterIndex).trim();
+	}
+	// Fallback: try to find balanced JSON by counting braces
+	let braceCount = 0;
+	let jsonEnd = -1;
+	for (let i = 0; i < trimmed.length; i++) {
+		if (trimmed[i] === '{') braceCount++;
+		else if (trimmed[i] === '}') {
+			braceCount--;
+			if (braceCount === 0) {
+				jsonEnd = i + 1;
+				break;
+			}
+		}
+	}
+	return jsonEnd > 0 ? trimmed.substring(0, jsonEnd) : trimmed;
 }
 
 /**
@@ -217,7 +257,8 @@ export function isJSONFormatted(content: string): boolean {
  */
 function parseMetaSynthesisJSON(content: string): SynthesisSection {
 	try {
-		const json: MetaSynthesisJSON = JSON.parse(content);
+		const jsonContent = extractJSONFromContent(content);
+		const json: MetaSynthesisJSON = JSON.parse(jsonContent);
 		const sections: SynthesisSection = {};
 
 		// Map synthesis_summary to executive_summary

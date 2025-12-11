@@ -11,6 +11,7 @@ authors = [
 dependencies = [
     # LLM & Orchestration - Updated to tested versions with major version caps
     "anthropic>=0.74.1,<1.0", # Latest stable (0.74.1), cap before 1.0
+    "openai>=1.56.0,<2.0", # OpenAI Python SDK (fallback provider)
     "langchain>=1.0.8,<2.0", # 1.0.8 stable API
     # langchain-anthropic removed - code uses raw Anthropic SDK directly
     "langchain-community>=0.4.0,<1.0", # Current stable

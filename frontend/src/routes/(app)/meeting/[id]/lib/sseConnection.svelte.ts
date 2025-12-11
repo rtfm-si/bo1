@@ -26,6 +26,7 @@ const EVENT_TYPES = [
 	'persona_selected',
 	'persona_selection_complete',
 	'subproblem_started',
+	'subproblem_waiting', // Sub-problem waiting for dependencies
 	'initial_round_started',
 	'contribution',
 	'moderator_intervention',

@@ -8,6 +8,7 @@
 	import type { Snippet } from 'svelte';
 	import Header from '$lib/components/Header.svelte';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
+	import ServiceStatusBanner from '$lib/components/ui/ServiceStatusBanner.svelte';
 	import { getBreadcrumbs } from '$lib/utils/breadcrumbs';
 
 	const log = createLogger('AppLayout');
@@ -23,8 +24,8 @@
 	// Generate breadcrumbs from current path
 	const breadcrumbs = $derived(getBreadcrumbs($page.url.pathname));
 
-	// Pages where we don't show breadcrumbs (dashboard is home)
-	const hideBreadcrumbPaths = ['/dashboard'];
+	// Pages where we don't show breadcrumbs (top-level pages accessible from nav)
+	const hideBreadcrumbPaths = ['/dashboard', '/actions', '/projects', '/datasets', '/settings'];
 	const showBreadcrumbs = $derived(!hideBreadcrumbPaths.includes($page.url.pathname));
 
 	onMount(() => {
@@ -64,6 +65,7 @@
 {:else}
 	<!-- Auth verified - show protected content -->
 	<div class="min-h-screen bg-slate-50 dark:bg-slate-900">
+		<ServiceStatusBanner />
 		<Header />
 		{#if showBreadcrumbs && breadcrumbs.length > 0}
 			<div class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">

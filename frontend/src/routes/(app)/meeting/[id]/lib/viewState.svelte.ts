@@ -53,6 +53,15 @@ export function createViewState(config: ViewStateConfig) {
 		if (tabs.length > 0 && !activeSubProblemTab) {
 			activeSubProblemTab = tabs[0].id;
 		}
+		// Also ensure active tab exists in tabs array (handles stale tab selection)
+		if (activeSubProblemTab && tabs.length > 0) {
+			const isValidTab = tabs.some(t => t.id === activeSubProblemTab) ||
+				activeSubProblemTab === 'conclusion' ||
+				activeSubProblemTab === 'actions';
+			if (!isValidTab) {
+				activeSubProblemTab = tabs[0].id;
+			}
+		}
 	}
 
 	function switchToConclusionIfCompleted(

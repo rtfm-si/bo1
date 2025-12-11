@@ -4,6 +4,7 @@ Provides reusable functions for:
 - User ID extraction from JWT tokens
 - Token validation
 - Authentication state checking
+- Feature flag checks
 """
 
 import logging
@@ -146,3 +147,57 @@ def get_subscription_tier(current_user: dict | None) -> str:
         return "free"
 
     return current_user.get("subscription_tier", "free")
+
+
+def require_feature(flag_name: str, current_user: dict | None) -> None:
+    """Require a feature flag to be enabled or raise 403.
+
+    Args:
+        flag_name: Feature flag name
+        current_user: User data dict from verify_jwt()
+
+    Raises:
+        HTTPException: 401 if not authenticated, 403 if feature disabled
+    """
+    if not current_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+        )
+
+    from backend.services import feature_flags as ff
+
+    user_id = current_user.get("user_id")
+    tier = get_subscription_tier(current_user)
+
+    if not ff.is_enabled(flag_name, user_id=user_id, tier=tier):
+        logger.info(
+            "Feature %s disabled for user %s (tier=%s)",
+            flag_name,
+            user_id,
+            tier,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail=f"Feature '{flag_name}' is not available for your account",
+        )
+
+
+def get_user_features(current_user: dict | None) -> dict[str, bool]:
+    """Get all feature flags evaluated for current user.
+
+    Args:
+        current_user: User data dict from verify_jwt()
+
+    Returns:
+        Dict of flag_name -> enabled
+    """
+    if not current_user:
+        return {}
+
+    from backend.services import feature_flags as ff
+
+    user_id = current_user.get("user_id")
+    tier = get_subscription_tier(current_user)
+
+    return ff.get_flags_for_user(user_id, tier) if user_id else {}

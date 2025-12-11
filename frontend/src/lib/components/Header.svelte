@@ -3,9 +3,30 @@
 	 * Header Component - Reusable navigation header with logo and auth
 	 */
 	import { goto, beforeNavigate } from '$app/navigation';
+	import { page } from '$app/stores';
 	import Button from '$lib/components/ui/Button.svelte';
+	import NavDropdown from '$lib/components/ui/NavDropdown.svelte';
 	import { isAuthenticated, user, signOut } from '$lib/stores/auth';
-	import { Menu, X } from 'lucide-svelte';
+	import { Menu, X, ChevronDown, ChevronRight } from 'lucide-svelte';
+
+	// Check if a nav link is active (supports prefix matching for nested routes)
+	function isActive(href: string): boolean {
+		const pathname = $page.url.pathname;
+		if (href === '/dashboard' || href === '/settings') {
+			return pathname === href;
+		}
+		return pathname === href || pathname.startsWith(href + '/');
+	}
+
+	// Navigation link groups
+	const workLinks = [
+		{ href: '/actions', label: 'Actions' },
+		{ href: '/projects', label: 'Projects' },
+	];
+
+	const dataLinks = [
+		{ href: '/datasets', label: 'Datasets' },
+	];
 
 	// Props
 	let {
@@ -18,18 +39,29 @@
 
 	// Mobile menu state
 	let mobileMenuOpen = $state(false);
+	let mobileWorkExpanded = $state(false);
+	let mobileDataExpanded = $state(false);
 
 	function toggleMobileMenu() {
 		mobileMenuOpen = !mobileMenuOpen;
+		// Reset expanded groups when closing
+		if (!mobileMenuOpen) {
+			mobileWorkExpanded = false;
+			mobileDataExpanded = false;
+		}
 	}
 
 	function closeMobileMenu() {
 		mobileMenuOpen = false;
+		mobileWorkExpanded = false;
+		mobileDataExpanded = false;
 	}
 
 	// Close mobile menu on navigation
 	beforeNavigate(() => {
 		mobileMenuOpen = false;
+		mobileWorkExpanded = false;
+		mobileDataExpanded = false;
 	});
 
 	// Navigation handlers
@@ -55,6 +87,12 @@
 			? 'bg-transparent'
 			: 'bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800'
 	);
+
+	// Check if group is active (any child link is active)
+	function isGroupActive(links: { href: string }[]): boolean {
+		const pathname = $page.url.pathname;
+		return links.some((link) => pathname === link.href || pathname.startsWith(link.href + '/'));
+	}
 </script>
 
 <header class={`sticky top-0 z-50 ${headerClasses}`}>
@@ -89,42 +127,32 @@
 			</a>
 
 			<!-- Desktop Navigation -->
-			<div class="hidden md:flex items-center gap-6">
+			<div class="hidden md:flex items-center gap-5">
 				{#if $isAuthenticated}
 					<a
 						href="/dashboard"
-						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+						class={isActive('/dashboard')
+							? 'text-brand-600 dark:text-brand-400 font-medium'
+							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}
 					>
 						Dashboard
 					</a>
-					<a
-						href="/actions"
-						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-					>
-						Actions
-					</a>
-					<a
-						href="/projects"
-						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-					>
-						Projects
-					</a>
-					<a
-						href="/datasets"
-						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-					>
-						Datasets
-					</a>
+					<NavDropdown label="Work" links={workLinks} isGroupActive={() => isGroupActive(workLinks)} />
+					<NavDropdown label="Data" links={dataLinks} isGroupActive={() => isGroupActive(dataLinks)} />
 					<a
 						href="/settings"
-						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+						class={isActive('/settings')
+							? 'text-brand-600 dark:text-brand-400 font-medium'
+							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}
 					>
 						Settings
 					</a>
 					{#if $user?.is_admin}
 						<a
 							href="/admin"
-							class="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors font-medium"
+							class={isActive('/admin')
+								? 'text-amber-700 dark:text-amber-300 font-bold'
+								: 'text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors font-medium'}
 						>
 							Admin
 						</a>
@@ -172,51 +200,109 @@
 	<!-- Mobile Navigation Menu -->
 	{#if mobileMenuOpen}
 		<div class="md:hidden border-t border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
-			<div class="px-4 py-4 space-y-3">
+			<div class="px-4 py-4 space-y-1">
 				{#if $isAuthenticated}
 					<a
 						href="/dashboard"
-						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+						class={isActive('/dashboard')
+							? 'block py-3 text-base font-medium text-brand-600 dark:text-brand-400'
+							: 'block py-3 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400'}
 						onclick={closeMobileMenu}
 					>
 						Dashboard
 					</a>
-					<a
-						href="/actions"
-						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
-						onclick={closeMobileMenu}
-					>
-						Actions
-					</a>
-					<a
-						href="/projects"
-						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
-						onclick={closeMobileMenu}
-					>
-						Projects
-					</a>
-					<a
-						href="/datasets"
-						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
-						onclick={closeMobileMenu}
-					>
-						Datasets
-					</a>
-					<a
-						href="/settings"
-						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
-						onclick={closeMobileMenu}
-					>
-						Settings
-					</a>
-					{#if $user?.is_admin}
+
+					<!-- Work Group (collapsible) -->
+					<div class="border-t border-neutral-100 dark:border-neutral-800">
+						<button
+							type="button"
+							class="w-full flex items-center justify-between py-3 text-base font-medium {isGroupActive(workLinks)
+								? 'text-brand-600 dark:text-brand-400'
+								: 'text-neutral-700 dark:text-neutral-300'}"
+							onclick={() => (mobileWorkExpanded = !mobileWorkExpanded)}
+							aria-expanded={mobileWorkExpanded}
+						>
+							Work
+							{#if mobileWorkExpanded}
+								<ChevronDown class="w-5 h-5" />
+							{:else}
+								<ChevronRight class="w-5 h-5" />
+							{/if}
+						</button>
+						{#if mobileWorkExpanded}
+							<div class="pl-4 pb-2 space-y-1">
+								{#each workLinks as link}
+									<a
+										href={link.href}
+										class={isActive(link.href)
+											? 'block py-2 text-sm font-medium text-brand-600 dark:text-brand-400'
+											: 'block py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400'}
+										onclick={closeMobileMenu}
+									>
+										{link.label}
+									</a>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<!-- Data Group (collapsible) -->
+					<div class="border-t border-neutral-100 dark:border-neutral-800">
+						<button
+							type="button"
+							class="w-full flex items-center justify-between py-3 text-base font-medium {isGroupActive(dataLinks)
+								? 'text-brand-600 dark:text-brand-400'
+								: 'text-neutral-700 dark:text-neutral-300'}"
+							onclick={() => (mobileDataExpanded = !mobileDataExpanded)}
+							aria-expanded={mobileDataExpanded}
+						>
+							Data
+							{#if mobileDataExpanded}
+								<ChevronDown class="w-5 h-5" />
+							{:else}
+								<ChevronRight class="w-5 h-5" />
+							{/if}
+						</button>
+						{#if mobileDataExpanded}
+							<div class="pl-4 pb-2 space-y-1">
+								{#each dataLinks as link}
+									<a
+										href={link.href}
+										class={isActive(link.href)
+											? 'block py-2 text-sm font-medium text-brand-600 dark:text-brand-400'
+											: 'block py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400'}
+										onclick={closeMobileMenu}
+									>
+										{link.label}
+									</a>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<div class="border-t border-neutral-100 dark:border-neutral-800">
 						<a
-							href="/admin"
-							class="block py-2 text-base font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+							href="/settings"
+							class={isActive('/settings')
+								? 'block py-3 text-base font-medium text-brand-600 dark:text-brand-400'
+								: 'block py-3 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400'}
 							onclick={closeMobileMenu}
 						>
-							Admin
+							Settings
 						</a>
+					</div>
+					{#if $user?.is_admin}
+						<div class="border-t border-neutral-100 dark:border-neutral-800">
+							<a
+								href="/admin"
+								class={isActive('/admin')
+									? 'block py-3 text-base font-bold text-amber-700 dark:text-amber-300'
+									: 'block py-3 text-base font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300'}
+								onclick={closeMobileMenu}
+							>
+								Admin
+							</a>
+						</div>
 					{/if}
 					<div class="pt-3 border-t border-neutral-200 dark:border-neutral-700">
 						{#if $user?.email && !$user.email.endsWith('@placeholder.local')}
@@ -236,14 +322,14 @@
 				{:else}
 					<a
 						href="/#how-it-works"
-						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+						class="block py-3 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
 						onclick={closeMobileMenu}
 					>
 						How It Works
 					</a>
 					<a
 						href="/#features"
-						class="block py-2 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+						class="block py-3 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
 						onclick={closeMobileMenu}
 					>
 						Features

@@ -1,0 +1,65 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default'
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical'
+      group_wait: 10s
+      repeat_interval: 1h
+
+    # Warning alerts - batched
+    - match:
+        severity: warning
+      receiver: 'warning'
+      group_wait: 1m
+      repeat_interval: 4h
+
+receivers:
+  - name: 'default'
+    webhook_configs:
+      - url: 'http://api:8000/api/admin/alerts/webhook'
+        send_resolved: true
+
+  - name: 'critical'
+    webhook_configs:
+      # ntfy.sh for critical alerts
+      - url: 'https://ntfy.sh/${NTFY_TOPIC:-bo1-alerts}'
+        send_resolved: true
+        http_config:
+          headers:
+            Title: '{{ .GroupLabels.alertname }}'
+            Priority: 'urgent'
+            Tags: 'warning,{{ .CommonLabels.severity }}'
+
+  - name: 'warning'
+    webhook_configs:
+      - url: 'https://ntfy.sh/${NTFY_TOPIC:-bo1-alerts}'
+        send_resolved: true
+        http_config:
+          headers:
+            Title: '{{ .GroupLabels.alertname }}'
+            Priority: 'default'
+            Tags: 'triangular_flag_on_post'
+
+inhibit_rules:
+  # Inhibit warning alerts when critical is firing for same alertname
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname']
+
+  # Don't alert on high latency/errors if API is down
+  - source_match:
+      alertname: 'APIDown'
+    target_match_re:
+      alertname: '(HighErrorRate|HighLatency.*|LowAvailability)'
+    equal: []

@@ -173,6 +173,11 @@
 
 	type ViewMode = 'Day' | 'Week' | 'Month' | 'Quarter' | 'Year';
 
+	// Drag detection state - prevents click navigation during drag-to-reschedule
+	let dragStartPos: { x: number; y: number } | null = null;
+	let wasDragged = false;
+	const DRAG_THRESHOLD = 5; // pixels of movement to consider it a drag
+
 	// Svelte action for initializing the Gantt chart
 	const ganttAction: Action<HTMLDivElement, {
 		data: GanttResponse;
@@ -182,6 +187,45 @@
 		onDateChange?: (actionId: string, start: Date, end: Date) => Promise<void>;
 	}> = (node, params) => {
 		let ganttInstance: any = null;
+		let cleanupListeners: (() => void) | null = null;
+
+		function setupDragDetection() {
+			// Track mousedown on bar wrappers
+			const handleMouseDown = (e: MouseEvent) => {
+				dragStartPos = { x: e.clientX, y: e.clientY };
+				wasDragged = false;
+			};
+
+			// Track mouse movement to detect drag
+			const handleMouseMove = (e: MouseEvent) => {
+				if (dragStartPos) {
+					const dx = Math.abs(e.clientX - dragStartPos.x);
+					const dy = Math.abs(e.clientY - dragStartPos.y);
+					if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+						wasDragged = true;
+					}
+				}
+			};
+
+			// Reset on mouseup
+			const handleMouseUp = () => {
+				// Keep wasDragged state for the click handler, reset after a tick
+				setTimeout(() => {
+					dragStartPos = null;
+					wasDragged = false;
+				}, 0);
+			};
+
+			node.addEventListener('mousedown', handleMouseDown);
+			node.addEventListener('mousemove', handleMouseMove);
+			node.addEventListener('mouseup', handleMouseUp);
+
+			return () => {
+				node.removeEventListener('mousedown', handleMouseDown);
+				node.removeEventListener('mousemove', handleMouseMove);
+				node.removeEventListener('mouseup', handleMouseUp);
+			};
+		}
 
 		async function init() {
 			if (!params.data.actions.length) return;
@@ -227,7 +271,8 @@
 					`;
 				},
 				on_click: (task: any) => {
-					if (params.onTaskClick) {
+					// Only navigate if this was a true click, not a drag
+					if (params.onTaskClick && !wasDragged) {
 						params.onTaskClick(task.id);
 					}
 				},
@@ -245,6 +290,10 @@
 			});
 
 			injectStatusStyles();
+
+			// Setup drag detection after Gantt initializes
+			if (cleanupListeners) cleanupListeners();
+			cleanupListeners = setupDragDetection();
 		}
 
 		init();
@@ -256,6 +305,7 @@
 				init();
 			},
 			destroy() {
+				if (cleanupListeners) cleanupListeners();
 				if (ganttInstance) {
 					node.innerHTML = '';
 					ganttInstance = null;

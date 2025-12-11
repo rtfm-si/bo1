@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { isAuthenticated } from '$lib/stores/auth';
 	import { apiClient } from '$lib/api/client';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
@@ -19,6 +20,12 @@
 				goto('/login');
 			}
 		});
+
+		// Pre-fill from URL query param (from welcome page or demo questions)
+		const prefillQuestion = $page.url.searchParams.get('q');
+		if (prefillQuestion) {
+			problemStatement = prefillQuestion;
+		}
 
 		// Load user's datasets for the selector
 		loadDatasets();

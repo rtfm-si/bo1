@@ -35,12 +35,22 @@ export function debugVerbose(prefix: string, ...args: unknown[]): void {
 }
 
 /**
+ * Log an error (dev only)
+ */
+export function debugError(prefix: string, ...args: unknown[]): void {
+	if (isDev) {
+		console.error(`[${prefix}]`, ...args);
+	}
+}
+
+/**
  * Create a scoped logger for a specific module
  */
 export function createLogger(prefix: string) {
 	return {
 		log: (...args: unknown[]) => debug(prefix, ...args),
 		warn: (...args: unknown[]) => debugWarn(prefix, ...args),
-		debug: (...args: unknown[]) => debugVerbose(prefix, ...args)
+		debug: (...args: unknown[]) => debugVerbose(prefix, ...args),
+		error: (...args: unknown[]) => debugError(prefix, ...args)
 	};
 }

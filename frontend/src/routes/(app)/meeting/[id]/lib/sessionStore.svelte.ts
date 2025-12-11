@@ -85,7 +85,26 @@ export function createSessionStore() {
 		addEvent(newEvent: SSEEvent) {
 			const subProblemIndex = newEvent.data.sub_problem_index ?? 'global';
 			const personaOrId = newEvent.data.persona_code || newEvent.data.sub_problem_id || '';
-			const eventKey = `${subProblemIndex}-${eventSequence}-${newEvent.event_type}-${personaOrId}`;
+
+			// Singleton events should only appear once per session/sub-problem
+			// These events mark terminal states and should never be duplicated
+			const singletonEventTypes = new Set([
+				'complete',
+				'meta_synthesis_complete',
+				'synthesis_complete',
+				'subproblem_complete',
+				'decomposition_complete',
+				'persona_selection_complete',
+				'voting_complete',
+				'all_subproblems_complete',
+			]);
+
+			// For singleton events, use stable key without sequence number
+			// For other events, include sequence to allow multiple of same type
+			const isSingleton = singletonEventTypes.has(newEvent.event_type);
+			const eventKey = isSingleton
+				? `${subProblemIndex}-${newEvent.event_type}-${personaOrId}`
+				: `${subProblemIndex}-${eventSequence}-${newEvent.event_type}-${personaOrId}`;
 
 			eventSequence++;
 

@@ -586,3 +586,96 @@ class DatasetRepository(BaseRepository):
             }
             for row in rows
         ]
+
+    # =========================================================================
+    # Dataset Clarifications
+    # =========================================================================
+
+    def get_clarifications(
+        self,
+        dataset_id: str | UUID,
+        user_id: str,
+    ) -> list[dict[str, Any]]:
+        """Get clarifications for a dataset.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID (for ownership check)
+
+        Returns:
+            List of clarification dicts {question, answer, timestamp}
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT clarifications
+                    FROM datasets
+                    WHERE id = %s AND user_id = %s AND deleted_at IS NULL
+                    """,
+                    (str(dataset_id), user_id),
+                )
+                row = cur.fetchone()
+
+        if row and row["clarifications"]:
+            result: list[dict[str, Any]] = row["clarifications"]
+            return result
+        return []
+
+    def add_clarification(
+        self,
+        dataset_id: str | UUID,
+        user_id: str,
+        question: str,
+        answer: str,
+    ) -> bool:
+        """Add a clarification Q&A pair to a dataset.
+
+        Appends to the existing clarifications array. Deduplicates by question.
+
+        Args:
+            dataset_id: Dataset UUID
+            user_id: User ID (for ownership check)
+            question: The clarification question
+            answer: The user's answer
+
+        Returns:
+            True if added successfully
+        """
+        import json
+        from datetime import UTC, datetime
+
+        clarification = {
+            "question": question,
+            "answer": answer,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Use jsonb_agg to append, with deduplication by question
+                cur.execute(
+                    """
+                    UPDATE datasets
+                    SET clarifications = (
+                        SELECT COALESCE(
+                            jsonb_agg(c),
+                            '[]'::jsonb
+                        ) || %s::jsonb
+                        FROM (
+                            SELECT c
+                            FROM jsonb_array_elements(
+                                COALESCE(clarifications, '[]'::jsonb)
+                            ) AS c
+                            WHERE c->>'question' != %s
+                        ) subq
+                    )
+                    WHERE id = %s AND user_id = %s AND deleted_at IS NULL
+                    RETURNING id
+                    """,
+                    (json.dumps(clarification), question, str(dataset_id), user_id),
+                )
+                result = cur.fetchone()
+                conn.commit()
+
+        return result is not None

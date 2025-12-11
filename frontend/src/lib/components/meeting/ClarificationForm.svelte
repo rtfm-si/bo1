@@ -22,6 +22,14 @@
 	let answers = $state<Record<string, string>>({});
 	let isSubmitting = $state(false);
 	let error = $state<string | null>(null);
+	let firstInputRef: HTMLTextAreaElement | undefined = $state(undefined);
+
+	// Auto-focus first input on mount
+	$effect(() => {
+		if (firstInputRef) {
+			setTimeout(() => firstInputRef?.focus(), 150);
+		}
+	});
 
 	async function handleSubmit() {
 		isSubmitting = true;
@@ -95,7 +103,7 @@
 </script>
 
 <div
-	class="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-6"
+	class="mb-6 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-lg p-6 shadow-lg animate-attention-pulse"
 	transition:fade
 >
 	<div class="flex items-start gap-4">
@@ -131,6 +139,16 @@
 						{#if question.reason}
 							<p class="text-xs text-slate-500 dark:text-slate-400 mb-2">{question.reason}</p>
 						{/if}
+						{#if index === 0}
+						<textarea
+							id="clarification-{index}"
+							rows="2"
+							bind:value={answers[question.question]}
+							bind:this={firstInputRef}
+							placeholder="Your answer..."
+							class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+						></textarea>
+					{:else}
 						<textarea
 							id="clarification-{index}"
 							rows="2"
@@ -138,6 +156,7 @@
 							placeholder="Your answer..."
 							class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
 						></textarea>
+					{/if}
 					</div>
 				{/each}
 			</div>

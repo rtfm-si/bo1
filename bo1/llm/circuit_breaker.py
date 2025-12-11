@@ -384,6 +384,11 @@ SERVICE_CONFIGS: dict[str, dict[str, int]] = {
         "recovery_timeout": 60,
         "success_threshold": 2,
     },
+    "openai": {
+        "failure_threshold": 5,
+        "recovery_timeout": 60,
+        "success_threshold": 2,
+    },
     "voyage": {
         "failure_threshold": 8,  # Higher threshold - embeddings have retries
         "recovery_timeout": 30,  # Shorter recovery - embeddings are fast
@@ -499,3 +504,86 @@ def reset_service_circuit_breaker(service: str) -> None:
     if service in _circuit_breakers:
         del _circuit_breakers[service]
     logger.info(f"Circuit breaker reset for service: {service}")
+
+
+def get_active_llm_provider(
+    primary: str = "anthropic",
+    fallback: str = "openai",
+    fallback_enabled: bool = True,
+) -> str:
+    """Get the currently active (healthy) LLM provider.
+
+    Checks circuit breaker states and returns the provider to use.
+    If primary provider's circuit is open and fallback is enabled,
+    returns the fallback provider.
+
+    Args:
+        primary: Primary provider name (default: "anthropic")
+        fallback: Fallback provider name (default: "openai")
+        fallback_enabled: Whether to allow fallback (default: True)
+
+    Returns:
+        Provider name to use ("anthropic" or "openai")
+
+    Examples:
+        >>> get_active_llm_provider()  # Primary healthy
+        "anthropic"
+        >>> # After Anthropic failures...
+        >>> get_active_llm_provider()  # Primary circuit open
+        "openai"
+    """
+    primary_breaker = get_service_circuit_breaker(primary)
+
+    # If primary is healthy (closed or half-open), use it
+    if primary_breaker.state != CircuitState.OPEN:
+        return primary
+
+    # Primary is open - check if we should fall back
+    if not fallback_enabled:
+        logger.warning(f"Primary provider {primary} circuit OPEN, fallback disabled")
+        return primary  # Will raise CircuitBreakerOpenError on call
+
+    # Check fallback provider health
+    fallback_breaker = get_service_circuit_breaker(fallback)
+    if fallback_breaker.state == CircuitState.OPEN:
+        logger.error(f"Both {primary} and {fallback} circuits OPEN - no healthy provider")
+        return primary  # Return primary, will fail but at least tries
+
+    logger.warning(f"Primary provider {primary} circuit OPEN, falling back to {fallback}")
+    return fallback
+
+
+def is_provider_healthy(provider: str) -> bool:
+    """Check if a provider's circuit breaker is healthy.
+
+    Args:
+        provider: Provider name to check
+
+    Returns:
+        True if provider is healthy (circuit closed or half-open)
+    """
+    breaker = get_service_circuit_breaker(provider)
+    return breaker.state != CircuitState.OPEN
+
+
+def get_provider_health(provider: str) -> dict[str, Any]:
+    """Get detailed health info for a provider.
+
+    Args:
+        provider: Provider name
+
+    Returns:
+        Dict with health metrics for vendor health tracking
+    """
+    breaker = get_service_circuit_breaker(provider)
+    status = breaker.get_status()
+    return {
+        "provider": provider,
+        "circuit_state": status["state"],
+        "failure_count": status["failure_count"],
+        "success_count": status["success_count"],
+        "is_healthy": breaker.state != CircuitState.OPEN,
+        "last_state_change": breaker.last_state_change,
+        "last_failure_time": breaker.last_failure_time,
+        "uptime_seconds": status["uptime_seconds"],
+    }

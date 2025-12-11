@@ -113,6 +113,7 @@
 	let retryCount = $derived(store.retryCount);
 	let connectionStatus = $derived(store.connectionStatus);
 	let reportActions = $state<ReportAction[]>([]);
+	let clarificationFormRef: HTMLElement | undefined = $state(undefined);
 
 	// ============================================================================
 	// EFFECTS
@@ -192,6 +193,16 @@
 	$effect(() => {
 		const isCompleted = session?.status === 'completed' || session?.status === 'failed';
 		revealManager.processGroups(memoized.groupedEvents, isCompleted);
+	});
+
+	// Auto-scroll to clarification form when user action required
+	$effect(() => {
+		if (eventState.needsClarification && clarificationFormRef) {
+			// Small delay to ensure element is rendered
+			setTimeout(() => {
+				clarificationFormRef?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			}, 100);
+		}
 	});
 
 	// ============================================================================
@@ -455,12 +466,14 @@
 
 		<!-- Clarification Questions -->
 		{#if eventState.needsClarification && eventState.clarificationQuestions}
-			<ClarificationForm
-				{sessionId}
-				questions={eventState.clarificationQuestions}
-				reason={eventState.clarificationRequiredEvent?.data?.reason as string | undefined}
-				onSubmitted={handleClarificationSubmitted}
-			/>
+			<div bind:this={clarificationFormRef}>
+				<ClarificationForm
+					{sessionId}
+					questions={eventState.clarificationQuestions}
+					reason={eventState.clarificationRequiredEvent?.data?.reason as string | undefined}
+					onSubmitted={handleClarificationSubmitted}
+				/>
+			</div>
 		{/if}
 
 		<!-- Context Insufficient Modal (Option D+E Hybrid) -->

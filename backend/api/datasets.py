@@ -53,6 +53,7 @@ from bo1.llm.client import ClaudeClient
 from bo1.prompts.data_analyst import (
     DATA_ANALYST_SYSTEM,
     build_analyst_prompt,
+    format_clarifications_context,
     format_conversation_history,
     format_dataset_context,
 )
@@ -706,6 +707,63 @@ def _strip_specs_from_response(response: str) -> str:
     return response.strip()
 
 
+def _extract_clarification_from_conversation(
+    messages: list[dict[str, Any]],
+    current_question: str,
+) -> tuple[str, str] | None:
+    """Extract clarification Q&A if the user is answering a prior assistant question.
+
+    Looks at the last assistant message to see if it contained a question.
+    If so, treats the current user message as the answer.
+
+    Args:
+        messages: Conversation history
+        current_question: User's current message
+
+    Returns:
+        Tuple of (question_asked, user_answer) or None if not a clarification
+    """
+    if len(messages) < 1:
+        return None
+
+    # Get last assistant message
+    last_assistant = None
+    for msg in reversed(messages):
+        if msg.get("role") == "assistant":
+            last_assistant = msg
+            break
+
+    if not last_assistant:
+        return None
+
+    content = last_assistant.get("content", "")
+
+    # Look for question patterns in assistant's response
+    # Common patterns: ends with "?", contains "Could you", "What is", "Can you tell me", etc.
+    question_patterns = [
+        r"[?]\s*$",  # Ends with question mark
+        r"\b(could you|can you|what is|what are|which|how many|how much|please clarify|please specify)\b",
+    ]
+
+    has_question = any(re.search(pattern, content, re.IGNORECASE) for pattern in question_patterns)
+
+    if not has_question:
+        return None
+
+    # Extract the question (last sentence ending with ?)
+    sentences = re.split(r"(?<=[.!?])\s+", content)
+    question_asked = None
+    for sentence in reversed(sentences):
+        if "?" in sentence:
+            question_asked = sentence.strip()
+            break
+
+    if question_asked:
+        return (question_asked, current_question)
+
+    return None
+
+
 async def _stream_ask_response(
     dataset_id: str,
     user_id: str,
@@ -772,10 +830,25 @@ async def _stream_ask_response(
         )
         conv_history = format_conversation_history(conversation.get("messages", []))
 
+        # Load prior clarifications for context persistence
+        clarifications = dataset_repository.get_clarifications(dataset_id, user_id)
+        clarifications_ctx = format_clarifications_context(clarifications)
+
         # Build prompt
-        user_prompt = build_analyst_prompt(question, dataset_context, conv_history)
+        user_prompt = build_analyst_prompt(
+            question, dataset_context, conv_history, clarifications_ctx
+        )
 
         yield f"event: thinking\ndata: {json.dumps({'status': 'calling_llm'})}\n\n"
+
+        # Check if user is answering a clarifying question from prior message
+        # If so, persist this Q&A pair for future context
+        messages = conversation.get("messages", [])
+        clarification_pair = _extract_clarification_from_conversation(messages, question)
+        if clarification_pair:
+            q_asked, user_answer = clarification_pair
+            dataset_repository.add_clarification(dataset_id, user_id, q_asked, user_answer)
+            logger.info(f"Saved clarification for dataset {dataset_id}: {q_asked[:50]}...")
 
         # Add user message to conversation
         conversation_repository.append_message(conversation_id, "user", question)

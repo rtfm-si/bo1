@@ -146,10 +146,39 @@ def format_conversation_history(messages: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def format_clarifications_context(clarifications: list[dict[str, Any]]) -> str:
+    """Format previous clarifications for context injection.
+
+    Args:
+        clarifications: List of {question, answer, timestamp} dicts
+
+    Returns:
+        Formatted clarifications string for prompt context
+    """
+    if not clarifications:
+        return ""
+
+    lines = [
+        "<prior_clarifications>",
+        "The user has previously provided these clarifications about their data:",
+    ]
+    for i, c in enumerate(clarifications[-10:], 1):  # Last 10 max
+        q = c.get("question", "")
+        a = c.get("answer", "")
+        lines.append(f'  <clarification id="{i}">')
+        lines.append(f"    <question>{q}</question>")
+        lines.append(f"    <answer>{a}</answer>")
+        lines.append("  </clarification>")
+    lines.append("</prior_clarifications>")
+
+    return "\n".join(lines)
+
+
 def build_analyst_prompt(
     question: str,
     dataset_context: str,
     conversation_history: str = "",
+    clarifications_context: str = "",
 ) -> str:
     """Build the full user prompt for the analyst.
 
@@ -157,11 +186,15 @@ def build_analyst_prompt(
         question: User's question
         dataset_context: Formatted dataset context
         conversation_history: Optional conversation history
+        clarifications_context: Optional prior clarifications context
 
     Returns:
         Complete user prompt
     """
     parts = [dataset_context]
+
+    if clarifications_context:
+        parts.append(clarifications_context)
 
     if conversation_history:
         parts.append(conversation_history)

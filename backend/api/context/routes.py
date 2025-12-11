@@ -611,3 +611,101 @@ async def delete_insight(
     logger.info(f"Deleted clarification insight for user {user_id}: {question[:50]}...")
 
     return {"status": "deleted"}
+
+
+# =============================================================================
+# Phase 5: Onboarding Demo Questions
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/demo-questions",
+    summary="Get personalized demo questions",
+    description="""
+    Get personalized business questions for new users based on their context.
+
+    Uses the user's saved business context to generate relevant, actionable
+    questions they can explore in their first meeting.
+
+    **Features:**
+    - Questions are cached for 7 days
+    - Falls back to generic questions if no context or LLM fails
+    - Uses "fast" tier (Haiku) to minimize cost
+
+    **Use Cases:**
+    - Onboarding flow: show suggested questions to new users
+    - Help users get started with relevant decisions
+    - Demonstrate platform value during first session
+    """,
+    responses={
+        200: {
+            "description": "Demo questions generated successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "questions": [
+                            {
+                                "question": "Should we expand to the European market this year?",
+                                "category": "growth",
+                                "relevance": "Given your growth rate and product maturity, international expansion could be timely.",
+                            }
+                        ],
+                        "generated": True,
+                        "cached": False,
+                    }
+                }
+            },
+        },
+    },
+)
+@handle_api_errors("get demo questions")
+async def get_demo_questions(
+    refresh: bool = False,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get personalized demo questions based on user's context."""
+    from backend.services.demo_questions import generate_demo_questions
+
+    user_id = extract_user_id(user)
+
+    # Get user's business context
+    context_data = user_repository.get_context(user_id)
+
+    # Generate questions
+    result = await generate_demo_questions(
+        user_id=user_id,
+        context=context_data,
+        force_refresh=refresh,
+    )
+
+    return {
+        "questions": [q.model_dump() for q in result.questions],
+        "generated": result.generated,
+        "cached": result.cached,
+    }
+
+
+@router.delete(
+    "/v1/context/demo-questions",
+    summary="Clear cached demo questions",
+    description="""
+    Clear the cached demo questions for the current user.
+
+    Use this when:
+    - User updates their business context significantly
+    - User wants fresh suggestions
+
+    Next call to GET /demo-questions will regenerate.
+    """,
+)
+@handle_api_errors("clear demo questions cache")
+async def clear_demo_questions(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    """Clear cached demo questions."""
+    from backend.services.demo_questions import clear_cached_questions
+
+    user_id = extract_user_id(user)
+    clear_cached_questions(user_id)
+
+    return {"status": "cleared"}

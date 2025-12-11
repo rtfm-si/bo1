@@ -83,10 +83,11 @@ async def generate_dataset_summary(
     if use_cache:
         redis = redis_manager or RedisManager()
         try:
-            cached = redis.client.get(cache_key)
-            if cached:
-                logger.debug(f"Cache hit for dataset summary {dataset_id}")
-                return cached.decode("utf-8")
+            if redis.client is not None:
+                cached = redis.client.get(cache_key)
+                if cached and isinstance(cached, bytes):
+                    logger.debug(f"Cache hit for dataset summary {dataset_id}")
+                    return cached.decode("utf-8")
         except Exception as e:
             logger.warning(f"Redis cache read failed: {e}")
 
@@ -133,8 +134,9 @@ Provide a brief, actionable summary."""
     if use_cache and summary and "failed" not in summary.lower():
         redis = redis_manager or RedisManager()
         try:
-            redis.client.setex(cache_key, SUMMARY_CACHE_TTL, summary)
-            logger.debug(f"Cached summary for dataset {dataset_id}")
+            if redis.client is not None:
+                redis.client.setex(cache_key, SUMMARY_CACHE_TTL, summary)
+                logger.debug(f"Cached summary for dataset {dataset_id}")
         except Exception as e:
             logger.warning(f"Redis cache write failed: {e}")
 
@@ -157,9 +159,12 @@ def invalidate_summary_cache(
     redis = redis_manager or RedisManager()
     pattern = f"{SUMMARY_CACHE_PREFIX}:{dataset_id}:*"
     try:
+        if redis.client is None:
+            return 0
         keys = list(redis.client.scan_iter(match=pattern))
         if keys:
-            deleted = redis.client.delete(*keys)
+            deleted_result = redis.client.delete(*keys)
+            deleted = int(deleted_result) if deleted_result else 0
             logger.info(f"Invalidated {deleted} summary cache entries for {dataset_id}")
             return deleted
         return 0

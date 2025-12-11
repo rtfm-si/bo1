@@ -204,6 +204,12 @@ class BusinessContext(BaseModel):
         description="When enrichment was performed",
     )
 
+    # Onboarding
+    onboarding_completed: bool | None = Field(
+        None,
+        description="Whether user has completed onboarding checklist",
+    )
+
 
 class EnrichmentRequest(BaseModel):
     """Request to enrich context from website."""

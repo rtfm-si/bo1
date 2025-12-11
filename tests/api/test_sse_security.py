@@ -92,12 +92,14 @@ class TestSSENonOwnedSession:
 
             # Mock session data indicating user owns the session
             mock_session_data = ("user_1", {"user_id": "user_1", "status": "running"})
+            mock_current_user = {"user_id": "user_1", "is_admin": False}
 
             # Call should succeed because ownership is verified by dependency
             # (we're not testing the full streaming here, just that ownership check passes)
             result = await stream_deliberation(
                 session_id=session_id,
                 session_data=mock_session_data,
+                current_user=mock_current_user,
             )
 
             # Should return StreamingResponse (not raise exception)
@@ -123,11 +125,13 @@ class TestSSENonOwnedSession:
 
             # Mock session data indicating user owns the session
             mock_session_data = ("user_1", {"user_id": "user_1", "status": "complete"})
+            mock_current_user = {"user_id": "user_1", "is_admin": False}
 
             # Call should succeed because ownership is verified by dependency
             result = await get_event_history(
                 session_id=session_id,
                 session_data=mock_session_data,
+                current_user=mock_current_user,
             )
 
             # Should return event history dict
@@ -169,6 +173,7 @@ class TestSSEUninitializedState:
 
             # Mock session verification to pass
             mock_session_data = ("test_user", {"user_id": "test_user", "status": "created"})
+            mock_current_user = {"user_id": "test_user", "is_admin": False}
 
             # Mock asyncio.sleep to avoid actual waiting in test
             with patch("backend.api.streaming.asyncio.sleep", new_callable=AsyncMock):
@@ -177,6 +182,7 @@ class TestSSEUninitializedState:
                     await stream_deliberation(
                         session_id=session_id,
                         session_data=mock_session_data,
+                        current_user=mock_current_user,
                     )
 
                 # Should return 409 (Conflict) - state not initialized yet
@@ -212,6 +218,7 @@ class TestSSEUninitializedState:
 
             # Mock session verification with killed status
             mock_session_data = ("test_user", {"user_id": "test_user", "status": "killed"})
+            mock_current_user = {"user_id": "test_user", "is_admin": False}
 
             # Mock asyncio.sleep to avoid actual waiting in test
             with patch("backend.api.streaming.asyncio.sleep", new_callable=AsyncMock):
@@ -220,6 +227,7 @@ class TestSSEUninitializedState:
                     await stream_deliberation(
                         session_id=session_id,
                         session_data=mock_session_data,
+                        current_user=mock_current_user,
                     )
 
                 # Should return 500 - session failed to initialize
@@ -251,6 +259,7 @@ class TestSSEUninitializedState:
 
             # Mock session verification to pass
             mock_session_data = ("test_user", {"user_id": "test_user"})
+            mock_current_user = {"user_id": "test_user", "is_admin": False}
 
             # Mock asyncio.sleep to avoid actual waiting in test
             with patch("backend.api.streaming.asyncio.sleep", new_callable=AsyncMock):
@@ -259,6 +268,7 @@ class TestSSEUninitializedState:
                     await stream_deliberation(
                         session_id=session_id,
                         session_data=mock_session_data,
+                        current_user=mock_current_user,
                     )
 
                 # Should return 404 - session doesn't exist

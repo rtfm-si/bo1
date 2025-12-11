@@ -166,8 +166,8 @@
 
 			trackOnboardingCompleted({ has_context: true });
 
-			// Redirect to dashboard
-			goto('/dashboard');
+			// Redirect to welcome page with demo questions
+			goto('/welcome');
 		} catch (error) {
 			console.error('Failed to save onboarding:', error);
 		} finally {

@@ -1,47 +1,56 @@
-# Plan: Evaluate Read Replicas for Session List Queries
+# Plan: Create Grafana Operational Dashboards [MONITORING-DASHBOARDS]
 
 ## Summary
 
-- Analyze `list_by_user` query performance and scaling needs
-- Document findings and recommendation
-- Add comment/docstring with scaling guidance
-- No infrastructure changes needed at current scale
+- Create API dashboard (request rate, latency, errors by endpoint)
+- Create Deliberation dashboard (session metrics, LLM costs, round times)
+- Create Cost dashboard (daily spend, per-user breakdown, model costs)
+- Create Infrastructure dashboard (Redis, Postgres, container metrics)
 
 ## Implementation Steps
 
-1. **Analyze current query performance**
-   - `list_by_user` already uses denormalized counts (expert_count, contribution_count, focus_area_count)
-   - Only `task_count` requires JOIN to `session_tasks` table
-   - Query complexity: O(user_sessions) with LIMIT pagination
+1. **Create API Dashboard**
+   - `infra/grafana/dashboards/api.json`
+   - Panels: request rate, latency histogram, error rate by endpoint, status code breakdown, top 10 slowest endpoints
 
-2. **Assess read replica benefits**
-   - Benefit: Offload read traffic from primary, reduce lock contention
-   - Cost: Infrastructure complexity, replication lag (~100-500ms typical)
-   - Break-even: Typically 10,000+ concurrent reads or >50% read traffic
+2. **Create Deliberation Dashboard**
+   - `infra/grafana/dashboards/deliberation.json`
+   - Panels: sessions started/completed, rounds per session, avg session duration, completion rate, active sessions gauge
 
-3. **Document recommendation in session_repository.py**
-   - Add docstring to `list_by_user` noting current optimization
-   - Add comment about when to consider read replicas
-   - Recommend connection routing pattern for future use
+3. **Create Cost Dashboard**
+   - `infra/grafana/dashboards/cost.json`
+   - Panels: daily LLM spend, cost by model, cost by user (top 10), cumulative monthly spend, cost per session avg
 
-4. **Create scaling guidance comment**
-   - When to add replicas: >1000 concurrent users or >100 QPS on list endpoint
-   - Implementation pattern: Route read-only queries via `READ_DATABASE_URL`
-   - No code changes needed now - document for future reference
+4. **Create Infrastructure Dashboard**
+   - `infra/grafana/dashboards/infrastructure.json`
+   - Panels: container CPU/memory, Redis memory/connections, Postgres connections/query time, disk usage
+
+5. **Update Grafana provisioning**
+   - Ensure all dashboards auto-load from dashboards directory
+   - Verify datasource UID matches across all dashboards
 
 ## Tests
 
 - **Unit tests:**
-  - None required - documentation-only change
+  - Validate JSON syntax: `python -c "import json; json.load(open('...'))" for each dashboard
+
+- **Integration tests:**
+  - Start monitoring profile: `docker-compose --profile monitoring up`
+  - Access Grafana at localhost:3001
+  - Verify all 4 dashboards appear and panels render
 
 - **Manual validation:**
-  - Review docstring/comments added to session_repository.py
+  - Generate some API traffic, verify request metrics populate
+  - Run a test session, verify deliberation metrics populate
+  - Check infrastructure panels show container metrics
 
 ## Dependencies & Risks
 
 - **Dependencies:**
-  - None - documentation task
+  - Prometheus metrics already instrumented (✅ complete)
+  - Grafana + Prometheus in docker-compose (✅ complete)
+  - Custom bo1_* metrics exposed from middleware/metrics.py
 
 - **Risks:**
-  - Low: No functional changes
-  - Note: Actual read replica setup would require PostgreSQL infrastructure changes
+  - Some metrics may not exist yet → use `rate(http_requests_total[5m])` as fallback
+  - Container metrics require cAdvisor or similar → may show empty initially

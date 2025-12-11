@@ -331,6 +331,98 @@ class TestCacheStats:
         assert "histograms" in stats
 
 
+class TestCustomPrometheusMetrics:
+    """Tests for custom Prometheus metrics in middleware/metrics.py."""
+
+    def test_record_session_created(self) -> None:
+        """Test session created metric increments."""
+        from backend.api.middleware.metrics import (
+            bo1_sessions_total,
+            record_session_created,
+        )
+
+        initial = bo1_sessions_total.labels(status="test_created")._value.get()
+        record_session_created("test_created")
+        new_value = bo1_sessions_total.labels(status="test_created")._value.get()
+        assert new_value == initial + 1
+
+    def test_record_llm_cost(self) -> None:
+        """Test LLM cost metric increments."""
+        from backend.api.middleware.metrics import bo1_llm_cost_cents_total, record_llm_cost
+
+        initial = bo1_llm_cost_cents_total.labels(
+            model="test-model", provider="test-provider"
+        )._value.get()
+        record_llm_cost(model="test-model", provider="test-provider", cost_cents=50.5)
+        new_value = bo1_llm_cost_cents_total.labels(
+            model="test-model", provider="test-provider"
+        )._value.get()
+        assert new_value == initial + 50.5
+
+    def test_record_llm_request_success(self) -> None:
+        """Test LLM request metric increments on success."""
+        from backend.api.middleware.metrics import bo1_llm_requests_total, record_llm_request
+
+        initial = bo1_llm_requests_total.labels(
+            model="test-haiku", provider="anthropic", status="success"
+        )._value.get()
+        record_llm_request(model="test-haiku", provider="anthropic", success=True)
+        new_value = bo1_llm_requests_total.labels(
+            model="test-haiku", provider="anthropic", status="success"
+        )._value.get()
+        assert new_value == initial + 1
+
+    def test_record_llm_request_error(self) -> None:
+        """Test LLM request metric increments on error."""
+        from backend.api.middleware.metrics import bo1_llm_requests_total, record_llm_request
+
+        initial = bo1_llm_requests_total.labels(
+            model="test-gpt", provider="openai", status="error"
+        )._value.get()
+        record_llm_request(model="test-gpt", provider="openai", success=False)
+        new_value = bo1_llm_requests_total.labels(
+            model="test-gpt", provider="openai", status="error"
+        )._value.get()
+        assert new_value == initial + 1
+
+    def test_set_active_sessions(self) -> None:
+        """Test active sessions gauge sets correctly."""
+        from backend.api.middleware.metrics import bo1_active_sessions, set_active_sessions
+
+        set_active_sessions(5)
+        assert bo1_active_sessions._value.get() == 5
+        set_active_sessions(10)
+        assert bo1_active_sessions._value.get() == 10
+
+    def test_sse_connections_increment_decrement(self) -> None:
+        """Test SSE connections gauge increments and decrements."""
+        from backend.api.middleware.metrics import (
+            bo1_sse_connections,
+            decrement_sse_connections,
+            increment_sse_connections,
+        )
+
+        initial = bo1_sse_connections._value.get()
+        increment_sse_connections()
+        assert bo1_sse_connections._value.get() == initial + 1
+        decrement_sse_connections()
+        assert bo1_sse_connections._value.get() == initial
+
+    def test_normalize_path_session_id(self) -> None:
+        """Test session ID path normalization."""
+        from backend.api.middleware.metrics import normalize_path
+
+        path = "/api/sessions/a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        assert normalize_path(path) == "/api/sessions/:id"
+
+    def test_normalize_path_no_change(self) -> None:
+        """Test paths without IDs are unchanged."""
+        from backend.api.middleware.metrics import normalize_path
+
+        path = "/api/health"
+        assert normalize_path(path) == "/api/health"
+
+
 class TestPrometheusMetrics:
     """Tests for Prometheus metrics."""
 

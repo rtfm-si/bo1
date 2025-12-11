@@ -34,7 +34,7 @@ from backend.api.models import (
     TaskStatusUpdate,
     TaskWithStatus,
 )
-from backend.api.utils.auth_helpers import extract_user_id
+from backend.api.utils.auth_helpers import extract_user_id, is_admin
 from backend.api.utils.errors import handle_api_errors, raise_api_error
 from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
@@ -139,6 +139,23 @@ async def create_session(
             window_seconds=60,
             tier=subscription_tier,
         )
+
+        # Internal budget check (admin-configured cost limits)
+        # Blocks session creation if user exceeds hard limit
+        try:
+            from backend.services import user_cost_tracking as uct
+
+            budget_result = uct.check_budget_status(user_id)
+            if budget_result.should_block:
+                raise HTTPException(
+                    status_code=402,
+                    detail="Usage limit reached. Please contact support.",
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            # Don't block on budget check failures - log and continue
+            logger.debug("Budget check failed (non-blocking): %s", e)
 
         # Prompt injection audit (LLM-based detection)
         # Checks problem statement for injection attempts before processing
@@ -251,6 +268,11 @@ async def create_session(
             logger.info(
                 f"Created session: {session_id} for user: {user_id} (saved to both Redis and PostgreSQL)"
             )
+
+            # Record Prometheus metric
+            from backend.api.middleware.metrics import record_session_created
+
+            record_session_created("created")
         except Exception as e:
             # PostgreSQL is primary storage - propagate error to client
             logger.error(f"Failed to save session to PostgreSQL: {e}", exc_info=True)
@@ -321,6 +343,8 @@ async def list_sessions(
         try:
             # Extract user ID from authenticated user
             user_id = extract_user_id(user)
+            # Security: Only admins can see cost data
+            user_is_admin = is_admin(user)
 
             # PRIMARY SOURCE: Query PostgreSQL for persistent session records
             try:
@@ -388,6 +412,7 @@ async def list_sessions(
                         last_activity_at = None
 
                     # Create session response with summary counts
+                    # Security: Strip cost data for non-admin users
                     session = SessionResponse(
                         id=session_id,
                         status=status_val,
@@ -396,7 +421,7 @@ async def list_sessions(
                         updated_at=pg_session["updated_at"],
                         last_activity_at=last_activity_at,
                         problem_statement=truncate_text(pg_session["problem_statement"]),
-                        cost=cost_val,
+                        cost=cost_val if user_is_admin else None,
                         # Summary counts for dashboard cards
                         expert_count=pg_session.get("expert_count"),
                         contribution_count=pg_session.get("contribution_count"),
@@ -468,6 +493,7 @@ async def list_sessions(
                     continue
 
                 # Create session response
+                # Security: Strip cost data for non-admin users
                 session = SessionResponse(
                     id=session_id,
                     status=metadata.get("status", "unknown"),
@@ -478,7 +504,7 @@ async def list_sessions(
                     problem_statement=truncate_text(
                         metadata.get("problem_statement", "Unknown problem")
                     ),
-                    cost=metadata.get("cost"),
+                    cost=metadata.get("cost") if user_is_admin else None,
                 )
                 sessions_fallback.append(session)
 
@@ -1198,11 +1224,11 @@ async def update_task_status(
 @router.get(
     "/{session_id}/costs",
     response_model=SessionCostBreakdown,
-    summary="Get session cost breakdown",
-    description="Get detailed cost breakdown by sub-problem for a session.",
+    summary="Get session cost breakdown (admin only)",
+    description="Get detailed cost breakdown by sub-problem for a session. Requires admin privileges.",
     responses={
         200: {"description": "Cost breakdown retrieved successfully"},
-        403: {"description": "Not authorized to view this session", "model": ErrorResponse},
+        403: {"description": "Admin access required", "model": ErrorResponse},
         404: {"description": "Session not found", "model": ErrorResponse},
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
@@ -1211,21 +1237,35 @@ async def update_task_status(
 async def get_session_costs(
     session_id: str,
     session_data: VerifiedSession,
+    current_user: dict = Depends(get_current_user),
 ) -> SessionCostBreakdown:
-    """Get detailed cost breakdown for a session.
+    """Get detailed cost breakdown for a session (admin only).
 
     Returns total costs and per-sub-problem breakdown including:
     - Total cost, tokens, and API calls
     - Cost breakdown by AI provider (Anthropic, Voyage, Brave, Tavily)
     - Cost breakdown by sub-problem with phase attribution
 
+    Security: This endpoint requires admin privileges as cost data is sensitive.
+
     Args:
         session_id: Session identifier (bo1_xxx format)
         session_data: Verified session (user_id, metadata) from dependency
+        current_user: Current authenticated user (for admin check)
 
     Returns:
         SessionCostBreakdown with total and per-sub-problem costs
+
+    Raises:
+        HTTPException 403: If user is not an admin
     """
+    # Security: Require admin access to view cost data
+    if not is_admin(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required to view cost breakdown",
+        )
+
     with track_api_call("sessions.get_costs", "GET"):
         # Validate session ID format
         session_id = validate_session_id(session_id)

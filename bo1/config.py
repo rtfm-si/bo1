@@ -20,12 +20,16 @@ __all__ = [
     "CacheConfig",
     "MODEL_ALIASES",
     "MODEL_BY_ROLE",
+    "TIER_ALIASES",
+    "TASK_MODEL_DEFAULTS",
     "ANTHROPIC_PRICING",
+    "OPENAI_PRICING",
     "VOYAGE_PRICING",
     "BRAVE_PRICING",
     "TAVILY_PRICING",
     "MODEL_PRICING",
     "resolve_model_alias",
+    "resolve_tier_to_model",
     "get_model_for_role",
     "calculate_cost",
     "get_service_pricing",
@@ -85,7 +89,18 @@ class Settings(BaseSettings):
 
     # LLM API Keys (optional to allow tests without real keys)
     anthropic_api_key: str = Field(default="", description="Anthropic API key for Claude")
+    openai_api_key: str = Field(default="", description="OpenAI API key for GPT models (fallback)")
     voyage_api_key: str = Field(default="", description="Voyage AI API key for embeddings")
+
+    # LLM Provider Configuration
+    llm_primary_provider: Literal["anthropic", "openai"] = Field(
+        default="anthropic",
+        description="Primary LLM provider (anthropic or openai)",
+    )
+    llm_fallback_enabled: bool = Field(
+        default=True,
+        description="Enable fallback to secondary provider when primary is unavailable",
+    )
 
     # Research API Keys (for external research features)
     tavily_api_key: str = Field(default="", description="Tavily API key for web search")
@@ -169,6 +184,18 @@ class Settings(BaseSettings):
         default="", description="ntfy topic for critical database alerts (high priority)"
     )
 
+    # Internal Cost Limits (admin monitoring, cents/month)
+    # These are internal thresholds for abuse detection - not exposed to users
+    cost_limit_free_cents: int = Field(
+        default=500, description="Internal cost limit for free tier (cents/month)"
+    )
+    cost_limit_starter_cents: int = Field(
+        default=2500, description="Internal cost limit for starter tier (cents/month)"
+    )
+    cost_limit_pro_cents: int = Field(
+        default=10000, description="Internal cost limit for pro tier (cents/month)"
+    )
+
     # Redis Configuration
     redis_host: str = Field(default="localhost", description="Redis host")
     redis_port: int = Field(default=6379, description="Redis port")
@@ -220,6 +247,17 @@ class Settings(BaseSettings):
     )
     cost_warning_threshold: float = Field(
         default=0.80, description="Threshold (0-1) at which to emit budget warning (default: 80%)"
+    )
+
+    # Session Monitoring Thresholds (runaway detection)
+    session_max_duration_mins: float = Field(
+        default=30.0, description="Max session duration before flagged as runaway (minutes)"
+    )
+    session_max_cost_usd: float = Field(
+        default=5.0, description="Max session cost before flagged as runaway (USD)"
+    )
+    session_stale_mins: float = Field(
+        default=5.0, description="Minutes since last event to consider session stale"
     )
 
     # Adaptive Expert Count (cost optimization)
@@ -360,12 +398,48 @@ class Settings(BaseSettings):
 # All code uses the simple aliases, so no changes needed elsewhere.
 
 MODEL_ALIASES = {
-    # Primary aliases - use these throughout the codebase
+    # Anthropic aliases - use these throughout the codebase
     "sonnet": "claude-sonnet-4-5-20250929",  # Current: Sonnet 4.5 (Sep 2025)
     "haiku": "claude-haiku-4-5-20251001",  # Current: Haiku 4.5 (Oct 2025)
     "opus": "claude-opus-4-1-20250805",  # Current: Opus 4.1 (Aug 2025) - not used in v1
-    # Testing aliases (3.5 models - faster and cheaper for testing)
+    # Anthropic testing aliases (3.5 models - faster and cheaper for testing)
     "claude-3-5-haiku-latest": "claude-3-5-haiku-20241022",  # 3.5 Haiku for testing
+    # OpenAI aliases
+    "gpt-5.1": "gpt-5.1-2025-04-14",  # Current: GPT-5.1 (Apr 2025)
+    "gpt-5.1-mini": "gpt-5.1-mini-2025-07-18",  # Current: GPT-5.1 Mini (Jul 2025)
+}
+
+# =============================================================================
+# Provider-Agnostic Tier Aliases
+# =============================================================================
+# Use "core" and "fast" throughout code for provider independence.
+# When switching providers or updating model versions, only change these mappings.
+
+TIER_ALIASES: dict[str, dict[str, str]] = {
+    "core": {
+        "anthropic": "sonnet",  # Complex reasoning tasks
+        "openai": "gpt-5.1",
+    },
+    "fast": {
+        "anthropic": "haiku",  # Simple/fast tasks
+        "openai": "gpt-5.1-mini",
+    },
+}
+
+# =============================================================================
+# Task-to-Tier Mapping (provider-agnostic)
+# =============================================================================
+# Maps task types to tier aliases. Code uses these, not model names directly.
+
+TASK_MODEL_DEFAULTS: dict[str, str] = {
+    "persona": "core",  # Needs reasoning, benefits from caching
+    "facilitator": "core",  # Complex orchestration decisions
+    "summarizer": "fast",  # Simple compression task
+    "decomposer": "core",  # Complex problem analysis
+    "selector": "core",  # Complex persona matching analysis
+    "moderator": "fast",  # Simple interventions
+    "researcher": "fast",  # Simple web searches
+    "judge": "fast",  # Quality assessment
 }
 
 # =============================================================================
@@ -424,6 +498,25 @@ ANTHROPIC_PRICING = {
         "output": 4.00,  # $4.00 per 1M output tokens
         "cache_write": 1.00,  # $1.00 per 1M cache write (25% of input)
         "cache_read": 0.08,  # $0.08 per 1M cache read (90% cheaper)
+    },
+}
+
+# =============================================================================
+# AI SERVICE PRICING - OpenAI Models (per 1M tokens)
+# Last updated: 2025-12-11
+# Source: https://openai.com/api/pricing/
+# =============================================================================
+
+OPENAI_PRICING = {
+    "gpt-5.1-2025-04-14": {
+        "input": 2.50,  # $2.50 per 1M input tokens
+        "output": 10.00,  # $10.00 per 1M output tokens
+        "cache_read": 1.25,  # $1.25 per 1M cached input tokens (50% discount)
+    },
+    "gpt-5.1-mini-2025-07-18": {
+        "input": 0.15,  # $0.15 per 1M input tokens
+        "output": 0.60,  # $0.60 per 1M output tokens
+        "cache_read": 0.075,  # $0.075 per 1M cached input tokens (50% discount)
     },
 }
 
@@ -493,6 +586,23 @@ MODEL_PRICING = {
         "context_window": 200_000,
         "max_output": 8_000,
     },
+    # OpenAI models (fallback provider)
+    "gpt-5.1-2025-04-14": {
+        "input": 2.50,
+        "output": 10.00,
+        "cache_creation": 0.0,  # OpenAI doesn't have separate cache write cost
+        "cache_read": 1.25,
+        "context_window": 128_000,
+        "max_output": 16_384,
+    },
+    "gpt-5.1-mini-2025-07-18": {
+        "input": 0.15,
+        "output": 0.60,
+        "cache_creation": 0.0,  # OpenAI doesn't have separate cache write cost
+        "cache_read": 0.075,
+        "context_window": 128_000,
+        "max_output": 16_384,
+    },
 }
 
 
@@ -560,29 +670,98 @@ def resolve_model_alias(model_name: str) -> str:
     return model_name
 
 
-def get_model_for_role(role: str) -> str:
+def resolve_tier_to_model(
+    tier_or_model: str,
+    provider: str | None = None,
+) -> str:
+    """Resolve a tier alias or model name to full model ID.
+
+    This is the primary function for provider-agnostic model resolution.
+    Use "core" or "fast" tiers for provider independence.
+
+    Args:
+        tier_or_model: Tier alias ('core', 'fast') or model alias ('sonnet', 'haiku')
+                      or direct model ID
+        provider: Provider name ('anthropic', 'openai'). If None, uses primary provider.
+
+    Returns:
+        Full model ID (e.g., 'claude-sonnet-4-5-20250929' or 'gpt-5.1-2025-04-14')
+
+    Examples:
+        >>> resolve_tier_to_model("core")  # Uses primary provider (anthropic)
+        "claude-sonnet-4-5-20250929"
+        >>> resolve_tier_to_model("core", provider="openai")
+        "gpt-5.1-2025-04-14"
+        >>> resolve_tier_to_model("fast", provider="anthropic")
+        "claude-haiku-4-5-20251001"
+        >>> resolve_tier_to_model("sonnet")  # Direct alias still works
+        "claude-sonnet-4-5-20250929"
+    """
+    settings = get_settings()
+
+    # Use primary provider if not specified
+    if provider is None:
+        provider = settings.llm_primary_provider
+
+    # Check for AI override (for testing)
+    if settings.ai_override:
+        override_model = settings.ai_override_model
+        logger.debug(
+            f"🔄 AI_OVERRIDE enabled: {tier_or_model} → {override_model} "
+            "(using cheaper model for testing)"
+        )
+        if override_model in MODEL_ALIASES:
+            return MODEL_ALIASES[override_model]
+        return override_model
+
+    # If it's a tier alias, resolve via provider
+    if tier_or_model in TIER_ALIASES:
+        provider_aliases = TIER_ALIASES[tier_or_model]
+        if provider not in provider_aliases:
+            raise ValueError(
+                f"Provider '{provider}' not configured for tier '{tier_or_model}'. "
+                f"Available providers: {list(provider_aliases.keys())}"
+            )
+        model_alias = provider_aliases[provider]
+        return resolve_model_alias(model_alias)
+
+    # Fall back to direct alias/model resolution
+    return resolve_model_alias(tier_or_model)
+
+
+def get_model_for_role(role: str, provider: str | None = None) -> str:
     """Get the full model ID for a given role.
 
     Args:
-        role: Role name (e.g., 'PERSONA', 'FACILITATOR')
+        role: Role name (e.g., 'persona', 'facilitator')
+        provider: Provider name ('anthropic', 'openai'). If None, uses primary provider.
 
     Returns:
-        Full model ID string (resolved from alias)
+        Full model ID string (resolved from tier alias)
 
     Raises:
         ValueError: If role is not recognized
 
     Examples:
-        >>> get_model_for_role("PERSONA")
+        >>> get_model_for_role("persona")
         "claude-sonnet-4-5-20250929"
+        >>> get_model_for_role("persona", provider="openai")
+        "gpt-5.1-2025-04-14"
     """
     # Normalize role to lowercase for case-insensitive lookup
     role_lower = role.lower()
-    if role_lower not in MODEL_BY_ROLE:
-        raise ValueError(f"Unknown role: {role}. Valid roles: {list(MODEL_BY_ROLE.keys())}")
 
-    model_alias = MODEL_BY_ROLE[role_lower]
-    return resolve_model_alias(model_alias)
+    # First check new TASK_MODEL_DEFAULTS (tier-based)
+    if role_lower in TASK_MODEL_DEFAULTS:
+        tier = TASK_MODEL_DEFAULTS[role_lower]
+        return resolve_tier_to_model(tier, provider=provider)
+
+    # Fall back to legacy MODEL_BY_ROLE for backward compatibility
+    if role_lower in MODEL_BY_ROLE:
+        model_alias = MODEL_BY_ROLE[role_lower]
+        return resolve_model_alias(model_alias)
+
+    raise ValueError(f"Unknown role: {role}. Valid roles: {list(TASK_MODEL_DEFAULTS.keys())}")
 
 
 def calculate_cost(
@@ -635,12 +814,12 @@ def calculate_cost(
 def get_service_pricing(provider: str, model: str | None = None, operation: str = "") -> float:
     """Get price per unit for any AI service.
 
-    Supports pricing lookup across all AI services: Anthropic, Voyage, Brave, Tavily.
+    Supports pricing lookup across all AI services: Anthropic, OpenAI, Voyage, Brave, Tavily.
 
     Args:
-        provider: Service provider ('anthropic', 'voyage', 'brave', 'tavily')
-        model: Model identifier (e.g., 'claude-sonnet-4-5-20250929', 'voyage-3')
-               Required for 'anthropic' and 'voyage', optional for others
+        provider: Service provider ('anthropic', 'openai', 'voyage', 'brave', 'tavily')
+        model: Model identifier (e.g., 'claude-sonnet-4-5-20250929', 'gpt-5.1', 'voyage-3')
+               Required for 'anthropic', 'openai', and 'voyage', optional for others
         operation: Operation type ('input', 'output', 'cache_write', 'cache_read', 'embedding', etc.)
 
     Returns:
@@ -652,6 +831,8 @@ def get_service_pricing(provider: str, model: str | None = None, operation: str 
     Examples:
         >>> get_service_pricing("anthropic", "claude-haiku-4-5-20251001", "input")
         1.00
+        >>> get_service_pricing("openai", "gpt-5.1", "input")
+        2.50
         >>> get_service_pricing("voyage", "voyage-3-lite", "embedding")
         0.02
         >>> get_service_pricing("brave", operation="web_search")
@@ -677,6 +858,23 @@ def get_service_pricing(provider: str, model: str | None = None, operation: str 
                 f"Available operations: {list(ANTHROPIC_PRICING[full_model_id].keys())}"
             )
         return ANTHROPIC_PRICING[full_model_id][operation]
+
+    elif provider_lower == "openai":
+        if not model:
+            raise ValueError("'model' is required for openai provider")
+        # Resolve alias to full model ID
+        full_model_id = resolve_model_alias(model)
+        if full_model_id not in OPENAI_PRICING:
+            raise ValueError(
+                f"Unknown OpenAI model: {model} (resolved to: {full_model_id}). "
+                f"Available models: {list(OPENAI_PRICING.keys())}"
+            )
+        if operation not in OPENAI_PRICING[full_model_id]:
+            raise ValueError(
+                f"Unknown operation '{operation}' for model {full_model_id}. "
+                f"Available operations: {list(OPENAI_PRICING[full_model_id].keys())}"
+            )
+        return OPENAI_PRICING[full_model_id][operation]
 
     elif provider_lower == "voyage":
         if not model:
@@ -711,5 +909,5 @@ def get_service_pricing(provider: str, model: str | None = None, operation: str 
     else:
         raise ValueError(
             f"Unknown provider: {provider}. "
-            f"Available providers: ['anthropic', 'voyage', 'brave', 'tavily']"
+            f"Available providers: ['anthropic', 'openai', 'voyage', 'brave', 'tavily']"
         )

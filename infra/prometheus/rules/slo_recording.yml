@@ -1,0 +1,79 @@
+groups:
+  - name: slo_recording_rules
+    interval: 30s
+    rules:
+      # Error rate pre-computed for different windows
+      - record: bo1:http_error_rate:5m
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(http_requests_total[5m]))
+
+      - record: bo1:http_error_rate:30m
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[30m]))
+          / sum(rate(http_requests_total[30m]))
+
+      - record: bo1:http_error_rate:1h
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[1h]))
+          / sum(rate(http_requests_total[1h]))
+
+      - record: bo1:http_error_rate:6h
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[6h]))
+          / sum(rate(http_requests_total[6h]))
+
+      # Availability pre-computed
+      - record: bo1:http_availability:5m
+        expr: |
+          sum(rate(http_requests_total{status!~"5.."}[5m]))
+          / sum(rate(http_requests_total[5m]))
+
+      - record: bo1:http_availability:1h
+        expr: |
+          sum(rate(http_requests_total{status!~"5.."}[1h]))
+          / sum(rate(http_requests_total[1h]))
+
+      # Latency percentiles pre-computed
+      - record: bo1:http_latency_p50:5m
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          )
+
+      - record: bo1:http_latency_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          )
+
+      - record: bo1:http_latency_p99:5m
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # Request rate
+      - record: bo1:http_requests_rate:5m
+        expr: sum(rate(http_requests_total[5m]))
+
+      # Burn rate (how fast we're consuming error budget)
+      # Burn rate of 1 = consuming budget at exactly sustainable pace
+      # Burn rate of 10 = consuming 10x faster than sustainable
+      - record: bo1:error_budget_burn_rate:1h
+        expr: |
+          bo1:http_error_rate:1h / 0.005
+
+      - record: bo1:error_budget_burn_rate:6h
+        expr: |
+          bo1:http_error_rate:6h / 0.005
+
+      # Session metrics
+      - record: bo1:session_completion_rate:1h
+        expr: |
+          sum(increase(bo1_sessions_total{status="completed"}[1h]))
+          / sum(increase(bo1_sessions_total{status="started"}[1h]))
+
+      # LLM cost rate
+      - record: bo1:llm_cost_rate_cents:1h
+        expr: sum(rate(bo1_llm_cost_cents_total[1h]))

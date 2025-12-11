@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Pause, Play } from 'lucide-svelte';
+	import { Pause, Play, CheckCircle } from 'lucide-svelte';
 	import { Button } from '$lib/components/ui';
 
 	interface Props {
@@ -10,6 +10,8 @@
 	}
 
 	let { sessionId, sessionStatus, onPause, onResume }: Props = $props();
+
+	const isComplete = $derived(sessionStatus === 'completed');
 </script>
 
 <header class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
@@ -25,10 +27,17 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
 					</svg>
 				</a>
-				<div class="flex-1">
+				<div class="flex-1 flex items-center gap-3">
 					<h1 class="text-[1.875rem] font-semibold leading-tight text-neutral-900 dark:text-white">
-						Meeting in Progress
+						{#if isComplete}
+							Meeting Complete
+						{:else}
+							Meeting in Progress
+						{/if}
 					</h1>
+					{#if isComplete}
+						<CheckCircle class="w-6 h-6 text-success-600 dark:text-success-400" />
+					{/if}
 				</div>
 			</div>
 

@@ -5,9 +5,17 @@ Provides HTTP endpoints for:
 - Deliberation execution with SSE streaming
 - User context management
 - Session management
+
+Features:
+- Graceful shutdown with in-flight request draining
+- SIGTERM/SIGINT signal handling
+- Health probes for k8s (liveness: /health, readiness: /ready)
 """
 
+import asyncio
+import logging
 import os
+import signal
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -17,7 +25,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
-from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi.errors import RateLimitExceeded
 
 from backend.api import (
@@ -31,32 +38,80 @@ from backend.api import (
     context,
     control,
     datasets,
+    email,
     health,
     industry_insights,
     onboarding,
     projects,
     sessions,
+    status,
     streaming,
     tags,
+    user,
     waitlist,
 )
 from backend.api.middleware.api_version import API_VERSION, ApiVersionMiddleware
 from backend.api.middleware.auth import require_admin
 from backend.api.middleware.correlation_id import CorrelationIdMiddleware
+from backend.api.middleware.degraded_mode import DegradedModeMiddleware
+from backend.api.middleware.metrics import create_instrumentator
 from backend.api.middleware.rate_limit import limiter
 from backend.api.middleware.security_headers import add_security_headers_middleware
 from backend.api.supertokens_config import add_supertokens_middleware, init_supertokens
 from bo1.config import get_settings
+
+# Graceful shutdown state
+_shutdown_event: asyncio.Event | None = None
+_in_flight_requests = 0
+_shutdown_logger = logging.getLogger(__name__)
+
+# Graceful shutdown timeout (seconds)
+SHUTDOWN_TIMEOUT = 30
+
+
+def get_shutdown_event() -> asyncio.Event:
+    """Get or create the shutdown event."""
+    global _shutdown_event
+    if _shutdown_event is None:
+        _shutdown_event = asyncio.Event()
+    return _shutdown_event
+
+
+def is_shutting_down() -> bool:
+    """Check if the application is shutting down."""
+    return _shutdown_event is not None and _shutdown_event.is_set()
+
+
+def _handle_shutdown_signal(signum: int, frame: Any) -> None:
+    """Handle SIGTERM/SIGINT for graceful shutdown."""
+    sig_name = signal.Signals(signum).name
+    _shutdown_logger.info(f"Received {sig_name}, initiating graceful shutdown...")
+    shutdown_event = get_shutdown_event()
+    shutdown_event.set()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan context manager.
 
-    Handles startup and shutdown events.
+    Handles startup and shutdown events with graceful shutdown support.
     """
     # Startup
     print("Starting Board of One API...")
+
+    # Initialize shutdown event
+    get_shutdown_event()
+
+    # Register signal handlers for graceful shutdown
+    # Note: In uvicorn, SIGTERM/SIGINT are typically handled by uvicorn itself,
+    # but we register handlers as a fallback for other deployment scenarios
+    try:
+        signal.signal(signal.SIGTERM, _handle_shutdown_signal)
+        signal.signal(signal.SIGINT, _handle_shutdown_signal)
+        print("✓ Signal handlers registered for graceful shutdown")
+    except (ValueError, OSError) as e:
+        # Can't set signal handlers in non-main thread (common in test scenarios)
+        print(f"⚠️  Could not register signal handlers: {e}")
 
     # SECURITY: Validate authentication is enabled in production
     from backend.api.middleware.auth import require_production_auth
@@ -89,6 +144,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     print("Shutting down Board of One API...")
 
+    # Signal shutdown to health checks
+    shutdown_event = get_shutdown_event()
+    shutdown_event.set()
+    print("✓ Shutdown event signaled (health checks now return 503)")
+
+    # Wait for in-flight requests with timeout
+    global _in_flight_requests
+    if _in_flight_requests > 0:
+        print(
+            f"⏳ Waiting for {_in_flight_requests} in-flight requests (max {SHUTDOWN_TIMEOUT}s)..."
+        )
+        start_time = asyncio.get_event_loop().time()
+        while _in_flight_requests > 0:
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= SHUTDOWN_TIMEOUT:
+                print(
+                    f"⚠️  Shutdown timeout reached with {_in_flight_requests} requests still in-flight"
+                )
+                break
+            await asyncio.sleep(0.1)
+        else:
+            print("✓ All in-flight requests completed")
+
     # Stop batch event persistence task and flush remaining events
     from backend.api.event_publisher import _flush_batch, stop_batch_flush_task
 
@@ -107,6 +185,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         print("✓ Persistence retry worker stopped")
     except Exception as e:
         print(f"⚠️  Failed to stop persistence worker: {e}")
+
+    # Close database connection pool
+    try:
+        from bo1.state.database import close_pool
+
+        close_pool()
+        print("✓ Database connection pool closed")
+    except Exception as e:
+        print(f"⚠️  Failed to close database pool: {e}")
 
 
 # Create FastAPI application
@@ -252,6 +339,29 @@ app.add_middleware(CorrelationIdMiddleware)
 # Add API version header to all responses
 app.add_middleware(ApiVersionMiddleware)
 
+# Add degraded mode middleware (returns 503 for LLM operations when providers unavailable)
+# IMPORTANT: Add AFTER ApiVersionMiddleware (executes before it in request flow)
+app.add_middleware(DegradedModeMiddleware)
+
+
+# In-flight request tracking middleware
+@app.middleware("http")
+async def track_in_flight_requests(request: Request, call_next: Any) -> Any:
+    """Track in-flight requests for graceful shutdown."""
+    global _in_flight_requests
+
+    # Skip tracking for health endpoints (they should always respond quickly)
+    if request.url.path in ("/api/health", "/api/ready"):
+        return await call_next(request)
+
+    _in_flight_requests += 1
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        _in_flight_requests -= 1
+
+
 # Include routers
 # IMPORTANT: Register streaming router BEFORE sessions router to avoid
 # /{session_id} catch-all matching /{session_id}/stream
@@ -275,11 +385,15 @@ app.include_router(control.router, prefix="/api", tags=["deliberation-control"])
 app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])
 app.include_router(client_errors.router, prefix="/api", tags=["client-errors"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
+app.include_router(email.router, prefix="/api", tags=["email"])
+app.include_router(user.router, prefix="/api", tags=["user"])
+app.include_router(status.router, prefix="/api", tags=["status"])
 
 # Initialize Prometheus metrics instrumentation
 # Exposes /metrics endpoint for Prometheus scraping
 # SECURITY: /metrics is not rate limited but should be internal-only (via network rules)
-Instrumentator().instrument(app).expose(app, include_in_schema=False)
+# Uses custom instrumentator with path normalization and business metrics
+create_instrumentator().instrument(app).expose(app, include_in_schema=False)
 
 
 @app.exception_handler(Exception)

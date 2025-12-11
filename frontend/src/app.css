@@ -386,3 +386,20 @@ body {
 .dark * {
 	scrollbar-color: var(--color-neutral-700) var(--color-neutral-900);
 }
+
+/* ============================================================================
+   Attention Animation - draws user attention to important elements
+   ============================================================================ */
+
+@keyframes attention-pulse {
+	0%, 100% {
+		box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+	}
+	50% {
+		box-shadow: 0 10px 15px -3px rgb(251 191 36 / 0.3), 0 4px 6px -4px rgb(251 191 36 / 0.2);
+	}
+}
+
+.animate-attention-pulse {
+	animation: attention-pulse 2s ease-in-out 3;
+}

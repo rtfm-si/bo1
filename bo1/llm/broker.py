@@ -17,10 +17,15 @@ from typing import Any
 from anthropic import APIError, RateLimitError
 from pydantic import BaseModel, Field
 
-from bo1.config import resolve_model_alias
+from bo1.config import get_settings, resolve_tier_to_model
 from bo1.constants import LLMConfig
-from bo1.llm.circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
-from bo1.llm.client import ClaudeClient
+from bo1.llm.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerOpenError,
+    get_active_llm_provider,
+    get_service_circuit_breaker,
+)
+from bo1.llm.client import ClaudeClient, TokenUsage
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
 from bo1.llm.response import LLMResponse
@@ -28,10 +33,22 @@ from bo1.utils.logging import get_logger, log_llm_call
 
 # Import metrics for tracking LLM calls
 try:
-    from backend.api.metrics import metrics
+    from backend.api.middleware.metrics import (
+        record_llm_cost,
+        record_llm_request,
+    )
+
+    _metrics_available = True
 except ImportError:
     # Metrics may not be available in all contexts (e.g., console-only mode)
-    metrics = None  # type: ignore[assignment]
+    _metrics_available = False
+
+    def record_llm_cost(model: str, provider: str, cost_cents: float) -> None:  # noqa: D103
+        """No-op when metrics unavailable."""
+
+    def record_llm_request(model: str, provider: str, success: bool = True) -> None:  # noqa: D103
+        """No-op when metrics unavailable."""
+
 
 logger = get_logger(__name__)
 
@@ -84,7 +101,7 @@ class PromptRequest(BaseModel):
         >>> request = PromptRequest(
         ...     system="You are a helpful assistant.",
         ...     user_message="What is 2+2?",
-        ...     model="sonnet",
+        ...     model="core",  # Provider-agnostic tier
         ...     prefill=None,
         ...     cache_system=False,
         ...     phase="test",
@@ -94,7 +111,9 @@ class PromptRequest(BaseModel):
 
     system: str = Field(description="System prompt")
     user_message: str = Field(description="User message content")
-    model: str = Field(default="sonnet", description="Model alias or full ID")
+    model: str = Field(
+        default="core", description="Model tier ('core', 'fast') or alias ('sonnet', 'haiku')"
+    )
     prefill: str | None = Field(default=None, description="Assistant prefill (e.g., '{' for JSON)")
     cache_system: bool = Field(default=False, description="Enable prompt caching for system prompt")
     temperature: float = Field(
@@ -121,13 +140,14 @@ class PromptBroker:
     - Standardized LLMResponse format
     - Error handling and logging
     - Request tracking
+    - Provider fallback (Anthropic → OpenAI)
 
     Examples:
         >>> broker = PromptBroker()
         >>> request = PromptRequest(
         ...     system="You are an expert.",
         ...     user_message="Analyze this problem.",
-        ...     model="sonnet",
+        ...     model="core",  # Provider-agnostic tier
         ...     prefill="{",
         ...     phase="decomposition",
         ...     agent_type="DecomposerAgent"
@@ -147,11 +167,32 @@ class PromptBroker:
         Args:
             client: ClaudeClient instance (if None, creates default)
             retry_policy: RetryPolicy config (if None, uses default)
-            circuit_breaker: CircuitBreaker instance (if None, creates default)
+            circuit_breaker: CircuitBreaker instance (if None, uses service-specific)
         """
         self.client = client or ClaudeClient()
+        self._openai_client: Any = None  # Lazy-loaded
         self.retry_policy = retry_policy or RetryPolicy()
-        self.circuit_breaker = circuit_breaker or CircuitBreaker()
+        # Use service-specific circuit breakers instead of single instance
+        self._circuit_breaker_override = circuit_breaker
+
+    def _get_circuit_breaker(self, provider: str) -> CircuitBreaker:
+        """Get circuit breaker for provider."""
+        if self._circuit_breaker_override:
+            return self._circuit_breaker_override
+        return get_service_circuit_breaker(provider)
+
+    def _get_openai_client(self) -> Any:
+        """Lazy-load OpenAI client."""
+        if self._openai_client is None:
+            from bo1.llm.openai_client import OpenAIClient
+
+            self._openai_client = OpenAIClient()
+        return self._openai_client
+
+    @property
+    def circuit_breaker(self) -> CircuitBreaker:
+        """Backward compatibility: return Anthropic circuit breaker."""
+        return self._get_circuit_breaker("anthropic")
 
     async def call(self, request: PromptRequest) -> LLMResponse:
         """Execute an LLM call with retry/rate-limit handling and caching.
@@ -175,35 +216,39 @@ class PromptBroker:
                 f"[{request.request_id}] Cache hit: "
                 f"model={cached_response.model}, phase={request.phase}"
             )
-            # Track cache hit
-            if metrics:
-                metrics.increment("llm.cache.hit")
             return cached_response
-
-        # Track cache miss
-        if metrics:
-            metrics.increment("llm.cache.miss")
 
         start_time = time.time()
         retry_count = 0
         last_error: Exception | None = None
 
-        # Resolve model alias to full ID
-        model_id = resolve_model_alias(request.model)
+        # Determine active provider (handles fallback)
+        settings = get_settings()
+        provider = get_active_llm_provider(
+            primary=settings.llm_primary_provider,
+            fallback="openai" if settings.llm_primary_provider == "anthropic" else "anthropic",
+            fallback_enabled=settings.llm_fallback_enabled,
+        )
+
+        # Resolve model tier/alias to full ID for the active provider
+        model_id = resolve_tier_to_model(request.model, provider=provider)
 
         logger.info(
             f"[{request.request_id}] Starting LLM call: "
-            f"model={model_id}, phase={request.phase}, agent={request.agent_type}"
+            f"provider={provider}, model={model_id}, phase={request.phase}, agent={request.agent_type}"
         )
 
         # Get cost tracking context from thread-local storage
         cost_ctx = get_cost_context()
 
+        # Get circuit breaker for the active provider
+        circuit_breaker = self._get_circuit_breaker(provider)
+
         for attempt in range(self.retry_policy.max_retries + 1):
             try:
                 # Track cost with context manager (wraps the entire API call)
                 with CostTracker.track_call(
-                    provider="anthropic",
+                    provider=provider,
                     operation_type="completion",
                     model_name=model_id,
                     session_id=cost_ctx.get("session_id"),
@@ -216,18 +261,31 @@ class PromptBroker:
                     metadata={"prompt_name": cost_ctx.get("prompt_name", request.agent_type)},
                 ) as cost_record:
                     # Make the LLM call with circuit breaker protection
-                    async def _make_api_call() -> tuple[str, Any]:
-                        return await self.client.call(
-                            model=request.model,
-                            messages=[{"role": "user", "content": request.user_message}],
-                            system=request.system,
-                            cache_system=request.cache_system,
-                            temperature=request.temperature,
-                            max_tokens=request.max_tokens,
-                            prefill=request.prefill,
-                        )
+                    async def _make_api_call() -> tuple[str, TokenUsage]:
+                        if provider == "openai":
+                            openai_client = self._get_openai_client()
+                            # OpenAI client has its own TokenUsage class (compatible)
+                            return await openai_client.call(  # type: ignore[no-any-return]
+                                model=model_id,
+                                messages=[{"role": "user", "content": request.user_message}],
+                                system=request.system,
+                                cache_system=request.cache_system,
+                                temperature=request.temperature,
+                                max_tokens=request.max_tokens,
+                                prefill=request.prefill,
+                            )
+                        else:
+                            return await self.client.call(
+                                model=model_id,
+                                messages=[{"role": "user", "content": request.user_message}],
+                                system=request.system,
+                                cache_system=request.cache_system,
+                                temperature=request.temperature,
+                                max_tokens=request.max_tokens,
+                                prefill=request.prefill,
+                            )
 
-                    response_text, token_usage = await self.circuit_breaker.call(_make_api_call)
+                    response_text, token_usage = await circuit_breaker.call(_make_api_call)
 
                     # Populate cost record with token usage from response
                     cost_record.input_tokens = token_usage.input_tokens
@@ -265,15 +323,11 @@ class PromptBroker:
                     retry_count=retry_count,
                 )
 
-                # Track metrics
-                if metrics:
-                    metrics.increment("llm.api_calls")
-                    metrics.observe("llm.input_tokens", token_usage.input_tokens)
-                    metrics.observe("llm.output_tokens", token_usage.output_tokens)
-                    metrics.observe("llm.cache_read_tokens", token_usage.cache_read_tokens)
-                    metrics.observe("llm.cache_creation_tokens", token_usage.cache_creation_tokens)
-                    metrics.observe("llm.cost", llm_response.cost_total)
-                    metrics.observe("llm.duration_ms", duration_ms)
+                # Track Prometheus metrics
+                record_llm_request(model=model_id, provider=provider, success=True)
+                # Convert cost to cents (cost_total is in dollars)
+                cost_cents = llm_response.cost_total * 100 if llm_response.cost_total else 0
+                record_llm_cost(model=model_id, provider=provider, cost_cents=cost_cents)
 
                 # Cache the response for future use
                 await cache.set(request, llm_response)
@@ -289,8 +343,7 @@ class PromptBroker:
                     logger.error(
                         f"[{request.request_id}] Rate limit exceeded, all retries exhausted: {e}"
                     )
-                    if metrics:
-                        metrics.increment("llm.errors.rate_limit")
+                    record_llm_request(model=model_id, provider=provider, success=False)
                     raise
 
                 # Extract Retry-After header if present
@@ -328,8 +381,7 @@ class PromptBroker:
                 else:
                     # Non-retryable error or exhausted retries
                     logger.error(f"[{request.request_id}] API error (non-retryable): {e}")
-                    if metrics:
-                        metrics.increment("llm.errors.api_error")
+                    record_llm_request(model=model_id, provider=provider, success=False)
                     raise
 
             except CircuitBreakerOpenError as e:
@@ -338,8 +390,7 @@ class PromptBroker:
                     f"[{request.request_id}] Circuit breaker OPEN - "
                     f"API unavailable, skipping retry: {e}"
                 )
-                if metrics:
-                    metrics.increment("llm.errors.circuit_breaker_open")
+                record_llm_request(model=model_id, provider=provider, success=False)
                 # Re-raise as RuntimeError to avoid retry loop
                 raise RuntimeError(
                     "Service temporarily unavailable due to repeated failures. Please try again later."
@@ -348,14 +399,12 @@ class PromptBroker:
             except Exception as e:
                 # Unexpected error, don't retry
                 logger.error(f"[{request.request_id}] Unexpected error: {e}")
-                if metrics:
-                    metrics.increment("llm.errors.unexpected")
+                record_llm_request(model=model_id, provider=provider, success=False)
                 raise
 
         # Should never reach here, but just in case
         logger.error(f"[{request.request_id}] All retries exhausted")
-        if metrics:
-            metrics.increment("llm.errors.retries_exhausted")
+        record_llm_request(model=model_id, provider=provider, success=False)
         raise last_error or RuntimeError("All retries exhausted with no error captured")
 
     def _extract_retry_after(self, error: RateLimitError) -> float | None:
@@ -398,38 +447,38 @@ class PromptBroker:
 
 
 def get_model_for_phase(phase: str, round_number: int = 0) -> str:
-    """Select appropriate model for task based on phase and round number.
+    """Select appropriate model tier for task based on phase and round number.
 
-    Uses Haiku for supporting tasks and early rounds to reduce cost and latency,
-    while using Sonnet for critical synthesis and later rounds.
+    Uses 'fast' tier for supporting tasks and early rounds to reduce cost and latency,
+    while using 'core' tier for critical synthesis and later rounds.
 
     Args:
         phase: The deliberation phase
         round_number: The current round number (for contribution phase)
 
     Returns:
-        Model alias ('haiku' or 'sonnet')
+        Model tier ('fast' or 'core') - provider-agnostic
 
     Examples:
         >>> get_model_for_phase("convergence_check")
-        'haiku'
+        'fast'
         >>> get_model_for_phase("contribution", round_number=1)
-        'haiku'
+        'fast'
         >>> get_model_for_phase("contribution", round_number=3)
-        'sonnet'
+        'core'
         >>> get_model_for_phase("synthesis")
-        'sonnet'
+        'core'
     """
-    # Fast phases use Haiku (90% cost savings)
+    # Fast phases use 'fast' tier (cheaper model)
     if phase in ["convergence_check", "drift_check", "format_validation"]:
-        return "haiku"
+        return "fast"
 
-    # Early exploration rounds can use Haiku (rounds 1-2)
+    # Early exploration rounds can use 'fast' tier (rounds 1-2)
     if phase == "contribution" and round_number <= 2:
-        return "haiku"
+        return "fast"
 
-    # Everything else uses Sonnet (critical synthesis, later rounds, voting)
-    return "sonnet"
+    # Everything else uses 'core' tier (critical synthesis, later rounds, voting)
+    return "core"
 
 
 class RequestTracker:

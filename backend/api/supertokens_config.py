@@ -24,6 +24,8 @@ from supertokens_python.recipe.thirdparty.provider import ProviderInput
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 
 from backend.api.utils.db_helpers import execute_query, exists
+from backend.services.email import send_email_async
+from backend.services.email_templates import render_welcome_email
 from bo1.feature_flags import GOOGLE_OAUTH_ENABLED
 from bo1.state.repositories import user_repository
 
@@ -262,6 +264,26 @@ def override_thirdparty_functions(
                     f"Sign-in rejected: user {user_id} ({_mask_email(email)}) is locked or deleted"
                 )
                 raise Exception("Your account has been locked or deleted. Please contact support.")
+
+            # Send welcome email for new users (fire-and-forget)
+            if result.created_new_user:
+                try:
+                    # Extract name from provider info if available
+                    user_name = None
+                    if raw_user_info_from_provider.from_user_info_api:
+                        user_name = raw_user_info_from_provider.from_user_info_api.get("name")
+
+                    html, text = render_welcome_email(user_name=user_name, user_id=user_id)
+                    send_email_async(
+                        to=email,
+                        subject="Welcome to Board of One",
+                        html=html,
+                        text=text,
+                    )
+                    logger.info(f"Welcome email queued for new user: {_mask_email(email)}")
+                except Exception as welcome_err:
+                    # Don't block signup on welcome email failure
+                    logger.warning(f"Failed to send welcome email: {welcome_err}")
         except Exception as e:
             # Re-raise lock/delete exceptions
             if "locked or deleted" in str(e):

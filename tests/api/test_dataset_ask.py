@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from backend.api.datasets import (
+    _extract_clarification_from_conversation,
     _parse_spec_from_response,
     _strip_specs_from_response,
 )
@@ -292,3 +293,74 @@ class TestConversationListResponse:
         )
         assert resp.total == 2
         assert len(resp.conversations) == 2
+
+
+class TestClarificationExtraction:
+    """Test clarification Q&A extraction from conversations."""
+
+    def test_extract_clarification_with_question(self):
+        """Test extraction when assistant asked a clarifying question."""
+        messages = [
+            {"role": "user", "content": "Show me the top products."},
+            {
+                "role": "assistant",
+                "content": "I can help with that. Which metric should I use - revenue or units sold?",
+            },
+        ]
+        result = _extract_clarification_from_conversation(messages, "revenue")
+
+        assert result is not None
+        question, answer = result
+        assert "revenue or units sold?" in question
+        assert answer == "revenue"
+
+    def test_no_extraction_without_question(self):
+        """Test no extraction when assistant didn't ask a question."""
+        messages = [
+            {"role": "user", "content": "Show me the top products."},
+            {
+                "role": "assistant",
+                "content": "Here are the top products by revenue.",
+            },
+        ]
+        result = _extract_clarification_from_conversation(messages, "Show me more details")
+
+        assert result is None
+
+    def test_no_extraction_empty_messages(self):
+        """Test no extraction with empty message history."""
+        result = _extract_clarification_from_conversation([], "test question")
+        assert result is None
+
+    def test_extract_with_could_you_pattern(self):
+        """Test extraction with 'could you' clarification pattern."""
+        messages = [
+            {"role": "user", "content": "Analyze sales data."},
+            {
+                "role": "assistant",
+                "content": "Sure! Could you specify which time period you're interested in?",
+            },
+        ]
+        result = _extract_clarification_from_conversation(messages, "last quarter")
+
+        assert result is not None
+        question, answer = result
+        assert "time period" in question
+        assert answer == "last quarter"
+
+    def test_extract_multiple_questions_uses_last(self):
+        """Test that last question in message is extracted."""
+        messages = [
+            {"role": "user", "content": "Help me understand the data."},
+            {
+                "role": "assistant",
+                "content": "I can help. First, let me ask: what's your goal? Also, what time frame should I use?",
+            },
+        ]
+        result = _extract_clarification_from_conversation(messages, "2024")
+
+        assert result is not None
+        question, answer = result
+        # Should get the last question
+        assert "time frame" in question
+        assert answer == "2024"

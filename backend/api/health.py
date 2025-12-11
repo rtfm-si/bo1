@@ -129,17 +129,199 @@ class ComponentHealthResponse(BaseModel):
     }
 
 
+class ServiceHealthSummary(BaseModel):
+    """Summary of a service's health status."""
+
+    name: str = Field(..., description="Service name")
+    status: str = Field(..., description="Status: operational, degraded, outage")
+    is_critical: bool = Field(..., description="Whether service is critical for operation")
+
+
+class ReadinessResponse(BaseModel):
+    """Readiness check response for k8s probes.
+
+    Attributes:
+        status: Overall status (ok, degraded, unavailable)
+        ready: Whether the service is ready to accept traffic
+        checks: Individual component check results
+        services: Service health summaries
+        vendor_status: Overall LLM provider status
+        timestamp: ISO 8601 timestamp
+    """
+
+    status: str = Field(..., description="Overall status: ok, degraded, unavailable")
+    ready: bool = Field(..., description="Whether service is ready for traffic")
+    checks: dict[str, bool] = Field(..., description="Individual component check results")
+    services: list[ServiceHealthSummary] | None = Field(
+        None, description="Service health summaries"
+    )
+    vendor_status: str | None = Field(None, description="Overall LLM provider status")
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+
+
+@router.get(
+    "/ready",
+    response_model=ReadinessResponse,
+    summary="Readiness probe (k8s)",
+    description="""
+    Kubernetes readiness probe - checks if the service is ready to accept traffic.
+
+    Tests critical dependencies:
+    - PostgreSQL database connectivity
+    - Redis connectivity
+
+    **Use Cases:**
+    - Kubernetes readiness probes
+    - Load balancer backend health checks
+    - Pre-traffic verification after deployment
+
+    Returns 200 if ready, 503 if not ready.
+    """,
+    responses={
+        200: {
+            "description": "Service is ready to accept traffic",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "ok",
+                        "ready": True,
+                        "checks": {"postgres": True, "redis": True},
+                        "timestamp": "2025-01-15T12:00:00.000000",
+                    }
+                }
+            },
+        },
+        503: {
+            "description": "Service is not ready",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "unavailable",
+                        "ready": False,
+                        "checks": {"postgres": True, "redis": False},
+                        "timestamp": "2025-01-15T12:00:00.000000",
+                    }
+                }
+            },
+        },
+    },
+)
+async def readiness_check() -> ReadinessResponse:
+    """Kubernetes readiness probe.
+
+    Checks critical dependencies (Postgres, Redis) and returns 503 if any fail.
+    Also returns 503 during graceful shutdown to drain traffic.
+
+    Returns:
+        ReadinessResponse with component check results
+
+    Raises:
+        HTTPException: 503 if service is not ready or shutting down
+    """
+    # Check if shutting down (import here to avoid circular dependency)
+    from backend.api.main import is_shutting_down
+
+    if is_shutting_down():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "shutting_down",
+                "ready": False,
+                "checks": {},
+                "timestamp": datetime.now(UTC).isoformat(),
+            },
+        )
+
+    checks: dict[str, bool] = {}
+    timestamp = datetime.now(UTC).isoformat()
+
+    # Check PostgreSQL
+    try:
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            conn = psycopg2.connect(database_url, connect_timeout=5)
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+            conn.close()
+            checks["postgres"] = True
+        else:
+            checks["postgres"] = False
+    except Exception:
+        checks["postgres"] = False
+
+    # Check Redis
+    try:
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        client = redis.from_url(redis_url, socket_timeout=5)
+        client.ping()
+        client.close()
+        checks["redis"] = True
+    except Exception:
+        checks["redis"] = False
+
+    # Get service health summaries
+    try:
+        from backend.services.service_monitor import get_service_monitor
+        from backend.services.vendor_health import (
+            get_overall_vendor_status,
+        )
+
+        monitor = get_service_monitor()
+        all_health = monitor.get_all_health()
+        services = [
+            ServiceHealthSummary(
+                name=h.name,
+                status=h.status.value,
+                is_critical=h.is_critical,
+            )
+            for h in all_health.values()
+        ]
+        vendor_status = get_overall_vendor_status()
+    except Exception:
+        services = None
+        vendor_status = None
+
+    # Determine overall status
+    all_ok = all(checks.values())
+    any_ok = any(checks.values())
+
+    if all_ok:
+        status = "ok"
+        ready = True
+    elif any_ok:
+        status = "degraded"
+        ready = False  # Not ready if any critical dependency fails
+    else:
+        status = "unavailable"
+        ready = False
+
+    response = ReadinessResponse(
+        status=status,
+        ready=ready,
+        checks=checks,
+        services=services,
+        vendor_status=vendor_status,
+        timestamp=timestamp,
+    )
+
+    if not ready:
+        raise HTTPException(status_code=503, detail=response.model_dump())
+
+    return response
+
+
 @router.get(
     "/health",
     response_model=HealthResponse,
-    summary="Basic health check",
+    summary="Liveness probe (k8s)",
     description="""
-    Check if the Board of One API is online and responding.
+    Kubernetes liveness probe - checks if the API process is alive and responding.
 
     This is a lightweight health check that doesn't test dependencies.
-    Use /health/db, /health/redis, or /health/anthropic to test specific components.
+    Use /ready for readiness probes, /health/db, /health/redis for component checks.
 
     **Use Cases:**
+    - Kubernetes liveness probes
     - Load balancer health checks
     - Uptime monitoring
     - Smoke tests after deployment
@@ -168,7 +350,7 @@ async def health_check() -> HealthResponse:
     build_info = get_build_info()
     return HealthResponse(
         status="healthy",
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         details={
             "version": "1.0.0",
             "api": "Board of One",

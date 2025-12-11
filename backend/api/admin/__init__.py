@@ -17,6 +17,8 @@ from fastapi import APIRouter
 
 from backend.api.admin import (
     beta_whitelist,
+    cost_analytics,
+    feature_flags,
     metrics,
     research_cache,
     session_control,
@@ -34,6 +36,8 @@ router.include_router(research_cache.router)
 router.include_router(beta_whitelist.router)
 router.include_router(waitlist.router)
 router.include_router(metrics.router)
+router.include_router(cost_analytics.router)
+router.include_router(feature_flags.router)
 
 # Re-export models for backward compatibility
 from backend.api.admin.models import (  # noqa: E402, F401

@@ -39,7 +39,7 @@ class TestFacilitatorTokenBudgetWarning:
         # Create mock LLM response with high token count (above 90% of 1000)
         mock_response = LLMResponse(
             content="test response",
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5-20250929",
             token_usage=TokenUsage(input_tokens=500, output_tokens=950),  # 95% of budget
             duration_ms=1000,
         )
@@ -88,7 +88,7 @@ class TestFacilitatorTokenBudgetWarning:
         # Token count below threshold (50% of budget)
         mock_response = LLMResponse(
             content="test response",
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5-20250929",
             token_usage=TokenUsage(input_tokens=500, output_tokens=500),  # 50% of budget
             duration_ms=1000,
         )
@@ -171,7 +171,7 @@ class TestSynthesisTokenBudgetWarning:
         # Mock LLM response with high token count (above 90% of 4000)
         mock_response = LLMResponse(
             content="## Synthesis content here",
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5-20250929",
             token_usage=TokenUsage(input_tokens=2000, output_tokens=3800),  # 95% of budget
             duration_ms=2000,
         )

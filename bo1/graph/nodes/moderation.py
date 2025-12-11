@@ -400,6 +400,9 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
         content=intervention_text,
         contribution_type=ContributionType.MODERATOR,
         round_number=state.get("round_number", 1),
+        thinking=None,
+        token_count=llm_response.token_usage.output_tokens if llm_response.token_usage else None,
+        cost=llm_response.cost if hasattr(llm_response, "cost") else None,
     )
 
     # Track cost in metrics

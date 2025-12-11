@@ -69,48 +69,58 @@
 
 			for await (const { event, data } of stream.connect()) {
 				switch (event) {
-					case 'token':
+					case 'analysis':
 						try {
-							const tokenData = JSON.parse(data);
-							streamingContent += tokenData.token || '';
+							const analysisData = JSON.parse(data);
+							streamingContent = analysisData.content || '';
 							// Update the streaming message in the messages array
 							messages = [
 								...messages.slice(0, -1).filter((m) => m.role !== 'assistant' || m.content !== ''),
 								{ ...streamingMessage, content: streamingContent }
 							];
 						} catch {
-							// Token might not be JSON
-							streamingContent += data;
+							// Fallback if not JSON
+							streamingContent = data;
 						}
 						scrollToBottom();
 						break;
 
-					case 'conversation_id':
+					case 'query':
 						try {
-							const idData = JSON.parse(data);
-							conversationId = idData.conversation_id;
+							const queryData = JSON.parse(data);
+							// Store query spec for later use
+							queryResult = queryData.spec || queryData;
 						} catch {
 							// Ignore parse errors
 						}
 						break;
 
-					case 'query_spec':
+					case 'query_result':
 						try {
-							queryResult = JSON.parse(data);
+							const resultData = JSON.parse(data);
+							queryResult = resultData;
 						} catch {
 							// Ignore parse errors
 						}
 						break;
 
-					case 'chart_spec':
+					case 'chart':
 						try {
-							chartSpec = JSON.parse(data);
+							const chartData = JSON.parse(data);
+							chartSpec = chartData.spec || chartData;
 						} catch {
 							// Ignore parse errors
 						}
 						break;
 
 					case 'done':
+						// Extract conversation_id from done event
+						try {
+							const doneData = JSON.parse(data);
+							conversationId = doneData.conversation_id || conversationId;
+						} catch {
+							// Ignore parse errors
+						}
 						// Finalize message
 						const finalMessage: ConversationMessage = {
 							role: 'assistant',
@@ -120,16 +130,6 @@
 							query_result: queryResult
 						};
 						messages = [...messages.filter((m) => m.role === 'user'), finalMessage];
-						// Re-add user messages properly
-						const userMessages = messages.filter((m) => m.role === 'user');
-						messages = [];
-						for (let i = 0; i < userMessages.length; i++) {
-							messages.push(userMessages[i]);
-							if (i < userMessages.length - 1) {
-								// Find corresponding assistant message
-							}
-						}
-						// Simpler approach: rebuild from user messages
 						break;
 
 					case 'error':

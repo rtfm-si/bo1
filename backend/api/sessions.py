@@ -23,10 +23,14 @@ from backend.api.middleware.rate_limit import SESSION_RATE_LIMIT, limiter, user_
 from backend.api.models import (
     CreateSessionRequest,
     ErrorResponse,
+    PhaseCosts,
+    ProviderCosts,
     SessionActionsResponse,
+    SessionCostBreakdown,
     SessionDetailResponse,
     SessionListResponse,
     SessionResponse,
+    SubProblemCost,
     TaskStatusUpdate,
     TaskWithStatus,
 )
@@ -36,6 +40,7 @@ from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
+from bo1.llm.cost_tracker import CostTracker
 from bo1.security import check_for_injection, sanitize_for_prompt
 from bo1.state.redis_manager import RedisManager
 from bo1.state.repositories.dataset_repository import DatasetRepository
@@ -1188,3 +1193,68 @@ async def update_task_status(
 
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get(
+    "/{session_id}/costs",
+    response_model=SessionCostBreakdown,
+    summary="Get session cost breakdown",
+    description="Get detailed cost breakdown by sub-problem for a session.",
+    responses={
+        200: {"description": "Cost breakdown retrieved successfully"},
+        403: {"description": "Not authorized to view this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("get session costs")
+async def get_session_costs(
+    session_id: str,
+    session_data: VerifiedSession,
+) -> SessionCostBreakdown:
+    """Get detailed cost breakdown for a session.
+
+    Returns total costs and per-sub-problem breakdown including:
+    - Total cost, tokens, and API calls
+    - Cost breakdown by AI provider (Anthropic, Voyage, Brave, Tavily)
+    - Cost breakdown by sub-problem with phase attribution
+
+    Args:
+        session_id: Session identifier (bo1_xxx format)
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        SessionCostBreakdown with total and per-sub-problem costs
+    """
+    with track_api_call("sessions.get_costs", "GET"):
+        # Validate session ID format
+        session_id = validate_session_id(session_id)
+
+        # Get total session costs
+        total_costs = CostTracker.get_session_costs(session_id)
+
+        # Get per-sub-problem breakdown
+        subproblem_costs = CostTracker.get_subproblem_costs(session_id)
+
+        # Convert to response model
+        by_sub_problem = [
+            SubProblemCost(
+                sub_problem_index=sp["sub_problem_index"],
+                label=sp["label"],
+                total_cost=sp["total_cost"],
+                api_calls=sp["api_calls"],
+                total_tokens=sp["total_tokens"],
+                by_provider=ProviderCosts(**sp["by_provider"]),
+                by_phase=PhaseCosts(**sp["by_phase"]),
+            )
+            for sp in subproblem_costs
+        ]
+
+        return SessionCostBreakdown(
+            session_id=session_id,
+            total_cost=total_costs["total_cost"],
+            total_tokens=total_costs["total_tokens"],
+            total_api_calls=total_costs["total_calls"],
+            by_provider=ProviderCosts(**total_costs["by_provider"]),
+            by_sub_problem=by_sub_problem,
+        )

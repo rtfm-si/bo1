@@ -4,6 +4,33 @@ Provides functions to format deliberation events as SSE messages for
 real-time streaming to web clients.
 
 Includes sequence tracking for session resume support via Last-Event-ID.
+
+Schema Documentation:
+    See docs/SSE_EVENTS.md for complete event schema contracts.
+
+Pydantic Schemas:
+    See bo1/events/schemas.py for typed Pydantic models.
+
+TypeScript Interfaces:
+    See frontend/src/lib/api/sse-events.ts for frontend types.
+
+Event Types (30 total):
+    Session: session_started
+    Decomposition: decomposition_started, decomposition_complete
+    Persona: persona_selection_started, persona_selected, persona_selection_complete
+    Sub-Problem: subproblem_started, subproblem_complete
+    Round: initial_round_started, round_started, contribution, moderator_intervention
+    Convergence: convergence
+    Voting: voting_started, persona_vote, voting_complete
+    Synthesis: synthesis_started, synthesis_complete, meta_synthesis_started, meta_synthesis_complete
+    Completion: complete
+    Error: error
+    Clarification: clarification_required, clarification_requested, clarification_answered
+    Context: context_insufficient
+    Quality: quality_metrics_update
+    Cost: phase_cost_breakdown
+    Node: node_start, node_end
+    Facilitator: facilitator_decision
 """
 
 import json

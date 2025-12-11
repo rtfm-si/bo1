@@ -394,6 +394,11 @@ SERVICE_CONFIGS: dict[str, dict[str, int]] = {
         "recovery_timeout": 45,  # Rate limit sensitive
         "success_threshold": 2,
     },
+    "tavily": {
+        "failure_threshold": 5,
+        "recovery_timeout": 45,  # Similar to Brave - rate limit sensitive
+        "success_threshold": 2,
+    },
 }
 
 

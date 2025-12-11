@@ -5,6 +5,12 @@ actionable recommendations and comprehensive reports.
 """
 
 from bo1.prompts.protocols import PLAIN_LANGUAGE_STYLE
+from bo1.prompts.sanitizer import sanitize_user_input
+
+# Token budget constants for synthesis LLM calls
+SYNTHESIS_MAX_TOKENS = 4000
+META_SYNTHESIS_MAX_TOKENS = 2000
+SYNTHESIS_TOKEN_WARNING_THRESHOLD = 0.9  # Warn at 90% usage
 
 # =============================================================================
 # Synthesis Prompt Template
@@ -453,6 +459,8 @@ def get_limited_context_sections(limited_context_mode: bool) -> tuple[str, str]:
 
 def compose_synthesis_prompt(problem_statement: str, all_contributions_and_votes: str) -> str:
     """Compose final synthesis prompt."""
+    safe_problem_statement = sanitize_user_input(problem_statement, context="problem_statement")
     return SYNTHESIS_PROMPT_TEMPLATE.format(
-        problem_statement=problem_statement, all_contributions_and_votes=all_contributions_and_votes
+        problem_statement=safe_problem_statement,
+        all_contributions_and_votes=all_contributions_and_votes,
     )

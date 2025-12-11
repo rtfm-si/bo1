@@ -20,6 +20,7 @@ from backend.api.events import (
     node_start_event,
 )
 from backend.api.metrics import metrics
+from backend.api.models import ErrorResponse
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.validation import validate_session_id
 
@@ -40,8 +41,34 @@ router = APIRouter(prefix="/v1/sessions", tags=["streaming"])
     """,
     responses={
         200: {"description": "Event history retrieved successfully"},
-        404: {"description": "Session not found"},
-        500: {"description": "Internal server error"},
+        403: {
+            "description": "Not authorized to access this session",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {"example": {"detail": "Not authorized to access this session"}}
+            },
+        },
+        404: {
+            "description": "Session not found",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Session not found", "session_id": "bo1_abc123"}
+                }
+            },
+        },
+        500: {
+            "description": "Internal server error",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Internal server error",
+                        "error_code": "EVENT_FETCH_FAILED",
+                    }
+                }
+            },
+        },
     },
 )
 @handle_api_errors("get event history")
@@ -545,8 +572,60 @@ async def stream_session_events(
                 }
             },
         },
-        404: {"description": "Session not found"},
-        500: {"description": "Internal server error"},
+        403: {
+            "description": "Not authorized to access this session",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {"example": {"detail": "Not authorized to access this session"}}
+            },
+        },
+        404: {
+            "description": "Session not found",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Session not found", "session_id": "bo1_abc123"}
+                }
+            },
+        },
+        409: {
+            "description": "Session not ready for streaming",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "not_started": {
+                            "summary": "Session not started",
+                            "value": {
+                                "detail": "Session bo1_abc123 has not been started yet. Call /start endpoint first.",
+                                "session_id": "bo1_abc123",
+                                "status": "created",
+                            },
+                        },
+                        "paused": {
+                            "summary": "Session paused",
+                            "value": {
+                                "detail": "Session bo1_abc123 is paused. Call /resume endpoint to continue.",
+                                "session_id": "bo1_abc123",
+                                "status": "paused",
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal server error",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Session bo1_abc123 failed: killed",
+                        "error_code": "SESSION_FAILED",
+                    }
+                }
+            },
+        },
     },
 )
 async def stream_deliberation(

@@ -18,6 +18,7 @@ from backend.api.event_extractors import (
     extract_event_data,
     extract_formatted_votes,
     extract_persona_codes,
+    extract_persona_dict,
     extract_sub_problems,
     extract_subproblem_info,
     extract_subproblem_result,
@@ -137,6 +138,52 @@ class TestFieldExtractorUtilities:
         result = extract_persona_codes(personas)
 
         assert result == ["cfo", "cmo"]
+
+    def test_extract_persona_dict_from_pydantic_model(self):
+        """Test extracting persona dict from Pydantic-like object."""
+
+        class MockPersona:
+            code = "cfo"
+            name = "Chief Financial Officer"
+            archetype = "Financial Expert"
+            display_name = "CFO"
+            domain_expertise = ["finance", "accounting"]
+
+        result = extract_persona_dict(MockPersona())
+
+        assert result == {
+            "code": "cfo",
+            "name": "Chief Financial Officer",
+            "archetype": "Financial Expert",
+            "display_name": "CFO",
+            "domain_expertise": ["finance", "accounting"],
+        }
+
+    def test_extract_persona_dict_from_dict(self):
+        """Test extracting persona dict from plain dict."""
+        persona = {
+            "code": "cmo",
+            "name": "Chief Marketing Officer",
+            "archetype": "Marketing Expert",
+            "display_name": "CMO",
+            "domain_expertise": ["marketing", "branding"],
+        }
+
+        result = extract_persona_dict(persona)
+
+        assert result == persona
+
+    def test_extract_persona_dict_missing_fields(self):
+        """Test extracting persona dict with missing optional fields uses defaults."""
+        persona = {"code": "dev", "name": "Developer"}
+
+        result = extract_persona_dict(persona)
+
+        assert result["code"] == "dev"
+        assert result["name"] == "Developer"
+        assert result["archetype"] == ""
+        assert result["display_name"] == ""
+        assert result["domain_expertise"] == []
 
     def test_extract_formatted_votes(self):
         """Test formatting votes for display."""

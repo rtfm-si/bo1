@@ -87,7 +87,7 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             user_message=clarification_prompt,
             phase="problem_clarification",
             prefill="{",
-            cache_system=False,
+            cache_system=True,  # Static system prompt → enable caching
         )
         response_text = response.content
 
@@ -166,7 +166,7 @@ Keep questions focused and actionable. Avoid generic questions like "Tell me mor
             user_message=user_message,
             phase="decomposition",
             prefill="{",
-            cache_system=False,
+            cache_system=True,  # Static system prompt → enable caching
             temperature=0.0,
             max_tokens=4096,  # BUG FIX: Increased from default 2048 to prevent truncation
         )
@@ -471,7 +471,7 @@ Remember: Fewer, more targeted questions lead to better user experience. Only as
             user_message=user_message,
             phase="information_gap_analysis",
             prefill="{",
-            cache_system=False,
+            cache_system=True,  # Static system prompt → enable caching
         )
 
         # Validate JSON structure

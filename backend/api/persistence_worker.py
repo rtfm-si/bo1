@@ -10,10 +10,14 @@ import logging
 import redis
 
 from backend.api.event_publisher import (
+    check_dlq_alerts,
+    get_dlq_depth,
     get_pending_retries,
+    get_queue_depth,
     retry_event,
     update_retry_event,
 )
+from backend.api.metrics import prom_metrics
 from bo1.state.redis_manager import RedisManager
 
 logger = logging.getLogger(__name__)
@@ -85,6 +89,19 @@ class PersistenceWorker:
     async def _process_retry_batch(self) -> None:
         """Process a batch of events ready for retry."""
         try:
+            # Get queue depths and update metrics
+            retry_depth = await get_queue_depth(self.redis)
+            dlq_depth = await get_dlq_depth(self.redis)
+
+            # Update Prometheus metrics
+            prom_metrics.update_queue_metrics(
+                dlq_depth=max(0, dlq_depth),
+                retry_queue_depth=max(0, retry_depth),
+            )
+
+            # Check DLQ alerts
+            check_dlq_alerts(dlq_depth)
+
             # Get events ready for retry
             pending_events = await get_pending_retries(self.redis, limit=BATCH_SIZE)
 

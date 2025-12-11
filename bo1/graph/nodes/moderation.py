@@ -6,13 +6,19 @@ This module contains nodes for moderating and facilitating deliberation:
 """
 
 import logging
+import time
 from dataclasses import asdict
 from typing import Any, Literal
 
 from bo1.agents.facilitator import FacilitatorAgent, FacilitatorDecision
+from bo1.graph.nodes.utils import emit_node_duration, log_with_session
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_accumulated_cost
 from bo1.models.state import DeliberationPhase
+from bo1.prompts.moderator import (
+    FACILITATOR_MAX_TOKENS,
+    FACILITATOR_TOKEN_WARNING_THRESHOLD,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +38,22 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     Returns:
         Dictionary with state updates
     """
-    logger.info("facilitator_decide_node: Making facilitator decision")
+    _start_time = time.perf_counter()
+    session_id = state.get("session_id")
+    log_with_session(
+        logger, logging.INFO, session_id, "facilitator_decide_node: Making facilitator decision"
+    )
 
     # PROACTIVE RESEARCH EXECUTION: Check for pending research queries from previous round
     # If queries exist, automatically trigger research node without facilitator decision
     pending_queries = state.get("pending_research_queries", [])
     if pending_queries:
-        logger.info(
+        log_with_session(
+            logger,
+            logging.INFO,
+            session_id,
             f"facilitator_decide_node: {len(pending_queries)} pending research queries detected. "
-            f"Triggering proactive research."
+            f"Triggering proactive research.",
         )
 
         # Create a facilitator decision to trigger research
@@ -79,6 +92,20 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
         round_number=round_number,
         max_rounds=max_rounds,
     )
+
+    # TOKEN BUDGET WARNING: Check if output tokens approach/exceed budget
+    if llm_response and llm_response.token_usage:
+        output_tokens = llm_response.token_usage.output_tokens
+        warning_threshold = int(FACILITATOR_MAX_TOKENS * FACILITATOR_TOKEN_WARNING_THRESHOLD)
+        if output_tokens >= warning_threshold:
+            log_with_session(
+                logger,
+                logging.WARNING,
+                session_id,
+                f"[TOKEN_BUDGET] Facilitator output tokens ({output_tokens}) "
+                f">= {int(FACILITATOR_TOKEN_WARNING_THRESHOLD * 100)}% of budget ({FACILITATOR_MAX_TOKENS}). "
+                f"Action: {decision.action}, Round: {round_number}/{max_rounds}",
+            )
 
     # VALIDATION: Ensure decision is complete and valid (Issue #3 fix)
     # This prevents silent failures when facilitator returns invalid decisions
@@ -256,10 +283,13 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
 
     # Enhanced logging with sub_problem_index for debugging (Issue #3 fix)
     sub_problem_index = state.get("sub_problem_index", 0)
-    logger.info(
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
         f"facilitator_decide_node: Complete - action={decision.action}, "
         f"next_speaker={decision.next_speaker if decision.action == 'continue' else 'N/A'}, "
-        f"sub_problem_index={sub_problem_index} {cost_msg}"
+        f"sub_problem_index={sub_problem_index} {cost_msg}",
     )
 
     # Build state updates
@@ -284,6 +314,7 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
             f"'{(decision.clarification_question or decision.reasoning)[:50]}...'"
         )
 
+    emit_node_duration("facilitator_decide_node", (time.perf_counter() - _start_time) * 1000)
     return state_updates
 
 
@@ -306,9 +337,16 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
         Dictionary with state updates (intervention contribution added)
     """
     from bo1.agents.moderator import ModeratorAgent
-    from bo1.models.contribution import ContributionMessage, ContributionType
+    from bo1.models.state import ContributionMessage, ContributionType
 
-    logger.info("moderator_intervene_node: Moderator intervening for premature consensus")
+    _start_time = time.perf_counter()
+    session_id = state.get("session_id")
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
+        "moderator_intervene_node: Moderator intervening for premature consensus",
+    )
 
     # Create moderator agent
     moderator = ModeratorAgent()
@@ -372,12 +410,16 @@ async def moderator_intervene_node(state: DeliberationGraphState) -> dict[str, A
     # Add intervention to contributions
     contributions.append(intervention_msg)
 
-    logger.info(
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
         f"moderator_intervene_node: Complete - {moderator_type} intervention "
-        f"(cost: ${llm_response.cost_total:.4f})"
+        f"(cost: ${llm_response.cost_total:.4f})",
     )
 
     # Return state updates
+    emit_node_duration("moderator_intervene_node", (time.perf_counter() - _start_time) * 1000)
     return {
         "contributions": contributions,
         "metrics": metrics,

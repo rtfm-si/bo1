@@ -28,7 +28,14 @@ def event_publisher(redis_manager):
 @pytest.fixture
 def event_collector(event_publisher):
     """Create EventCollector for testing."""
-    return EventCollector(event_publisher)
+    from unittest.mock import MagicMock
+
+    mock_summarizer = MagicMock()
+    mock_summarizer.batch_summarize = MagicMock(return_value=[])
+    mock_session_repo = MagicMock()
+    mock_session_repo.update_status = MagicMock(return_value=True)
+    mock_session_repo.update_phase = MagicMock(return_value=True)
+    return EventCollector(event_publisher, mock_summarizer, mock_session_repo)
 
 
 @pytest.mark.integration

@@ -245,6 +245,18 @@ class SessionRepository(BaseRepository):
         Uses denormalized counts from sessions table (expert_count, contribution_count,
         focus_area_count) for fast reads. Only task_count requires JOIN to session_tasks.
 
+        Performance Notes:
+            - Query is optimized with denormalized counts - most reads avoid JOINs
+            - LIMIT pagination keeps response time O(1) per page
+            - Indexed on (user_id, created_at) for efficient ordering
+
+        Scaling Guidance (Read Replicas):
+            Current optimization is sufficient for <1000 concurrent users or <100 QPS.
+            If scaling beyond this, consider:
+            1. Add READ_DATABASE_URL environment variable pointing to read replica
+            2. Route this method's queries to read replica (acceptable 100-500ms lag)
+            3. Keep write operations on primary DATABASE_URL
+
         Args:
             user_id: User identifier
             limit: Maximum sessions to return (default: 50)

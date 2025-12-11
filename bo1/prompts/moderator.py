@@ -9,6 +9,11 @@ from bo1.prompts.protocols import (
     EVIDENCE_PROTOCOL,
     SECURITY_PROTOCOL,
 )
+from bo1.prompts.sanitizer import sanitize_user_input
+
+# Token budget constants for facilitator/moderator LLM calls
+FACILITATOR_MAX_TOKENS = 1000
+FACILITATOR_TOKEN_WARNING_THRESHOLD = 0.9  # Warn at 90% usage
 
 # =============================================================================
 # Moderator System Prompt Template
@@ -72,12 +77,13 @@ def compose_moderator_prompt(
     trigger_reason: str,
 ) -> str:
     """Compose moderator intervention prompt."""
+    safe_problem_statement = sanitize_user_input(problem_statement, context="problem_statement")
     return MODERATOR_SYSTEM_TEMPLATE.format(
         persona_name=persona_name,
         persona_archetype=persona_archetype,
         moderator_specific_role=moderator_specific_role,
         moderator_task_specific=moderator_task_specific,
-        problem_statement=problem_statement,
+        problem_statement=safe_problem_statement,
         discussion_excerpt=discussion_excerpt,
         trigger_reason=trigger_reason,
         behavioral_guidelines=BEHAVIORAL_GUIDELINES,

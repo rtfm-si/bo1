@@ -82,11 +82,11 @@ export async function initAuth(): Promise<void> {
 
 		if (sessionExists) {
 			// Get user info from backend
-			log.log('Fetching user info from /api/auth/me...');
-			const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+			log.log('Fetching user info from /api/v1/auth/me...');
+			const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
 				credentials: 'include', // Send cookies
 			});
-			log.log('/api/auth/me response status:', response.status);
+			log.log('/api/v1/auth/me response status:', response.status);
 
 			if (response.ok) {
 				const userData = await response.json();
@@ -102,7 +102,7 @@ export async function initAuth(): Promise<void> {
 				log.log('Authentication successful!');
 			} else {
 				// Session exists but /me failed - sign out
-				log.warn('/api/auth/me failed with status:', response.status);
+				log.warn('/api/v1/auth/me failed with status:', response.status);
 				const errorText = await response.text();
 				log.warn('Error response:', errorText);
 				await signOut();

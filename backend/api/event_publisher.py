@@ -28,6 +28,10 @@ FAILED_EVENTS_DLQ_KEY = "failed_events:dlq"
 MAX_RETRIES = 5
 RETRY_DELAYS = [60, 120, 300, 600, 1800]  # 1min, 2min, 5min, 10min, 30min
 
+# DLQ alert thresholds
+DLQ_ALERT_THRESHOLD = 10  # Warning log at this depth
+DLQ_CRITICAL_THRESHOLD = 50  # Error log at this depth
+
 # Semaphore to limit concurrent event persistence tasks
 # Set below pool max (20) to leave headroom for other operations
 PERSIST_SEMAPHORE_LIMIT = 15
@@ -413,6 +417,30 @@ async def get_dlq_depth(redis_client: redis.Redis) -> int:  # type: ignore[type-
     except Exception as e:
         logger.error(f"Failed to get DLQ depth: {e}")
         return -1
+
+
+def check_dlq_alerts(dlq_depth: int) -> None:
+    """Check DLQ depth and log alerts if thresholds exceeded.
+
+    Args:
+        dlq_depth: Current number of events in DLQ
+    """
+    if dlq_depth < 0:
+        # Error retrieving depth, skip alerting
+        return
+
+    if dlq_depth >= DLQ_CRITICAL_THRESHOLD:
+        logger.error(
+            "[DLQ_ALERT] Critical: DLQ depth %d exceeds critical threshold %d",
+            dlq_depth,
+            DLQ_CRITICAL_THRESHOLD,
+        )
+    elif dlq_depth >= DLQ_ALERT_THRESHOLD:
+        logger.warning(
+            "[DLQ_ALERT] Warning: DLQ depth %d exceeds warning threshold %d",
+            dlq_depth,
+            DLQ_ALERT_THRESHOLD,
+        )
 
 
 async def _persist_event_with_semaphore(

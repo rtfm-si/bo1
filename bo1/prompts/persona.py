@@ -9,36 +9,23 @@ from bo1.prompts.protocols import (
     _build_prompt_protocols,
     _get_security_task,
 )
+from bo1.prompts.sanitizer import sanitize_user_input
 
 # =============================================================================
 # Best Effort Mode Prompt (Context Sufficiency - Option D+E Hybrid)
 # =============================================================================
 
-BEST_EFFORT_PROMPT = """<best_effort_mode>
-## IMPORTANT: LIMITED CONTEXT MODE
+BEST_EFFORT_PROMPT = """The user has acknowledged that complete context is not available for this discussion.
+Provide your best expert analysis based on what IS available.
 
-The user has acknowledged that complete context is not available for this discussion.
-You MUST still provide your best expert analysis based on what IS available.
+When information is missing:
+1. State your assumptions clearly (e.g., "Assuming X is the case...")
+2. Provide conditional recommendations (e.g., "If X is true, then I recommend Y")
+3. Note areas of uncertainty inline
+4. Suggest concrete next steps even with incomplete information
 
-**MANDATORY ENGAGEMENT RULES:**
-1. **Work with what you have** - Do NOT say "I don't have enough context" or similar
-2. **Make explicit assumptions** - If information is missing, state: "Assuming X is the case..."
-3. **Provide conditional recommendations** - "If X is true, then I recommend Y"
-4. **Flag uncertainties** - Clearly mark: "[ASSUMPTION]" or "[NEEDS VERIFICATION]"
-5. **Be actionable** - Even with limited info, suggest concrete next steps
-
-**DO NOT:**
-- Refuse to engage due to missing context
-- Only list what's unknown
-- Ask for more information (user has already provided what they can)
-- Produce generic advice that could apply to any situation
-
-**INSTEAD:**
-- Make reasonable assumptions based on your expertise
-- Provide your professional judgment even with uncertainty
-- Give the BEST answer possible given constraints
-- Trust your expertise to fill reasonable gaps
-</best_effort_mode>"""
+Focus on providing your professional judgment and actionable recommendations.
+Trust your expertise to fill reasonable gaps with stated assumptions."""
 
 
 # =============================================================================
@@ -142,6 +129,9 @@ def compose_persona_contribution_prompt(
         ]
     )
 
+    # Sanitize user-provided problem_statement to prevent prompt injection
+    safe_problem_statement = sanitize_user_input(problem_statement, context="problem_statement")
+
     system_prompt = f"""You are {persona_name}, {persona_description}.
 
 <expertise>
@@ -192,7 +182,7 @@ Instead, IMMEDIATELY engage with the problem statement and provide substantive a
 </critical_instruction>
 
 <problem_context>
-{problem_statement}
+{safe_problem_statement}
 </problem_context>
 
 <previous_discussion>

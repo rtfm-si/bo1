@@ -81,18 +81,18 @@ class DatasetRepository(BaseRepository):
 
         if row:
             return {
-                "id": str(row[0]),
-                "user_id": row[1],
-                "name": row[2],
-                "description": row[3],
-                "source_type": row[4],
-                "source_uri": row[5],
-                "file_key": row[6],
-                "row_count": row[7],
-                "column_count": row[8],
-                "file_size_bytes": row[9],
-                "created_at": row[10].isoformat() if row[10] else None,
-                "updated_at": row[11].isoformat() if row[11] else None,
+                "id": str(row["id"]),
+                "user_id": row["user_id"],
+                "name": row["name"],
+                "description": row["description"],
+                "source_type": row["source_type"],
+                "source_uri": row["source_uri"],
+                "file_key": row["file_key"],
+                "row_count": row["row_count"],
+                "column_count": row["column_count"],
+                "file_size_bytes": row["file_size_bytes"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
             }
         return {}
 
@@ -122,19 +122,19 @@ class DatasetRepository(BaseRepository):
 
         if row:
             return {
-                "id": str(row[0]),
-                "user_id": row[1],
-                "name": row[2],
-                "description": row[3],
-                "source_type": row[4],
-                "source_uri": row[5],
-                "file_key": row[6],
-                "row_count": row[7],
-                "column_count": row[8],
-                "file_size_bytes": row[9],
-                "created_at": row[10].isoformat() if row[10] else None,
-                "updated_at": row[11].isoformat() if row[11] else None,
-                "summary": row[12],
+                "id": str(row["id"]),
+                "user_id": row["user_id"],
+                "name": row["name"],
+                "description": row["description"],
+                "source_type": row["source_type"],
+                "source_uri": row["source_uri"],
+                "file_key": row["file_key"],
+                "row_count": row["row_count"],
+                "column_count": row["column_count"],
+                "file_size_bytes": row["file_size_bytes"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                "summary": row["summary"],
             }
         return None
 
@@ -164,7 +164,7 @@ class DatasetRepository(BaseRepository):
                     """,
                     (user_id,),
                 )
-                total = cur.fetchone()[0]
+                total = cur.fetchone()["count"]
 
                 # Get datasets
                 cur.execute(
@@ -183,18 +183,18 @@ class DatasetRepository(BaseRepository):
 
         datasets = [
             {
-                "id": str(row[0]),
-                "user_id": row[1],
-                "name": row[2],
-                "description": row[3],
-                "source_type": row[4],
-                "source_uri": row[5],
-                "file_key": row[6],
-                "row_count": row[7],
-                "column_count": row[8],
-                "file_size_bytes": row[9],
-                "created_at": row[10].isoformat() if row[10] else None,
-                "updated_at": row[11].isoformat() if row[11] else None,
+                "id": str(row["id"]),
+                "user_id": row["user_id"],
+                "name": row["name"],
+                "description": row["description"],
+                "source_type": row["source_type"],
+                "source_uri": row["source_uri"],
+                "file_key": row["file_key"],
+                "row_count": row["row_count"],
+                "column_count": row["column_count"],
+                "file_size_bytes": row["file_size_bytes"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
             }
             for row in rows
         ]
@@ -281,18 +281,18 @@ class DatasetRepository(BaseRepository):
 
         if row:
             return {
-                "id": str(row[0]),
-                "user_id": row[1],
-                "name": row[2],
-                "description": row[3],
-                "source_type": row[4],
-                "source_uri": row[5],
-                "file_key": row[6],
-                "row_count": row[7],
-                "column_count": row[8],
-                "file_size_bytes": row[9],
-                "created_at": row[10].isoformat() if row[10] else None,
-                "updated_at": row[11].isoformat() if row[11] else None,
+                "id": str(row["id"]),
+                "user_id": row["user_id"],
+                "name": row["name"],
+                "description": row["description"],
+                "source_type": row["source_type"],
+                "source_uri": row["source_uri"],
+                "file_key": row["file_key"],
+                "row_count": row["row_count"],
+                "column_count": row["column_count"],
+                "file_size_bytes": row["file_size_bytes"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
             }
         return None
 
@@ -393,17 +393,17 @@ class DatasetRepository(BaseRepository):
 
         if row:
             return {
-                "id": str(row[0]),
-                "dataset_id": str(row[1]),
-                "column_name": row[2],
-                "data_type": row[3],
-                "null_count": row[4],
-                "unique_count": row[5],
-                "min_value": row[6],
-                "max_value": row[7],
-                "mean_value": row[8],
-                "sample_values": row[9],
-                "created_at": row[10].isoformat() if row[10] else None,
+                "id": str(row["id"]),
+                "dataset_id": str(row["dataset_id"]),
+                "column_name": row["column_name"],
+                "data_type": row["data_type"],
+                "null_count": row["null_count"],
+                "unique_count": row["unique_count"],
+                "min_value": row["min_value"],
+                "max_value": row["max_value"],
+                "mean_value": row["mean_value"],
+                "sample_values": row["sample_values"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
         return {}
 
@@ -433,17 +433,17 @@ class DatasetRepository(BaseRepository):
 
         return [
             {
-                "id": str(row[0]),
-                "dataset_id": str(row[1]),
-                "column_name": row[2],
-                "data_type": row[3],
-                "null_count": row[4],
-                "unique_count": row[5],
-                "min_value": row[6],
-                "max_value": row[7],
-                "mean_value": row[8],
-                "sample_values": row[9],
-                "created_at": row[10].isoformat() if row[10] else None,
+                "id": str(row["id"]),
+                "dataset_id": str(row["dataset_id"]),
+                "column_name": row["column_name"],
+                "data_type": row["data_type"],
+                "null_count": row["null_count"],
+                "unique_count": row["unique_count"],
+                "min_value": row["min_value"],
+                "max_value": row["max_value"],
+                "mean_value": row["mean_value"],
+                "sample_values": row["sample_values"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
             for row in rows
         ]
@@ -528,15 +528,15 @@ class DatasetRepository(BaseRepository):
 
         if row:
             return {
-                "id": str(row[0]),
-                "dataset_id": str(row[1]),
-                "user_id": row[2],
-                "query_spec": row[3],
-                "chart_spec": row[4],
-                "query_result_preview": row[5],
-                "chart_key": row[6],
-                "title": row[7],
-                "created_at": row[8].isoformat() if row[8] else None,
+                "id": str(row["id"]),
+                "dataset_id": str(row["dataset_id"]),
+                "user_id": row["user_id"],
+                "query_spec": row["query_spec"],
+                "chart_spec": row["chart_spec"],
+                "query_result_preview": row["query_result_preview"],
+                "chart_key": row["chart_key"],
+                "title": row["title"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
         return {}
 
@@ -574,15 +574,15 @@ class DatasetRepository(BaseRepository):
 
         return [
             {
-                "id": str(row[0]),
-                "dataset_id": str(row[1]),
-                "user_id": row[2],
-                "query_spec": row[3],
-                "chart_spec": row[4],
-                "query_result_preview": row[5],
-                "chart_key": row[6],
-                "title": row[7],
-                "created_at": row[8].isoformat() if row[8] else None,
+                "id": str(row["id"]),
+                "dataset_id": str(row["dataset_id"]),
+                "user_id": row["user_id"],
+                "query_spec": row["query_spec"],
+                "chart_spec": row["chart_spec"],
+                "query_result_preview": row["query_result_preview"],
+                "chart_key": row["chart_key"],
+                "title": row["title"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
             for row in rows
         ]

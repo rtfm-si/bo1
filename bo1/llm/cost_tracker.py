@@ -823,3 +823,81 @@ class CostTracker:
                     "total_saved": 0.0,
                     "cache_hit_rate": 0.0,
                 }
+
+    @staticmethod
+    def get_subproblem_costs(session_id: str) -> list[dict[str, Any]]:
+        """Get cost breakdown by sub-problem for a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            List of cost breakdowns per sub-problem:
+            [
+                {
+                    "sub_problem_index": int | None,  # None = overhead (facilitator, decomposition)
+                    "label": str,  # "Sub-problem 0", "Sub-problem 1", or "Overhead"
+                    "total_cost": float,
+                    "api_calls": int,
+                    "total_tokens": int,
+                    "by_provider": {"anthropic": float, "voyage": float, ...},
+                    "by_phase": {"decomposition": float, "deliberation": float, ...}
+                },
+                ...
+            ]
+
+        Examples:
+            >>> costs = CostTracker.get_subproblem_costs("bo1_abc123")
+            >>> for sp in costs:
+            ...     print(f"{sp['label']}: ${sp['total_cost']:.4f}")
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        sub_problem_index,
+                        COUNT(*) as api_calls,
+                        SUM(total_cost) as total_cost,
+                        SUM(total_tokens) as total_tokens,
+                        SUM(CASE WHEN provider = 'anthropic' THEN total_cost ELSE 0 END) as anthropic_cost,
+                        SUM(CASE WHEN provider = 'voyage' THEN total_cost ELSE 0 END) as voyage_cost,
+                        SUM(CASE WHEN provider = 'brave' THEN total_cost ELSE 0 END) as brave_cost,
+                        SUM(CASE WHEN provider = 'tavily' THEN total_cost ELSE 0 END) as tavily_cost,
+                        SUM(CASE WHEN phase = 'decomposition' THEN total_cost ELSE 0 END) as decomposition_cost,
+                        SUM(CASE WHEN phase = 'deliberation' THEN total_cost ELSE 0 END) as deliberation_cost,
+                        SUM(CASE WHEN phase = 'synthesis' THEN total_cost ELSE 0 END) as synthesis_cost
+                    FROM api_costs
+                    WHERE session_id = %s
+                    GROUP BY sub_problem_index
+                    ORDER BY sub_problem_index NULLS FIRST
+                    """,
+                    (session_id,),
+                )
+
+                results = []
+                for row in cur.fetchall():
+                    sp_index = row[0]
+                    label = f"Sub-problem {sp_index}" if sp_index is not None else "Overhead"
+                    results.append(
+                        {
+                            "sub_problem_index": sp_index,
+                            "label": label,
+                            "api_calls": row[1] or 0,
+                            "total_cost": float(row[2] or 0),
+                            "total_tokens": row[3] or 0,
+                            "by_provider": {
+                                "anthropic": float(row[4] or 0),
+                                "voyage": float(row[5] or 0),
+                                "brave": float(row[6] or 0),
+                                "tavily": float(row[7] or 0),
+                            },
+                            "by_phase": {
+                                "decomposition": float(row[8] or 0),
+                                "deliberation": float(row[9] or 0),
+                                "synthesis": float(row[10] or 0),
+                            },
+                        }
+                    )
+
+                return results

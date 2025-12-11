@@ -5,6 +5,7 @@ them neutrally to support expert decision-making.
 """
 
 from bo1.prompts.protocols import SECURITY_PROTOCOL
+from bo1.prompts.sanitizer import sanitize_user_input
 
 # =============================================================================
 # Research Tool System Prompt Template
@@ -83,8 +84,9 @@ def compose_researcher_prompt(
     problem_statement: str, discussion_excerpt: str, what_personas_need: str, specific_query: str
 ) -> str:
     """Compose research tool prompt."""
+    safe_problem_statement = sanitize_user_input(problem_statement, context="problem_statement")
     return RESEARCHER_SYSTEM_TEMPLATE.format(
-        problem_statement=problem_statement,
+        problem_statement=safe_problem_statement,
         discussion_excerpt=discussion_excerpt,
         what_personas_need=what_personas_need,
         specific_query=specific_query,

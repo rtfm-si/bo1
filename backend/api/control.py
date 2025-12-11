@@ -455,11 +455,60 @@ class KillRequest(BaseModel):
     description="Start a deliberation session as a background task. Returns 202 Accepted immediately.",
     responses={
         202: {"description": "Deliberation started in background"},
-        400: {"description": "Invalid request", "model": ErrorResponse},
-        404: {"description": "Session not found", "model": ErrorResponse},
-        409: {"description": "Session already running", "model": ErrorResponse},
-        429: {"description": "Rate limit exceeded", "model": ErrorResponse},
-        500: {"description": "Internal server error", "model": ErrorResponse},
+        400: {
+            "description": "Invalid request",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Cannot start session with status: completed",
+                        "session_id": "bo1_abc123",
+                        "status": "completed",
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Session not found",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Session not found", "session_id": "bo1_abc123"}
+                }
+            },
+        },
+        409: {
+            "description": "Session already running",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Session bo1_abc123 is already running",
+                        "session_id": "bo1_abc123",
+                        "error_code": "SESSION_ALREADY_RUNNING",
+                    }
+                }
+            },
+        },
+        429: {
+            "description": "Rate limit exceeded",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {"example": {"detail": "Rate limit exceeded. Try again later."}}
+            },
+        },
+        500: {
+            "description": "Internal server error",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Failed to start deliberation: graph execution failed",
+                        "error_code": "GRAPH_EXECUTION_FAILED",
+                    }
+                }
+            },
+        },
     },
 )
 @limiter.limit(CONTROL_RATE_LIMIT)
@@ -551,10 +600,13 @@ async def start_deliberation(
         graph = create_deliberation_graph()
 
         # Create event collector for real-time streaming
-        from backend.api.dependencies import get_event_publisher
+        from backend.api.dependencies import get_contribution_summarizer, get_event_publisher
         from backend.api.event_collector import EventCollector
+        from bo1.state.repositories import session_repository
 
-        event_collector = EventCollector(get_event_publisher())
+        event_collector = EventCollector(
+            get_event_publisher(), get_contribution_summarizer(), session_repository
+        )
 
         # Create coroutine with event collection
         from bo1.graph.safety.loop_prevention import DELIBERATION_RECURSION_LIMIT
@@ -692,9 +744,65 @@ async def pause_deliberation(
     description="Resume a paused deliberation session from its last checkpoint.",
     responses={
         202: {"description": "Deliberation resumed in background"},
-        400: {"description": "Invalid request", "model": ErrorResponse},
-        404: {"description": "Session not found", "model": ErrorResponse},
-        500: {"description": "Internal server error", "model": ErrorResponse},
+        400: {
+            "description": "Invalid request",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Cannot resume session with status: completed. Session must be paused.",
+                        "session_id": "bo1_abc123",
+                        "status": "completed",
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Session not found",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Session not found", "session_id": "bo1_abc123"}
+                }
+            },
+        },
+        409: {
+            "description": "Session already running",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Session bo1_abc123 is already running",
+                        "session_id": "bo1_abc123",
+                        "error_code": "SESSION_ALREADY_RUNNING",
+                    }
+                }
+            },
+        },
+        410: {
+            "description": "Session checkpoint expired",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Session checkpoint expired and cannot be reconstructed. Please start a new meeting.",
+                        "error_code": "CHECKPOINT_EXPIRED",
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal server error",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Failed to resume deliberation: checkpoint load failed",
+                        "error_code": "CHECKPOINT_LOAD_FAILED",
+                    }
+                }
+            },
+        },
     },
 )
 @handle_api_errors("resume deliberation")
@@ -749,10 +857,13 @@ async def resume_deliberation(
         graph = create_deliberation_graph(checkpointer=checkpointer)
 
         # Create event collector for real-time streaming
-        from backend.api.dependencies import get_event_publisher
+        from backend.api.dependencies import get_contribution_summarizer, get_event_publisher
         from backend.api.event_collector import EventCollector
+        from bo1.state.repositories import session_repository
 
-        event_collector = EventCollector(get_event_publisher())
+        event_collector = EventCollector(
+            get_event_publisher(), get_contribution_summarizer(), session_repository
+        )
 
         from bo1.graph.safety.loop_prevention import DELIBERATION_RECURSION_LIMIT
 
@@ -974,10 +1085,49 @@ async def resume_deliberation(
     description="Kill a running deliberation session. Requires user ownership of the session.",
     responses={
         200: {"description": "Deliberation killed successfully"},
-        403: {"description": "User does not own this session", "model": ErrorResponse},
-        404: {"description": "Session not found", "model": ErrorResponse},
-        429: {"description": "Rate limit exceeded", "model": ErrorResponse},
-        500: {"description": "Internal server error", "model": ErrorResponse},
+        403: {
+            "description": "User does not own this session",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Not authorized to kill this session",
+                        "error_code": "FORBIDDEN",
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Session not found or not running",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Session not found or not running: bo1_abc123",
+                        "session_id": "bo1_abc123",
+                    }
+                }
+            },
+        },
+        429: {
+            "description": "Rate limit exceeded",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {"example": {"detail": "Rate limit exceeded. Try again later."}}
+            },
+        },
+        500: {
+            "description": "Internal server error",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Failed to kill deliberation: task cancellation failed",
+                        "error_code": "KILL_FAILED",
+                    }
+                }
+            },
+        },
     },
 )
 @limiter.limit(CONTROL_RATE_LIMIT)
@@ -1149,10 +1299,57 @@ async def get_pending_clarification(
     description="Submit an answer to a pending clarification question and resume deliberation.",
     responses={
         202: {"description": "Clarification submitted, deliberation resumed"},
-        400: {"description": "Invalid request", "model": ErrorResponse},
-        403: {"description": "User does not own this session", "model": ErrorResponse},
-        404: {"description": "Session not found", "model": ErrorResponse},
-        500: {"description": "Internal server error", "model": ErrorResponse},
+        400: {
+            "description": "Invalid request",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "No answers provided. Use 'answers' dict or 'skip': true",
+                    }
+                }
+            },
+        },
+        403: {
+            "description": "User does not own this session",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {"example": {"detail": "Not authorized to access this session"}}
+            },
+        },
+        404: {
+            "description": "Session not found",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Session not found", "session_id": "bo1_abc123"}
+                }
+            },
+        },
+        422: {
+            "description": "Prompt injection detected",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Clarification answer contains unsafe content",
+                        "error_code": "INJECTION_DETECTED",
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal server error",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Failed to submit clarification: checkpoint update failed",
+                        "error_code": "CHECKPOINT_UPDATE_FAILED",
+                    }
+                }
+            },
+        },
     },
 )
 @handle_api_errors("submit clarification")

@@ -1,9 +1,33 @@
 """Tests for event extraction framework - registry-based extraction verification."""
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from backend.api.event_extractors import get_event_registry
 from bo1.models.problem import SubProblem
+
+
+def _create_mock_summarizer():
+    """Create a mock ContributionSummarizer for tests."""
+    mock = MagicMock()
+    mock.summarize = MagicMock(return_value={"concise": "Test summary"})
+    mock.batch_summarize = MagicMock(return_value=[])
+    mock.create_fallback = MagicMock(
+        return_value={"concise": "Fallback", "parse_error": True, "schema_valid": False}
+    )
+    return mock
+
+
+def _create_mock_session_repo():
+    """Create a mock session repository for tests."""
+    mock = MagicMock()
+    mock.get = MagicMock(return_value=None)
+    mock.update_status = MagicMock(return_value=True)
+    mock.update_phase = MagicMock(return_value=True)
+    mock.save_synthesis = MagicMock(return_value=True)
+    mock.get_events = MagicMock(return_value=[])
+    return mock
 
 
 @pytest.mark.unit
@@ -300,7 +324,11 @@ async def test_handle_context_collection_emits_event():
 
     # Create mock publisher
     mock_publisher = MagicMock()
-    collector = EventCollector(publisher=mock_publisher)
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
 
     # Test with business context
     output = {
@@ -330,7 +358,11 @@ async def test_handle_context_collection_empty_context():
     from backend.api.event_collector import EventCollector
 
     mock_publisher = MagicMock()
-    collector = EventCollector(publisher=mock_publisher)
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
 
     # Test with empty context
     output = {"business_context": {}, "metrics": {}}
@@ -352,7 +384,11 @@ async def test_handle_dependency_analysis_emits_event():
     from backend.api.event_collector import EventCollector
 
     mock_publisher = MagicMock()
-    collector = EventCollector(publisher=mock_publisher)
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
 
     # Test with execution batches
     output = {
@@ -386,7 +422,11 @@ async def test_handle_dependency_analysis_empty_batches():
     from backend.api.event_collector import EventCollector
 
     mock_publisher = MagicMock()
-    collector = EventCollector(publisher=mock_publisher)
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
 
     # Test with no batches (single sub-problem case)
     output = {"execution_batches": [], "parallel_mode": False}
@@ -412,105 +452,28 @@ def test_node_handlers_include_new_handlers():
 
 
 # ============================================================================
-# Batch Summarization Tests (PERF: P1 parallel summarization)
+# Integration Test: EventCollector uses ContributionSummarizer
 # ============================================================================
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_batch_summarize_contributions_parallel():
-    """Test _batch_summarize_contributions runs summaries in parallel."""
-    from unittest.mock import MagicMock, patch
-
-    from backend.api.event_collector import EventCollector
-
-    mock_publisher = MagicMock()
-    collector = EventCollector(publisher=mock_publisher)
-
-    # Mock _summarize_contribution to return unique summaries
-    async def mock_summarize(content, name):
-        return {"concise": f"Summary for {name}", "looking_for": "", "value_added": ""}
-
-    with patch.object(collector, "_summarize_contribution", side_effect=mock_summarize):
-        items = [
-            ("Content 1", "Expert A"),
-            ("Content 2", "Expert B"),
-            ("Content 3", "Expert C"),
-        ]
-
-        results = await collector._batch_summarize_contributions(items)
-
-        assert len(results) == 3
-        assert results[0]["concise"] == "Summary for Expert A"
-        assert results[1]["concise"] == "Summary for Expert B"
-        assert results[2]["concise"] == "Summary for Expert C"
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_batch_summarize_contributions_handles_partial_failures():
-    """Test batch summarization handles individual failures gracefully."""
-    from unittest.mock import MagicMock, patch
-
-    from backend.api.event_collector import EventCollector
-
-    mock_publisher = MagicMock()
-    collector = EventCollector(publisher=mock_publisher)
-
-    call_count = 0
-
-    async def mock_summarize(content, name):
-        nonlocal call_count
-        call_count += 1
-        if call_count == 2:
-            raise ValueError("Simulated LLM failure")
-        return {"concise": f"Summary for {name}"}
-
-    with patch.object(collector, "_summarize_contribution", side_effect=mock_summarize):
-        items = [
-            ("Content 1", "Expert A"),
-            ("Content 2", "Expert B"),
-            ("Content 3", "Expert C"),
-        ]
-
-        results = await collector._batch_summarize_contributions(items)
-
-        # All results returned, failed one gets fallback
-        assert len(results) == 3
-        assert results[0]["concise"] == "Summary for Expert A"
-        assert results[1].get("parse_error") is True  # Fallback has parse_error flag
-        assert results[2]["concise"] == "Summary for Expert C"
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_batch_summarize_contributions_empty_list():
-    """Test batch summarization handles empty input."""
-    from unittest.mock import MagicMock
-
-    from backend.api.event_collector import EventCollector
-
-    mock_publisher = MagicMock()
-    collector = EventCollector(publisher=mock_publisher)
-
-    results = await collector._batch_summarize_contributions([])
-
-    assert results == []
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
 async def test_initial_round_uses_batch_summarization():
-    """Test _handle_initial_round uses batch summarization for parallel LLM calls."""
+    """Test _handle_initial_round uses summarizer.batch_summarize for parallel LLM calls."""
     from unittest.mock import AsyncMock, MagicMock, patch
 
     from backend.api.event_collector import EventCollector
 
     mock_publisher = MagicMock()
-    collector = EventCollector(publisher=mock_publisher)
+    mock_summarizer = _create_mock_summarizer()
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=mock_summarizer,
+        session_repo=_create_mock_session_repo(),
+    )
 
-    # Mock batch summarization
-    mock_batch = AsyncMock(
+    # Configure mock summarizer to return expected summaries
+    mock_summarizer.batch_summarize = AsyncMock(
         return_value=[
             {"concise": "Summary 1"},
             {"concise": "Summary 2"},
@@ -532,14 +495,12 @@ async def test_initial_round_uses_batch_summarization():
         "sub_problem_index": 0,
     }
 
-    with patch.object(collector, "_batch_summarize_contributions", mock_batch):
-        with patch.object(collector, "_publish_contribution", mock_publish):
-            with patch("backend.api.event_collector.session_repository"):
-                await collector._handle_initial_round("test-session", output)
+    with patch.object(collector, "_publish_contribution", mock_publish):
+        await collector._handle_initial_round("test-session", output)
 
-    # Verify batch summarization was called with correct items
-    mock_batch.assert_called_once()
-    items = mock_batch.call_args[0][0]
+    # Verify summarizer.batch_summarize was called with correct items
+    mock_summarizer.batch_summarize.assert_called_once()
+    items = mock_summarizer.batch_summarize.call_args[0][0]
     assert len(items) == 2
     assert items[0] == ("Content 1", "CEO")
     assert items[1] == ("Content 2", "CTO")
@@ -563,7 +524,11 @@ def test_check_cost_anomaly_above_threshold():
     from backend.api.event_collector import EventCollector
 
     mock_publisher = MagicMock()
-    collector = EventCollector(publisher=mock_publisher)
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
 
     # Mock CostTracker.get_session_costs to return high cost
     mock_costs = {
@@ -595,7 +560,11 @@ def test_check_cost_anomaly_below_threshold():
     from backend.api.event_collector import EventCollector
 
     mock_publisher = MagicMock()
-    collector = EventCollector(publisher=mock_publisher)
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
 
     # Mock CostTracker.get_session_costs to return normal cost
     mock_costs = {
@@ -620,7 +589,11 @@ def test_check_cost_anomaly_custom_threshold():
     from backend.api.event_collector import EventCollector
 
     mock_publisher = MagicMock()
-    collector = EventCollector(publisher=mock_publisher)
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
 
     mock_costs = {
         "total_cost": 0.75,  # Above $0.50 custom threshold
@@ -654,10 +627,13 @@ async def test_verify_event_persistence_uses_configurable_delay():
 
     mock_publisher = MagicMock()
     mock_publisher.redis.llen.return_value = 5
-    collector = EventCollector(publisher=mock_publisher)
-
-    # Mock session_repository
-    mock_events = [MagicMock() for _ in range(5)]
+    mock_session_repo = _create_mock_session_repo()
+    mock_session_repo.get_events.return_value = [MagicMock() for _ in range(5)]
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=mock_session_repo,
+    )
 
     # Track sleep calls
     sleep_calls = []
@@ -666,10 +642,8 @@ async def test_verify_event_persistence_uses_configurable_delay():
         sleep_calls.append(seconds)
 
     with patch("backend.api.event_collector.asyncio.sleep", mock_sleep):
-        with patch("backend.api.event_collector.session_repository") as mock_repo:
-            mock_repo.get_events.return_value = mock_events
-            # Use default settings (2.0 seconds)
-            await collector._verify_event_persistence("test-session")
+        # Use default settings (2.0 seconds)
+        await collector._verify_event_persistence("test-session")
 
     assert len(sleep_calls) == 1
     assert sleep_calls[0] == 2.0  # Default delay
@@ -686,9 +660,13 @@ async def test_verify_event_persistence_skips_sleep_when_delay_zero():
 
     mock_publisher = MagicMock()
     mock_publisher.redis.llen.return_value = 5
-    collector = EventCollector(publisher=mock_publisher)
-
-    mock_events = [MagicMock() for _ in range(5)]
+    mock_session_repo = _create_mock_session_repo()
+    mock_session_repo.get_events.return_value = [MagicMock() for _ in range(5)]
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=mock_session_repo,
+    )
 
     sleep_calls = []
 
@@ -701,9 +679,7 @@ async def test_verify_event_persistence_skips_sleep_when_delay_zero():
 
     with patch("backend.api.event_collector.asyncio.sleep", mock_sleep):
         with patch("backend.api.event_collector.get_settings", return_value=mock_settings):
-            with patch("backend.api.event_collector.session_repository") as mock_repo:
-                mock_repo.get_events.return_value = mock_events
-                await collector._verify_event_persistence("test-session")
+            await collector._verify_event_persistence("test-session")
 
     # Sleep should NOT be called when delay is 0
     assert len(sleep_calls) == 0
@@ -720,9 +696,13 @@ async def test_verify_event_persistence_uses_custom_delay():
 
     mock_publisher = MagicMock()
     mock_publisher.redis.llen.return_value = 5
-    collector = EventCollector(publisher=mock_publisher)
-
-    mock_events = [MagicMock() for _ in range(5)]
+    mock_session_repo = _create_mock_session_repo()
+    mock_session_repo.get_events.return_value = [MagicMock() for _ in range(5)]
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=mock_session_repo,
+    )
 
     sleep_calls = []
 
@@ -735,9 +715,10 @@ async def test_verify_event_persistence_uses_custom_delay():
 
     with patch("backend.api.event_collector.asyncio.sleep", mock_sleep):
         with patch("backend.api.event_collector.get_settings", return_value=mock_settings):
-            with patch("backend.api.event_collector.session_repository") as mock_repo:
-                mock_repo.get_events.return_value = mock_events
-                await collector._verify_event_persistence("test-session")
+            await collector._verify_event_persistence("test-session")
 
     assert len(sleep_calls) == 1
     assert sleep_calls[0] == 0.5
+
+
+# NOTE: Schema validation tests moved to tests/api/test_contribution_summarizer.py

@@ -6,10 +6,12 @@ appropriate expert personas for deliberation.
 
 import json
 import logging
+import time
 from typing import Any
 
 from bo1.agents.selector import PersonaSelectorAgent
 from bo1.config import get_settings
+from bo1.graph.nodes.utils import emit_node_duration, log_with_session
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import (
     calculate_problem_complexity,
@@ -36,7 +38,11 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
     """
     from bo1.models.problem import SubProblem
 
-    logger.info("select_personas_node: Starting persona selection")
+    _start_time = time.perf_counter()
+    session_id = state.get("session_id")
+    log_with_session(
+        logger, logging.INFO, session_id, "select_personas_node: Starting persona selection"
+    )
 
     # Calculate problem complexity and target expert count
     settings = get_settings()
@@ -48,8 +54,11 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
         threshold_simple=settings.complexity_threshold_simple,
     )
 
-    logger.info(
-        f"select_personas_node: Complexity={complexity_score:.2f}, target_experts={target_count}"
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
+        f"select_personas_node: Complexity={complexity_score:.2f}, target_experts={target_count}",
     )
 
     # Create selector agent with target count
@@ -78,9 +87,12 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
                     current_sp = SubProblem.model_validate(sp)
                 else:
                     current_sp = sp
-                logger.warning(
+                log_with_session(
+                    logger,
+                    logging.WARNING,
+                    session_id,
                     f"select_personas_node: current_sub_problem was None, "
-                    f"using sub_problems[{sub_problem_index}] (id={current_sp.id}) as fallback"
+                    f"using sub_problems[{sub_problem_index}] (id={current_sp.id}) as fallback",
                 )
 
     if not current_sp:
@@ -106,7 +118,7 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
     recommended_personas = recommendations.get("recommended_personas", [])
     persona_codes = [p["code"] for p in recommended_personas]
 
-    logger.info(f"Persona codes: {persona_codes}")
+    log_with_session(logger, logging.INFO, session_id, f"Persona codes: {persona_codes}")
 
     # Load persona profiles (uses cached PersonaProfile instances)
     from bo1.data import get_persona_profile_by_code
@@ -117,21 +129,27 @@ async def select_personas_node(state: DeliberationGraphState) -> dict[str, Any]:
         if persona:
             personas.append(persona)
         else:
-            logger.warning(f"Persona '{code}' not found, skipping")
+            log_with_session(
+                logger, logging.WARNING, session_id, f"Persona '{code}' not found, skipping"
+            )
 
     # Track cost in metrics
     metrics = ensure_metrics(state)
     track_phase_cost(metrics, "persona_selection", response)
 
-    logger.info(
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
         f"select_personas_node: Complete - {len(personas)} personas selected "
-        f"(cost: ${response.cost_total:.4f})"
+        f"(cost: ${response.cost_total:.4f})",
     )
 
     # Return state updates
     # Include recommendations for display (with rationale for each persona)
     # BUG FIX (P0): Include current_sub_problem in return to ensure it's persisted
     # for downstream nodes (important when recovered via fallback)
+    emit_node_duration("select_personas_node", (time.perf_counter() - _start_time) * 1000)
     return {
         "personas": personas,
         "persona_recommendations": recommended_personas,  # Save for display

@@ -257,8 +257,8 @@ app.add_middleware(ApiVersionMiddleware)
 # /{session_id} catch-all matching /{session_id}/stream
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(
-    auth.router, prefix="/api/auth", tags=["authentication"]
-)  # Custom auth endpoints (e.g., /me)
+    auth.router, prefix="/api/v1/auth", tags=["authentication"]
+)  # Custom auth endpoints (e.g., /me, /google/sheets/*)
 app.include_router(streaming.router, prefix="/api", tags=["streaming"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(actions.router, prefix="/api", tags=["actions"])

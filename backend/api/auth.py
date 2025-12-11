@@ -147,11 +147,11 @@ async def initiate_sheets_connect(
 
     # Create OAuth state for CSRF protection
     session_manager = get_session_manager()
-    state = secrets.token_urlsafe(32)
     code_verifier = secrets.token_urlsafe(64)
 
-    # Store state with user_id for callback
-    session_manager.create_oauth_state(code_verifier, redirect_uri=f"user:{user_id}")
+    # Store state with user_id and code_verifier for callback
+    # create_oauth_state returns the state_id to use with Google
+    state = session_manager.create_oauth_state(code_verifier, redirect_uri=f"user:{user_id}")
 
     # Build Google OAuth URL
     redirect_uri = os.getenv("SUPERTOKENS_API_DOMAIN", "http://localhost:8000")
@@ -166,9 +166,6 @@ async def initiate_sheets_connect(
         "prompt": "consent",  # Force consent to get refresh token
         "state": state,
     }
-
-    # Store state -> code_verifier mapping
-    session_manager.create_oauth_state(state, redirect_uri=f"user:{user_id}:{code_verifier}")
 
     auth_url = f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
     logger.info(f"Initiating Sheets connect for user {user_id}")

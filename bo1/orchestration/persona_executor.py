@@ -20,6 +20,7 @@ from bo1.llm.client import ClaudeClient
 from bo1.llm.response import LLMResponse
 from bo1.llm.response_parser import ResponseParser
 from bo1.models.state import ContributionMessage, ContributionType
+from bo1.prompts.sanitizer import strip_prompt_artifacts
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,9 @@ class PersonaExecutor:
 
         # Parse response (extract <thinking> and <contribution>)
         thinking, contribution = ResponseParser.parse_persona_response(response_text)
+
+        # Strip any leaked prompt artifacts from the contribution
+        contribution = strip_prompt_artifacts(contribution)
 
         # Validate response - check for meta-discussion (persona confusion)
         if ResponseParser.is_meta_discussion(contribution):

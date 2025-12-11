@@ -1,16 +1,81 @@
 """Shared utility functions for graph nodes.
 
 This module contains helper functions used across multiple node modules,
-including retry logic, phase determination, and prompt helpers.
+including retry logic, phase determination, prompt helpers, and node timing.
 """
 
 import asyncio
 import logging
+import time
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Any
 
 from anthropic import APIConnectionError, APITimeoutError
 
 logger = logging.getLogger(__name__)
+
+# Optional metrics import (fails gracefully in CLI)
+try:
+    from backend.api.metrics import metrics as _metrics
+except ImportError:
+    _metrics = None  # type: ignore[assignment]
+
+
+def emit_node_duration(node_name: str, duration_ms: float) -> None:
+    """Emit histogram metric for graph node execution duration.
+
+    Args:
+        node_name: Name of the node (e.g., "decompose_node")
+        duration_ms: Execution time in milliseconds
+    """
+    if _metrics is not None:
+        _metrics.observe(f"graph.node.{node_name}.duration_ms", duration_ms)
+        _metrics.observe("graph.node.duration_ms", duration_ms)
+    logger.debug(f"Node {node_name} completed in {duration_ms:.1f}ms")
+
+
+@contextmanager
+def node_timer(node_name: str) -> Generator[None, None, None]:
+    """Context manager for timing graph node execution.
+
+    Emits `graph.node.{node_name}.duration_ms` and `graph.node.duration_ms`
+    histogram metrics on exit.
+
+    Args:
+        node_name: Name of the node being timed
+
+    Example:
+        >>> with node_timer("decompose_node"):
+        ...     await do_decomposition()
+    """
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        duration_ms = (time.perf_counter() - start) * 1000
+        emit_node_duration(node_name, duration_ms)
+
+
+def log_with_session(
+    log: logging.Logger,
+    level: int,
+    session_id: str | None,
+    msg: str,
+    **kwargs: Any,
+) -> None:
+    """Log message with session correlation ID prefix.
+
+    Args:
+        log: Logger instance to use
+        level: Logging level (e.g., logging.INFO)
+        session_id: Session ID for correlation (truncated to 8 chars)
+        msg: Log message
+        **kwargs: Extra fields for structured logging
+    """
+    sid = (session_id or "unknown")[:8]
+    formatted_msg = f"[session={sid}] {msg}"
+    log.log(level, formatted_msg, **kwargs)
 
 
 async def retry_with_backoff(

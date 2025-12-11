@@ -6,19 +6,18 @@ Provides:
 
 import asyncio
 import logging
-from typing import Any
-
-from anthropic import AsyncAnthropic
+from typing import TYPE_CHECKING, Any
 
 from backend.api.dependencies import get_redis_manager
-from backend.api.event_extractors import get_event_registry
+from backend.api.event_extractors import extract_persona_dict, get_event_registry
 from backend.api.event_publisher import EventPublisher, flush_session_events
-from bo1.config import get_settings, resolve_model_alias
+from bo1.config import get_settings
 from bo1.context import set_request_id
-from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
-from bo1.state.repositories import session_repository
-from bo1.utils.json_parsing import parse_json_with_fallback
+
+if TYPE_CHECKING:
+    from backend.api.contribution_summarizer import ContributionSummarizer
+    from backend.api.protocols import SessionRepositoryProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +30,9 @@ class EventCollector:
     for real-time streaming to web clients.
 
     Examples:
-        >>> from backend.api.dependencies import get_event_publisher
+        >>> from backend.api.dependencies import get_contribution_summarizer, get_event_publisher
         >>> from bo1.graph.config import create_deliberation_graph
-        >>> collector = EventCollector(get_event_publisher())
+        >>> collector = EventCollector(get_event_publisher(), get_contribution_summarizer())
         >>> final_state = await collector.collect_and_publish(
         ...     session_id="bo1_abc123",
         ...     graph=graph,
@@ -62,16 +61,22 @@ class EventCollector:
         "analyze_dependencies": "_handle_dependency_analysis",  # P1: UI feedback
     }
 
-    def __init__(self, publisher: EventPublisher) -> None:
+    def __init__(
+        self,
+        publisher: EventPublisher,
+        summarizer: "ContributionSummarizer",
+        session_repo: "SessionRepositoryProtocol",
+    ) -> None:
         """Initialize EventCollector.
 
         Args:
             publisher: EventPublisher instance for publishing to Redis
+            summarizer: ContributionSummarizer for AI-powered summaries
+            session_repo: Session repository for state persistence
         """
         self.publisher = publisher
-        # Initialize Anthropic client for AI summarization
-        settings = get_settings()
-        self.anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        self.summarizer = summarizer
+        self.session_repo = session_repo
 
     def _emit_working_status(
         self,
@@ -130,28 +135,6 @@ class EventCollector:
             },
         )
 
-    def _extract_persona_dict(self, persona: Any) -> dict[str, Any]:
-        """Extract persona fields into a dictionary.
-
-        Helper method to eliminate duplication of persona attribute extraction.
-        Handles both Pydantic models (via hasattr/getattr) and dicts (via .get()).
-
-        Args:
-            persona: Persona object (Pydantic model or dict)
-
-        Returns:
-            Dictionary with persona fields (code, name, archetype, display_name, domain_expertise)
-        """
-        from backend.api.event_extractors import get_field_safe
-
-        return {
-            "code": get_field_safe(persona, "code"),
-            "name": get_field_safe(persona, "name"),
-            "archetype": get_field_safe(persona, "archetype", ""),
-            "display_name": get_field_safe(persona, "display_name", ""),
-            "domain_expertise": get_field_safe(persona, "domain_expertise", []),
-        }
-
     def _mark_session_failed(self, session_id: str, error: Exception) -> None:
         """Mark session as failed with error handling.
 
@@ -174,7 +157,7 @@ class EventCollector:
 
         # Update session status to 'failed' in PostgreSQL
         try:
-            session_repository.update_status(session_id=session_id, status="failed")
+            self.session_repo.update_status(session_id=session_id, status="failed")
         except Exception as db_error:
             logger.error(f"Failed to update session {session_id} status to failed: {db_error}")
 
@@ -458,7 +441,7 @@ class EventCollector:
     async def _handle_decomposition(self, session_id: str, output: dict) -> None:
         """Handle decompose node completion."""
         # Update phase in database for dashboard display
-        session_repository.update_phase(session_id, "decomposition")
+        self.session_repo.update_phase(session_id, "decomposition")
 
         # P1-004 FIX: Emit working status at START of decomposition
         self._emit_working_status(
@@ -524,7 +507,7 @@ class EventCollector:
 
             # Update session status to paused and phase to clarification_needed
             # Update PostgreSQL
-            session_repository.update_status(
+            self.session_repo.update_status(
                 session_id=session_id,
                 status="paused",
                 phase="clarification_needed",
@@ -555,7 +538,7 @@ class EventCollector:
     async def _handle_persona_selection(self, session_id: str, output: dict) -> None:
         """Handle select_personas node completion - publishes multiple events."""
         # Update phase in database for dashboard display
-        session_repository.update_phase(session_id, "selection")
+        self.session_repo.update_phase(session_id, "selection")
 
         personas = output.get("personas", [])
         persona_recommendations = output.get("persona_recommendations", [])
@@ -579,7 +562,7 @@ class EventCollector:
 
         # Publish individual persona selected events
         for i, persona in enumerate(personas):
-            persona_dict = self._extract_persona_dict(persona)
+            persona_dict = extract_persona_dict(persona)
 
             # Find matching rationale from persona_recommendations
             rationale = ""
@@ -624,7 +607,7 @@ class EventCollector:
             output: Node output state
         """
         # Update phase in database for dashboard display
-        session_repository.update_phase(session_id, "exploration")
+        self.session_repo.update_phase(session_id, "exploration")
 
         # Extract sub_problem_index for tab filtering
         sub_problem_index = output.get("sub_problem_index", 0)
@@ -661,7 +644,7 @@ class EventCollector:
                 else:
                     items.append((contrib.get("content", ""), contrib.get("persona_name", "")))
 
-            summaries = await self._batch_summarize_contributions(items)
+            summaries = await self.summarizer.batch_summarize(items)
 
             # Publish contributions with pre-computed summaries
             for contrib, summary in zip(contributions, summaries, strict=True):
@@ -704,7 +687,7 @@ class EventCollector:
         sub_problem_index = output.get("sub_problem_index", 0)
 
         # Update phase in database for dashboard display
-        session_repository.update_phase(session_id, current_phase)
+        self.session_repo.update_phase(session_id, current_phase)
         personas = output.get("personas", [])
 
         # Extract experts for the just-completed round
@@ -752,7 +735,7 @@ class EventCollector:
                 else:
                     items.append((contrib.get("content", ""), contrib.get("persona_name", "")))
 
-            summaries = await self._batch_summarize_contributions(items)
+            summaries = await self.summarizer.batch_summarize(items)
 
             # Publish contributions with pre-computed summaries
             for contrib, summary in zip(round_contributions, summaries, strict=True):
@@ -835,7 +818,7 @@ class EventCollector:
     async def _handle_voting(self, session_id: str, output: dict) -> None:
         """Handle vote node completion."""
         # Update phase in database for dashboard display
-        session_repository.update_phase(session_id, "voting")
+        self.session_repo.update_phase(session_id, "voting")
 
         # AUDIT FIX (Issue #4): Emit working status BEFORE voting starts
         self._emit_working_status(
@@ -848,7 +831,7 @@ class EventCollector:
     async def _handle_synthesis(self, session_id: str, output: dict) -> None:
         """Handle synthesize node completion."""
         # Update phase in database for dashboard display
-        session_repository.update_phase(session_id, "synthesis")
+        self.session_repo.update_phase(session_id, "synthesis")
 
         # AUDIT FIX (Issue #4): Emit working status BEFORE synthesis starts
         self._emit_working_status(
@@ -887,7 +870,7 @@ class EventCollector:
         synthesis_text = output.get("synthesis")
         if synthesis_text:
             try:
-                session_repository.save_synthesis(session_id, synthesis_text)
+                self.session_repo.save_synthesis(session_id, synthesis_text)
                 logger.info(f"Saved synthesis to PostgreSQL for session {session_id}")
             except Exception as e:
                 logger.error(f"Failed to save synthesis to PostgreSQL for {session_id}: {e}")
@@ -920,7 +903,7 @@ class EventCollector:
         synthesis_text = output.get("meta_synthesis")
         if synthesis_text:
             try:
-                session_repository.save_synthesis(session_id, synthesis_text)
+                self.session_repo.save_synthesis(session_id, synthesis_text)
                 logger.info(f"Saved meta-synthesis to PostgreSQL for session {session_id}")
             except Exception as e:
                 logger.error(f"Failed to save meta-synthesis to PostgreSQL for {session_id}: {e}")
@@ -1135,9 +1118,7 @@ class EventCollector:
         # This guards against: graph completes with different stop_reason but phase was set
         # to clarification_needed by _handle_identify_gaps earlier
         try:
-            from bo1.state.repositories import session_repository
-
-            current_session = session_repository.get(session_id)
+            current_session = self.session_repo.get(session_id)
             if current_session:
                 current_phase = current_session.get("phase")
                 if current_phase in ("clarification_needed", "context_insufficient"):
@@ -1168,7 +1149,7 @@ class EventCollector:
         # Retry loop with exponential backoff
         for attempt in range(3):  # 3 attempts with exponential backoff
             try:
-                session_repository.update_status(
+                self.session_repo.update_status(
                     session_id=session_id,
                     status="completed",
                     phase=phase,
@@ -1259,8 +1240,6 @@ class EventCollector:
             final_state: Current deliberation state with metrics
         """
         try:
-            from bo1.state.repositories import session_repository
-
             # Extract total cost from metrics
             metrics = final_state.get("metrics", {})
             if hasattr(metrics, "total_cost"):
@@ -1273,7 +1252,7 @@ class EventCollector:
                 round_number = final_state.get("round_number", 0)
                 phase = final_state.get("current_node") or final_state.get("phase")
 
-                session_repository.update_status(
+                self.session_repo.update_status(
                     session_id=session_id,
                     status="paused",  # Keep status as paused
                     phase=phase,
@@ -1306,8 +1285,6 @@ class EventCollector:
             session_id: Session identifier
         """
         try:
-            from bo1.state.repositories import session_repository
-
             # Allow async persistence tasks to complete (they run via asyncio.create_task)
             # This prevents false positives from the race condition where verification
             # runs before all persistence tasks have finished
@@ -1316,7 +1293,7 @@ class EventCollector:
                 await asyncio.sleep(delay)
 
             redis_event_count = self.publisher.redis.llen(f"events_history:{session_id}")
-            pg_events = session_repository.get_events(session_id)
+            pg_events = self.session_repo.get_events(session_id)
             pg_event_count = len(pg_events)
 
             if pg_event_count < redis_event_count:
@@ -1350,206 +1327,6 @@ class EventCollector:
                 )
         except Exception as verify_error:
             logger.error(f"Failed to verify event persistence for {session_id}: {verify_error}")
-
-    async def _summarize_contribution(self, content: str, persona_name: str) -> dict | None:
-        """Summarize expert contribution into structured insights using Haiku 4.5.
-
-        Uses Claude Haiku 4.5 for cost-effective summarization (~$0.001 per contribution).
-
-        Args:
-            content: Full expert contribution (200-500 words)
-            persona_name: Expert name for context
-
-        Returns:
-            Dict with looking_for, value_added, concerns, questions, or None if summarization fails
-        """
-        from bo1.prompts.contribution_summary_prompts import compose_contribution_summary_request
-
-        try:
-            prompt = compose_contribution_summary_request(content, persona_name)
-
-            ctx = get_cost_context()
-            model = resolve_model_alias("haiku")
-
-            with CostTracker.track_call(
-                provider="anthropic",
-                operation_type="completion",
-                model_name=model,
-                session_id=ctx.get("session_id"),
-                user_id=ctx.get("user_id"),
-                node_name="contribution_summarizer",
-                phase=ctx.get("phase"),
-                persona_name=persona_name,
-                round_number=ctx.get("round_number"),
-                sub_problem_index=ctx.get("sub_problem_index"),
-            ) as cost_record:
-                response = await self.anthropic_client.messages.create(
-                    model=model,
-                    max_tokens=500,
-                    messages=[
-                        {"role": "user", "content": prompt},
-                        {"role": "assistant", "content": "{"},  # Prefill to force JSON
-                    ],
-                )
-
-                # Track token usage
-                cost_record.input_tokens = response.usage.input_tokens
-                cost_record.output_tokens = response.usage.output_tokens
-
-            # Extract JSON from response - prepend opening brace from prefill
-            response_text = response.content[0].text
-
-            # Strategy 1: Try parse_json_with_fallback with prefill
-            summary, parse_errors = parse_json_with_fallback(
-                content=response_text,
-                prefill="{",
-                context=f"contribution summary for {persona_name}",
-                logger=logger,
-            )
-
-            if summary is not None:
-                return self._validate_summary_schema(summary)
-
-            # Strategy 2: Extract first complete JSON object using brace counting
-            # This handles cases where LLM returns multiple JSON objects or trailing text
-            summary = self._extract_first_json_object("{" + response_text)
-            if summary is not None:
-                logger.debug(f"Extracted summary via brace counting for {persona_name}")
-                return self._validate_summary_schema(summary)
-
-            # Strategy 3: Return fallback summary
-            logger.warning(
-                f"Failed to parse summary for {persona_name}: {parse_errors}. Using fallback."
-            )
-            return self._create_fallback_summary(persona_name, content)
-
-        except Exception as e:
-            logger.error(f"Failed to summarize contribution for {persona_name}: {e}")
-            return self._create_fallback_summary(persona_name, content)
-
-    async def _batch_summarize_contributions(
-        self, items: list[tuple[str, str]]
-    ) -> list[dict | None]:
-        """Summarize multiple contributions in parallel using asyncio.gather.
-
-        PERF: Reduces latency from O(n) sequential calls to O(1) parallel calls.
-        For 3-5 contributions, this saves ~4-10 seconds per round.
-
-        Args:
-            items: List of (content, persona_name) tuples to summarize
-
-        Returns:
-            List of summary dicts in same order as input (None for failures)
-        """
-        if not items:
-            return []
-
-        tasks = [self._summarize_contribution(content, name) for content, name in items]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Convert exceptions to None, log errors
-        summaries = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                persona_name = items[i][1]
-                logger.error(f"Batch summarization failed for {persona_name}: {result}")
-                summaries.append(self._create_fallback_summary(persona_name, items[i][0]))
-            else:
-                summaries.append(result)
-
-        logger.info(f"Batch summarized {len(items)} contributions in parallel")
-        return summaries
-
-    def _extract_first_json_object(self, text: str) -> dict | None:
-        """Extract first complete JSON object using brace counting.
-
-        Handles cases where LLM returns multiple JSON objects or trailing text
-        by counting opening/closing braces to find the first complete object.
-
-        Args:
-            text: Text potentially containing JSON object(s)
-
-        Returns:
-            Parsed dict if found, None otherwise
-        """
-        import json
-
-        try:
-            start = text.find("{")
-            if start == -1:
-                return None
-
-            brace_count = 0
-            in_string = False
-            escape_next = False
-
-            for i, char in enumerate(text[start:], start):
-                if escape_next:
-                    escape_next = False
-                    continue
-                if char == "\\":
-                    escape_next = True
-                    continue
-                if char == '"' and not escape_next:
-                    in_string = not in_string
-                    continue
-                if in_string:
-                    continue
-                if char == "{":
-                    brace_count += 1
-                elif char == "}":
-                    brace_count -= 1
-                    if brace_count == 0:
-                        json_str = text[start : i + 1]
-                        return json.loads(json_str)
-
-            return None
-        except json.JSONDecodeError:
-            return None
-
-    def _validate_summary_schema(self, summary: dict) -> dict:
-        """Validate summary has required fields, fill in defaults.
-
-        Args:
-            summary: Parsed summary dict
-
-        Returns:
-            Summary with all required fields (with defaults if missing)
-        """
-        summary.setdefault("concise", "")
-        summary.setdefault("looking_for", "")
-        summary.setdefault("value_added", "")
-        summary.setdefault("concerns", [])
-        summary.setdefault("questions", [])
-
-        # Ensure arrays are actually arrays
-        if not isinstance(summary.get("concerns"), list):
-            summary["concerns"] = []
-        if not isinstance(summary.get("questions"), list):
-            summary["questions"] = []
-
-        return summary
-
-    def _create_fallback_summary(self, persona_name: str, content: str) -> dict:
-        """Create a basic fallback summary when parsing fails.
-
-        Args:
-            persona_name: Expert name
-            content: Original contribution content
-
-        Returns:
-            Basic summary dict with minimal information
-        """
-        # Extract first sentence as a simple summary
-        first_sentence = content.split(".")[0][:100] if content else ""
-        return {
-            "concise": f"{first_sentence}..." if first_sentence else f"Analysis by {persona_name}",
-            "looking_for": "Evaluating the situation",
-            "value_added": "Expert perspective",
-            "concerns": [],
-            "questions": [],
-            "parse_error": True,
-        }
 
     async def _publish_contribution(
         self,
@@ -1624,7 +1401,7 @@ class EventCollector:
 
         # Use pre-computed summary or generate one (fallback for direct calls)
         if summary is None:
-            summary = await self._summarize_contribution(content, persona_name)
+            summary = await self.summarizer.summarize(content, persona_name)
 
         logger.info(
             f"[CONTRIBUTION DEBUG] Summary generation result | "

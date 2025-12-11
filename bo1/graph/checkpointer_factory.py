@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 # Track if Postgres setup has been called (singleton pattern for setup)
 _postgres_setup_complete = False
 
+# Track fallback/degradation state
+_using_fallback = False
+_fallback_reason: str | None = None
+_original_backend: str | None = None
+
 
 def create_checkpointer(
     backend: Literal["redis", "postgres"] | None = None,
@@ -49,11 +54,12 @@ def create_checkpointer(
 
 
 def _create_redis_checkpointer() -> Any:
-    """Create AsyncRedisSaver checkpointer.
+    """Create AsyncRedisSaver checkpointer with fallback to MemorySaver.
 
     Uses Redis configuration from environment variables.
+    Falls back to in-memory checkpointing if Redis is unavailable.
     """
-    from langgraph.checkpoint.redis.aio import AsyncRedisSaver
+    global _using_fallback, _fallback_reason, _original_backend
 
     settings = get_settings()
 
@@ -68,6 +74,27 @@ def _create_redis_checkpointer() -> Any:
     else:
         redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
+    # Check Redis availability before creating checkpointer
+    if settings.checkpoint_fallback_enabled:
+        try:
+            import redis
+
+            client = redis.from_url(redis_url, socket_connect_timeout=2)
+            client.ping()
+            client.close()
+        except Exception as e:
+            _using_fallback = True
+            _fallback_reason = f"Redis unavailable: {e}"
+            _original_backend = "redis"
+            logger.warning(
+                f"Redis checkpoint backend unavailable ({e}), "
+                "falling back to in-memory checkpointing. "
+                "State will NOT persist across restarts."
+            )
+            return _create_memory_checkpointer()
+
+    from langgraph.checkpoint.redis.aio import AsyncRedisSaver
+
     ttl_seconds = settings.checkpoint_ttl_seconds
 
     base_checkpointer = AsyncRedisSaver(redis_url)
@@ -77,6 +104,25 @@ def _create_redis_checkpointer() -> Any:
     logger.info(
         f"Created Redis checkpointer: {redis_host}:{redis_port}/{redis_db}{auth_status} "
         f"(TTL: {ttl_seconds}s)"
+    )
+
+    return wrapped
+
+
+def _create_memory_checkpointer() -> Any:
+    """Create in-memory MemorySaver checkpointer.
+
+    Used as fallback when Redis/Postgres are unavailable.
+    WARNING: State is lost on process restart.
+    """
+    from langgraph.checkpoint.memory import MemorySaver
+
+    base_checkpointer = MemorySaver()
+    wrapped = LoggingCheckpointerWrapper(base_checkpointer)
+
+    logger.info(
+        "Created in-memory checkpointer (fallback mode). "
+        "Checkpoint data will NOT persist across restarts."
     )
 
     return wrapped
@@ -158,25 +204,153 @@ def get_checkpointer_info() -> dict[str, Any]:
     Useful for health checks and debugging.
 
     Returns:
-        Dict with backend type and connection info (password masked)
+        Dict with backend type, connection info (password masked), and fallback status
     """
     settings = get_settings()
     backend = settings.checkpoint_backend
 
-    if backend == "redis":
-        return {
+    # Base info varies by backend
+    if _using_fallback:
+        info = {
+            "backend": "memory",
+            "using_fallback": True,
+            "original_backend": _original_backend,
+            "fallback_reason": _fallback_reason,
+        }
+    elif backend == "redis":
+        info = {
             "backend": "redis",
             "host": settings.redis_host,
             "port": settings.redis_port,
             "db": settings.redis_db,
             "ttl_seconds": settings.checkpoint_ttl_seconds,
             "has_auth": bool(settings.redis_password),
+            "using_fallback": False,
         }
     elif backend == "postgres":
-        return {
+        info = {
             "backend": "postgres",
             "url": _mask_password(settings.database_url),
             "setup_complete": _postgres_setup_complete,
+            "using_fallback": False,
         }
     else:
-        return {"backend": backend, "error": "Unknown backend"}
+        info = {"backend": backend, "error": "Unknown backend", "using_fallback": False}
+
+    return info
+
+
+def check_checkpoint_health() -> dict[str, Any]:
+    """Check health of the checkpoint backend.
+
+    Tests actual connectivity to Redis or Postgres checkpoint storage.
+    Reports degraded state when using fallback.
+
+    Returns:
+        Dict with health status:
+        {
+            "healthy": bool,
+            "degraded": bool,
+            "backend": str,
+            "message": str,
+            "error": str | None,
+            "fallback_reason": str | None,
+            ...backend-specific info
+        }
+    """
+    settings = get_settings()
+    backend = settings.checkpoint_backend
+    info = get_checkpointer_info()
+
+    # If using fallback, report as degraded but healthy
+    if _using_fallback:
+        return {
+            "healthy": True,
+            "degraded": True,
+            "backend": "memory",
+            "original_backend": _original_backend,
+            "message": "Operating in degraded mode with in-memory checkpointing",
+            "fallback_reason": _fallback_reason,
+            "error": None,
+            **info,
+        }
+
+    try:
+        if backend == "redis":
+            result = _check_redis_health(info)
+        elif backend == "postgres":
+            result = _check_postgres_health(info)
+        else:
+            return {
+                "healthy": False,
+                "degraded": False,
+                "backend": backend,
+                "message": f"Unknown backend: {backend}",
+                "error": "Invalid configuration",
+                "fallback_reason": None,
+            }
+        # Add degraded=False to normal health responses
+        result["degraded"] = False
+        result["fallback_reason"] = None
+        return result
+    except Exception as e:
+        logger.exception("Checkpoint health check failed")
+        return {
+            "healthy": False,
+            "degraded": False,
+            "backend": backend,
+            "message": "Health check failed",
+            "error": str(e),
+            "fallback_reason": None,
+            **info,
+        }
+
+
+def _check_redis_health(info: dict[str, Any]) -> dict[str, Any]:
+    """Check Redis checkpoint backend health."""
+    import redis
+
+    settings = get_settings()
+    redis_host = settings.redis_host
+    redis_port = settings.redis_port
+    redis_db = settings.redis_db
+    redis_password = settings.redis_password
+
+    if redis_password:
+        redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+    else:
+        redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+
+    client = redis.from_url(redis_url)
+    client.ping()
+    client.close()
+
+    return {
+        "healthy": True,
+        "backend": "redis",
+        "message": "Redis checkpoint backend healthy",
+        "error": None,
+        **info,
+    }
+
+
+def _check_postgres_health(info: dict[str, Any]) -> dict[str, Any]:
+    """Check Postgres checkpoint backend health."""
+    import psycopg2
+
+    settings = get_settings()
+    database_url = settings.database_url
+
+    conn = psycopg2.connect(database_url)
+    with conn.cursor() as cur:
+        cur.execute("SELECT 1")
+        cur.fetchone()
+    conn.close()
+
+    return {
+        "healthy": True,
+        "backend": "postgres",
+        "message": "PostgreSQL checkpoint backend healthy",
+        "error": None,
+        **info,
+    }

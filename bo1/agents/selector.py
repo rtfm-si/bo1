@@ -169,7 +169,7 @@ Provide your recommendation as JSON following the format in your system prompt.
             user_message=user_message,
             phase="selection",
             prefill=SELECTOR_PREFILL,
-            cache_system=False,
+            cache_system=True,  # Static system prompt → enable caching
         )
 
         # Validate JSON structure with robust parsing

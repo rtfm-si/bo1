@@ -284,3 +284,53 @@ DeliberationEvent = (
     | MetaSynthesisCompleteEvent
     | ErrorEvent
 )
+
+# ============================================================================
+# Schema Registry and Export
+# ============================================================================
+
+# Map event_type to Pydantic model class
+EVENT_SCHEMA_REGISTRY: dict[str, type[BaseEvent]] = {
+    "session_started": SessionStartedEvent,
+    "decomposition_complete": DecompositionCompleteEvent,
+    "persona_selected": PersonaSelectedEvent,
+    "persona_selection_complete": PersonaSelectionCompleteEvent,
+    "subproblem_started": SubProblemStartedEvent,
+    "subproblem_complete": SubProblemCompleteEvent,
+    "round_started": RoundStartedEvent,
+    "contribution": ContributionEvent,
+    "convergence": ConvergenceEvent,
+    "voting_started": VotingStartedEvent,
+    "voting_complete": VotingCompleteEvent,
+    "synthesis_complete": SynthesisCompleteEvent,
+    "meta_synthesis_complete": MetaSynthesisCompleteEvent,
+    "error": ErrorEvent,
+}
+
+
+def get_event_json_schemas() -> dict[str, dict[str, object]]:
+    """Export JSON Schema definitions for all typed SSE events.
+
+    Returns:
+        Dict mapping event_type to JSON Schema definition.
+
+    Example:
+        >>> schemas = get_event_json_schemas()
+        >>> schemas["contribution"]["properties"]["persona_code"]
+        {'type': 'string', 'description': 'Expert persona code'}
+    """
+    return {
+        event_type: model.model_json_schema() for event_type, model in EVENT_SCHEMA_REGISTRY.items()
+    }
+
+
+def get_schema_for_event(event_type: str) -> type[BaseEvent] | None:
+    """Get the Pydantic model class for an event type.
+
+    Args:
+        event_type: Event type identifier (e.g., "contribution")
+
+    Returns:
+        Pydantic model class or None if not found.
+    """
+    return EVENT_SCHEMA_REGISTRY.get(event_type)

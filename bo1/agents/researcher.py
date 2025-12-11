@@ -741,6 +741,12 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
             logger.warning("TAVILY_API_KEY not set - falling back to Brave")
             return await self._brave_search_and_summarize(question)
 
+        # Check circuit breaker before making API call
+        breaker = get_service_circuit_breaker("tavily")
+        if breaker.state.value == "open":
+            logger.warning("Tavily circuit breaker is OPEN - falling back to Brave")
+            return await self._brave_search_and_summarize(question)
+
         # P2-RESEARCH-4: Apply rate limiting
         limiter = get_rate_limiter("tavily_free")  # TODO: Detect API tier from settings
         wait_time = await limiter.acquire()
@@ -778,6 +784,8 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
                     )
                     response.raise_for_status()
                     data = response.json()
+                    # Record success for circuit breaker
+                    breaker._record_success_sync()
                 # Cost is calculated automatically by CostTracker
 
             summary = data.get("answer", "[No answer provided]")
@@ -801,9 +809,14 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
             }
 
         except httpx.HTTPStatusError as e:
+            # Record failure for circuit breaker (server errors and rate limits)
+            if e.response.status_code >= 500 or e.response.status_code == 429:
+                breaker._record_failure_sync(e)
             logger.error(f"Tavily API error: {e.response.status_code} - {e.response.text}")
             logger.info("Falling back to Brave Search")
             return await self._brave_search_and_summarize(question)
         except Exception as e:
+            # Record failure for circuit breaker (connection errors, timeouts)
+            breaker._record_failure_sync(e)
             logger.error(f"Tavily research failed: {e}, falling back to Brave")
             return await self._brave_search_and_summarize(question)

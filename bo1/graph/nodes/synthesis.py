@@ -10,11 +10,18 @@ This module contains nodes for the final stages of deliberation:
 import asyncio
 import json
 import logging
+import time
 from typing import Any
 
+from bo1.graph.nodes.utils import emit_node_duration, log_with_session
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_aggregated_cost, track_phase_cost
 from bo1.models.state import DeliberationPhase, SubProblemResult
+from bo1.prompts.synthesis import (
+    META_SYNTHESIS_MAX_TOKENS,
+    SYNTHESIS_MAX_TOKENS,
+    SYNTHESIS_TOKEN_WARNING_THRESHOLD,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +75,11 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
     from bo1.llm.broker import PromptBroker
     from bo1.orchestration.voting import collect_recommendations
 
-    logger.info("vote_node: Starting recommendation collection phase")
+    _start_time = time.perf_counter()
+    session_id = state.get("session_id")
+    log_with_session(
+        logger, logging.INFO, session_id, "vote_node: Starting recommendation collection phase"
+    )
 
     # Create broker for LLM calls
     broker = PromptBroker()
@@ -82,8 +93,11 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     rec_cost = sum(r.cost_total for r in llm_responses)
 
-    logger.info(
-        f"vote_node: Complete - {len(recommendations)} recommendations collected (cost: ${rec_cost:.4f})"
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
+        f"vote_node: Complete - {len(recommendations)} recommendations collected (cost: ${rec_cost:.4f})",
     )
 
     # Convert Recommendation objects to dicts for state storage
@@ -102,6 +116,7 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Return state updates
     # Keep "votes" key for backward compatibility during migration
+    emit_node_duration("vote_node", (time.perf_counter() - _start_time) * 1000)
     return {
         "votes": recommendations_dicts,
         "recommendations": recommendations_dicts,
@@ -131,7 +146,14 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     from bo1.llm.broker import PromptBroker, PromptRequest
     from bo1.prompts import SYNTHESIS_LEAN_TEMPLATE, get_limited_context_sections
 
-    logger.info("synthesize_node: Starting synthesis with lean McKinsey-style template")
+    _start_time = time.perf_counter()
+    session_id = state.get("session_id")
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
+        "synthesize_node: Starting synthesis with lean McKinsey-style template",
+    )
 
     # Get problem and contributions
     problem = state.get("problem")
@@ -222,6 +244,20 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Call LLM
     response = await broker.call(request)
 
+    # TOKEN BUDGET WARNING: Check if output tokens approach/exceed budget
+    if response.token_usage:
+        output_tokens = response.token_usage.output_tokens
+        warning_threshold = int(SYNTHESIS_MAX_TOKENS * SYNTHESIS_TOKEN_WARNING_THRESHOLD)
+        if output_tokens >= warning_threshold:
+            log_with_session(
+                logger,
+                logging.WARNING,
+                session_id,
+                f"[TOKEN_BUDGET] Synthesis output tokens ({output_tokens}) "
+                f">= {int(SYNTHESIS_TOKEN_WARNING_THRESHOLD * 100)}% of budget ({SYNTHESIS_MAX_TOKENS}). "
+                f"Sub-problem: {state.get('sub_problem_index', 0)}",
+            )
+
     # Clean up response - ensure proper markdown structure
     raw_content = response.content.strip()
     # Prepend the prefill since it's not included in response
@@ -256,6 +292,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     )
 
     # Return state updates
+    emit_node_duration("synthesize_node", (time.perf_counter() - _start_time) * 1000)
     return {
         "synthesis": synthesis_report_with_disclaimer,
         "phase": DeliberationPhase.SYNTHESIS,  # Don't set COMPLETE yet - may have more sub-problems
@@ -294,11 +331,15 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     sub_problem_index = state.get("sub_problem_index", 0)
 
     # Enhanced logging for sub-problem progression (Bug #3 fix)
+    session_id = state.get("session_id")
     sub_problems = _get_problem_attr(problem, "sub_problems", [])
     total_sub_problems = len(sub_problems) if sub_problems else 0
-    logger.info(
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
         f"next_subproblem_node: Saving result for sub-problem {sub_problem_index + 1}/{total_sub_problems}: "
-        f"{_get_subproblem_attr(current_sp, 'goal', 'unknown')}"
+        f"{_get_subproblem_attr(current_sp, 'goal', 'unknown')}",
     )
 
     if not current_sp:
@@ -448,7 +489,14 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     from bo1.llm.broker import PromptBroker, PromptRequest
     from bo1.prompts import META_SYNTHESIS_ACTION_PLAN_PROMPT
 
-    logger.info("meta_synthesize_node: Starting meta-synthesis (structured JSON)")
+    _start_time = time.perf_counter()
+    session_id = state.get("session_id")
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
+        "meta_synthesize_node: Starting meta-synthesis (structured JSON)",
+    )
 
     # Get problem and sub-problem results
     problem = state.get("problem")
@@ -555,6 +603,20 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Call LLM
     response = await broker.call(request)
 
+    # TOKEN BUDGET WARNING: Check if output tokens approach/exceed budget
+    if response.token_usage:
+        output_tokens = response.token_usage.output_tokens
+        warning_threshold = int(META_SYNTHESIS_MAX_TOKENS * SYNTHESIS_TOKEN_WARNING_THRESHOLD)
+        if output_tokens >= warning_threshold:
+            log_with_session(
+                logger,
+                logging.WARNING,
+                session_id,
+                f"[TOKEN_BUDGET] Meta-synthesis output tokens ({output_tokens}) "
+                f">= {int(SYNTHESIS_TOKEN_WARNING_THRESHOLD * 100)}% of budget ({META_SYNTHESIS_MAX_TOKENS}). "
+                f"Sub-problems: {len(sub_problem_results)}",
+            )
+
     # Prepend prefill to get complete JSON (including opening brace)
     json_content = "{" + response.content
 
@@ -633,6 +695,7 @@ Always verify recommendations using licensed legal/financial professionals for y
     )
 
     # Return state updates
+    emit_node_duration("meta_synthesize_node", (time.perf_counter() - _start_time) * 1000)
     return {
         "synthesis": meta_synthesis_final,
         "phase": DeliberationPhase.COMPLETE,

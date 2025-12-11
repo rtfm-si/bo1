@@ -33,6 +33,7 @@ from bo1.graph.deliberation import (
 )
 from bo1.graph.deliberation.context import extract_recommendation_from_synthesis
 from bo1.graph.deliberation.subgraph.state import SubProblemGraphState
+from bo1.graph.nodes.utils import emit_node_duration, log_with_session
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics
 from bo1.models.persona import PersonaProfile
@@ -84,7 +85,10 @@ async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, 
     """
     from bo1.feature_flags.features import ENABLE_PARALLEL_SUBPROBLEMS
 
-    logger.info("analyze_dependencies_node: Starting dependency analysis")
+    session_id = state.get("session_id")
+    log_with_session(
+        logger, logging.INFO, session_id, "analyze_dependencies_node: Starting dependency analysis"
+    )
 
     problem = state.get("problem")
     if not problem:
@@ -295,6 +299,7 @@ async def _run_single_subproblem(
     final_state = await subproblem_graph.ainvoke(sp_state, config=config)
     result = result_from_subgraph_state(cast(SubProblemGraphState, final_state))
     duration = time.time() - start_time
+    emit_node_duration(f"subproblem_{sp_index}", duration * 1000)
 
     # Update duration (not available in subgraph state)
     result = SubProblemResult(
@@ -615,6 +620,7 @@ async def _run_subproblem_speculative(
 
     result = result_from_subgraph_state(cast(SubProblemGraphState, final_state))
     duration = time.time() - start_time
+    emit_node_duration(f"speculative_subproblem_{sp_index}", duration * 1000)
 
     # Update result with duration
     result = SubProblemResult(

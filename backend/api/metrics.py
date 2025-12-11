@@ -294,6 +294,53 @@ class PrometheusMetrics:
             ["alert_type"],  # warning, exceeded
         )
 
+        # Contribution summarization metrics
+        self.summarization_duration = Histogram(
+            "contribution_summarization_duration_ms",
+            "Contribution summarization latency in milliseconds",
+            ["persona_name", "status"],
+            buckets=[100, 250, 500, 1000, 2000, 5000, 10000],
+        )
+
+        self.summarization_batch_size = Histogram(
+            "contribution_summarization_batch_size",
+            "Number of contributions in a summarization batch",
+            buckets=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        )
+
+        self.summarization_batch_duration = Histogram(
+            "contribution_summarization_batch_duration_ms",
+            "Total batch summarization latency in milliseconds",
+            buckets=[500, 1000, 2000, 5000, 10000, 20000, 30000],
+        )
+
+        # Database connection pool metrics
+        self.db_pool_used_connections = Gauge(
+            "db_pool_used_connections",
+            "Number of database connections currently in use",
+        )
+
+        self.db_pool_free_connections = Gauge(
+            "db_pool_free_connections",
+            "Number of database connections available in pool",
+        )
+
+        self.db_pool_utilization_percent = Gauge(
+            "db_pool_utilization_percent",
+            "Percentage of database connection pool in use (0-100)",
+        )
+
+        # Event queue metrics (DLQ monitoring)
+        self.event_dlq_depth = Gauge(
+            "event_dlq_depth",
+            "Number of events in the dead letter queue",
+        )
+
+        self.event_retry_queue_depth = Gauge(
+            "event_retry_queue_depth",
+            "Number of events in the retry queue",
+        )
+
     def _normalize_model(self, model: str | None) -> str:
         """Normalize model name to low-cardinality label.
 
@@ -433,6 +480,54 @@ class PrometheusMetrics:
             budget: Budget threshold
         """
         self.budget_alerts.labels(alert_type=alert_type).inc()
+
+    def record_summarization_duration(
+        self, persona_name: str, status: str, duration_ms: float
+    ) -> None:
+        """Record contribution summarization latency.
+
+        Args:
+            persona_name: Name of the persona being summarized
+            status: success, fallback, or error
+            duration_ms: Duration in milliseconds
+        """
+        self.summarization_duration.labels(persona_name=persona_name, status=status).observe(
+            duration_ms
+        )
+
+    def record_summarization_batch(self, batch_size: int, duration_ms: float) -> None:
+        """Record batch summarization metrics.
+
+        Args:
+            batch_size: Number of contributions in the batch
+            duration_ms: Total batch duration in milliseconds
+        """
+        self.summarization_batch_size.observe(batch_size)
+        self.summarization_batch_duration.observe(duration_ms)
+
+    def update_pool_metrics(
+        self, used_connections: int, free_connections: int, utilization_pct: float
+    ) -> None:
+        """Update database connection pool metrics.
+
+        Args:
+            used_connections: Number of connections currently in use
+            free_connections: Number of connections available
+            utilization_pct: Pool utilization percentage (0-100)
+        """
+        self.db_pool_used_connections.set(used_connections)
+        self.db_pool_free_connections.set(free_connections)
+        self.db_pool_utilization_percent.set(utilization_pct)
+
+    def update_queue_metrics(self, dlq_depth: int, retry_queue_depth: int) -> None:
+        """Update event queue metrics (DLQ and retry queue).
+
+        Args:
+            dlq_depth: Number of events in the dead letter queue
+            retry_queue_depth: Number of events in the retry queue
+        """
+        self.event_dlq_depth.set(dlq_depth)
+        self.event_retry_queue_depth.set(retry_queue_depth)
 
 
 # Global Prometheus metrics instance

@@ -303,3 +303,36 @@ class TestBraveCircuitBreakerIntegration:
             breaker._record_failure_sync(Exception("Connection refused"))
 
         assert breaker.state == CircuitState.OPEN
+
+
+class TestTavilyCircuitBreakerIntegration:
+    """Test Tavily AI circuit breaker integration."""
+
+    def test_tavily_breaker_has_correct_config(self):
+        """Tavily breaker uses specific config."""
+        breaker = get_service_circuit_breaker("tavily")
+
+        assert breaker.config.failure_threshold == 5
+        assert breaker.config.recovery_timeout == 45
+        assert breaker.config.success_threshold == 2
+
+    def test_tavily_breaker_opens_on_failures(self):
+        """Tavily circuit opens after threshold failures."""
+        breaker = get_service_circuit_breaker("tavily")
+
+        for _ in range(5):
+            breaker._record_failure_sync(Exception("Connection refused"))
+
+        assert breaker.state == CircuitState.OPEN
+
+    def test_tavily_breaker_isolated_from_brave(self):
+        """Tavily failures don't affect Brave service."""
+        tavily_breaker = get_service_circuit_breaker("tavily")
+        brave_breaker = get_service_circuit_breaker("brave")
+
+        # Record failures on tavily
+        for _ in range(5):
+            tavily_breaker._record_failure_sync(ValueError("test"))
+
+        assert tavily_breaker.state == CircuitState.OPEN
+        assert brave_breaker.state == CircuitState.CLOSED

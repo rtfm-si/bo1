@@ -4,6 +4,7 @@ Provides singleton instances of:
 - RedisManager: Redis connection management
 - SessionManager: Active session management with ownership tracking
 - EventPublisher: Event publishing for SSE streaming
+- ContributionSummarizer: AI-powered contribution summarization
 - PostgreSQL connection pool (via bo1.state.database)
 
 Also provides reusable dependencies for:
@@ -16,12 +17,15 @@ import os
 from functools import lru_cache
 from typing import Annotated, Any
 
+from anthropic import AsyncAnthropic
 from fastapi import Depends, HTTPException
 
+from backend.api.contribution_summarizer import ContributionSummarizer
 from backend.api.event_publisher import EventPublisher
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.security import verify_session_ownership
+from bo1.config import get_settings
 from bo1.graph.execution import SessionManager
 from bo1.state.redis_manager import RedisManager
 
@@ -80,6 +84,21 @@ def get_event_publisher() -> EventPublisher:
     """
     redis_manager = get_redis_manager()
     return EventPublisher(redis_manager.redis)
+
+
+@lru_cache(maxsize=1)
+def get_contribution_summarizer() -> ContributionSummarizer:
+    """Get singleton contribution summarizer instance.
+
+    The summarizer uses Claude Haiku for cost-effective AI summarization
+    of expert contributions.
+
+    Returns:
+        ContributionSummarizer instance (cached)
+    """
+    settings = get_settings()
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    return ContributionSummarizer(client)
 
 
 async def get_verified_session(

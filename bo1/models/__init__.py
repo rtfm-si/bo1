@@ -1,5 +1,6 @@
 """Domain models for Board of One."""
 
+from .contribution import ContributionSummary
 from .persona import (
     PersonaCategory,
     PersonaProfile,
@@ -23,6 +24,8 @@ from .state import (
 )
 
 __all__ = [
+    # Contribution models
+    "ContributionSummary",
     # Persona models
     "PersonaProfile",
     "PersonaTraits",

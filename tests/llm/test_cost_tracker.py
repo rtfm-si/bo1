@@ -239,3 +239,97 @@ class TestCostBudgetTracking:
         # Can trigger warning again
         warning, _ = CostTracker.check_budget(session_id, 0.45, 0.50, 0.80)
         assert warning is True
+
+
+class TestGetSubproblemCosts:
+    """Test get_subproblem_costs method."""
+
+    def test_get_subproblem_costs_returns_breakdown(self):
+        """Test that get_subproblem_costs returns per-sub-problem breakdown."""
+        session_id = "test_session_sp_costs"
+
+        # Mock the database query response
+        mock_rows = [
+            # sub_problem_index, api_calls, total_cost, total_tokens, anthropic, voyage, brave, tavily, decomp, delib, synth
+            (None, 5, 0.05, 1000, 0.05, 0.0, 0.0, 0.0, 0.05, 0.0, 0.0),  # Overhead
+            (0, 10, 0.15, 5000, 0.12, 0.01, 0.01, 0.01, 0.0, 0.10, 0.05),  # Sub-problem 0
+            (1, 8, 0.12, 4000, 0.10, 0.01, 0.005, 0.005, 0.0, 0.08, 0.04),  # Sub-problem 1
+        ]
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchall.return_value = mock_rows
+
+            results = CostTracker.get_subproblem_costs(session_id)
+
+        assert len(results) == 3
+
+        # Check overhead (null sub_problem_index)
+        assert results[0]["sub_problem_index"] is None
+        assert results[0]["label"] == "Overhead"
+        assert results[0]["total_cost"] == 0.05
+        assert results[0]["api_calls"] == 5
+        assert results[0]["by_provider"]["anthropic"] == 0.05
+        assert results[0]["by_phase"]["decomposition"] == 0.05
+
+        # Check sub-problem 0
+        assert results[1]["sub_problem_index"] == 0
+        assert results[1]["label"] == "Sub-problem 0"
+        assert results[1]["total_cost"] == 0.15
+        assert results[1]["total_tokens"] == 5000
+        assert results[1]["by_phase"]["deliberation"] == 0.10
+
+        # Check sub-problem 1
+        assert results[2]["sub_problem_index"] == 1
+        assert results[2]["label"] == "Sub-problem 1"
+
+    def test_get_subproblem_costs_handles_null_index(self):
+        """Test that NULL sub_problem_index is labeled as Overhead."""
+        session_id = "test_session_null_idx"
+
+        mock_rows = [
+            (None, 3, 0.03, 500, 0.03, 0.0, 0.0, 0.0, 0.03, 0.0, 0.0),
+        ]
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchall.return_value = mock_rows
+
+            results = CostTracker.get_subproblem_costs(session_id)
+
+        assert len(results) == 1
+        assert results[0]["sub_problem_index"] is None
+        assert results[0]["label"] == "Overhead"
+
+    def test_get_subproblem_costs_empty_session(self):
+        """Test that empty session returns empty list."""
+        session_id = "test_session_empty"
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchall.return_value = []
+
+            results = CostTracker.get_subproblem_costs(session_id)
+
+        assert results == []
+
+    def test_get_subproblem_costs_handles_none_values(self):
+        """Test that None values in aggregation are handled gracefully."""
+        session_id = "test_session_none_vals"
+
+        # Simulate a row with None for some aggregated values
+        mock_rows = [
+            (0, None, None, None, None, None, None, None, None, None, None),
+        ]
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchall.return_value = mock_rows
+
+            results = CostTracker.get_subproblem_costs(session_id)
+
+        assert len(results) == 1
+        assert results[0]["total_cost"] == 0.0
+        assert results[0]["api_calls"] == 0
+        assert results[0]["total_tokens"] == 0
+        assert results[0]["by_provider"]["anthropic"] == 0.0

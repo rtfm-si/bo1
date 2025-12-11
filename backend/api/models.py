@@ -256,14 +256,41 @@ class ErrorResponse(BaseModel):
     """Response model for API errors.
 
     Attributes:
-        error: Error type
-        message: Error message
-        details: Optional error details
+        detail: Error message (FastAPI HTTPException format)
+        error_code: Optional structured error code for client handling
+        session_id: Optional session ID for context
+        status: Optional status field for conflict errors
     """
 
-    error: str = Field(..., description="Error type")
-    message: str = Field(..., description="Error message")
-    details: dict[str, Any] | None = Field(None, description="Optional error details")
+    detail: str = Field(..., description="Error message")
+    error_code: str | None = Field(None, description="Structured error code for client handling")
+    session_id: str | None = Field(None, description="Session ID for context")
+    status: str | None = Field(None, description="Session status (for conflict errors)")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "detail": "Session not found",
+                    "session_id": "bo1_abc123",
+                },
+                {
+                    "detail": "Not authorized to access this session",
+                    "error_code": "FORBIDDEN",
+                },
+                {
+                    "detail": "Session already completed",
+                    "status": "completed",
+                    "session_id": "bo1_abc123",
+                    "error_code": "SESSION_ALREADY_COMPLETED",
+                },
+                {
+                    "detail": "Internal server error",
+                    "error_code": "GRAPH_EXECUTION_FAILED",
+                },
+            ]
+        }
+    }
 
 
 # =============================================================================
@@ -1797,3 +1824,69 @@ class ConversationListResponse(BaseModel):
 
     conversations: list[ConversationResponse] = Field(..., description="List of conversations")
     total: int = Field(..., description="Total count")
+
+
+# =============================================================================
+# Session Cost Breakdown Models
+# =============================================================================
+
+
+class ProviderCosts(BaseModel):
+    """Cost breakdown by AI provider."""
+
+    anthropic: float = Field(0.0, description="Anthropic (Claude) costs in USD")
+    voyage: float = Field(0.0, description="Voyage AI (embeddings) costs in USD")
+    brave: float = Field(0.0, description="Brave Search costs in USD")
+    tavily: float = Field(0.0, description="Tavily Search costs in USD")
+
+
+class PhaseCosts(BaseModel):
+    """Cost breakdown by deliberation phase."""
+
+    decomposition: float = Field(0.0, description="Decomposition phase costs in USD")
+    deliberation: float = Field(0.0, description="Deliberation phase costs in USD")
+    synthesis: float = Field(0.0, description="Synthesis phase costs in USD")
+
+
+class SubProblemCost(BaseModel):
+    """Cost breakdown for a single sub-problem.
+
+    Attributes:
+        sub_problem_index: Sub-problem index (None for overhead costs)
+        label: Human-readable label (e.g., "Sub-problem 0" or "Overhead")
+        total_cost: Total cost for this sub-problem in USD
+        api_calls: Number of API calls
+        total_tokens: Total tokens used
+        by_provider: Breakdown by AI provider
+        by_phase: Breakdown by deliberation phase
+    """
+
+    sub_problem_index: int | None = Field(None, description="Sub-problem index (null for overhead)")
+    label: str = Field(..., description="Human-readable label")
+    total_cost: float = Field(..., description="Total cost in USD")
+    api_calls: int = Field(..., description="Number of API calls")
+    total_tokens: int = Field(..., description="Total tokens used")
+    by_provider: ProviderCosts = Field(..., description="Breakdown by provider")
+    by_phase: PhaseCosts = Field(..., description="Breakdown by phase")
+
+
+class SessionCostBreakdown(BaseModel):
+    """Full cost breakdown for a session.
+
+    Attributes:
+        session_id: Session identifier
+        total_cost: Total session cost in USD
+        total_tokens: Total tokens used
+        total_api_calls: Total API calls made
+        by_provider: Total costs by provider
+        by_sub_problem: Cost breakdown per sub-problem
+    """
+
+    session_id: str = Field(..., description="Session identifier")
+    total_cost: float = Field(..., description="Total session cost in USD")
+    total_tokens: int = Field(..., description="Total tokens used")
+    total_api_calls: int = Field(..., description="Total API calls")
+    by_provider: ProviderCosts = Field(..., description="Total costs by provider")
+    by_sub_problem: list[SubProblemCost] = Field(
+        default_factory=list, description="Cost breakdown per sub-problem"
+    )

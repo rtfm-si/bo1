@@ -289,6 +289,30 @@ def serialize_state_for_checkpoint(state: DeliberationGraphState) -> dict[str, A
     by LangGraph's AsyncRedisSaver. This fixes the bug where nested models
     (like Problem.sub_problems) are lost on checkpoint resume.
 
+    Serialized fields (Pydantic → dict):
+        - problem: Problem model with nested SubProblem list
+        - current_sub_problem: SubProblem model
+        - personas: list[PersonaProfile]
+        - contributions: list[ContributionMessage]
+        - metrics: DeliberationMetrics
+        - sub_problem_results: list[SubProblemResult]
+
+    Pass-through fields (already JSON-serializable):
+        - All primitive types (str, int, float, bool)
+        - All dict[str, Any] fields (facilitator_decision, business_context, etc.)
+        - All list[str] or list[dict] fields (round_summaries, votes, etc.)
+
+    Edge cases:
+        - Empty lists: Preserved as [] (not converted to None)
+        - None values: Preserved as None (not omitted)
+        - Mixed Pydantic/dict in lists: Handles both via hasattr check
+        - Missing keys: Absent keys remain absent (TypedDict partial)
+
+    Version compatibility:
+        - Forward-compat: New fields added to state are ignored in older code
+        - Backward-compat: Old checkpoints missing new fields load without error
+          (TypedDict total=False allows missing keys)
+
     Args:
         state: The graph state to serialize
 
@@ -332,6 +356,17 @@ def serialize_state_for_checkpoint(state: DeliberationGraphState) -> dict[str, A
         if hasattr(result["metrics"], "model_dump"):
             result["metrics"] = result["metrics"].model_dump()
 
+    # Serialize sub_problem_results list
+    sub_problem_results = result.get("sub_problem_results")
+    if sub_problem_results and isinstance(sub_problem_results, list):
+        sub_problem_results_list: list[Any] = []
+        for spr in sub_problem_results:
+            if hasattr(spr, "model_dump"):
+                sub_problem_results_list.append(spr.model_dump())
+            else:
+                sub_problem_results_list.append(spr)
+        result["sub_problem_results"] = sub_problem_results_list
+
     return result
 
 
@@ -340,6 +375,25 @@ def deserialize_state_from_checkpoint(data: dict[str, Any]) -> dict[str, Any]:
 
     Converts dicts back to Pydantic models where appropriate.
     This is the inverse of serialize_state_for_checkpoint.
+
+    Deserialized fields (dict → Pydantic):
+        - problem: dict → Problem (with nested SubProblem list)
+        - current_sub_problem: dict → SubProblem
+        - personas: list[dict] → list[PersonaProfile]
+        - contributions: list[dict] → list[ContributionMessage]
+        - metrics: dict → DeliberationMetrics
+        - sub_problem_results: list[dict] → list[SubProblemResult]
+
+    Edge cases:
+        - Missing keys: Silently skipped (no KeyError)
+        - Extra keys: Preserved as-is (forward-compat for new fields)
+        - None values: Preserved as None (not converted)
+        - Mixed dict/Pydantic in lists: Only dicts are converted
+        - Empty lists: Preserved as [] (not converted)
+
+    Validation:
+        - Uses model_validate() which raises ValidationError on schema mismatch
+        - Caller should handle ValidationError for corrupted checkpoints
 
     Args:
         data: Dictionary loaded from checkpoint
@@ -374,5 +428,12 @@ def deserialize_state_from_checkpoint(data: dict[str, Any]) -> dict[str, Any]:
     # Deserialize metrics
     if "metrics" in result and isinstance(result["metrics"], dict):
         result["metrics"] = DeliberationMetrics.model_validate(result["metrics"])
+
+    # Deserialize sub_problem_results list
+    if "sub_problem_results" in result and result["sub_problem_results"]:
+        result["sub_problem_results"] = [
+            SubProblemResult.model_validate(spr) if isinstance(spr, dict) else spr
+            for spr in result["sub_problem_results"]
+        ]
 
     return result

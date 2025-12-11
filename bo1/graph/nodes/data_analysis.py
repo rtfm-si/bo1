@@ -7,6 +7,7 @@ dataset analysis requested by the facilitator.
 import logging
 from typing import Any
 
+from bo1.graph.nodes.utils import log_with_session
 from bo1.graph.state import DeliberationGraphState
 
 logger = logging.getLogger(__name__)
@@ -30,10 +31,16 @@ async def data_analysis_node(state: DeliberationGraphState) -> dict[str, Any]:
     """
     from bo1.agents.data_analyst import DataAnalysisAgent, DataAnalysisError
 
+    session_id = state.get("session_id")
     facilitator_decision = state.get("facilitator_decision")
 
     if not facilitator_decision:
-        logger.warning("[DATA_ANALYSIS] No facilitator decision found - skipping analysis")
+        log_with_session(
+            logger,
+            logging.WARNING,
+            session_id,
+            "[DATA_ANALYSIS] No facilitator decision found - skipping analysis",
+        )
         return {
             "facilitator_decision": None,
             "current_node": "data_analysis",

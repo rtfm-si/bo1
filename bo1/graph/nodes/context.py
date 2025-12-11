@@ -11,6 +11,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from bo1.graph.nodes.utils import log_with_session
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_phase_cost
 from bo1.state.repositories import user_repository
@@ -35,7 +36,10 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
     Returns:
         Dictionary with state updates (problem with enriched context)
     """
-    logger.info("context_collection_node: Starting context collection")
+    session_id = state.get("session_id")
+    log_with_session(
+        logger, logging.INFO, session_id, "context_collection_node: Starting context collection"
+    )
 
     problem = state.get("problem")
     if not problem:
@@ -97,7 +101,7 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
     # Track cost in metrics (data loading = $0, no LLM calls)
     track_phase_cost(metrics, "context_collection", None)
 
-    logger.info("context_collection_node: Complete")
+    log_with_session(logger, logging.INFO, session_id, "context_collection_node: Complete")
 
     return {
         "problem": problem,
@@ -127,7 +131,10 @@ async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
         - If critical gaps: should_stop=True, pending_clarification with questions
         - If no critical gaps: continues to next node
     """
-    logger.info("identify_gaps_node: Analyzing information gaps")
+    session_id = state.get("session_id")
+    log_with_session(
+        logger, logging.INFO, session_id, "identify_gaps_node: Analyzing information gaps"
+    )
 
     problem = state.get("problem")
     if not problem:

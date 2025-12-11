@@ -13,6 +13,7 @@ import logging
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import psycopg2
 import redis
@@ -277,6 +278,9 @@ class PoolHealthResponse(BaseModel):
         pool_initialized: Whether pool has been created
         min_connections: Configured minimum connections
         max_connections: Configured maximum connections
+        used_connections: Connections currently in use
+        free_connections: Connections available in pool
+        pool_utilization_pct: Pool utilization percentage (0-100)
         test_query_success: Whether test query succeeded
         message: Status message
         error: Error message if unhealthy
@@ -289,6 +293,9 @@ class PoolHealthResponse(BaseModel):
     pool_initialized: bool = Field(..., description="Whether pool has been created")
     min_connections: int = Field(..., description="Configured minimum connections")
     max_connections: int = Field(..., description="Configured maximum connections")
+    used_connections: int = Field(0, description="Connections currently in use")
+    free_connections: int = Field(0, description="Connections available in pool")
+    pool_utilization_pct: float = Field(0.0, description="Pool utilization percentage (0-100)")
     test_query_success: bool = Field(..., description="Whether test query succeeded")
     message: str | None = Field(None, description="Status message")
     error: str | None = Field(None, description="Error message if unhealthy")
@@ -358,13 +365,30 @@ async def health_check_db_pool() -> PoolHealthResponse:
     """PostgreSQL connection pool health check.
 
     Returns:
-        Pool health status with configuration and test results
+        Pool health status with configuration, utilization metrics, and test results
     """
+    from backend.api.metrics import prom_metrics
     from bo1.state.database import get_pool_health
 
     health = get_pool_health()
     status = "healthy" if health["healthy"] else "unhealthy"
-    message = "Pool functioning correctly" if health["healthy"] else "Pool health check failed"
+
+    # Build message with utilization info
+    utilization_pct = health.get("pool_utilization_pct", 0.0)
+    if health["healthy"]:
+        if utilization_pct >= 80:
+            message = f"Pool healthy but high utilization ({utilization_pct}%)"
+        else:
+            message = f"Pool functioning correctly ({utilization_pct}% utilization)"
+    else:
+        message = "Pool health check failed"
+
+    # Update Prometheus metrics
+    prom_metrics.update_pool_metrics(
+        used_connections=health.get("used_connections", 0),
+        free_connections=health.get("free_connections", 0),
+        utilization_pct=utilization_pct,
+    )
 
     return PoolHealthResponse(
         status=status,
@@ -373,6 +397,9 @@ async def health_check_db_pool() -> PoolHealthResponse:
         pool_initialized=health["pool_initialized"],
         min_connections=health["min_connections"],
         max_connections=health["max_connections"],
+        used_connections=health.get("used_connections", 0),
+        free_connections=health.get("free_connections", 0),
+        pool_utilization_pct=utilization_pct,
         test_query_success=health["test_query_success"],
         message=message,
         error=health.get("error"),
@@ -969,3 +996,114 @@ async def health_check_circuit_breakers() -> CircuitBreakersHealthResponse:
         message=message,
         timestamp=datetime.now(UTC).isoformat(),
     )
+
+
+class CheckpointHealthResponse(BaseModel):
+    """Checkpoint backend health response.
+
+    Attributes:
+        status: Health status (healthy/unhealthy)
+        component: Component name (checkpoint)
+        healthy: Whether checkpoint backend is healthy
+        backend: Backend type (redis/postgres)
+        message: Status message
+        error: Error message if unhealthy
+        timestamp: ISO 8601 timestamp
+    """
+
+    status: str = Field(..., description="Health status")
+    component: str = Field(default="checkpoint", description="Component name")
+    healthy: bool = Field(..., description="Whether checkpoint backend is healthy")
+    backend: str = Field(..., description="Backend type (redis/postgres)")
+    message: str = Field(..., description="Status message")
+    error: str | None = Field(None, description="Error message if unhealthy")
+    details: dict[str, Any] | None = Field(None, description="Backend-specific details")
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+
+
+@router.get(
+    "/health/checkpoint",
+    response_model=CheckpointHealthResponse,
+    summary="LangGraph checkpoint backend health check",
+    description="""
+    Check health of the LangGraph checkpoint backend (Redis or PostgreSQL).
+
+    Tests:
+    - Backend connectivity (ping for Redis, SELECT 1 for Postgres)
+    - Configuration validity
+
+    **Use Cases:**
+    - Verify checkpoint storage before starting deliberations
+    - Monitor checkpoint backend availability
+    - Troubleshoot state persistence issues
+    """,
+    responses={
+        200: {
+            "description": "Checkpoint backend is healthy",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "healthy",
+                        "component": "checkpoint",
+                        "healthy": True,
+                        "backend": "redis",
+                        "message": "Redis checkpoint backend healthy",
+                        "error": None,
+                        "details": {"host": "localhost", "port": 6379, "db": 0},
+                        "timestamp": "2025-01-15T12:00:00.000000",
+                    }
+                }
+            },
+        },
+        503: {
+            "description": "Checkpoint backend is unhealthy",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "unhealthy",
+                        "component": "checkpoint",
+                        "healthy": False,
+                        "backend": "redis",
+                        "message": "Health check failed",
+                        "error": "Connection refused",
+                        "details": None,
+                        "timestamp": "2025-01-15T12:00:00.000000",
+                    }
+                }
+            },
+        },
+    },
+)
+async def health_check_checkpoint() -> CheckpointHealthResponse:
+    """LangGraph checkpoint backend health check.
+
+    Returns:
+        Checkpoint backend health status
+
+    Raises:
+        HTTPException: If checkpoint backend is unhealthy
+    """
+    from bo1.graph.checkpointer_factory import check_checkpoint_health
+
+    health = check_checkpoint_health()
+
+    # Extract details (remove keys already in response model)
+    details = {
+        k: v for k, v in health.items() if k not in ("healthy", "backend", "message", "error")
+    }
+
+    response = CheckpointHealthResponse(
+        status="healthy" if health["healthy"] else "unhealthy",
+        component="checkpoint",
+        healthy=health["healthy"],
+        backend=health["backend"],
+        message=health["message"],
+        error=health.get("error"),
+        details=details if details else None,
+        timestamp=datetime.now(UTC).isoformat(),
+    )
+
+    if not health["healthy"]:
+        raise HTTPException(status_code=503, detail=response.model_dump())
+
+    return response

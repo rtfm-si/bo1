@@ -7,6 +7,7 @@ research requested by the facilitator or triggered proactively.
 import logging
 from typing import Any, Literal
 
+from bo1.graph.nodes.utils import log_with_session
 from bo1.graph.state import DeliberationGraphState
 
 logger = logging.getLogger(__name__)
@@ -35,11 +36,18 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
     """
     from bo1.agents.researcher import ResearcherAgent
 
+    session_id = state.get("session_id")
+
     # PROACTIVE RESEARCH: Check for pending queries first
     pending_queries = state.get("pending_research_queries", [])
 
     if pending_queries:
-        logger.info(f"[RESEARCH] Processing {len(pending_queries)} proactive research queries")
+        log_with_session(
+            logger,
+            logging.INFO,
+            session_id,
+            f"[RESEARCH] Processing {len(pending_queries)} proactive research queries",
+        )
 
         # Execute all pending queries
         researcher = ResearcherAgent()

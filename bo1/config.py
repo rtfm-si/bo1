@@ -185,6 +185,10 @@ class Settings(BaseSettings):
         default=604800,  # 7 days
         description="TTL for checkpoint expiration in seconds (default: 7 days)",
     )
+    checkpoint_fallback_enabled: bool = Field(
+        default=True,
+        description="Fall back to in-memory checkpointing if Redis unavailable",
+    )
 
     # PostgreSQL Configuration (v2+, Week 3.5)
     database_url: str = Field(

@@ -161,6 +161,27 @@ def extract_persona_codes(personas: list[Any]) -> list[str]:
     return [get_field_safe(p, "code", "unknown") for p in personas]
 
 
+def extract_persona_dict(persona: Any) -> dict[str, Any]:
+    """Extract persona fields into a dictionary.
+
+    Consolidates persona attribute extraction for SSE events.
+    Handles both Pydantic models (via hasattr/getattr) and dicts (via .get()).
+
+    Args:
+        persona: Persona object (Pydantic model or dict)
+
+    Returns:
+        Dictionary with persona fields (code, name, archetype, display_name, domain_expertise)
+    """
+    return {
+        "code": get_field_safe(persona, "code"),
+        "name": get_field_safe(persona, "name"),
+        "archetype": get_field_safe(persona, "archetype", ""),
+        "display_name": get_field_safe(persona, "display_name", ""),
+        "domain_expertise": get_field_safe(persona, "domain_expertise", []),
+    }
+
+
 def extract_metrics_field(metrics: Any, field: str, default: Any = 0.0) -> Any:
     """Extract specific field from metrics object or dict.
 

@@ -88,6 +88,9 @@ def get_pool_health() -> dict[str, Any]:
         - pool_initialized: Whether pool exists
         - min_connections: Configured minimum connections
         - max_connections: Configured maximum connections
+        - used_connections: Count of connections currently in use
+        - free_connections: Count of connections available in pool
+        - pool_utilization_pct: Percentage of pool in use (0-100)
         - test_query_success: Whether SELECT 1 succeeded
         - error: Error message if unhealthy
     """
@@ -98,6 +101,9 @@ def get_pool_health() -> dict[str, Any]:
         "pool_initialized": _connection_pool is not None,
         "min_connections": DatabaseConfig.POOL_MIN_CONNECTIONS,
         "max_connections": DatabaseConfig.POOL_MAX_CONNECTIONS,
+        "used_connections": 0,
+        "free_connections": 0,
+        "pool_utilization_pct": 0.0,
         "test_query_success": False,
         "error": None,
     }
@@ -105,6 +111,17 @@ def get_pool_health() -> dict[str, Any]:
     try:
         pool_instance = get_connection_pool()
         result["pool_initialized"] = True
+
+        # Get pool utilization metrics (thread-safe access)
+        # psycopg2 ThreadedConnectionPool uses _used dict and _pool list
+        with pool_instance._lock:
+            used_count = len(pool_instance._used)
+            free_count = len(pool_instance._pool)
+        result["used_connections"] = used_count
+        result["free_connections"] = free_count
+        total = used_count + free_count
+        if total > 0:
+            result["pool_utilization_pct"] = round((used_count / total) * 100, 1)
 
         conn = pool_instance.getconn()
         try:

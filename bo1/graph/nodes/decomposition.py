@@ -5,9 +5,11 @@ complex problems into manageable sub-problems and assesses complexity.
 """
 
 import logging
+import time
 from typing import Any
 
 from bo1.agents.decomposer import DecomposerAgent
+from bo1.graph.nodes.utils import emit_node_duration, log_with_session
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_phase_cost
 from bo1.models.problem import SubProblem
@@ -30,7 +32,11 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     Returns:
         Dictionary with state updates
     """
-    logger.info("decompose_node: Starting problem decomposition")
+    _start_time = time.perf_counter()
+    session_id = state.get("session_id")
+    log_with_session(
+        logger, logging.INFO, session_id, "decompose_node: Starting problem decomposition"
+    )
 
     # Create decomposer agent
     decomposer = DecomposerAgent()
@@ -47,13 +53,19 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     pending_research_queries: list[dict[str, str]] = []
     if comparison_result.is_comparison:
-        logger.info(
+        log_with_session(
+            logger,
+            logging.INFO,
+            session_id,
             f"decompose_node: Detected comparison question - type='{comparison_result.comparison_type}', "
-            f"options={comparison_result.options}"
+            f"options={comparison_result.options}",
         )
         pending_research_queries = comparison_result.research_queries
-        logger.info(
-            f"decompose_node: Generated {len(pending_research_queries)} proactive research queries"
+        log_with_session(
+            logger,
+            logging.INFO,
+            session_id,
+            f"decompose_node: Generated {len(pending_research_queries)} proactive research queries",
         )
 
     # AUDIT FIX (Priority 5, Task 5.2): Determine complexity-based limits BEFORE decomposition
@@ -85,9 +97,12 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     if any(keyword in problem_text.lower() for keyword in strategic_keywords):
         estimated_complexity = min(9, estimated_complexity + 2)
 
-    logger.info(
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
         f"decompose_node: Initial complexity estimate = {estimated_complexity} "
-        f"(problem length: {problem_length} words)"
+        f"(problem length: {problem_length} words)",
     )
 
     # Call decomposer with complexity hint in constraints
@@ -139,16 +154,22 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     max_subproblems_allowed = 4  # Hard cap based on audit findings (avg was 4.2)
 
     if len(sub_problems) > max_subproblems_allowed:
-        logger.warning(
+        log_with_session(
+            logger,
+            logging.WARNING,
+            session_id,
             f"decompose_node: Truncating {len(sub_problems)} sub-problems to {max_subproblems_allowed} "
-            f"(audit finding: too many sub-problems reduces quality)"
+            f"(audit finding: too many sub-problems reduces quality)",
         )
         # Keep the most important ones (highest complexity or first N)
         sub_problems = sub_problems[:max_subproblems_allowed]
 
-    logger.info(
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
         f"decompose_node: Created {len(sub_problems)} sub-problems "
-        f"(target: 1-3, max: {max_subproblems_allowed})"
+        f"(target: 1-3, max: {max_subproblems_allowed})",
     )
 
     # Update problem with sub-problems
@@ -211,12 +232,15 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Track complexity assessment cost
     track_phase_cost(metrics, "complexity_assessment", complexity_response)
 
-    logger.info(
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
         f"decompose_node: Complete - {len(sub_problems)} sub-problems, "
         f"complexity={metrics.complexity_score:.2f}, "
         f"recommended_rounds={metrics.recommended_rounds}, "
         f"recommended_experts={metrics.recommended_experts} "
-        f"(cost: ${response.cost_total + complexity_response.cost_total:.4f})"
+        f"(cost: ${response.cost_total + complexity_response.cost_total:.4f})",
     )
 
     # Return state updates with adaptive max_rounds
@@ -235,9 +259,13 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
         state_updates["comparison_detected"] = True
         state_updates["comparison_options"] = comparison_result.options
         state_updates["comparison_type"] = comparison_result.comparison_type
-        logger.info(
+        log_with_session(
+            logger,
+            logging.INFO,
+            session_id,
             f"decompose_node: Added {len(pending_research_queries)} research queries to state "
-            f"for comparison: {comparison_result.options}"
+            f"for comparison: {comparison_result.options}",
         )
 
+    emit_node_duration("decompose_node", (time.perf_counter() - _start_time) * 1000)
     return state_updates

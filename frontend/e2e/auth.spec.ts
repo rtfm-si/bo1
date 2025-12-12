@@ -12,8 +12,12 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Authentication', () => {
+	// In E2E mode, login page redirects to dashboard (user is auto-authenticated)
+	const skipInE2E = !!process.env.E2E_BASE_URL;
+
 	test.describe('Login page', () => {
 		test('displays login form with Google button', async ({ page }) => {
+			test.skip(skipInE2E, 'Skipped in E2E mode - login page redirects when authenticated');
 			await page.goto('/login');
 
 			// Check page title
@@ -33,6 +37,7 @@ test.describe('Authentication', () => {
 		});
 
 		test('shows closed beta notice', async ({ page }) => {
+			test.skip(skipInE2E, 'Skipped in E2E mode - login page redirects when authenticated');
 			await page.goto('/login');
 
 			// Check closed beta message
@@ -45,6 +50,7 @@ test.describe('Authentication', () => {
 		});
 
 		test('shows error message when auth fails', async ({ page }) => {
+			test.skip(skipInE2E, 'Skipped in E2E mode - login page redirects when authenticated');
 			await page.goto('/login?error=closed_beta');
 
 			// Check error message displayed
@@ -52,6 +58,7 @@ test.describe('Authentication', () => {
 		});
 
 		test('shows privacy policy and terms links', async ({ page }) => {
+			test.skip(skipInE2E, 'Skipped in E2E mode - login page redirects when authenticated');
 			await page.goto('/login');
 
 			await expect(page.getByRole('link', { name: 'Terms of Service' })).toBeVisible();
@@ -59,6 +66,7 @@ test.describe('Authentication', () => {
 		});
 
 		test('has back to home link', async ({ page }) => {
+			test.skip(skipInE2E, 'Skipped in E2E mode - login page redirects when authenticated');
 			await page.goto('/login');
 
 			const backLink = page.getByRole('link', { name: /Back to home/i });
@@ -71,6 +79,7 @@ test.describe('Authentication', () => {
 
 	test.describe('Protected routes', () => {
 		test('redirects unauthenticated user from dashboard to login', async ({ page }) => {
+			test.skip(skipInE2E, 'Skipped in E2E mode - frontend auto-authenticates');
 			// Clear any existing auth state
 			await page.context().clearCookies();
 
@@ -81,6 +90,7 @@ test.describe('Authentication', () => {
 		});
 
 		test('redirects unauthenticated user from settings to login', async ({ page }) => {
+			test.skip(skipInE2E, 'Skipped in E2E mode - frontend auto-authenticates');
 			await page.context().clearCookies();
 
 			await page.goto('/settings');
@@ -89,6 +99,7 @@ test.describe('Authentication', () => {
 		});
 
 		test('redirects unauthenticated user from meeting creation to login', async ({ page }) => {
+			test.skip(skipInE2E, 'Skipped in E2E mode - frontend auto-authenticates');
 			await page.context().clearCookies();
 
 			await page.goto('/meeting/new');

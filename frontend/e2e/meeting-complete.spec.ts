@@ -305,10 +305,8 @@ test.describe('Completed Meeting View', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for AI disclaimer
-			await expect(page.getByText(/AI|artificial intelligence|not financial advice/i)).toBeVisible(
-				{ timeout: 5000 }
-			);
+			// Check for AI disclaimer - use specific text to avoid matching multiple elements
+			await expect(page.getByText('AI-generated content')).toBeVisible({ timeout: 5000 });
 		});
 	});
 });

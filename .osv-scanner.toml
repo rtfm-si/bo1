@@ -13,15 +13,15 @@
 [[IgnoredVulns]]
 id = "GHSA-pxg6-pf52-xh8x"
 reason = "SvelteKit transitive dep, low severity, no upstream fix available"
-expiry = "2026-03-01"
+ignoreUntil = 2026-03-01
 
 # urllib3 2.5.0 - pinned by botocore/langsmith, monitoring for compatible upgrade
 [[IgnoredVulns]]
 id = "GHSA-2xpw-w6gg-jr37"
 reason = "urllib3 pinned by botocore, SSRF requires attacker-controlled URL"
-expiry = "2026-03-01"
+ignoreUntil = 2026-03-01
 
 [[IgnoredVulns]]
 id = "GHSA-gm62-xv2j-4w53"
 reason = "urllib3 pinned by botocore, proxy bypass requires specific config"
-expiry = "2026-03-01"
+ignoreUntil = 2026-03-01

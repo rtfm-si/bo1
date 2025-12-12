@@ -328,7 +328,7 @@ jobs:
       - name: Run Playwright tests
         run: cd frontend && npx playwright test --project=chromium
         env:
-          E2E_BASE_URL: http://localhost:3000
+          E2E_BASE_URL: http://localhost:5173
           E2E_API_URL: http://localhost:8000
 
       - name: Upload Playwright report

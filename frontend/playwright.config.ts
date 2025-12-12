@@ -13,7 +13,7 @@ export default defineConfig({
 	reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'html',
 
 	use: {
-		baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
+		baseURL: process.env.E2E_BASE_URL || 'http://localhost:5173',
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure',
 		video: 'on-first-retry'
@@ -35,7 +35,7 @@ export default defineConfig({
 		? undefined
 		: {
 				command: 'npm run dev',
-				url: 'http://localhost:3000',
+				url: 'http://localhost:5173',
 				reuseExistingServer: true,
 				timeout: 120000
 			}

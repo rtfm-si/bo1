@@ -66,7 +66,7 @@ jobs:
         run: uv run mypy bo1/
 
       - name: Scan Python dependencies for vulnerabilities
-        run: uv run pip-audit --strict --progress-spinner off
+        run: uv run pip-audit --strict --progress-spinner off --skip-editable
 
       # Frontend linting
       - name: Cache Node modules
@@ -205,13 +205,14 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Install OSV Scanner
+        run: |
+          curl -sSfL https://github.com/google/osv-scanner/releases/download/v2.3.0/osv-scanner_linux_amd64 -o osv-scanner
+          chmod +x osv-scanner
+
       - name: Run OSV Scanner
-        uses: google/osv-scanner-action@v1
-        with:
-          scan-args: |-
-            --lockfile=uv.lock
-            --lockfile=frontend/package-lock.json
-            --config=.osv-scanner.toml
+        run: |
+          ./osv-scanner --lockfile=uv.lock --lockfile=frontend/package-lock.json --config=.osv-scanner.toml
 
   e2e-tests:
     name: E2E Tests (Playwright)

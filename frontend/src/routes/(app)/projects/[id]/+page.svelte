@@ -218,6 +218,24 @@
 		}
 	}
 
+	async function handleGanttDateChange(actionId: string, start: Date, end: Date): Promise<void> {
+		// Format dates as YYYY-MM-DD
+		const formatDate = (d: Date) => d.toISOString().split('T')[0];
+		try {
+			await apiClient.updateActionDates(actionId, {
+				target_start_date: formatDate(start),
+				target_end_date: formatDate(end)
+			});
+			// Reload Gantt data to show updated cascade effects
+			const [ganttResult] = await Promise.all([
+				apiClient.getProjectGantt(projectId)
+			]);
+			ganttData = ganttResult;
+		} catch (err) {
+			console.error('Failed to update action dates:', err);
+		}
+	}
+
 	function setGanttViewMode(mode: string) {
 		ganttViewMode = mode as 'Day' | 'Week' | 'Month' | 'Quarter' | 'Year';
 	}
@@ -492,7 +510,7 @@
 							data={ganttData}
 							viewMode={ganttViewMode}
 							onTaskClick={handleGanttTaskClick}
-							readOnly={true}
+							onDateChange={handleGanttDateChange}
 						/>
 					</div>
 				{/if}

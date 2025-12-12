@@ -1,76 +1,73 @@
-# Plan: Review High-Risk Transitive Dependencies [SEC][SUPPLY][P2]
+# Plan: Workspace Authorization Layer [TEAMS][P3]
 
 ## Summary
 
-- Identify single-maintainer packages in critical dependency paths (auth, crypto, build)
-- Flag packages with low download counts or suspicious patterns
-- Document findings with risk assessment
-- Recommend mitigations (pin, fork, or replace)
+- Create workspace authorization service with role-based permissions
+- Add `require_workspace_access()` and `require_workspace_role()` dependencies
+- Integrate authorization checks into sessions and datasets endpoints
+- Add API routes for workspace CRUD and member management
 
 ## Implementation Steps
 
-1. **Extract critical dependency trees**
-   - Run: `npm ls --all --json > npm-deps-tree.json` (frontend)
-   - Run: `uv pip compile --generate-hashes` to inspect Python deps
-   - Focus paths: `supertokens-*`, `stripe`, `@anthropic-ai/*`, crypto libs
+1. **Create authorization service** `backend/services/workspace_auth.py`
+   - Permission enum: VIEW, EDIT, MANAGE_MEMBERS, DELETE
+   - Role-to-permissions mapping (OWNER > ADMIN > MEMBER)
+   - `check_permission(workspace_id, user_id, permission) -> bool`
+   - `get_accessible_workspaces(user_id) -> list[UUID]`
 
-2. **Analyze npm dependencies for risk signals**
-   - Script: `scripts/audit_npm_deps.py`
-   - Check via npm registry API:
-     - Maintainer count (`maintainers` array length)
-     - Weekly downloads (flag if < 10K for critical path)
-     - Last publish date (flag if > 2 years)
-     - Repository existence and activity
-   - Filter to: auth, crypto, SSE, API client packages
+2. **Create FastAPI dependencies** `backend/api/middleware/workspace_auth.py`
+   - `require_workspace_access(workspace_id, user_id)` - 403 if not member
+   - `require_workspace_role(workspace_id, user_id, min_role)` - 403 if insufficient
+   - `get_workspace_context()` - inject workspace from path param or header
 
-3. **Analyze Python dependencies for risk signals**
-   - Script: `scripts/audit_python_deps.py`
-   - Check via PyPI JSON API:
-     - Author/maintainer metadata
-     - Download stats via pypistats
-     - Last release date
-   - Focus: `supertokens-python`, `anthropic`, `stripe`, `pyjwt`, `cryptography`
+3. **Create workspaces API routes** `backend/api/workspaces/routes.py`
+   - POST /api/v1/workspaces - create workspace
+   - GET /api/v1/workspaces - list user's workspaces
+   - GET /api/v1/workspaces/{id} - get workspace details
+   - PATCH /api/v1/workspaces/{id} - update (admin+)
+   - DELETE /api/v1/workspaces/{id} - delete (owner only)
+   - GET /api/v1/workspaces/{id}/members - list members
+   - POST /api/v1/workspaces/{id}/members - add member (admin+)
+   - PATCH /api/v1/workspaces/{id}/members/{user_id} - update role (admin+)
+   - DELETE /api/v1/workspaces/{id}/members/{user_id} - remove (admin+)
 
-4. **Cross-reference with known-good lists**
-   - OpenSSF Scorecard for major packages
-   - Check if package is in npm/PyPA advisory databases
-   - Compare against CNCF/OpenJS Foundation projects
+4. **Integrate with sessions endpoint** `backend/api/sessions.py`
+   - Add workspace_id filter to GET /sessions
+   - Add workspace_id to session creation
+   - Add workspace access check for session retrieval
 
-5. **Generate risk report**
-   - Output: `audits/reports/supply-chain-review.report.md`
-   - Format:
-     - Critical-path packages with single maintainer
-     - Packages with low activity signals
-     - Recommended actions (accept, pin version, find alternative)
+5. **Integrate with datasets endpoint** `backend/api/datasets.py`
+   - Add workspace_id filter to GET /datasets
+   - Add workspace_id to dataset upload
+   - Add workspace access check for dataset retrieval
 
-6. **Update CI for ongoing monitoring** (optional stretch)
-   - Add `socket.dev` or `deps.dev` integration to PR checks
-   - Or add custom script to dependency-review workflow
+6. **Register routes** `backend/api/main.py`
+   - Include workspaces router at /api/v1/workspaces
 
 ## Tests
 
-- **Manual validation:**
-  - Verify script outputs actionable package list
-  - Spot-check 3-5 flagged packages manually on npm/PyPI
-  - Confirm critical auth/crypto packages have >1 maintainer
+- Unit tests:
+  - `tests/api/test_workspace_auth.py`: permission checks, role hierarchy
+  - Test non-member access denied (403)
+  - Test role upgrade/downgrade permissions
+  - Test owner-only delete
 
-- **No automated tests required:**
-  - This is a one-time audit producing a report
-  - Future runs via scheduled CI job
+- Integration tests:
+  - `tests/api/test_workspaces_api.py`: full CRUD + member ops
+  - Test session/dataset workspace filtering
+  - Test cross-workspace isolation
+
+- Manual validation:
+  - Create workspace → invite member → verify access
+  - Try accessing other user's workspace (expect 403)
 
 ## Dependencies & Risks
 
-- **Dependencies:**
-  - npm registry API (public, no auth required)
-  - PyPI JSON API (public)
-  - Optional: pypistats API for download counts
+- Dependencies:
+  - workspace_repository (exists)
+  - MemberRole enum (exists)
 
-- **Risks/edge cases:**
-  - False positives: low-download package may be new but legitimate
-  - API rate limits: batch requests, add delays
-  - Maintainer count != actual risk (some packages have shadow maintainers)
-
-- **Mitigation:**
-  - Manual review of flagged packages before action
-  - Document reasoning in report for each flag
-  - Focus on critical path only (not all 500+ transitive deps)
+- Risks/edge cases:
+  - Users without workspace can still access personal content (null workspace_id)
+  - Concurrent role changes during request (last-write-wins acceptable)
+  - Owner leaves workspace (prevent, require transfer ownership first)

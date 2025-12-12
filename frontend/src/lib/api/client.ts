@@ -43,6 +43,9 @@ import type {
 	ActionUpdateCreateRequest,
 	ActionUpdateResponse,
 	ActionUpdatesResponse,
+	// Action Dates types (Gantt drag-to-reschedule)
+	ActionDatesUpdateRequest,
+	ActionDatesResponse,
 	// Replanning types (Phase 7)
 	ReplanRequest,
 	ReplanResponse,
@@ -52,6 +55,10 @@ import type {
 	TagResponse,
 	TagListResponse,
 	ActionTagsUpdateRequest,
+	// Dependency types
+	DependencyType,
+	DependencyListResponse,
+	DependencyMutationResponse,
 	// Global Gantt types
 	GlobalGanttResponse,
 	// Insights types
@@ -73,7 +80,10 @@ import type {
 	DatasetAnalysisListResponse,
 	// Conversation types (Dataset Q&A)
 	ConversationResponse,
-	ConversationListResponse
+	ConversationListResponse,
+	// Mentor Chat types
+	MentorConversationListResponse,
+	MentorConversationDetailResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -357,6 +367,14 @@ export interface RetentionSettingResponse {
 
 export interface RetentionSettingUpdate {
 	days: number;
+}
+
+export interface UserPreferences {
+	skip_clarification: boolean;
+}
+
+export interface UserPreferencesResponse {
+	skip_clarification: boolean;
 }
 
 // ============================================================================
@@ -654,6 +672,18 @@ export class ApiClient {
 		return this.fetch<InsightsResponse>('/api/v1/context/insights');
 	}
 
+	async updateInsight(question: string, value: string, note?: string): Promise<ClarificationInsight> {
+		// Encode question as URL-safe base64
+		const questionHash = btoa(question)
+			.replace(/\+/g, '-')
+			.replace(/\//g, '_')
+			.replace(/=+$/, '');
+		return this.patch<ClarificationInsight>(`/api/v1/context/insights/${questionHash}`, {
+			value,
+			note
+		});
+	}
+
 	async deleteInsight(question: string): Promise<{ status: string }> {
 		// Encode question as URL-safe base64
 		const questionHash = btoa(question)
@@ -665,6 +695,36 @@ export class ApiClient {
 
 	async submitClarification(sessionId: string, answer: string): Promise<ControlResponse> {
 		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/clarify`, { answer });
+	}
+
+	// ==========================================================================
+	// Session Termination
+	// ==========================================================================
+
+	/**
+	 * Terminate a session early with partial billing
+	 * @param sessionId - Session ID
+	 * @param terminationType - Type of termination: blocker_identified, user_cancelled, continue_best_effort
+	 * @param reason - Optional user-provided reason
+	 */
+	async terminateSession(
+		sessionId: string,
+		terminationType: 'blocker_identified' | 'user_cancelled' | 'continue_best_effort',
+		reason?: string
+	): Promise<{
+		session_id: string;
+		status: string;
+		terminated_at: string;
+		termination_type: string;
+		billable_portion: number;
+		completed_sub_problems: number;
+		total_sub_problems: number;
+		synthesis_available: boolean;
+	}> {
+		return this.post(`/api/v1/sessions/${sessionId}/terminate`, {
+			termination_type: terminationType,
+			reason
+		});
 	}
 
 	// ==========================================================================
@@ -729,11 +789,15 @@ export class ApiClient {
 	async updateActionStatus(
 		actionId: string,
 		status: ActionStatus,
-		blockingReason?: string
+		options?: { blockingReason?: string; cancellationReason?: string }
 	): Promise<{ message: string; action_id: string; status: string }> {
 		return this.patch<{ message: string; action_id: string; status: string }>(
 			`/api/v1/actions/${actionId}/status`,
-			{ status, blocking_reason: blockingReason }
+			{
+				status,
+				blocking_reason: options?.blockingReason,
+				cancellation_reason: options?.cancellationReason
+			}
 		);
 	}
 
@@ -989,6 +1053,14 @@ export class ApiClient {
 		return this.patch<RetentionSettingResponse>('/api/v1/user/retention', { days });
 	}
 
+	async getUserPreferences(): Promise<UserPreferencesResponse> {
+		return this.fetch<UserPreferencesResponse>('/api/v1/user/preferences');
+	}
+
+	async updateUserPreferences(preferences: Partial<UserPreferences>): Promise<UserPreferencesResponse> {
+		return this.patch<UserPreferencesResponse>('/api/v1/user/preferences', preferences);
+	}
+
 	// ==========================================================================
 	// Project Endpoints
 	// ==========================================================================
@@ -1068,6 +1140,20 @@ export class ApiClient {
 	}
 
 	// ==========================================================================
+	// Action Dates Endpoints (Gantt drag-to-reschedule)
+	// ==========================================================================
+
+	/**
+	 * Update action dates (for Gantt drag-to-reschedule)
+	 */
+	async updateActionDates(
+		actionId: string,
+		dates: ActionDatesUpdateRequest
+	): Promise<ActionDatesResponse> {
+		return this.patch<ActionDatesResponse>(`/api/v1/actions/${actionId}/dates`, dates);
+	}
+
+	// ==========================================================================
 	// Action Updates Endpoints (Phase 5)
 	// ==========================================================================
 
@@ -1103,6 +1189,40 @@ export class ApiClient {
 	): Promise<ReplanResponse> {
 		const body: ReplanRequest = additionalContext ? { additional_context: additionalContext } : {};
 		return this.post<ReplanResponse>(`/api/v1/actions/${actionId}/replan`, body);
+	}
+
+	// ==========================================================================
+	// Action Dependency Endpoints
+	// ==========================================================================
+
+	/**
+	 * Get dependencies for an action
+	 */
+	async getActionDependencies(actionId: string): Promise<DependencyListResponse> {
+		return this.fetch<DependencyListResponse>(`/api/v1/actions/${actionId}/dependencies`);
+	}
+
+	/**
+	 * Add a dependency to an action
+	 */
+	async addActionDependency(
+		actionId: string,
+		dependsOnId: string,
+		dependencyType?: DependencyType,
+		lagDays?: number
+	): Promise<DependencyMutationResponse> {
+		return this.post<DependencyMutationResponse>(`/api/v1/actions/${actionId}/dependencies`, {
+			depends_on_action_id: dependsOnId,
+			dependency_type: dependencyType,
+			lag_days: lagDays
+		});
+	}
+
+	/**
+	 * Remove a dependency from an action
+	 */
+	async removeActionDependency(actionId: string, dependsOnId: string): Promise<void> {
+		return this.delete<void>(`/api/v1/actions/${actionId}/dependencies/${dependsOnId}`);
 	}
 
 	// ==========================================================================
@@ -1365,6 +1485,114 @@ export class ApiClient {
 	}
 
 	// ============================================================================
+	// Mentor Chat Methods
+	// ============================================================================
+
+	/**
+	 * Chat with mentor using SSE streaming
+	 * Returns an object with connect() that yields SSE events
+	 */
+	chatWithMentor(
+		message: string,
+		conversationId?: string | null,
+		persona?: string | null
+	): {
+		connect: () => AsyncGenerator<{ event: string; data: string }, void, unknown>;
+		abort: () => void;
+	} {
+		const abortController = new AbortController();
+		const url = `${this.baseUrl}/api/v1/mentor/chat`;
+
+		const connect = async function* () {
+			const headers: Record<string, string> = {
+				'Content-Type': 'application/json',
+				Accept: 'text/event-stream'
+			};
+			const csrfToken = getCsrfToken();
+			if (csrfToken) {
+				headers['X-CSRF-Token'] = csrfToken;
+			}
+
+			const response = await fetch(url, {
+				method: 'POST',
+				headers,
+				credentials: 'include',
+				signal: abortController.signal,
+				body: JSON.stringify({
+					message,
+					conversation_id: conversationId,
+					persona
+				})
+			});
+
+			if (!response.ok) {
+				const error = await response.text();
+				throw new Error(`Mentor chat failed: ${response.status} - ${error}`);
+			}
+
+			const reader = response.body?.getReader();
+			if (!reader) {
+				throw new Error('No response body');
+			}
+
+			const decoder = new TextDecoder();
+			let buffer = '';
+
+			try {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split('\n');
+					buffer = lines.pop() || '';
+
+					let currentEvent = 'message';
+					for (const line of lines) {
+						if (line.startsWith('event:')) {
+							currentEvent = line.slice(6).trim();
+						} else if (line.startsWith('data:')) {
+							const data = line.slice(5).trim();
+							yield { event: currentEvent, data };
+							currentEvent = 'message';
+						}
+					}
+				}
+			} finally {
+				reader.releaseLock();
+			}
+		};
+
+		return {
+			connect,
+			abort: () => abortController.abort()
+		};
+	}
+
+	/**
+	 * Get mentor conversations for current user
+	 */
+	async getMentorConversations(limit = 20): Promise<MentorConversationListResponse> {
+		return this.fetch<MentorConversationListResponse>(`/api/v1/mentor/conversations?limit=${limit}`);
+	}
+
+	/**
+	 * Get a specific mentor conversation
+	 */
+	async getMentorConversation(conversationId: string): Promise<MentorConversationDetailResponse> {
+		return this.fetch<MentorConversationDetailResponse>(
+			`/api/v1/mentor/conversations/${conversationId}`
+		);
+	}
+
+	/**
+	 * Delete a mentor conversation
+	 */
+	async deleteMentorConversation(conversationId: string): Promise<void> {
+		await this.delete<void>(`/api/v1/mentor/conversations/${conversationId}`);
+	}
+
+	// ============================================================================
 	// Google Sheets Connection Methods
 	// ============================================================================
 
@@ -1388,6 +1616,105 @@ export class ApiClient {
 	 */
 	async disconnectSheets(): Promise<{ success: boolean }> {
 		return this.delete<{ success: boolean }>('/api/v1/auth/google/sheets/disconnect');
+	}
+
+	// ==========================================================================
+	// Session Export & Sharing Endpoints
+	// ==========================================================================
+
+	/**
+	 * Export session as JSON or Markdown file.
+	 * Returns a Blob for download.
+	 */
+	async exportSession(sessionId: string, format: 'json' | 'markdown' = 'json'): Promise<Blob> {
+		const url = `${this.baseUrl}/api/v1/sessions/${sessionId}/export?format=${format}`;
+		const response = await fetch(url, {
+			method: 'GET',
+			credentials: 'include'
+		});
+
+		if (!response.ok) {
+			let error;
+			try {
+				error = await response.json();
+			} catch {
+				error = { detail: response.statusText };
+			}
+			throw new ApiClientError(error.detail || 'Export failed', response.status, error);
+		}
+
+		return response.blob();
+	}
+
+	/**
+	 * Create a shareable link for a session.
+	 */
+	async createShare(
+		sessionId: string,
+		ttlDays: number = 7
+	): Promise<{ token: string; share_url: string; expires_at: string }> {
+		return this.post<{ token: string; share_url: string; expires_at: string }>(
+			`/api/v1/sessions/${sessionId}/share?ttl_days=${ttlDays}`
+		);
+	}
+
+	/**
+	 * List active shares for a session.
+	 */
+	async listShares(sessionId: string): Promise<{
+		session_id: string;
+		shares: Array<{
+			token: string;
+			expires_at: string;
+			created_at: string;
+			is_active: boolean;
+		}>;
+		total: number;
+	}> {
+		return this.fetch<{
+			session_id: string;
+			shares: Array<{
+				token: string;
+				expires_at: string;
+				created_at: string;
+				is_active: boolean;
+			}>;
+			total: number;
+		}>(`/api/v1/sessions/${sessionId}/share`);
+	}
+
+	/**
+	 * Revoke/delete a share link.
+	 */
+	async revokeShare(sessionId: string, token: string): Promise<void> {
+		return this.delete<void>(`/api/v1/sessions/${sessionId}/share/${token}`);
+	}
+
+	/**
+	 * Get shared session data (public, no auth required).
+	 */
+	async getPublicShare(token: string): Promise<{
+		session_id: string;
+		title: string;
+		created_at: string;
+		owner_name: string;
+		expires_at: string;
+		is_active: boolean;
+		synthesis: unknown;
+		conclusion: unknown;
+		problem_context: Record<string, unknown>;
+	}> {
+		return this.fetch<{
+			session_id: string;
+			title: string;
+			created_at: string;
+			owner_name: string;
+			expires_at: string;
+			is_active: boolean;
+			synthesis: unknown;
+			conclusion: unknown;
+			problem_context: Record<string, unknown>;
+		}>(`/api/v1/share/${token}`);
 	}
 }
 

@@ -2,6 +2,7 @@
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { page } from '$app/stores';
 	import { apiClient } from '$lib/api/client';
+	import { setBreadcrumbLabel, clearBreadcrumbLabel, truncateLabel } from '$lib/stores/breadcrumbLabels';
 	import type { SSEEvent, ExpertInfo } from '$lib/api/sse-events';
 	import { fade } from 'svelte/transition';
 	import { CheckCircle, AlertCircle, Download } from 'lucide-svelte';
@@ -29,6 +30,7 @@
 		ContextInsufficientModal,
 		ExpertSummariesPanel,
 		ResearchPanel,
+		ShareModal,
 	} from '$lib/components/meeting';
 	import type { ContextInsufficientEvent } from '$lib/api/sse-events';
 
@@ -114,6 +116,7 @@
 	let connectionStatus = $derived(store.connectionStatus);
 	let reportActions = $state<ReportAction[]>([]);
 	let clarificationFormRef: HTMLElement | undefined = $state(undefined);
+	let shareModalOpen = $state(false);
 
 	// ============================================================================
 	// EFFECTS
@@ -202,6 +205,14 @@
 			setTimeout(() => {
 				clarificationFormRef?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			}, 100);
+		}
+	});
+
+	// Set breadcrumb label from problem statement
+	$effect(() => {
+		if (session?.problem?.statement) {
+			const label = truncateLabel(session.problem.statement);
+			setBreadcrumbLabel(`/meeting/${sessionId}`, label);
 		}
 	});
 
@@ -436,6 +447,7 @@
 		revealManager.cleanup();
 		timing.cleanup();
 		memoized.cleanup();
+		clearBreadcrumbLabel(`/meeting/${sessionId}`);
 	});
 </script>
 
@@ -450,6 +462,14 @@
 		sessionStatus={session?.status}
 		onPause={handlePause}
 		onResume={handleResume}
+		onShareClick={() => (shareModalOpen = true)}
+	/>
+
+	<!-- Share Modal -->
+	<ShareModal
+		{sessionId}
+		bind:open={shareModalOpen}
+		onClose={() => (shareModalOpen = false)}
 	/>
 
 	<!-- Main Content -->
@@ -522,6 +542,7 @@
 										Activity
 									{/if}
 								</h2>
+								{#if session?.status !== 'completed' && session?.status !== 'failed'}
 								{#if connectionStatus === 'connecting'}
 									<span class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
 										<span class="inline-block w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
@@ -558,6 +579,7 @@
 											Retry Now
 										</button>
 									</div>
+								{/if}
 								{/if}
 							</div>
 							<div class="flex items-center gap-4">

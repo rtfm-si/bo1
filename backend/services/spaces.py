@@ -81,6 +81,34 @@ class SpacesClient:
         """Get bucket name."""
         return self._bucket
 
+    def put_file(
+        self,
+        prefix: str,
+        filename: str,
+        data: bytes | BinaryIO,
+        content_type: str = "application/octet-stream",
+        metadata: dict[str, str] | None = None,
+    ) -> str:
+        """Upload a file to Spaces with prefix support.
+
+        Args:
+            prefix: Path prefix (e.g., "workspace_id/user_id")
+            filename: Original filename
+            data: File data as bytes or file-like object
+            content_type: MIME content type
+            metadata: Optional metadata dict
+
+        Returns:
+            Full URL to uploaded object
+
+        Raises:
+            SpacesError: If upload fails
+        """
+        # Normalize prefix: remove leading/trailing slashes, avoid double slashes
+        prefix = prefix.strip("/") if prefix else ""
+        key = f"{prefix}/{filename}" if prefix else filename
+        return self.upload_file(key=key, data=data, content_type=content_type, metadata=metadata)
+
     def upload_file(
         self,
         key: str,

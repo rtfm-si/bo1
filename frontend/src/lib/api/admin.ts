@@ -165,6 +165,46 @@ export interface OnboardingFunnelResponse {
 }
 
 // =============================================================================
+// Alert Types
+// =============================================================================
+
+export interface AlertHistoryItem {
+	id: number;
+	alert_type: string;
+	severity: string;
+	title: string;
+	message: string;
+	metadata: Record<string, unknown> | null;
+	delivered: boolean;
+	created_at: string;
+}
+
+export interface AlertHistoryResponse {
+	total: number;
+	alerts: AlertHistoryItem[];
+	limit: number;
+	offset: number;
+}
+
+export interface AlertSettingsResponse {
+	auth_failure_threshold: number;
+	auth_failure_window_minutes: number;
+	rate_limit_threshold: number;
+	rate_limit_window_minutes: number;
+	lockout_threshold: number;
+}
+
+// =============================================================================
+// Observability Links Types
+// =============================================================================
+
+export interface ObservabilityLinksResponse {
+	grafana_url: string | null;
+	prometheus_url: string | null;
+	sentry_url: string | null;
+}
+
+// =============================================================================
 // Admin API Client
 // =============================================================================
 
@@ -306,6 +346,40 @@ class AdminApiClient {
 
 	async getOnboardingMetrics(): Promise<OnboardingFunnelResponse> {
 		return this.fetch<OnboardingFunnelResponse>('/api/admin/metrics/onboarding');
+	}
+
+	// =========================================================================
+	// Alerts
+	// =========================================================================
+
+	async getAlertHistory(params?: {
+		alert_type?: string;
+		limit?: number;
+		offset?: number;
+	}): Promise<AlertHistoryResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.alert_type) searchParams.set('alert_type', params.alert_type);
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+		if (params?.offset) searchParams.set('offset', String(params.offset));
+
+		const query = searchParams.toString();
+		return this.fetch<AlertHistoryResponse>(`/api/admin/alerts/history${query ? `?${query}` : ''}`);
+	}
+
+	async getAlertSettings(): Promise<AlertSettingsResponse> {
+		return this.fetch<AlertSettingsResponse>('/api/admin/alerts/settings');
+	}
+
+	async getAlertTypes(): Promise<string[]> {
+		return this.fetch<string[]>('/api/admin/alerts/types');
+	}
+
+	// =========================================================================
+	// Observability Links
+	// =========================================================================
+
+	async getObservabilityLinks(): Promise<ObservabilityLinksResponse> {
+		return this.fetch<ObservabilityLinksResponse>('/api/admin/observability-links');
 	}
 }
 

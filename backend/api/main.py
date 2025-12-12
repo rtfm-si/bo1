@@ -42,14 +42,17 @@ from backend.api import (
     email,
     health,
     industry_insights,
+    mentor,
     onboarding,
     projects,
     sessions,
+    share,
     status,
     streaming,
     tags,
     user,
     waitlist,
+    workspaces,
 )
 from backend.api.middleware.api_version import API_VERSION, ApiVersionMiddleware
 from backend.api.middleware.audit_logging import AuditLoggingMiddleware
@@ -141,6 +144,40 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     start_batch_flush_task()
     print("✓ Batch event persistence task started")
+
+    # Start session share cleanup job (daily)
+    from backend.jobs.session_share_cleanup import cleanup_expired_shares
+
+    try:
+        # Run cleanup immediately, then schedule for daily runs
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+
+        async def run_cleanup() -> None:
+            """Run cleanup task periodically (daily)."""
+            while not is_shutting_down():
+                try:
+                    result = cleanup_expired_shares()
+                    _shutdown_logger.info(f"Session share cleanup: {result}")
+                except Exception as e:
+                    _shutdown_logger.error(f"Session share cleanup failed: {e}")
+                # Sleep for 24 hours or until shutdown
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(get_shutdown_event().wait()),
+                        timeout=86400,  # 24 hours
+                    )
+                except TimeoutError:
+                    pass
+                except Exception as e:
+                    _shutdown_logger.debug(f"Cleanup wait interrupted: {e}")
+
+        # Create task for cleanup (runs in background)
+        _ = loop.create_task(run_cleanup())
+        print("✓ Session share cleanup job started")
+    except Exception as e:
+        _shutdown_logger.warning(f"Failed to start cleanup job: {e}")
 
     yield
 
@@ -385,11 +422,13 @@ app.include_router(
 )  # Custom auth endpoints (e.g., /me, /google/sheets/*)
 app.include_router(streaming.router, prefix="/api", tags=["streaming"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
+app.include_router(share.router, prefix="/api", tags=["share"])
 app.include_router(actions.router, prefix="/api", tags=["actions"])
 app.include_router(tags.router, prefix="/api", tags=["tags"])
 app.include_router(projects.router, prefix="/api", tags=["projects"])
 app.include_router(context.router, prefix="/api", tags=["context"])
 app.include_router(datasets.router, prefix="/api", tags=["datasets"])
+app.include_router(mentor.router, prefix="/api", tags=["mentor"])
 app.include_router(business_metrics.router, prefix="/api", tags=["business-metrics"])
 app.include_router(billing.router, prefix="/api", tags=["billing"])
 app.include_router(industry_insights.router, prefix="/api", tags=["industry-insights"])
@@ -402,6 +441,7 @@ app.include_router(admin.router, prefix="/api", tags=["admin"])
 app.include_router(email.router, prefix="/api", tags=["email"])
 app.include_router(user.router, prefix="/api", tags=["user"])
 app.include_router(status.router, prefix="/api", tags=["status"])
+app.include_router(workspaces.router, prefix="/api", tags=["workspaces"])
 app.include_router(csp_reports.router, tags=["security"])
 
 # Initialize Prometheus metrics instrumentation

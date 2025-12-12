@@ -77,6 +77,59 @@ bo1_request_duration_seconds = Histogram(
     buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
 )
 
+# Rate limiter health metrics
+bo1_rate_limiter_degraded = Gauge(
+    "bo1_rate_limiter_degraded",
+    "Rate limiter operating in degraded mode (1=degraded, 0=healthy)",
+)
+
+bo1_rate_limiter_redis_failures_total = Counter(
+    "bo1_rate_limiter_redis_failures_total",
+    "Total Redis failures in rate limiter",
+)
+
+# Event batching metrics (P2-PERF)
+bo1_events_batched_total = Counter(
+    "bo1_events_batched_total",
+    "Total events processed through batcher (includes both batched and critical)",
+    ["priority"],
+)
+
+bo1_event_batch_size = Histogram(
+    "bo1_event_batch_size",
+    "Size of event batches persisted to PostgreSQL",
+    buckets=(1, 5, 10, 25, 50, 100),
+)
+
+bo1_event_batch_latency_ms = Histogram(
+    "bo1_event_batch_latency_ms",
+    "Latency of event batch persistence in milliseconds",
+    buckets=(10, 25, 50, 100, 250, 500, 1000),
+)
+
+bo1_pending_events = Gauge(
+    "bo1_pending_events",
+    "Current number of events pending in batch buffer",
+)
+
+# Expert event buffer metrics (P2-PERF stream optimization)
+bo1_event_buffer_size = Gauge(
+    "bo1_event_buffer_size",
+    "Number of events buffered in expert event buffer before flush",
+    ["expert_id"],
+)
+
+bo1_event_merge_ratio = Gauge(
+    "bo1_event_merge_ratio",
+    "Ratio of merged events to total events (0.0-1.0)",
+)
+
+bo1_sse_frame_count = Counter(
+    "bo1_sse_frame_count",
+    "Total SSE frames sent to clients",
+    ["session_id"],
+)
+
 
 def create_instrumentator() -> PrometheusFastApiInstrumentator:
     """Create and configure the Prometheus instrumentator."""
@@ -173,3 +226,13 @@ def increment_sse_connections() -> None:
 def decrement_sse_connections() -> None:
     """Decrement active SSE connections count."""
     bo1_sse_connections.dec()
+
+
+def set_rate_limiter_degraded(degraded: bool) -> None:
+    """Set rate limiter degraded status."""
+    bo1_rate_limiter_degraded.set(1 if degraded else 0)
+
+
+def record_rate_limiter_redis_failure() -> None:
+    """Record a Redis failure in rate limiter."""
+    bo1_rate_limiter_redis_failures_total.inc()

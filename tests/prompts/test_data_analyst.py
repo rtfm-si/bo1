@@ -2,8 +2,60 @@
 
 from bo1.prompts.data_analyst import (
     build_analyst_prompt,
+    format_business_context,
     format_clarifications_context,
 )
+
+
+class TestFormatBusinessContext:
+    """Test business context formatting."""
+
+    def test_none_context(self):
+        """Test None context returns empty string."""
+        result = format_business_context(None)
+        assert result == ""
+
+    def test_empty_context(self):
+        """Test empty dict returns empty string."""
+        result = format_business_context({})
+        assert result == ""
+
+    def test_goals_only(self):
+        """Test context with only goals."""
+        context = {"goals": "Increase revenue by 20%"}
+        result = format_business_context(context)
+
+        assert "<business_context>" in result
+        assert "</business_context>" in result
+        assert "<goals>Increase revenue by 20%</goals>" in result
+
+    def test_full_context(self):
+        """Test context with all fields."""
+        context = {
+            "goals": "Market expansion",
+            "industry": "SaaS",
+            "competitors": "Acme Corp, Widget Inc",
+            "constraints": "Limited budget",
+            "metrics": "MRR, churn rate",
+        }
+        result = format_business_context(context)
+
+        assert "<business_context>" in result
+        assert "<goals>Market expansion</goals>" in result
+        assert "<industry>SaaS</industry>" in result
+        assert "<competitors>Acme Corp, Widget Inc</competitors>" in result
+        assert "<constraints>Limited budget</constraints>" in result
+        assert "<key_metrics>MRR, churn rate</key_metrics>" in result
+
+    def test_partial_context(self):
+        """Test context with some fields missing."""
+        context = {"industry": "Retail", "goals": "Reduce costs"}
+        result = format_business_context(context)
+
+        assert "<industry>Retail</industry>" in result
+        assert "<goals>Reduce costs</goals>" in result
+        assert "<constraints>" not in result
+        assert "<competitors>" not in result
 
 
 class TestFormatClarificationsContext:
@@ -101,3 +153,38 @@ class TestBuildAnalystPrompt:
         q_pos = prompt.find("<question>")
 
         assert ds_pos < clr_pos < hist_pos < q_pos
+
+    def test_prompt_with_business_context(self):
+        """Test prompt includes business context."""
+        prompt = build_analyst_prompt(
+            question="Which product should I focus on?",
+            dataset_context="<dataset>...</dataset>",
+            business_context="<business_context><goals>Grow revenue</goals></business_context>",
+        )
+
+        assert "<business_context>" in prompt
+        assert "<goals>Grow revenue</goals>" in prompt
+        # Business context should appear after dataset but before question
+        ds_pos = prompt.find("<dataset>")
+        biz_pos = prompt.find("<business_context>")
+        q_pos = prompt.find("<question>")
+        assert ds_pos < biz_pos < q_pos
+
+    def test_prompt_with_all_context(self):
+        """Test prompt with all context types."""
+        prompt = build_analyst_prompt(
+            question="Analysis",
+            dataset_context="<dataset>data</dataset>",
+            conversation_history="<conversation_history>history</conversation_history>",
+            clarifications_context="<prior_clarifications>prior</prior_clarifications>",
+            business_context="<business_context>business</business_context>",
+        )
+
+        # Check order: dataset, business, clarifications, history, question
+        ds_pos = prompt.find("<dataset>")
+        biz_pos = prompt.find("<business_context>")
+        clr_pos = prompt.find("<prior_clarifications>")
+        hist_pos = prompt.find("<conversation_history>")
+        q_pos = prompt.find("<question>")
+
+        assert ds_pos < biz_pos < clr_pos < hist_pos < q_pos

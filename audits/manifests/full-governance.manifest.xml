@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<audit_manifest>
+  <metadata>
+    <name>Full Governance Audit</name>
+    <type>synthesis</type>
+    <version>1.0</version>
+    <created>2025-12-12</created>
+  </metadata>
+
+  <scope>
+    <description>Comprehensive synthesis of all governance audits with gap analysis</description>
+    <source_audits>
+      <audit path="audits/reports/clean.report.md" domain="code_quality" />
+      <audit path="audits/reports/secure-governance.report.md" domain="security" />
+      <audit path="audits/reports/auth-security.report.md" domain="auth" />
+      <audit path="audits/reports/auth-pentest.report.md" domain="auth_pentest" />
+      <audit path="audits/reports/infra-security.report.md" domain="infrastructure" />
+      <audit path="audits/reports/gdpr-compliance.report.md" domain="gdpr" />
+      <audit path="audits/reports/owasp-top10.report.md" domain="owasp" />
+      <audit path="audits/reports/supply-chain-review.report.md" domain="supply_chain" />
+      <audit path="audits/reports/api_contract.report.md" domain="api" />
+      <audit path="audits/reports/architecture_flow.report.md" domain="architecture" />
+      <audit path="audits/reports/data_model.report.md" domain="data_model" />
+      <audit path="audits/reports/llm_alignment.report.md" domain="llm" />
+      <audit path="audits/reports/observability.report.md" domain="observability" />
+      <audit path="audits/reports/performance_scalability.report.md" domain="performance" />
+      <audit path="audits/reports/reliability.report.md" domain="reliability" />
+      <audit path="audits/reports/cost_optimisation.report.md" domain="cost" />
+      <audit path="audits/reports/security_audit_report.md" domain="security_legacy" />
+    </source_audits>
+  </scope>
+
+  <constraints>
+    <max_context_per_report>500 lines</max_context_per_report>
+    <output_format>markdown</output_format>
+    <severity_levels>critical, high, medium, low, info</severity_levels>
+  </constraints>
+
+  <expected_outputs>
+    <report path="audits/reports/full-governance.report.md">
+      <sections>
+        <section name="Executive Summary" />
+        <section name="Audit Coverage Matrix" />
+        <section name="By-Domain Findings" />
+        <section name="Open Items (Not Yet Remediated)" />
+        <section name="Coverage Gaps" />
+        <section name="Verification Results" />
+        <section name="Recommendations" />
+      </sections>
+    </report>
+  </expected_outputs>
+</audit_manifest>

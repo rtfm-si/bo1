@@ -4,6 +4,12 @@
 
 This runbook provides step-by-step procedures for recovering Board of One (bo1) infrastructure after various failure scenarios.
 
+## Related Documentation
+
+- [SYSTEM_SHUTDOWN.md](./SYSTEM_SHUTDOWN.md) - Graceful shutdown procedures
+- [INCIDENT_RESPONSE.md](./INCIDENT_RESPONSE.md) - Incident handling playbook
+- [PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md) - Deployment procedures
+
 ## Contact Information
 
 | Role | Contact | Escalation |
@@ -32,7 +38,7 @@ This runbook provides step-by-step procedures for recovering Board of One (bo1) 
 | Backup Method | pg_dump with age encryption |
 | Backup Location | DO Spaces bucket |
 | Encryption | age (modern, audited) |
-| Retention | 7 daily |
+| Retention | Tiered: 7 daily, 30 weekly (Sunday), 90 monthly (1st) |
 | RPO Target | 1 hour |
 | RTO Target | 4 hours |
 
@@ -120,7 +126,25 @@ make backup-db-encrypted
 BACKUP_AGE_RECIPIENT="age1..." ./scripts/backup_postgres.sh --upload
 ```
 
-Output: `backups/postgres/boardofone-YYYYMMDD-HHMMSS.sql.gz.age`
+Output format depends on backup tier:
+- Daily (Mon-Sat, not 1st): `boardofone-YYYYMMDD-HHMMSS.sql.gz.age`
+- Weekly (Sunday, not 1st): `boardofone-YYYYMMDD-HHMMSS-weekly.sql.gz.age`
+- Monthly (1st of month): `boardofone-YYYYMMDD-HHMMSS-monthly.sql.gz.age`
+
+### Backup Retention Tiers
+
+| Tier | Schedule | Retention | Filename Pattern |
+|------|----------|-----------|------------------|
+| Daily | Mon-Sat (not 1st) | 7 days | `dbname-YYYYMMDD-HHMMSS.sql.gz*` |
+| Weekly | Sunday (not 1st) | 30 days | `dbname-YYYYMMDD-HHMMSS-weekly.sql.gz*` |
+| Monthly | 1st of month | 90 days | `dbname-YYYYMMDD-HHMMSS-monthly.sql.gz*` |
+
+Configure retention via environment variables:
+```bash
+BACKUP_RETENTION_DAILY=7    # Days to keep daily backups
+BACKUP_RETENTION_WEEKLY=30  # Days to keep weekly backups
+BACKUP_RETENTION_MONTHLY=90 # Days to keep monthly backups
+```
 
 ### Restore Encrypted Backup
 
@@ -241,19 +265,33 @@ curl http://localhost:8000/api/ready
 # 1. Identify target recovery time
 # Review logs for incident time
 
-# 2. List available backups
-# TODO: Add backup listing command
+# 2. List available backups (local)
+ls -la backups/postgres/
 
-# 3. Create recovery database
+# List remote backups (DO Spaces)
+aws s3 ls s3://bo1-backups/backups/postgres/ \
+    --endpoint-url https://nyc3.digitaloceanspaces.com
+
+# Available backup tiers:
+#   - Daily backups: last 7 days
+#   - Weekly backups (-weekly suffix): last 30 days (Sundays)
+#   - Monthly backups (-monthly suffix): last 90 days (1st of month)
+
+# 3. Download specific backup from remote if needed
+aws s3 cp s3://bo1-backups/backups/postgres/boardofone-20241201-000000-monthly.sql.gz.age \
+    ./backups/postgres/ --endpoint-url https://nyc3.digitaloceanspaces.com
+
+# 4. Create recovery database
 docker compose exec postgres createdb -U bo1 boardofone_recovery
 
-# 4. Restore to recovery database
-# TODO: Add PITR restore commands
+# 5. Restore to recovery database (modify restore script target)
+POSTGRES_DB=boardofone_recovery ./scripts/restore_postgres.sh \
+    ./backups/postgres/boardofone-20241201-000000-monthly.sql.gz.age
 
-# 5. Verify recovery data
+# 6. Verify recovery data
 docker compose exec postgres psql -U bo1 boardofone_recovery -c "SELECT count(*) FROM users;"
 
-# 6. Extract needed data or swap databases
+# 7. Extract needed data or swap databases
 # Option A: Copy specific tables
 # Option B: Rename databases (requires maintenance window)
 ```

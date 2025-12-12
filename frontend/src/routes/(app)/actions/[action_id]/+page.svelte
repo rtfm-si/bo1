@@ -3,10 +3,13 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { ActionDetailResponse, ActionUpdateResponse, ActionUpdateCreateRequest } from '$lib/api/types';
+	import type { ActionDetailResponse, ActionUpdateResponse, ActionUpdateCreateRequest, DependencyListResponse } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import ActivityTimeline from '$lib/components/actions/ActivityTimeline.svelte';
 	import UpdateInput from '$lib/components/actions/UpdateInput.svelte';
+	import CancellationModal from '$lib/components/actions/CancellationModal.svelte';
+	import ReplanningSuggestionModal from '$lib/components/actions/ReplanningSuggestionModal.svelte';
+	import DependencyGraph from '$lib/components/actions/DependencyGraph.svelte';
 	import {
 		ArrowLeft,
 		CheckCircle2,
@@ -69,11 +72,27 @@
 	let updatesLoading = $state(false);
 	let updatesError = $state<string | null>(null);
 
+	// Dependency data state
+	let dependencyData = $state<DependencyListResponse | null>(null);
+	let dependencyLoading = $state(false);
+	let dependencyError = $state<string | null>(null);
+
 	// Replanning state
 	let showReplanModal = $state(false);
 	let replanContext = $state('');
 	let isRequestingReplan = $state(false);
 	let replanError = $state<string | null>(null);
+
+	// Cancellation state
+	let showCancellationModal = $state(false);
+	let isCancelling = $state(false);
+	let cancellationError = $state<string | null>(null);
+
+	// Replanning suggestion state
+	let showReplanningSuggestionModal = $state(false);
+	let isCreatingReplanMeeting = $state(false);
+	let replanningSuggestionError = $state<string | null>(null);
+	let replanSuggestionContext = $state<any>(null);
 
 	// Open replan modal
 	function openReplanModal() {
@@ -113,6 +132,114 @@
 	}
 
 	import type { ActionStatus } from '$lib/api/types';
+
+	// Open cancellation modal (instead of directly cancelling)
+	function openCancellationModal() {
+		showCancellationModal = true;
+		cancellationError = null;
+	}
+
+	// Close cancellation modal
+	function closeCancellationModal() {
+		showCancellationModal = false;
+		cancellationError = null;
+	}
+
+	// Open replanning suggestion modal
+	async function openReplanningSuggestionModal() {
+		showReplanningSuggestionModal = true;
+		replanningSuggestionError = null;
+		// Fetch replan context from backend
+		try {
+			const response = await fetch(`/api/v1/actions/${actionId}/replan-context`);
+			if (response.ok) {
+				replanSuggestionContext = await response.json();
+			}
+		} catch (e) {
+			console.error('Failed to fetch replan context:', e);
+			// Continue with empty context
+		}
+	}
+
+	// Close replanning suggestion modal
+	function closeReplanningSuggestionModal() {
+		showReplanningSuggestionModal = false;
+		replanSuggestionContext = null;
+		replanningSuggestionError = null;
+	}
+
+	// Submit replanning suggestion - create new meeting
+	async function submitReplanningSuggestion(problemStatement: string) {
+		if (!action) return;
+
+		isCreatingReplanMeeting = true;
+		replanningSuggestionError = null;
+
+		try {
+			const response = await fetch('/api/v1/sessions', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					problem_statement: problemStatement
+				})
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to create meeting');
+			}
+
+			const session = await response.json();
+
+			// Link the new session to this action
+			await fetch(`/api/v1/actions/${action.id}/status`, {
+				method: 'PATCH',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					status: action.status,
+					replan_session_created_id: session.id
+				})
+			});
+
+			// Navigate to new meeting
+			goto(`/meeting/${session.id}`);
+		} catch (e) {
+			console.error('Failed to create replanning meeting:', e);
+			replanningSuggestionError = e instanceof Error ? e.message : 'Failed to create meeting';
+		} finally {
+			isCreatingReplanMeeting = false;
+		}
+	}
+
+	// Submit cancellation with reason
+	async function submitCancellation(reason: string, _category: string) {
+		if (!action) return;
+
+		isCancelling = true;
+		cancellationError = null;
+
+		try {
+			await apiClient.updateActionStatus(action.id, 'cancelled', {
+				cancellationReason: reason
+			});
+			action = {
+				...action,
+				status: 'cancelled',
+				cancellation_reason: reason,
+				cancelled_at: new Date().toISOString(),
+				replan_requested_at: new Date().toISOString()
+			};
+			showCancellationModal = false;
+		} catch (e) {
+			console.error('Failed to cancel action:', e);
+			cancellationError = e instanceof Error ? e.message : 'Failed to cancel action';
+		} finally {
+			isCancelling = false;
+		}
+	}
 
 	// Status configuration
 	const statusConfig: Record<ActionStatus, { label: string; icon: typeof Circle; bgColor: string; textColor: string; borderColor: string }> = {
@@ -243,6 +370,19 @@
 		}
 	}
 
+	// Load action dependencies
+	async function loadDependencies() {
+		try {
+			dependencyLoading = true;
+			dependencyError = null;
+			dependencyData = await apiClient.getActionDependencies(actionId);
+		} catch (err) {
+			dependencyError = err instanceof Error ? err.message : 'Failed to load dependencies';
+		} finally {
+			dependencyLoading = false;
+		}
+	}
+
 	// Add a new update
 	async function handleAddUpdate(update: ActionUpdateCreateRequest) {
 		const created = await apiClient.addActionUpdate(actionId, update);
@@ -253,6 +393,7 @@
 	onMount(() => {
 		loadAction();
 		loadUpdates();
+		loadDependencies();
 	});
 </script>
 
@@ -379,6 +520,17 @@
 								>
 									<CheckCircle2 class="w-4 h-4 mr-1" />
 									Complete
+								</Button>
+							{/if}
+							{#if action.status !== 'cancelled' && action.status !== 'done'}
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={openCancellationModal}
+									disabled={isUpdatingStatus}
+								>
+									<XCircle class="w-4 h-4 mr-1" />
+									Cancel
 								</Button>
 							{/if}
 						</div>
@@ -605,6 +757,39 @@
 								</div>
 							</div>
 						{/if}
+
+						<!-- Cancellation info if cancelled -->
+						{#if action.status === 'cancelled' && action.cancellation_reason}
+							<div class="mt-4 p-3 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700">
+								<div class="flex items-start gap-2">
+									<XCircle class="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
+									<div class="flex-1">
+										<div class="text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase">Cancelled</div>
+										<div class="text-sm text-neutral-700 dark:text-neutral-300">{action.cancellation_reason}</div>
+										{#if action.cancelled_at}
+											<div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+												On {formatDate(action.cancelled_at)}
+											</div>
+										{/if}
+
+										<!-- Replanning suggestion -->
+										<div class="mt-3 pt-3 border-t border-neutral-300 dark:border-neutral-600">
+											<p class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+												Start a new deliberation to replan?
+											</p>
+											<Button
+												size="sm"
+												variant="secondary"
+												onclick={openReplanningSuggestionModal}
+												class="w-full"
+											>
+												Create Meeting to Replan
+											</Button>
+										</div>
+									</div>
+								</div>
+							</div>
+						{/if}
 					</div>
 				{/if}
 
@@ -673,12 +858,40 @@
 					</div>
 				{/if}
 
-				<!-- Dependencies -->
+				<!-- Action Dependencies (structured) -->
+				{#if dependencyData && dependencyData.dependencies.length > 0}
+					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
+						<h2 class="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-4">
+							<Link2 class="w-4 h-4 text-brand-500" />
+							Dependencies
+						</h2>
+						<DependencyGraph
+							dependencies={dependencyData.dependencies}
+							actionId={actionId}
+							hasIncomplete={dependencyData.has_incomplete}
+						/>
+					</div>
+				{:else if dependencyLoading}
+					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
+						<h2 class="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-4">
+							<Link2 class="w-4 h-4 text-brand-500" />
+							Dependencies
+						</h2>
+						<div class="animate-pulse space-y-3">
+							<div class="h-16 bg-neutral-100 dark:bg-neutral-800 rounded-lg"></div>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Legacy Dependencies (from synthesis, text-based) -->
 				{#if action.dependencies.length > 0}
 					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
 						<h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-3">
-							Dependencies
+							Related Prerequisites
 						</h2>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400 mb-3">
+							From meeting analysis
+						</p>
 						<ul class="space-y-2">
 							{#each action.dependencies as dependency, i (i)}
 								<li class="flex items-start gap-2 text-neutral-700 dark:text-neutral-300">
@@ -808,3 +1021,27 @@
 		</div>
 	</div>
 {/if}
+
+<!-- Cancellation Modal -->
+<CancellationModal
+	bind:open={showCancellationModal}
+	actionTitle={action?.title ?? ''}
+	isSubmitting={isCancelling}
+	error={cancellationError}
+	oncancel={closeCancellationModal}
+	onsubmit={submitCancellation}
+/>
+
+<!-- Replanning Suggestion Modal -->
+<ReplanningSuggestionModal
+	bind:open={showReplanningSuggestionModal}
+	actionTitle={action?.title ?? ''}
+	problemStatement={replanSuggestionContext?.problem_statement ?? ''}
+	failureCategory={replanSuggestionContext?.failure_reason_category ?? 'unknown'}
+	failureReason={replanSuggestionContext?.failure_reason_text ?? ''}
+	relatedActions={replanSuggestionContext?.related_actions ?? []}
+	isSubmitting={isCreatingReplanMeeting}
+	error={replanningSuggestionError}
+	oncancel={closeReplanningSuggestionModal}
+	onsubmit={submitReplanningSuggestion}
+/>

@@ -152,6 +152,8 @@ services:
 
   # ---------------------------------------------------------------------------
   # Promtail: Log collector agent
+  # NOTE: Uses file-based scraping instead of Docker socket for security
+  # Docker socket mount provides root-equivalent access - avoid in production
   # ---------------------------------------------------------------------------
   promtail:
     image: grafana/promtail:2.9.0
@@ -160,7 +162,9 @@ services:
         condition: service_healthy
     volumes:
       - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # File-based log scraping - no Docker socket exposure
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - promtail-positions:/tmp
     command: -config.file=/etc/promtail/config.yml
     networks:
       - bo1-network
@@ -235,6 +239,8 @@ volumes:
   prometheus-data:
     driver: local
   grafana-data:
+    driver: local
+  promtail-positions:
     driver: local
 
 networks:

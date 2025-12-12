@@ -7,6 +7,29 @@ import { createLogger } from '$lib/utils/debug';
 
 const log = createLogger('TabBuild');
 
+const MAX_LABEL_LENGTH = 30;
+
+/**
+ * Truncate goal text for tab label with numeric suffix for disambiguation
+ */
+function truncateGoalLabel(goal: string | undefined, index: number): string {
+	if (!goal || goal.trim().length === 0) {
+		return `Focus Area ${index}`;
+	}
+
+	const trimmed = goal.trim();
+	if (trimmed.length <= MAX_LABEL_LENGTH) {
+		return `${trimmed} (${index})`;
+	}
+
+	// Truncate at word boundary if possible
+	const truncated = trimmed.slice(0, MAX_LABEL_LENGTH);
+	const lastSpace = truncated.lastIndexOf(' ');
+	const label = lastSpace > MAX_LABEL_LENGTH / 2 ? truncated.slice(0, lastSpace) : truncated;
+
+	return `${label}… (${index})`;
+}
+
 export interface SubProblemTab {
 	id: string;
 	label: string;
@@ -130,7 +153,7 @@ export function buildSubProblemTabs(
 
 		tabs.push({
 			id: `subproblem-${index}`,
-			label: `Focus Area ${index + 1}`,
+			label: truncateGoalLabel(subProblem.goal, index + 1),
 			goal: subProblem.goal,
 			status,
 			metrics: {

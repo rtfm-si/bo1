@@ -364,6 +364,17 @@ class ClarificationInsight(BaseModel):
     session_id: str | None = Field(None, description="Meeting ID where this was answered")
 
 
+class UpdateInsightRequest(BaseModel):
+    """Request to update a clarification insight.
+
+    Allows users to edit their answer to a clarifying question and optionally
+    add a note explaining the update.
+    """
+
+    value: str = Field(..., description="Updated answer to the clarifying question")
+    note: str | None = Field(None, description="Optional note about why the answer was updated")
+
+
 class InsightsResponse(BaseModel):
     """Response containing user's accumulated insights from meetings.
 

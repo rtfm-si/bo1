@@ -20,6 +20,7 @@ from backend.api.dependencies import (
 from backend.api.metrics import track_api_call
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import SESSION_RATE_LIMIT, limiter, user_rate_limiter
+from backend.api.middleware.workspace_auth import require_workspace_access
 from backend.api.models import (
     CreateSessionRequest,
     ErrorResponse,
@@ -33,11 +34,15 @@ from backend.api.models import (
     SubProblemCost,
     TaskStatusUpdate,
     TaskWithStatus,
+    TerminationRequest,
 )
 from backend.api.utils.auth_helpers import extract_user_id, is_admin
 from backend.api.utils.errors import handle_api_errors, raise_api_error
 from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
+from backend.services.insight_staleness import get_stale_insights
+from backend.services.session_export import SessionExporter
+from backend.services.session_share import SessionShareService
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
 from bo1.llm.cost_tracker import CostTracker
@@ -180,6 +185,21 @@ async def create_session(
                 )
             validated_dataset_id = session_request.dataset_id
 
+        # Validate workspace_id membership if provided
+        validated_workspace_id: str | None = None
+        if session_request.workspace_id:
+            import uuid as uuid_module
+
+            try:
+                ws_uuid = uuid_module.UUID(session_request.workspace_id)
+                require_workspace_access(ws_uuid, user_id)
+                validated_workspace_id = session_request.workspace_id
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid workspace_id format",
+                ) from e
+
         # Generate session ID
         session_id = redis_manager.create_session()
 
@@ -264,6 +284,7 @@ async def create_session(
                 problem_context=merged_context if merged_context else None,
                 status="created",
                 dataset_id=validated_dataset_id,
+                workspace_id=validated_workspace_id,
             )
             logger.info(
                 f"Created session: {session_id} for user: {user_id} (saved to both Redis and PostgreSQL)"
@@ -289,6 +310,26 @@ async def create_session(
                 detail="Failed to create session. Please try again.",
             ) from e
 
+        # Check for stale insights (>30 days old)
+        stale_insights_list: list[dict[str, Any]] | None = None
+        try:
+            staleness_result = get_stale_insights(user_id)
+            if staleness_result.has_stale_insights:
+                stale_insights_list = [
+                    {
+                        "question": si.question,
+                        "days_stale": si.days_stale,
+                    }
+                    for si in staleness_result.stale_insights[:5]  # Limit to 5
+                ]
+                logger.info(
+                    f"Session {session_id}: {len(staleness_result.stale_insights)} stale insights "
+                    f"detected for user {user_id}"
+                )
+        except Exception as e:
+            # Non-blocking - log and continue
+            logger.debug(f"Staleness check failed (non-blocking): {e}")
+
         # Return session response
         return SessionResponse(
             id=session_id,
@@ -298,6 +339,7 @@ async def create_session(
             updated_at=now,
             problem_statement=truncate_text(sanitized_problem),
             cost=None,
+            stale_insights=stale_insights_list,
         )
 
 
@@ -321,6 +363,7 @@ async def list_sessions(
     ),
     limit: int = Query(10, ge=1, le=100, description="Number of sessions to return"),
     offset: int = Query(0, ge=0, description="Number of sessions to skip"),
+    workspace_id: str | None = Query(None, description="Filter by workspace UUID"),
 ) -> SessionListResponse:
     """List user's deliberation sessions.
 
@@ -332,6 +375,7 @@ async def list_sessions(
         status: Optional status filter
         limit: Page size (1-100)
         offset: Page offset
+        workspace_id: Optional workspace UUID filter
 
     Returns:
         SessionListResponse with list of sessions
@@ -346,6 +390,21 @@ async def list_sessions(
             # Security: Only admins can see cost data
             user_is_admin = is_admin(user)
 
+            # Validate workspace access if filtering by workspace
+            validated_workspace_id: str | None = None
+            if workspace_id:
+                import uuid as uuid_module
+
+                try:
+                    ws_uuid = uuid_module.UUID(workspace_id)
+                    require_workspace_access(ws_uuid, user_id)
+                    validated_workspace_id = workspace_id
+                except ValueError as e:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid workspace_id format",
+                    ) from e
+
             # PRIMARY SOURCE: Query PostgreSQL for persistent session records
             try:
                 pg_sessions = session_repository.list_by_user(
@@ -353,6 +412,7 @@ async def list_sessions(
                     limit=limit,
                     offset=offset,
                     status_filter=status,
+                    workspace_id=validated_workspace_id,
                 )
                 logger.debug(
                     f"Loaded {len(pg_sessions)} sessions from PostgreSQL for user {user_id}"
@@ -761,6 +821,175 @@ async def delete_session(
                 status_code=500,
                 detail=f"Failed to delete session: {str(e)}",
             ) from e
+
+
+@router.post(
+    "/{session_id}/terminate",
+    response_model=dict,
+    summary="Terminate session early",
+    description="Terminate a session early with optional synthesis. Calculates partial billing.",
+    responses={
+        200: {"description": "Session terminated successfully"},
+        400: {"description": "Invalid termination type or session already terminated"},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("terminate session")
+async def terminate_session(
+    session_id: str,
+    termination_request: "TerminationRequest",
+    session_data: VerifiedSession,
+    redis_manager: RedisManager = Depends(get_redis_manager),
+    session_manager: SessionManager = Depends(get_session_manager),
+) -> dict[str, Any]:
+    """Terminate a session early with partial billing.
+
+    This endpoint:
+    1. Verifies user owns the session
+    2. Kills any active execution
+    3. Calculates billable portion based on completed sub-problems
+    4. Optionally triggers early synthesis (for continue_best_effort)
+    5. Updates session status and emits termination events
+
+    Args:
+        session_id: Session identifier
+        termination_request: Termination request with type and reason
+        session_data: Verified session (user_id, metadata) from dependency
+        redis_manager: Redis manager instance
+        session_manager: Session manager instance
+
+    Returns:
+        TerminationResponse with billing and synthesis info
+    """
+    with track_api_call("sessions.terminate", "POST"):
+        # Validate session ID format
+        session_id = validate_session_id(session_id)
+
+        # Unpack verified session data
+        user_id, metadata = session_data
+
+        # Check if already terminated
+        if metadata.get("status") == "terminated":
+            raise HTTPException(
+                status_code=400,
+                detail="Session already terminated",
+            )
+
+        # Check if already completed - no need to terminate
+        if metadata.get("status") == "completed":
+            raise HTTPException(
+                status_code=400,
+                detail="Session already completed - cannot terminate",
+            )
+
+        # Load state to calculate billable portion
+        state = redis_manager.load_state(session_id)
+        state_dict: dict[str, Any] = {}
+        if state:
+            if isinstance(state, dict):
+                state_dict = state
+            else:
+                state_dict = state.model_dump() if hasattr(state, "model_dump") else {}
+
+        # Calculate billable portion based on completed sub-problems
+        sub_problem_results = state_dict.get("sub_problem_results", [])
+        problem = state_dict.get("problem", {})
+        total_sub_problems = len(problem.get("sub_problems", [])) if problem else 1
+
+        # Count completed sub-problems (those with synthesis)
+        completed_count = len(sub_problem_results)
+        billable_portion = completed_count / max(total_sub_problems, 1)
+
+        # For user_cancelled, billable portion is 0 if nothing completed
+        if termination_request.termination_type == "user_cancelled" and completed_count == 0:
+            billable_portion = 0.0
+
+        # For continue_best_effort, at least bill for what's done
+        if termination_request.termination_type == "continue_best_effort":
+            billable_portion = max(billable_portion, 0.25)  # Minimum 25% for effort
+
+        # Kill any active execution
+        if session_id in session_manager.active_executions:
+            try:
+                await session_manager.kill_session(
+                    session_id,
+                    user_id,
+                    f"User terminated: {termination_request.termination_type}",
+                )
+                logger.info(f"Killed active execution for terminated session {session_id}")
+            except Exception as e:
+                logger.warning(f"Failed to kill active execution during termination: {e}")
+
+        # Update database
+        result = session_repository.terminate_session(
+            session_id=session_id,
+            termination_type=termination_request.termination_type,
+            termination_reason=termination_request.reason,
+            billable_portion=billable_portion,
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to update session termination status",
+            )
+
+        # Update Redis metadata
+        now = datetime.now(UTC)
+        metadata["status"] = "terminated"
+        metadata["terminated_at"] = now.isoformat()
+        metadata["termination_type"] = termination_request.termination_type
+        metadata["updated_at"] = now.isoformat()
+        redis_manager.save_metadata(session_id, metadata)
+
+        # Emit SSE termination event
+        try:
+            from backend.api.event_publisher import publish_event
+
+            await publish_event(
+                session_id=session_id,
+                event_type="meeting_terminated",
+                data={
+                    "termination_type": termination_request.termination_type,
+                    "reason": termination_request.reason,
+                    "billable_portion": billable_portion,
+                    "completed_sub_problems": completed_count,
+                    "total_sub_problems": total_sub_problems,
+                },
+            )
+        except Exception as e:
+            logger.warning(f"Failed to emit termination event: {e}")
+
+        # Record Prometheus metric
+        try:
+            from backend.api.middleware.metrics import record_session_created
+
+            record_session_created("terminated")
+        except Exception as e:
+            logger.debug(f"Failed to record termination metric: {e}")
+
+        logger.info(
+            f"Terminated session {session_id}: type={termination_request.termination_type}, "
+            f"billable_portion={billable_portion:.2f}, completed={completed_count}/{total_sub_problems}"
+        )
+
+        # Check if synthesis is available
+        synthesis_available = (
+            termination_request.termination_type == "continue_best_effort" and completed_count > 0
+        )
+
+        return {
+            "session_id": session_id,
+            "status": "terminated",
+            "terminated_at": now.isoformat(),
+            "termination_type": termination_request.termination_type,
+            "billable_portion": billable_portion,
+            "completed_sub_problems": completed_count,
+            "total_sub_problems": total_sub_problems,
+            "synthesis_available": synthesis_available,
+        }
 
 
 @router.post(
@@ -1298,3 +1527,332 @@ async def get_session_costs(
             by_provider=ProviderCosts(**total_costs["by_provider"]),
             by_sub_problem=by_sub_problem,
         )
+
+
+# =============================================================================
+# Export & Sharing Endpoints
+# =============================================================================
+
+
+@router.get(
+    "/{session_id}/export",
+    summary="Export session in JSON or Markdown",
+    description="Export session data as JSON or Markdown format. Returns file with Content-Disposition header.",
+    responses={
+        200: {"description": "File exported successfully"},
+        400: {"description": "Invalid format", "model": ErrorResponse},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("export session")
+async def export_session(
+    session_id: str,
+    session_data: VerifiedSession,
+    format: str = Query("json", pattern="^(json|markdown)$"),
+) -> Any:
+    """Export session to JSON or Markdown format.
+
+    Args:
+        session_id: Session identifier
+        format: Export format (json or markdown)
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        File response with appropriate Content-Disposition header
+
+    Raises:
+        HTTPException: If session not found or user lacks permission
+    """
+    with track_api_call("sessions.export", "GET"):
+        try:
+            # Validate session ID format
+            session_id = validate_session_id(session_id)
+
+            # Unpack verified session data
+            user_id, metadata = session_data
+
+            # Get database session for exporter
+            from bo1.state.database import SessionLocal
+
+            db = SessionLocal()
+            try:
+                exporter = SessionExporter(db)
+
+                if format == "json":
+                    export_data = await exporter.export_to_json(session_id, user_id)
+
+                    from fastapi.responses import JSONResponse
+
+                    filename = f"session_{session_id}_{datetime.now(UTC).strftime('%Y%m%d')}.json"
+                    return JSONResponse(
+                        content=export_data,
+                        headers={
+                            "Content-Disposition": f"attachment; filename={filename}",
+                        },
+                    )
+                else:  # markdown
+                    export_data = await exporter.export_to_markdown(session_id, user_id)
+
+                    from fastapi.responses import PlainTextResponse
+
+                    filename = f"session_{session_id}_{datetime.now(UTC).strftime('%Y%m%d')}.md"
+                    return PlainTextResponse(
+                        content=export_data,
+                        headers={
+                            "Content-Disposition": f"attachment; filename={filename}",
+                        },
+                    )
+
+            finally:
+                db.close()
+
+        except ValueError as e:
+            # Permission or not found error from SessionExporter
+            if "does not own" in str(e):
+                raise HTTPException(status_code=403, detail=str(e)) from e
+            else:
+                raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post(
+    "/{session_id}/share",
+    summary="Create a session share link",
+    description="Create a time-limited shareable link for this session.",
+    responses={
+        201: {
+            "description": "Share created successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "token": "abc123...",
+                        "share_url": "https://example.com/share/abc123...",
+                        "expires_at": "2025-12-19T00:00:00+00:00",
+                    }
+                }
+            },
+        },
+        400: {"description": "Invalid TTL", "model": ErrorResponse},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("create share")
+async def create_share(
+    session_id: str,
+    session_data: VerifiedSession,
+    ttl_days: int = Query(7, ge=1, le=365),
+) -> dict[str, Any]:
+    """Create a share link for a session.
+
+    Args:
+        session_id: Session identifier
+        ttl_days: Time-to-live in days (1-365)
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        Dict with token, share_url, and expires_at
+
+    Raises:
+        HTTPException: If validation fails
+    """
+    with track_api_call("sessions.create_share", "POST"):
+        try:
+            # Validate session ID format
+            session_id = validate_session_id(session_id)
+
+            # Unpack verified session data
+            user_id, metadata = session_data
+
+            # Validate TTL
+            ttl_days = SessionShareService.validate_ttl(ttl_days)
+
+            # Generate token
+            token = SessionShareService.generate_token()
+            expires_at = SessionShareService.calculate_expiry(ttl_days)
+
+            # Get database session for storage
+            from bo1.state.database import SessionLocal
+
+            db = SessionLocal()
+            try:
+                # Store in PostgreSQL
+                session_repository.create_share(
+                    session_id=session_id,
+                    token=token,
+                    expires_at=expires_at,
+                )
+
+                logger.info(f"Created share for session {session_id}: {token}")
+
+                # Build share URL
+                # In production, this would be the actual domain
+                share_url = f"/share/{token}"  # Relative URL; client will build full URL
+
+                return {
+                    "token": token,
+                    "share_url": share_url,
+                    "expires_at": expires_at.isoformat(),
+                }
+
+            finally:
+                db.close()
+
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get(
+    "/{session_id}/share",
+    summary="List active shares for a session",
+    description="List all active share links for this session.",
+    responses={
+        200: {"description": "Shares retrieved successfully"},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("list shares")
+async def list_shares(
+    session_id: str,
+    session_data: VerifiedSession,
+) -> dict[str, Any]:
+    """List active shares for a session.
+
+    Args:
+        session_id: Session identifier
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        Dict with list of shares
+
+    Raises:
+        HTTPException: If session not found or user lacks permission
+    """
+    with track_api_call("sessions.list_shares", "GET"):
+        try:
+            # Validate session ID format
+            session_id = validate_session_id(session_id)
+
+            # Unpack verified session data
+            user_id, metadata = session_data
+
+            # Get database session
+            from bo1.state.database import SessionLocal
+
+            db = SessionLocal()
+            try:
+                # Get all shares for this session
+                shares = session_repository.list_shares(session_id)
+
+                # Filter out expired shares and format response
+                active_shares = []
+                for share in shares:
+                    expires_at = share.get("expires_at")
+                    if isinstance(expires_at, str):
+                        expires_at = datetime.fromisoformat(expires_at)
+
+                    is_active = not SessionShareService.is_expired(expires_at)
+
+                    active_shares.append(
+                        {
+                            "token": share.get("token"),
+                            "expires_at": expires_at.isoformat()
+                            if isinstance(expires_at, datetime)
+                            else expires_at,
+                            "created_at": share.get("created_at"),
+                            "is_active": is_active,
+                        }
+                    )
+
+                return {
+                    "session_id": session_id,
+                    "shares": active_shares,
+                    "total": len(active_shares),
+                }
+
+            finally:
+                db.close()
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to list shares for session {session_id}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to list shares",
+            ) from e
+
+
+@router.delete(
+    "/{session_id}/share/{token}",
+    summary="Revoke a share link",
+    description="Revoke/delete a share link. Returns 204 No Content on success.",
+    responses={
+        204: {"description": "Share revoked successfully"},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session or share not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("revoke share")
+async def revoke_share(
+    session_id: str,
+    token: str,
+    session_data: VerifiedSession,
+) -> None:
+    """Revoke/delete a share link.
+
+    Args:
+        session_id: Session identifier
+        token: Share token to revoke
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        None (204 No Content)
+
+    Raises:
+        HTTPException: If session not found or user lacks permission
+    """
+    with track_api_call("sessions.revoke_share", "DELETE"):
+        try:
+            # Validate session ID format
+            session_id = validate_session_id(session_id)
+
+            # Unpack verified session data
+            user_id, metadata = session_data
+
+            # Get database session
+            from bo1.state.database import SessionLocal
+
+            db = SessionLocal()
+            try:
+                # Revoke the share
+                success = session_repository.revoke_share(session_id, token)
+
+                if not success:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Share token not found for session {session_id}",
+                    )
+
+                logger.info(f"Revoked share {token} for session {session_id}")
+
+                # Return 204 No Content
+                from fastapi.responses import Response
+
+                return Response(status_code=204)
+
+            finally:
+                db.close()
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to revoke share {token}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to revoke share",
+            ) from e
+
+
+# Public share endpoint is in backend/api/share.py

@@ -7,7 +7,7 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import NavDropdown from '$lib/components/ui/NavDropdown.svelte';
 	import { isAuthenticated, user, signOut } from '$lib/stores/auth';
-	import { Menu, X, ChevronDown, ChevronRight } from 'lucide-svelte';
+	import { Menu, X, ChevronDown, ChevronRight, HelpCircle } from 'lucide-svelte';
 
 	// Check if a nav link is active (supports prefix matching for nested routes)
 	function isActive(href: string): boolean {
@@ -26,6 +26,7 @@
 
 	const dataLinks = [
 		{ href: '/datasets', label: 'Datasets' },
+		{ href: '/mentor', label: 'Mentor' },
 	];
 
 	// Props
@@ -146,6 +147,15 @@
 							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}
 					>
 						Settings
+					</a>
+					<a
+						href="/help"
+						class={isActive('/help')
+							? 'text-brand-600 dark:text-brand-400 font-medium'
+							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}
+						title="Help Center"
+					>
+						<HelpCircle class="w-5 h-5" />
 					</a>
 					{#if $user?.is_admin}
 						<a
@@ -289,6 +299,17 @@
 							onclick={closeMobileMenu}
 						>
 							Settings
+						</a>
+					</div>
+					<div class="border-t border-neutral-100 dark:border-neutral-800">
+						<a
+							href="/help"
+							class={isActive('/help')
+								? 'block py-3 text-base font-medium text-brand-600 dark:text-brand-400'
+								: 'block py-3 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400'}
+							onclick={closeMobileMenu}
+						>
+							Help
 						</a>
 					</div>
 					{#if $user?.is_admin}

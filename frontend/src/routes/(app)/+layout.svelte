@@ -9,7 +9,8 @@
 	import Header from '$lib/components/Header.svelte';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import ServiceStatusBanner from '$lib/components/ui/ServiceStatusBanner.svelte';
-	import { getBreadcrumbs } from '$lib/utils/breadcrumbs';
+	import { getBreadcrumbsWithData } from '$lib/utils/breadcrumbs';
+	import { breadcrumbLabels } from '$lib/stores/breadcrumbLabels';
 
 	const log = createLogger('AppLayout');
 
@@ -21,8 +22,8 @@
 
 	let authChecked = $state(false);
 
-	// Generate breadcrumbs from current path
-	const breadcrumbs = $derived(getBreadcrumbs($page.url.pathname));
+	// Generate breadcrumbs from current path with dynamic labels
+	const breadcrumbs = $derived(getBreadcrumbsWithData($page.url.pathname, $breadcrumbLabels));
 
 	// Pages where we don't show breadcrumbs (top-level pages accessible from nav)
 	const hideBreadcrumbPaths = ['/dashboard', '/actions', '/projects', '/datasets', '/settings'];

@@ -531,3 +531,69 @@ class ApproveWaitlistResponse(BaseModel):
     whitelist_added: bool = Field(..., description="Whether added to whitelist")
     email_sent: bool = Field(..., description="Whether welcome email was sent")
     message: str = Field(..., description="Human-readable message")
+
+
+# ==============================================================================
+# Alert History Models
+# ==============================================================================
+
+
+class AlertHistoryItem(BaseModel):
+    """Response model for a single alert history entry.
+
+    Attributes:
+        id: Alert ID
+        alert_type: Type of alert (e.g., runaway_session, auth_failure_spike)
+        severity: Alert severity (info, warning, high, urgent, critical)
+        title: Alert title
+        message: Alert message body
+        metadata: Additional context (session_id, user_id, IP, etc.)
+        delivered: Whether ntfy delivery succeeded
+        created_at: When alert was created
+    """
+
+    id: int = Field(..., description="Alert ID")
+    alert_type: str = Field(..., description="Alert type")
+    severity: str = Field(..., description="Alert severity")
+    title: str = Field(..., description="Alert title")
+    message: str = Field(..., description="Alert message")
+    metadata: dict[str, Any] | None = Field(None, description="Additional context")
+    delivered: bool = Field(..., description="Whether ntfy delivery succeeded")
+    created_at: str = Field(..., description="When alert was created (ISO 8601)")
+
+
+class AlertHistoryResponse(BaseModel):
+    """Response model for paginated alert history.
+
+    Attributes:
+        total: Total number of alerts
+        alerts: List of alert entries
+        limit: Max records returned
+        offset: Records skipped
+    """
+
+    total: int = Field(..., description="Total number of alerts")
+    alerts: list[AlertHistoryItem] = Field(..., description="List of alerts")
+    limit: int = Field(..., description="Max records returned")
+    offset: int = Field(..., description="Records skipped")
+
+
+class AlertSettingsResponse(BaseModel):
+    """Response model for alert settings (thresholds).
+
+    All thresholds are read from bo1/constants.py (SecurityAlerts class).
+    Settings are read-only from environment/constants.
+
+    Attributes:
+        auth_failure_threshold: Failures before auth spike alert
+        auth_failure_window_minutes: Window for auth failure detection
+        rate_limit_threshold: Hits before rate limit spike alert
+        rate_limit_window_minutes: Window for rate limit detection
+        lockout_threshold: Lockouts before lockout spike alert
+    """
+
+    auth_failure_threshold: int = Field(..., description="Auth failures before alert")
+    auth_failure_window_minutes: int = Field(..., description="Auth failure window (minutes)")
+    rate_limit_threshold: int = Field(..., description="Rate limit hits before alert")
+    rate_limit_window_minutes: int = Field(..., description="Rate limit window (minutes)")
+    lockout_threshold: int = Field(..., description="Lockouts before alert")

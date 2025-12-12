@@ -78,18 +78,50 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
                     context_lines.append(f"- Growth Rate: {saved_context['growth_rate']}")
 
                 # ISSUE #4 FIX: Include saved clarifications from previous meetings
+                # with freshness indicators for expert awareness
                 clarifications = saved_context.get("clarifications", {})
                 if clarifications:
-                    context_lines.append("\n### Previous Clarifications")
+                    context_lines.append("\n### User Insights (from previous meetings)")
+                    now = datetime.now(UTC)
                     for question, answer_data in clarifications.items():
                         if isinstance(answer_data, dict):
                             answer = answer_data.get("answer", "N/A")
+                            updated_str = answer_data.get("updated_at") or answer_data.get(
+                                "answered_at"
+                            )
                         else:
                             answer = str(answer_data)
-                        context_lines.append(f"- Q: {question}")
+                            updated_str = None
+
+                        # Add freshness indicator
+                        freshness = ""
+                        if updated_str:
+                            try:
+                                updated_at = datetime.fromisoformat(
+                                    updated_str.replace("Z", "+00:00")
+                                )
+                                days_ago = (now - updated_at).days
+                                if days_ago == 0:
+                                    freshness = " [today]"
+                                elif days_ago == 1:
+                                    freshness = " [yesterday]"
+                                elif days_ago < 7:
+                                    freshness = f" [{days_ago} days ago]"
+                                elif days_ago < 30:
+                                    weeks = days_ago // 7
+                                    freshness = f" [{weeks} week{'s' if weeks > 1 else ''} ago]"
+                                elif days_ago > 30:
+                                    months = days_ago // 30
+                                    freshness = f" [⚠️ {months} month{'s' if months > 1 else ''} ago - may be outdated]"
+                            except (ValueError, AttributeError):
+                                freshness = " [date unknown]"
+                        else:
+                            freshness = " [date unknown]"
+
+                        context_lines.append(f"- Q: {question}{freshness}")
                         context_lines.append(f"  A: {answer}")
                     logger.info(
-                        f"Injected {len(clarifications)} previous clarifications into context"
+                        f"Injected {len(clarifications)} previous clarifications (with freshness) into context"
                     )
 
                 # Append to existing context
@@ -123,6 +155,9 @@ async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
     This prevents entire sub-problems by getting key info upfront, leading to
     better, faster, cheaper deliberations.
 
+    If the user has enabled "skip_clarification" preference, this node skips
+    the gap analysis and continues directly to deliberation.
+
     Args:
         state: Current graph state (must have problem with sub_problems)
 
@@ -130,11 +165,23 @@ async def identify_gaps_node(state: DeliberationGraphState) -> dict[str, Any]:
         Dictionary with state updates:
         - If critical gaps: should_stop=True, pending_clarification with questions
         - If no critical gaps: continues to next node
+        - If skip_clarification: continues to next node without analysis
     """
     session_id = state.get("session_id")
     log_with_session(
         logger, logging.INFO, session_id, "identify_gaps_node: Analyzing information gaps"
     )
+
+    # Check if user has enabled skip_clarification preference
+    skip_clarification = state.get("skip_clarification", False)
+    if skip_clarification:
+        log_with_session(
+            logger,
+            logging.INFO,
+            session_id,
+            "identify_gaps_node: User preference skip_clarification=True, skipping gap analysis",
+        )
+        return {"current_node": "identify_gaps"}
 
     problem = state.get("problem")
     if not problem:

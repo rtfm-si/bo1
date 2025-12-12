@@ -160,6 +160,10 @@ class Settings(BaseSettings):
     google_oauth_client_id: str = Field(default="", description="Google OAuth client ID")
     google_oauth_client_secret: str = Field(default="", description="Google OAuth client secret")
 
+    # LinkedIn OAuth Configuration
+    linkedin_client_id: str = Field(default="", description="LinkedIn OAuth client ID")
+    linkedin_client_secret: str = Field(default="", description="LinkedIn OAuth client secret")
+
     # Google Sheets API Configuration
     google_api_key: str = Field(
         default="", description="Google API key for Sheets access (public sheets only)"
@@ -190,6 +194,11 @@ class Settings(BaseSettings):
     ntfy_topic_alerts: str = Field(
         default="", description="ntfy topic for critical database alerts (high priority)"
     )
+
+    # Observability Links (Grafana, Prometheus, Sentry URLs)
+    grafana_url: str = Field(default="", description="Grafana dashboard URL")
+    prometheus_url: str = Field(default="", description="Prometheus dashboard URL")
+    sentry_url: str = Field(default="", description="Sentry error tracking dashboard URL")
 
     # Internal Cost Limits (admin monitoring, cents/month)
     # These are internal thresholds for abuse detection - not exposed to users

@@ -7,6 +7,7 @@ Features:
 - Combined IP + User rate limiting for authenticated endpoints
 - Tiered limits based on subscription level
 - Graceful fallback to in-memory if Redis unavailable
+- Health monitoring with ntfy alerts when degraded
 
 Rate limits by endpoint type:
 - Auth endpoints (/api/auth/*): 10 requests per minute per IP
@@ -15,7 +16,10 @@ Rate limits by endpoint type:
 - General API endpoints: 60 requests per minute per IP
 """
 
+import asyncio
 import logging
+import time
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Request
@@ -23,9 +27,157 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from bo1.config import get_settings
+from bo1.constants import RateLimiterHealth as RateLimiterHealthConfig
 from bo1.constants import RateLimits
 
 logger = logging.getLogger(__name__)
+
+
+class RateLimiterHealthTracker:
+    """Tracks Redis health for rate limiter fail-open monitoring.
+
+    Monitors Redis availability and sends alerts when the rate limiter
+    enters or exits fail-open mode (degraded state).
+
+    Thread-safe via simple atomic operations on primitive types.
+    """
+
+    def __init__(self) -> None:
+        """Initialize health tracker."""
+        self._is_degraded = False
+        self._degraded_since: datetime | None = None
+        self._consecutive_failures = 0
+        self._last_alert_time: float = 0.0
+        self._last_check_time: float = 0.0
+
+    @property
+    def is_degraded(self) -> bool:
+        """Check if rate limiter is in degraded mode."""
+        return self._is_degraded
+
+    @property
+    def consecutive_failures(self) -> int:
+        """Get consecutive failure count."""
+        return self._consecutive_failures
+
+    @property
+    def degraded_since(self) -> datetime | None:
+        """Get timestamp when degradation started."""
+        return self._degraded_since
+
+    def record_failure(self) -> None:
+        """Record a Redis failure and potentially trigger alert.
+
+        Called when Redis is unavailable during rate limit check.
+        """
+        self._consecutive_failures += 1
+        current_time = time.time()
+
+        # Update metrics
+        try:
+            from backend.api.middleware.metrics import (
+                record_rate_limiter_redis_failure,
+                set_rate_limiter_degraded,
+            )
+
+            record_rate_limiter_redis_failure()
+        except ImportError:
+            pass
+
+        # Check if we should enter degraded state
+        if (
+            not self._is_degraded
+            and self._consecutive_failures >= RateLimiterHealthConfig.FAILURE_THRESHOLD
+        ):
+            self._is_degraded = True
+            self._degraded_since = datetime.now(tz=UTC)
+
+            try:
+                set_rate_limiter_degraded(True)
+            except (ImportError, NameError):
+                pass
+
+            logger.warning(
+                f"Rate limiter entering degraded mode after "
+                f"{self._consecutive_failures} consecutive Redis failures"
+            )
+
+            # Send alert (deduped)
+            self._maybe_send_degraded_alert(current_time)
+
+    def record_success(self) -> None:
+        """Record a successful Redis operation.
+
+        Called when Redis responds successfully.
+        """
+        was_degraded = self._is_degraded
+
+        self._consecutive_failures = 0
+
+        if was_degraded:
+            self._is_degraded = False
+            degraded_duration = None
+            if self._degraded_since:
+                degraded_duration = datetime.now(tz=UTC) - self._degraded_since
+            self._degraded_since = None
+
+            # Update metrics
+            try:
+                from backend.api.middleware.metrics import set_rate_limiter_degraded
+
+                set_rate_limiter_degraded(False)
+            except ImportError:
+                pass
+
+            logger.info(
+                "Rate limiter recovered from degraded mode"
+                + (f" (was degraded for {degraded_duration})" if degraded_duration else "")
+            )
+
+            # Send recovery alert
+            self._send_recovery_alert()
+
+    def _maybe_send_degraded_alert(self, current_time: float) -> None:
+        """Send degraded alert if cooldown has passed."""
+        if current_time - self._last_alert_time < RateLimiterHealthConfig.ALERT_COOLDOWN_SECONDS:
+            logger.debug("Skipping degraded alert due to cooldown")
+            return
+
+        self._last_alert_time = current_time
+
+        # Fire and forget async alert
+        try:
+            from backend.services.alerts import alert_rate_limiter_degraded
+
+            asyncio.create_task(
+                alert_rate_limiter_degraded(
+                    degraded_since=self._degraded_since.isoformat() if self._degraded_since else "",
+                    consecutive_failures=self._consecutive_failures,
+                )
+            )
+        except Exception as e:
+            logger.debug(f"Failed to send degraded alert: {e}")
+
+    def _send_recovery_alert(self) -> None:
+        """Send recovery alert."""
+        try:
+            from backend.services.alerts import alert_rate_limiter_recovered
+
+            asyncio.create_task(alert_rate_limiter_recovered())
+        except Exception as e:
+            logger.debug(f"Failed to send recovery alert: {e}")
+
+    def get_status(self) -> dict[str, Any]:
+        """Get current health status."""
+        return {
+            "is_degraded": self._is_degraded,
+            "degraded_since": self._degraded_since.isoformat() if self._degraded_since else None,
+            "consecutive_failures": self._consecutive_failures,
+        }
+
+
+# Singleton health tracker instance
+rate_limiter_health = RateLimiterHealthTracker()
 
 
 def get_user_id_from_request(request: Request) -> str | None:
@@ -258,6 +410,7 @@ class UserRateLimiter:
         if not redis_client:
             # Redis not available, allow request (fail open for availability)
             logger.debug("UserRateLimiter: Redis unavailable, allowing request")
+            rate_limiter_health.record_failure()
             return True
 
         try:
@@ -306,13 +459,16 @@ class UserRateLimiter:
                     headers={"Retry-After": str(window_seconds)},
                 )
 
+            # Record successful Redis operation
+            rate_limiter_health.record_success()
             return True
 
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"UserRateLimiter error: {e}")
-            # Fail open on errors
+            # Fail open on errors - track degraded state
+            rate_limiter_health.record_failure()
             return True
 
     async def get_usage(

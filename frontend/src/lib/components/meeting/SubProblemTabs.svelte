@@ -24,6 +24,8 @@
 					role="tab"
 					aria-selected={isActive}
 					aria-controls="tabpanel-{tab.id}"
+					aria-label={tab.goal}
+					title={tab.goal}
 					id="tab-{tab.id}"
 					class={[
 						'flex-shrink-0 px-4 py-2 border-b-2 -mb-px transition-all text-sm font-medium',

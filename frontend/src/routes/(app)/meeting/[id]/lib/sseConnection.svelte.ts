@@ -48,6 +48,8 @@ const EVENT_TYPES = [
 	'clarification_requested',
 	'clarification_required',
 	'working_status',
+	'meeting_terminating',
+	'meeting_terminated',
 ];
 
 // Events that clear the working status
@@ -58,6 +60,7 @@ const CLEAR_WORKING_STATUS_EVENTS = [
 	'synthesis_complete',
 	'meta_synthesis_complete',
 	'subproblem_complete',
+	'meeting_terminated',
 ];
 
 /**

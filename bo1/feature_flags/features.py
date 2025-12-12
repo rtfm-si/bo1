@@ -54,6 +54,12 @@ ENABLE_SUPERTOKENS_AUTH = _parse_bool(os.getenv("ENABLE_SUPERTOKENS_AUTH"), defa
 # Enable Google OAuth provider in SuperTokens
 GOOGLE_OAUTH_ENABLED = _parse_bool(os.getenv("GOOGLE_OAUTH_ENABLED"), default=True)
 
+# Enable LinkedIn OAuth provider in SuperTokens
+LINKEDIN_OAUTH_ENABLED = _parse_bool(os.getenv("LINKEDIN_OAUTH_ENABLED"), default=True)
+
+# Enable GitHub OAuth provider in SuperTokens
+GITHUB_OAUTH_ENABLED = _parse_bool(os.getenv("GITHUB_OAUTH_ENABLED"), default=True)
+
 
 # ============================================================================
 # Parallel Processing

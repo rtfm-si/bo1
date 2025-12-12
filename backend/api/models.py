@@ -40,6 +40,10 @@ class CreateSessionRequest(BaseModel):
         None,
         description="Optional dataset UUID to attach for data-driven deliberations",
     )
+    workspace_id: str | None = Field(
+        None,
+        description="Optional workspace UUID to scope the session to a team workspace",
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -173,6 +177,11 @@ class SessionResponse(BaseModel):
     contribution_count: int | None = Field(None, description="Total expert contributions")
     task_count: int | None = Field(None, description="Number of extracted action items")
     focus_area_count: int | None = Field(None, description="Number of focus areas analyzed")
+    # Stale insights warning (only on creation)
+    stale_insights: list[dict[str, Any]] | None = Field(
+        None,
+        description="List of stale insights (>30 days old) for user warning during creation",
+    )
 
 
 class SessionListResponse(BaseModel):
@@ -475,6 +484,26 @@ class ActionDetailResponse(BaseModel):
     can_replan: bool = Field(
         default=False, description="Whether this action can be replanned (blocked status)"
     )
+    # Cancellation fields
+    cancellation_reason: str | None = Field(
+        default=None, description="Reason for cancellation (what went wrong)"
+    )
+    cancelled_at: str | None = Field(default=None, description="When action was cancelled (ISO)")
+    # Project assignment
+    project_id: str | None = Field(default=None, description="Assigned project ID (UUID)")
+    # Progress tracking
+    progress_type: str = Field(
+        default="status_only", description="Progress tracking type: percentage, points, status_only"
+    )
+    progress_value: int | None = Field(
+        default=None, ge=0, description="Progress value: 0-100 for %, 0+ for points"
+    )
+    estimated_effort_points: int | None = Field(
+        default=None, ge=1, description="Estimated effort in story points"
+    )
+    scheduled_start_date: str | None = Field(
+        default=None, description="Original planned start date (ISO)"
+    )
 
 
 class ActionCreate(BaseModel):
@@ -556,6 +585,9 @@ class ActionStatusUpdate(BaseModel):
         status: New status
         blocking_reason: Reason for blocked status (required if status is 'blocked')
         auto_unblock: Auto-unblock when dependencies complete
+        cancellation_reason: Reason for cancelled status (required if status is 'cancelled')
+        failure_reason_category: Category of failure (blocker/scope_creep/dependency/unknown)
+        replan_suggested_at: Timestamp when replanning suggestion was shown
     """
 
     status: str = Field(
@@ -565,6 +597,15 @@ class ActionStatusUpdate(BaseModel):
     )
     blocking_reason: str | None = Field(None, description="Reason for blocked status")
     auto_unblock: bool = Field(default=False, description="Auto-unblock when dependencies complete")
+    cancellation_reason: str | None = Field(None, description="Reason for cancelled status")
+    failure_reason_category: str | None = Field(
+        None,
+        pattern="^(blocker|scope_creep|dependency|unknown)$",
+        description="Category of failure reason",
+    )
+    replan_suggested_at: datetime | None = Field(
+        None, description="When replanning suggestion was shown"
+    )
 
 
 class ActionDatesUpdate(BaseModel):
@@ -617,6 +658,54 @@ class ActionDatesResponse(BaseModel):
     cascade_updated: int = Field(description="Number of dependent actions updated")
 
 
+class ActionProgressUpdate(BaseModel):
+    """Request model for updating action progress.
+
+    Attributes:
+        progress_type: Type of progress tracking (percentage, points, status_only)
+        progress_value: Progress value (0-100 for %, 0+ for points)
+        actual_start_date: When work actually began (ISO format)
+        actual_finish_date: When work completed (ISO format)
+        estimated_effort_points: Estimated effort in story points
+    """
+
+    progress_type: str = Field(
+        ...,
+        pattern="^(percentage|points|status_only)$",
+        description="Progress tracking type",
+    )
+    progress_value: int | None = Field(
+        None, ge=0, description="Progress value (0-100 for %, 0+ for points)"
+    )
+    actual_start_date: str | None = Field(None, description="Actual start date (ISO format)")
+    actual_finish_date: str | None = Field(None, description="Actual finish date (ISO format)")
+    estimated_effort_points: int | None = Field(None, ge=1, description="Estimated effort points")
+
+
+class ActionVariance(BaseModel):
+    """Response model for action schedule variance analysis.
+
+    Attributes:
+        action_id: Action UUID
+        planned_duration_days: Difference between scheduled_start and target_end
+        actual_duration_days: Difference between actual_start and actual_finish
+        variance_days: Difference between planned and actual duration
+        risk_level: Risk status (EARLY, ON_TIME, LATE)
+        progress_percent: Current progress percentage (if tracked)
+    """
+
+    action_id: str = Field(..., description="Action UUID")
+    planned_duration_days: int | None = Field(None, description="Planned duration (days)")
+    actual_duration_days: int | None = Field(None, description="Actual duration (days)")
+    variance_days: int | None = Field(None, description="Variance from plan (days)")
+    risk_level: str = Field(
+        default="ON_TIME",
+        pattern="^(EARLY|ON_TIME|LATE)$",
+        description="Schedule risk status",
+    )
+    progress_percent: int | None = Field(None, ge=0, le=100, description="Progress as percentage")
+
+
 class ActionResponse(BaseModel):
     """Response model for a single action (summary view).
 
@@ -632,6 +721,11 @@ class ActionResponse(BaseModel):
         estimated_start_date: Calculated start date
         created_at: Creation timestamp
         updated_at: Last update timestamp
+        status_color: Hex color for status (Gantt coloring)
+        priority_color: Hex color for priority (Gantt coloring)
+        project_color: Hex color for project (Gantt coloring)
+        progress_type: Progress tracking type
+        progress_value: Current progress value
     """
 
     id: str = Field(..., description="Action UUID")
@@ -645,6 +739,11 @@ class ActionResponse(BaseModel):
     estimated_start_date: str | None = Field(None, description="Calculated start date (ISO)")
     created_at: str = Field(..., description="Creation timestamp (ISO)")
     updated_at: str = Field(..., description="Last update timestamp (ISO)")
+    status_color: str | None = Field(None, description="Hex color for status")
+    priority_color: str | None = Field(None, description="Hex color for priority")
+    project_color: str | None = Field(None, description="Hex color for project")
+    progress_type: str = Field(default="status_only", description="Progress tracking type")
+    progress_value: int | None = Field(None, ge=0, description="Current progress value")
 
 
 # =============================================================================
@@ -1000,6 +1099,9 @@ class GanttActionData(BaseModel):
         status: Current status
         priority: Priority level
         session_id: Source session ID
+        status_color: Hex color for status (Gantt coloring)
+        priority_color: Hex color for priority (Gantt coloring)
+        project_color: Hex color for project (Gantt coloring)
     """
 
     id: str = Field(..., description="Action UUID")
@@ -1011,6 +1113,9 @@ class GanttActionData(BaseModel):
     status: str = Field(..., description="Current status")
     priority: str = Field(..., description="Priority level")
     session_id: str = Field("", description="Source session ID")
+    status_color: str | None = Field(None, description="Hex color for status")
+    priority_color: str | None = Field(None, description="Hex color for priority")
+    project_color: str | None = Field(None, description="Hex color for project")
 
 
 class GanttDependency(BaseModel):
@@ -1253,17 +1358,21 @@ class GlobalGanttResponse(BaseModel):
 
 
 class DailyActionStat(BaseModel):
-    """Daily action statistics.
+    """Daily activity statistics for dashboard heatmap.
 
     Attributes:
         date: Date (YYYY-MM-DD)
         completed_count: Actions completed on this date
         created_count: Actions created on this date
+        sessions_run: Sessions run on this date
+        sessions_completed: Sessions completed on this date
     """
 
     date: str = Field(..., description="Date (YYYY-MM-DD)")
     completed_count: int = Field(default=0, description="Actions completed")
     created_count: int = Field(default=0, description="Actions created")
+    sessions_run: int = Field(default=0, description="Sessions run (started)")
+    sessions_completed: int = Field(default=0, description="Sessions completed")
 
 
 class ActionStatsTotals(BaseModel):
@@ -1362,6 +1471,7 @@ class DatasetResponse(BaseModel):
         source_type: Source type
         source_uri: Original source location
         file_key: Spaces object key
+        storage_path: Storage prefix path (e.g., user_id)
         row_count: Number of rows
         column_count: Number of columns
         file_size_bytes: File size in bytes
@@ -1376,6 +1486,7 @@ class DatasetResponse(BaseModel):
     source_type: str = Field(..., description="Source type")
     source_uri: str | None = Field(None, description="Original source location")
     file_key: str | None = Field(None, description="Spaces object key")
+    storage_path: str | None = Field(None, description="Storage prefix path")
     row_count: int | None = Field(None, description="Number of rows")
     column_count: int | None = Field(None, description="Number of columns")
     file_size_bytes: int | None = Field(None, description="File size in bytes")
@@ -2062,3 +2173,71 @@ class UpdateBudgetSettingsRequest(BaseModel):
     monthly_cost_limit_cents: int | None = Field(None, description="Monthly limit (cents)")
     alert_threshold_pct: int | None = Field(None, ge=1, le=100, description="Alert threshold %")
     hard_limit_enabled: bool | None = Field(None, description="Block when exceeded")
+
+
+# =============================================================================
+# Session Termination Models
+# =============================================================================
+
+
+class TerminationRequest(BaseModel):
+    """Request to terminate a session early.
+
+    Attributes:
+        termination_type: Type of termination action
+        reason: User-provided reason for termination (optional)
+    """
+
+    termination_type: str = Field(
+        ...,
+        description="Type of termination: blocker_identified, user_cancelled, continue_best_effort",
+        pattern="^(blocker_identified|user_cancelled|continue_best_effort)$",
+    )
+    reason: str | None = Field(
+        None,
+        max_length=2000,
+        description="User-provided reason for termination",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "termination_type": "blocker_identified",
+                    "reason": "Missing critical market data for Europe",
+                },
+                {
+                    "termination_type": "continue_best_effort",
+                    "reason": "Need results now despite incomplete analysis",
+                },
+                {
+                    "termination_type": "user_cancelled",
+                    "reason": "No longer relevant",
+                },
+            ]
+        }
+    }
+
+
+class TerminationResponse(BaseModel):
+    """Response after terminating a session.
+
+    Attributes:
+        session_id: Session identifier
+        status: New session status
+        terminated_at: Termination timestamp
+        termination_type: Type of termination
+        billable_portion: Fraction of session to bill (0.0-1.0)
+        completed_sub_problems: Number of sub-problems completed
+        total_sub_problems: Total number of sub-problems
+        synthesis_available: Whether synthesis is available (for continue_best_effort)
+    """
+
+    session_id: str = Field(..., description="Session identifier")
+    status: str = Field(..., description="New session status")
+    terminated_at: datetime = Field(..., description="Termination timestamp (UTC)")
+    termination_type: str = Field(..., description="Type of termination")
+    billable_portion: float = Field(..., ge=0.0, le=1.0, description="Fraction of session to bill")
+    completed_sub_problems: int = Field(..., description="Sub-problems completed")
+    total_sub_problems: int = Field(..., description="Total sub-problems")
+    synthesis_available: bool = Field(..., description="Whether early synthesis is available")

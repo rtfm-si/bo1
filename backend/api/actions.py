@@ -12,6 +12,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
+import redis
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.api.middleware.auth import get_current_user
@@ -19,6 +20,7 @@ from backend.api.models import (
     ActionDatesResponse,
     ActionDatesUpdate,
     ActionDetailResponse,
+    ActionProgressUpdate,
     ActionStatsResponse,
     ActionStatsTotals,
     ActionStatusUpdate,
@@ -26,6 +28,7 @@ from backend.api.models import (
     ActionUpdateCreate,
     ActionUpdateResponse,
     ActionUpdatesResponse,
+    ActionVariance,
     AllActionsResponse,
     BlockActionRequest,
     DailyActionStat,
@@ -42,7 +45,11 @@ from backend.api.models import (
 )
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import handle_api_errors
+from backend.services.gantt_service import GanttColorService
+from bo1.config import get_settings
+from bo1.constants import GanttColorStrategy
 from bo1.services.replanning_service import replanning_service
+from bo1.state.database import db_session
 from bo1.state.repositories.action_repository import action_repository
 from bo1.state.repositories.session_repository import session_repository
 from bo1.state.repositories.tag_repository import tag_repository
@@ -402,7 +409,7 @@ async def get_global_gantt(
     for action_id in action_data_map:
         compute_dates(action_id, set())
 
-    # Second pass: build gantt_actions with computed dates
+    # Second pass: build gantt_actions with computed dates and colors
     progress_map = {
         "todo": 0,
         "in_progress": 50,
@@ -412,11 +419,42 @@ async def get_global_gantt(
         "cancelled": 100,
     }
 
+    # Get user's preferred color strategy and initialize color service
+    user_strategy = GanttColorStrategy.BY_STATUS
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT gantt_color_strategy FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                if row and row.get("gantt_color_strategy"):
+                    user_strategy = row["gantt_color_strategy"]
+    except Exception as e:
+        logger.warning(f"Failed to get user color strategy: {e}")
+
+    # Initialize color service
+    settings = get_settings()
+    redis_client = redis.from_url(settings.REDIS_URL, decode_responses=False)
+    color_service = GanttColorService(redis_client)
+
     for action_id, action in action_data_map.items():
         start_date = computed_start_dates.get(action_id, today)
         end_date = computed_end_dates.get(action_id, today + timedelta(days=7))
         status = action.get("status", "todo")
         progress = progress_map.get(status, 0)
+        priority = action.get("priority", "medium")
+        project_index = action.get("project_index", 0)
+
+        # Assign colors based on strategy
+        colors = color_service.assign_action_colors(
+            action_id=action_id,
+            status=status,
+            priority=priority,
+            project_index=project_index,
+            strategy=user_strategy,
+        )
 
         # Build dependency string for frappe-gantt
         dep_ids = [dep_id for dep_id, _ in deps_map.get(action_id, [])]
@@ -432,8 +470,11 @@ async def get_global_gantt(
                 progress=progress,
                 dependencies=",".join(dep_ids),
                 status=status,
-                priority=action.get("priority", "medium"),
+                priority=priority,
                 session_id=action.get("source_session_id", ""),
+                status_color=colors.get("status_color"),
+                priority_color=colors.get("priority_color"),
+                project_color=colors.get("project_color"),
             )
         )
 
@@ -460,13 +501,13 @@ async def get_global_gantt(
 @handle_api_errors("get action stats")
 async def get_action_stats(
     user_data: dict = Depends(get_current_user),
-    days: int = Query(30, ge=7, le=90, description="Number of days to include (7-90)"),
+    days: int = Query(30, ge=7, le=365, description="Number of days to include (7-365)"),
 ) -> ActionStatsResponse:
     """Get action statistics for dashboard progress visualization.
 
     Args:
         user_data: Current user from auth
-        days: Number of days to include (default 30, max 90)
+        days: Number of days to include (default 30, max 365 for annual heatmap)
 
     Returns:
         ActionStatsResponse with daily stats and totals
@@ -500,20 +541,41 @@ async def get_action_stats(
               AND created_at >= CURRENT_DATE - INTERVAL '%s days'
               AND deleted_at IS NULL
             GROUP BY DATE(created_at)
+        ),
+        meetings_run_counts AS (
+            SELECT DATE(created_at) AS date, COUNT(*) AS count
+            FROM sessions
+            WHERE user_id = %s
+              AND created_at >= CURRENT_DATE - INTERVAL '%s days'
+              AND deleted_at IS NULL
+            GROUP BY DATE(created_at)
+        ),
+        meetings_completed_counts AS (
+            SELECT DATE(updated_at) AS date, COUNT(*) AS count
+            FROM sessions
+            WHERE user_id = %s
+              AND status = 'completed'
+              AND updated_at >= CURRENT_DATE - INTERVAL '%s days'
+              AND deleted_at IS NULL
+            GROUP BY DATE(updated_at)
         )
         SELECT
             ds.date,
             COALESCE(cc.count, 0) AS completed_count,
-            COALESCE(cr.count, 0) AS created_count
+            COALESCE(cr.count, 0) AS created_count,
+            COALESCE(mr.count, 0) AS sessions_run,
+            COALESCE(mc.count, 0) AS sessions_completed
         FROM date_series ds
         LEFT JOIN completed_counts cc ON ds.date = cc.date
         LEFT JOIN created_counts cr ON ds.date = cr.date
+        LEFT JOIN meetings_run_counts mr ON ds.date = mr.date
+        LEFT JOIN meetings_completed_counts mc ON ds.date = mc.date
         ORDER BY ds.date DESC
     """
 
     daily_rows = execute_query(
         daily_query,
-        (days, user_id, days, user_id, days),
+        (days, user_id, days, user_id, days, user_id, days, user_id, days),
         fetch="all",
     )
 
@@ -522,6 +584,8 @@ async def get_action_stats(
             date=row["date"].isoformat(),
             completed_count=row["completed_count"],
             created_count=row["created_count"],
+            sessions_run=row["sessions_run"],
+            sessions_completed=row["sessions_completed"],
         )
         for row in (daily_rows or [])
     ]
@@ -634,6 +698,9 @@ async def get_action_detail(
         blocking_reason=action.get("blocking_reason"),
         blocked_at=to_iso(action.get("blocked_at")),
         auto_unblock=action.get("auto_unblock", False),
+        cancellation_reason=action.get("cancellation_reason"),
+        cancelled_at=to_iso(action.get("cancelled_at")),
+        project_id=action.get("project_id"),
     )
 
 
@@ -780,6 +847,17 @@ async def update_action_status(
             status_code=400, detail="blocking_reason required when status is 'blocked'"
         )
 
+    # Validate cancellation_reason required for cancelled status
+    if status_update.status == "cancelled" and not status_update.cancellation_reason:
+        raise HTTPException(
+            status_code=400, detail="cancellation_reason required when status is 'cancelled'"
+        )
+
+    # Auto-set replan_suggested_at when cancelling
+    replan_suggested_at = status_update.replan_suggested_at
+    if status_update.status == "cancelled" and not replan_suggested_at:
+        replan_suggested_at = datetime.utcnow()
+
     # Update status
     success = action_repository.update_status(
         action_id=action_id,
@@ -787,6 +865,9 @@ async def update_action_status(
         user_id=user_id,
         blocking_reason=status_update.blocking_reason,
         auto_unblock=status_update.auto_unblock,
+        cancellation_reason=status_update.cancellation_reason,
+        failure_reason_category=status_update.failure_reason_category,
+        replan_suggested_at=replan_suggested_at,
     )
 
     if not success:
@@ -807,6 +888,51 @@ async def update_action_status(
         "status": status_update.status,
         "unblocked_actions": unblocked_ids,
     }
+
+
+# =============================================================================
+# Replanning Context Endpoint
+# =============================================================================
+
+
+@router.get(
+    "/{action_id}/replan-context",
+    summary="Get replanning context for action",
+    description="Get context for creating a new meeting to replan a cancelled action.",
+    responses={
+        200: {"description": "Context retrieved successfully"},
+        404: {"description": "Action not found"},
+    },
+)
+@handle_api_errors("get replan context")
+async def get_replan_context(
+    action_id: str,
+    user_data: dict = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get context for replanning a cancelled action.
+
+    Args:
+        action_id: Action UUID
+        user_data: Current user from auth
+
+    Returns:
+        Dict with problem_statement, failure_reason, related_actions, etc.
+    """
+    from backend.services.action_context import extract_replan_context
+
+    user_id = user_data.get("user_id")
+    logger.info(f"Fetching replan context for action {action_id} (user={user_id})")
+
+    # Verify ownership
+    action = action_repository.get(action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+    if action.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    # Extract context
+    context = extract_replan_context(action_id)
+    return context
 
 
 # =============================================================================
@@ -1687,3 +1813,185 @@ async def set_action_tags(
         )
         for tag in tags
     ]
+
+
+# =============================================================================
+# Progress Tracking Endpoints
+# =============================================================================
+
+
+@router.patch(
+    "/{action_id}/progress",
+    response_model=ActionDetailResponse,
+    summary="Update action progress",
+    description="Update action progress tracking (percentage, points, or status-only) and actual dates.",
+    responses={
+        200: {"description": "Progress updated successfully"},
+        400: {"description": "Invalid progress value or dates"},
+        404: {"description": "Action not found"},
+    },
+)
+@handle_api_errors("update action progress")
+async def update_action_progress(
+    action_id: str,
+    progress_update: ActionProgressUpdate,
+    user_data: dict = Depends(get_current_user),
+) -> ActionDetailResponse:
+    """Update action progress tracking.
+
+    Accepts progress_type (percentage, points, status_only), progress_value,
+    and actual start/finish dates for variance analysis.
+
+    Args:
+        action_id: Action UUID
+        progress_update: Progress update request
+        user_data: Current user from auth
+
+    Returns:
+        Updated ActionDetailResponse
+    """
+    user_id = user_data.get("user_id")
+    logger.info(f"Updating progress for action {action_id}: {progress_update.progress_type}")
+
+    # Verify ownership
+    action = action_repository.get(action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+    if action.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    # Validate progress_value for percentage type
+    if progress_update.progress_type == "percentage":
+        if progress_update.progress_value is None:
+            raise HTTPException(
+                status_code=400,
+                detail="progress_value required for percentage type",
+            )
+        if progress_update.progress_value < 0 or progress_update.progress_value > 100:
+            raise HTTPException(
+                status_code=400,
+                detail="progress_value must be 0-100 for percentage type",
+            )
+
+    # Update progress in database
+    with db_session():
+        action_repository.update_progress(
+            action_id,
+            progress_type=progress_update.progress_type,
+            progress_value=progress_update.progress_value,
+            actual_start_date=progress_update.actual_start_date,
+            actual_finish_date=progress_update.actual_finish_date,
+            estimated_effort_points=progress_update.estimated_effort_points,
+        )
+
+    # Fetch updated action
+    updated = action_repository.get(action_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Action not found after update")
+
+    return _action_to_detail_response(updated)
+
+
+@router.get(
+    "/{action_id}/variance",
+    response_model=ActionVariance,
+    summary="Get action schedule variance",
+    description="Calculate schedule variance (early/on-time/late) and effort analysis.",
+    responses={
+        200: {"description": "Variance calculated successfully"},
+        404: {"description": "Action not found"},
+    },
+)
+@handle_api_errors("get action variance")
+async def get_action_variance(
+    action_id: str,
+    user_data: dict = Depends(get_current_user),
+) -> ActionVariance:
+    """Get action schedule variance analysis.
+
+    Calculates variance between planned and actual durations,
+    returns risk_level (EARLY, ON_TIME, LATE).
+
+    Args:
+        action_id: Action UUID
+        user_data: Current user from auth
+
+    Returns:
+        ActionVariance with schedule analysis
+    """
+    user_id = user_data.get("user_id")
+    logger.info(f"Getting variance for action {action_id}")
+
+    # Verify ownership
+    action = action_repository.get(action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+    if action.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    # Calculate variance
+    variance = action_repository.calculate_variance(action_id)
+
+    return variance
+
+
+def _action_to_detail_response(action: dict[str, Any]) -> ActionDetailResponse:
+    """Convert action dict to ActionDetailResponse.
+
+    Helper to convert database action to response model.
+    """
+    return ActionDetailResponse(
+        id=str(action.get("id", "")),
+        title=action.get("title", ""),
+        description=action.get("description", ""),
+        what_and_how=action.get("what_and_how", []),
+        success_criteria=action.get("success_criteria", []),
+        kill_criteria=action.get("kill_criteria", []),
+        dependencies=action.get("dependencies", []),
+        timeline=action.get("timeline"),
+        priority=action.get("priority", "medium"),
+        category=action.get("category", "implementation"),
+        source_section=action.get("source_section"),
+        confidence=float(action.get("confidence", 0.0)),
+        sub_problem_index=action.get("sub_problem_index"),
+        status=action.get("status", "todo"),
+        session_id=action.get("source_session_id", ""),
+        problem_statement=action.get("problem_statement", ""),
+        estimated_duration_days=action.get("estimated_duration_days"),
+        target_start_date=action.get("target_start_date").isoformat()
+        if action.get("target_start_date")
+        else None,
+        target_end_date=action.get("target_end_date").isoformat()
+        if action.get("target_end_date")
+        else None,
+        estimated_start_date=action.get("estimated_start_date").isoformat()
+        if action.get("estimated_start_date")
+        else None,
+        estimated_end_date=action.get("estimated_end_date").isoformat()
+        if action.get("estimated_end_date")
+        else None,
+        actual_start_date=action.get("actual_start_date").isoformat()
+        if action.get("actual_start_date")
+        else None,
+        actual_end_date=action.get("actual_end_date").isoformat()
+        if action.get("actual_end_date")
+        else None,
+        blocking_reason=action.get("blocking_reason"),
+        blocked_at=action.get("blocked_at").isoformat() if action.get("blocked_at") else None,
+        auto_unblock=action.get("auto_unblock", False),
+        replan_session_id=action.get("replan_session_id"),
+        replan_requested_at=action.get("replan_requested_at").isoformat()
+        if action.get("replan_requested_at")
+        else None,
+        replanning_reason=action.get("replanning_reason"),
+        can_replan=action.get("status") == "blocked",
+        cancellation_reason=action.get("cancellation_reason"),
+        cancelled_at=action.get("cancelled_at").isoformat() if action.get("cancelled_at") else None,
+        project_id=action.get("project_id"),
+        progress_type=action.get("progress_type", "status_only"),
+        progress_value=action.get("progress_value"),
+        estimated_effort_points=action.get("estimated_effort_points"),
+        scheduled_start_date=action.get("scheduled_start_date").isoformat()
+        if action.get("scheduled_start_date")
+        else None,
+    )

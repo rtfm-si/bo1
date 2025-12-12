@@ -20,3 +20,5 @@ export { default as ClarificationForm } from './ClarificationForm.svelte';
 export { default as ContextInsufficientModal } from './ContextInsufficientModal.svelte';
 export { default as ExpertSummariesPanel } from './ExpertSummariesPanel.svelte';
 export { default as ResearchPanel } from './ResearchPanel.svelte';
+export { default as ShareModal } from './ShareModal.svelte';
+export { default as TerminationModal } from './TerminationModal.svelte';

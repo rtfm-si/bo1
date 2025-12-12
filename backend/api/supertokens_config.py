@@ -30,10 +30,11 @@ from supertokens_python.recipe.thirdparty.provider import Provider, ProviderInpu
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 
 from backend.api.utils.db_helpers import execute_query, exists
+from backend.api.utils.oauth_errors import sanitize_supertokens_message
 from backend.services.auth_lockout import auth_lockout_service
 from backend.services.email import send_email_async
 from backend.services.email_templates import render_welcome_email
-from bo1.feature_flags import GOOGLE_OAUTH_ENABLED
+from bo1.feature_flags import GITHUB_OAUTH_ENABLED, GOOGLE_OAUTH_ENABLED, LINKEDIN_OAUTH_ENABLED
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
@@ -206,6 +207,65 @@ def get_oauth_providers() -> list[ProviderInput]:
                 "Google OAuth enabled but credentials missing (GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET)"
             )
 
+    # LinkedIn OAuth
+    if LINKEDIN_OAUTH_ENABLED:
+        linkedin_client_id = os.getenv("LINKEDIN_OAUTH_CLIENT_ID", "")
+        linkedin_client_secret = os.getenv("LINKEDIN_OAUTH_CLIENT_SECRET", "")
+
+        if linkedin_client_id and linkedin_client_secret:
+            providers.append(
+                ProviderInput(
+                    config=thirdparty.ProviderConfig(
+                        third_party_id="linkedin",
+                        clients=[
+                            thirdparty.ProviderClientConfig(
+                                client_id=linkedin_client_id,
+                                client_secret=linkedin_client_secret,
+                                scope=[
+                                    "openid",
+                                    "profile",
+                                    "email",
+                                ],
+                            )
+                        ],
+                    )
+                )
+            )
+            logger.info("LinkedIn OAuth provider configured")
+        else:
+            logger.warning(
+                "LinkedIn OAuth enabled but credentials missing (LINKEDIN_OAUTH_CLIENT_ID, LINKEDIN_OAUTH_CLIENT_SECRET)"
+            )
+
+    # GitHub OAuth
+    if GITHUB_OAUTH_ENABLED:
+        github_client_id = os.getenv("GITHUB_OAUTH_CLIENT_ID", "")
+        github_client_secret = os.getenv("GITHUB_OAUTH_CLIENT_SECRET", "")
+
+        if github_client_id and github_client_secret:
+            providers.append(
+                ProviderInput(
+                    config=thirdparty.ProviderConfig(
+                        third_party_id="github",
+                        clients=[
+                            thirdparty.ProviderClientConfig(
+                                client_id=github_client_id,
+                                client_secret=github_client_secret,
+                                scope=[
+                                    "read:user",
+                                    "user:email",
+                                ],
+                            )
+                        ],
+                    )
+                )
+            )
+            logger.info("GitHub OAuth provider configured")
+        else:
+            logger.warning(
+                "GitHub OAuth enabled but credentials missing (GITHUB_OAUTH_CLIENT_ID, GITHUB_OAUTH_CLIENT_SECRET)"
+            )
+
     return providers
 
 
@@ -236,10 +296,12 @@ def override_thirdparty_functions(
                 logger.warning(
                     f"Sign-in attempt rejected: {_mask_email(email.lower())} not whitelisted for closed beta"
                 )
-                raise Exception(
-                    f"Email {email} is not whitelisted for closed beta access. "
-                    f"Please contact support to request access."
+                # Log the actual rejection reason for debugging
+                logger.warning(
+                    f"Whitelist rejection: {_mask_email(email)} not in closed beta whitelist"
                 )
+                # Raise sanitized message to prevent information disclosure
+                raise Exception(sanitize_supertokens_message("whitelist rejection"))
 
             logger.info(f"Whitelist validation passed for: {_mask_email(email.lower())}")
 
@@ -305,7 +367,8 @@ def override_thirdparty_functions(
                 logger.warning(
                     f"Sign-in rejected: user {user_id} ({_mask_email(email)}) is locked or deleted"
                 )
-                raise Exception("Your account has been locked or deleted. Please contact support.")
+                # Raise sanitized message to prevent information disclosure
+                raise Exception(sanitize_supertokens_message("account locked"))
 
             # Send welcome email for new users (fire-and-forget)
             if result.created_new_user:
@@ -367,10 +430,8 @@ def override_thirdparty_apis(original_implementation: APIInterface) -> APIInterf
             )
             # Track lockout trigger for security alerting
             auth_lockout_service.record_lockout_triggered(client_ip)
-            # Raise an exception that SuperTokens will handle as auth error
-            raise Exception(
-                f"Too many failed login attempts. Please try again in {lockout_remaining} seconds."
-            )
+            # Raise sanitized exception to prevent timing information disclosure
+            raise Exception(sanitize_supertokens_message("too many attempts"))
 
         # Store IP in user_context for recording failures in function override
         user_context["client_ip"] = client_ip

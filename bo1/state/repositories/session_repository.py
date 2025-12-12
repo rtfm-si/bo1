@@ -36,6 +36,7 @@ class SessionRepository(BaseRepository):
         problem_context: dict[str, Any] | None = None,
         status: str = "created",
         dataset_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> dict[str, Any]:
         """Save a new session to PostgreSQL.
 
@@ -46,6 +47,7 @@ class SessionRepository(BaseRepository):
             problem_context: Additional context as dict (optional)
             status: Initial status (default: 'created')
             dataset_id: Optional dataset UUID to attach for data-driven deliberations
+            workspace_id: Optional workspace UUID to scope session to a team
 
         Returns:
             Saved session record with timestamps
@@ -55,18 +57,19 @@ class SessionRepository(BaseRepository):
                 cur.execute(
                     """
                     INSERT INTO sessions (
-                        id, user_id, problem_statement, problem_context, status, dataset_id
+                        id, user_id, problem_statement, problem_context, status, dataset_id, workspace_id
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO UPDATE
                     SET user_id = EXCLUDED.user_id,
                         problem_statement = EXCLUDED.problem_statement,
                         problem_context = EXCLUDED.problem_context,
                         status = EXCLUDED.status,
                         dataset_id = EXCLUDED.dataset_id,
+                        workspace_id = EXCLUDED.workspace_id,
                         updated_at = NOW()
                     RETURNING id, user_id, problem_statement, problem_context, status,
-                              phase, total_cost, round_number, created_at, updated_at, dataset_id
+                              phase, total_cost, round_number, created_at, updated_at, dataset_id, workspace_id
                     """,
                     (
                         session_id,
@@ -75,6 +78,7 @@ class SessionRepository(BaseRepository):
                         Json(problem_context) if problem_context else None,
                         status,
                         dataset_id,
+                        workspace_id,
                     ),
                 )
                 result = cur.fetchone()
@@ -239,6 +243,7 @@ class SessionRepository(BaseRepository):
         offset: int = 0,
         status_filter: str | None = None,
         include_deleted: bool = False,
+        workspace_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """List sessions for a user with pagination and summary counts.
 
@@ -263,6 +268,7 @@ class SessionRepository(BaseRepository):
             offset: Number of sessions to skip
             status_filter: Filter by status (optional)
             include_deleted: Include deleted sessions
+            workspace_id: Filter by workspace UUID (optional)
 
         Returns:
             List of session records with expert_count, contribution_count, task_count, focus_area_count
@@ -276,6 +282,7 @@ class SessionRepository(BaseRepository):
                            s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
                            s.synthesis_text, s.final_recommendation,
                            s.expert_count, s.contribution_count, s.focus_area_count,
+                           s.workspace_id,
                            COALESCE(st.total_tasks, 0)::int as task_count
                     FROM sessions s
                     LEFT JOIN session_tasks st ON st.session_id = s.id
@@ -289,6 +296,10 @@ class SessionRepository(BaseRepository):
                 if status_filter:
                     query += " AND s.status = %s"
                     params.append(status_filter)
+
+                if workspace_id:
+                    query += " AND s.workspace_id = %s"
+                    params.append(workspace_id)
 
                 query += " ORDER BY s.created_at DESC LIMIT %s OFFSET %s"
                 params.extend([limit, offset])
@@ -816,6 +827,101 @@ class SessionRepository(BaseRepository):
                 return [dict(row) for row in cur.fetchall()]
 
     # =========================================================================
+    # Session Sharing
+    # =========================================================================
+
+    @retry_db(max_attempts=3, base_delay=0.5)
+    def create_share(self, session_id: str, token: str, expires_at: Any) -> dict[str, Any]:
+        """Create a new session share.
+
+        Args:
+            session_id: Session identifier
+            token: Unique share token
+            expires_at: Expiry datetime
+
+        Returns:
+            Share record
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO session_shares (session_id, token, expires_at)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (token) DO UPDATE
+                    SET session_id = EXCLUDED.session_id,
+                        expires_at = EXCLUDED.expires_at,
+                        updated_at = NOW()
+                    RETURNING id, session_id, token, expires_at, created_at, updated_at
+                    """,
+                    (session_id, token, expires_at),
+                )
+                result = cur.fetchone()
+                return dict(result) if result else {}
+
+    def list_shares(self, session_id: str) -> list[dict[str, Any]]:
+        """List all shares for a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            List of share records
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, session_id, token, expires_at, created_at, updated_at
+                    FROM session_shares
+                    WHERE session_id = %s
+                    ORDER BY created_at DESC
+                    """,
+                    (session_id,),
+                )
+                return [dict(row) for row in cur.fetchall()]
+
+    def revoke_share(self, session_id: str, token: str) -> bool:
+        """Revoke/delete a share link.
+
+        Args:
+            session_id: Session identifier
+            token: Share token to revoke
+
+        Returns:
+            True if revoked successfully
+        """
+        return (
+            self._execute_count(
+                """
+                DELETE FROM session_shares
+                WHERE session_id = %s AND token = %s
+                """,
+                (session_id, token),
+            )
+            > 0
+        )
+
+    def get_share_by_token(self, token: str) -> dict[str, Any] | None:
+        """Get a share by token.
+
+        Args:
+            token: Share token
+
+        Returns:
+            Share record or None if not found
+        """
+        result = self._execute_one(
+            """
+            SELECT id, session_id, token, expires_at, created_at, updated_at
+            FROM session_shares
+            WHERE token = %s
+            """,
+            (token,),
+        )
+        return dict(result) if result else None
+
+    # =========================================================================
     # Session Synthesis
     # =========================================================================
 
@@ -860,6 +966,68 @@ class SessionRepository(BaseRepository):
             (session_id,),
         )
         return result["synthesis_text"] if result else None
+
+    # =========================================================================
+    # Session Termination
+    # =========================================================================
+
+    @retry_db(max_attempts=3, base_delay=0.5)
+    def terminate_session(
+        self,
+        session_id: str,
+        termination_type: str,
+        termination_reason: str | None,
+        billable_portion: float,
+    ) -> dict[str, Any] | None:
+        """Terminate a session early with partial billing.
+
+        Args:
+            session_id: Session identifier
+            termination_type: Type of termination (blocker_identified, user_cancelled, continue_best_effort)
+            termination_reason: User-provided reason (optional)
+            billable_portion: Fraction of session to bill (0.0-1.0)
+
+        Returns:
+            Updated session record or None if not found
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE sessions
+                    SET status = 'terminated',
+                        terminated_at = NOW(),
+                        termination_type = %s,
+                        termination_reason = %s,
+                        billable_portion = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                    RETURNING id, status, terminated_at, termination_type,
+                              termination_reason, billable_portion, updated_at
+                    """,
+                    (termination_type, termination_reason, billable_portion, session_id),
+                )
+                result = cur.fetchone()
+                return dict(result) if result else None
+
+    def get_termination_info(self, session_id: str) -> dict[str, Any] | None:
+        """Get termination info for a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Termination info dict or None if not terminated
+        """
+        result = self._execute_one(
+            """
+            SELECT terminated_at, termination_type, termination_reason, billable_portion
+            FROM sessions
+            WHERE id = %s AND terminated_at IS NOT NULL
+            """,
+            (session_id,),
+        )
+        return dict(result) if result else None
 
 
 # Singleton instance for convenience

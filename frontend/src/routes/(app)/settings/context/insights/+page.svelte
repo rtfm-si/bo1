@@ -15,6 +15,9 @@
 	let error = $state<string | null>(null);
 	let deletingQuestion = $state<string | null>(null);
 	let deleteSuccess = $state<string | null>(null);
+	let editingQuestion = $state<string | null>(null);
+	let editValue = $state('');
+	let isSaving = $state(false);
 
 	onMount(async () => {
 		await loadInsights();
@@ -32,6 +35,35 @@
 			console.error('Failed to load insights:', e);
 		} finally {
 			isLoading = false;
+		}
+	}
+
+	function openEditModal(question: string, answer: string) {
+		editingQuestion = question;
+		editValue = answer;
+	}
+
+	function closeEditModal() {
+		editingQuestion = null;
+		editValue = '';
+	}
+
+	async function saveEdit() {
+		if (!editingQuestion || !editValue.trim()) return;
+
+		isSaving = true;
+		try {
+			const updated = await apiClient.updateInsight(editingQuestion, editValue.trim());
+			// Update the insight in the list
+			const index = insights.findIndex((i) => i.question === editingQuestion);
+			if (index !== -1) {
+				insights[index] = updated;
+			}
+			closeEditModal();
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to update insight';
+		} finally {
+			isSaving = false;
 		}
 	}
 
@@ -202,28 +234,48 @@
 							</div>
 						</div>
 
-						<!-- Delete Button -->
-						<button
-							class="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-							onclick={() => deleteInsight(insight.question)}
-							disabled={deletingQuestion === insight.question}
-							title="Delete this insight"
-						>
-							{#if deletingQuestion === insight.question}
-								<div
-									class="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"
-								></div>
-							{:else}
+						<!-- Action Buttons -->
+						<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+							<!-- Edit Button -->
+							<button
+								class="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+								onclick={() => openEditModal(insight.question, insight.answer)}
+								disabled={editingQuestion === insight.question}
+								title="Edit this insight"
+							>
 								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path
 										stroke-linecap="round"
 										stroke-linejoin="round"
 										stroke-width="2"
-										d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+										d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
 									/>
 								</svg>
-							{/if}
-						</button>
+							</button>
+
+							<!-- Delete Button -->
+							<button
+								class="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+								onclick={() => deleteInsight(insight.question)}
+								disabled={deletingQuestion === insight.question}
+								title="Delete this insight"
+							>
+								{#if deletingQuestion === insight.question}
+									<div
+										class="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"
+									></div>
+								{:else}
+									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+										/>
+									</svg>
+								{/if}
+							</button>
+						</div>
 					</div>
 
 					{#if deleteSuccess === insight.question}
@@ -258,6 +310,73 @@
 						used in future meetings. This means experts don't need to ask the same questions again,
 						and they can provide more personalized recommendations from the start.
 					</p>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Edit Modal -->
+	{#if editingQuestion}
+		<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+			<div
+				class="bg-white dark:bg-slate-800 rounded-xl shadow-lg max-w-md w-full border border-slate-200 dark:border-slate-700"
+			>
+				<!-- Header -->
+				<div class="border-b border-slate-200 dark:border-slate-700 p-6">
+					<h3 class="text-lg font-semibold text-slate-900 dark:text-white">Edit Insight</h3>
+					<p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+						Update your answer to help keep your business context current.
+					</p>
+				</div>
+
+				<!-- Content -->
+				<div class="p-6 space-y-4">
+					<!-- Question (read-only) -->
+					<div>
+						<span class="block text-sm font-medium text-slate-900 dark:text-white mb-2">
+							Question
+						</span>
+						<p class="p-3 bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 rounded-lg text-sm">
+							{editingQuestion}
+						</p>
+					</div>
+
+					<!-- Answer (editable) -->
+					<div>
+						<label for="edit-answer" class="block text-sm font-medium text-slate-900 dark:text-white mb-2">
+							Your Answer
+						</label>
+						<textarea
+							id="edit-answer"
+							bind:value={editValue}
+							class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+							rows="4"
+							disabled={isSaving}
+						></textarea>
+					</div>
+				</div>
+
+				<!-- Footer -->
+				<div class="border-t border-slate-200 dark:border-slate-700 p-6 flex gap-3 justify-end">
+					<button
+						class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+						onclick={closeEditModal}
+						disabled={isSaving}
+					>
+						Cancel
+					</button>
+					<button
+						class="px-4 py-2 text-sm font-medium bg-brand-600 hover:bg-brand-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+						onclick={saveEdit}
+						disabled={isSaving || !editValue.trim()}
+					>
+						{#if isSaving}
+							<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+							Saving...
+						{:else}
+							Save
+						{/if}
+					</button>
 				</div>
 			</div>
 		</div>

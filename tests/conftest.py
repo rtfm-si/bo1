@@ -225,6 +225,39 @@ def state_builder(sample_problem, sample_personas):
 
 
 @pytest.fixture
+def test_user_id():
+    """Create a test user in the database and return their ID.
+
+    Cleans up the user and related records after the test.
+    """
+    import uuid
+
+    from bo1.state.database import db_session
+
+    user_id = f"test-user-{uuid.uuid4().hex[:8]}"
+
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO users (id, email, auth_provider, created_at)
+                VALUES (%s, %s, 'test', NOW())
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (user_id, f"{user_id}@test.local"),
+            )
+
+    yield user_id
+
+    # Cleanup - cascade should handle most, but be explicit
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM workspace_members WHERE user_id = %s", (user_id,))
+            cur.execute("DELETE FROM workspaces WHERE owner_id = %s", (user_id,))
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+
+
+@pytest.fixture
 def redis_url() -> str:
     """Get Redis URL from environment, with localhost fallback for local dev."""
     # Use Redis container in Docker, localhost for local dev

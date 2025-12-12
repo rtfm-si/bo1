@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell } from 'lucide-svelte';
 
 	interface AdminStats {
 		totalUsers: number;
@@ -129,7 +129,7 @@
 
 		<!-- Quick Links - Monitoring -->
 		<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Monitoring</h2>
-		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
 			<!-- Active Sessions Card -->
 			<a
 				href="/admin/sessions"
@@ -196,6 +196,23 @@
 					</div>
 				</div>
 				<span class="text-sm text-error-600 dark:text-error-400">View history →</span>
+			</a>
+
+			<!-- Alert History Card -->
+			<a
+				href="/admin/alerts/history"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-warning-300 dark:hover:border-warning-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-warning-100 dark:bg-warning-900/30 rounded-lg">
+						<Bell class="w-6 h-6 text-warning-600 dark:text-warning-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Alert History</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">ntfy.sh alert audit trail</p>
+					</div>
+				</div>
+				<span class="text-sm text-warning-600 dark:text-warning-400">View alerts →</span>
 			</a>
 		</div>
 

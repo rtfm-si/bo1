@@ -19,6 +19,16 @@ services:
       args:
         - BUILD_TIMESTAMP=${BUILD_TIMESTAMP:-}
         - GIT_COMMIT=${GIT_COMMIT:-}
+    # JSON file logging for Promtail file-based scraping (no Docker socket needed)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,compose_project"
+    labels:
+      - "service=api"
+      - "compose_project=boardofone"
     environment:
       # Redis Configuration
       - REDIS_HOST=redis
@@ -85,6 +95,16 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
+    # JSON file logging for Promtail file-based scraping (no Docker socket needed)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,compose_project"
+    labels:
+      - "service=frontend"
+      - "compose_project=boardofone"
     environment:
       - NODE_ENV=production
       - PUBLIC_API_URL=https://boardof.one

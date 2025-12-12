@@ -10,6 +10,11 @@ export interface CreateSessionRequest {
 	dataset_id?: string;
 }
 
+export interface StaleInsight {
+	question: string;
+	days_stale: number;
+}
+
 export interface SessionResponse {
 	id: string;
 	status: 'active' | 'paused' | 'completed' | 'failed' | 'killed' | 'deleted' | 'created';
@@ -24,6 +29,8 @@ export interface SessionResponse {
 	contribution_count?: number | null;
 	task_count?: number | null;
 	focus_area_count?: number | null;
+	// Stale insights warning (only on creation)
+	stale_insights?: StaleInsight[] | null;
 }
 
 export interface SessionDetailResponse extends SessionResponse {
@@ -400,6 +407,11 @@ export interface ActionDetailResponse {
 	replan_requested_at: string | null;
 	replanning_reason: string | null;
 	can_replan: boolean;
+	// Cancellation fields
+	cancellation_reason: string | null;
+	cancelled_at: string | null;
+	// Project assignment
+	project_id: string | null;
 }
 
 /**
@@ -735,6 +747,32 @@ export interface GanttResponse {
 }
 
 // ============================================================================
+// Action Dates Types (Gantt drag-to-reschedule)
+// ============================================================================
+
+/**
+ * Request to update action dates
+ */
+export interface ActionDatesUpdateRequest {
+	target_start_date?: string | null;
+	target_end_date?: string | null;
+	timeline?: string | null;
+}
+
+/**
+ * Response from action dates update
+ */
+export interface ActionDatesResponse {
+	action_id: string;
+	target_start_date: string | null;
+	target_end_date: string | null;
+	estimated_start_date: string | null;
+	estimated_end_date: string | null;
+	estimated_duration_days: number | null;
+	cascade_updated: number;
+}
+
+// ============================================================================
 // Action Update Types (Phase 5)
 // ============================================================================
 
@@ -881,6 +919,8 @@ export interface DailyActionStat {
 	date: string;
 	completed_count: number;
 	created_count: number;
+	sessions_run: number;
+	sessions_completed: number;
 }
 
 /**
@@ -1178,3 +1218,61 @@ export interface DatasetAskEvent {
 	data: string | Record<string, unknown>;
 	conversation_id?: string;
 }
+
+// ============================================================================
+// Mentor Chat Types
+// ============================================================================
+
+export type MentorPersona = 'general' | 'action_coach' | 'data_analyst';
+
+/**
+ * Mentor chat request
+ */
+export interface MentorChatRequest {
+	message: string;
+	conversation_id?: string | null;
+	persona?: MentorPersona | null;
+}
+
+/**
+ * Mentor message in a conversation
+ */
+export interface MentorMessage {
+	role: 'user' | 'assistant';
+	content: string;
+	timestamp: string;
+	persona?: MentorPersona | null;
+}
+
+/**
+ * Mentor conversation summary
+ */
+export interface MentorConversationResponse {
+	id: string;
+	user_id: string;
+	persona: MentorPersona;
+	created_at: string;
+	updated_at: string;
+	message_count: number;
+	context_sources: string[];
+}
+
+/**
+ * Mentor conversation detail with messages
+ */
+export interface MentorConversationDetailResponse extends MentorConversationResponse {
+	messages: MentorMessage[];
+}
+
+/**
+ * List of mentor conversations
+ */
+export interface MentorConversationListResponse {
+	conversations: MentorConversationResponse[];
+	total: number;
+}
+
+/**
+ * SSE event types for mentor chat streaming
+ */
+export type MentorChatEventType = 'thinking' | 'context' | 'response' | 'done' | 'error';

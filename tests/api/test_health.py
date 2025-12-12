@@ -135,6 +135,32 @@ class TestReadyEndpoint:
         assert data["ready"] is False
 
 
+class TestHSTSEndpoint:
+    """Tests for /api/health/hsts HSTS compliance check."""
+
+    def test_hsts_returns_compliant(self, client: TestClient):
+        """HSTS endpoint should return compliant with preload configuration."""
+        response = client.get("/api/health/hsts")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "compliant"
+        assert data["component"] == "hsts"
+        assert data["preload_eligible"] is True
+        assert data["header_value"] == "max-age=31536000; includeSubDomains; preload"
+        assert data["checks"]["max_age_sufficient"] is True
+        assert data["checks"]["include_subdomains"] is True
+        assert data["checks"]["preload_directive"] is True
+        assert data["submission_url"] == "https://hstspreload.org"
+        assert "timestamp" in data
+
+    def test_hsts_includes_message(self, client: TestClient):
+        """HSTS endpoint should include helpful message."""
+        response = client.get("/api/health/hsts")
+        assert response.status_code == 200
+        data = response.json()
+        assert "meets all preload requirements" in data["message"]
+
+
 class TestGracefulShutdown:
     """Tests for graceful shutdown behavior."""
 

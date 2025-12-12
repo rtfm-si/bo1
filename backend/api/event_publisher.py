@@ -16,6 +16,7 @@ from typing import Any
 import redis
 
 from backend.api.metrics import metrics
+from backend.services.event_batcher import get_batcher
 from bo1.context import get_request_id
 from bo1.state.repositories import session_repository
 
@@ -443,6 +444,190 @@ def check_dlq_alerts(dlq_depth: int) -> None:
         )
 
 
+class ExpertEventBuffer:
+    """Per-expert event buffer for micro-batching expert contributions.
+
+    Buffers events on a per-expert basis with a 50ms window, merging adjacent
+    expert contribution events (expert_started → expert_reasoning → expert_conclusion)
+    into single events to reduce SSE frame volume.
+
+    Features:
+    - Per-expert queue keyed by expert_id
+    - 50ms buffer window (matches event batcher)
+    - Flush on: window timeout, critical event, or round boundary
+    - Preserves order: buffer within same expert, flush in expert_id order
+    """
+
+    BUFFER_WINDOW_MS = 50
+
+    def __init__(self) -> None:
+        """Initialize expert event buffer."""
+        self._buffers: dict[str, list[dict[str, Any]]] = {}  # Per-expert queues
+        self._last_flush_time: dict[str, float] = {}  # Track flush time per expert
+        self._lock = asyncio.Lock()
+
+    async def queue_event(
+        self,
+        session_id: str,
+        expert_id: str,
+        event_type: str,
+        data: dict[str, Any],
+    ) -> bool:
+        """Queue event in expert buffer.
+
+        Args:
+            session_id: Session identifier
+            expert_id: Expert identifier
+            event_type: Event type
+            data: Event payload
+
+        Returns:
+            True if event was buffered, False if should flush immediately
+        """
+        async with self._lock:
+            if expert_id not in self._buffers:
+                self._buffers[expert_id] = []
+                self._last_flush_time[expert_id] = time.time()
+
+            # Critical events bypass buffer
+            if self._should_flush_immediately(event_type):
+                return False
+
+            # Add to expert's buffer
+            self._buffers[expert_id].append(
+                {
+                    "event_type": event_type,
+                    "data": data,
+                    "timestamp": time.time(),
+                }
+            )
+
+            # Check if should flush based on window timeout
+            elapsed = time.time() - self._last_flush_time[expert_id]
+            should_flush = elapsed >= (self.BUFFER_WINDOW_MS / 1000.0)
+
+            return not should_flush
+
+    async def flush_expert(self, expert_id: str) -> list[dict[str, Any]]:
+        """Flush buffered events for a specific expert.
+
+        Returns merged event if applicable, otherwise returns individual events.
+
+        Args:
+            expert_id: Expert identifier
+
+        Returns:
+            List of events to publish (merged or original)
+        """
+        async with self._lock:
+            if expert_id not in self._buffers or not self._buffers[expert_id]:
+                return []
+
+            buffered = self._buffers[expert_id]
+            self._buffers[expert_id] = []
+            self._last_flush_time[expert_id] = time.time()
+
+            # Try to merge adjacent expert contribution events
+            merged = self._merge_expert_events(buffered)
+            return merged
+
+    async def flush_all(self) -> dict[str, list[dict[str, Any]]]:
+        """Flush all buffered events for all experts.
+
+        Returns:
+            Dict mapping expert_id to list of events
+        """
+        async with self._lock:
+            result = {}
+            for expert_id in list(self._buffers.keys()):
+                if self._buffers[expert_id]:
+                    buffered = self._buffers[expert_id]
+                    self._buffers[expert_id] = []
+                    self._last_flush_time[expert_id] = time.time()
+                    merged = self._merge_expert_events(buffered)
+                    result[expert_id] = merged
+            return result
+
+    @staticmethod
+    def _should_flush_immediately(event_type: str) -> bool:
+        """Check if event should bypass buffer and flush immediately.
+
+        Critical events that should not be buffered:
+        - Round boundaries
+        - System events
+        - Synthesis/conclusion events
+
+        Args:
+            event_type: Event type
+
+        Returns:
+            True if event should flush immediately
+        """
+        critical_types = {
+            "round_start",
+            "round_end",
+            "subproblem_waiting",
+            "synthesis_complete",
+            "meta_synthesis_complete",
+            "meeting_complete",
+            "complete",
+            "facilitator_decision",
+            "error",
+            "working_status",
+            "discussion_quality_status",
+        }
+        return event_type in critical_types
+
+    @staticmethod
+    def _merge_expert_events(buffered: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Merge adjacent expert contribution events.
+
+        Detects pattern: expert_started → expert_reasoning → expert_conclusion
+        and merges into single event: expert_contribution_complete
+
+        Args:
+            buffered: List of buffered events
+
+        Returns:
+            List of merged/original events
+        """
+        if len(buffered) < 3:
+            # Can't merge if fewer than 3 events
+            return buffered
+
+        # Check for standard merge pattern
+        if (
+            len(buffered) >= 3
+            and buffered[0]["event_type"] == "expert_started"
+            and buffered[1]["event_type"] == "expert_reasoning"
+            and buffered[2]["event_type"] == "expert_conclusion"
+        ):
+            # Merge first 3 events into expert_contribution_complete
+            started = buffered[0]["data"]
+            reasoning = buffered[1]["data"]
+            conclusion = buffered[2]["data"]
+
+            merged_event = {
+                "event_type": "expert_contribution_complete",
+                "data": {
+                    "expert_id": reasoning.get("expert_id", started.get("expert_id")),
+                    "round": reasoning.get("round", started.get("round")),
+                    "phase": started.get("phase", "thinking"),
+                    "reasoning": reasoning.get("reasoning", ""),
+                    "confidence_score": reasoning.get("confidence_score"),
+                    "recommendation": conclusion.get("recommendation", ""),
+                    "merged": True,
+                },
+                "timestamp": buffered[2]["timestamp"],
+            }
+
+            # Return merged event + any remaining buffered events
+            return [merged_event] + buffered[3:]
+
+        # No merge pattern detected, return original events
+        return buffered
+
+
 async def _persist_event_with_semaphore(
     redis_client: redis.Redis,  # type: ignore[type-arg]
     session_id: str,
@@ -468,9 +653,10 @@ async def _persist_event_async(
     payload: dict[str, Any],
     channel: str,
 ) -> None:
-    """Persist event to PostgreSQL asynchronously (P2-005 optimization).
+    """Persist event to PostgreSQL asynchronously with batching (P2-PERF optimization).
 
     Runs in background to avoid blocking event publishing.
+    Uses EventBatcher for priority-based batching (critical events flush immediately).
     On failure, queues event for retry and emits error to frontend.
 
     Args:
@@ -484,48 +670,37 @@ async def _persist_event_async(
     persistence_success = False
     last_error = None
 
-    # P2-005: Track DB persistence timing
+    # P2-PERF: Track DB persistence timing
     persist_start = time.perf_counter()
 
-    # Retry persistence without blocking (no sleep between attempts)
-    for attempt in range(3):  # 3 immediate retry attempts
-        try:
-            session_repository.save_event(
-                session_id=session_id,
-                event_type=event_type,
-                sequence=sequence,
-                data=payload,  # Store full payload including timestamp
-            )
-            persistence_success = True
+    try:
+        # Use event batcher for priority-based batching
+        batcher = get_batcher()
+        await batcher.queue_event(
+            session_id=session_id,
+            event_type=event_type,
+            data=payload,  # Store full payload including timestamp
+        )
+        persistence_success = True
 
-            # P2-005: Track successful persistence time
-            persist_duration_ms = (time.perf_counter() - persist_start) * 1000
-            metrics.observe("event.db_persist_ms", persist_duration_ms)
-            metrics.increment("event.persisted")
+        # P2-PERF: Track successful persistence time
+        persist_duration_ms = (time.perf_counter() - persist_start) * 1000
+        metrics.observe("event.db_persist_ms", persist_duration_ms)
+        metrics.increment("event.persisted")
 
-            if attempt > 0:
-                logger.info(
-                    f"Event persistence succeeded on attempt {attempt + 1} "
-                    f"for {event_type} (session {session_id})"
-                )
-                metrics.increment("event.persist_retry_success")
-            break
-        except Exception as db_error:
-            last_error = db_error
-            if attempt < 2:  # Log retry attempts
-                logger.warning(
-                    f"Event persistence attempt {attempt + 1}/3 failed for "
-                    f"{event_type}: {db_error}. Retrying immediately..."
-                )
-            else:
-                logger.error(
-                    f"CRITICAL: Event persistence failed after 3 attempts for "
-                    f"{event_type} (session {session_id}): {db_error}\n"
-                    f"This event will be LOST when Redis expires!"
-                )
-                metrics.increment("event.persist_failed")
+        logger.debug(
+            f"Event queued for batching: {event_type} (session {session_id}, priority-aware)"
+        )
+    except Exception as batch_error:
+        last_error = batch_error
+        logger.error(
+            f"CRITICAL: Event batching failed for "
+            f"{event_type} (session {session_id}): {batch_error}\n"
+            f"This event will be LOST when Redis expires!"
+        )
+        metrics.increment("event.persist_failed")
 
-    # If all attempts failed, queue for retry and emit error event to frontend
+    # If batching failed, queue for retry and emit error event to frontend
     if not persistence_success:
         # Queue the failed event for background retry
         try:
@@ -571,6 +746,9 @@ class EventPublisher:
     - Redis (transient): For real-time SSE streaming and reconnection
     - PostgreSQL (permanent): For historical access after Redis restart
 
+    Supports optional expert event buffering for per-expert micro-batching
+    and event merging to reduce SSE frame volume (P2-PERF optimization).
+
     Examples:
         >>> from bo1.state.redis_manager import RedisManager
         >>> redis_manager = RedisManager()
@@ -582,14 +760,83 @@ class EventPublisher:
         ... )
     """
 
-    def __init__(self, redis_client: redis.Redis) -> None:  # type: ignore[type-arg]
+    def __init__(
+        self,
+        redis_client: redis.Redis,  # type: ignore[type-arg]
+        expert_buffer: ExpertEventBuffer | None = None,
+    ) -> None:
         """Initialize EventPublisher.
 
         Args:
             redis_client: Redis client instance for publishing
+            expert_buffer: Optional ExpertEventBuffer for per-expert micro-batching
         """
         self.redis = redis_client
         self._sequence_counters: dict[str, int] = {}  # Track sequence per session
+        self._expert_buffer = expert_buffer
+
+    async def publish_event_buffered(
+        self,
+        session_id: str,
+        event_type: str,
+        data: dict[str, Any],
+    ) -> None:
+        """Publish event with optional expert buffering for micro-batching.
+
+        If expert_buffer is configured and event can be buffered:
+        - Adds event to per-expert buffer
+        - Flushes on timeout, critical events, or round boundaries
+        - Merges adjacent expert contribution events into single events
+
+        Otherwise falls through to standard publish_event.
+
+        Args:
+            session_id: Session identifier
+            event_type: SSE event type
+            data: Event payload
+        """
+        # If no buffer configured, use standard publish
+        if not self._expert_buffer:
+            self.publish_event(session_id, event_type, data)
+            return
+
+        # Extract expert_id if available
+        expert_id = data.get("expert_id") or data.get("persona_code")
+
+        # If no expert_id, not a bufferable event (use standard publish)
+        if not expert_id:
+            self.publish_event(session_id, event_type, data)
+            return
+
+        # Try to buffer the event
+        was_buffered = await self._expert_buffer.queue_event(
+            session_id=session_id,
+            expert_id=expert_id,
+            event_type=event_type,
+            data=data,
+        )
+
+        if was_buffered:
+            # Event queued in buffer, will be flushed on timeout or critical event
+            logger.debug(f"Event buffered for {expert_id}: {event_type}")
+            return
+
+        # Event should be published immediately (critical event or not bufferable)
+        # Check if need to flush any pending buffered events before publishing
+        if ExpertEventBuffer._should_flush_immediately(event_type):
+            # Flush all pending buffered events before critical event
+            all_buffered = await self._expert_buffer.flush_all()
+            for _exp_id, buffered_events in all_buffered.items():
+                for buffered_event in buffered_events:
+                    self.publish_event(
+                        session_id,
+                        buffered_event["event_type"],
+                        buffered_event["data"],
+                    )
+            logger.debug(f"Flushed {len(all_buffered)} expert buffers before {event_type}")
+
+        # Publish the critical event
+        self.publish_event(session_id, event_type, data)
 
     def publish_event(
         self,

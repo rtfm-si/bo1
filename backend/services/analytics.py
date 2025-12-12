@@ -326,3 +326,53 @@ def get_full_report(
         by_day=daily,
         by_model=[],  # Model breakdown requires cost_events table
     )
+
+
+def log_replan_suggestion_shown(action_id: str, user_id: str) -> None:
+    """Log when a replanning suggestion is shown to a user.
+
+    Args:
+        action_id: UUID of the cancelled action
+        user_id: User who is seeing the suggestion
+    """
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO analytics_events (user_id, event_type, event_data, created_at)
+                    VALUES (%s, %s, %s, NOW())
+                    """,
+                    (user_id, "action_replan_suggested", {"action_id": str(action_id)}),
+                )
+    except Exception as e:
+        logger.warning(f"Failed to log replan suggestion: {e}")
+
+
+def log_replan_suggestion_accepted(action_id: str, user_id: str, new_session_id: str) -> None:
+    """Log when user accepts a replanning suggestion and creates a new meeting.
+
+    Args:
+        action_id: UUID of the cancelled action
+        user_id: User who accepted the suggestion
+        new_session_id: UUID of newly created session
+    """
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO analytics_events (user_id, event_type, event_data, created_at)
+                    VALUES (%s, %s, %s, NOW())
+                    """,
+                    (
+                        user_id,
+                        "action_replan_accepted",
+                        {
+                            "action_id": str(action_id),
+                            "new_session_id": str(new_session_id),
+                        },
+                    ),
+                )
+    except Exception as e:
+        logger.warning(f"Failed to log replan acceptance: {e}")

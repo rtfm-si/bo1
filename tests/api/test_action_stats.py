@@ -21,16 +21,22 @@ class TestActionStatsModels:
             date="2025-12-01",
             completed_count=5,
             created_count=3,
+            sessions_run=2,
+            sessions_completed=1,
         )
         assert stat.date == "2025-12-01"
         assert stat.completed_count == 5
         assert stat.created_count == 3
+        assert stat.sessions_run == 2
+        assert stat.sessions_completed == 1
 
     def test_daily_action_stat_defaults(self):
         """Test DailyActionStat default values."""
         stat = DailyActionStat(date="2025-12-01")
         assert stat.completed_count == 0
         assert stat.created_count == 0
+        assert stat.sessions_run == 0
+        assert stat.sessions_completed == 0
 
     def test_action_stats_totals_creation(self):
         """Test ActionStatsTotals model creation."""
@@ -53,8 +59,20 @@ class TestActionStatsModels:
     def test_action_stats_response_creation(self):
         """Test ActionStatsResponse model creation."""
         daily = [
-            DailyActionStat(date="2025-12-01", completed_count=2, created_count=1),
-            DailyActionStat(date="2025-12-02", completed_count=3, created_count=2),
+            DailyActionStat(
+                date="2025-12-01",
+                completed_count=2,
+                created_count=1,
+                sessions_run=1,
+                sessions_completed=0,
+            ),
+            DailyActionStat(
+                date="2025-12-02",
+                completed_count=3,
+                created_count=2,
+                sessions_run=2,
+                sessions_completed=1,
+            ),
         ]
         totals = ActionStatsTotals(completed=10, in_progress=3, todo=5)
 
@@ -62,6 +80,7 @@ class TestActionStatsModels:
 
         assert len(response.daily) == 2
         assert response.daily[0].date == "2025-12-01"
+        assert response.daily[0].sessions_run == 1
         assert response.totals.completed == 10
 
 
@@ -71,7 +90,13 @@ class TestActionStatsEndpointLogic:
     def test_stats_response_structure(self):
         """Test that stats response has expected structure."""
         daily = [
-            DailyActionStat(date="2025-12-10", completed_count=0, created_count=0)
+            DailyActionStat(
+                date="2025-12-10",
+                completed_count=0,
+                created_count=0,
+                sessions_run=0,
+                sessions_completed=0,
+            )
             for _ in range(14)
         ]
         totals = ActionStatsTotals(completed=5, in_progress=2, todo=8)
@@ -83,6 +108,10 @@ class TestActionStatsEndpointLogic:
         assert "daily" in json_data
         assert "totals" in json_data
         assert len(json_data["daily"]) == 14
+        # Verify all daily stats have heatmap fields
+        for stat in json_data["daily"]:
+            assert "sessions_run" in stat
+            assert "sessions_completed" in stat
 
     def test_totals_sum_calculation(self):
         """Test that totals represent sum of all actions."""

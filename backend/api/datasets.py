@@ -54,11 +54,13 @@ from bo1.llm.client import ClaudeClient
 from bo1.prompts.data_analyst import (
     DATA_ANALYST_SYSTEM,
     build_analyst_prompt,
+    format_business_context,
     format_clarifications_context,
     format_conversation_history,
     format_dataset_context,
 )
 from bo1.state.repositories.dataset_repository import DatasetRepository
+from bo1.state.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +78,7 @@ ALLOWED_CONTENT_TYPES = [
 # Singleton repository instances
 dataset_repository = DatasetRepository()
 conversation_repository = ConversationRepository()
+user_repository = UserRepository()
 
 
 def _format_dataset_response(dataset: dict[str, Any]) -> DatasetResponse:
@@ -88,6 +91,7 @@ def _format_dataset_response(dataset: dict[str, Any]) -> DatasetResponse:
         source_type=dataset["source_type"],
         source_uri=dataset.get("source_uri"),
         file_key=dataset.get("file_key"),
+        storage_path=dataset.get("storage_path"),
         row_count=dataset.get("row_count"),
         column_count=dataset.get("column_count"),
         file_size_bytes=dataset.get("file_size_bytes"),
@@ -193,15 +197,18 @@ async def upload_dataset(
     except CSVValidationError as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
 
-    # Generate Spaces key
+    # Generate Spaces key with user_id prefix for organization
     dataset_id = str(uuid.uuid4())
-    file_key = f"datasets/{user_id}/{dataset_id}.csv"
+    storage_prefix = f"datasets/{user_id}"
+    filename = f"{dataset_id}.csv"
+    file_key = f"{storage_prefix}/{filename}"
 
-    # Upload to Spaces
+    # Upload to Spaces using new put_file method
     try:
         spaces_client = get_spaces_client()
-        spaces_client.upload_file(
-            key=file_key,
+        spaces_client.put_file(
+            prefix=storage_prefix,
+            filename=filename,
             data=content,
             content_type="text/csv",
             metadata={
@@ -214,7 +221,7 @@ async def upload_dataset(
         logger.error(f"Failed to upload to Spaces: {e}")
         raise HTTPException(status_code=502, detail="Failed to upload file to storage") from None
 
-    # Create dataset record
+    # Create dataset record with storage_path for future hierarchical access
     try:
         dataset = dataset_repository.create(
             user_id=user_id,
@@ -222,6 +229,7 @@ async def upload_dataset(
             source_type="csv",
             description=description,
             file_key=file_key,
+            storage_path=storage_prefix,
             row_count=csv_metadata.row_count,
             column_count=csv_metadata.column_count,
             file_size_bytes=file_size,
@@ -298,15 +306,18 @@ async def import_sheets(
     # Use provided name or sheet title
     name = request.name or f"{metadata.title} - {metadata.sheet_name}"
 
-    # Generate Spaces key
+    # Generate Spaces key with user_id prefix
     dataset_id = str(uuid.uuid4())
-    file_key = f"datasets/{user_id}/{dataset_id}.csv"
+    storage_prefix = f"datasets/{user_id}"
+    filename = f"{dataset_id}.csv"
+    file_key = f"{storage_prefix}/{filename}"
 
-    # Upload to Spaces
+    # Upload to Spaces using new put_file method
     try:
         spaces_client = get_spaces_client()
-        spaces_client.upload_file(
-            key=file_key,
+        spaces_client.put_file(
+            prefix=storage_prefix,
+            filename=filename,
             data=csv_content,
             content_type="text/csv",
             metadata={
@@ -320,7 +331,7 @@ async def import_sheets(
         logger.error(f"Failed to upload to Spaces: {e}")
         raise HTTPException(status_code=502, detail="Failed to upload file to storage") from None
 
-    # Create dataset record
+    # Create dataset record with storage_path
     try:
         dataset = dataset_repository.create(
             user_id=user_id,
@@ -329,6 +340,7 @@ async def import_sheets(
             source_uri=request.url,
             description=request.description,
             file_key=file_key,
+            storage_path=storage_prefix,
             row_count=metadata.row_count,
             column_count=metadata.column_count,
             file_size_bytes=file_size,
@@ -580,15 +592,18 @@ async def generate_dataset_chart(
         logger.warning(f"Chart error for dataset {dataset_id}: {e}")
         raise HTTPException(status_code=422, detail=str(e)) from None
 
-    # Generate PNG and upload to Spaces
+    # Generate PNG and upload to Spaces using same prefix as dataset
     analysis_id = None
     try:
         png_bytes = generate_chart_png(df, chart)
-        chart_key = f"charts/{user_id}/{dataset_id}/{uuid.uuid4()}.png"
+        chart_prefix = f"charts/{user_id}/{dataset_id}"
+        chart_filename = f"{uuid.uuid4()}.png"
+        chart_key = f"{chart_prefix}/{chart_filename}"
 
         spaces_client = get_spaces_client()
-        spaces_client.upload_file(
-            key=chart_key,
+        spaces_client.put_file(
+            prefix=chart_prefix,
+            filename=chart_filename,
             data=png_bytes,
             content_type="image/png",
             metadata={"dataset_id": dataset_id, "user_id": user_id},
@@ -837,9 +852,20 @@ async def _stream_ask_response(
         clarifications = dataset_repository.get_clarifications(dataset_id, user_id)
         clarifications_ctx = format_clarifications_context(clarifications)
 
+        # Load business context if available
+        business_ctx = ""
+        try:
+            user_context = user_repository.get_context(user_id)
+            if user_context:
+                business_ctx = format_business_context(user_context)
+                if business_ctx:
+                    logger.info(f"Injecting business context for dataset Q&A (user {user_id})")
+        except Exception as e:
+            logger.warning(f"Failed to load business context for {user_id}: {e}")
+
         # Build prompt
         user_prompt = build_analyst_prompt(
-            question, dataset_context, conv_history, clarifications_ctx
+            question, dataset_context, conv_history, clarifications_ctx, business_ctx
         )
 
         yield f"event: thinking\ndata: {json.dumps({'status': 'calling_llm'})}\n\n"

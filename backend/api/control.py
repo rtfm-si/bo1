@@ -588,12 +588,31 @@ async def start_deliberation(
 
         personas = [PersonaProfile(**p) for p in all_personas[:3]]
 
+        # Load user preference for skip_clarification
+        skip_clarification = False
+        try:
+            from bo1.state.database import db_session
+
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT skip_clarification FROM users WHERE id = %s",
+                        (user_id,),
+                    )
+                    row = cur.fetchone()
+                    if row and row.get("skip_clarification"):
+                        skip_clarification = True
+                        logger.info(f"User {user_id} has skip_clarification=True")
+        except Exception as e:
+            logger.debug(f"Could not load skip_clarification preference: {e}")
+
         # Create initial state
         state = create_initial_state(
             session_id=session_id,
             problem=problem,
             personas=personas,
             max_rounds=6,  # Hard cap for parallel architecture
+            skip_clarification=skip_clarification,
         )
 
         # Create graph

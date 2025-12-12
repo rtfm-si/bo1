@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from backend.api.dependencies import get_redis_manager
 from backend.api.event_extractors import extract_persona_dict, get_event_registry
 from backend.api.event_publisher import EventPublisher, flush_session_events
+from backend.services.event_batcher import flush_batcher
 from bo1.config import get_settings
 from bo1.context import set_request_id
 from bo1.llm.cost_tracker import CostTracker
@@ -1008,6 +1009,9 @@ class EventCollector:
             return
 
         # Flush any pending batch events before completion
+        # First flush the EventBatcher (priority-based batching)
+        await flush_batcher()
+        # Then flush any remaining events in the publisher's batch
         await flush_session_events(session_id)
 
         # Publish cost breakdown

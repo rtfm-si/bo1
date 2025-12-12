@@ -16,10 +16,12 @@ Usage:
 from fastapi import APIRouter
 
 from backend.api.admin import (
+    alerts,
     beta_whitelist,
     cost_analytics,
     feature_flags,
     metrics,
+    observability,
     research_cache,
     session_control,
     user_metrics,
@@ -40,6 +42,8 @@ router.include_router(metrics.router)
 router.include_router(user_metrics.router)
 router.include_router(cost_analytics.router)
 router.include_router(feature_flags.router)
+router.include_router(alerts.router)
+router.include_router(observability.router)
 
 # Re-export models for backward compatibility
 from backend.api.admin.models import (  # noqa: E402, F401
@@ -47,6 +51,9 @@ from backend.api.admin.models import (  # noqa: E402, F401
     ActiveSessionsResponse,
     AddWhitelistRequest,
     AdminStatsResponse,
+    AlertHistoryItem,
+    AlertHistoryResponse,
+    AlertSettingsResponse,
     ApproveWaitlistResponse,
     BetaWhitelistEntry,
     BetaWhitelistResponse,
@@ -80,4 +87,7 @@ __all__ = [
     "WaitlistEntry",
     "WaitlistResponse",
     "ApproveWaitlistResponse",
+    "AlertHistoryItem",
+    "AlertHistoryResponse",
+    "AlertSettingsResponse",
 ]

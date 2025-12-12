@@ -17,13 +17,16 @@
 		adminApi,
 		type UserMetricsResponse,
 		type UsageMetricsResponse,
-		type OnboardingFunnelResponse
+		type OnboardingFunnelResponse,
+		type ObservabilityLinksResponse
 	} from '$lib/api/admin';
+	import ObservabilityLinks from '$lib/components/admin/ObservabilityLinks.svelte';
 
 	// State
 	let userMetrics = $state<UserMetricsResponse | null>(null);
 	let usageMetrics = $state<UsageMetricsResponse | null>(null);
 	let funnelMetrics = $state<OnboardingFunnelResponse | null>(null);
+	let observabilityLinks = $state<ObservabilityLinksResponse | null>(null);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let selectedDays = $state(30);
@@ -35,14 +38,16 @@
 	async function loadData() {
 		try {
 			loading = true;
-			const [userData, usageData, funnelData] = await Promise.all([
+			const [userData, usageData, funnelData, obsLinks] = await Promise.all([
 				adminApi.getUserMetrics(selectedDays),
 				adminApi.getUsageMetrics(selectedDays),
-				adminApi.getOnboardingMetrics()
+				adminApi.getOnboardingMetrics(),
+				adminApi.getObservabilityLinks()
 			]);
 			userMetrics = userData;
 			usageMetrics = usageData;
 			funnelMetrics = funnelData;
+			observabilityLinks = obsLinks;
 			error = null;
 
 			// Calculate max for chart scaling
@@ -149,11 +154,16 @@
 		{/if}
 
 		{#if loading}
-			<div class="flex items-center justify-center py-12">
-				<RefreshCw class="w-8 h-8 text-brand-600 animate-spin" />
-			</div>
+		<div class="flex items-center justify-center py-12">
+		<RefreshCw class="w-8 h-8 text-brand-600 animate-spin" />
+		</div>
 		{:else}
-			<!-- User Metrics Cards -->
+		<!-- Observability Links -->
+		{#if observabilityLinks}
+			<ObservabilityLinks {...observabilityLinks} />
+		{/if}
+
+		<!-- User Metrics Cards -->
 			{#if userMetrics}
 				<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">User Metrics</h2>
 				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

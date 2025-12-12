@@ -31,9 +31,11 @@ class DatasetRepository(BaseRepository):
         description: str | None = None,
         source_uri: str | None = None,
         file_key: str | None = None,
+        storage_path: str | None = None,
         row_count: int | None = None,
         column_count: int | None = None,
         file_size_bytes: int | None = None,
+        workspace_id: str | None = None,
     ) -> dict[str, Any]:
         """Create a new dataset.
 
@@ -44,9 +46,11 @@ class DatasetRepository(BaseRepository):
             description: Optional description
             source_uri: Original source location
             file_key: Spaces object key
+            storage_path: Storage prefix path (e.g., datasets/user_id)
             row_count: Number of rows
             column_count: Number of columns
             file_size_bytes: File size in bytes
+            workspace_id: Optional workspace UUID to scope dataset to a team
 
         Returns:
             Created dataset record
@@ -57,12 +61,12 @@ class DatasetRepository(BaseRepository):
                     """
                     INSERT INTO datasets (
                         user_id, name, description, source_type,
-                        source_uri, file_key, row_count, column_count, file_size_bytes
+                        source_uri, file_key, storage_path, row_count, column_count, file_size_bytes, workspace_id
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id, user_id, name, description, source_type,
-                              source_uri, file_key, row_count, column_count,
-                              file_size_bytes, created_at, updated_at
+                              source_uri, file_key, storage_path, row_count, column_count,
+                              file_size_bytes, workspace_id, created_at, updated_at
                     """,
                     (
                         user_id,
@@ -71,9 +75,11 @@ class DatasetRepository(BaseRepository):
                         source_type,
                         source_uri,
                         file_key,
+                        storage_path,
                         row_count,
                         column_count,
                         file_size_bytes,
+                        workspace_id,
                     ),
                 )
                 row = cur.fetchone()
@@ -88,9 +94,11 @@ class DatasetRepository(BaseRepository):
                 "source_type": row["source_type"],
                 "source_uri": row["source_uri"],
                 "file_key": row["file_key"],
+                "storage_path": row["storage_path"],
                 "row_count": row["row_count"],
                 "column_count": row["column_count"],
                 "file_size_bytes": row["file_size_bytes"],
+                "workspace_id": str(row["workspace_id"]) if row["workspace_id"] else None,
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
             }
@@ -111,7 +119,7 @@ class DatasetRepository(BaseRepository):
                 cur.execute(
                     """
                     SELECT id, user_id, name, description, source_type,
-                           source_uri, file_key, row_count, column_count,
+                           source_uri, file_key, storage_path, row_count, column_count,
                            file_size_bytes, created_at, updated_at, summary
                     FROM datasets
                     WHERE id = %s AND user_id = %s AND deleted_at IS NULL
@@ -129,6 +137,7 @@ class DatasetRepository(BaseRepository):
                 "source_type": row["source_type"],
                 "source_uri": row["source_uri"],
                 "file_key": row["file_key"],
+                "storage_path": row["storage_path"],
                 "row_count": row["row_count"],
                 "column_count": row["column_count"],
                 "file_size_bytes": row["file_size_bytes"],
@@ -143,6 +152,7 @@ class DatasetRepository(BaseRepository):
         user_id: str,
         limit: int = 50,
         offset: int = 0,
+        workspace_id: str | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         """List datasets for a user.
 
@@ -150,34 +160,45 @@ class DatasetRepository(BaseRepository):
             user_id: User ID
             limit: Max results
             offset: Pagination offset
+            workspace_id: Filter by workspace UUID (optional)
 
         Returns:
             Tuple of (datasets list, total count)
         """
         with db_session() as conn:
             with conn.cursor() as cur:
+                # Build WHERE clause
+                where_parts = ["user_id = %s", "deleted_at IS NULL"]
+                params: list[Any] = [user_id]
+
+                if workspace_id:
+                    where_parts.append("workspace_id = %s")
+                    params.append(workspace_id)
+
+                where_clause = " AND ".join(where_parts)
+
                 # Get total count
                 cur.execute(
-                    """
+                    f"""
                     SELECT COUNT(*) FROM datasets
-                    WHERE user_id = %s AND deleted_at IS NULL
+                    WHERE {where_clause}
                     """,
-                    (user_id,),
+                    params,
                 )
                 total = cur.fetchone()["count"]
 
                 # Get datasets
                 cur.execute(
-                    """
+                    f"""
                     SELECT id, user_id, name, description, source_type,
-                           source_uri, file_key, row_count, column_count,
-                           file_size_bytes, created_at, updated_at
+                           source_uri, file_key, storage_path, row_count, column_count,
+                           file_size_bytes, workspace_id, created_at, updated_at
                     FROM datasets
-                    WHERE user_id = %s AND deleted_at IS NULL
+                    WHERE {where_clause}
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                     """,
-                    (user_id, limit, offset),
+                    params + [limit, offset],
                 )
                 rows = cur.fetchall()
 
@@ -190,9 +211,11 @@ class DatasetRepository(BaseRepository):
                 "source_type": row["source_type"],
                 "source_uri": row["source_uri"],
                 "file_key": row["file_key"],
+                "storage_path": row["storage_path"],
                 "row_count": row["row_count"],
                 "column_count": row["column_count"],
                 "file_size_bytes": row["file_size_bytes"],
+                "workspace_id": str(row["workspace_id"]) if row["workspace_id"] else None,
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
             }

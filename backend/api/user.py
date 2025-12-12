@@ -373,3 +373,239 @@ async def update_retention_setting(
     except Exception as e:
         logger.error(f"Failed to update retention setting for {user_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update setting") from e
+
+
+# Meeting preferences models
+class PreferencesResponse(BaseModel):
+    """Response for user preferences endpoint."""
+
+    skip_clarification: bool = Field(
+        default=False, description="Skip pre-meeting clarifying questions by default"
+    )
+
+
+class PreferencesUpdate(BaseModel):
+    """Request body for updating user preferences."""
+
+    skip_clarification: bool | None = Field(
+        default=None, description="Skip pre-meeting clarifying questions by default"
+    )
+
+
+@router.get(
+    "/preferences",
+    summary="Get user preferences",
+    description="Get the user's meeting and workflow preferences.",
+    response_model=PreferencesResponse,
+    responses={
+        200: {"description": "Current preferences"},
+        500: {"description": "Failed to get preferences", "model": ErrorResponse},
+    },
+)
+async def get_preferences(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> PreferencesResponse:
+    """Get user's meeting preferences."""
+    user_id = user["user_id"]
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT skip_clarification FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                return PreferencesResponse(
+                    skip_clarification=row.get("skip_clarification", False) or False
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get preferences for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get preferences") from e
+
+
+@router.patch(
+    "/preferences",
+    summary="Update user preferences",
+    description="""
+    Update user's meeting and workflow preferences.
+
+    Available preferences:
+    - skip_clarification: Skip pre-meeting clarifying questions by default.
+      When enabled, meetings start directly without asking context questions.
+      You can still provide context via your business profile.
+    """,
+    response_model=PreferencesResponse,
+    responses={
+        200: {"description": "Preferences updated"},
+        500: {"description": "Failed to update preferences", "model": ErrorResponse},
+    },
+)
+async def update_preferences(
+    body: PreferencesUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> PreferencesResponse:
+    """Update user's meeting preferences."""
+    user_id = user["user_id"]
+
+    # Build dynamic update query
+    updates = []
+    params: list[Any] = []
+
+    if body.skip_clarification is not None:
+        updates.append("skip_clarification = %s")
+        params.append(body.skip_clarification)
+
+    if not updates:
+        # No changes requested, return current values
+        return await get_preferences(user)
+
+    params.append(user_id)
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    UPDATE users
+                    SET {", ".join(updates)}, updated_at = NOW()
+                    WHERE id = %s
+                    RETURNING skip_clarification
+                    """,
+                    params,
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                logger.info(
+                    f"Updated preferences for {user_id}: skip_clarification={row.get('skip_clarification')}"
+                )
+                return PreferencesResponse(
+                    skip_clarification=row.get("skip_clarification", False) or False
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update preferences for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update preferences") from e
+
+
+# Gantt color preference models
+class GanttColorPreferenceResponse(BaseModel):
+    """Response for Gantt color preference endpoint."""
+
+    gantt_color_strategy: str = Field(
+        ...,
+        description="Gantt chart color coding strategy (BY_STATUS, BY_PROJECT, BY_PRIORITY, HYBRID)",
+    )
+
+
+class GanttColorPreferenceUpdate(BaseModel):
+    """Request body for updating Gantt color preference."""
+
+    gantt_color_strategy: str = Field(
+        ...,
+        pattern="^(BY_STATUS|BY_PROJECT|BY_PRIORITY|HYBRID)$",
+        description="Gantt chart color coding strategy",
+    )
+
+
+@router.get(
+    "/preferences/gantt-colors",
+    summary="Get Gantt color preference",
+    description="Get the user's preferred Gantt chart color coding strategy.",
+    response_model=GanttColorPreferenceResponse,
+    responses={
+        200: {"description": "Current Gantt color preference"},
+        500: {"description": "Failed to get preference", "model": ErrorResponse},
+    },
+)
+async def get_gantt_color_preference(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> GanttColorPreferenceResponse:
+    """Get user's Gantt color preference."""
+    user_id = user["user_id"]
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT gantt_color_strategy FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                return GanttColorPreferenceResponse(
+                    gantt_color_strategy=row.get("gantt_color_strategy", "BY_STATUS") or "BY_STATUS"
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get Gantt color preference for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get preference") from e
+
+
+@router.patch(
+    "/preferences/gantt-colors",
+    summary="Update Gantt color preference",
+    description="""
+    Update user's preferred Gantt chart color coding strategy.
+
+    Available strategies:
+    - BY_STATUS: Color actions by their status (not started, in progress, blocked, on hold, complete, cancelled)
+    - BY_PROJECT: Color actions by their assigned project
+    - BY_PRIORITY: Color actions by their priority (low, medium, high)
+    - HYBRID: Combine status (primary) and project (accent stripe) coloring
+    """,
+    response_model=GanttColorPreferenceResponse,
+    responses={
+        200: {"description": "Preference updated"},
+        400: {"description": "Invalid strategy", "model": ErrorResponse},
+        500: {"description": "Failed to update preference", "model": ErrorResponse},
+    },
+)
+async def update_gantt_color_preference(
+    body: GanttColorPreferenceUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> GanttColorPreferenceResponse:
+    """Update user's Gantt color preference."""
+    user_id = user["user_id"]
+    strategy = body.gantt_color_strategy
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET gantt_color_strategy = %s, updated_at = NOW()
+                    WHERE id = %s
+                    RETURNING gantt_color_strategy
+                    """,
+                    (strategy, user_id),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                logger.info(f"Updated Gantt color strategy for {user_id}: {strategy}")
+                return GanttColorPreferenceResponse(
+                    gantt_color_strategy=row["gantt_color_strategy"]
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update Gantt color preference for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update preference") from e

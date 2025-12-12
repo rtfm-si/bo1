@@ -57,16 +57,17 @@
 			// Clear params from URL
 			goto('/datasets', { replaceState: true });
 		} else if (sheetsError) {
+			// Map sanitized safe error codes to user-friendly messages
 			const errorMessages: Record<string, string> = {
-				access_denied: 'Google Sheets access was denied. Please try again.',
-				missing_params: 'OAuth flow was interrupted. Please try again.',
-				invalid_state: 'OAuth session expired. Please try again.',
-				token_exchange_failed: 'Failed to complete authentication. Please try again.',
-				request_failed: 'Network error during authentication. Please try again.',
+				auth_failed: 'Authentication failed. Please try again.',
+				access_denied: 'Access denied. Please contact support if you believe this is an error.',
+				config_error: 'Service configuration error. Please try again later.',
+				session_expired: 'Your session has expired. Please try again.',
+				rate_limited: 'Too many attempts. Please try again later.',
 			};
 			sheetsConnectionMessage = {
 				type: 'error',
-				text: errorMessages[sheetsError] || `Connection failed: ${sheetsError}`,
+				text: errorMessages[sheetsError] || 'Connection failed. Please try again.',
 			};
 			// Clear params from URL
 			goto('/datasets', { replaceState: true });

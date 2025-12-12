@@ -2,10 +2,11 @@
 
 Provides high-level alert functions that use ntfy.sh for delivery.
 Used by monitoring service and background tasks.
+Logs all alerts to database for audit trail.
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from backend.api.ntfy import notify_database_alert, send_ntfy_alert
 
@@ -13,6 +14,56 @@ if TYPE_CHECKING:
     from backend.services.monitoring import RunawaySessionResult
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# ALERT LOGGING
+# =============================================================================
+
+
+async def log_alert(
+    alert_type: str,
+    severity: str,
+    title: str,
+    message: str,
+    delivered: bool,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Log an alert to the database for audit trail.
+
+    Args:
+        alert_type: Type of alert (e.g., runaway_session, auth_failure_spike)
+        severity: Severity level (info, warning, high, urgent, critical)
+        title: Alert title
+        message: Alert message body
+        delivered: Whether ntfy delivery succeeded
+        metadata: Optional additional context
+    """
+    try:
+        import json
+
+        from bo1.state.database import db_session
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO alert_history (alert_type, severity, title, message, metadata, delivered)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        alert_type,
+                        severity,
+                        title,
+                        message,
+                        json.dumps(metadata) if metadata else None,
+                        delivered,
+                    ),
+                )
+            conn.commit()
+    except Exception as e:
+        # Don't fail the alert if logging fails
+        logger.warning(f"Failed to log alert to database: {e}")
 
 
 def _get_ntfy_alerts_topic() -> str:
@@ -50,11 +101,28 @@ async def alert_runaway_session(result: "RunawaySessionResult") -> bool:
         f"Cost: ${result.cost_usd:.2f}"
     )
 
-    return await notify_database_alert(
+    delivered = await notify_database_alert(
         alert_type="warning",
         title=title,
         message=message,
     )
+
+    await log_alert(
+        alert_type="runaway_session",
+        severity="warning",
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "session_id": result.session_id,
+            "user_id": result.user_id,
+            "reason": result.reason,
+            "duration_minutes": result.duration_minutes,
+            "cost_usd": result.cost_usd,
+        },
+    )
+
+    return delivered
 
 
 async def alert_runaway_sessions_batch(
@@ -84,11 +152,13 @@ async def alert_runaway_sessions_batch(
     title = f"{len(results)} Runaway Sessions Detected"
 
     # Summarize by reason
-    by_reason = {"duration": 0, "cost": 0, "stale": 0}
+    by_reason: dict[str, int] = {"duration": 0, "cost": 0, "stale": 0}
     total_cost = 0.0
+    session_ids = []
     for r in results:
         by_reason[r.reason] = by_reason.get(r.reason, 0) + 1
         total_cost += r.cost_usd
+        session_ids.append(r.session_id)
 
     message = f"Found {len(results)} sessions exceeding thresholds:\n"
     if by_reason["duration"]:
@@ -99,11 +169,28 @@ async def alert_runaway_sessions_batch(
         message += f"- Stale (no events): {by_reason['stale']}\n"
     message += f"\nTotal cost: ${total_cost:.2f}"
 
-    return await notify_database_alert(
-        alert_type="critical" if len(results) > 3 else "warning",
+    severity = "critical" if len(results) > 3 else "warning"
+    delivered = await notify_database_alert(
+        alert_type=severity,
         title=title,
         message=message,
     )
+
+    await log_alert(
+        alert_type="runaway_sessions_batch",
+        severity=severity,
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "session_count": len(results),
+            "session_ids": session_ids[:10],  # Limit to first 10
+            "by_reason": by_reason,
+            "total_cost_usd": total_cost,
+        },
+    )
+
+    return delivered
 
 
 async def alert_session_killed(
@@ -132,13 +219,30 @@ async def alert_session_killed(
     if cost is not None:
         message += f"\nCost at kill: ${cost:.2f}"
 
-    return await send_ntfy_alert(
+    severity = "high" if killed_by == "system" else "warning"
+    delivered = await send_ntfy_alert(
         topic=topic,
         title=title,
         message=message,
-        priority="high" if killed_by == "system" else "default",
+        priority=severity if severity == "high" else "default",
         tags=["skull", "warning"],
     )
+
+    await log_alert(
+        alert_type="session_killed",
+        severity=severity,
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "session_id": session_id,
+            "killed_by": killed_by,
+            "reason": reason,
+            "cost_usd": cost,
+        },
+    )
+
+    return delivered
 
 
 async def alert_kill_all_sessions(
@@ -160,13 +264,31 @@ async def alert_kill_all_sessions(
     if not topic:
         return False
 
-    return await send_ntfy_alert(
+    title = "EMERGENCY: All Sessions Killed"
+    message = f"Killed {killed_count} sessions\nBy: {killed_by}\nReason: {reason}"
+
+    delivered = await send_ntfy_alert(
         topic=topic,
-        title="EMERGENCY: All Sessions Killed",
-        message=(f"Killed {killed_count} sessions\nBy: {killed_by}\nReason: {reason}"),
+        title=title,
+        message=message,
         priority="urgent",
         tags=["rotating_light", "skull"],
     )
+
+    await log_alert(
+        alert_type="kill_all_sessions",
+        severity="critical",
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "killed_count": killed_count,
+            "killed_by": killed_by,
+            "reason": reason,
+        },
+    )
+
+    return delivered
 
 
 async def alert_service_degraded(
@@ -214,13 +336,31 @@ async def alert_service_degraded(
     if last_error and new_status != "operational":
         message += f"\nLast error: {last_error[:100]}"
 
-    return await send_ntfy_alert(
+    delivered = await send_ntfy_alert(
         topic=topic,
         title=title,
         message=message,
         priority=priority,
         tags=tags,
     )
+
+    severity_map = {"outage": "critical", "degraded": "high", "operational": "info"}
+    await log_alert(
+        alert_type="service_degraded",
+        severity=severity_map.get(new_status, "warning"),
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "service_name": service_name,
+            "status": new_status,
+            "error_rate": error_rate,
+            "latency_p95": latency_p95,
+            "last_error": last_error[:200] if last_error else None,
+        },
+    )
+
+    return delivered
 
 
 async def alert_vendor_outage(
@@ -247,13 +387,28 @@ async def alert_vendor_outage(
     if last_error:
         message += f"\nLast error: {last_error[:150]}"
 
-    return await send_ntfy_alert(
+    delivered = await send_ntfy_alert(
         topic=topic,
         title=title,
         message=message,
         priority="high",
         tags=["warning", "robot"],
     )
+
+    await log_alert(
+        alert_type="vendor_outage",
+        severity="high",
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "provider": provider,
+            "error_rate": error_rate,
+            "last_error": last_error[:200] if last_error else None,
+        },
+    )
+
+    return delivered
 
 
 async def alert_user_cost_threshold(
@@ -288,10 +443,12 @@ async def alert_user_cost_threshold(
         priority = "high"
         tags = ["warning", "moneybag"]
         title = "User Cost Limit Exceeded"
+        severity = "high"
     else:
         priority = "default"
         tags = ["chart_with_upwards_trend", "moneybag"]
         title = "User Approaching Cost Limit"
+        severity = "warning"
 
     user_display = email or user_id[:12]
     message = (
@@ -300,13 +457,31 @@ async def alert_user_cost_threshold(
         f"Status: {status}"
     )
 
-    return await send_ntfy_alert(
+    delivered = await send_ntfy_alert(
         topic=topic,
         title=title,
         message=message,
         priority=priority,
         tags=tags,
     )
+
+    await log_alert(
+        alert_type="cost_threshold",
+        severity=severity,
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "user_id": user_id,
+            "email": email,
+            "current_cost_cents": current_cost_cents,
+            "limit_cents": limit_cents,
+            "percentage": percentage,
+            "status": status,
+        },
+    )
+
+    return delivered
 
 
 # =============================================================================
@@ -334,15 +509,31 @@ async def alert_auth_failure_spike(
         logger.debug("No alerts topic configured - skipping auth failure alert")
         return False
 
-    return await send_ntfy_alert(
+    title = "Auth Failure Spike Detected"
+    message = f"IP: {ip}\nFailures: {count} in {window_minutes} min\nPossible brute force attempt"
+
+    delivered = await send_ntfy_alert(
         topic=topic,
-        title="Auth Failure Spike Detected",
-        message=(
-            f"IP: {ip}\nFailures: {count} in {window_minutes} min\nPossible brute force attempt"
-        ),
+        title=title,
+        message=message,
         priority="high",
         tags=["warning", "lock"],
     )
+
+    await log_alert(
+        alert_type="auth_failure_spike",
+        severity="high",
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "ip": ip,
+            "count": count,
+            "window_minutes": window_minutes,
+        },
+    )
+
+    return delivered
 
 
 async def alert_rate_limit_spike(
@@ -365,18 +556,119 @@ async def alert_rate_limit_spike(
         logger.debug("No alerts topic configured - skipping rate limit alert")
         return False
 
-    return await send_ntfy_alert(
+    title = "Rate Limit Spike Detected"
+    message = (
+        f"IP: {ip}\n"
+        f"Endpoint: {endpoint or 'multiple'}\n"
+        f"429 responses: {count}\n"
+        "Possible abuse attempt"
+    )
+
+    delivered = await send_ntfy_alert(
         topic=topic,
-        title="Rate Limit Spike Detected",
-        message=(
-            f"IP: {ip}\n"
-            f"Endpoint: {endpoint or 'multiple'}\n"
-            f"429 responses: {count}\n"
-            "Possible abuse attempt"
-        ),
+        title=title,
+        message=message,
         priority="default",
         tags=["warning", "hourglass"],
     )
+
+    await log_alert(
+        alert_type="rate_limit_spike",
+        severity="warning",
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "ip": ip,
+            "endpoint": endpoint,
+            "count": count,
+        },
+    )
+
+    return delivered
+
+
+async def alert_rate_limiter_degraded(
+    degraded_since: str,
+    consecutive_failures: int,
+) -> bool:
+    """Send alert when rate limiter enters fail-open mode due to Redis unavailability.
+
+    Args:
+        degraded_since: ISO timestamp when degradation started
+        consecutive_failures: Number of consecutive Redis failures
+
+    Returns:
+        True if alert sent successfully
+    """
+    topic = _get_ntfy_alerts_topic()
+    if not topic:
+        logger.debug("No alerts topic configured - skipping rate limiter degraded alert")
+        return False
+
+    title = "Rate Limiter Degraded (Fail-Open)"
+    message = (
+        f"Redis unavailable - rate limiting disabled\n"
+        f"Since: {degraded_since}\n"
+        f"Consecutive failures: {consecutive_failures}\n"
+        "All requests passing through without rate limit checks"
+    )
+
+    delivered = await send_ntfy_alert(
+        topic=topic,
+        title=title,
+        message=message,
+        priority="high",
+        tags=["warning", "hourglass"],
+    )
+
+    await log_alert(
+        alert_type="rate_limiter_degraded",
+        severity="high",
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "degraded_since": degraded_since,
+            "consecutive_failures": consecutive_failures,
+        },
+    )
+
+    return delivered
+
+
+async def alert_rate_limiter_recovered() -> bool:
+    """Send alert when rate limiter recovers from fail-open mode.
+
+    Returns:
+        True if alert sent successfully
+    """
+    topic = _get_ntfy_alerts_topic()
+    if not topic:
+        logger.debug("No alerts topic configured - skipping rate limiter recovery alert")
+        return False
+
+    title = "Rate Limiter Recovered"
+    message = "Redis connectivity restored - rate limiting resumed"
+
+    delivered = await send_ntfy_alert(
+        topic=topic,
+        title=title,
+        message=message,
+        priority="default",
+        tags=["white_check_mark", "hourglass"],
+    )
+
+    await log_alert(
+        alert_type="rate_limiter_recovered",
+        severity="info",
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={},
+    )
+
+    return delivered
 
 
 async def alert_lockout_spike(
@@ -397,10 +689,27 @@ async def alert_lockout_spike(
         logger.debug("No alerts topic configured - skipping lockout alert")
         return False
 
-    return await send_ntfy_alert(
+    title = "Multiple Lockouts from IP"
+    message = f"IP: {ip}\nLockouts: {count}\nSustained attack or compromised credentials"
+
+    delivered = await send_ntfy_alert(
         topic=topic,
-        title="Multiple Lockouts from IP",
-        message=(f"IP: {ip}\nLockouts: {count}\nSustained attack or compromised credentials"),
+        title=title,
+        message=message,
         priority="high",
         tags=["rotating_light", "lock"],
     )
+
+    await log_alert(
+        alert_type="lockout_spike",
+        severity="high",
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "ip": ip,
+            "count": count,
+        },
+    )
+
+    return delivered

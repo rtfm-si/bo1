@@ -127,6 +127,7 @@ Both configs include:
 - ✅ Static asset caching
 - ✅ Health check endpoints
 - ✅ Connection limits (10 per IP)
+- ✅ WAF rules (SQLi, XSS, path traversal, scanner blocking)
 
 ---
 
@@ -309,12 +310,12 @@ curl https://boardof.one/api/health
 ### Enabled Headers
 
 ```nginx
-Strict-Transport-Security: max-age=31536000; includeSubDomains
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 X-Frame-Options: SAMEORIGIN
 X-Content-Type-Options: nosniff
 X-XSS-Protection: 1; mode=block
 Referrer-Policy: strict-origin-when-cross-origin
-Content-Security-Policy: default-src 'self'; ...
+Content-Security-Policy: (set by SvelteKit with nonce-based scripts)
 ```
 
 ### Disabled Sensitive Information
@@ -324,11 +325,126 @@ server_tokens off;  # Don't reveal nginx version
 access_log off;     # For health check endpoints only
 ```
 
+### WAF (Web Application Firewall)
+
+Both blue and green configs include WAF rules that block:
+
+**SQL Injection:**
+- UNION SELECT attacks
+- OR-based bypass (`' OR '1'='1`)
+- SQL keywords in suspicious context
+- Comment-based injection (`--`, `/* */`)
+
+**XSS (Cross-Site Scripting):**
+- Script tags (`<script>`, `</script>`)
+- Event handlers (`onerror=`, `onload=`, etc.)
+- JavaScript protocol (`javascript:`)
+- Base64 data URIs
+
+**Path Traversal:**
+- Directory traversal (`../`, `..%2f`)
+- Null byte injection (`%00`)
+- Windows path variants
+
+**Scanner/Probe Detection:**
+- Sensitive files (`.env`, `.git/`, `.htaccess`)
+- WordPress/PHP probes (`wp-admin`, `phpmyadmin`)
+- AWS metadata endpoint
+- Known malicious user agents (sqlmap, nikto, etc.)
+
+**Allowlisted Endpoints (bypass WAF):**
+- `/api/v1/datasets/*/ask` - Dataset Q&A can contain SQL/code
+- `/api/v1/sessions/*/stream` - SSE streaming
+- `/api/health`, `/api/ready` - Health checks
+- OAuth callback endpoints
+
+**WAF Logs:**
+Blocked requests are logged to `/var/log/nginx/waf-blocked.log` with attack type indicators.
+
+```bash
+# View WAF blocked requests
+sudo tail -f /var/log/nginx/waf-blocked.log
+
+# Example log entry:
+# 192.168.1.1 - [12/Dec/2025:10:00:00 +0000] "GET /.env HTTP/1.1" sqli=00 xss=00 traversal=0 probe=1 agent=0 ua="curl/7.68.0"
+```
+
 ### SSL Configuration
 
 - **Protocols:** TLSv1.2, TLSv1.3 only (no SSLv3, TLSv1.0, TLSv1.1)
 - **Ciphers:** Modern, secure cipher suites only
-- **HSTS:** Enabled with 1-year max-age
+- **HSTS:** Enabled with 1-year max-age, includeSubDomains, and preload directive
+
+---
+
+## HSTS Preload
+
+### Current Configuration
+
+All nginx configs include HSTS with preload support:
+
+```nginx
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+```
+
+### Preload Requirements (all met)
+
+✅ Valid HTTPS certificate
+✅ HTTP→HTTPS redirect (301) on port 80
+✅ max-age >= 31536000 (1 year)
+✅ includeSubDomains directive
+✅ preload directive
+
+### Submitting to HSTS Preload List
+
+**⚠️ WARNING: HSTS preload is IRREVERSIBLE for ~3 months minimum. Once preloaded:**
+- The domain MUST serve HTTPS forever
+- ALL subdomains must support HTTPS
+- Removal from the preload list takes months to propagate
+
+**Manual Submission Steps:**
+
+1. Verify eligibility: `GET /api/health/hsts` returns `preload_eligible: true`
+2. Visit https://hstspreload.org
+3. Enter domain: `boardof.one`
+4. Review and acknowledge requirements
+5. Submit for preload
+
+**Verification After Submission:**
+
+```bash
+# Check preload status
+curl https://hstspreload.org/api/v2/status?domain=boardof.one
+
+# Expected states:
+# - "status": "pending" (submitted, awaiting processing)
+# - "status": "preloaded" (in Chrome preload list)
+# - "status": "unknown" (not submitted)
+```
+
+### Health Check Endpoint
+
+The API provides an HSTS compliance check:
+
+```bash
+curl https://boardof.one/api/health/hsts
+```
+
+Response:
+```json
+{
+  "status": "compliant",
+  "preload_eligible": true,
+  "header_value": "max-age=31536000; includeSubDomains; preload",
+  "checks": {
+    "max_age_sufficient": true,
+    "include_subdomains": true,
+    "preload_directive": true
+  },
+  "message": "HSTS configuration meets all preload requirements",
+  "submission_url": "https://hstspreload.org"
+}
+```
 
 ---
 

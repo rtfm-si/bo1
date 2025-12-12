@@ -183,6 +183,16 @@ services:
         condition: service_healthy
       supertokens:
         condition: service_started
+    # JSON file logging for Promtail file-based scraping (no Docker socket needed)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,compose_project"
+    labels:
+      - "service=api"
+      - "compose_project=bo1"
     environment:
       # Redis Configuration
       - REDIS_HOST=redis
@@ -243,6 +253,16 @@ services:
     depends_on:
       api:
         condition: service_started
+    # JSON file logging for Promtail file-based scraping (no Docker socket needed)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,compose_project"
+    labels:
+      - "service=frontend"
+      - "compose_project=bo1"
     environment:
       - NODE_ENV=development
       - PUBLIC_API_URL=http://localhost:8000

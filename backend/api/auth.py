@@ -27,6 +27,7 @@ from supertokens_python.recipe.session.framework.fastapi import verify_session
 from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
 from backend.api.oauth_session_manager import SessionManager
 from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.oauth_errors import sanitize_oauth_error
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
@@ -189,14 +190,15 @@ async def sheets_connect_callback(
     frontend_url = os.getenv("SUPERTOKENS_WEBSITE_DOMAIN", "http://localhost:5173")
     datasets_url = f"{frontend_url}/datasets"
 
-    # Handle OAuth errors
+    # Handle OAuth errors (sanitize before exposing to user)
     if error:
-        logger.warning(f"Sheets OAuth error: {error}")
-        return RedirectResponse(url=f"{datasets_url}?sheets_error={error}", status_code=302)
+        safe_error = sanitize_oauth_error(error)
+        logger.warning(f"Sheets OAuth error: {error} -> sanitized to: {safe_error}")
+        return RedirectResponse(url=f"{datasets_url}?sheets_error={safe_error}", status_code=302)
 
     if not code or not state:
         logger.warning("Sheets callback missing code or state")
-        return RedirectResponse(url=f"{datasets_url}?sheets_error=missing_params", status_code=302)
+        return RedirectResponse(url=f"{datasets_url}?sheets_error=auth_failed", status_code=302)
 
     # Validate state and get user_id
     session_manager = get_session_manager()
@@ -204,18 +206,18 @@ async def sheets_connect_callback(
 
     if not state_data:
         logger.warning(f"Invalid or expired OAuth state: {state[:8]}...")
-        return RedirectResponse(url=f"{datasets_url}?sheets_error=invalid_state", status_code=302)
+        return RedirectResponse(url=f"{datasets_url}?sheets_error=session_expired", status_code=302)
 
     # Extract user_id from stored redirect_uri
     redirect_info = state_data.get("redirect_uri", "")
     if not redirect_info.startswith("user:"):
         logger.warning("Invalid state data format")
-        return RedirectResponse(url=f"{datasets_url}?sheets_error=invalid_state", status_code=302)
+        return RedirectResponse(url=f"{datasets_url}?sheets_error=auth_failed", status_code=302)
 
     parts = redirect_info.split(":")
     if len(parts) < 2:
         logger.warning("Invalid state data format")
-        return RedirectResponse(url=f"{datasets_url}?sheets_error=invalid_state", status_code=302)
+        return RedirectResponse(url=f"{datasets_url}?sheets_error=auth_failed", status_code=302)
 
     user_id = parts[1]
 
@@ -243,9 +245,7 @@ async def sheets_connect_callback(
 
         if token_response.status_code != 200:
             logger.error(f"Token exchange failed: {token_response.text}")
-            return RedirectResponse(
-                url=f"{datasets_url}?sheets_error=token_exchange_failed", status_code=302
-            )
+            return RedirectResponse(url=f"{datasets_url}?sheets_error=auth_failed", status_code=302)
 
         tokens = token_response.json()
         access_token = tokens.get("access_token")
@@ -255,9 +255,7 @@ async def sheets_connect_callback(
 
         if not access_token:
             logger.error("No access token in response")
-            return RedirectResponse(
-                url=f"{datasets_url}?sheets_error=no_access_token", status_code=302
-            )
+            return RedirectResponse(url=f"{datasets_url}?sheets_error=auth_failed", status_code=302)
 
         # Calculate expiry
         expires_at = None
@@ -278,7 +276,7 @@ async def sheets_connect_callback(
 
     except requests.RequestException as e:
         logger.error(f"Token exchange request failed: {e}")
-        return RedirectResponse(url=f"{datasets_url}?sheets_error=request_failed", status_code=302)
+        return RedirectResponse(url=f"{datasets_url}?sheets_error=auth_failed", status_code=302)
 
 
 @router.delete("/google/sheets/disconnect")

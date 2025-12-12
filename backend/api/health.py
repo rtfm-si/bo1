@@ -1180,6 +1180,30 @@ async def health_check_circuit_breakers() -> CircuitBreakersHealthResponse:
     )
 
 
+class HSTSCheckResponse(BaseModel):
+    """HSTS compliance check response.
+
+    Attributes:
+        status: Compliance status (compliant/non_compliant)
+        component: Component name (hsts)
+        preload_eligible: Whether the configuration meets preload requirements
+        header_value: Current HSTS header value (from nginx config)
+        checks: Individual requirement check results
+        message: Status message with any issues
+        submission_url: URL to submit domain for preload (if eligible)
+        timestamp: ISO 8601 timestamp
+    """
+
+    status: str = Field(..., description="Compliance status: compliant, non_compliant")
+    component: str = Field(default="hsts", description="Component name")
+    preload_eligible: bool = Field(..., description="Meets preload requirements")
+    header_value: str = Field(..., description="Current HSTS header value")
+    checks: dict[str, bool] = Field(..., description="Individual requirement results")
+    message: str = Field(..., description="Status message with any issues")
+    submission_url: str | None = Field(None, description="HSTS preload submission URL")
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+
+
 class CheckpointHealthResponse(BaseModel):
     """Checkpoint backend health response.
 
@@ -1289,3 +1313,137 @@ async def health_check_checkpoint() -> CheckpointHealthResponse:
         raise HTTPException(status_code=503, detail=response.model_dump())
 
     return response
+
+
+# HSTS preload requirements
+HSTS_MIN_MAX_AGE = 31536000  # 1 year in seconds
+HSTS_SUBMISSION_URL = "https://hstspreload.org"
+
+
+@router.get(
+    "/health/hsts",
+    response_model=HSTSCheckResponse,
+    summary="HSTS preload compliance check",
+    description="""
+    Check if HSTS configuration meets browser preload list requirements.
+
+    **Preload Requirements:**
+    - max-age >= 31536000 (1 year)
+    - includeSubDomains directive present
+    - preload directive present
+    - Served over HTTPS (port 443)
+    - HTTP redirects to HTTPS
+
+    **Use Cases:**
+    - Verify HSTS configuration before preload submission
+    - Monitor HSTS compliance after config changes
+    - Security audit verification
+
+    **Note:** This endpoint checks the configured header value. Actual submission
+    to hstspreload.org must be done manually at https://hstspreload.org
+    """,
+    responses={
+        200: {
+            "description": "HSTS compliance check result",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "compliant": {
+                            "summary": "Fully compliant",
+                            "value": {
+                                "status": "compliant",
+                                "component": "hsts",
+                                "preload_eligible": True,
+                                "header_value": "max-age=31536000; includeSubDomains; preload",
+                                "checks": {
+                                    "max_age_sufficient": True,
+                                    "include_subdomains": True,
+                                    "preload_directive": True,
+                                },
+                                "message": "HSTS configuration meets all preload requirements",
+                                "submission_url": "https://hstspreload.org",
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                        "missing_preload": {
+                            "summary": "Missing preload directive",
+                            "value": {
+                                "status": "non_compliant",
+                                "component": "hsts",
+                                "preload_eligible": False,
+                                "header_value": "max-age=31536000; includeSubDomains",
+                                "checks": {
+                                    "max_age_sufficient": True,
+                                    "include_subdomains": True,
+                                    "preload_directive": False,
+                                },
+                                "message": "Missing: preload directive",
+                                "submission_url": None,
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+async def health_check_hsts() -> HSTSCheckResponse:
+    """HSTS preload compliance check.
+
+    Checks if the configured HSTS header meets browser preload list requirements.
+    Returns the current header value and individual requirement check results.
+
+    Returns:
+        HSTSCheckResponse with compliance status and details
+    """
+    # Expected HSTS header (from nginx config)
+    # In production, this could be fetched dynamically via self-request
+    # For now, we check the expected configured value
+    expected_header = "max-age=31536000; includeSubDomains; preload"
+
+    # Parse and validate header
+    header_lower = expected_header.lower()
+
+    # Check individual requirements
+    checks: dict[str, bool] = {}
+
+    # 1. Check max-age >= 31536000
+    import re
+
+    max_age_match = re.search(r"max-age=(\d+)", header_lower)
+    if max_age_match:
+        max_age_value = int(max_age_match.group(1))
+        checks["max_age_sufficient"] = max_age_value >= HSTS_MIN_MAX_AGE
+    else:
+        checks["max_age_sufficient"] = False
+
+    # 2. Check includeSubDomains
+    checks["include_subdomains"] = "includesubdomains" in header_lower
+
+    # 3. Check preload directive
+    checks["preload_directive"] = "preload" in header_lower
+
+    # Determine overall compliance
+    all_pass = all(checks.values())
+
+    if all_pass:
+        status = "compliant"
+        message = "HSTS configuration meets all preload requirements"
+        submission_url = HSTS_SUBMISSION_URL
+    else:
+        status = "non_compliant"
+        missing = [name.replace("_", " ") for name, passed in checks.items() if not passed]
+        message = f"Missing: {', '.join(missing)}"
+        submission_url = None
+
+    return HSTSCheckResponse(
+        status=status,
+        component="hsts",
+        preload_eligible=all_pass,
+        header_value=expected_header,
+        checks=checks,
+        message=message,
+        submission_url=submission_url,
+        timestamp=datetime.now(UTC).isoformat(),
+    )

@@ -10,10 +10,11 @@ Handles:
 
 import logging
 from collections import deque
-from datetime import date
+from datetime import date, datetime
 from typing import Any, cast
 from uuid import UUID
 
+from backend.api.models import ActionVariance
 from bo1.state.database import db_session
 from bo1.state.repositories.base import BaseRepository
 from bo1.utils.timeline_parser import add_business_days, parse_timeline
@@ -97,6 +98,7 @@ class ActionRepository(BaseRepository):
                               actual_start_date, actual_end_date,
                               blocking_reason, blocked_at, auto_unblock,
                               replan_session_id, replan_requested_at, replanning_reason,
+                              cancellation_reason, cancelled_at,
                               confidence, source_section, sub_problem_index,
                               sort_order, created_at, updated_at
                     """,
@@ -144,6 +146,7 @@ class ActionRepository(BaseRepository):
                    actual_start_date, actual_end_date,
                    blocking_reason, blocked_at, auto_unblock,
                    replan_session_id, replan_requested_at, replanning_reason,
+                   cancellation_reason, cancelled_at,
                    confidence, source_section, sub_problem_index,
                    sort_order, created_at, updated_at
             FROM actions
@@ -188,6 +191,7 @@ class ActionRepository(BaseRepository):
                    a.actual_start_date, a.actual_end_date,
                    a.blocking_reason, a.blocked_at, a.auto_unblock,
                    a.replan_session_id, a.replan_requested_at, a.replanning_reason,
+                   a.cancellation_reason, a.cancelled_at,
                    a.confidence, a.source_section, a.sub_problem_index,
                    a.sort_order, a.created_at, a.updated_at
             FROM actions a
@@ -258,6 +262,7 @@ class ActionRepository(BaseRepository):
                    actual_start_date, actual_end_date,
                    blocking_reason, blocked_at, auto_unblock,
                    replan_session_id, replan_requested_at, replanning_reason,
+                   cancellation_reason, cancelled_at,
                    confidence, source_section, sub_problem_index,
                    sort_order, created_at, updated_at
             FROM actions
@@ -280,6 +285,9 @@ class ActionRepository(BaseRepository):
         user_id: str,
         blocking_reason: str | None = None,
         auto_unblock: bool = False,
+        cancellation_reason: str | None = None,
+        failure_reason_category: str | None = None,
+        replan_suggested_at: datetime | None = None,
     ) -> bool:
         """Update action status.
 
@@ -289,6 +297,9 @@ class ActionRepository(BaseRepository):
             user_id: User making the update
             blocking_reason: Reason for blocking (if status is 'blocked')
             auto_unblock: Auto-unblock when dependencies complete
+            cancellation_reason: Reason for cancellation (if status is 'cancelled')
+            failure_reason_category: Category of failure (blocker/scope_creep/dependency/unknown)
+            replan_suggested_at: When replanning suggestion was shown
 
         Returns:
             True if updated successfully
@@ -302,7 +313,7 @@ class ActionRepository(BaseRepository):
                     return False
                 old_status = row["status"]
 
-                # Update action
+                # Update action based on target status
                 if status == "blocked":
                     cur.execute(
                         """
@@ -316,8 +327,31 @@ class ActionRepository(BaseRepository):
                         """,
                         (status, blocking_reason, auto_unblock, str(action_id)),
                     )
+                elif status == "cancelled":
+                    cur.execute(
+                        """
+                        UPDATE actions
+                        SET status = %s,
+                            cancellation_reason = %s,
+                            cancelled_at = NOW(),
+                            failure_reason_category = %s,
+                            replan_suggested_at = COALESCE(%s, NOW()),
+                            blocking_reason = NULL,
+                            blocked_at = NULL,
+                            auto_unblock = false,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (
+                            status,
+                            cancellation_reason,
+                            failure_reason_category,
+                            replan_suggested_at,
+                            str(action_id),
+                        ),
+                    )
                 else:
-                    # Clear blocking fields when unblocking
+                    # Clear blocking and cancellation fields when transitioning to other statuses
                     cur.execute(
                         """
                         UPDATE actions
@@ -325,6 +359,8 @@ class ActionRepository(BaseRepository):
                             blocking_reason = NULL,
                             blocked_at = NULL,
                             auto_unblock = false,
+                            cancellation_reason = NULL,
+                            cancelled_at = NULL,
                             updated_at = NOW()
                         WHERE id = %s
                         """,
@@ -335,6 +371,9 @@ class ActionRepository(BaseRepository):
 
                 # Create audit record
                 if success:
+                    content = f"Status changed from {old_status} to {status}"
+                    if status == "cancelled" and cancellation_reason:
+                        content += f": {cancellation_reason}"
                     cur.execute(
                         """
                         INSERT INTO action_updates (
@@ -347,7 +386,7 @@ class ActionRepository(BaseRepository):
                             str(action_id),
                             user_id,
                             "status_change",
-                            f"Status changed from {old_status} to {status}",
+                            content,
                             old_status,
                             status,
                         ),
@@ -1488,6 +1527,150 @@ class ActionRepository(BaseRepository):
 
         logger.info(f"Recalculated dates for {count} actions")
         return count
+
+    # =========================================================================
+    # Progress Tracking
+    # =========================================================================
+
+    def update_progress(
+        self,
+        action_id: str | UUID,
+        progress_type: str,
+        progress_value: int | None = None,
+        actual_start_date: str | None = None,
+        actual_finish_date: str | None = None,
+        estimated_effort_points: int | None = None,
+    ) -> bool:
+        """Update action progress tracking.
+
+        Args:
+            action_id: Action identifier
+            progress_type: Type of progress tracking (percentage, points, status_only)
+            progress_value: Progress value (0-100 for %, 0+ for points)
+            actual_start_date: When work actually began (ISO format)
+            actual_finish_date: When work completed (ISO format)
+            estimated_effort_points: Estimated effort in story points
+
+        Returns:
+            True if update succeeded
+        """
+        action_id = str(action_id)
+
+        # Parse dates if provided
+        actual_start = None
+        actual_finish = None
+        if actual_start_date:
+            try:
+                actual_start = datetime.fromisoformat(actual_start_date.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                logger.warning(f"Invalid actual_start_date format: {actual_start_date}")
+        if actual_finish_date:
+            try:
+                actual_finish = datetime.fromisoformat(actual_finish_date.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                logger.warning(f"Invalid actual_finish_date format: {actual_finish_date}")
+
+        query = """
+            UPDATE actions SET
+                progress_type = %s,
+                progress_value = %s,
+                estimated_effort_points = %s,
+                actual_start_date = COALESCE(%s, actual_start_date),
+                actual_end_date = COALESCE(%s, actual_end_date),
+                updated_at = now()
+            WHERE id = %s
+        """
+        params = (
+            progress_type,
+            progress_value,
+            estimated_effort_points,
+            actual_start,
+            actual_finish,
+            action_id,
+        )
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                return bool(cur.rowcount and cur.rowcount > 0)
+
+    def calculate_variance(self, action_id: str | UUID) -> ActionVariance:
+        """Calculate action schedule variance.
+
+        Compares planned vs actual duration, returns risk_level (EARLY, ON_TIME, LATE).
+
+        Args:
+            action_id: Action identifier
+
+        Returns:
+            ActionVariance with schedule analysis
+        """
+        action_id = str(action_id)
+
+        # Get action with dates
+        action = self.get(action_id)
+        if not action:
+            logger.warning(f"Action not found: {action_id}")
+            return ActionVariance(
+                action_id=action_id,
+                planned_duration_days=None,
+                actual_duration_days=None,
+                variance_days=None,
+                risk_level="ON_TIME",
+                progress_percent=None,
+            )
+
+        # Calculate planned duration
+        # Use scheduled_start_date or created_at as plan start, target_end_date as plan end
+        plan_start = action.get("scheduled_start_date") or action.get("created_at")
+        plan_end = action.get("target_end_date")
+
+        planned_days = None
+        if plan_start and plan_end:
+            if isinstance(plan_start, datetime):
+                plan_start = plan_start.date()
+            if isinstance(plan_end, datetime):
+                plan_end = plan_end.date()
+            planned_days = (plan_end - plan_start).days
+
+        # Calculate actual duration
+        actual_start = action.get("actual_start_date")
+        actual_end = action.get("actual_end_date")
+
+        actual_days = None
+        if actual_start and actual_end:
+            if isinstance(actual_start, datetime):
+                actual_start = actual_start.date()
+            if isinstance(actual_end, datetime):
+                actual_end = actual_end.date()
+            actual_days = (actual_end - actual_start).days
+
+        # Calculate variance
+        variance_days = None
+        risk_level = "ON_TIME"
+
+        if planned_days is not None and actual_days is not None:
+            variance_days = actual_days - planned_days
+            if variance_days < -1:  # Early by more than 1 day
+                risk_level = "EARLY"
+            elif variance_days > 1:  # Late by more than 1 day
+                risk_level = "LATE"
+            else:
+                risk_level = "ON_TIME"
+
+        # Get progress percent
+        progress_percent = None
+        if action.get("progress_type") == "percentage":
+            progress_percent = action.get("progress_value")
+
+        return ActionVariance(
+            action_id=action_id,
+            planned_duration_days=planned_days,
+            actual_duration_days=actual_days,
+            variance_days=variance_days,
+            risk_level=risk_level,
+            progress_percent=progress_percent,
+        )
 
 
 # Singleton instance for convenience

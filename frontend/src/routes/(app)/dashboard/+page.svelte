@@ -8,7 +8,7 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import ContextRefreshBanner from '$lib/components/ui/ContextRefreshBanner.svelte';
 	import OnboardingChecklist from '$lib/components/ui/OnboardingChecklist.svelte';
-	import CompletionTrendsChart from '$lib/components/ui/CompletionTrendsChart.svelte';
+	import ActivityHeatmap from '$lib/components/dashboard/ActivityHeatmap.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { getSessionStatusColor } from '$lib/utils/colors';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
@@ -21,8 +21,8 @@
 	const sessionsData = useDataFetch(() => apiClient.listSessions());
 	// Fetch outstanding actions (todo and doing only)
 	const actionsData = useDataFetch(() => apiClient.getAllActions());
-	// Fetch action stats for completion trends chart
-	const statsData = useDataFetch(() => apiClient.getActionStats(14));
+	// Fetch action stats for activity heatmap (annual view)
+	const statsData = useDataFetch(() => apiClient.getActionStats(365));
 	// Fetch user context for onboarding checklist
 	const contextData = useDataFetch(() => apiClient.getUserContext());
 
@@ -286,7 +286,13 @@
 				</div>
 
 				<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-4">
-					<CompletionTrendsChart data={statsData.data.daily} days={14} />
+					{#if statsData.isLoading}
+						<ShimmerSkeleton type="chart" />
+					{:else if statsData.data}
+						<ActivityHeatmap data={statsData.data.daily} />
+					{:else}
+						<div class="text-center text-neutral-500 dark:text-neutral-400 py-8">No data available</div>
+					{/if}
 				</div>
 			</div>
 		{/if}

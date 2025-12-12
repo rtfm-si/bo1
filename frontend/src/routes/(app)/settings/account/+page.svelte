@@ -2,9 +2,52 @@
 	/**
 	 * Account Settings - User profile and preferences
 	 */
+	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/auth';
+	import { apiClient } from '$lib/api/client';
 	import Button from '$lib/components/ui/Button.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
+	import Alert from '$lib/components/ui/Alert.svelte';
+
+	// State for meeting preferences
+	let skipClarification = $state(false);
+	let isLoadingPrefs = $state(true);
+	let isSavingPrefs = $state(false);
+	let prefsError = $state<string | null>(null);
+	let prefsSuccess = $state<string | null>(null);
+
+	// Load preferences on mount
+	onMount(async () => {
+		try {
+			const prefs = await apiClient.getUserPreferences();
+			skipClarification = prefs.skip_clarification;
+		} catch (e) {
+			prefsError = e instanceof Error ? e.message : 'Failed to load preferences';
+		} finally {
+			isLoadingPrefs = false;
+		}
+	});
+
+	// Save meeting preferences
+	async function savePreferences() {
+		isSavingPrefs = true;
+		prefsError = null;
+		prefsSuccess = null;
+
+		try {
+			const result = await apiClient.updateUserPreferences({
+				skip_clarification: skipClarification
+			});
+			skipClarification = result.skip_clarification;
+			prefsSuccess = 'Meeting preferences saved';
+			setTimeout(() => {
+				prefsSuccess = null;
+			}, 3000);
+		} catch (e) {
+			prefsError = e instanceof Error ? e.message : 'Failed to save preferences';
+		} finally {
+			isSavingPrefs = false;
+		}
+	}
 
 	// Get display email (hide placeholder emails)
 	const displayEmail = $derived(
@@ -54,6 +97,72 @@
 		</div>
 	</div>
 
+	<!-- Meeting Preferences Section -->
+	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+		<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+			Meeting Preferences
+		</h2>
+		<p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+			Customize how meetings work for you.
+		</p>
+
+		{#if prefsError}
+			<Alert variant="error" class="mb-4" dismissable ondismiss={() => (prefsError = null)}>{prefsError}</Alert>
+		{/if}
+
+		{#if prefsSuccess}
+			<Alert variant="success" class="mb-4" dismissable ondismiss={() => (prefsSuccess = null)}>{prefsSuccess}</Alert>
+		{/if}
+
+		{#if isLoadingPrefs}
+			<div class="flex items-center justify-center py-4">
+				<div class="animate-spin h-6 w-6 border-3 border-brand-600 border-t-transparent rounded-full"></div>
+			</div>
+		{:else}
+			<div class="space-y-4">
+				<label class="flex items-center justify-between cursor-pointer">
+					<div>
+						<p class="font-medium text-slate-900 dark:text-white">Skip clarifying questions</p>
+						<p class="text-sm text-slate-500 dark:text-slate-400">
+							Start meetings directly without pre-meeting questions. Use your business profile for context instead.
+						</p>
+					</div>
+					<button
+						type="button"
+						role="switch"
+						aria-checked={skipClarification}
+						aria-label="Toggle skip clarifying questions"
+						class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {skipClarification
+							? 'bg-brand-600'
+							: 'bg-slate-300 dark:bg-slate-600'}"
+						onclick={() => {
+							skipClarification = !skipClarification;
+						}}
+					>
+						<span
+							class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {skipClarification
+								? 'translate-x-6'
+								: 'translate-x-1'}"
+						></span>
+					</button>
+				</label>
+			</div>
+
+			<div class="mt-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
+				<p class="text-sm text-amber-800 dark:text-amber-200">
+					<strong>Note:</strong> Clarifying questions help the experts understand your specific situation.
+					Skipping them may result in more generic recommendations unless you've provided detailed business context.
+				</p>
+			</div>
+
+			<div class="mt-6 flex justify-end">
+				<Button variant="brand" loading={isSavingPrefs} onclick={savePreferences}>
+					Save Preferences
+				</Button>
+			</div>
+		{/if}
+	</div>
+
 	<!-- Subscription Section -->
 	<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
 		<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
@@ -77,7 +186,7 @@
 	<!-- Privacy & Data Link -->
 	<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-6">
 		<div class="flex items-center gap-4">
-			<div class="text-2xl">🔒</div>
+			<div class="text-2xl">&#128274;</div>
 			<div class="flex-1">
 				<h3 class="font-medium text-slate-700 dark:text-slate-300">Privacy & Data</h3>
 				<p class="text-sm text-slate-500 dark:text-slate-400">

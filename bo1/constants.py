@@ -500,3 +500,153 @@ class SecurityAlerts:
 
     ALERT_DEDUP_PREFIX = "security_alert_sent:"
     """Redis key prefix for alert deduplication"""
+
+
+# =============================================================================
+# RATE LIMITER HEALTH MONITORING
+# =============================================================================
+
+
+class RateLimiterHealth:
+    """Rate limiter Redis health monitoring configuration."""
+
+    FAILURE_THRESHOLD = 3
+    """Consecutive failures before alerting"""
+
+    ALERT_COOLDOWN_SECONDS = 900
+    """15 minute deduplication window for alerts"""
+
+    HEALTH_CHECK_INTERVAL_SECONDS = 30
+    """Interval for periodic health checks when degraded"""
+
+    KEY_PREFIX = "rate_limiter_health:"
+    """Redis key prefix for health tracking"""
+
+    ALERT_DEDUP_KEY = "rate_limiter_alert_sent"
+    """Redis key for alert deduplication"""
+
+
+# =============================================================================
+# GANTT COLOR CODING
+# =============================================================================
+
+
+class GanttColorStrategy:
+    """Gantt chart color coding strategies."""
+
+    BY_STATUS = "BY_STATUS"
+    """Color by action status"""
+
+    BY_PROJECT = "BY_PROJECT"
+    """Color by project"""
+
+    BY_PRIORITY = "BY_PRIORITY"
+    """Color by action priority"""
+
+    HYBRID = "HYBRID"
+    """Hybrid: status primary + project accent stripe"""
+
+    DEFAULT = BY_STATUS
+    """Default strategy for new users"""
+
+    ALL = [BY_STATUS, BY_PROJECT, BY_PRIORITY, HYBRID]
+    """All available strategies"""
+
+
+class GanttStatusColors:
+    """Hex color codes for action statuses."""
+
+    NOT_STARTED = "#9CA3AF"  # gray-400
+    """Not started: gray"""
+
+    IN_PROGRESS = "#3B82F6"  # blue-500
+    """In progress: blue"""
+
+    BLOCKED = "#EF4444"  # red-500
+    """Blocked: red"""
+
+    ON_HOLD = "#F59E0B"  # amber-500
+    """On hold: amber"""
+
+    COMPLETE = "#10B981"  # emerald-500
+    """Complete: green"""
+
+    CANCELLED = "#6B7280"  # gray-500 (with strikethrough in UI)
+    """Cancelled: gray"""
+
+    MAP = {
+        "not_started": NOT_STARTED,
+        "in_progress": IN_PROGRESS,
+        "blocked": BLOCKED,
+        "on_hold": ON_HOLD,
+        "complete": COMPLETE,
+        "cancelled": CANCELLED,
+    }
+
+
+class GanttPriorityColors:
+    """Hex color codes for action priorities."""
+
+    LOW = "#10B981"  # emerald-500
+    """Low priority: green"""
+
+    MEDIUM = "#F59E0B"  # amber-500
+    """Medium priority: amber"""
+
+    HIGH = "#EF4444"  # red-500
+    """High priority: red"""
+
+    MAP = {
+        "low": LOW,
+        "medium": MEDIUM,
+        "high": HIGH,
+    }
+
+
+class GanttProjectColors:
+    """Rotating HSL color palette for projects (up to 20 unique projects)."""
+
+    PALETTE = [
+        "#8B5CF6",  # violet-500
+        "#EC4899",  # pink-500
+        "#06B6D4",  # cyan-500
+        "#6366F1",  # indigo-500
+        "#14B8A6",  # teal-500
+        "#F97316",  # orange-500
+        "#84CC16",  # lime-500
+        "#0EA5E9",  # sky-500
+        "#A855F7",  # purple-500
+        "#06B6D4",  # cyan-500 (rotate)
+        "#059669",  # emerald-600
+        "#7C3AED",  # violet-600
+        "#DC2626",  # red-600
+        "#2563EB",  # blue-600
+        "#16A34A",  # green-600
+        "#EA580C",  # orange-600
+        "#7C3AED",  # purple-600 (rotate)
+        "#0369A1",  # sky-700
+        "#BE185D",  # pink-700
+        "#6B21A8",  # purple-900
+    ]
+
+    @staticmethod
+    def get_color_for_project(project_index: int) -> str:
+        """Get color for a project by rotating through the palette.
+
+        Args:
+            project_index: 0-based project index
+
+        Returns:
+            Hex color string
+        """
+        return GanttProjectColors.PALETTE[project_index % len(GanttProjectColors.PALETTE)]
+
+
+class GanttColorCache:
+    """Gantt color cache configuration."""
+
+    TTL_SECONDS = 600  # 10 minutes
+    """Cache TTL for computed colors"""
+
+    KEY_PREFIX = "gantt_color:"
+    """Redis key prefix for color cache"""

@@ -33,6 +33,7 @@ from backend.api.context.models import (
     RefreshCheckResponse,
     TrendsRefreshRequest,
     TrendsRefreshResponse,
+    UpdateInsightRequest,
 )
 from backend.api.context.services import (
     context_data_to_model,
@@ -562,6 +563,73 @@ async def get_insights(
     return InsightsResponse(
         clarifications=clarifications,
         total_count=len(clarifications),
+    )
+
+
+@router.patch(
+    "/v1/context/insights/{question_hash}",
+    response_model=ClarificationInsight,
+    summary="Update a clarification insight",
+    description="""
+    Update a user's answer to a clarifying question.
+
+    The question_hash is a URL-safe base64 encoding of the question text.
+    When updated, the answer and updated timestamp are persisted, allowing
+    users to keep their responses current as their business evolves.
+    """,
+)
+@handle_api_errors("update insight")
+async def update_insight(
+    question_hash: str,
+    request: UpdateInsightRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ClarificationInsight:
+    """Update a specific clarification insight."""
+    import base64
+
+    user_id = extract_user_id(user)
+
+    # Decode the question from the hash
+    try:
+        question = base64.urlsafe_b64decode(question_hash.encode()).decode("utf-8")
+    except Exception as e:
+        logger.warning(f"Failed to decode question hash: {e}")
+        raise HTTPException(status_code=400, detail="Invalid question hash") from None
+
+    # Load and update context
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        raise HTTPException(status_code=404, detail="No context found")
+
+    clarifications = context_data.get("clarifications", {})
+    if question not in clarifications:
+        raise HTTPException(status_code=404, detail="Clarification not found")
+
+    # Get existing clarification data
+    existing = clarifications[question]
+    if isinstance(existing, str):
+        # Legacy format, convert to new format
+        existing = {"answer": existing, "answered_at": None, "source": "meeting"}
+
+    # Update the answer and timestamp
+    existing["answer"] = request.value
+    existing["updated_at"] = datetime.now(UTC).isoformat()
+    if request.note:
+        existing["update_note"] = request.note
+
+    clarifications[question] = existing
+    context_data["clarifications"] = clarifications
+
+    # Save updated context
+    user_repository.save_context(user_id, context_data)
+    logger.info(f"Updated clarification insight for user {user_id}: {question[:50]}...")
+
+    # Return updated insight
+    return ClarificationInsight(
+        question=question,
+        answer=existing["answer"],
+        answered_at=existing.get("answered_at"),
+        session_id=existing.get("session_id"),
     )
 
 

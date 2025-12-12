@@ -1,6 +1,10 @@
 # Promtail Configuration for Bo1
-# Collects Docker container logs and ships to Loki
+# Collects Docker container logs via file-based scraping (no Docker socket needed)
 # https://grafana.com/docs/loki/latest/send-data/promtail/configuration/
+#
+# SECURITY: This config uses file-based log scraping instead of Docker socket
+# Docker socket mount provides root-equivalent access - avoid in production
+# Logs are read from /var/lib/docker/containers/*/*.log
 
 server:
   http_listen_port: 9080
@@ -13,46 +17,80 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  # Scrape Docker container logs
-  - job_name: docker
-    docker_sd_configs:
-      - host: unix:///var/run/docker.sock
-        refresh_interval: 5s
-    relabel_configs:
-      # Keep only bo1 project containers
-      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
-        regex: 'bo1.*'
-        action: keep
-      # Use container name as label
-      - source_labels: ['__meta_docker_container_name']
-        regex: '/(.*)'
-        target_label: container
-      # Use compose service name
-      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
-        target_label: service
-      # Use compose project
-      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
-        target_label: compose_project
+  # Scrape WAF blocked requests log (nginx)
+  # Mount /var/log/nginx from host or nginx container
+  - job_name: waf-blocked
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: waf
+          __path__: /var/log/nginx/waf-blocked.log
     pipeline_stages:
-      # Try to parse JSON logs (FastAPI backend)
+      # Parse WAF log format: IP - [timestamp] "request" sqli=X xss=Y traversal=Z probe=W agent=A ua="..."
+      - regex:
+          expression: '^(?P<client_ip>[^ ]+) - \[(?P<timestamp>[^\]]+)\] "(?P<request>[^"]+)" sqli=(?P<sqli>\d+) xss=(?P<xss>\d+) traversal=(?P<traversal>\d+) probe=(?P<probe>\d+) agent=(?P<agent>\d+) ua="(?P<user_agent>[^"]*)"'
+      - labels:
+          client_ip:
+          sqli:
+          xss:
+          traversal:
+          probe:
+          agent:
+      - timestamp:
+          source: timestamp
+          format: '02/Jan/2006:15:04:05 -0700'
+      # Categorize attack type for filtering
+      - template:
+          source: attack_type
+          template: '{{ if eq .sqli "1" }}sqli{{ else if eq .xss "1" }}xss{{ else if eq .traversal "1" }}traversal{{ else if eq .probe "1" }}probe{{ else if eq .agent "1" }}scanner{{ else }}unknown{{ end }}'
+      - labels:
+          attack_type:
+
+  # Scrape Docker container logs from filesystem (no socket required)
+  - job_name: docker-containers
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          __path__: /var/lib/docker/containers/*/*.log
+    pipeline_stages:
+      # Docker json-file driver wraps logs in JSON with log, stream, time fields
       - json:
+          expressions:
+            log: log
+            stream: stream
+            docker_time: time
+      # Extract container ID from path for labeling
+      - regex:
+          source: filename
+          expression: '/var/lib/docker/containers/(?P<container_id>[a-f0-9]{64})/.*\.log'
+      - labels:
+          container_id:
+          stream:
+      # Parse the inner log content (FastAPI JSON logs)
+      - json:
+          source: log
           expressions:
             level: level
             logger: logger
             trace_id: trace_id
             message: message
             context: context
-      # Set log level label from parsed JSON
+            service: service
+      # Set labels from parsed JSON
       - labels:
           level:
           logger:
           trace_id:
-      # Fall back to raw log if JSON parsing fails
+          service:
+      # Use the log message as output
       - output:
-          source: message
-      # Add timestamp from log if available
+          source: log
+      # Add timestamp from Docker log
       - timestamp:
-          source: timestamp
+          source: docker_time
           format: RFC3339Nano
           fallback_formats:
             - RFC3339

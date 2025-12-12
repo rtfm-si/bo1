@@ -75,7 +75,33 @@ def collect_user_data(user_id: str) -> dict[str, Any]:
                     (user_id,),
                 )
                 row = cur.fetchone()
-                data["business_context"] = dict(row) if row else None
+                context_data = dict(row) if row else None
+                data["business_context"] = context_data
+
+                # Extract and structure insights (clarifications) separately for clarity
+                if context_data and context_data.get("clarifications"):
+                    clarifications = context_data.get("clarifications", {})
+                    data["insights"] = {
+                        "clarifications": [
+                            {
+                                "question": question,
+                                "answer": item.get("answer") if isinstance(item, dict) else item,
+                                "answered_at": item.get("answered_at")
+                                if isinstance(item, dict)
+                                else None,
+                                "updated_at": item.get("updated_at")
+                                if isinstance(item, dict)
+                                else None,
+                                "session_id": item.get("session_id")
+                                if isinstance(item, dict)
+                                else None,
+                                "source": item.get("source", "meeting")
+                                if isinstance(item, dict)
+                                else "meeting",
+                            }
+                            for question, item in clarifications.items()
+                        ]
+                    }
 
                 # Sessions (meetings)
                 cur.execute(

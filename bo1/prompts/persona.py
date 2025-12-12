@@ -185,6 +185,13 @@ Instead, IMMEDIATELY engage with the problem statement and provide substantive a
 {safe_problem_statement}
 </problem_context>
 
+<insight_awareness>
+If the problem context includes "User Insights" from previous meetings, these represent the user's established understanding of their business. When referencing these insights:
+- Note if any are marked as outdated (e.g., "⚠️ X months ago") and factor uncertainty into recommendations
+- Use fresh insights confidently as established facts
+- If outdated insights are relevant to your analysis, acknowledge the potential for changed circumstances
+</insight_awareness>
+
 <previous_discussion>
 {discussion_history}
 </previous_discussion>

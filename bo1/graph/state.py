@@ -124,6 +124,14 @@ class DeliberationGraphState(TypedDict, total=False):
     attached_datasets: list[str]  # Dataset IDs attached to this session
     data_analysis_results: list[dict[str, Any]]  # Results from data analysis during deliberation
 
+    # USER PREFERENCES (Clarification Toggle)
+    skip_clarification: bool  # User preference to skip pre-meeting clarifying questions
+
+    # EARLY TERMINATION (Meeting Termination)
+    termination_requested: bool  # True if user requested early termination
+    termination_type: str | None  # blocker_identified, user_cancelled, continue_best_effort
+    termination_reason: str | None  # User-provided reason for termination
+
 
 def create_initial_state(
     session_id: str,
@@ -132,6 +140,7 @@ def create_initial_state(
     max_rounds: int = 6,  # NEW DEFAULT: 6 rounds for parallel architecture
     user_id: str | None = None,
     collect_context: bool = True,
+    skip_clarification: bool = False,
 ) -> DeliberationGraphState:
     """Create initial graph state from a problem.
 
@@ -142,6 +151,7 @@ def create_initial_state(
         max_rounds: Maximum rounds allowed
         user_id: Optional user ID for context persistence
         collect_context: Whether to collect business context (default: True)
+        skip_clarification: Whether to skip pre-meeting clarifying questions (default: False)
 
     Returns:
         Initial DeliberationGraphState ready for graph execution
@@ -203,6 +213,12 @@ def create_initial_state(
         # DATA ANALYSIS INTEGRATION (EPIC 4)
         attached_datasets=[],  # Dataset IDs attached to this session
         data_analysis_results=[],  # Results from data analysis during deliberation
+        # USER PREFERENCES
+        skip_clarification=skip_clarification,  # Skip pre-meeting clarifying questions
+        # EARLY TERMINATION
+        termination_requested=False,  # Will be set if user requests early termination
+        termination_type=None,  # Type of termination
+        termination_reason=None,  # User-provided reason
     )
 
 

@@ -5,7 +5,7 @@
 	import { isAuthenticated } from '$lib/stores/auth';
 	import { apiClient } from '$lib/api/client';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
-	import type { Dataset } from '$lib/api/types';
+	import type { Dataset, StaleInsight } from '$lib/api/types';
 
 	let problemStatement = $state('');
 	let isSubmitting = $state(false);
@@ -13,6 +13,10 @@
 	let datasets = $state<Dataset[]>([]);
 	let selectedDatasetId = $state<string | null>(null);
 	let loadingDatasets = $state(false);
+	// Staleness warning state
+	let pendingSessionId = $state<string | null>(null);
+	let staleInsights = $state<StaleInsight[]>([]);
+	let showStalenessWarning = $state(false);
 
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
@@ -71,16 +75,43 @@
 
 			const sessionId = sessionData.id;
 
-			// Start deliberation
-			await apiClient.startDeliberation(sessionId);
+			// Check for stale insights warning
+			if (sessionData.stale_insights && sessionData.stale_insights.length > 0) {
+				pendingSessionId = sessionId;
+				staleInsights = sessionData.stale_insights;
+				showStalenessWarning = true;
+				isSubmitting = false;
+				return;
+			}
 
-			// Redirect to meeting view
-			goto(`/meeting/${sessionId}`);
+			// No stale insights - proceed immediately
+			await startMeeting(sessionId);
 
 		} catch (err) {
 			console.error('Failed to create meeting:', err);
 			error = err instanceof Error ? err.message : 'Failed to create meeting';
 			isSubmitting = false;
+		}
+	}
+
+	async function startMeeting(sessionId: string) {
+		try {
+			isSubmitting = true;
+			// Start deliberation
+			await apiClient.startDeliberation(sessionId);
+			// Redirect to meeting view
+			goto(`/meeting/${sessionId}`);
+		} catch (err) {
+			console.error('Failed to start meeting:', err);
+			error = err instanceof Error ? err.message : 'Failed to start meeting';
+			isSubmitting = false;
+		}
+	}
+
+	function dismissStalenessWarning() {
+		showStalenessWarning = false;
+		if (pendingSessionId) {
+			startMeeting(pendingSessionId);
 		}
 	}
 
@@ -291,3 +322,63 @@
 		</div>
 	</main>
 </div>
+
+<!-- Staleness Warning Modal -->
+{#if showStalenessWarning}
+	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full p-6">
+			<div class="flex items-start gap-4 mb-4">
+				<div class="flex-shrink-0 p-2 bg-amber-100 dark:bg-amber-900/30 rounded-full">
+					<svg class="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+					</svg>
+				</div>
+				<div>
+					<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+						Some of your insights may be outdated
+					</h3>
+					<p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+						The following insights haven't been updated in over 30 days. Refreshing them may improve your meeting's recommendations.
+					</p>
+				</div>
+			</div>
+
+			<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
+				<ul class="space-y-2">
+					{#each staleInsights as insight (insight.question)}
+						<li class="flex items-start gap-2 text-sm">
+							<span class="text-amber-500 mt-0.5">•</span>
+							<div>
+								<p class="text-slate-700 dark:text-slate-300">{insight.question}</p>
+								<p class="text-xs text-slate-500 dark:text-slate-400">
+									{insight.days_stale} days since last update
+								</p>
+							</div>
+						</li>
+					{/each}
+				</ul>
+			</div>
+
+			<div class="flex flex-col sm:flex-row gap-3">
+				<a
+					href="/settings/context/insights"
+					class="flex-1 px-4 py-2 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 font-medium rounded-lg transition-colors duration-200 text-center"
+				>
+					Update Insights
+				</a>
+				<button
+					onclick={dismissStalenessWarning}
+					disabled={isSubmitting}
+					class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+				>
+					{#if isSubmitting}
+						<Spinner size="sm" variant="neutral" ariaLabel="Starting meeting" />
+						Starting...
+					{:else}
+						Continue Anyway
+					{/if}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

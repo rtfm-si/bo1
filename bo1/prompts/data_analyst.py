@@ -21,6 +21,14 @@ You can:
 - Explain statistical concepts in context
 </capabilities>
 
+<business_awareness>
+When the user has provided business context (goals, industry, constraints), incorporate this into your analysis:
+- Prioritize recommendations that align with stated business goals
+- Consider industry-specific best practices and benchmarks
+- Flag data insights that relate to known constraints or challenges
+- Frame analysis in terms of business impact when relevant
+</business_awareness>
+
 <output_format>
 For each response, provide:
 1. A direct answer to the user's question based on available data
@@ -146,6 +154,39 @@ def format_conversation_history(messages: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def format_business_context(context: dict[str, Any] | None) -> str:
+    """Format user business context for prompt injection.
+
+    Args:
+        context: User context dict with goals, industry, constraints, etc.
+
+    Returns:
+        Formatted business context string or empty string if no context
+    """
+    if not context:
+        return ""
+
+    lines = ["<business_context>"]
+
+    if context.get("goals"):
+        lines.append(f"  <goals>{context['goals']}</goals>")
+    if context.get("industry"):
+        lines.append(f"  <industry>{context['industry']}</industry>")
+    if context.get("competitors"):
+        lines.append(f"  <competitors>{context['competitors']}</competitors>")
+    if context.get("constraints"):
+        lines.append(f"  <constraints>{context['constraints']}</constraints>")
+    if context.get("metrics"):
+        lines.append(f"  <key_metrics>{context['metrics']}</key_metrics>")
+
+    lines.append("</business_context>")
+
+    # Only return if we have any content beyond the tags
+    if len(lines) > 2:
+        return "\n".join(lines)
+    return ""
+
+
 def format_clarifications_context(clarifications: list[dict[str, Any]]) -> str:
     """Format previous clarifications for context injection.
 
@@ -179,6 +220,7 @@ def build_analyst_prompt(
     dataset_context: str,
     conversation_history: str = "",
     clarifications_context: str = "",
+    business_context: str = "",
 ) -> str:
     """Build the full user prompt for the analyst.
 
@@ -187,11 +229,15 @@ def build_analyst_prompt(
         dataset_context: Formatted dataset context
         conversation_history: Optional conversation history
         clarifications_context: Optional prior clarifications context
+        business_context: Optional user business context
 
     Returns:
         Complete user prompt
     """
     parts = [dataset_context]
+
+    if business_context:
+        parts.append(business_context)
 
     if clarifications_context:
         parts.append(clarifications_context)

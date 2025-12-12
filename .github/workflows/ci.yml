@@ -324,6 +324,7 @@ jobs:
           sleep 10
         env:
           PUBLIC_API_URL: http://localhost:8000
+          PUBLIC_E2E_MODE: "true"
 
       - name: Run Playwright tests
         run: cd frontend && npx playwright test --project=chromium

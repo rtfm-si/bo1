@@ -27,6 +27,7 @@ import { createLogger } from '$lib/utils/debug';
 const log = createLogger('Auth');
 
 const API_BASE_URL = env.PUBLIC_API_URL || 'http://localhost:8000';
+const E2E_MODE = env.PUBLIC_E2E_MODE === 'true';
 
 export interface User {
 	id: string;
@@ -71,6 +72,23 @@ export async function initAuth(): Promise<void> {
 	if (!browser) return;
 
 	log.log('Initializing auth...');
+
+	// E2E mode: bypass auth for testing
+	if (E2E_MODE) {
+		log.log('E2E mode: using test user');
+		authStore.set({
+			user: {
+				id: 'test_user_1',
+				email: 'test@example.com',
+				auth_provider: 'google',
+				subscription_tier: 'pro',
+			},
+			isAuthenticated: true,
+			isLoading: false,
+			error: null,
+		});
+		return;
+	}
 
 	try {
 		authStore.update((state) => ({ ...state, isLoading: true, error: null }));

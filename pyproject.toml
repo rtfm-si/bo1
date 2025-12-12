@@ -64,6 +64,7 @@ dependencies = [
     # Observability
     "prometheus-client>=0.21.0",  # Prometheus metrics
     "prometheus-fastapi-instrumentator>=7.0.0",  # FastAPI auto-instrumentation
+    "cryptography>=43.0.0",  # Fernet encryption for OAuth tokens at rest
 ]
 
 [project.optional-dependencies]
@@ -76,6 +77,8 @@ dev = [
     "types-redis>=4.6.0",  # Type stubs for Redis
     "types-PyYAML>=6.0.0",  # Type stubs for YAML
     "types-requests>=2.31.0",  # Type stubs for requests
+    "locust>=2.20",  # Load testing framework
+    "pip-audit>=2.7.0",  # Dependency vulnerability scanner
 ]
 
 [project.scripts]
@@ -112,6 +115,9 @@ ignore = [
 "tests/*.py" = ["ANN"]
 "scripts/*.py" = ["ANN", "S608", "F841"]  # Scripts: type annotations optional, SQL injection false positives ok
 "migrations/versions/*.py" = ["S608"]  # Alembic migrations: SQL injection false positives for hardcoded table names
+"tests/load/*.py" = ["ANN", "S311"]  # Load tests: annotations optional, random is fine
+"tests/load/users/*.py" = ["ANN", "S311"]
+"tests/load/scenarios/*.py" = ["ANN", "S311"]
 
 [tool.ruff.format]
 quote-style = "double"

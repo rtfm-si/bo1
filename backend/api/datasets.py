@@ -18,10 +18,11 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.rate_limit import UPLOAD_RATE_LIMIT, limiter
 from backend.api.models import (
     AskRequest,
     ChartResultResponse,
@@ -146,10 +147,12 @@ async def list_datasets(
     response_model=DatasetResponse,
     status_code=201,
     summary="Upload CSV dataset",
-    description="Upload a CSV file to create a new dataset",
+    description="Upload a CSV file to create a new dataset. Rate limited to 10 uploads per hour per IP.",
 )
+@limiter.limit(UPLOAD_RATE_LIMIT)
 @handle_api_errors("upload dataset")
 async def upload_dataset(
+    request: Request,
     file: UploadFile = File(..., description="CSV file to upload"),
     name: str = Form(..., min_length=1, max_length=255, description="Dataset name"),
     description: str | None = Form(None, max_length=5000, description="Dataset description"),

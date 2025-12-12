@@ -153,7 +153,7 @@ class Settings(BaseSettings):
         default="http://supertokens:3567", description="SuperTokens connection URI"
     )
     supertokens_api_key: str = Field(
-        default="dev_api_key_change_in_production", description="SuperTokens API key"
+        default="", description="SuperTokens API key (required in production)"
     )
 
     # OAuth Configuration
@@ -163,6 +163,13 @@ class Settings(BaseSettings):
     # Google Sheets API Configuration
     google_api_key: str = Field(
         default="", description="Google API key for Sheets access (public sheets only)"
+    )
+
+    # Encryption Configuration
+    encryption_key: str = Field(
+        default="",
+        description="Fernet encryption key for sensitive data at rest (required in production). "
+        'Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"',
     )
 
     # Cookie Configuration

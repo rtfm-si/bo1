@@ -4,6 +4,7 @@ This module initializes SuperTokens with:
 - ThirdParty recipe for OAuth (Google, LinkedIn, GitHub)
 - Session recipe for httpOnly cookie-based session management
 - Closed beta whitelist validation
+- IP-based lockout after failed auth attempts
 
 Architecture: BFF (Backend-for-Frontend) pattern
 - Tokens never reach frontend (exchanged server-side)
@@ -19,17 +20,58 @@ from fastapi import FastAPI
 from supertokens_python import InputAppInfo, SupertokensConfig, init
 from supertokens_python.framework.fastapi import get_middleware
 from supertokens_python.recipe import session, thirdparty
-from supertokens_python.recipe.thirdparty.interfaces import RecipeInterface
-from supertokens_python.recipe.thirdparty.provider import ProviderInput
+from supertokens_python.recipe.session.interfaces import SessionContainer
+from supertokens_python.recipe.thirdparty.interfaces import (
+    APIInterface,
+    APIOptions,
+    RecipeInterface,
+)
+from supertokens_python.recipe.thirdparty.provider import Provider, ProviderInput, RedirectUriInfo
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 
 from backend.api.utils.db_helpers import execute_query, exists
+from backend.services.auth_lockout import auth_lockout_service
 from backend.services.email import send_email_async
 from backend.services.email_templates import render_welcome_email
 from bo1.feature_flags import GOOGLE_OAUTH_ENABLED
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
+
+
+def _get_client_ip(request: Any) -> str:
+    """Extract client IP from SuperTokens request wrapper.
+
+    Args:
+        request: SuperTokens BaseRequest wrapper
+
+    Returns:
+        Client IP address, defaulting to 'unknown' if unavailable
+    """
+    try:
+        # SuperTokens wraps the request - try to get underlying request
+        # For FastAPI/Starlette, the request object has headers and client
+        # Check X-Forwarded-For first (for reverse proxy)
+        forwarded_for = request.get_header("x-forwarded-for")
+        if forwarded_for:
+            return str(forwarded_for.split(",")[0].strip())
+
+        # Check X-Real-IP
+        real_ip = request.get_header("x-real-ip")
+        if real_ip:
+            return str(real_ip)
+
+        # Try to get from the underlying request's client attribute
+        # This depends on the SuperTokens wrapper implementation
+        if hasattr(request, "request") and hasattr(request.request, "client"):
+            if request.request.client:
+                return str(request.request.client.host)
+
+        # Fallback - try direct header access
+        return "unknown"
+    except Exception as e:
+        logger.warning(f"Could not extract client IP: {e}")
+        return "unknown"
 
 
 def _mask_email(email: str) -> str:
@@ -299,6 +341,72 @@ def override_thirdparty_functions(
     return original_implementation
 
 
+def override_thirdparty_apis(original_implementation: APIInterface) -> APIInterface:
+    """Override ThirdParty APIs to add lockout check with request access."""
+    original_sign_in_up_post = original_implementation.sign_in_up_post
+
+    async def sign_in_up_post(
+        provider: Provider,
+        redirect_uri_info: RedirectUriInfo | None,
+        oauth_tokens: dict[str, Any] | None,
+        session: SessionContainer | None,
+        should_try_linking_with_session_user: bool | None,
+        tenant_id: str,
+        api_options: APIOptions,
+        user_context: dict[str, Any],
+    ) -> Any:
+        """Override sign_in_up_post to check IP lockout before auth."""
+        # Extract client IP from request
+        client_ip = _get_client_ip(api_options.request)
+
+        # Check if IP is locked out
+        lockout_remaining = auth_lockout_service.get_lockout_remaining(client_ip)
+        if lockout_remaining and lockout_remaining > 0:
+            logger.warning(
+                f"Auth attempt blocked: IP {client_ip} locked out for {lockout_remaining}s"
+            )
+            # Track lockout trigger for security alerting
+            auth_lockout_service.record_lockout_triggered(client_ip)
+            # Raise an exception that SuperTokens will handle as auth error
+            raise Exception(
+                f"Too many failed login attempts. Please try again in {lockout_remaining} seconds."
+            )
+
+        # Store IP in user_context for recording failures in function override
+        user_context["client_ip"] = client_ip
+
+        try:
+            result = await original_sign_in_up_post(
+                provider,
+                redirect_uri_info,
+                oauth_tokens,
+                session,
+                should_try_linking_with_session_user,
+                tenant_id,
+                api_options,
+                user_context,
+            )
+
+            # On success, optionally clear lockout (comment out if prefer accumulating)
+            # auth_lockout_service.clear_attempts(client_ip)
+
+            return result
+        except Exception as e:
+            # Record failure for lockout tracking
+            error_msg = str(e).lower()
+            if "whitelist" in error_msg:
+                auth_lockout_service.record_failed_attempt(client_ip, "whitelist_rejection")
+            elif "locked or deleted" in error_msg:
+                auth_lockout_service.record_failed_attempt(client_ip, "account_locked")
+            else:
+                # Other auth failures
+                auth_lockout_service.record_failed_attempt(client_ip, "auth_error")
+            raise
+
+    original_implementation.sign_in_up_post = sign_in_up_post
+    return original_implementation
+
+
 def init_supertokens() -> None:
     """Initialize SuperTokens with all recipes and configurations.
 
@@ -315,6 +423,22 @@ def init_supertokens() -> None:
     """
     cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
     cookie_domain = os.getenv("COOKIE_DOMAIN", "localhost")
+    env = os.getenv("ENV", "development").lower()
+
+    # Security validation: COOKIE_SECURE must be true in production
+    if env == "production" and not cookie_secure:
+        logger.critical(
+            "SECURITY VIOLATION: COOKIE_SECURE=false in production! "
+            "Session cookies will be transmitted over insecure connections. "
+            "Set COOKIE_SECURE=true in production environment variables."
+        )
+        raise RuntimeError(
+            "COOKIE_SECURE must be true in production. "
+            "Refusing to start with insecure cookie configuration."
+        )
+
+    # Log cookie configuration for audit trail
+    logger.info(f"Cookie configuration: env={env}, secure={cookie_secure}, domain={cookie_domain}")
 
     init(
         supertokens_config=get_supertokens_config(),
@@ -326,7 +450,10 @@ def init_supertokens() -> None:
                 sign_in_and_up_feature=thirdparty.SignInAndUpFeature(
                     providers=get_oauth_providers()
                 ),
-                override=thirdparty.InputOverrideConfig(functions=override_thirdparty_functions),
+                override=thirdparty.InputOverrideConfig(
+                    functions=override_thirdparty_functions,
+                    apis=override_thirdparty_apis,
+                ),
             ),
             # Session recipe for session management (httpOnly cookies)
             session.init(

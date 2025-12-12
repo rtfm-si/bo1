@@ -18,14 +18,18 @@ logger = logging.getLogger(__name__)
 DEFAULT_RETENTION_DAYS = 365
 
 
-def cleanup_expired_sessions(retention_days: int = DEFAULT_RETENTION_DAYS) -> dict[str, int]:
-    """Delete sessions older than the retention period.
+def cleanup_expired_sessions(retention_days: int | None = None) -> dict[str, int]:
+    """Delete sessions older than each user's configured retention period.
 
     Sessions are anonymized rather than hard-deleted to preserve
     aggregate statistics while complying with GDPR.
 
+    Uses per-user data_retention_days from users table, falling back to
+    DEFAULT_RETENTION_DAYS (365) if not set.
+
     Args:
-        retention_days: Number of days to retain sessions (default: 365)
+        retention_days: Override retention period for all users (for testing).
+                       If None, uses per-user settings.
 
     Returns:
         Dict with counts of deleted/anonymized records
@@ -38,21 +42,39 @@ def cleanup_expired_sessions(retention_days: int = DEFAULT_RETENTION_DAYS) -> di
         "errors": 0,
     }
 
-    cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
-    logger.info(f"Running session cleanup for sessions before {cutoff_date.isoformat()}")
+    logger.info("Running session cleanup with per-user retention periods")
 
     try:
         with db_session() as conn:
             with conn.cursor() as cur:
-                # Get session IDs to clean up
-                cur.execute(
-                    """
-                    SELECT id FROM sessions
-                    WHERE created_at < %s
-                      AND user_id IS NOT NULL
-                    """,
-                    (cutoff_date,),
-                )
+                # Get session IDs to clean up based on per-user retention
+                # Join with users table to get each user's retention setting
+                if retention_days is not None:
+                    # Override mode: use fixed retention period (for testing)
+                    cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
+                    logger.info(
+                        f"Using override retention: {retention_days} days (cutoff: {cutoff_date.isoformat()})"
+                    )
+                    cur.execute(
+                        """
+                        SELECT id FROM sessions
+                        WHERE created_at < %s
+                          AND user_id IS NOT NULL
+                        """,
+                        (cutoff_date,),
+                    )
+                else:
+                    # Per-user mode: use each user's data_retention_days setting
+                    cur.execute(
+                        """
+                        SELECT s.id
+                        FROM sessions s
+                        JOIN users u ON s.user_id = u.id
+                        WHERE s.created_at < NOW() - (COALESCE(u.data_retention_days, %s) || ' days')::interval
+                          AND s.user_id IS NOT NULL
+                        """,
+                        (DEFAULT_RETENTION_DAYS,),
+                    )
                 session_ids = [row["id"] for row in cur.fetchall()]
 
                 if not session_ids:
@@ -182,16 +204,17 @@ def cleanup_orphaned_redis_keys() -> dict[str, int]:
         return stats
 
 
-def run_all_cleanup(retention_days: int = DEFAULT_RETENTION_DAYS) -> dict[str, Any]:
+def run_all_cleanup(retention_days: int | None = None) -> dict[str, Any]:
     """Run all cleanup jobs.
 
     Args:
-        retention_days: Retention period in days
+        retention_days: Override retention period in days. If None, uses per-user settings.
 
     Returns:
         Combined stats from all cleanup operations
     """
-    logger.info(f"Starting full cleanup (retention: {retention_days} days)")
+    mode = f"override: {retention_days} days" if retention_days else "per-user settings"
+    logger.info(f"Starting full cleanup (mode: {mode})")
 
     session_stats = cleanup_expired_sessions(retention_days)
     redis_stats = cleanup_orphaned_redis_keys()
@@ -214,8 +237,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--retention-days",
         type=int,
-        default=DEFAULT_RETENTION_DAYS,
-        help=f"Retention period in days (default: {DEFAULT_RETENTION_DAYS})",
+        default=None,
+        help=f"Override retention period in days. If not set, uses per-user settings (default: {DEFAULT_RETENTION_DAYS})",
     )
     parser.add_argument(
         "--sessions-only",

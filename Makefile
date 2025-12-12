@@ -201,23 +201,91 @@ logs-prod: ## Show production logs
 # Data Management Commands
 # =============================================================================
 
+.PHONY: backup-db
+backup-db: ## Backup PostgreSQL database
+	@mkdir -p backups/postgres
+	@echo "Creating PostgreSQL backup..."
+	docker-compose exec -T postgres pg_dump -U bo1 -d boardofone | gzip > ./backups/postgres/boardofone-$$(date +%Y%m%d-%H%M%S).sql.gz
+	@echo "Backup saved to ./backups/postgres/"
+	@ls -lh ./backups/postgres/*.sql.gz | tail -1
+
+.PHONY: restore-db
+restore-db: ## Restore PostgreSQL database (requires BACKUP_FILE variable)
+	@if [ -z "$(BACKUP_FILE)" ]; then \
+		echo "Error: BACKUP_FILE not specified"; \
+		echo "Usage: make restore-db BACKUP_FILE=./backups/postgres/boardofone-YYYYMMDD-HHMMSS.sql.gz"; \
+		exit 1; \
+	fi
+	@echo "WARNING: This will overwrite the current database!"
+	@read -p "Type 'yes' to continue: " confirm && [ "$$confirm" = "yes" ] || (echo "Cancelled" && exit 1)
+	gunzip -c $(BACKUP_FILE) | docker-compose exec -T postgres psql -U bo1 -d boardofone
+	@echo "Database restored from $(BACKUP_FILE)"
+
+.PHONY: verify-backup
+verify-backup: ## Verify most recent PostgreSQL backup
+	@echo "Verifying most recent backup..."
+	@BACKUP_FILE=$$(ls -t ./backups/postgres/*.sql.gz 2>/dev/null | head -1); \
+	if [ -z "$$BACKUP_FILE" ]; then \
+		echo "No backup files found in ./backups/postgres/"; \
+		exit 1; \
+	fi; \
+	echo "Testing backup: $$BACKUP_FILE"; \
+	gunzip -t "$$BACKUP_FILE" && echo "Compression OK" || (echo "Compression FAILED" && exit 1); \
+	echo "Backup verification passed"
+
+.PHONY: backup-db-encrypted
+backup-db-encrypted: ## Backup PostgreSQL database with encryption (requires BACKUP_AGE_RECIPIENT)
+	@if [ -z "$${BACKUP_AGE_RECIPIENT:-}" ]; then \
+		echo "Error: BACKUP_AGE_RECIPIENT not set"; \
+		echo "Usage: BACKUP_AGE_RECIPIENT=age1... make backup-db-encrypted"; \
+		echo "Generate a key with: make generate-backup-key"; \
+		exit 1; \
+	fi
+	@mkdir -p backups/postgres
+	@echo "Creating encrypted PostgreSQL backup..."
+	POSTGRES_HOST=localhost POSTGRES_PASSWORD=$${POSTGRES_PASSWORD:-postgres} \
+		BACKUP_DIR=./backups/postgres BACKUP_AGE_RECIPIENT=$${BACKUP_AGE_RECIPIENT} \
+		./scripts/backup_postgres.sh
+	@echo "Encrypted backup saved to ./backups/postgres/"
+	@ls -lh ./backups/postgres/*.sql.gz.age 2>/dev/null | tail -1 || echo "No encrypted backups found"
+
+.PHONY: generate-backup-key
+generate-backup-key: ## Generate age encryption keypair for backups
+	@if ! command -v age-keygen &> /dev/null; then \
+		echo "Error: age not installed. Install with: brew install age"; \
+		exit 1; \
+	fi
+	@mkdir -p backups/keys
+	@echo "Generating age keypair for backup encryption..."
+	@age-keygen -o backups/keys/backup.key 2>&1 | tee backups/keys/backup.pub
+	@echo ""
+	@echo "Key files created:"
+	@echo "  Private key: backups/keys/backup.key (KEEP SECURE - store separately from backups)"
+	@echo "  Public key:  backups/keys/backup.pub"
+	@echo ""
+	@echo "To encrypt backups, set:"
+	@echo "  export BACKUP_AGE_RECIPIENT=$$(grep 'public key' backups/keys/backup.pub | awk '{print $$NF}')"
+	@echo ""
+	@echo "To decrypt backups, set:"
+	@echo "  export BACKUP_AGE_KEY_FILE=./backups/keys/backup.key"
+
 .PHONY: backup-redis
 backup-redis: ## Backup Redis data
-	@mkdir -p backups
-	docker-compose exec redis redis-cli SAVE
-	docker cp bo1-redis:/data/dump.rdb ./backups/redis-$(shell date +%Y%m%d-%H%M%S).rdb
-	@echo "Redis backup saved to ./backups/"
+	@mkdir -p backups/redis
+	docker-compose exec redis redis-cli -a "$${REDIS_PASSWORD}" SAVE
+	docker cp $$(docker-compose ps -q redis):/data/dump.rdb ./backups/redis/redis-$$(date +%Y%m%d-%H%M%S).rdb
+	@echo "Redis backup saved to ./backups/redis/"
 
 .PHONY: restore-redis
 restore-redis: ## Restore Redis data (requires BACKUP_FILE variable)
 	@if [ -z "$(BACKUP_FILE)" ]; then \
 		echo "Error: BACKUP_FILE not specified"; \
-		echo "Usage: make restore-redis BACKUP_FILE=./backups/redis-YYYYMMDD-HHMMSS.rdb"; \
+		echo "Usage: make restore-redis BACKUP_FILE=./backups/redis/redis-YYYYMMDD-HHMMSS.rdb"; \
 		exit 1; \
 	fi
-	docker-compose down
-	docker cp $(BACKUP_FILE) bo1-redis:/data/dump.rdb
-	docker-compose up -d
+	docker-compose stop redis
+	docker cp $(BACKUP_FILE) $$(docker-compose ps -q redis):/data/dump.rdb
+	docker-compose start redis
 
 .PHONY: clean-redis
 clean-redis: ## Clear Redis data (WARNING: deletes all data)
@@ -401,6 +469,106 @@ docker-push: ## Push production image to registry
 	docker push $(REGISTRY)/bo1:$(TAG)
 	docker push $(REGISTRY)/bo1:latest
 	@echo "Pushed images to $(REGISTRY)"
+
+# =============================================================================
+# Load Testing Commands
+# =============================================================================
+
+.PHONY: load-test-normal
+load-test-normal: ## Run normal load test (10 users, 5 min)
+	@echo "Starting normal load test..."
+	@echo "Make sure the API is running (make up)"
+	@mkdir -p reports
+	docker-compose run --rm bo1 locust -f tests/load/scenarios/normal.py --headless -u 10 -r 1 -t 5m --html reports/load-test-normal.html
+
+.PHONY: load-test-peak
+load-test-peak: ## Run peak load test (50 users, 2 min)
+	@echo "Starting peak load test..."
+	@echo "Make sure the API is running (make up)"
+	@mkdir -p reports
+	docker-compose run --rm bo1 locust -f tests/load/scenarios/peak.py --headless -u 50 -r 10 -t 2m --html reports/load-test-peak.html
+
+.PHONY: load-test-sustained
+load-test-sustained: ## Run sustained load test (25 users, 30 min)
+	@echo "Starting sustained load test..."
+	@echo "Make sure the API is running (make up)"
+	@mkdir -p reports
+	docker-compose run --rm bo1 locust -f tests/load/scenarios/sustained.py --headless -u 25 -r 2 -t 30m --html reports/load-test-sustained.html
+
+.PHONY: load-test-ui
+load-test-ui: ## Start Locust web UI for interactive testing (http://localhost:8089)
+	@echo "Starting Locust web UI at http://localhost:8089"
+	@echo "Make sure the API is running (make up)"
+	docker-compose run --rm -p 8089:8089 bo1 locust -f tests/load/locustfile.py --web-host 0.0.0.0
+
+.PHONY: load-test-report
+load-test-report: ## Open latest load test report
+	@if [ -f reports/load-test-normal.html ]; then \
+		open reports/load-test-normal.html 2>/dev/null || xdg-open reports/load-test-normal.html 2>/dev/null || echo "Report at: reports/load-test-normal.html"; \
+	else \
+		echo "No load test reports found. Run a load test first."; \
+	fi
+
+# =============================================================================
+# E2E Testing Commands (Playwright)
+# =============================================================================
+
+.PHONY: e2e-install
+e2e-install: ## Install Playwright browsers
+	cd frontend && npx playwright install --with-deps chromium firefox
+
+.PHONY: e2e-test
+e2e-test: ## Run Playwright E2E tests (requires services running)
+	@echo "Running E2E tests..."
+	@echo "Make sure docker-compose services are running (make up)"
+	cd frontend && npm run test:e2e
+
+.PHONY: e2e-test-ui
+e2e-test-ui: ## Run Playwright tests with interactive UI
+	cd frontend && npm run test:e2e:ui
+
+.PHONY: e2e-test-headed
+e2e-test-headed: ## Run E2E tests in headed mode (visible browser)
+	cd frontend && npx playwright test --headed
+
+.PHONY: e2e-test-debug
+e2e-test-debug: ## Run E2E tests in debug mode
+	cd frontend && npx playwright test --debug
+
+.PHONY: e2e-report
+e2e-report: ## Open Playwright HTML report
+	cd frontend && npx playwright show-report
+
+# =============================================================================
+# Security Audit Commands
+# =============================================================================
+
+.PHONY: audit-python
+audit-python: ## Scan Python dependencies for vulnerabilities
+	@echo "🔍 Scanning Python dependencies for vulnerabilities..."
+	@mkdir -p audits/reports
+	docker-compose run --rm bo1 pip-audit --format markdown > audits/reports/python-deps.report.md 2>&1 || true
+	docker-compose run --rm bo1 pip-audit
+	@echo "✓ Python audit complete. Report: audits/reports/python-deps.report.md"
+
+.PHONY: audit-npm
+audit-npm: ## Scan npm dependencies for vulnerabilities
+	@echo "🔍 Scanning npm dependencies for vulnerabilities..."
+	@mkdir -p audits/reports
+	cd frontend && npm audit --json > ../audits/reports/npm-deps.report.json 2>&1 || true
+	cd frontend && npm audit
+	@echo "✓ npm audit complete. Report: audits/reports/npm-deps.report.json"
+
+.PHONY: audit-deps
+audit-deps: audit-python audit-npm ## Scan all dependencies for vulnerabilities
+	@echo "✅ All dependency audits complete!"
+
+.PHONY: osv-scan
+osv-scan: ## Run OSV scanner for malware/typosquatting detection
+	@echo "🔍 Running OSV scanner (malware + vulnerability detection)..."
+	@command -v osv-scanner >/dev/null 2>&1 || { echo "❌ osv-scanner not installed. Install with: brew install osv-scanner"; exit 1; }
+	osv-scanner --lockfile=uv.lock --lockfile=frontend/package-lock.json --config=.osv-scanner.toml
+	@echo "✓ OSV scan complete"
 
 # =============================================================================
 # Information Commands

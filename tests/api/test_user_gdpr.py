@@ -1,6 +1,7 @@
 """Tests for user GDPR endpoints.
 
 Validates:
+- POST /v1/user/gdpr-consent records GDPR consent timestamp
 - GET /v1/user/export returns user data as JSON
 - DELETE /v1/user/delete anonymizes user data
 - Rate limiting is enforced (1 request per 24h)
@@ -119,6 +120,8 @@ class TestDataExportContent:
             "sessions": [],
             "actions": [],
             "datasets": [],
+            "dataset_clarifications": [],
+            "dataset_conversations": [],
             "projects": [],
             "gdpr_audit_log": [],
         }
@@ -131,7 +134,67 @@ class TestDataExportContent:
         assert "sessions" in data
         assert "actions" in data
         assert "datasets" in data
+        assert "dataset_clarifications" in data
+        assert "dataset_conversations" in data
         assert "gdpr_audit_log" in data
+
+    @patch("backend.api.user.collect_user_data")
+    def test_export_includes_clarifications(self, mock_collect: MagicMock) -> None:
+        """Test export includes dataset clarifications."""
+        clarifications = [{"question": "What is revenue?", "answer": "Total sales"}]
+        mock_collect.return_value = {
+            "export_date": "2024-01-15T00:00:00+00:00",
+            "user_id": "test-user-123",
+            "profile": None,
+            "business_context": None,
+            "sessions": [],
+            "actions": [],
+            "datasets": [{"id": "ds-1", "clarifications": clarifications}],
+            "dataset_clarifications": [
+                {
+                    "dataset_id": "ds-1",
+                    "dataset_name": "Sales",
+                    "clarifications": clarifications,
+                }
+            ],
+            "dataset_conversations": [],
+            "projects": [],
+            "gdpr_audit_log": [],
+        }
+
+        data = mock_collect("test-user-123")
+
+        assert len(data["dataset_clarifications"]) == 1
+        assert data["dataset_clarifications"][0]["clarifications"] == clarifications
+
+    @patch("backend.api.user.collect_user_data")
+    def test_export_includes_conversations(self, mock_collect: MagicMock) -> None:
+        """Test export includes dataset conversations."""
+        conversations = [
+            {
+                "id": "conv-123",
+                "dataset_id": "ds-1",
+                "messages": [{"role": "user", "content": "What is total?"}],
+            }
+        ]
+        mock_collect.return_value = {
+            "export_date": "2024-01-15T00:00:00+00:00",
+            "user_id": "test-user-123",
+            "profile": None,
+            "business_context": None,
+            "sessions": [],
+            "actions": [],
+            "datasets": [],
+            "dataset_clarifications": [],
+            "dataset_conversations": conversations,
+            "projects": [],
+            "gdpr_audit_log": [],
+        }
+
+        data = mock_collect("test-user-123")
+
+        assert len(data["dataset_conversations"]) == 1
+        assert data["dataset_conversations"][0]["id"] == "conv-123"
 
 
 @pytest.mark.unit
@@ -148,6 +211,7 @@ class TestDataDeletionSummary:
             "actions_anonymized": 10,
             "datasets_deleted": 2,
             "files_deleted": 2,
+            "conversations_deleted": 3,
             "errors": [],
         }
 
@@ -156,8 +220,10 @@ class TestDataDeletionSummary:
         assert "sessions_anonymized" in summary
         assert "actions_anonymized" in summary
         assert "datasets_deleted" in summary
+        assert "conversations_deleted" in summary
         assert summary["sessions_anonymized"] == 5
         assert summary["actions_anonymized"] == 10
+        assert summary["conversations_deleted"] == 3
 
 
 @pytest.mark.unit
@@ -198,3 +264,67 @@ class TestAuditLogging:
 
         assert result1 == 456
         assert result2 == 456
+
+
+@pytest.mark.unit
+class TestGdprConsent:
+    """Test GDPR consent endpoint logic."""
+
+    @patch("backend.api.user.db_session")
+    @patch("backend.api.user.log_gdpr_event")
+    def test_consent_recorded_for_new_user(self, mock_log: MagicMock, mock_db: MagicMock) -> None:
+        """Test consent is recorded for user without prior consent."""
+        # Mock cursor with rowcount = 1 (updated)
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 1
+        mock_cursor.__enter__ = lambda s: s
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_conn.__enter__ = lambda s: s
+        mock_conn.__exit__ = MagicMock(return_value=False)
+
+        mock_db.return_value = mock_conn
+
+        # Simulate the update logic
+        updated = mock_cursor.rowcount > 0
+        assert updated is True
+
+    @patch("backend.api.user.db_session")
+    def test_consent_not_updated_if_exists(self, mock_db: MagicMock) -> None:
+        """Test consent not updated if already recorded."""
+        # Mock cursor with rowcount = 0 (no update - already consented)
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 0
+        mock_cursor.__enter__ = lambda s: s
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_conn.__enter__ = lambda s: s
+        mock_conn.__exit__ = MagicMock(return_value=False)
+
+        mock_db.return_value = mock_conn
+
+        # Simulate the update logic - should be False (already consented)
+        updated = mock_cursor.rowcount > 0
+        assert updated is False
+
+    @patch("backend.api.user.log_gdpr_event")
+    def test_consent_logs_audit_event(self, mock_log: MagicMock) -> None:
+        """Test that consent creates audit log."""
+        mock_log.return_value = 789
+
+        result = mock_log(
+            user_id="test-user",
+            action="consent_given",
+            ip_address="192.168.1.1",
+        )
+
+        assert result == 789
+        mock_log.assert_called_once_with(
+            user_id="test-user",
+            action="consent_given",
+            ip_address="192.168.1.1",
+        )

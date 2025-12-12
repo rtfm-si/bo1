@@ -22,6 +22,7 @@ from backend.api.admin import (
     metrics,
     research_cache,
     session_control,
+    user_metrics,
     users,
     waitlist,
 )
@@ -36,6 +37,7 @@ router.include_router(research_cache.router)
 router.include_router(beta_whitelist.router)
 router.include_router(waitlist.router)
 router.include_router(metrics.router)
+router.include_router(user_metrics.router)
 router.include_router(cost_analytics.router)
 router.include_router(feature_flags.router)
 

@@ -29,7 +29,8 @@
 		{
 			title: 'Account',
 			items: [
-				{ href: '/settings/account', label: 'Profile', icon: '👤' }
+				{ href: '/settings/account', label: 'Profile', icon: '👤' },
+				{ href: '/settings/privacy', label: 'Privacy', icon: '🔒' }
 			]
 		},
 		{

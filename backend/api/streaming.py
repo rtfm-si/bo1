@@ -11,7 +11,7 @@ import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from backend.api.dependencies import VerifiedSession, get_redis_manager
@@ -21,6 +21,7 @@ from backend.api.events import (
 )
 from backend.api.metrics import metrics
 from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.rate_limit import STREAMING_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.auth_helpers import is_admin
 from backend.api.utils.errors import handle_api_errors
@@ -613,6 +614,8 @@ async def stream_session_events(
     description="""
     Stream real-time deliberation events for a session using Server-Sent Events (SSE).
 
+    **Rate Limited:** 5 connections per minute per IP to prevent connection exhaustion.
+
     **Session Resume Support:**
     If the client disconnects and reconnects, include the `Last-Event-ID` header
     with the ID from the last received event. The server will replay any missed
@@ -695,7 +698,9 @@ async def stream_session_events(
         },
     },
 )
+@limiter.limit(STREAMING_RATE_LIMIT)
 async def stream_deliberation(
+    request: Request,
     session_id: str,
     session_data: VerifiedSession,
     current_user: dict = Depends(get_current_user),
@@ -706,8 +711,10 @@ async def stream_deliberation(
     Supports session resume via Last-Event-ID header.
 
     Security: Cost data is stripped from events for non-admin users.
+    Rate Limited: 5 connections per minute per IP to prevent connection exhaustion.
 
     Args:
+        request: FastAPI request object (used by rate limiter)
         session_id: Session identifier
         session_data: Verified session (user_id, metadata) from dependency
         current_user: Current authenticated user (for admin check)

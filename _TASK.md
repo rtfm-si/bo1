@@ -190,9 +190,9 @@
 - [x] [GDPR][P1] Implement GET /api/v1/user/export endpoint (Art. 15 data export) ✅ backend/api/user.py
 - [x] [GDPR][P1] Implement DELETE /api/v1/user/delete endpoint with anonymization (Art. 17) ✅ backend/api/user.py
 - [x] [GDPR][P1] Create audit logging for data export/deletion requests ✅ backend/services/audit.py + l1_add_gdpr_audit_log.py
-- [ ] [GDPR][P2] Clarify data retention policy duration (365 days vs compliance needs)
-- [ ] [GDPR][P2] Implement user-configurable retention period setting
-- [x] [GDPR][P1] Implement scheduled cleanup job for expired sessions ✅ backend/jobs/session_cleanup.py
+- [x] [GDPR][P2] Clarify data retention policy duration (365 days vs compliance needs) ✅ User-configurable 30-730 days
+- [x] [GDPR][P2] Implement user-configurable retention period setting ✅ GET/PATCH /api/v1/user/retention + /settings/privacy UI + per-user cleanup
+- [x] [GDPR][P1] Implement scheduled cleanup job for expired sessions ✅ backend/jobs/session_cleanup.py (now uses per-user retention)
 - [x] [GDPR][P1] Add rate limiting to export endpoint (1 request per 24h) ✅ via audit.get_recent_export_request()
 
 ### Promotions System [PROMO]
@@ -231,7 +231,7 @@
 - [x] [EMAIL][P1] Implement welcome email trigger on signup ✅ supertokens_config.py hook
 - [ ] [EMAIL][P4] Implement payment receipt email trigger on Stripe webhook - blocked on Stripe integration
 - [x] [EMAIL][P1] Add unsubscribe link to all emails ✅ generate_unsubscribe_token() + /v1/email/unsubscribe endpoint
-- [ ] [EMAIL][P2] Create email preferences page (frontend) - API exists at GET/PATCH /v1/user/email-preferences
+- [x] [EMAIL][P2] Create email preferences page (frontend) - API exists at GET/PATCH /v1/user/email-preferences ✅ /settings/privacy
 - [ ] [EMAIL][P2] Test email deliverability across clients
 
 ### Production Monitoring [MONITORING]
@@ -256,52 +256,52 @@
 - [x] [MONITORING][P1] Create Grafana dashboards (API, deliberation, cost, infrastructure) ✅ infra/grafana/dashboards/{api,deliberation,cost,infrastructure}.json
 - [x] [MONITORING][P1] Configure Prometheus alerting rules ✅ infra/prometheus/alerts/slo.yml + infra/alertmanager/config.yml + docker-compose monitoring profile
 - [x] [MONITORING][P1] Configure structured JSON logging with context fields ✅ bo1/utils/logging.py (JsonFormatter, log_format setting, correlation_id integration)
-- [ ] [MONITORING][P1] Setup Grafana Loki for log aggregation
-- [ ] [MONITORING][P1] Implement audit logging middleware
+- [x] [MONITORING][P1] Setup Grafana Loki for log aggregation ✅ loki+promtail in docker-compose.infrastructure.yml, Loki datasource, logs dashboard
+- [x] [MONITORING][P1] Implement audit logging middleware ✅ backend/api/middleware/audit_logging.py + backend/services/api_audit.py + backend/jobs/audit_cleanup.py + q1_add_api_audit_log.py migration
 - [x] [MONITORING][P1] Add security headers middleware ✅ backend/api/middleware/security_headers.py (X-Frame-Options, HSTS, CSP, etc.)
 
 ### Admin Dashboard [ADMIN-UI]
 
-- [ ] [ADMIN][P2] Create admin route layout and auth middleware
-- [ ] [ADMIN][P2] Create admin API client
-- [ ] [ADMIN][P2] Create active sessions page with live updates
-- [ ] [ADMIN][P2] Create session details modal
-- [ ] [ADMIN][P2] Create cost analytics page with charts
-- [ ] [ADMIN][P2] Implement CSV export for cost data
-- [ ] [ADMIN][P2] Add kill session button with confirmation
-- [ ] [ADMIN][P2] Add kill-all-sessions emergency button
-- [ ] [ADMIN][P2] Create kill history audit trail display
+- [x] [ADMIN][P2] Create admin route layout and auth middleware ✅ +layout.ts + +layout.svelte with client-side redirect
+- [x] [ADMIN][P2] Create admin API client ✅ frontend/src/lib/api/admin.ts
+- [x] [ADMIN][P2] Create active sessions page with live updates ✅ /admin/sessions with 10s polling
+- [x] [ADMIN][P2] Create session details modal ✅ SessionDetailModal.svelte
+- [x] [ADMIN][P2] Create cost analytics page with charts ✅ /admin/costs with daily bar chart
+- [x] [ADMIN][P2] Implement CSV export for cost data ✅ Export button on costs page
+- [x] [ADMIN][P2] Add kill session button with confirmation ✅ SessionDetailModal kill with reason
+- [x] [ADMIN][P2] Add kill-all-sessions emergency button ✅ Sessions page kill-all with double confirm
+- [x] [ADMIN][P2] Create kill history audit trail display ✅ /admin/kill-history + GET /api/admin/sessions/kill-history endpoint
 - [ ] [ADMIN][P2] Create alert settings page (ntfy.sh thresholds)
 - [ ] [ADMIN][P2] Create alert history page
 
 ### QA & Security [QA]
 
-- [ ] [QA][P1] Create load test scenarios (normal, peak, sustained) with Locust
-- [ ] [QA][P1] Perform auth security audit (session, OAuth, rate limiting)
-- [ ] [QA][P1] Perform auth penetration testing (session fixation, CSRF, brute force)
-- [ ] [QA][P1] Perform infrastructure security audit (network, secrets, logging)
-- [ ] [QA][P1] Scan Python and npm dependencies for vulnerabilities
-- [ ] [QA][P1] Perform GDPR compliance audit
-- [ ] [QA][P1] Create E2E tests for critical user flows (Playwright)
-- [ ] [QA][P1] Perform OWASP Top 10 security testing
+- [x] [QA][P1] Create load test scenarios (normal, peak, sustained) with Locust ✅ tests/load/ + Makefile targets (load-test-normal/peak/sustained/ui)
+- [x] [QA][P1] Perform auth security audit (session, OAuth, rate limiting) ✅ audits/reports/auth-security.report.md (0 critical, 2 medium, 3 low)
+- [x] [QA][P1] Perform auth penetration testing (session fixation, CSRF, brute force) ✅ audits/reports/auth-pentest.report.md (0 critical, 0 high, 1 low)
+- [x] [QA][P1] Perform infrastructure security audit (network, secrets, logging) ✅ audits/reports/infra-security.report.md (0 critical, 1 high, 4 medium, 3 low)
+- [x] [QA][P1] Scan Python and npm dependencies for vulnerabilities ✅ pip-audit + npm audit in CI + Makefile targets (audit-python, audit-npm, audit-deps)
+- [x] [QA][P1] Perform GDPR compliance audit ✅ audits/reports/gdpr-compliance.report.md (0 critical, 1 high, 4 medium, 3 low)
+- [x] [QA][P1] Create E2E tests for critical user flows (Playwright) ✅ frontend/e2e/ + auth.spec.ts, meeting-create.spec.ts, meeting-complete.spec.ts, actions.spec.ts, datasets.spec.ts + CI integration
+- [x] [QA][P1] Perform OWASP Top 10 security testing ✅ audits/reports/owasp-top10.report.md (0 critical, 0 high, 2 medium, 4 low)
 
 ### Deployment & Infrastructure [DEPLOY]
 
-- [ ] [DEPLOY][P1] Draft privacy policy (GDPR Art. 13-14)
-- [ ] [DEPLOY][P1] Draft terms of service
-- [ ] [DEPLOY][P1] Create privacy policy and terms of service pages
-- [ ] [DEPLOY][P1] Sign DPAs with data processors (Supabase, Resend, Sentry)
+- [x] [DEPLOY][P1] Draft privacy policy (GDPR Art. 13-14) ✅ frontend/src/routes/legal/privacy/+page.svelte
+- [x] [DEPLOY][P1] Draft terms of service ✅ frontend/src/routes/legal/terms/+page.svelte (13 sections: acceptance, service description, accounts, acceptable use, IP, payments, privacy, liability, indemnification, disclaimer, changes, governing law, contact)
+- [x] [DEPLOY][P1] Create privacy policy and terms of service pages ✅ /legal/privacy, /legal/terms, /legal/cookies exist
+- [ ] [DEPLOY][P1] Sign DPAs with data processors (Supabase, Resend, Anthropic, DigitalOcean)
 - [x] [DEPLOY][P1] Create GitHub Actions CI workflow (test.yml) ✅ .github/workflows/ci.yml (lint, typecheck, pytest, coverage)
-- [ ] [DEPLOY][P1] Create staging deployment workflow (deploy-staging.yml)
+- [x] [DEPLOY][P1] Create staging deployment workflow (deploy-staging.yml) ✅ .github/workflows/deploy-staging.yml (auto-deploy on main, ports 8002/3002)
 - [x] [DEPLOY][P1] Create production deployment workflow (deploy-production.yml) ✅ .github/workflows/deploy-production.yml (blue-green, security scan, health checks)
 - [ ] [DEPLOY][P1] Configure GitHub secrets
 - [ ] [DEPLOY][P1] Purchase domain and configure DNS
 - [ ] [DEPLOY][P1] Setup SSL/TLS with Let's Encrypt
-- [ ] [DEPLOY][P1] Enable PostgreSQL daily backups
-- [ ] [DEPLOY][P1] Configure Redis persistence (AOF + RDB)
-- [ ] [DEPLOY][P1] Create disaster recovery runbook
+- [x] [DEPLOY][P1] Enable PostgreSQL daily backups ✅ scripts/backup_postgres.sh + make backup-db/restore-db/verify-backup
+- [x] [DEPLOY][P1] Configure Redis persistence (AOF + RDB) ✅ appendonly yes + save in docker-compose.infrastructure.yml
+- [x] [DEPLOY][P1] Create disaster recovery runbook ✅ docs/DISASTER_RECOVERY.md (pre-existing)
 - [ ] [DEPLOY][P1] Setup uptime monitoring (UptimeRobot)
-- [ ] [DEPLOY][P1] Create incident response playbook
+- [x] [DEPLOY][P1] Create incident response playbook ✅ docs/INCIDENT_RESPONSE.md
 - [ ] [DEPLOY][P1] Setup blue-green deployment environments
 - [ ] [DEPLOY][P1] Document production deployment procedure
 
@@ -322,9 +322,9 @@
 
 ### Admin & Analytics [ADMIN-EXT]
 
-- [ ] [ADMIN][P1] Extend admin pages with cost tracking and reporting views
-- [ ] [ADMIN][P1] Implement onboarding pipeline analytics (funnel metrics)
-- [ ] [ADMIN][P1] Implement app usage metrics dashboard (DAU, sessions, actions)
+- [x] [ADMIN][P1] Extend admin pages with cost tracking and reporting views ✅ /admin/costs already exists
+- [x] [ADMIN][P1] Implement onboarding pipeline analytics (funnel metrics) ✅ backend/services/onboarding_analytics.py + /api/admin/metrics/onboarding
+- [x] [ADMIN][P1] Implement app usage metrics dashboard (DAU, sessions, actions) ✅ /admin/metrics page with DAU/WAU/MAU, daily charts, funnel
 - [x] [SECURITY][P1] Audit API to verify costs not exposed to non-admin users ✅ Fixed: GET /sessions/{id}/costs now admin-only, SessionResponse.cost stripped for non-admin, SSE cost events filtered
 
 ### Governance Audits [AUDIT]
@@ -431,12 +431,12 @@
 
 ### Admin Observability [ADMIN-OBS]
 
-- [ ] [ADMIN][P1] Extend admin pages with user metrics (signup rate, active users)
-- [ ] [ADMIN][P1] Extend admin pages with usage metrics (meeting count, action count, API calls)
+- [x] [ADMIN][P1] Extend admin pages with user metrics (signup rate, active users) ✅ backend/services/user_analytics.py + /admin/metrics page
+- [x] [ADMIN][P1] Extend admin pages with usage metrics (meeting count, action count, API calls) ✅ /api/admin/metrics/usage endpoint + frontend charts
 - [ ] [ADMIN][P2] Add admin access link to Grafana dashboard
 - [ ] [ADMIN][P2] Add admin access link to Prometheus dashboard
 - [ ] [ADMIN][P2] Add admin access link to Sentry error tracking
-- [ ] [ADMIN][P2] Add admin view of onboarding funnel analytics
+- [x] [ADMIN][P2] Add admin view of onboarding funnel analytics ✅ backend/services/onboarding_analytics.py + /api/admin/metrics/onboarding + funnel visualization
 
 ### Navigation & Header [NAV-HEADER]
 
@@ -501,3 +501,117 @@
 ### Storage Organization [STORAGE-ORG]
 
 - [ ] [STORAGE][P2] Implement workspace/user folder hierarchy for DO Spaces uploads (organize user files under workspace_id/user_id paths)
+
+---
+
+## Task backlog (from auth security audit, 2025-12-12)
+
+### Security Remediation [SECURITY-REMEDIATION]
+
+- [x] [SECURITY][P2] Encrypt OAuth tokens at rest (use Fernet/cryptography for google_tokens column) ✅ backend/services/encryption.py + s1_encrypt_oauth_tokens migration
+- [x] [SECURITY][P2] Implement account lockout after failed auth attempts (exponential backoff: 5 failures=30s, 10=5min, 15=1hr) ✅ backend/services/auth_lockout.py + bo1/constants.py AuthLockout + SuperTokens API override
+- [ ] [SECURITY][P3] Sanitize OAuth error messages to avoid revealing internal flow state
+- [ ] [SECURITY][P3] Add Redis availability monitoring for rate limiter fail-open risk
+
+---
+
+## Task backlog (from infra security audit, 2025-12-12)
+
+### Infrastructure Security Remediation [INFRA-SEC]
+
+- [x] [SECURITY][P1] Bind development ports to localhost in docker-compose.yml (Postgres, Redis, SuperTokens, API) ✅
+- [x] [SECURITY][P2] Remove hardcoded SuperTokens API key fallback - fail startup if env var missing ✅
+- [x] [SECURITY][P2] Add Redis authentication to development docker-compose.yml ✅
+- [x] [SECURITY][P2] Add log scrubbing pipeline stages to Promtail config (password, token, secret patterns) ✅
+- [x] [SECURITY][P2] Encrypt database backups with GPG/age before storage ✅ scripts/backup_postgres.sh + restore + verify + Makefile targets + docs/DISASTER_RECOVERY.md
+- [x] [DEPLOY][P2] Create disaster recovery runbook (docs/DISASTER_RECOVERY.md) (2-4 hours) ✅ docs/DISASTER_RECOVERY.md
+- [ ] [SECURITY][P3] Reduce Promtail Docker socket exposure - use logging driver instead (2-4 hours)
+- [ ] [DEPLOY][P3] Extend backup retention (weekly for 30 days, monthly for 90 days) (30 min)
+
+---
+
+## Task backlog (from GDPR compliance audit, 2025-12-12)
+
+### GDPR Remediation [GDPR-REMEDIATION]
+
+- [x] [GDPR][P1] Implement GDPR consent capture during signup (checkbox + timestamp in gdpr_consent_at column) ✅ Login page checkbox, callback stores consent, POST /api/v1/user/gdpr-consent endpoint
+- [x] [GDPR][P2] Add dataset clarifications to data export (backend/services/gdpr.py collect_user_data) ✅
+- [x] [GDPR][P2] Add dataset Q&A conversation history to data export ✅
+- [x] [GDPR][P2] Clear Redis conversation history on account deletion (backend/services/gdpr.py delete_user_data) ✅
+- [x] [GDPR][P3] Fix privacy policy links to /settings/privacy (create page or update links) - Created /settings/privacy page with email prefs, data export, account deletion
+- [x] [GDPR][P3] Add explicit LLM processing notice during onboarding flow ✅ Info callout on /onboarding before progress indicator
+- [x] [GDPR][P3] Add user-configurable data retention period setting ✅ r1_add_user_retention_setting.py + GET/PATCH /api/v1/user/retention + /settings/privacy UI
+
+---
+
+## Task backlog (from supply-chain + web security investigation, 2025-12-12)
+
+### Supply-Chain Security [SEC][SUPPLY]
+
+- [x] [SEC][SUPPLY][P1] Pin npm dependency versions (remove `^` ranges from package.json) ✅ All deps pinned in frontend/package.json
+
+- [x] [SEC][SUPPLY][P1] Add automated malware/typosquatting scanning to CI ✅ OSV-Scanner in .github/workflows/ci.yml + .osv-scanner.toml + make osv-scan
+
+- [x] [SEC][SUPPLY][P2] Review high-risk transitive dependencies for single-maintainer packages ✅ audits/reports/supply-chain-review.report.md (70 npm + 16 Python packages analyzed; no critical risks; dompurify/Cure53 accepted)
+
+---
+
+### CI & Dependency Policy [SEC][CI]
+
+- [x] [SEC][CI][P1] Make `npm audit` failures blocking (currently runs but may not fail build on moderate) ✅ Changed to --audit-level=moderate in ci.yml
+
+- [x] [SEC][CI][P1] Add PR dependency review gate (flag new deps for manual review) ✅ Added dependency-review-action job to ci.yml
+
+- [x] [SEC][CI][P2] Integrate OSV-Scanner or Trivy for broader vulnerability coverage ✅ OSV-Scanner added to CI
+
+---
+
+### Web Security [SEC][WEB]
+
+- [x] [SEC][WEB][P1] Tighten CSP: replace `'unsafe-inline' 'unsafe-eval'` with nonce-based script loading ✅ SvelteKit CSP mode:'auto' + nginx CSP removed (SvelteKit handles)
+
+- [x] [SEC][WEB][P2] Add CSP report-uri endpoint for violation monitoring ✅ POST /api/v1/csp-report + svelte.config.js report-uri directive
+
+- [ ] [SEC][WEB][P2] Submit domain to HSTS preload list
+  - HSTS configured but not preloaded; first-visit downgrade attack possible
+
+---
+
+### Authentication & Sessions [SEC][AUTH]
+
+- [x] [SEC][AUTH][P1] Verify COOKIE_SECURE=true in production deployment ✅ Startup validation + CI check + docs
+
+  - Startup fails if ENV=production and COOKIE_SECURE!=true
+  - deploy-production.yml pre-deployment check added
+  - docs/DISASTER_RECOVERY.md security checklist added
+
+- [x] [SEC][AUTH][P2] Add explicit CSRF token validation for non-SuperTokens routes ✅ backend/api/middleware/csrf.py + frontend X-CSRF-Token header
+  - SuperTokens routes protected via anti-csrf; custom endpoints now use double-submit cookie pattern
+
+---
+
+### Rate Limiting & Abuse [SEC][ABUSE]
+
+- [x] [SEC][ABUSE][P1] Add rate limiting to SSE streaming endpoint ✅ @limiter.limit(STREAMING_RATE_LIMIT) applied to stream_deliberation()
+
+- [x] [SEC][ABUSE][P1] Add rate limiting to dataset upload endpoint ✅ @limiter.limit(UPLOAD_RATE_LIMIT) applied to upload_dataset() with 10/hour limit
+
+- [ ] [SEC][ABUSE][P2] Add WAF rules for common attack patterns (SQLi, XSS probes)
+  - No edge WAF configured; relies on app-level validation only
+
+---
+
+### Logging & Monitoring [SEC][LOG]
+
+- [x] [SEC][LOG][P2] Audit logs for PII/secret leakage ✅ bo1/utils/log_sanitizer.py + JsonFormatter integration + Promtail scrubbing + 33 tests
+  - Centralized sanitizer: password/secret/token/api_key redaction
+  - Email partial masking (j***@example.com)
+  - Bearer token truncation (8 chars + ...)
+  - Nested dict recursive sanitization
+  - Defense-in-depth: app-level + Promtail pipeline
+
+- [x] [SEC][LOG][P2] Add security event alerting (failed auth spikes, rate limit hits) ✅ backend/services/security_alerts.py + bo1/constants.py SecurityAlerts + integration with auth_lockout.py and rate_limit.py
+
+- [ ] [SEC][LOG][P2] Extend security event alerting (failed auth spikes, rate limit hits) with ntfy alerts
+
+---

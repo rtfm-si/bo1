@@ -1,160 +1,226 @@
-# Meeting Investigation – bo1_70daf791-4b1c-4c44-a5e1-f1a967885a83
+# Auth Security Audit Report
 
-## 1. Summary
+**Date:** 2025-12-12
+**Auditor:** Claude Code (automated)
+**Scope:** Authentication, OAuth, rate limiting, admin access
 
-- **Status**: completed
-- **Problem**: "Should we raise a Series A round now or wait 6 months to improve metrics?"
-- **Duration**: ~35 minutes (09:56:14 → 10:30:54 UTC)
-- **Cost**: $0.6840
+---
 
-**What worked:**
+## Executive Summary
 
-- Meeting completed successfully with 23 events and full meta-synthesis
-- 4 sub-problems decomposed and analyzed with dependencies
-- 7 actionable recommendations generated with priorities, timelines, success metrics
-- Actions correctly extracted and displayed on dashboard
-- No console errors or failed network requests when accessed by session owner
+The authentication implementation follows security best practices with SuperTokens session management, proper OAuth token handling, and tiered rate limiting. **No critical vulnerabilities found.**
 
-**Issues found:**
+### Risk Summary
 
-- **P0**: Raw JSON displayed in Executive Summary instead of formatted content
-- **P1**: Page header shows "Meeting in Progress" for completed meeting
-- **P1**: Sidebar metrics show 0 for Rounds, Contributions, Risks despite actual deliberation
-- **P1**: Focus Area tabs don't switch content (always shows Summary)
-- **P2**: Tab shows "Focus Area 1" instead of descriptive sub-problem title
-- **P2**: "Connected" status indicator inappropriate for completed meeting
+| Severity | Count |
+| -------- | ----- |
+| Critical | 0     |
+| High     | 0     |
+| Medium   | 2     |
+| Low      | 3     |
+| Info     | 2     |
 
-## 2. Timeline Reconstruction
+---
 
-| Time (UTC) | Seq   | Event Type                                                                              | Notes                                     |
-| ---------- | ----- | --------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| 09:56:14   | 1     | context_collection_complete                                                             | Meeting started                           |
-| 09:56:46   | 2-5   | working_status, discussion_quality_status, decomposition_complete, comparison_detected  | 4 sub-problems identified                 |
-| 09:56:53   | 6     | clarification_required                                                                  | User context clarification                |
-| 10:17:06   | 7-12  | dependency_analysis_complete, speculative_execution_started, subproblem_started/waiting | **20+ min gap** - user clarification time | (this 20m gap was waiting on me to answer questions - wasnt immediately obvious the my input was required - scroll to input area maybe?) |
-| 10:21:36   | 13-14 | subproblem_complete, subproblem_started                                                 | SP1 done (~4.5 min)                       |
-| 10:26:33   | 15-16 | subproblem_complete, subproblem_started                                                 | SP2 done (~5 min)                         |
-| 10:27:06   | 17    | subproblem_started                                                                      | SP3 started                               |
-| 10:30:07   | 18    | subproblem_complete                                                                     | SP3 done (~3 min)                         |
-| 10:30:19   | 19-20 | subproblem_complete, all_subproblems_complete                                           | SP4 done, all complete                    |
-| 10:30:54   | 21-23 | working_status, meta_synthesis_complete, complete                                       | Final synthesis                           |
+## 1. SuperTokens Session Configuration
 
-**Gap analysis:**
+**File:** `backend/api/supertokens_config.py`
 
-- 20+ min gap between decomposition and subproblem execution (expected - user clarification)
-- Subproblem execution: 4-5 min each (reasonable)
-- Meta-synthesis: ~35 seconds (fast)
+### Findings
 
-## 3. UI & UX Issues
+| Status | Item             | Details                                                     |
+| ------ | ---------------- | ----------------------------------------------------------- |
+| PASS   | HttpOnly cookies | Sessions use httpOnly cookies (XSS-proof)                   |
+| PASS   | Secure flag      | Configurable via `COOKIE_SECURE` env var                    |
+| PASS   | SameSite         | Set to `lax` (CSRF protection)                              |
+| PASS   | Token rotation   | SuperTokens handles automatic refresh token rotation        |
+| PASS   | Session expiry   | Managed by SuperTokens Core                                 |
+| PASS   | BFF pattern      | Tokens never reach frontend (server-side exchange)          |
+| PASS   | Production guard | `require_production_auth()` prevents MVP mode in production |
 
-### P0 - Critical
+### Security Controls
 
-**Raw JSON in Executive Summary**
+- httpOnly cookies prevent JavaScript access (XSS mitigation)
+- SameSite=lax prevents CSRF on cross-origin POST requests
+- Cookie domain configurable for production deployment
+- Session handles are opaque tokens (no sensitive data embedded)
 
-- Location: Summary tab → Executive Summary section
-- Issue: Full JSON object displayed verbatim with curly braces, quotes, escaped characters
-- Expected: Formatted, readable summary with proper headings, bullet points
-- Impact: Severely degrades user experience; synthesis content is unreadable
+---
 
-### P1 - Serious
+## 2. Auth Middleware
 
-**Incorrect page header for completed meeting**
+**File:** `backend/api/middleware/auth.py`
 
-- Location: `<heading "Meeting in Progress" [level=1]>`
-- Issue: Shows "Meeting in Progress" for status=completed
-- Expected: "Meeting Complete" or "Decision Summary"
+### Findings
 
-**Sidebar metrics all show 0**
+| Status | Item                | Details                                                        |
+| ------ | ------------------- | -------------------------------------------------------------- |
+| PASS   | Session validation  | Uses `verify_session()` dependency from SuperTokens            |
+| PASS   | MVP mode protection | MVP mode blocked when `DEBUG=false`                            |
+| PASS   | Error handling      | Returns generic "Authentication failed" (no info leakage)      |
+| PASS   | Startup validation  | `require_production_auth()` fails app startup if misconfigured |
+| INFO   | Logging             | User IDs logged on auth (consider PII implications)            |
 
-- Location: Right sidebar "Deliberation Progress"
-- Values: Rounds=0, Risks=0, Research=0, Contributions=0
-- DB shows: 29 contributions, multiple rounds across 4 sub-problems
-- Impact: User sees no evidence of deliberation occurring
+### Security Controls
 
-**Focus Area tabs non-functional**
+- Module-level check logs CRITICAL if auth disabled in non-DEBUG mode
+- `require_production_auth()` raises RuntimeError if auth misconfigured in production
+- Admin endpoints require `is_admin=True` from database
 
-- Location: Tab navigation (Focus Area 1-4, Summary)
-- Issue: Clicking tabs doesn't change displayed content
-- Expected: Each tab should show that sub-problem's deliberation details
+---
 
-### P2 - Minor
+## 3. OAuth Flow (Google Sheets)
 
-**Generic tab labels**
+**File:** `backend/services/sheets.py`, `backend/api/supertokens_config.py`
 
-- Current: "Focus Area 1", "Focus Area 2", etc.
-- Suggested: Show truncated sub-problem goal (first 30 chars)
+### Findings
 
-**"Connected" indicator on completed meeting**
+| Status | Item               | Details                                                |
+| ------ | ------------------ | ------------------------------------------------------ |
+| PASS   | State parameter    | SuperTokens handles OAuth state (CSRF protection)      |
+| PASS   | Token storage      | Tokens stored in PostgreSQL (not cookies/localStorage) |
+| PASS   | Token refresh      | Auto-refresh with persistence to database              |
+| PASS   | Scope minimization | Uses `spreadsheets.readonly` (read-only access)        |
+| MEDIUM | Token encryption   | OAuth tokens stored in plaintext in database           |
+| LOW    | Error messages     | Some error messages reveal internal OAuth flow state   |
 
-- Location: Activity panel header
-- Issue: Shows "Connected" when SSE not active (correctly skipped for completed)
-- Expected: "Complete" or hidden for completed meetings
+### Recommendations
 
-**Breadcrumb uses raw ID**
+**[MEDIUM] OAuth Token Encryption**
 
-- Current: "Bo1_70daf791 4b1c 4c44 a5e1 f1a967885a83"
-- Suggested: Truncated problem statement or "Series A Decision"
+- **Issue:** Google OAuth tokens stored in plaintext in `users.google_tokens` column
+- **Risk:** Database breach exposes user Google access
+- **Recommendation:** Encrypt tokens at rest using application-level encryption
 
-## 4. Performance & Gaps
+**[LOW] Error Message Sanitization**
 
-- **Page load**: Fast (~3s to full render)
-- **Historical events load**: 23 events loaded successfully
-- **SSE correctly skipped**: For completed session, no unnecessary connection attempts
+- **Issue:** `SheetsError` messages may reveal OAuth token state
+- **Recommendation:** Ensure production error messages are user-friendly
 
-**DB ↔ UI mismatch:**
+---
 
-- DB has full synthesis_text JSON in sessions table
-- UI displays raw JSON instead of parsing and formatting
-- sub_problem_results table is empty (data may be in session_events instead)
+## 4. Rate Limiting
 
-## 5. Console & Log Errors
+**File:** `backend/api/middleware/rate_limit.py`, `bo1/constants.py`
 
-**Browser Console**: No errors when accessed by session owner (si@boardof.one)
+### Current Limits
 
-**Network Requests**: All successful (200 OK)
+| Endpoint Type       | Limit                   | Key  |
+| ------------------- | ----------------------- | ---- |
+| Auth (/api/auth/\*) | 10/minute               | IP   |
+| Session creation    | 5/minute (free)         | User |
+| Session creation    | 20/minute (pro)         | User |
+| Session creation    | 100/minute (enterprise) | User |
+| Streaming (SSE)     | 5/minute                | IP   |
+| General API         | 60/minute               | IP   |
+| Control endpoints   | 20/minute               | IP   |
 
-- GET /api/v1/sessions/{id}
-- GET /api/v1/sessions/{id}/events
-- POST /api/v1/sessions/{id}/extract-tasks
+### Findings
 
-**Previous session (different user)**: 404 errors due to data isolation - working correctly but UX was poor (showed "Loading" instead of "Access Denied")
+| Status | Item                     | Details                                              |
+| ------ | ------------------------ | ---------------------------------------------------- |
+| PASS   | Auth endpoint protection | 10 req/min per IP                                    |
+| PASS   | User-based limiting      | Session creation uses user_id key                    |
+| PASS   | Tiered limits            | Different limits by subscription tier                |
+| PASS   | Redis-backed             | Multi-instance safe with Redis storage               |
+| PASS   | Graceful degradation     | Falls back to in-memory if Redis unavailable         |
+| MEDIUM | No lockout               | No progressive lockout after failed attempts         |
+| LOW    | Fail-open                | UserRateLimiter allows requests if Redis unavailable |
 
-## 6. Recommendations
+### Recommendations
 
-### Critical (P0)
+**[MEDIUM] Account Lockout**
 
-1. **Parse and format synthesis JSON** in `MetaSynthesisCard` or equivalent component
-   - Extract `recommended_actions` array → render as action cards
-   - Extract `synthesis_summary` → render as prose paragraph
-   - Remove raw JSON display entirely
+- **Issue:** No progressive lockout after multiple failed auth attempts
+- **Risk:** Brute force attacks can continue indefinitely at 10/min rate
+- **Recommendation:** Implement exponential backoff after 5 failed attempts
 
-### High Priority (P1)
+**[LOW] Fail-Open Risk**
 
-2. **Fix page header** to reflect session status
+- **Issue:** Rate limiter allows requests when Redis is down
+- **Mitigation:** Redis should be monitored for availability
 
-   - File: `frontend/src/routes/(app)/meeting/[id]/+page.svelte`
-   - Conditionally show "Meeting Complete" when `session.status === 'completed'`
+---
 
-3. **Populate sidebar metrics** from session events
+## 5. Admin Authentication
 
-   - Count contribution events for "Contributions"
-   - Derive round count from subproblem progression
-   - Parse events for risk/research mentions
+**File:** `backend/api/middleware/admin.py`
 
-4. **Fix Focus Area tab switching**
-   - Debug tab panel content rendering
-   - Ensure each sub-problem's data loads on tab click
+### Findings
 
-### Medium Priority (P2)
+| Status | Item                     | Details                                             |
+| ------ | ------------------------ | --------------------------------------------------- |
+| PASS   | Constant-time comparison | Uses `secrets.compare_digest()` for API key         |
+| PASS   | Dual auth methods        | Session-based OR API key supported                  |
+| PASS   | Database validation      | `is_admin` flag checked from PostgreSQL             |
+| PASS   | Audit logging            | Admin access attempts logged                        |
+| INFO   | API key storage          | API key in environment variable (standard practice) |
 
-5. **Improve tab labels** with descriptive sub-problem goals
-6. **Hide or update "Connected" indicator** for completed meetings
-7. **Humanize breadcrumb** with problem statement excerpt
+### Security Controls
 
-### Testing
+- Timing attack prevention with `secrets.compare_digest()`
+- Session auth checks `is_admin` flag in database (not just token claims)
+- API key auth requires explicit configuration
+- Failed admin attempts logged with warnings
 
-8. Add E2E test for completed meeting view ensuring:
-   - Correct header text
-   - Parsed synthesis content
-   - Functional tab navigation
-   - Accurate sidebar metrics
+---
+
+## 6. Additional Observations
+
+### Production Checklist
+
+- [ ] Set `COOKIE_SECURE=true` in production
+- [ ] Set `COOKIE_DOMAIN` to production domain
+- [ ] Set `ENABLE_SUPERTOKENS_AUTH=true` in production
+- [ ] Configure `ADMIN_API_KEY` with strong random value
+- [ ] Disable `DEBUG` mode in production
+
+### Positive Security Patterns Observed
+
+1. **Defense in depth:** Multiple auth checks at different layers
+2. **Fail-secure:** Production guard prevents auth bypass
+3. **Minimal scope:** OAuth scopes limited to what's needed
+4. **Audit trail:** Auth events logged for forensics
+5. **Secure defaults:** MVP mode only available in DEBUG
+
+---
+
+## Remediation Summary
+
+### Priority Actions
+
+| Priority | Issue                                     | Effort    |
+| -------- | ----------------------------------------- | --------- |
+| Medium   | Encrypt OAuth tokens at rest              | 4-8 hours |
+| Medium   | Add account lockout after failed attempts | 2-4 hours |
+| Low      | Sanitize OAuth error messages             | 1-2 hours |
+| Low      | Add Redis availability monitoring         | 1-2 hours |
+
+### Implementation Notes
+
+**OAuth Token Encryption:**
+
+```python
+# Recommended: Use Fernet symmetric encryption
+from cryptography.fernet import Fernet
+key = os.getenv("TOKEN_ENCRYPTION_KEY")
+fernet = Fernet(key)
+encrypted_token = fernet.encrypt(access_token.encode())
+```
+
+**Account Lockout:**
+
+```python
+# Track failed attempts in Redis with exponential backoff
+# After 5 failures: 30s lockout
+# After 10 failures: 5min lockout
+# After 15 failures: 1hour lockout + admin alert
+```
+
+---
+
+## Conclusion
+
+The authentication system is well-designed with appropriate security controls for a production application. The identified issues are moderate in severity and have clear remediation paths. The use of SuperTokens provides a solid foundation with built-in protections against common session attacks.
+
+**Overall Risk Level: LOW**

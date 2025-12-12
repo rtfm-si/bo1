@@ -7,6 +7,19 @@ on:
     branches: [main]
 
 jobs:
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          warn-on-severity: moderate
+          comment-summary-in-pr: always
+
   lint-and-typecheck:
     name: Lint & Type Check
     runs-on: ubuntu-latest
@@ -52,6 +65,9 @@ jobs:
       - name: Typecheck (mypy)
         run: uv run mypy bo1/
 
+      - name: Scan Python dependencies for vulnerabilities
+        run: uv run pip-audit --strict --progress-spinner off
+
       # Frontend linting
       - name: Cache Node modules
         uses: actions/cache@v3
@@ -66,6 +82,9 @@ jobs:
 
       - name: Typecheck frontend (svelte-check)
         run: cd frontend && npm run check
+
+      - name: Scan npm dependencies for vulnerabilities
+        run: cd frontend && npm audit --audit-level=moderate
 
   test-backend:
     name: Backend Tests
@@ -176,3 +195,144 @@ jobs:
 
       - name: Build frontend (verify TypeScript compiles)
         run: cd frontend && npm run build
+
+  security-scan:
+    name: Security Scan (OSV)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run OSV Scanner
+        uses: google/osv-scanner-action@v1
+        with:
+          scan-args: |-
+            --lockfile=uv.lock
+            --lockfile=frontend/package-lock.json
+            --config=.osv-scanner.toml
+
+  e2e-tests:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [lint-and-typecheck, test-frontend]
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: boardofone_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Cache Node modules
+        uses: actions/cache@v3
+        with:
+          path: frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Python dependencies
+        run: uv sync --frozen --all-extras
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Install Playwright browsers
+        run: cd frontend && npx playwright install --with-deps chromium
+
+      - name: Run database migrations
+        run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/boardofone_test
+
+      - name: Remove encrypted .env file
+        run: rm -f .env .env.production .env.local
+
+      - name: Start API server
+        run: |
+          uv run uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 &
+          sleep 5
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/boardofone_test
+          REDIS_URL: redis://localhost:6379
+          ANTHROPIC_API_KEY: test-key-not-used
+          ADMIN_API_KEY: test-admin-key
+          DEBUG: "true"
+          ENABLE_SUPERTOKENS_AUTH: "false"
+
+      - name: Start frontend dev server
+        run: |
+          cd frontend && npm run dev &
+          sleep 10
+        env:
+          PUBLIC_API_URL: http://localhost:8000
+
+      - name: Run Playwright tests
+        run: cd frontend && npx playwright test --project=chromium
+        env:
+          E2E_BASE_URL: http://localhost:3000
+          E2E_API_URL: http://localhost:8000
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7

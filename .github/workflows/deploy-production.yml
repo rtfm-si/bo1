@@ -93,6 +93,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify security configuration
+        run: |
+          echo "🔐 Verifying production security configuration..."
+
+          # Check COOKIE_SECURE is set in secrets (required for production)
+          if [ -z "${{ secrets.COOKIE_SECURE }}" ]; then
+            echo "⚠️  COOKIE_SECURE secret not set - will verify on server"
+          else
+            if [ "${{ secrets.COOKIE_SECURE }}" != "true" ]; then
+              echo "❌ COOKIE_SECURE must be 'true' for production deployment!"
+              echo "Go to: https://github.com/${{ github.repository }}/settings/secrets/actions"
+              echo "Set secret: COOKIE_SECURE = true"
+              exit 1
+            fi
+            echo "✅ COOKIE_SECURE=true verified in secrets"
+          fi
+
+          # Verify ENV is set to production
+          if [ -z "${{ secrets.ENV }}" ]; then
+            echo "⚠️  ENV secret not set - deployment will use server .env"
+          elif [ "${{ secrets.ENV }}" != "production" ]; then
+            echo "⚠️  ENV secret is not 'production' (current: ${{ secrets.ENV }})"
+          else
+            echo "✅ ENV=production verified in secrets"
+          fi
+
+          echo "✅ Security configuration check complete"
+
       - name: Check staging health (optional)
         run: |
           echo "Checking staging environment health..."

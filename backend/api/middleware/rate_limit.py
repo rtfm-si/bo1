@@ -123,6 +123,7 @@ AUTH_RATE_LIMIT = RateLimits.AUTH
 SESSION_RATE_LIMIT = RateLimits.SESSION
 SESSION_RATE_LIMIT_USER = RateLimits.SESSION_USER  # Per-user limit for session creation
 STREAMING_RATE_LIMIT = RateLimits.STREAMING
+UPLOAD_RATE_LIMIT = RateLimits.UPLOAD  # For dataset uploads
 GENERAL_RATE_LIMIT = RateLimits.GENERAL
 CONTROL_RATE_LIMIT = RateLimits.CONTROL
 
@@ -282,6 +283,16 @@ class UserRateLimiter:
                     f"Rate limit exceeded for user {user_id} on {action}: "
                     f"{current_count}/{adjusted_limit} (tier: {tier})"
                 )
+                # Track rate limit hit for security alerting
+                try:
+                    from backend.services.security_alerts import (
+                        security_alerting_service,
+                    )
+
+                    ip = f"user:{user_id}"  # Use user ID as identifier
+                    security_alerting_service.record_rate_limit_hit(ip, action)
+                except Exception:
+                    logger.debug("Failed to record rate limit alert (non-critical)")
                 raise HTTPException(
                     status_code=429,
                     detail={

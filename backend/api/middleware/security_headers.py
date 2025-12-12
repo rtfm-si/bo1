@@ -10,7 +10,9 @@ Headers added:
 - Referrer-Policy: strict-origin-when-cross-origin - Controls referrer information leakage
 - Permissions-Policy: Disables unnecessary browser APIs (geolocation, microphone, camera)
 - Strict-Transport-Security: Force HTTPS in production (HSTS)
-- Content-Security-Policy: XSS protection (only in production)
+- Content-Security-Policy: Minimal CSP for JSON-only API (production only)
+
+Note: Main CSP with nonce-based script loading is handled by SvelteKit frontend.
 """
 
 from fastapi import FastAPI
@@ -58,19 +60,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "max-age=31536000; includeSubDomains; preload"
             )
 
-            # Content-Security-Policy for production
-            # Note: Svelte needs unsafe-inline and unsafe-eval for proper operation
-            csp_header = (
-                "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-                "style-src 'self' 'unsafe-inline'; "
-                "img-src 'self' data: https:; "
-                "font-src 'self'; "
-                "connect-src 'self' https: wss:; "
-                "frame-ancestors 'none'; "
-                "base-uri 'self'; "
-                "form-action 'self'"
-            )
+            # Note: CSP is handled by SvelteKit with nonce-based script loading
+            # API endpoints return JSON only, so minimal CSP is sufficient
+            csp_header = "default-src 'none'; frame-ancestors 'none'"
             response.headers["Content-Security-Policy"] = csp_header
 
         return response

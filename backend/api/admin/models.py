@@ -350,6 +350,42 @@ class KillAllResponse(BaseModel):
     message: str = Field(..., description="Human-readable message")
 
 
+class SessionKillResponse(BaseModel):
+    """Response model for a session kill audit record.
+
+    Attributes:
+        id: Record ID
+        session_id: Session that was killed (may be null if session deleted)
+        killed_by: Who killed the session (user_id or 'system')
+        reason: Reason for the kill
+        cost_at_kill: Session cost at time of kill (USD)
+        created_at: When the kill occurred
+    """
+
+    id: int = Field(..., description="Record ID")
+    session_id: str | None = Field(None, description="Session that was killed")
+    killed_by: str = Field(..., description="Who killed the session")
+    reason: str = Field(..., description="Reason for the kill")
+    cost_at_kill: float | None = Field(None, description="Session cost at kill (USD)")
+    created_at: str = Field(..., description="When the kill occurred (ISO 8601)")
+
+
+class SessionKillsResponse(BaseModel):
+    """Response model for session kill history.
+
+    Attributes:
+        total: Total number of kill records
+        kills: List of kill records
+        limit: Max records returned
+        offset: Records skipped
+    """
+
+    total: int = Field(..., description="Total number of kill records")
+    kills: list[SessionKillResponse] = Field(..., description="List of kill records")
+    limit: int = Field(..., description="Max records returned")
+    offset: int = Field(..., description="Records skipped")
+
+
 # ==============================================================================
 # Research Cache Models
 # ==============================================================================

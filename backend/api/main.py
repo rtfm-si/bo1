@@ -37,6 +37,7 @@ from backend.api import (
     competitors,
     context,
     control,
+    csp_reports,
     datasets,
     email,
     health,
@@ -51,8 +52,10 @@ from backend.api import (
     waitlist,
 )
 from backend.api.middleware.api_version import API_VERSION, ApiVersionMiddleware
+from backend.api.middleware.audit_logging import AuditLoggingMiddleware
 from backend.api.middleware.auth import require_admin
 from backend.api.middleware.correlation_id import CorrelationIdMiddleware
+from backend.api.middleware.csrf import CSRFMiddleware
 from backend.api.middleware.degraded_mode import DegradedModeMiddleware
 from backend.api.middleware.metrics import create_instrumentator
 from backend.api.middleware.rate_limit import limiter
@@ -301,6 +304,7 @@ ALLOWED_HEADERS = [
     "Accept",
     "X-Admin-Key",
     "X-Request-ID",
+    "X-CSRF-Token",  # CSRF protection header
     "Origin",
     "Referer",
     # SuperTokens headers
@@ -342,6 +346,16 @@ app.add_middleware(ApiVersionMiddleware)
 # Add degraded mode middleware (returns 503 for LLM operations when providers unavailable)
 # IMPORTANT: Add AFTER ApiVersionMiddleware (executes before it in request flow)
 app.add_middleware(DegradedModeMiddleware)
+
+# Add audit logging middleware for request tracking
+# IMPORTANT: Add AFTER DegradedModeMiddleware (needs auth state from downstream)
+# Logs all API requests to database for security/compliance auditing
+app.add_middleware(AuditLoggingMiddleware)
+
+# Add CSRF protection middleware (double-submit cookie pattern)
+# IMPORTANT: Add AFTER AuditLoggingMiddleware (middleware executes in reverse order)
+# Validates X-CSRF-Token header matches csrf_token cookie for mutating requests
+app.add_middleware(CSRFMiddleware)
 
 
 # In-flight request tracking middleware
@@ -388,6 +402,7 @@ app.include_router(admin.router, prefix="/api", tags=["admin"])
 app.include_router(email.router, prefix="/api", tags=["email"])
 app.include_router(user.router, prefix="/api", tags=["user"])
 app.include_router(status.router, prefix="/api", tags=["status"])
+app.include_router(csp_reports.router, tags=["security"])
 
 # Initialize Prometheus metrics instrumentation
 # Exposes /metrics endpoint for Prometheus scraping

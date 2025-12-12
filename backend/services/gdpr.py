@@ -6,13 +6,19 @@ Provides:
 """
 
 import hashlib
+import json
 import logging
 from datetime import UTC, datetime
 from typing import Any
 
 from bo1.state.database import db_session
+from bo1.state.redis_manager import RedisManager
 
 logger = logging.getLogger(__name__)
+
+# Redis key prefixes (from conversation_repo.py)
+CONV_PREFIX = "dataset_conv"
+CONV_INDEX_PREFIX = "dataset_convs"
 
 
 class GDPRError(Exception):
@@ -99,18 +105,30 @@ def collect_user_data(user_id: str) -> dict[str, Any]:
                 )
                 data["actions"] = [dict(r) for r in cur.fetchall()]
 
-                # Datasets
+                # Datasets (including clarifications)
                 cur.execute(
                     """
                     SELECT id, name, source_type, file_path, row_count,
-                           column_count, file_size_bytes, summary,
+                           column_count, file_size_bytes, summary, clarifications,
                            created_at, updated_at
                     FROM datasets WHERE user_id = %s AND deleted_at IS NULL
                     ORDER BY created_at DESC
                     """,
                     (user_id,),
                 )
-                data["datasets"] = [dict(r) for r in cur.fetchall()]
+                datasets = [dict(r) for r in cur.fetchall()]
+                data["datasets"] = datasets
+
+                # Extract clarifications for easy access
+                data["dataset_clarifications"] = [
+                    {
+                        "dataset_id": ds["id"],
+                        "dataset_name": ds["name"],
+                        "clarifications": ds.get("clarifications") or [],
+                    }
+                    for ds in datasets
+                    if ds.get("clarifications")
+                ]
 
                 # Projects
                 cur.execute(
@@ -134,6 +152,9 @@ def collect_user_data(user_id: str) -> dict[str, Any]:
                     (user_id,),
                 )
                 data["gdpr_audit_log"] = [dict(r) for r in cur.fetchall()]
+
+        # Collect Redis conversation history
+        data["dataset_conversations"] = _collect_conversations(user_id)
 
         # Convert datetime objects to ISO strings for JSON serialization
         data = _serialize_for_json(data)
@@ -174,8 +195,12 @@ def delete_user_data(user_id: str) -> dict[str, Any]:
         "actions_anonymized": 0,
         "datasets_deleted": 0,
         "files_deleted": 0,
+        "conversations_deleted": 0,
         "errors": [],
     }
+
+    # Delete Redis conversation history first (before DB changes)
+    summary["conversations_deleted"] = _delete_user_conversations(user_id)
 
     try:
         with db_session() as conn:
@@ -284,6 +309,106 @@ def delete_user_data(user_id: str) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"GDPR deletion failed for {user_id}: {e}")
         raise GDPRError(f"Deletion failed: {e}") from e
+
+
+def _collect_conversations(user_id: str) -> list[dict[str, Any]]:
+    """Collect all Redis conversation history for a user.
+
+    Args:
+        user_id: User identifier
+
+    Returns:
+        List of conversation dicts with messages
+    """
+    conversations: list[dict[str, Any]] = []
+    try:
+        redis = RedisManager()
+        client = redis.client
+
+        # Scan for all conversation index keys for this user
+        # Pattern: dataset_convs:{user_id}:*
+        index_pattern = f"{CONV_INDEX_PREFIX}:{user_id}:*"
+        cursor = 0
+        conv_ids: set[str] = set()
+
+        while True:
+            cursor, keys = client.scan(cursor, match=index_pattern, count=100)
+            for key in keys:
+                key_str = key.decode("utf-8") if isinstance(key, bytes) else key
+                # Get all conversation IDs from this index
+                members = client.zrange(key_str, 0, -1)
+                for member in members:
+                    member_str = member.decode("utf-8") if isinstance(member, bytes) else member
+                    conv_ids.add(member_str)
+            if cursor == 0:
+                break
+
+        # Fetch each conversation
+        for conv_id in conv_ids:
+            conv_key = f"{CONV_PREFIX}:{conv_id}"
+            data = client.get(conv_key)
+            if data:
+                data_str = data.decode("utf-8") if isinstance(data, bytes) else data
+                conv = json.loads(data_str)
+                conversations.append(conv)
+
+        logger.info(f"Collected {len(conversations)} conversations for user {user_id}")
+    except Exception as e:
+        logger.warning(f"Failed to collect conversations for {user_id}: {e}")
+        # Non-fatal: continue with empty conversations
+
+    return conversations
+
+
+def _delete_user_conversations(user_id: str) -> int:
+    """Delete all Redis conversation history for a user.
+
+    Args:
+        user_id: User identifier
+
+    Returns:
+        Number of conversations deleted
+    """
+    deleted_count = 0
+    try:
+        redis = RedisManager()
+        client = redis.client
+
+        # Scan for all conversation index keys for this user
+        index_pattern = f"{CONV_INDEX_PREFIX}:{user_id}:*"
+        cursor = 0
+        keys_to_delete: list[str] = []
+        conv_ids: set[str] = set()
+
+        while True:
+            cursor, keys = client.scan(cursor, match=index_pattern, count=100)
+            for key in keys:
+                key_str = key.decode("utf-8") if isinstance(key, bytes) else key
+                keys_to_delete.append(key_str)
+                # Get all conversation IDs from this index
+                members = client.zrange(key_str, 0, -1)
+                for member in members:
+                    member_str = member.decode("utf-8") if isinstance(member, bytes) else member
+                    conv_ids.add(member_str)
+            if cursor == 0:
+                break
+
+        # Delete conversation data
+        for conv_id in conv_ids:
+            conv_key = f"{CONV_PREFIX}:{conv_id}"
+            if client.delete(conv_key):
+                deleted_count += 1
+
+        # Delete index keys
+        for key in keys_to_delete:
+            client.delete(key)
+
+        logger.info(f"Deleted {deleted_count} conversations for user {user_id}")
+    except Exception as e:
+        logger.warning(f"Failed to delete conversations for {user_id}: {e}")
+        # Non-fatal: continue with deletion
+
+    return deleted_count
 
 
 def _serialize_for_json(obj: Any) -> Any:

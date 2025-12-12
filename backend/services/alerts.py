@@ -307,3 +307,100 @@ async def alert_user_cost_threshold(
         priority=priority,
         tags=tags,
     )
+
+
+# =============================================================================
+# SECURITY EVENT ALERTS
+# =============================================================================
+
+
+async def alert_auth_failure_spike(
+    ip: str,
+    count: int,
+    window_minutes: int,
+) -> bool:
+    """Send alert for spike in authentication failures from single IP.
+
+    Args:
+        ip: Source IP address
+        count: Number of failures in window
+        window_minutes: Sliding window duration in minutes
+
+    Returns:
+        True if alert sent successfully
+    """
+    topic = _get_ntfy_alerts_topic()
+    if not topic:
+        logger.debug("No alerts topic configured - skipping auth failure alert")
+        return False
+
+    return await send_ntfy_alert(
+        topic=topic,
+        title="Auth Failure Spike Detected",
+        message=(
+            f"IP: {ip}\nFailures: {count} in {window_minutes} min\nPossible brute force attempt"
+        ),
+        priority="high",
+        tags=["warning", "lock"],
+    )
+
+
+async def alert_rate_limit_spike(
+    ip: str,
+    endpoint: str,
+    count: int,
+) -> bool:
+    """Send alert for spike in rate limit hits from single IP.
+
+    Args:
+        ip: Source IP address
+        endpoint: Most frequently hit endpoint
+        count: Number of 429 responses in window
+
+    Returns:
+        True if alert sent successfully
+    """
+    topic = _get_ntfy_alerts_topic()
+    if not topic:
+        logger.debug("No alerts topic configured - skipping rate limit alert")
+        return False
+
+    return await send_ntfy_alert(
+        topic=topic,
+        title="Rate Limit Spike Detected",
+        message=(
+            f"IP: {ip}\n"
+            f"Endpoint: {endpoint or 'multiple'}\n"
+            f"429 responses: {count}\n"
+            "Possible abuse attempt"
+        ),
+        priority="default",
+        tags=["warning", "hourglass"],
+    )
+
+
+async def alert_lockout_spike(
+    ip: str,
+    count: int,
+) -> bool:
+    """Send alert for multiple lockouts from single IP.
+
+    Args:
+        ip: Source IP address
+        count: Number of lockouts triggered
+
+    Returns:
+        True if alert sent successfully
+    """
+    topic = _get_ntfy_alerts_topic()
+    if not topic:
+        logger.debug("No alerts topic configured - skipping lockout alert")
+        return False
+
+    return await send_ntfy_alert(
+        topic=topic,
+        title="Multiple Lockouts from IP",
+        message=(f"IP: {ip}\nLockouts: {count}\nSustained attack or compromised credentials"),
+        priority="high",
+        tags=["rotating_light", "lock"],
+    )

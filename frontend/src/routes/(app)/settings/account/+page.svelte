@@ -74,16 +74,21 @@
 		</div>
 	</div>
 
-	<!-- Coming Soon Section -->
+	<!-- Privacy & Data Link -->
 	<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-6">
-		<div class="text-center">
-			<div class="text-3xl mb-3">🔒</div>
-			<h3 class="text-lg font-medium text-slate-700 dark:text-slate-300 mb-2">
-				More Account Settings Coming Soon
-			</h3>
-			<p class="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-				Password changes, notification preferences, and account deletion will be available in a future update.
-			</p>
+		<div class="flex items-center gap-4">
+			<div class="text-2xl">🔒</div>
+			<div class="flex-1">
+				<h3 class="font-medium text-slate-700 dark:text-slate-300">Privacy & Data</h3>
+				<p class="text-sm text-slate-500 dark:text-slate-400">
+					Manage email preferences, export your data, or delete your account
+				</p>
+			</div>
+			<a href="/settings/privacy">
+				<Button variant="secondary">
+					Privacy Settings
+				</Button>
+			</a>
 		</div>
 	</div>
 </div>

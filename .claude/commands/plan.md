@@ -3,6 +3,10 @@ Bo1 Task Decomposition → Implementation Plan Writer
 GOAL
 Read `_TASK.md`, identify the next most obvious task or small set of tasks, and produce a concise, implementation-ready plan (including tests and validations) written to `_PLAN.md` in the repo root.
 
+FILTER (optional): $ARGUMENTS
+
+If a filter is provided (e.g., `SEC`, `BUG`, `BILLING`), prioritize tasks matching `[FILTER]` tag pattern. Only select tasks matching the filter if any exist; otherwise fall back to normal priority ordering.
+
 CONSTRAINTS
 
 - Follow all existing governance:
@@ -23,13 +27,17 @@ CONSTRAINTS
 ## STEP 1 – LOAD & INTERPRET TASKS
 
 1. Open `_TASK.md` in the repo root.
-2. Infer the task structure:
+2. If a FILTER was provided:
+   - Search for uncompleted tasks matching `[FILTER]` (e.g., `[SEC]`, `[BUG]`).
+   - Prioritize P0 > P1 > P2 within matching tasks.
+   - If no matching tasks found, fall back to normal priority ordering.
+3. Infer the task structure:
    - Ordering (top-to-bottom priority, or explicit status/priority tags if present).
    - Dependencies or grouping if obvious.
-3. Select:
+4. Select:
    - The single next most obvious task, OR
    - A very small cluster of tightly related tasks that should be implemented together.
-4. Do NOT change `_TASK.md` at this stage.
+5. Do NOT change `_TASK.md` at this stage.
 
 Keep this selection focused and implementable in a short sprint.
 
@@ -107,7 +115,8 @@ Before finalising `_PLAN.md`:
    - Obeys CONTEXT_BOUNDARY and MODEL_GUIDANCE.
    - Is consistent with `_TASK.md` (no invented tasks).
 3. Confirm tests and validations are realistic and match the steps.
-4. If anything is ambiguous or high-risk, STOP and ask me for clarification instead of guessing.
+4. If a FILTER was provided, confirm the selected task matches the filter (or explain why fallback was used).
+5. If anything is ambiguous or high-risk, STOP and ask me for clarification instead of guessing.
 
 ---
 

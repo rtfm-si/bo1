@@ -1,0 +1,90 @@
+# Promtail Configuration for Bo1
+# Collects Docker container logs and ships to Loki
+# https://grafana.com/docs/loki/latest/send-data/promtail/configuration/
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Scrape Docker container logs
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Keep only bo1 project containers
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        regex: 'bo1.*'
+        action: keep
+      # Use container name as label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      # Use compose service name
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+      # Use compose project
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: compose_project
+    pipeline_stages:
+      # Try to parse JSON logs (FastAPI backend)
+      - json:
+          expressions:
+            level: level
+            logger: logger
+            trace_id: trace_id
+            message: message
+            context: context
+      # Set log level label from parsed JSON
+      - labels:
+          level:
+          logger:
+          trace_id:
+      # Fall back to raw log if JSON parsing fails
+      - output:
+          source: message
+      # Add timestamp from log if available
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+          fallback_formats:
+            - RFC3339
+            - '2006-01-02T15:04:05.999999999Z07:00'
+      # Scrub sensitive data from logs (security hardening - belt and suspenders)
+      # Note: Primary sanitization happens in bo1/utils/log_sanitizer.py
+      # These patterns provide defense-in-depth at the log aggregation layer
+      - replace:
+          expression: '(?i)(password|passwd|pwd)\s*[=:]\s*[^\s,}"\'']+'
+          replace: '${1}=[REDACTED]'
+      - replace:
+          expression: '(?i)(secret|api_key|apikey|auth_token|access_token|refresh_token|bearer)\s*[=:]\s*[^\s,}"\'']+'
+          replace: '${1}=[REDACTED]'
+      - replace:
+          expression: '(?i)(authorization)\s*[=:]\s*(Bearer\s+)?[^\s,}"\'']+'
+          replace: '${1}=[REDACTED]'
+      - replace:
+          expression: '(?i)(token|session_id|sessionid|csrf_token)\s*[=:]\s*[a-zA-Z0-9_\-\.]{20,}'
+          replace: '${1}=[REDACTED]'
+      # JSON-style sensitive keys: "password": "value" or "api_key": "value"
+      - replace:
+          expression: '"(password|passwd|secret|token|api_key|apikey|auth_token|access_token|refresh_token|client_secret|private_key|google_tokens|oauth_token)"\s*:\s*"[^"]*"'
+          replace: '"${1}": "[REDACTED]"'
+      # Email partial masking (show first 3 chars of local part)
+      - replace:
+          expression: '\b([a-zA-Z0-9._%+-]{1,3})[a-zA-Z0-9._%+-]*@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b'
+          replace: '${1}***@${2}'
+      # OAuth/credential keys
+      - replace:
+          expression: '(?i)(credential|private_key|client_secret)\s*[=:]\s*[^\s,}"\'']+'
+          replace: '${1}=[REDACTED]'
+      # Drop debug logs in production to reduce volume
+      # Uncomment if needed:
+      # - drop:
+      #     expression: '.*level.*DEBUG.*'

@@ -15,7 +15,7 @@ services:
       - POSTGRES_USER=bo1
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d  # Auto-run SQL scripts on first init
@@ -36,17 +36,18 @@ services:
     image: redis/redis-stack-server:7.4.0-v1  # RedisStack includes RedisJSON module
     container_name: bo1-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     command: >
       redis-stack-server
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
       --appendonly yes
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
       --save 60 1000
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -73,6 +74,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
 
       # PostgreSQL Configuration
       - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/boardofone
@@ -104,6 +107,10 @@ services:
 
       # Authentication & Authorization (SuperTokens)
       - CLOSED_BETA_MODE=${CLOSED_BETA_MODE:-false}
+
+      # Encryption (required for OAuth token storage)
+      # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
     volumes:
       # Mount source code for hot reload (development)
       - ./bo1:/app/bo1
@@ -145,9 +152,9 @@ services:
       - POSTGRESQL_TABLE_SCHEMA=supertokens
 
       # SuperTokens Configuration
-      - API_KEYS=${SUPERTOKENS_API_KEY:-dev_api_key_change_in_production}
+      - API_KEYS=${SUPERTOKENS_API_KEY:?SUPERTOKENS_API_KEY must be set in .env}
     ports:
-      - "3567:3567"
+      - "127.0.0.1:3567:3567"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3567/hello"]
       interval: 5s
@@ -181,7 +188,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
 
       # PostgreSQL Configuration
       - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/boardofone
@@ -200,8 +208,11 @@ services:
       # Application Configuration
       - DEBUG=${DEBUG:-true}
       - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+
+      # Encryption (required for OAuth token storage)
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       # Mount source code for hot reload
       - ./backend:/app/backend
@@ -256,7 +267,7 @@ services:
     depends_on:
       - redis
     environment:
-      - REDIS_HOSTS=local:redis:6379
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
     ports:
       - "8081:8081"
     networks:

@@ -330,6 +330,49 @@ export interface BillingPortalResponse {
 	available: boolean;
 }
 
+// Privacy & GDPR Types
+export interface EmailPreferences {
+	meeting_emails: boolean;
+	reminder_emails: boolean;
+	digest_emails: boolean;
+}
+
+export interface EmailPreferencesResponse {
+	preferences: EmailPreferences;
+}
+
+export interface AccountDeletionResponse {
+	status: string;
+	message: string;
+	summary: {
+		sessions_anonymized: number;
+		actions_anonymized: number;
+		datasets_deleted: number;
+	};
+}
+
+export interface RetentionSettingResponse {
+	data_retention_days: number;
+}
+
+export interface RetentionSettingUpdate {
+	days: number;
+}
+
+// ============================================================================
+// CSRF Token Utilities
+// ============================================================================
+
+/**
+ * Read the CSRF token from the csrf_token cookie.
+ * Returns null if not found (e.g., before first GET request).
+ */
+function getCsrfToken(): string | null {
+	if (typeof document === 'undefined') return null; // SSR safety
+	const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
+	return match ? decodeURIComponent(match[1]) : null;
+}
+
 // ============================================================================
 // Utility Functions
 // ============================================================================
@@ -429,10 +472,22 @@ export class ApiClient {
 	 *
 	 * BFF Pattern: Authentication via httpOnly cookies (no tokens in localStorage).
 	 * Cookies are automatically sent with credentials: 'include'.
+	 * CSRF token is attached to mutating requests via X-CSRF-Token header.
 	 */
 	private async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
-		const headers = mergeHeaders({ 'Content-Type': 'application/json' }, options?.headers);
+		const defaultHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+
+		// Add CSRF token for mutating methods
+		const method = options?.method?.toUpperCase() || 'GET';
+		if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+			const csrfToken = getCsrfToken();
+			if (csrfToken) {
+				defaultHeaders['X-CSRF-Token'] = csrfToken;
+			}
+		}
+
+		const headers = mergeHeaders(defaultHeaders, options?.headers);
 
 		try {
 			const response = await fetch(url, {
@@ -893,6 +948,48 @@ export class ApiClient {
 	}
 
 	// ==========================================================================
+	// Privacy & GDPR Endpoints
+	// ==========================================================================
+
+	async getEmailPreferences(): Promise<EmailPreferencesResponse> {
+		return this.fetch<EmailPreferencesResponse>('/api/v1/user/email-preferences');
+	}
+
+	async updateEmailPreferences(preferences: EmailPreferences): Promise<EmailPreferencesResponse> {
+		return this.patch<EmailPreferencesResponse>('/api/v1/user/email-preferences', preferences);
+	}
+
+	async exportUserData(): Promise<Blob> {
+		const url = `${this.baseUrl}/api/v1/user/export`;
+		const response = await fetch(url, {
+			method: 'GET',
+			credentials: 'include'
+		});
+		if (!response.ok) {
+			let error: ApiError;
+			try {
+				error = await response.json();
+			} catch {
+				error = { detail: response.statusText, status: response.status };
+			}
+			throw new ApiClientError(error.detail || 'Unknown error', response.status, error);
+		}
+		return response.blob();
+	}
+
+	async deleteUserAccount(): Promise<AccountDeletionResponse> {
+		return this.delete<AccountDeletionResponse>('/api/v1/user/delete');
+	}
+
+	async getRetentionSetting(): Promise<RetentionSettingResponse> {
+		return this.fetch<RetentionSettingResponse>('/api/v1/user/retention');
+	}
+
+	async updateRetentionSetting(days: number): Promise<RetentionSettingResponse> {
+		return this.patch<RetentionSettingResponse>('/api/v1/user/retention', { days });
+	}
+
+	// ==========================================================================
 	// Project Endpoints
 	// ==========================================================================
 
@@ -1097,9 +1194,16 @@ export class ApiClient {
 		}
 
 		const url = `${this.baseUrl}/api/v1/datasets/upload`;
+		const headers: Record<string, string> = {};
+		const csrfToken = getCsrfToken();
+		if (csrfToken) {
+			headers['X-CSRF-Token'] = csrfToken;
+		}
+
 		const response = await fetch(url, {
 			method: 'POST',
 			credentials: 'include',
+			headers,
 			body: formData
 			// Note: Don't set Content-Type header - browser sets it with boundary
 		});
@@ -1173,12 +1277,18 @@ export class ApiClient {
 		const url = `${this.baseUrl}/api/v1/datasets/${datasetId}/ask`;
 
 		const connect = async function* () {
+			const headers: Record<string, string> = {
+				'Content-Type': 'application/json',
+				Accept: 'text/event-stream'
+			};
+			const csrfToken = getCsrfToken();
+			if (csrfToken) {
+				headers['X-CSRF-Token'] = csrfToken;
+			}
+
 			const response = await fetch(url, {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Accept: 'text/event-stream'
-				},
+				headers,
 				credentials: 'include',
 				signal: abortController.signal,
 				body: JSON.stringify({

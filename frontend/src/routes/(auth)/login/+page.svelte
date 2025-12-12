@@ -10,6 +10,7 @@
 
 	let isLoading = $state(false);
 	let error = $state<string | null>(null);
+	let gdprConsent = $state(false);
 
 	// Redirect if already authenticated
 	onMount(() => {
@@ -55,12 +56,19 @@
 	 * Gets authorization URL from backend and redirects browser.
 	 */
 	async function handleGoogleSignIn() {
+		// Require GDPR consent before proceeding
+		if (!gdprConsent) {
+			error = "Please accept the Privacy Policy to continue.";
+			return;
+		}
+
 		isLoading = true;
 		error = null;
 
 		try {
-			// Get API URL from environment (runtime resolution)
-			const apiUrl = env.PUBLIC_API_URL || "http://localhost:8000";
+			// Store GDPR consent in localStorage before OAuth redirect
+			// Will be read by callback page and sent to backend
+			localStorage.setItem('gdpr_consent_pending', 'true');
 
 			// Get authorization URL from SuperTokens backend
 			const authUrl = await ThirdParty.getAuthorisationURLWithQueryParamsAndSetState({
@@ -128,10 +136,24 @@
 				</div>
 			{/if}
 
+			<!-- GDPR Consent Checkbox -->
+			<label class="flex items-start gap-3 mb-6 cursor-pointer">
+				<input
+					type="checkbox"
+					bind:checked={gdprConsent}
+					class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700"
+				/>
+				<span class="text-sm text-slate-600 dark:text-slate-400">
+					I agree to the
+					<a href="/legal/privacy" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline" target="_blank">Privacy Policy</a>
+					and consent to the processing of my personal data as described therein.
+				</span>
+			</label>
+
 			<!-- Google Sign-in Button -->
 			<button
 				onclick={handleGoogleSignIn}
-				disabled={isLoading}
+				disabled={isLoading || !gdprConsent}
 				class="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
 			>
 				{#if isLoading}
@@ -171,12 +193,10 @@
 				</button>
 			</div>
 
-			<!-- Privacy notice -->
+			<!-- Terms notice -->
 			<p class="mt-6 text-xs text-center text-slate-500 dark:text-slate-400">
-				By signing in, you agree to our
-				<a href="/legal/terms" class="underline hover:text-slate-700 dark:hover:text-slate-300">Terms of Service</a>
-				and
-				<a href="/legal/privacy" class="underline hover:text-slate-700 dark:hover:text-slate-300">Privacy Policy</a>
+				By signing in, you also agree to our
+				<a href="/legal/terms" class="underline hover:text-slate-700 dark:hover:text-slate-300">Terms of Service</a>.
 			</p>
 		</div>
 

@@ -122,7 +122,35 @@ For each Implementation Step in `_PLAN.md`:
 
 ---
 
-## STEP 5 – SELF-CHECK (RUNTIME SELF-AUDIT)
+## STEP 5 – AUDIT REPORT TASK DECOMPOSITION (IF APPLICABLE)
+
+If the plan was an **audit task** (e.g. security audit, dependency audit, compliance audit) that produced a report file in `audits/reports/`:
+
+1. Identify the report file created (e.g. `audits/reports/auth-security.report.md`)
+
+2. Extract actionable findings from the report:
+   - Look for sections like "Recommendations", "Remediation", "Priority Actions", or findings marked as Medium/High/Critical
+   - Each finding with a clear remediation becomes a task
+
+3. Decompose findings into `_TASK.md`:
+   - For each actionable finding, create a task following the existing `_TASK.md` format
+   - Use appropriate tags (e.g. `[SECURITY]`, `[AUDIT]`) and priority levels
+   - Add tasks under a new section: `## Task backlog (from {audit_name}, YYYY-MM-DD)`
+   - De-duplicate: do not add tasks that already exist in `_TASK.md`
+
+4. Task format for audit findings:
+   ```
+   - [ ] [{TAG}][{PRIORITY}] {Brief description of remediation} ({effort estimate if available})
+   ```
+
+Skip this step if:
+- The plan was not an audit task
+- No report file was generated
+- The report has no actionable remediation items
+
+---
+
+## STEP 6 – SELF-CHECK (RUNTIME SELF-AUDIT)
 
 Before finalising changes:
 
@@ -138,7 +166,11 @@ Before finalising changes:
    - Tests/validations are aligned with the described behaviour.
    - There are no obvious leftover TODOs related to this plan.
 
-3. If you detect ambiguity or risk (e.g. unclear task mapping, large breaking changes), STOP and:
+3. If audit findings were decomposed:
+   - Confirm new tasks in `_TASK.md` match the report's remediation items
+   - Confirm no duplicate tasks were added
+
+4. If you detect ambiguity or risk (e.g. unclear task mapping, large breaking changes), STOP and:
    - Summarise the issue.
    - Ask me for clarification rather than guessing.
 
@@ -152,6 +184,7 @@ Before finalising changes:
   - Files touched.
   - Tests run (and their status).
   - Tasks checked off or removed.
+  - If audit: report location and number of remediation tasks added to `_TASK.md`.
   - If UI changes: which components were added/changed, and confirm UI checklist applied.
 - Do not restate this prompt.
 

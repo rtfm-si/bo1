@@ -340,7 +340,7 @@ class UserRepository(BaseRepository):
         expires_at: str | None,
         scopes: str | None,
     ) -> bool:
-        """Save Google OAuth tokens for a user.
+        """Save Google OAuth tokens for a user (encrypted at rest).
 
         Args:
             user_id: User identifier
@@ -352,13 +352,25 @@ class UserRepository(BaseRepository):
         Returns:
             True if saved successfully
         """
-        import json
-
         tokens = {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "expires_at": expires_at,
         }
+
+        # Encrypt tokens if encryption key is configured
+        encrypted_tokens: str
+        try:
+            from backend.services.encryption import get_encryption_service
+
+            encryption = get_encryption_service()
+            encrypted_tokens = encryption.encrypt_json(tokens)
+        except Exception as e:
+            # If encryption not configured, fall back to plaintext JSON (dev only)
+            import json
+
+            logger.warning(f"Encryption not available, storing tokens as plaintext: {e}")
+            encrypted_tokens = json.dumps(tokens)
 
         try:
             with db_session() as conn:
@@ -372,7 +384,7 @@ class UserRepository(BaseRepository):
                             updated_at = NOW()
                         WHERE id = %s
                         """,
-                        (json.dumps(tokens), scopes, user_id),
+                        (encrypted_tokens, scopes, user_id),
                     )
                     return bool(cur.rowcount and cur.rowcount > 0)
         except Exception as e:
@@ -380,7 +392,7 @@ class UserRepository(BaseRepository):
             return False
 
     def get_google_tokens(self, user_id: str) -> dict[str, Any] | None:
-        """Get Google OAuth tokens for a user.
+        """Get Google OAuth tokens for a user (decrypted from storage).
 
         Args:
             user_id: User identifier
@@ -397,12 +409,47 @@ class UserRepository(BaseRepository):
                 """,
                 (user_id,),
             )
-            if result and result.get("google_oauth_tokens"):
-                tokens: dict[str, Any] = result["google_oauth_tokens"]
-                tokens["scopes"] = result.get("google_oauth_scopes")
-                tokens["updated_at"] = result.get("google_tokens_updated_at")
-                return tokens
-            return None
+            if not result:
+                return None
+
+            stored_tokens = result.get("google_oauth_tokens")
+            if not stored_tokens:
+                return None
+
+            # Decrypt tokens - handle both encrypted string and legacy JSON
+            tokens: dict[str, Any]
+            if isinstance(stored_tokens, str):
+                # Try to decrypt (encrypted storage)
+                try:
+                    from backend.services.encryption import (
+                        get_encryption_service,
+                        is_encrypted,
+                    )
+
+                    if is_encrypted(stored_tokens):
+                        encryption = get_encryption_service()
+                        tokens = encryption.decrypt_json(stored_tokens)
+                    else:
+                        # Legacy plaintext JSON string
+                        import json
+
+                        tokens = json.loads(stored_tokens)
+                except Exception as e:
+                    # Decryption failed - token may be corrupted or key changed
+                    logger.error(f"Failed to decrypt tokens for user {user_id}: {e}")
+                    # Clear corrupted tokens
+                    self.clear_google_tokens(user_id)
+                    return None
+            elif isinstance(stored_tokens, dict):
+                # Already a dict (psycopg2 auto-parsed JSONB)
+                tokens = stored_tokens
+            else:
+                logger.error(f"Unexpected token format for user {user_id}: {type(stored_tokens)}")
+                return None
+
+            tokens["scopes"] = result.get("google_oauth_scopes")
+            tokens["updated_at"] = result.get("google_tokens_updated_at")
+            return tokens
         except Exception as e:
             logger.error(f"Failed to get Google tokens for user {user_id}: {e}")
             return None

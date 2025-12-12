@@ -12,8 +12,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 
 from backend.api.streaming import get_event_history, stream_deliberation
+
+
+def create_mock_request(session_id: str = "test") -> MagicMock:
+    """Create a mock Request object for rate limiter."""
+    mock_request = MagicMock(spec=Request)
+    mock_request.client.host = "127.0.0.1"
+    mock_request.url.path = f"/api/v1/sessions/{session_id}/stream"
+    mock_request.state = MagicMock()
+    return mock_request
 
 
 class TestSSENonOwnedSession:
@@ -97,6 +107,7 @@ class TestSSENonOwnedSession:
             # Call should succeed because ownership is verified by dependency
             # (we're not testing the full streaming here, just that ownership check passes)
             result = await stream_deliberation(
+                request=create_mock_request(session_id),
                 session_id=session_id,
                 session_data=mock_session_data,
                 current_user=mock_current_user,
@@ -180,6 +191,7 @@ class TestSSEUninitializedState:
                 # Attempt to stream - should raise HTTPException(409)
                 with pytest.raises(HTTPException) as exc_info:
                     await stream_deliberation(
+                        request=create_mock_request(session_id),
                         session_id=session_id,
                         session_data=mock_session_data,
                         current_user=mock_current_user,
@@ -225,6 +237,7 @@ class TestSSEUninitializedState:
                 # Attempt to stream - should raise HTTPException(500)
                 with pytest.raises(HTTPException) as exc_info:
                     await stream_deliberation(
+                        request=create_mock_request(session_id),
                         session_id=session_id,
                         session_data=mock_session_data,
                         current_user=mock_current_user,
@@ -266,6 +279,7 @@ class TestSSEUninitializedState:
                 # Attempt to stream - should raise HTTPException(404)
                 with pytest.raises(HTTPException) as exc_info:
                     await stream_deliberation(
+                        request=create_mock_request(session_id),
                         session_id=session_id,
                         session_data=mock_session_data,
                         current_user=mock_current_user,

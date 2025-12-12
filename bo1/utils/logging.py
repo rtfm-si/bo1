@@ -5,6 +5,7 @@ Provides:
 - Structured logging context helpers
 - JSON logging format for production observability
 - Standard log format across all modules
+- Automatic PII/secret sanitization in logs
 """
 
 import json
@@ -13,6 +14,8 @@ import sys
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
+
+from bo1.utils.log_sanitizer import sanitize_log_data, sanitize_message
 
 # Context variable for correlation ID (set by middleware, read by logger)
 correlation_id_var: ContextVar[str | None] = ContextVar("correlation_id", default=None)
@@ -47,20 +50,24 @@ class JsonFormatter(logging.Formatter):
         self.indent = indent
 
     def format(self, record: logging.LogRecord) -> str:
-        """Format log record as JSON.
+        """Format log record as JSON with PII/secret sanitization.
 
         Args:
             record: Log record to format
 
         Returns:
-            JSON string representation of log record
+            JSON string representation of log record with sensitive data redacted
         """
+        # Sanitize the message before including in log
+        raw_message = record.getMessage()
+        safe_message = sanitize_message(raw_message)
+
         # Base log structure
         log_dict: dict[str, Any] = {
             "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": safe_message,
         }
 
         # Add correlation ID if available
@@ -68,13 +75,14 @@ class JsonFormatter(logging.Formatter):
         if trace_id:
             log_dict["trace_id"] = trace_id
 
-        # Add structured context if provided via extra
+        # Add structured context if provided via extra (sanitized)
         if hasattr(record, "log_context") and record.log_context:
-            log_dict["context"] = record.log_context
+            log_dict["context"] = sanitize_log_data(record.log_context)
 
-        # Add exception info if present
+        # Add exception info if present (sanitize stack trace)
         if record.exc_info:
-            log_dict["exception"] = self.formatException(record.exc_info)
+            exc_text = self.formatException(record.exc_info)
+            log_dict["exception"] = sanitize_message(exc_text)
 
         return json.dumps(log_dict, default=str, indent=self.indent)
 

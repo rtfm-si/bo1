@@ -74,7 +74,11 @@ class TestSecurityHeaders:
 
     @patch("backend.api.middleware.security_headers.get_settings")
     def test_csp_set_when_debug_false(self, mock_settings, client: TestClient):
-        """Content-Security-Policy should be set when debug mode is disabled."""
+        """Content-Security-Policy should be set when debug mode is disabled.
+
+        Note: API endpoints use minimal CSP since they return JSON only.
+        Main CSP with nonce-based script loading is handled by SvelteKit frontend.
+        """
         mock_settings.return_value.debug = False
 
         from backend.api.main import app
@@ -84,7 +88,8 @@ class TestSecurityHeaders:
 
         csp = response.headers.get("Content-Security-Policy")
         if csp:  # May depend on test environment config
-            assert "default-src 'self'" in csp
+            # API uses minimal CSP (JSON-only responses)
+            assert "default-src 'none'" in csp
             assert "frame-ancestors 'none'" in csp
 
 

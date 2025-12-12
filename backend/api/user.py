@@ -1,6 +1,7 @@
-"""User GDPR endpoints for data export and account deletion.
+"""User GDPR endpoints for data export, account deletion, and consent.
 
 Provides:
+- POST /api/v1/user/gdpr-consent - Record GDPR consent
 - GET /api/v1/user/export - Export user data (Art. 15)
 - DELETE /api/v1/user/delete - Delete user account (Art. 17)
 """
@@ -12,6 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.models import ErrorResponse
@@ -21,10 +23,26 @@ from backend.services.audit import (
     log_gdpr_event,
 )
 from backend.services.gdpr import GDPRError, collect_user_data, delete_user_data
+from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/user", tags=["user"])
+
+
+# Data retention models
+class RetentionSettingResponse(BaseModel):
+    """Response for retention setting endpoint."""
+
+    data_retention_days: int = Field(
+        ..., ge=30, le=730, description="Data retention period in days"
+    )
+
+
+class RetentionSettingUpdate(BaseModel):
+    """Request body for updating retention setting."""
+
+    days: int = Field(..., ge=30, le=730, description="Data retention period (30-730 days)")
 
 
 def _get_client_ip(request: Request) -> str | None:
@@ -35,6 +53,56 @@ def _get_client_ip(request: Request) -> str | None:
     if request.client:
         return request.client.host
     return None
+
+
+@router.post(
+    "/gdpr-consent",
+    summary="Record GDPR consent",
+    description="Record user's GDPR consent timestamp. Called after OAuth signup.",
+    responses={
+        200: {"description": "Consent recorded"},
+        500: {"description": "Failed to record consent", "model": ErrorResponse},
+    },
+)
+async def record_gdpr_consent(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Record GDPR consent timestamp for user."""
+    user_id = user["user_id"]
+    client_ip = _get_client_ip(request)
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET gdpr_consent_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s AND gdpr_consent_at IS NULL
+                    """,
+                    (user_id,),
+                )
+                updated = cur.rowcount > 0
+
+        if updated:
+            # Log the consent event
+            log_gdpr_event(
+                user_id=user_id,
+                action="consent_given",
+                ip_address=client_ip,
+            )
+            logger.info(f"GDPR consent recorded for user {user_id}")
+
+        return {
+            "status": "ok",
+            "consent_recorded": updated,
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to record GDPR consent for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to record consent") from e
 
 
 @router.get(
@@ -214,3 +282,94 @@ async def delete_user_account(
         )
         logger.error(f"GDPR deletion failed for {user_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get(
+    "/retention",
+    summary="Get data retention setting",
+    description="Get the user's configured data retention period in days.",
+    response_model=RetentionSettingResponse,
+    responses={
+        200: {"description": "Current retention setting"},
+        500: {"description": "Failed to get setting", "model": ErrorResponse},
+    },
+)
+async def get_retention_setting(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> RetentionSettingResponse:
+    """Get user's data retention period setting."""
+    user_id = user["user_id"]
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT data_retention_days FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                return RetentionSettingResponse(data_retention_days=row["data_retention_days"])
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get retention setting for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get setting") from e
+
+
+@router.patch(
+    "/retention",
+    summary="Update data retention setting",
+    description="""
+    Update the user's data retention period.
+
+    Valid range: 30-730 days (1 month to 2 years).
+
+    - Minimum 30 days prevents accidental data loss
+    - Maximum 730 days (2 years) for compliance
+
+    Note: Changing to a shorter period does not immediately delete data.
+    The scheduled cleanup job will remove data past the new retention period
+    during its next run.
+    """,
+    response_model=RetentionSettingResponse,
+    responses={
+        200: {"description": "Retention setting updated"},
+        422: {"description": "Invalid retention period (must be 30-730 days)"},
+        500: {"description": "Failed to update setting", "model": ErrorResponse},
+    },
+)
+async def update_retention_setting(
+    body: RetentionSettingUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> RetentionSettingResponse:
+    """Update user's data retention period setting."""
+    user_id = user["user_id"]
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET data_retention_days = %s, updated_at = NOW()
+                    WHERE id = %s
+                    RETURNING data_retention_days
+                    """,
+                    (body.days, user_id),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                logger.info(f"Updated retention setting for {user_id}: {body.days} days")
+                return RetentionSettingResponse(data_retention_days=row["data_retention_days"])
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update retention setting for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update setting") from e

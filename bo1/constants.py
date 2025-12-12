@@ -296,7 +296,10 @@ class RateLimits:
     """Session creation for enterprise tier users"""
 
     STREAMING = "5/minute"
-    """SSE streaming endpoints"""
+    """SSE streaming endpoints (prevents connection exhaustion)"""
+
+    UPLOAD = "10/hour"
+    """Dataset upload endpoint (prevents storage abuse)"""
 
     GENERAL = "60/minute"
     """General API endpoints"""
@@ -434,3 +437,66 @@ class CacheTTL:
 
     LLM_SIMILARITY_THRESHOLD = 0.85
     """Similarity for LLM cache hit"""
+
+
+# =============================================================================
+# AUTH LOCKOUT CONFIGURATION
+# =============================================================================
+
+
+class AuthLockout:
+    """Auth lockout configuration for failed login attempts."""
+
+    THRESHOLDS: dict[int, int] = {
+        5: 30,  # 5 failures → 30 second lockout
+        10: 300,  # 10 failures → 5 minute lockout
+        15: 3600,  # 15 failures → 1 hour lockout
+    }
+    """Mapping of failure count to lockout duration in seconds"""
+
+    WINDOW_SECONDS = 3600
+    """Sliding window for counting failures (1 hour)"""
+
+    KEY_PREFIX = "auth_lockout:"
+    """Redis key prefix for lockout tracking"""
+
+
+# =============================================================================
+# SECURITY ALERTING CONFIGURATION
+# =============================================================================
+
+
+class SecurityAlerts:
+    """Security event alerting thresholds and configuration."""
+
+    # Auth failure alerting
+    AUTH_FAILURE_THRESHOLD = 10
+    """Number of auth failures before alert (per IP)"""
+
+    AUTH_FAILURE_WINDOW_SECONDS = 300
+    """5 minute sliding window for auth failures"""
+
+    # Rate limit alerting
+    RATE_LIMIT_THRESHOLD = 20
+    """Number of rate limit hits before alert (per IP)"""
+
+    RATE_LIMIT_WINDOW_SECONDS = 300
+    """5 minute sliding window for rate limit hits"""
+
+    # Lockout alerting
+    LOCKOUT_THRESHOLD = 3
+    """Number of lockouts before alert (per IP)"""
+
+    LOCKOUT_WINDOW_SECONDS = 900
+    """15 minute sliding window for lockouts"""
+
+    # Alert deduplication
+    ALERT_COOLDOWN_SECONDS = 900
+    """15 minute cooldown between alerts for same IP/event"""
+
+    # Redis key prefixes
+    KEY_PREFIX = "security_event:"
+    """Redis key prefix for event tracking"""
+
+    ALERT_DEDUP_PREFIX = "security_alert_sent:"
+    """Redis key prefix for alert deduplication"""

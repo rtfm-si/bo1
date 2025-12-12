@@ -77,7 +77,7 @@ class TestJsonFormatter:
         assert output.count("\n") == 0
 
     def test_json_formatter_with_context(self) -> None:
-        """JSON formatter includes context from extra."""
+        """JSON formatter includes context from extra (sensitive fields are redacted)."""
         formatter = JsonFormatter()
         record = logging.LogRecord(
             name="test",
@@ -88,14 +88,17 @@ class TestJsonFormatter:
             args=(),
             exc_info=None,
         )
-        record.log_context = {"session_id": "abc123", "user_id": "user456"}
+        record.log_context = {"session_id": "abc123", "user_id": "user456", "action": "test"}
 
         output = formatter.format(record)
         parsed = json.loads(output)
 
         assert "context" in parsed
-        assert parsed["context"]["session_id"] == "abc123"
+        # session_id is redacted by log sanitizer for security
+        assert parsed["context"]["session_id"] == "[REDACTED]"
+        # user_id and non-sensitive fields are preserved
         assert parsed["context"]["user_id"] == "user456"
+        assert parsed["context"]["action"] == "test"
 
 
 class TestCorrelationId:
@@ -221,7 +224,8 @@ class TestLogWithContextJsonMode:
         parsed = json.loads(output)
 
         assert parsed["message"] == "Session started"
-        assert parsed["context"]["session_id"] == "abc123"
+        # session_id is redacted by log sanitizer for security
+        assert parsed["context"]["session_id"] == "[REDACTED]"
         assert parsed["context"]["user_id"] == "user456"
 
     @patch("bo1.utils.logging._get_log_format", return_value="json")

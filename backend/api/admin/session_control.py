@@ -17,6 +17,8 @@ from backend.api.admin.models import (
     ActiveSessionsResponse,
     FullSessionResponse,
     KillAllResponse,
+    SessionKillResponse,
+    SessionKillsResponse,
 )
 from backend.api.dependencies import get_redis_manager, get_session_manager
 from backend.api.middleware.admin import require_admin_any
@@ -239,4 +241,86 @@ async def admin_kill_all_sessions(
     return KillAllResponse(
         killed_count=killed_count,
         message=f"Admin killed all {killed_count} active sessions. Reason: {reason}",
+    )
+
+
+@router.get(
+    "/sessions/kill-history",
+    response_model=SessionKillsResponse,
+    summary="Get session kill audit history",
+    description="Get the audit trail of all session kills (admin only).",
+    responses={
+        200: {"description": "Kill history retrieved successfully"},
+        401: {"description": "Admin API key required", "model": ErrorResponse},
+        403: {"description": "Invalid admin API key", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("get session kill history")
+async def get_session_kill_history(
+    limit: int = Query(50, ge=1, le=200, description="Max records to return"),
+    offset: int = Query(0, ge=0, description="Records to skip"),
+    session_id: str | None = Query(None, description="Filter to specific session"),
+    _admin: str = Depends(require_admin_any),
+) -> SessionKillsResponse:
+    """Get session kill audit history."""
+    from bo1.state.database import db_session
+
+    # Get total count
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            if session_id:
+                cur.execute(
+                    "SELECT COUNT(*) as cnt FROM session_kills WHERE session_id = %s",
+                    (session_id,),
+                )
+            else:
+                cur.execute("SELECT COUNT(*) as cnt FROM session_kills")
+            total = cur.fetchone()["cnt"]
+
+    # Get paginated records
+    with db_session() as conn:
+        with conn.cursor() as cur:
+            if session_id:
+                cur.execute(
+                    """
+                    SELECT id, session_id, killed_by, reason, cost_at_kill, created_at
+                    FROM session_kills
+                    WHERE session_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (session_id, limit, offset),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, session_id, killed_by, reason, cost_at_kill, created_at
+                    FROM session_kills
+                    ORDER BY created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (limit, offset),
+                )
+            rows = [dict(row) for row in cur.fetchall()]
+
+    kills = [
+        SessionKillResponse(
+            id=row["id"],
+            session_id=row["session_id"],
+            killed_by=row["killed_by"],
+            reason=row["reason"],
+            cost_at_kill=float(row["cost_at_kill"]) if row["cost_at_kill"] else None,
+            created_at=row["created_at"].isoformat() if row["created_at"] else "",
+        )
+        for row in rows
+    ]
+
+    logger.info(f"Admin: Retrieved {len(kills)} session kill records")
+
+    return SessionKillsResponse(
+        total=total,
+        kills=kills,
+        limit=limit,
+        offset=offset,
     )

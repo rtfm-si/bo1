@@ -199,7 +199,7 @@ def get_user_costs(
                        COALESCE(SUM(s.total_cost), 0) as total_cost,
                        COUNT(*) as session_count
                 FROM sessions s
-                LEFT JOIN users u ON u.user_id = s.user_id
+                LEFT JOIN users u ON u.id = s.user_id
                 WHERE s.status IN ('completed', 'running', 'killed')
                 {date_filter}
                 GROUP BY s.user_id, u.email

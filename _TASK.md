@@ -698,6 +698,11 @@
 - [ ] [BUG][P1] Fix dashboard completion trends chart box positioning - boxes not aligned to correct month on x-axis
 - [ ] [BUG][P1] Investigate and fix root cause of dashboard completion trends display issues
 
+### Privacy Retention Settings [RETENTION-UX]
+
+- [ ] [UX][P2] Change default privacy retention setting to 2 years (currently different default)
+- [ ] [UX][P2] Replace 5-year and 10-year retention options with single 'forever' option in settings UI
+
 ---
 
 ## E2E Test Failures (from CI, 2025-12-12) ✅ FIXED

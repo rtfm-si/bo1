@@ -882,6 +882,79 @@ async def update_action_status(
                 f"Auto-unblocked {len(unblocked_ids)} actions after {status_update.status} on {action_id}"
             )
 
+    # Context Auto-Update: Extract business context from cancellation/blocking reasons
+    # E.g., "Hired 2 more engineers" → team_size update
+    notes_text = status_update.cancellation_reason or status_update.blocking_reason
+    if notes_text:
+        try:
+            from backend.services.context_extractor import (
+                ContextUpdateSource,
+                extract_context_updates,
+                filter_high_confidence_updates,
+            )
+
+            updates = await extract_context_updates(notes_text, None, ContextUpdateSource.ACTION)
+
+            if updates:
+                from bo1.state.repositories import user_repository
+
+                existing_context = user_repository.get_context(user_id) or {}
+                high_conf, low_conf = filter_high_confidence_updates(updates)
+
+                # Auto-apply high confidence updates
+                if high_conf:
+                    metric_history = existing_context.get("context_metric_history", {})
+                    for upd in high_conf:
+                        existing_context[upd.field_name] = upd.new_value
+                        logger.info(
+                            f"Action {action_id}: Auto-applied context: "
+                            f"{upd.field_name}={upd.new_value} (conf={upd.confidence:.2f})"
+                        )
+
+                        if upd.field_name not in metric_history:
+                            metric_history[upd.field_name] = []
+                        metric_history[upd.field_name].insert(
+                            0,
+                            {
+                                "value": upd.new_value,
+                                "recorded_at": upd.extracted_at,
+                                "source_type": upd.source_type.value,
+                                "source_id": action_id,
+                            },
+                        )
+                        metric_history[upd.field_name] = metric_history[upd.field_name][:10]
+
+                    existing_context["context_metric_history"] = metric_history
+
+                # Queue low confidence updates for review
+                if low_conf:
+                    import uuid
+
+                    pending = existing_context.get("pending_updates", [])
+                    for upd in low_conf:
+                        if len(pending) >= 5:
+                            break
+                        pending.append(
+                            {
+                                "id": str(uuid.uuid4())[:8],
+                                "field_name": upd.field_name,
+                                "new_value": upd.new_value,
+                                "current_value": existing_context.get(upd.field_name),
+                                "confidence": upd.confidence,
+                                "source_type": upd.source_type.value,
+                                "source_text": upd.source_text,
+                                "extracted_at": upd.extracted_at,
+                            }
+                        )
+                    existing_context["pending_updates"] = pending
+
+                if high_conf or low_conf:
+                    user_repository.save_context(user_id, existing_context)
+
+        except Exception as e:
+            # Non-blocking
+            logger.debug(f"Context extraction from action failed (non-blocking): {e}")
+
     return {
         "message": "Action status updated successfully",
         "action_id": action_id,

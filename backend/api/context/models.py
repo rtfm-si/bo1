@@ -351,6 +351,32 @@ class TrendsRefreshResponse(BaseModel):
 # =============================================================================
 
 
+class InsightCategory(str, Enum):
+    """Business insight categories."""
+
+    REVENUE = "revenue"
+    GROWTH = "growth"
+    CUSTOMERS = "customers"
+    TEAM = "team"
+    PRODUCT = "product"
+    OPERATIONS = "operations"
+    MARKET = "market"
+    COMPETITION = "competition"
+    FUNDING = "funding"
+    COSTS = "costs"
+    UNCATEGORIZED = "uncategorized"
+
+
+class InsightMetricResponse(BaseModel):
+    """Extracted metric from insight."""
+
+    value: float | None = Field(None, description="Numeric value (e.g., 25000)")
+    unit: str | None = Field(None, description="Unit: USD, %, count, etc.")
+    metric_type: str | None = Field(None, description="Type: MRR, ARR, churn, headcount, etc.")
+    period: str | None = Field(None, description="Period: monthly, yearly, quarterly, etc.")
+    raw_text: str | None = Field(None, description="Original metric text")
+
+
 class ClarificationInsight(BaseModel):
     """A clarification answer from a meeting.
 
@@ -362,6 +388,13 @@ class ClarificationInsight(BaseModel):
     answer: str = Field(..., description="User's answer to the question")
     answered_at: datetime | None = Field(None, description="When the answer was provided")
     session_id: str | None = Field(None, description="Meeting ID where this was answered")
+    # Structured fields (populated by Haiku parsing)
+    category: InsightCategory | None = Field(None, description="Business category")
+    metric: InsightMetricResponse | None = Field(None, description="Extracted metric data")
+    confidence_score: float | None = Field(None, ge=0.0, le=1.0, description="Parse confidence")
+    summary: str | None = Field(None, description="Brief one-line summary")
+    key_entities: list[str] | None = Field(None, description="Mentioned entities")
+    parsed_at: datetime | None = Field(None, description="When parsing occurred")
 
 
 class UpdateInsightRequest(BaseModel):
@@ -387,3 +420,110 @@ class InsightsResponse(BaseModel):
         default_factory=list, description="Clarification Q&A from meetings"
     )
     total_count: int = Field(0, description="Total number of insights")
+
+
+# =============================================================================
+# Phase 6: Context Auto-Update Models
+# =============================================================================
+
+
+class ContextUpdateSource(str, Enum):
+    """Source of context update."""
+
+    CLARIFICATION = "clarification"
+    PROBLEM_STATEMENT = "problem_statement"
+    ACTION = "action"
+
+
+class ContextUpdateSuggestion(BaseModel):
+    """A pending context update suggestion requiring user approval.
+
+    Created when confidence < 80%. User can approve or dismiss.
+    """
+
+    id: str = Field(..., description="Unique identifier for this suggestion")
+    field_name: str = Field(..., description="Context field to update")
+    new_value: str | float | int | list[str] = Field(..., description="Proposed new value")
+    current_value: str | float | int | list[str] | None = Field(
+        None, description="Current field value"
+    )
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Extraction confidence (0-1)")
+    source_type: ContextUpdateSource = Field(..., description="Where update was detected")
+    source_text: str = Field(..., description="Original text containing the update")
+    extracted_at: datetime = Field(..., description="When this was extracted")
+    session_id: str | None = Field(None, description="Related session ID if from meeting")
+
+
+class PendingUpdatesResponse(BaseModel):
+    """Response for pending context update suggestions."""
+
+    suggestions: list[ContextUpdateSuggestion] = Field(
+        default_factory=list, description="Pending update suggestions"
+    )
+    count: int = Field(0, description="Number of pending suggestions")
+
+
+class ApproveUpdateRequest(BaseModel):
+    """Request to approve a pending update suggestion."""
+
+    pass  # No body needed, ID is in URL path
+
+
+class ApproveUpdateResponse(BaseModel):
+    """Response after approving a pending update."""
+
+    success: bool = Field(..., description="Whether update was applied")
+    field_name: str = Field(..., description="Field that was updated")
+    new_value: Any = Field(..., description="Value that was applied")
+
+
+class MetricHistoryEntry(BaseModel):
+    """A single historical value for a metric."""
+
+    value: str | float | int = Field(..., description="The value at this point in time")
+    recorded_at: datetime = Field(..., description="When this value was recorded")
+    source_type: ContextUpdateSource = Field(..., description="Source of this value")
+    source_id: str | None = Field(None, description="Session or action ID if applicable")
+
+
+class MetricHistory(BaseModel):
+    """Historical values for a context metric."""
+
+    field_name: str = Field(..., description="Context field name")
+    history: list[MetricHistoryEntry] = Field(
+        default_factory=list, description="Historical values (newest first)"
+    )
+
+
+class TrendDirection(str, Enum):
+    """Direction of metric trend."""
+
+    IMPROVING = "improving"
+    WORSENING = "worsening"
+    STABLE = "stable"
+    INSUFFICIENT_DATA = "insufficient_data"
+
+
+class MetricTrend(BaseModel):
+    """Trend information for a context metric."""
+
+    field_name: str = Field(..., description="Context field name")
+    direction: TrendDirection = Field(..., description="Trend direction")
+    current_value: str | float | int | None = Field(None, description="Current value")
+    previous_value: str | float | int | None = Field(
+        None, description="Previous value for comparison"
+    )
+    change_percent: float | None = Field(None, description="Percentage change if calculable")
+    period_description: str | None = Field(
+        None, description="Human description like 'since last month'"
+    )
+
+
+class ContextWithTrends(BaseModel):
+    """Business context with trend indicators for metrics."""
+
+    context: BusinessContext = Field(..., description="Current business context")
+    trends: list[MetricTrend] = Field(
+        default_factory=list, description="Trends for metrics with history"
+    )
+    updated_at: datetime | None = Field(None, description="Last context update")

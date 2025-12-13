@@ -20,6 +20,7 @@ from backend.api.dependencies import (
 from backend.api.metrics import track_api_call
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import SESSION_RATE_LIMIT, limiter, user_rate_limiter
+from backend.api.middleware.tier_limits import record_meeting_usage, require_meeting_limit
 from backend.api.middleware.workspace_auth import require_workspace_access
 from backend.api.models import (
     CreateSessionRequest,
@@ -43,6 +44,7 @@ from backend.api.utils.validation import validate_session_id
 from backend.services.insight_staleness import get_stale_insights
 from backend.services.session_export import SessionExporter
 from backend.services.session_share import SessionShareService
+from backend.services.usage_tracking import UsageResult
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
 from bo1.llm.cost_tracker import CostTracker
@@ -106,6 +108,7 @@ async def create_session(
     request: Request,
     session_request: CreateSessionRequest,
     user: dict[str, Any] = Depends(get_current_user),
+    tier_usage: UsageResult = Depends(require_meeting_limit),
 ) -> SessionResponse:
     """Create a new deliberation session.
 
@@ -117,6 +120,7 @@ async def create_session(
         request: FastAPI request object for rate limiting
         session_request: Session creation request with problem statement
         user: Authenticated user data
+        tier_usage: Usage result from tier limit check
 
     Returns:
         SessionResponse with session details
@@ -310,6 +314,85 @@ async def create_session(
                 detail="Failed to create session. Please try again.",
             ) from e
 
+        # Context Auto-Update: Extract business context updates from problem statement
+        try:
+            from backend.services.context_extractor import (
+                ContextUpdateSource,
+                extract_context_updates,
+                filter_high_confidence_updates,
+            )
+
+            updates = await extract_context_updates(
+                sanitized_problem, merged_context, ContextUpdateSource.PROBLEM_STATEMENT
+            )
+
+            if updates:
+                high_conf, low_conf = filter_high_confidence_updates(updates)
+
+                # Load user context for updating
+                existing_context = user_repository.get_context(user_id) or {}
+
+                # Auto-apply high confidence updates
+                if high_conf:
+                    metric_history = existing_context.get("context_metric_history", {})
+                    for upd in high_conf:
+                        existing_context[upd.field_name] = upd.new_value
+                        logger.info(
+                            f"Session {session_id}: Auto-applied context from problem: "
+                            f"{upd.field_name}={upd.new_value} (conf={upd.confidence:.2f})"
+                        )
+
+                        # Track in metric history
+                        if upd.field_name not in metric_history:
+                            metric_history[upd.field_name] = []
+                        metric_history[upd.field_name].insert(
+                            0,
+                            {
+                                "value": upd.new_value,
+                                "recorded_at": upd.extracted_at,
+                                "source_type": upd.source_type.value,
+                                "source_id": session_id,
+                            },
+                        )
+                        metric_history[upd.field_name] = metric_history[upd.field_name][:10]
+
+                    existing_context["context_metric_history"] = metric_history
+
+                # Queue low confidence updates for review
+                if low_conf:
+                    import uuid
+
+                    pending = existing_context.get("pending_updates", [])
+                    for upd in low_conf:
+                        if len(pending) >= 5:
+                            break
+                        pending.append(
+                            {
+                                "id": str(uuid.uuid4())[:8],
+                                "field_name": upd.field_name,
+                                "new_value": upd.new_value,
+                                "current_value": existing_context.get(upd.field_name),
+                                "confidence": upd.confidence,
+                                "source_type": upd.source_type.value,
+                                "source_text": upd.source_text,
+                                "extracted_at": upd.extracted_at,
+                                "session_id": session_id,
+                            }
+                        )
+                    existing_context["pending_updates"] = pending
+
+                # Save if any updates were made
+                if high_conf or low_conf:
+                    user_repository.save_context(user_id, existing_context)
+                    logger.info(
+                        f"Session {session_id}: Applied {len(high_conf)} auto-updates, "
+                        f"queued {min(len(low_conf), 5)} for review"
+                    )
+
+        except Exception as e:
+            # Non-blocking - don't fail session creation if extraction fails
+            logger.debug(f"Context extraction from problem failed (non-blocking): {e}")
+
         # Check for stale insights (>30 days old)
         stale_insights_list: list[dict[str, Any]] | None = None
         try:
@@ -329,6 +412,13 @@ async def create_session(
         except Exception as e:
             # Non-blocking - log and continue
             logger.debug(f"Staleness check failed (non-blocking): {e}")
+
+        # Record meeting usage for tier tracking
+        try:
+            record_meeting_usage(user_id)
+        except Exception as e:
+            # Non-blocking - log and continue
+            logger.debug(f"Usage tracking failed (non-blocking): {e}")
 
         # Return session response
         return SessionResponse(

@@ -34,6 +34,7 @@ from backend.api import (
     billing,
     business_metrics,
     client_errors,
+    client_metrics,
     competitors,
     context,
     control,
@@ -394,6 +395,13 @@ app.add_middleware(AuditLoggingMiddleware)
 # Validates X-CSRF-Token header matches csrf_token cookie for mutating requests
 app.add_middleware(CSRFMiddleware)
 
+# Add impersonation middleware (admin "view as user" feature)
+# IMPORTANT: Add AFTER CSRFMiddleware (middleware executes in reverse order)
+# Checks for active impersonation session and swaps user context
+from backend.api.middleware.impersonation import ImpersonationMiddleware  # noqa: E402
+
+app.add_middleware(ImpersonationMiddleware)
+
 
 # In-flight request tracking middleware
 @app.middleware("http")
@@ -442,7 +450,9 @@ app.include_router(email.router, prefix="/api", tags=["email"])
 app.include_router(user.router, prefix="/api", tags=["user"])
 app.include_router(status.router, prefix="/api", tags=["status"])
 app.include_router(workspaces.router, prefix="/api", tags=["workspaces"])
+app.include_router(workspaces.invitations_user_router, prefix="/api", tags=["invitations"])
 app.include_router(csp_reports.router, tags=["security"])
+app.include_router(client_metrics.router, tags=["metrics"])
 
 # Initialize Prometheus metrics instrumentation
 # Exposes /metrics endpoint for Prometheus scraping

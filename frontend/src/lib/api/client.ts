@@ -6,6 +6,7 @@
  */
 
 import { env } from '$env/dynamic/public';
+import { operationTracker } from '../services/operation-tracker';
 import type {
 	CreateSessionRequest,
 	SessionResponse,
@@ -64,6 +65,9 @@ import type {
 	// Insights types
 	InsightsResponse,
 	ClarificationInsight,
+	// Pending Updates types (Phase 6)
+	PendingUpdatesResponse,
+	ApproveUpdateResponse,
 	// Action Stats types
 	ActionStatsResponse,
 	// Query types (Data Analysis)
@@ -83,11 +87,25 @@ import type {
 	ConversationListResponse,
 	// Mentor Chat types
 	MentorConversationListResponse,
-	MentorConversationDetailResponse
+	MentorConversationDetailResponse,
+	MentorPersonaListResponse,
+	MentionSearchResponse,
+	// Workspace & Invitation types
+	InvitationResponse,
+	InvitationListResponse,
+	WorkspaceResponse,
+	WorkspaceListResponse,
+	// Industry Benchmarks types
+	IndustryInsight,
+	IndustryInsightsResponse,
+	BenchmarkComparisonResponse,
+	// Usage & Tier types
+	UsageResponse,
+	TierLimitsResponse
 } from './types';
 
 // Re-export types that are used by other modules
-export type { ClarificationInsight };
+export type { ClarificationInsight, IndustryInsight, IndustryInsightsResponse };
 
 // ============================================================================
 // Onboarding Types
@@ -237,22 +255,7 @@ export interface CompetitorBulkEnrichResponse {
 // Industry Insights Types (Phase 4)
 // ============================================================================
 
-export interface IndustryInsight {
-	id: string;
-	industry: string;
-	insight_type: 'trend' | 'benchmark' | 'competitor' | 'best_practice';
-	content: Record<string, unknown>;
-	source_count: number;
-	confidence: number;
-	expires_at: string | null;
-	created_at: string;
-}
-
-export interface IndustryInsightsResponse {
-	industry: string;
-	insights: IndustryInsight[];
-	has_benchmarks: boolean;
-}
+// IndustryInsight and IndustryInsightsResponse imported from ./types
 
 // ============================================================================
 // Business Metrics Types
@@ -491,6 +494,8 @@ export class ApiClient {
 	 * BFF Pattern: Authentication via httpOnly cookies (no tokens in localStorage).
 	 * Cookies are automatically sent with credentials: 'include'.
 	 * CSRF token is attached to mutating requests via X-CSRF-Token header.
+	 *
+	 * Includes operation tracking for observability.
 	 */
 	private async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
@@ -507,6 +512,10 @@ export class ApiClient {
 
 		const headers = mergeHeaders(defaultHeaders, options?.headers);
 
+		// Track operation for observability
+		const opName = `api:${method}:${endpoint.split('?')[0]}`;
+		const opId = operationTracker.startOp(opName, { endpoint, method });
+
 		try {
 			const response = await fetch(url, {
 				...options,
@@ -521,16 +530,25 @@ export class ApiClient {
 				} catch {
 					error = { detail: response.statusText, status: response.status };
 				}
-				throw new ApiClientError(error.detail || 'Unknown error', response.status, error);
+				const apiError = new ApiClientError(error.detail || 'Unknown error', response.status, error);
+				operationTracker.failOp(opId, apiError.message, { status: response.status });
+				throw apiError;
 			}
 
 			if (response.status === 204) {
+				operationTracker.endOp(opId, { status: 204 });
 				return {} as T;
 			}
 
-			return await response.json();
+			const result = await response.json();
+			operationTracker.endOp(opId, { status: response.status });
+			return result;
 		} catch (error) {
-			if (error instanceof ApiClientError) throw error;
+			if (error instanceof ApiClientError) {
+				// Already tracked above
+				throw error;
+			}
+			operationTracker.failOp(opId, error instanceof Error ? error.message : 'Network error');
 			throw new ApiClientError(
 				error instanceof Error ? error.message : 'Network error',
 				undefined,
@@ -691,6 +709,25 @@ export class ApiClient {
 			.replace(/\//g, '_')
 			.replace(/=+$/, '');
 		return this.delete<{ status: string }>(`/api/v1/context/insights/${questionHash}`);
+	}
+
+	// ==========================================================================
+	// Pending Context Updates (Phase 6)
+	// ==========================================================================
+
+	async getPendingUpdates(): Promise<PendingUpdatesResponse> {
+		return this.fetch<PendingUpdatesResponse>('/api/v1/context/pending-updates');
+	}
+
+	async approvePendingUpdate(suggestionId: string): Promise<ApproveUpdateResponse> {
+		return this.post<ApproveUpdateResponse>(
+			`/api/v1/context/pending-updates/${suggestionId}/approve`,
+			{}
+		);
+	}
+
+	async dismissPendingUpdate(suggestionId: string): Promise<{ status: string }> {
+		return this.delete<{ status: string }>(`/api/v1/context/pending-updates/${suggestionId}`);
 	}
 
 	async submitClarification(sessionId: string, answer: string): Promise<ControlResponse> {
@@ -1025,20 +1062,33 @@ export class ApiClient {
 
 	async exportUserData(): Promise<Blob> {
 		const url = `${this.baseUrl}/api/v1/user/export`;
-		const response = await fetch(url, {
-			method: 'GET',
-			credentials: 'include'
-		});
-		if (!response.ok) {
-			let error: ApiError;
-			try {
-				error = await response.json();
-			} catch {
-				error = { detail: response.statusText, status: response.status };
+
+		// Track data export operation for observability
+		const opId = operationTracker.startOp('api:GET:/api/v1/user/export');
+
+		try {
+			const response = await fetch(url, {
+				method: 'GET',
+				credentials: 'include'
+			});
+			if (!response.ok) {
+				let error: ApiError;
+				try {
+					error = await response.json();
+				} catch {
+					error = { detail: response.statusText, status: response.status };
+				}
+				const apiError = new ApiClientError(error.detail || 'Unknown error', response.status, error);
+				operationTracker.failOp(opId, apiError.message, { status: response.status });
+				throw apiError;
 			}
-			throw new ApiClientError(error.detail || 'Unknown error', response.status, error);
+			operationTracker.endOp(opId, { status: response.status });
+			return response.blob();
+		} catch (error) {
+			if (error instanceof ApiClientError) throw error;
+			operationTracker.failOp(opId, error instanceof Error ? error.message : 'Export failed');
+			throw error;
 		}
-		return response.blob();
 	}
 
 	async deleteUserAccount(): Promise<AccountDeletionResponse> {
@@ -1320,25 +1370,40 @@ export class ApiClient {
 			headers['X-CSRF-Token'] = csrfToken;
 		}
 
-		const response = await fetch(url, {
-			method: 'POST',
-			credentials: 'include',
-			headers,
-			body: formData
-			// Note: Don't set Content-Type header - browser sets it with boundary
+		// Track upload operation for observability
+		const opId = operationTracker.startOp('api:POST:/api/v1/datasets/upload', {
+			fileSize: file.size,
+			fileName: file.name
 		});
 
-		if (!response.ok) {
-			let error;
-			try {
-				error = await response.json();
-			} catch {
-				error = { detail: response.statusText };
-			}
-			throw new ApiClientError(error.detail || 'Upload failed', response.status, error);
-		}
+		try {
+			const response = await fetch(url, {
+				method: 'POST',
+				credentials: 'include',
+				headers,
+				body: formData
+				// Note: Don't set Content-Type header - browser sets it with boundary
+			});
 
-		return response.json();
+			if (!response.ok) {
+				let error;
+				try {
+					error = await response.json();
+				} catch {
+					error = { detail: response.statusText };
+				}
+				const apiError = new ApiClientError(error.detail || 'Upload failed', response.status, error);
+				operationTracker.failOp(opId, apiError.message, { status: response.status });
+				throw apiError;
+			}
+
+			operationTracker.endOp(opId, { status: response.status });
+			return response.json();
+		} catch (error) {
+			if (error instanceof ApiClientError) throw error;
+			operationTracker.failOp(opId, error instanceof Error ? error.message : 'Upload failed');
+			throw error;
+		}
 	}
 
 	/**
@@ -1592,6 +1657,26 @@ export class ApiClient {
 		await this.delete<void>(`/api/v1/mentor/conversations/${conversationId}`);
 	}
 
+	/**
+	 * Get available mentor personas for manual selection
+	 */
+	async getMentorPersonas(): Promise<MentorPersonaListResponse> {
+		return this.fetch<MentorPersonaListResponse>('/api/v1/mentor/personas');
+	}
+
+	/**
+	 * Search for mentionable entities (@meeting, @action, @dataset)
+	 * Used by autocomplete when user types @ in mentor chat
+	 */
+	async searchMentions(
+		type: 'meeting' | 'action' | 'dataset',
+		query: string = '',
+		limit: number = 10
+	): Promise<MentionSearchResponse> {
+		const params = new URLSearchParams({ type, q: query, limit: String(limit) });
+		return this.fetch<MentionSearchResponse>(`/api/v1/mentor/mentions/search?${params}`);
+	}
+
 	// ============================================================================
 	// Google Sheets Connection Methods
 	// ============================================================================
@@ -1628,22 +1713,38 @@ export class ApiClient {
 	 */
 	async exportSession(sessionId: string, format: 'json' | 'markdown' = 'json'): Promise<Blob> {
 		const url = `${this.baseUrl}/api/v1/sessions/${sessionId}/export?format=${format}`;
-		const response = await fetch(url, {
-			method: 'GET',
-			credentials: 'include'
+
+		// Track export operation for observability
+		const opId = operationTracker.startOp('api:GET:/api/v1/sessions/export', {
+			sessionId,
+			format
 		});
 
-		if (!response.ok) {
-			let error;
-			try {
-				error = await response.json();
-			} catch {
-				error = { detail: response.statusText };
-			}
-			throw new ApiClientError(error.detail || 'Export failed', response.status, error);
-		}
+		try {
+			const response = await fetch(url, {
+				method: 'GET',
+				credentials: 'include'
+			});
 
-		return response.blob();
+			if (!response.ok) {
+				let error;
+				try {
+					error = await response.json();
+				} catch {
+					error = { detail: response.statusText };
+				}
+				const apiError = new ApiClientError(error.detail || 'Export failed', response.status, error);
+				operationTracker.failOp(opId, apiError.message, { status: response.status });
+				throw apiError;
+			}
+
+			operationTracker.endOp(opId, { status: response.status });
+			return response.blob();
+		} catch (error) {
+			if (error instanceof ApiClientError) throw error;
+			operationTracker.failOp(opId, error instanceof Error ? error.message : 'Export failed');
+			throw error;
+		}
 	}
 
 	/**
@@ -1715,6 +1816,168 @@ export class ApiClient {
 			conclusion: unknown;
 			problem_context: Record<string, unknown>;
 		}>(`/api/v1/share/${token}`);
+	}
+
+	// =========================================================================
+	// Workspace Invitation Methods
+	// =========================================================================
+
+	/**
+	 * Send a workspace invitation
+	 */
+	async sendWorkspaceInvitation(
+		workspaceId: string,
+		email: string,
+		role: 'admin' | 'member' = 'member'
+	): Promise<InvitationResponse> {
+		return this.fetch<InvitationResponse>(`/api/v1/workspaces/${workspaceId}/invitations`, {
+			method: 'POST',
+			body: JSON.stringify({ email, role })
+		});
+	}
+
+	/**
+	 * List pending invitations for a workspace
+	 */
+	async listWorkspaceInvitations(workspaceId: string): Promise<InvitationListResponse> {
+		return this.fetch<InvitationListResponse>(`/api/v1/workspaces/${workspaceId}/invitations`);
+	}
+
+	/**
+	 * Revoke a workspace invitation
+	 */
+	async revokeInvitation(workspaceId: string, invitationId: string): Promise<void> {
+		await this.fetch<void>(`/api/v1/workspaces/${workspaceId}/invitations/${invitationId}`, {
+			method: 'DELETE'
+		});
+	}
+
+	/**
+	 * Get invitation details by token (public)
+	 */
+	async getInvitation(token: string): Promise<InvitationResponse> {
+		return this.fetch<InvitationResponse>(`/api/v1/invitations/${token}`);
+	}
+
+	/**
+	 * Accept a workspace invitation
+	 */
+	async acceptInvitation(token: string): Promise<InvitationResponse> {
+		return this.fetch<InvitationResponse>('/api/v1/invitations/accept', {
+			method: 'POST',
+			body: JSON.stringify({ token })
+		});
+	}
+
+	/**
+	 * Decline a workspace invitation
+	 */
+	async declineInvitation(token: string): Promise<void> {
+		await this.fetch<void>('/api/v1/invitations/decline', {
+			method: 'POST',
+			body: JSON.stringify({ token })
+		});
+	}
+
+	/**
+	 * Get pending invitations for current user
+	 */
+	async getPendingInvitations(): Promise<InvitationListResponse> {
+		return this.fetch<InvitationListResponse>('/api/v1/invitations/pending');
+	}
+
+	// =========================================================================
+	// Workspace Methods
+	// =========================================================================
+
+	/**
+	 * List all workspaces the current user is a member of
+	 */
+	async listWorkspaces(): Promise<WorkspaceListResponse> {
+		return this.fetch<WorkspaceListResponse>('/api/v1/workspaces');
+	}
+
+	/**
+	 * Get a single workspace by ID
+	 */
+	async getWorkspace(workspaceId: string): Promise<WorkspaceResponse> {
+		return this.fetch<WorkspaceResponse>(`/api/v1/workspaces/${workspaceId}`);
+	}
+
+	/**
+	 * Create a new workspace
+	 */
+	async createWorkspace(name: string, slug?: string): Promise<WorkspaceResponse> {
+		return this.post<WorkspaceResponse>('/api/v1/workspaces', { name, slug });
+	}
+
+	/**
+	 * Update a workspace (admin/owner only)
+	 */
+	async updateWorkspace(
+		workspaceId: string,
+		updates: { name?: string; slug?: string }
+	): Promise<WorkspaceResponse> {
+		return this.patch<WorkspaceResponse>(`/api/v1/workspaces/${workspaceId}`, updates);
+	}
+
+	/**
+	 * Delete a workspace (owner only)
+	 */
+	async deleteWorkspace(workspaceId: string): Promise<void> {
+		return this.delete<void>(`/api/v1/workspaces/${workspaceId}`);
+	}
+
+	/**
+	 * Leave a workspace (remove self as member)
+	 */
+	async leaveWorkspace(workspaceId: string, userId: string): Promise<void> {
+		return this.delete<void>(`/api/v1/workspaces/${workspaceId}/members/${userId}`);
+	}
+
+	// ============================================================================
+	// Industry Benchmarks (additional methods)
+	// ============================================================================
+
+	/**
+	 * Get industry insights with filtering options
+	 * Returns benchmarks, trends, and best practices (tier-limited)
+	 */
+	async getIndustryBenchmarks(options?: {
+		insightType?: 'trend' | 'benchmark' | 'best_practice';
+		category?: 'growth' | 'retention' | 'efficiency' | 'engagement';
+	}): Promise<IndustryInsightsResponse> {
+		const endpoint = withQueryString('/api/v1/industry-insights', {
+			insight_type: options?.insightType,
+			category: options?.category
+		});
+		return this.fetch<IndustryInsightsResponse>(endpoint);
+	}
+
+	/**
+	 * Compare user's metrics against industry benchmarks
+	 * Returns percentile rankings for each metric (tier-limited)
+	 */
+	async compareBenchmarks(): Promise<BenchmarkComparisonResponse> {
+		return this.fetch<BenchmarkComparisonResponse>('/api/v1/industry-insights/compare');
+	}
+
+	// ============================================================================
+	// Usage & Tier Limits
+	// ============================================================================
+
+	/**
+	 * Get current usage across all metrics (meetings, datasets, mentor chats)
+	 */
+	async getUsage(): Promise<UsageResponse> {
+		return this.fetch<UsageResponse>('/api/v1/user/usage');
+	}
+
+	/**
+	 * Get tier limits and features for current user
+	 */
+	async getTierInfo(): Promise<TierLimitsResponse> {
+		return this.fetch<TierLimitsResponse>('/api/v1/user/tier-info');
 	}
 }
 

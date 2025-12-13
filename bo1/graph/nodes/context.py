@@ -79,47 +79,103 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
 
                 # ISSUE #4 FIX: Include saved clarifications from previous meetings
                 # with freshness indicators for expert awareness
+                # Enhanced: Include structured category/metric info from Haiku parsing
                 clarifications = saved_context.get("clarifications", {})
                 if clarifications:
                     context_lines.append("\n### User Insights (from previous meetings)")
                     now = datetime.now(UTC)
+
+                    # Group by category for organized context
+                    categorized: dict[str, list[tuple[str, dict[str, Any]]]] = {}
                     for question, answer_data in clarifications.items():
                         if isinstance(answer_data, dict):
-                            answer = answer_data.get("answer", "N/A")
-                            updated_str = answer_data.get("updated_at") or answer_data.get(
-                                "answered_at"
-                            )
+                            category = answer_data.get("category", "uncategorized")
                         else:
-                            answer = str(answer_data)
-                            updated_str = None
+                            category = "uncategorized"
+                        if category not in categorized:
+                            categorized[category] = []
+                        categorized[category].append((question, answer_data))
 
-                        # Add freshness indicator
-                        freshness = ""
-                        if updated_str:
-                            try:
-                                updated_at = datetime.fromisoformat(
-                                    updated_str.replace("Z", "+00:00")
+                    # Output by category (prioritize revenue/customers/growth)
+                    priority_order = [
+                        "revenue",
+                        "customers",
+                        "growth",
+                        "team",
+                        "product",
+                        "market",
+                        "competition",
+                        "funding",
+                        "costs",
+                        "operations",
+                        "uncategorized",
+                    ]
+                    for category in priority_order:
+                        if category not in categorized:
+                            continue
+                        items = categorized[category]
+                        if not items:
+                            continue
+
+                        category_label = category.replace("_", " ").title()
+                        context_lines.append(f"\n**{category_label}:**")
+
+                        for question, answer_data in items:
+                            if isinstance(answer_data, dict):
+                                answer = answer_data.get("answer", "N/A")
+                                updated_str = answer_data.get("updated_at") or answer_data.get(
+                                    "answered_at"
                                 )
-                                days_ago = (now - updated_at).days
-                                if days_ago == 0:
-                                    freshness = " [today]"
-                                elif days_ago == 1:
-                                    freshness = " [yesterday]"
-                                elif days_ago < 7:
-                                    freshness = f" [{days_ago} days ago]"
-                                elif days_ago < 30:
-                                    weeks = days_ago // 7
-                                    freshness = f" [{weeks} week{'s' if weeks > 1 else ''} ago]"
-                                elif days_ago > 30:
-                                    months = days_ago // 30
-                                    freshness = f" [⚠️ {months} month{'s' if months > 1 else ''} ago - may be outdated]"
-                            except (ValueError, AttributeError):
-                                freshness = " [date unknown]"
-                        else:
-                            freshness = " [date unknown]"
+                                metric = answer_data.get("metric")
+                            else:
+                                answer = str(answer_data)
+                                updated_str = None
+                                metric = None
 
-                        context_lines.append(f"- Q: {question}{freshness}")
-                        context_lines.append(f"  A: {answer}")
+                            # Add freshness indicator
+                            freshness = ""
+                            if updated_str:
+                                try:
+                                    updated_at = datetime.fromisoformat(
+                                        updated_str.replace("Z", "+00:00")
+                                    )
+                                    days_ago = (now - updated_at).days
+                                    if days_ago == 0:
+                                        freshness = " [today]"
+                                    elif days_ago == 1:
+                                        freshness = " [yesterday]"
+                                    elif days_ago < 7:
+                                        freshness = f" [{days_ago} days ago]"
+                                    elif days_ago < 30:
+                                        weeks = days_ago // 7
+                                        freshness = f" [{weeks} week{'s' if weeks > 1 else ''} ago]"
+                                    elif days_ago > 30:
+                                        months = days_ago // 30
+                                        freshness = f" [⚠️ {months} month{'s' if months > 1 else ''} ago - may be outdated]"
+                                except (ValueError, AttributeError):
+                                    freshness = " [date unknown]"
+                            else:
+                                freshness = " [date unknown]"
+
+                            # Format metric if available
+                            metric_str = ""
+                            if metric and metric.get("value") is not None:
+                                val = metric["value"]
+                                unit = metric.get("unit", "")
+                                if unit == "USD":
+                                    if val >= 1_000_000:
+                                        metric_str = f" (${val / 1_000_000:.1f}M)"
+                                    elif val >= 1_000:
+                                        metric_str = f" (${val / 1_000:.0f}K)"
+                                    else:
+                                        metric_str = f" (${val:,.0f})"
+                                elif unit == "%":
+                                    metric_str = f" ({val}%)"
+                                elif unit == "count":
+                                    metric_str = f" ({val:,.0f})"
+
+                            context_lines.append(f"- Q: {question}{freshness}")
+                            context_lines.append(f"  A: {answer}{metric_str}")
                     logger.info(
                         f"Injected {len(clarifications)} previous clarifications (with freshness) into context"
                     )

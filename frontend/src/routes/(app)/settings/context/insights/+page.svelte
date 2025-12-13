@@ -4,10 +4,13 @@
 	 *
 	 * Displays Q&A pairs from clarifying questions answered during meetings.
 	 * These insights help improve future meetings by providing relevant context.
+	 * Now with structured categorization and metric extraction via Haiku.
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient, type ClarificationInsight } from '$lib/api/client';
+	import type { InsightCategory, InsightMetric } from '$lib/api/types';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import PendingUpdates from '$lib/components/context/PendingUpdates.svelte';
 
 	// State
 	let insights = $state<ClarificationInsight[]>([]);
@@ -18,6 +21,40 @@
 	let editingQuestion = $state<string | null>(null);
 	let editValue = $state('');
 	let isSaving = $state(false);
+
+	// Category display config
+	const categoryConfig: Record<InsightCategory, { label: string; color: string; icon: string }> = {
+		revenue: { label: 'Revenue', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: '$' },
+		growth: { label: 'Growth', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', icon: '↑' },
+		customers: { label: 'Customers', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: '👥' },
+		team: { label: 'Team', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', icon: '👤' },
+		product: { label: 'Product', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300', icon: '📦' },
+		operations: { label: 'Operations', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: '⚙️' },
+		market: { label: 'Market', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300', icon: '📊' },
+		competition: { label: 'Competition', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', icon: '🏁' },
+		funding: { label: 'Funding', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', icon: '💰' },
+		costs: { label: 'Costs', color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300', icon: '💸' },
+		uncategorized: { label: 'Other', color: 'bg-slate-100 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300', icon: '•' }
+	};
+
+	function formatMetric(metric: InsightMetric | undefined): string | null {
+		if (!metric || metric.value === null || metric.value === undefined) return null;
+		const value = metric.value;
+		const unit = metric.unit;
+
+		if (unit === 'USD') {
+			return value >= 1000000
+				? `$${(value / 1000000).toFixed(1)}M`
+				: value >= 1000
+					? `$${(value / 1000).toFixed(0)}K`
+					: `$${value.toLocaleString()}`;
+		} else if (unit === '%') {
+			return `${value}%`;
+		} else if (unit === 'count') {
+			return value.toLocaleString();
+		}
+		return metric.raw_text || value.toString();
+	}
 
 	onMount(async () => {
 		await loadInsights();
@@ -109,6 +146,9 @@
 </svelte:head>
 
 <div class="space-y-6">
+	<!-- Pending Updates (Phase 6) - Shows only if there are suggestions -->
+	<PendingUpdates />
+
 	<!-- Header -->
 	<div
 		class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
@@ -173,9 +213,37 @@
 			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700"
 		>
 			{#each insights as insight (insight.question)}
+				{@const category = insight.category || 'uncategorized'}
+				{@const config = categoryConfig[category]}
+				{@const metricDisplay = formatMetric(insight.metric)}
 				<div class="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
 					<div class="flex items-start justify-between gap-4">
 						<div class="flex-1 min-w-0">
+							<!-- Category Badge + Metric -->
+							{#if category !== 'uncategorized' || metricDisplay}
+								<div class="flex items-center gap-2 mb-3">
+									{#if category !== 'uncategorized'}
+										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium {config.color}">
+											<span class="text-sm">{config.icon}</span>
+											{config.label}
+										</span>
+									{/if}
+									{#if metricDisplay}
+										<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300">
+											{metricDisplay}
+											{#if insight.metric?.period}
+												<span class="font-normal text-brand-600/70 dark:text-brand-400/70 ml-1">/{insight.metric.period}</span>
+											{/if}
+										</span>
+									{/if}
+									{#if insight.confidence_score && insight.confidence_score >= 0.8}
+										<span class="text-xs text-slate-400 dark:text-slate-500" title="High confidence parse">
+											&#10003;
+										</span>
+									{/if}
+								</div>
+							{/if}
+
 							<!-- Question -->
 							<div class="flex items-start gap-2 mb-3">
 								<span
@@ -188,16 +256,27 @@
 								</p>
 							</div>
 
-							<!-- Answer -->
+							<!-- Answer (or Summary if available) -->
 							<div class="flex items-start gap-2 mb-3 ml-8">
 								<span
 									class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-semibold"
 								>
 									A
 								</span>
-								<p class="text-slate-700 dark:text-slate-300">
-									{insight.answer}
-								</p>
+								<div>
+									<p class="text-slate-700 dark:text-slate-300">
+										{insight.answer}
+									</p>
+									{#if insight.key_entities && insight.key_entities.length > 0}
+										<div class="mt-1 flex flex-wrap gap-1">
+											{#each insight.key_entities as entity}
+												<span class="inline-flex px-1.5 py-0.5 rounded text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+													{entity}
+												</span>
+											{/each}
+										</div>
+									{/if}
+								</div>
 							</div>
 
 							<!-- Metadata -->

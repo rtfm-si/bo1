@@ -212,3 +212,106 @@ def validate_persona(persona: str | None) -> PersonaType:
     if persona in ("general", "action_coach", "data_analyst"):
         return persona  # type: ignore
     return "general"
+
+
+# =============================================================================
+# Persona Definitions
+# =============================================================================
+
+PERSONA_DEFINITIONS: dict[PersonaType, dict[str, str | list[str]]] = {
+    "general": {
+        "id": "general",
+        "name": "General Business Advisor",
+        "description": "Broad business guidance covering strategy, operations, and decision-making.",
+        "expertise": ["strategy", "operations", "leadership", "problem-solving"],
+        "icon": "briefcase",
+    },
+    "action_coach": {
+        "id": "action_coach",
+        "name": "Action & Execution Coach",
+        "description": "Focused guidance on task management, prioritization, and getting things done.",
+        "expertise": [
+            "task management",
+            "prioritization",
+            "execution",
+            "time management",
+            "delegation",
+        ],
+        "icon": "check-circle",
+    },
+    "data_analyst": {
+        "id": "data_analyst",
+        "name": "Data & Analytics Advisor",
+        "description": "Expert in data interpretation, metrics analysis, and data-driven decisions.",
+        "expertise": ["data analysis", "metrics", "KPIs", "visualization", "business intelligence"],
+        "icon": "chart-bar",
+    },
+}
+
+
+class MentorPersona:
+    """Mentor persona with metadata."""
+
+    def __init__(
+        self,
+        id: str,
+        name: str,
+        description: str,
+        expertise: list[str],
+        icon: str = "user",
+    ) -> None:
+        """Initialize mentor persona with metadata."""
+        self.id = id
+        self.name = name
+        self.description = description
+        self.expertise = expertise
+        self.icon = icon
+
+    def to_dict(self) -> dict[str, str | list[str]]:
+        """Convert to dict representation."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "expertise": self.expertise,
+            "icon": self.icon,
+        }
+
+
+def list_all_personas() -> list[MentorPersona]:
+    """List all available mentor personas.
+
+    Returns:
+        List of MentorPersona objects with id, name, description, expertise, icon
+    """
+    return [
+        MentorPersona(
+            id=str(defn["id"]),
+            name=str(defn["name"]),
+            description=str(defn["description"]),
+            expertise=list(defn["expertise"]) if isinstance(defn["expertise"], list) else [],
+            icon=str(defn.get("icon", "user")),
+        )
+        for defn in PERSONA_DEFINITIONS.values()
+    ]
+
+
+def get_persona_by_id(persona_id: str) -> MentorPersona | None:
+    """Get a persona by its ID.
+
+    Args:
+        persona_id: Persona identifier
+
+    Returns:
+        MentorPersona or None if not found
+    """
+    defn = PERSONA_DEFINITIONS.get(persona_id)  # type: ignore
+    if not defn:
+        return None
+    return MentorPersona(
+        id=str(defn["id"]),
+        name=str(defn["name"]),
+        description=str(defn["description"]),
+        expertise=list(defn["expertise"]) if isinstance(defn["expertise"], list) else [],
+        icon=str(defn.get("icon", "user")),
+    )

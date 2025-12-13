@@ -20,6 +20,7 @@ from backend.api.admin import (
     beta_whitelist,
     cost_analytics,
     feature_flags,
+    impersonation,
     metrics,
     observability,
     research_cache,
@@ -44,6 +45,7 @@ router.include_router(cost_analytics.router)
 router.include_router(feature_flags.router)
 router.include_router(alerts.router)
 router.include_router(observability.router)
+router.include_router(impersonation.router)
 
 # Re-export models for backward compatibility
 from backend.api.admin.models import (  # noqa: E402, F401

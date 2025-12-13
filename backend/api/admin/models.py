@@ -208,6 +208,49 @@ class AdminStatsResponse(BaseModel):
     waitlist_pending: int = Field(..., description="Number of pending waitlist entries")
 
 
+class SetTierOverrideRequest(BaseModel):
+    """Request model for setting tier override.
+
+    Attributes:
+        tier: Override tier (free, starter, pro, enterprise)
+        expires_at: When override expires (ISO 8601, optional - null means no expiry)
+        reason: Reason for override (e.g., "beta tester", "goodwill credit")
+    """
+
+    tier: str = Field(
+        ...,
+        description="Override tier",
+        examples=["pro", "starter", "enterprise"],
+    )
+    expires_at: str | None = Field(
+        None,
+        description="When override expires (ISO 8601). Null means no expiry.",
+        examples=["2025-06-01T00:00:00Z"],
+    )
+    reason: str = Field(
+        ...,
+        description="Reason for override",
+        max_length=200,
+        examples=["Beta tester", "Goodwill credit", "Conference demo"],
+    )
+
+
+class TierOverrideResponse(BaseModel):
+    """Response model for tier override operations.
+
+    Attributes:
+        user_id: User identifier
+        tier_override: Current override (null if none)
+        effective_tier: Effective tier after considering override
+        message: Human-readable message
+    """
+
+    user_id: str = Field(..., description="User identifier")
+    tier_override: dict[str, Any] | None = Field(None, description="Current override settings")
+    effective_tier: str = Field(..., description="Effective tier after considering override")
+    message: str = Field(..., description="Human-readable message")
+
+
 # ==============================================================================
 # Session Management Models
 # ==============================================================================
@@ -597,3 +640,128 @@ class AlertSettingsResponse(BaseModel):
     rate_limit_threshold: int = Field(..., description="Rate limit hits before alert")
     rate_limit_window_minutes: int = Field(..., description="Rate limit window (minutes)")
     lockout_threshold: int = Field(..., description="Lockouts before alert")
+
+
+# ==============================================================================
+# Admin Impersonation Models
+# ==============================================================================
+
+
+class StartImpersonationRequest(BaseModel):
+    """Request model for starting an impersonation session.
+
+    Attributes:
+        reason: Reason for impersonation (for audit)
+        write_mode: Allow mutations if True (default: read-only)
+        duration_minutes: Session duration (default: 30, max: 60)
+    """
+
+    reason: str = Field(
+        ...,
+        description="Reason for impersonation (required for audit trail)",
+        min_length=5,
+        max_length=500,
+        examples=["Investigating user-reported bug in action creation"],
+    )
+    write_mode: bool = Field(
+        False,
+        description="Allow mutations (POST/PUT/PATCH/DELETE). Default: read-only",
+    )
+    duration_minutes: int = Field(
+        30,
+        ge=5,
+        le=60,
+        description="Session duration in minutes (5-60)",
+    )
+
+
+class ImpersonationSessionResponse(BaseModel):
+    """Response model for impersonation session data.
+
+    Attributes:
+        admin_user_id: Admin user performing impersonation
+        target_user_id: User being impersonated
+        target_email: Email of target user
+        reason: Reason for impersonation
+        is_write_mode: Whether mutations are allowed
+        started_at: When session started
+        expires_at: When session expires
+        remaining_seconds: Seconds until expiry
+    """
+
+    admin_user_id: str = Field(..., description="Admin user ID")
+    target_user_id: str = Field(..., description="Target user ID")
+    target_email: str | None = Field(None, description="Target user email")
+    reason: str = Field(..., description="Reason for impersonation")
+    is_write_mode: bool = Field(..., description="Whether mutations allowed")
+    started_at: str = Field(..., description="Session start time (ISO 8601)")
+    expires_at: str = Field(..., description="Session expiry time (ISO 8601)")
+    remaining_seconds: int = Field(..., description="Seconds until expiry")
+
+
+class ImpersonationStatusResponse(BaseModel):
+    """Response model for impersonation status check.
+
+    Attributes:
+        is_impersonating: Whether admin is currently impersonating
+        session: Active session details (if impersonating)
+    """
+
+    is_impersonating: bool = Field(..., description="Whether currently impersonating")
+    session: ImpersonationSessionResponse | None = Field(
+        None, description="Active session (if impersonating)"
+    )
+
+
+class EndImpersonationResponse(BaseModel):
+    """Response model for ending impersonation.
+
+    Attributes:
+        ended: Whether session was ended
+        message: Human-readable message
+    """
+
+    ended: bool = Field(..., description="Whether session was ended")
+    message: str = Field(..., description="Human-readable message")
+
+
+class ImpersonationHistoryItem(BaseModel):
+    """Response model for impersonation history entry.
+
+    Attributes:
+        id: Session record ID
+        admin_user_id: Admin user ID
+        admin_email: Admin user email
+        target_user_id: Target user ID
+        target_email: Target user email
+        reason: Reason for impersonation
+        is_write_mode: Whether mutations were allowed
+        started_at: When session started
+        expires_at: When session was set to expire
+        ended_at: When session actually ended (null if expired)
+    """
+
+    id: int = Field(..., description="Session record ID")
+    admin_user_id: str = Field(..., description="Admin user ID")
+    admin_email: str = Field(..., description="Admin user email")
+    target_user_id: str = Field(..., description="Target user ID")
+    target_email: str = Field(..., description="Target user email")
+    reason: str = Field(..., description="Reason for impersonation")
+    is_write_mode: bool = Field(..., description="Whether mutations allowed")
+    started_at: str = Field(..., description="Session start time (ISO 8601)")
+    expires_at: str = Field(..., description="Session expiry time (ISO 8601)")
+    ended_at: str | None = Field(None, description="Session end time (ISO 8601)")
+
+
+class ImpersonationHistoryResponse(BaseModel):
+    """Response model for impersonation history.
+
+    Attributes:
+        total: Total number of records
+        sessions: List of history entries
+        limit: Max records returned
+    """
+
+    total: int = Field(..., description="Total records")
+    sessions: list[ImpersonationHistoryItem] = Field(..., description="History entries")
+    limit: int = Field(..., description="Max records returned")

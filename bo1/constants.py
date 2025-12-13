@@ -650,3 +650,260 @@ class GanttColorCache:
 
     KEY_PREFIX = "gantt_color:"
     """Redis key prefix for color cache"""
+
+
+# =============================================================================
+# INDUSTRY BENCHMARK CONFIGURATION
+# =============================================================================
+
+
+class IndustryBenchmarkLimits:
+    """Tier-based benchmark access limits."""
+
+    FREE = 3
+    """Free tier: 3 benchmarks visible"""
+
+    STARTER = 5
+    """Starter tier: 5 benchmarks visible"""
+
+    PRO = -1
+    """Pro tier: unlimited (-1)"""
+
+    TIER_LIMITS = {
+        "free": FREE,
+        "starter": STARTER,
+        "pro": PRO,
+        "enterprise": PRO,  # Enterprise also has unlimited
+    }
+
+    @staticmethod
+    def get_limit_for_tier(tier: str) -> int:
+        """Get benchmark limit for a tier.
+
+        Args:
+            tier: User subscription tier
+
+        Returns:
+            Number of benchmarks allowed (-1 for unlimited)
+        """
+        return IndustryBenchmarkLimits.TIER_LIMITS.get(tier.lower(), IndustryBenchmarkLimits.FREE)
+
+
+class BenchmarkCategories:
+    """Benchmark metric categories."""
+
+    GROWTH = "growth"
+    """Growth metrics: MRR, revenue, expansion"""
+
+    RETENTION = "retention"
+    """Retention metrics: churn, NRR, LTV"""
+
+    EFFICIENCY = "efficiency"
+    """Efficiency metrics: CAC payback, LTV:CAC, burn multiple"""
+
+    ENGAGEMENT = "engagement"
+    """Engagement metrics: DAU/MAU, activation, NPS"""
+
+    ALL = [GROWTH, RETENTION, EFFICIENCY, ENGAGEMENT]
+
+
+class IndustrySegments:
+    """Industry segments for benchmark filtering."""
+
+    SAAS = "SaaS"
+    ECOMMERCE = "E-commerce"
+    FINTECH = "Fintech"
+    HEALTHCARE = "Healthcare"
+    MARKETPLACE = "Marketplace"
+
+    ALL = [SAAS, ECOMMERCE, FINTECH, HEALTHCARE, MARKETPLACE]
+
+
+# =============================================================================
+# TIER LIMITS CONFIGURATION
+# =============================================================================
+
+
+class TierLimits:
+    """Per-tier usage limits for meetings, datasets, and mentor chats."""
+
+    # Meeting limits (per month)
+    MEETINGS_FREE = 3
+    MEETINGS_STARTER = 20
+    MEETINGS_PRO = -1  # -1 = unlimited
+
+    # Dataset limits (total active)
+    DATASETS_FREE = 5
+    DATASETS_STARTER = 25
+    DATASETS_PRO = 100
+
+    # Mentor chat limits (per day)
+    MENTOR_FREE = 10
+    MENTOR_STARTER = 50
+    MENTOR_PRO = -1  # unlimited
+
+    # API call limits (per day) - for future external API access
+    API_CALLS_FREE = 0  # No API access
+    API_CALLS_STARTER = 100
+    API_CALLS_PRO = 1000
+
+    @staticmethod
+    def get_limits(tier: str) -> dict[str, int]:
+        """Get all limits for a tier.
+
+        Args:
+            tier: Subscription tier (free, starter, pro, enterprise)
+
+        Returns:
+            Dict with meetings_monthly, datasets_total, mentor_daily, api_daily
+        """
+        tier = tier.lower()
+        if tier in ("pro", "enterprise"):
+            return {
+                "meetings_monthly": TierLimits.MEETINGS_PRO,
+                "datasets_total": TierLimits.DATASETS_PRO,
+                "mentor_daily": TierLimits.MENTOR_PRO,
+                "api_daily": TierLimits.API_CALLS_PRO,
+            }
+        elif tier == "starter":
+            return {
+                "meetings_monthly": TierLimits.MEETINGS_STARTER,
+                "datasets_total": TierLimits.DATASETS_STARTER,
+                "mentor_daily": TierLimits.MENTOR_STARTER,
+                "api_daily": TierLimits.API_CALLS_STARTER,
+            }
+        else:  # free or unknown
+            return {
+                "meetings_monthly": TierLimits.MEETINGS_FREE,
+                "datasets_total": TierLimits.DATASETS_FREE,
+                "mentor_daily": TierLimits.MENTOR_FREE,
+                "api_daily": TierLimits.API_CALLS_FREE,
+            }
+
+    @staticmethod
+    def get_limit(tier: str, metric: str) -> int:
+        """Get a specific limit for a tier.
+
+        Args:
+            tier: Subscription tier
+            metric: Limit key (meetings_monthly, datasets_total, mentor_daily, api_daily)
+
+        Returns:
+            Limit value (-1 = unlimited)
+        """
+        limits = TierLimits.get_limits(tier)
+        return limits.get(metric, 0)
+
+    @staticmethod
+    def is_unlimited(limit: int) -> bool:
+        """Check if a limit value represents unlimited.
+
+        Args:
+            limit: Limit value
+
+        Returns:
+            True if limit is -1 (unlimited)
+        """
+        return limit == -1
+
+
+class TierFeatureFlags:
+    """Feature flags enabled per tier."""
+
+    # Features available by tier
+    FEATURES = {
+        "free": {
+            "meetings": True,
+            "datasets": True,
+            "mentor": True,
+            "api_access": False,
+            "priority_support": False,
+            "advanced_analytics": False,
+            "custom_personas": False,
+            "session_export": True,
+            "session_sharing": True,
+        },
+        "starter": {
+            "meetings": True,
+            "datasets": True,
+            "mentor": True,
+            "api_access": True,
+            "priority_support": False,
+            "advanced_analytics": True,
+            "custom_personas": False,
+            "session_export": True,
+            "session_sharing": True,
+        },
+        "pro": {
+            "meetings": True,
+            "datasets": True,
+            "mentor": True,
+            "api_access": True,
+            "priority_support": True,
+            "advanced_analytics": True,
+            "custom_personas": True,
+            "session_export": True,
+            "session_sharing": True,
+        },
+        "enterprise": {
+            "meetings": True,
+            "datasets": True,
+            "mentor": True,
+            "api_access": True,
+            "priority_support": True,
+            "advanced_analytics": True,
+            "custom_personas": True,
+            "session_export": True,
+            "session_sharing": True,
+        },
+    }
+
+    @staticmethod
+    def is_feature_enabled(tier: str, feature: str) -> bool:
+        """Check if a feature is enabled for a tier.
+
+        Args:
+            tier: Subscription tier
+            feature: Feature name
+
+        Returns:
+            True if feature is enabled
+        """
+        tier_features = TierFeatureFlags.FEATURES.get(
+            tier.lower(), TierFeatureFlags.FEATURES["free"]
+        )
+        return tier_features.get(feature, False)
+
+    @staticmethod
+    def get_features(tier: str) -> dict[str, bool]:
+        """Get all features for a tier.
+
+        Args:
+            tier: Subscription tier
+
+        Returns:
+            Dict of feature -> enabled
+        """
+        return TierFeatureFlags.FEATURES.get(tier.lower(), TierFeatureFlags.FEATURES["free"]).copy()
+
+
+class UsageMetrics:
+    """Usage metric names and Redis key configuration."""
+
+    # Metric names
+    MEETINGS_CREATED = "meetings_created"
+    DATASETS_UPLOADED = "datasets_uploaded"
+    MENTOR_CHATS = "mentor_chats"
+    API_CALLS = "api_calls"
+
+    # All tracked metrics
+    ALL = [MEETINGS_CREATED, DATASETS_UPLOADED, MENTOR_CHATS, API_CALLS]
+
+    # Redis key patterns
+    KEY_PREFIX = "usage:"
+    DAILY_KEY_PATTERN = "{prefix}{user_id}:{metric}:daily:{date}"
+    MONTHLY_KEY_PATTERN = "{prefix}{user_id}:{metric}:monthly:{year_month}"
+
+    # TTL values (seconds)
+    DAILY_TTL = 86400 * 2  # 2 days (buffer for timezone edge cases)
+    MONTHLY_TTL = 86400 * 35  # 35 days (buffer for month rollover)

@@ -93,3 +93,64 @@ class WorkspaceListResponse(BaseModel):
 
     workspaces: list[WorkspaceResponse]
     total: int
+
+
+# =============================================================================
+# Invitation Models
+# =============================================================================
+
+
+class InvitationStatus(str, Enum):
+    """Status of a workspace invitation."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+
+
+class InvitationCreate(BaseModel):
+    """Request model for creating an invitation."""
+
+    email: str = Field(..., description="Email of user to invite")
+    role: MemberRole = Field(
+        MemberRole.MEMBER,
+        description="Role to assign when invitation is accepted",
+    )
+
+
+class InvitationResponse(BaseModel):
+    """Response model for an invitation."""
+
+    id: UUID
+    workspace_id: UUID
+    email: str
+    role: MemberRole
+    status: InvitationStatus
+    expires_at: datetime
+    created_at: datetime
+    invited_by: str | None = None
+    accepted_at: datetime | None = None
+    # Optional: workspace name for display
+    workspace_name: str | None = None
+    inviter_name: str | None = None
+
+
+class InvitationAcceptRequest(BaseModel):
+    """Request model for accepting an invitation."""
+
+    token: str = Field(..., description="Invitation token from email link")
+
+
+class InvitationDeclineRequest(BaseModel):
+    """Request model for declining an invitation."""
+
+    token: str = Field(..., description="Invitation token from email link")
+
+
+class InvitationListResponse(BaseModel):
+    """Response model for listing invitations."""
+
+    invitations: list[InvitationResponse]
+    total: int

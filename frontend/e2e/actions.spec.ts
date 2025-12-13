@@ -12,85 +12,130 @@
  */
 import { test, expect } from '@playwright/test';
 
-// Mock actions data
+// Mock actions data - matches AllActionsResponse structure
 const mockActions = {
-	actions: [
+	sessions: [
 		{
-			id: 'action-1',
-			title: 'Conduct market research',
-			status: 'todo',
-			priority: 'high',
-			due_date: new Date(Date.now() - 86400000).toISOString(), // Yesterday (overdue)
 			session_id: 'session-1',
-			session_problem: 'European expansion',
-			created_at: new Date().toISOString()
+			problem_statement: 'European expansion',
+			session_status: 'completed',
+			created_at: new Date().toISOString(),
+			extracted_at: new Date().toISOString(),
+			task_count: 3,
+			by_status: { todo: 2, in_progress: 1, done: 0 },
+			tasks: [
+				{
+					id: 'action-1',
+					title: 'Conduct market research',
+					description: 'Research key European markets for expansion',
+					what_and_how: ['Analyze market size'],
+					success_criteria: ['Report completed'],
+					kill_criteria: [],
+					dependencies: [],
+					timeline: '2 weeks',
+					status: 'todo',
+					priority: 'high',
+					category: 'research',
+					source_section: null,
+					suggested_completion_date: new Date(Date.now() - 86400000).toISOString(), // Yesterday (overdue)
+					created_at: new Date().toISOString(),
+					session_id: 'session-1',
+					problem_statement: 'European expansion'
+				},
+				{
+					id: 'action-2',
+					title: 'Build partnership roadmap',
+					description: 'Create a roadmap for strategic partnerships',
+					what_and_how: ['Identify partners'],
+					success_criteria: ['Roadmap approved'],
+					kill_criteria: [],
+					dependencies: [],
+					timeline: '1 week',
+					status: 'in_progress',
+					priority: 'medium',
+					category: 'implementation',
+					source_section: null,
+					suggested_completion_date: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
+					created_at: new Date().toISOString(),
+					session_id: 'session-1',
+					problem_statement: 'European expansion'
+				},
+				{
+					id: 'action-4',
+					title: 'Draft marketing plan',
+					description: 'Create a marketing plan for European launch',
+					what_and_how: ['Draft plan'],
+					success_criteria: ['Plan reviewed'],
+					kill_criteria: [],
+					dependencies: [],
+					timeline: '1 week',
+					status: 'todo',
+					priority: 'medium',
+					category: 'implementation',
+					source_section: null,
+					suggested_completion_date: new Date().toISOString(), // Today
+					created_at: new Date().toISOString(),
+					session_id: 'session-1',
+					problem_statement: 'European expansion'
+				}
+			]
 		},
 		{
-			id: 'action-2',
-			title: 'Build partnership roadmap',
-			status: 'in_progress',
-			priority: 'medium',
-			due_date: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
-			session_id: 'session-1',
-			session_problem: 'European expansion',
-			created_at: new Date().toISOString()
-		},
-		{
-			id: 'action-3',
-			title: 'Review competitor analysis',
-			status: 'completed',
-			priority: 'low',
-			due_date: null,
 			session_id: 'session-2',
-			session_problem: 'Pricing strategy',
-			created_at: new Date().toISOString()
-		},
-		{
-			id: 'action-4',
-			title: 'Draft marketing plan',
-			status: 'todo',
-			priority: 'medium',
-			due_date: new Date().toISOString(), // Today
-			session_id: 'session-1',
-			session_problem: 'European expansion',
-			created_at: new Date().toISOString()
+			problem_statement: 'Pricing strategy',
+			session_status: 'completed',
+			created_at: new Date().toISOString(),
+			extracted_at: new Date().toISOString(),
+			task_count: 1,
+			by_status: { todo: 0, in_progress: 0, done: 1 },
+			tasks: [
+				{
+					id: 'action-3',
+					title: 'Review competitor analysis',
+					description: 'Review competitive pricing data',
+					what_and_how: ['Analyze competitors'],
+					success_criteria: ['Analysis complete'],
+					kill_criteria: [],
+					dependencies: [],
+					timeline: '3 days',
+					status: 'done',
+					priority: 'low',
+					category: 'research',
+					source_section: null,
+					suggested_completion_date: null,
+					created_at: new Date().toISOString(),
+					session_id: 'session-2',
+					problem_statement: 'Pricing strategy'
+				}
+			]
 		}
 	],
-	total: 4,
-	meetings: [
-		{ id: 'session-1', problem_statement: 'European expansion' },
-		{ id: 'session-2', problem_statement: 'Pricing strategy' }
-	]
+	total_tasks: 4,
+	by_status: { todo: 2, in_progress: 1, done: 1 }
 };
 
+// Flatten all tasks for gantt data
+const allTasks = mockActions.sessions.flatMap((s) => s.tasks);
 const mockGanttData = {
-	tasks: mockActions.actions.map((a) => ({
+	tasks: allTasks.map((a) => ({
 		id: a.id,
 		name: a.title,
-		start: a.due_date || new Date().toISOString(),
-		end: a.due_date || new Date().toISOString(),
-		progress: a.status === 'completed' ? 100 : a.status === 'in_progress' ? 50 : 0,
+		start: a.suggested_completion_date || new Date().toISOString(),
+		end: a.suggested_completion_date || new Date().toISOString(),
+		progress: a.status === 'done' ? 100 : a.status === 'in_progress' ? 50 : 0,
 		dependencies: []
 	}))
 };
 
 test.describe('Actions List Page', () => {
 	test.beforeEach(async ({ page }) => {
-		// Mock actions API
+		// Mock actions API - returns AllActionsResponse structure
 		await page.route('**/api/v1/actions**', (route) => {
-			const url = new URL(route.request().url());
-			const status = url.searchParams.get('status');
-
-			let filteredActions = [...mockActions.actions];
-
-			if (status && status !== 'all') {
-				filteredActions = filteredActions.filter((a) => a.status === status);
-			}
-
+			// Return full mockActions - filtering is done client-side
 			return route.fulfill({
 				status: 200,
 				contentType: 'application/json',
-				body: JSON.stringify({ ...mockActions, actions: filteredActions })
+				body: JSON.stringify(mockActions)
 			});
 		});
 
@@ -369,6 +414,43 @@ test.describe('Actions List Page', () => {
 	});
 });
 
+// Mock action detail response - matches ActionDetailResponse structure
+const mockActionDetail = {
+	id: 'action-1',
+	title: 'Conduct market research',
+	description: 'Research key European markets for expansion',
+	what_and_how: ['Analyze market size', 'Identify key competitors'],
+	success_criteria: ['Report completed'],
+	kill_criteria: [],
+	dependencies: [],
+	timeline: '2 weeks',
+	priority: 'high' as const,
+	category: 'research' as const,
+	source_section: null,
+	confidence: 0.85,
+	sub_problem_index: 0,
+	status: 'todo' as const,
+	session_id: 'session-1',
+	problem_statement: 'European expansion',
+	estimated_duration_days: 14,
+	target_start_date: null,
+	target_end_date: null,
+	estimated_start_date: null,
+	estimated_end_date: null,
+	actual_start_date: null,
+	actual_end_date: null,
+	blocking_reason: null,
+	blocked_at: null,
+	auto_unblock: false,
+	replan_session_id: null,
+	replan_requested_at: null,
+	replanning_reason: null,
+	can_replan: true,
+	cancellation_reason: null,
+	cancelled_at: null,
+	project_id: null
+};
+
 test.describe('Action Detail Page', () => {
 	test.beforeEach(async ({ page }) => {
 		// Mock single action API
@@ -376,7 +458,7 @@ test.describe('Action Detail Page', () => {
 			route.fulfill({
 				status: 200,
 				contentType: 'application/json',
-				body: JSON.stringify(mockActions.actions[0])
+				body: JSON.stringify(mockActionDetail)
 			})
 		);
 	});
@@ -464,13 +546,13 @@ test.describe('Action Detail Page', () => {
 					return route.fulfill({
 						status: 200,
 						contentType: 'application/json',
-						body: JSON.stringify({ ...mockActions.actions[0], status: 'in_progress' })
+						body: JSON.stringify({ ...mockActionDetail, status: 'in_progress' })
 					});
 				}
 				return route.fulfill({
 					status: 200,
 					contentType: 'application/json',
-					body: JSON.stringify(mockActions.actions[0])
+					body: JSON.stringify(mockActionDetail)
 				});
 			});
 

@@ -26,7 +26,13 @@ from supertokens_python.recipe.thirdparty.interfaces import (
     APIOptions,
     RecipeInterface,
 )
-from supertokens_python.recipe.thirdparty.provider import Provider, ProviderInput, RedirectUriInfo
+from supertokens_python.recipe.thirdparty.provider import (
+    Provider,
+    ProviderInput,
+    RedirectUriInfo,
+    UserFields,
+    UserInfoMap,
+)
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 
 from backend.api.utils.db_helpers import execute_query, exists
@@ -34,7 +40,13 @@ from backend.api.utils.oauth_errors import sanitize_supertokens_message
 from backend.services.auth_lockout import auth_lockout_service
 from backend.services.email import send_email_async
 from backend.services.email_templates import render_welcome_email
-from bo1.feature_flags import GITHUB_OAUTH_ENABLED, GOOGLE_OAUTH_ENABLED, LINKEDIN_OAUTH_ENABLED
+from bo1.feature_flags import (
+    BLUESKY_OAUTH_ENABLED,
+    GITHUB_OAUTH_ENABLED,
+    GOOGLE_OAUTH_ENABLED,
+    LINKEDIN_OAUTH_ENABLED,
+    TWITTER_OAUTH_ENABLED,
+)
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
@@ -264,6 +276,77 @@ def get_oauth_providers() -> list[ProviderInput]:
         else:
             logger.warning(
                 "GitHub OAuth enabled but credentials missing (GITHUB_OAUTH_CLIENT_ID, GITHUB_OAUTH_CLIENT_SECRET)"
+            )
+
+    # Twitter/X OAuth
+    if TWITTER_OAUTH_ENABLED:
+        twitter_client_id = os.getenv("TWITTER_OAUTH_CLIENT_ID", "")
+        twitter_client_secret = os.getenv("TWITTER_OAUTH_CLIENT_SECRET", "")
+
+        if twitter_client_id and twitter_client_secret:
+            providers.append(
+                ProviderInput(
+                    config=thirdparty.ProviderConfig(
+                        third_party_id="twitter",
+                        clients=[
+                            thirdparty.ProviderClientConfig(
+                                client_id=twitter_client_id,
+                                client_secret=twitter_client_secret,
+                                scope=[
+                                    "users.read",
+                                    "tweet.read",
+                                ],
+                            )
+                        ],
+                    )
+                )
+            )
+            logger.info("Twitter/X OAuth provider configured")
+        else:
+            logger.warning(
+                "Twitter OAuth enabled but credentials missing (TWITTER_OAUTH_CLIENT_ID, TWITTER_OAUTH_CLIENT_SECRET)"
+            )
+
+    # Bluesky OAuth (AT Protocol)
+    if BLUESKY_OAUTH_ENABLED:
+        bluesky_client_id = os.getenv("BLUESKY_CLIENT_ID", "")
+        bluesky_client_secret = os.getenv("BLUESKY_CLIENT_SECRET", "")
+
+        if bluesky_client_id and bluesky_client_secret:
+            # Bluesky uses AT Protocol OAuth 2.0 with PKCE
+            # Authorization: https://bsky.social/oauth/authorize
+            # Token: https://bsky.social/oauth/token
+            # UserInfo: https://bsky.social/xrpc/com.atproto.identity.resolveHandle
+            providers.append(
+                ProviderInput(
+                    config=thirdparty.ProviderConfig(
+                        third_party_id="bluesky",
+                        clients=[
+                            thirdparty.ProviderClientConfig(
+                                client_id=bluesky_client_id,
+                                client_secret=bluesky_client_secret,
+                                scope=[
+                                    "atproto",
+                                    "transition:generic",
+                                ],
+                            )
+                        ],
+                        authorization_endpoint="https://bsky.social/oauth/authorize",
+                        token_endpoint="https://bsky.social/oauth/token",  # noqa: S106
+                        user_info_endpoint="https://bsky.social/xrpc/app.bsky.actor.getProfile",
+                        user_info_map=UserInfoMap(
+                            from_user_info_api=UserFields(
+                                user_id="did",
+                                email="handle",  # Bluesky uses handle, not email
+                            )
+                        ),
+                    )
+                )
+            )
+            logger.info("Bluesky OAuth provider configured (AT Protocol)")
+        else:
+            logger.warning(
+                "Bluesky OAuth enabled but credentials missing (BLUESKY_CLIENT_ID, BLUESKY_CLIENT_SECRET)"
             )
 
     return providers

@@ -177,6 +177,9 @@ class UserRepository(BaseRepository):
         "onboarding_completed_at",
         # Clarification answers from meetings
         "clarifications",
+        # Context auto-update tracking
+        "context_metric_history",
+        "pending_updates",
     ]
 
     @classmethod
@@ -263,6 +266,8 @@ class UserRepository(BaseRepository):
             "detected_competitors",
             "keywords",
             "clarifications",
+            "context_metric_history",
+            "pending_updates",
         }
 
         values = []

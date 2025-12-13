@@ -382,6 +382,11 @@
 						priority: (task.priority as 'high' | 'medium' | 'low') || 'medium',
 						timeline: task.timeline || '',
 						target_end_date: task.suggested_completion_date || null,
+						// Extended fields for full PDF details
+						what_and_how: task.what_and_how || [],
+						success_criteria: task.success_criteria || [],
+						dependencies: task.dependencies || [],
+						category: task.category || undefined,
 					}));
 				} catch {
 					// Continue without actions if fetch fails

@@ -10,16 +10,25 @@ Provides:
 import json
 import logging
 from collections.abc import AsyncGenerator
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.tier_limits import record_mentor_usage, require_mentor_limit
 from backend.api.utils.errors import handle_api_errors
+from backend.services.mention_parser import parse_mentions
+from backend.services.mention_resolver import get_mention_resolver
 from backend.services.mentor_context import MentorContext, get_mentor_context_service
 from backend.services.mentor_conversation_repo import get_mentor_conversation_repo
-from backend.services.mentor_persona import auto_select_persona, validate_persona
+from backend.services.mentor_persona import (
+    auto_select_persona,
+    list_all_personas,
+    validate_persona,
+)
+from backend.services.usage_tracking import UsageResult
 from bo1.llm.client import ClaudeClient
 from bo1.prompts.mentor import (
     build_mentor_prompt,
@@ -27,6 +36,7 @@ from bo1.prompts.mentor import (
     format_business_context,
     format_conversation_history,
     format_dataset_summaries,
+    format_mentioned_context,
     format_recent_meetings,
     get_mentor_system_prompt,
 )
@@ -101,6 +111,44 @@ class MentorConversationDetailResponse(BaseModel):
     messages: list[MentorMessage]
 
 
+class MentorPersonaResponse(BaseModel):
+    """Response model for a mentor persona."""
+
+    id: str
+    name: str
+    description: str
+    expertise: list[str]
+    icon: str
+
+
+class MentorPersonaListResponse(BaseModel):
+    """Response model for listing mentor personas."""
+
+    personas: list[MentorPersonaResponse]
+    total: int
+
+
+# =============================================================================
+# Mention Search Models
+# =============================================================================
+
+
+class MentionSuggestion(BaseModel):
+    """A single mention suggestion for autocomplete."""
+
+    id: str
+    type: str  # "meeting" | "action" | "dataset"
+    title: str
+    preview: str | None = None
+
+
+class MentionSearchResponse(BaseModel):
+    """Response model for mention search."""
+
+    suggestions: list[MentionSuggestion]
+    total: int
+
+
 # =============================================================================
 # SSE Streaming
 # =============================================================================
@@ -127,9 +175,29 @@ async def _stream_mentor_response(
     try:
         yield f"event: thinking\ndata: {json.dumps({'status': 'loading_context'})}\n\n"
 
+        # Parse @mentions from message
+        mention_result = parse_mentions(message)
+        resolved_mentions = None
+        mentioned_ctx = ""
+
+        if mention_result.mentions:
+            # Resolve mentions to actual entity data
+            resolver = get_mention_resolver()
+            resolved_mentions = resolver.resolve(user_id, mention_result.mentions)
+            mentioned_ctx = format_mentioned_context(resolved_mentions)
+
         # Gather context
         context: MentorContext = mentor_context_service.gather_context(user_id)
         context_sources = context.sources_used()
+
+        # Add mention types to context sources if any resolved
+        if resolved_mentions and resolved_mentions.has_context():
+            if resolved_mentions.meetings:
+                context_sources.append("mentioned_meetings")
+            if resolved_mentions.actions:
+                context_sources.append("mentioned_actions")
+            if resolved_mentions.datasets:
+                context_sources.append("mentioned_datasets")
 
         yield f"event: context\ndata: {json.dumps({'sources': context_sources})}\n\n"
 
@@ -173,14 +241,16 @@ async def _stream_mentor_response(
         datasets_ctx = format_dataset_summaries(context.datasets or [])
         conv_history = format_conversation_history(conversation.get("messages", []))
 
-        # Build prompt
+        # Build prompt (use clean_text if mentions were parsed, else original message)
+        question_text = mention_result.clean_text if mention_result.mentions else message
         user_prompt = build_mentor_prompt(
-            question=message,
+            question=question_text,
             business_context=business_ctx,
             meetings_context=meetings_ctx,
             actions_context=actions_ctx,
             datasets_context=datasets_ctx,
             conversation_history=conv_history,
+            mentioned_context=mentioned_ctx,
         )
 
         # Get system prompt for persona
@@ -208,8 +278,23 @@ async def _stream_mentor_response(
             context_sources=context_sources,
         )
 
-        # Done event with conversation ID
-        yield f"event: done\ndata: {json.dumps({'conversation_id': conversation_id, 'persona': selected_persona, 'tokens': usage.total_tokens})}\n\n"
+        # Done event with conversation ID and mentions info
+        done_data: dict[str, Any] = {
+            "conversation_id": conversation_id,
+            "persona": selected_persona,
+            "tokens": usage.total_tokens,
+        }
+        # Include resolved mentions for UI display
+        if resolved_mentions and resolved_mentions.has_context():
+            done_data["mentions"] = {
+                "meetings": [
+                    {"id": m.id, "title": m.problem_statement[:50]}
+                    for m in resolved_mentions.meetings
+                ],
+                "actions": [{"id": a.id, "title": a.title} for a in resolved_mentions.actions],
+                "datasets": [{"id": d.id, "title": d.name} for d in resolved_mentions.datasets],
+            }
+        yield f"event: done\ndata: {json.dumps(done_data)}\n\n"
 
     except Exception as e:
         logger.error(f"Error in mentor chat for user {user_id}: {e}")
@@ -237,6 +322,7 @@ async def _stream_mentor_response(
 async def mentor_chat(
     request: MentorChatRequest,
     user: dict = Depends(get_current_user),
+    tier_usage: UsageResult = Depends(require_mentor_limit),
 ) -> StreamingResponse:
     """Chat with the AI mentor.
 
@@ -245,6 +331,13 @@ async def mentor_chat(
     user_id = user.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found")
+
+    # Record mentor usage for tier tracking
+    try:
+        record_mentor_usage(user_id)
+    except Exception as e:
+        # Non-blocking - log and continue
+        logger.debug(f"Usage tracking failed (non-blocking): {e}")
 
     return StreamingResponse(
         _stream_mentor_response(
@@ -260,6 +353,132 @@ async def mentor_chat(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get(
+    "/personas",
+    response_model=MentorPersonaListResponse,
+    summary="List available mentor personas",
+    description="Get all available mentor personas for manual selection",
+)
+@handle_api_errors("list mentor personas")
+async def list_personas(
+    user: dict = Depends(get_current_user),
+) -> MentorPersonaListResponse:
+    """List all available mentor personas.
+
+    Returns personas with id, name, description, expertise areas, and icon.
+    Includes an implicit 'auto' option that is handled client-side.
+    """
+    personas = list_all_personas()
+    return MentorPersonaListResponse(
+        personas=[
+            MentorPersonaResponse(
+                id=p.id,
+                name=p.name,
+                description=p.description,
+                expertise=p.expertise,
+                icon=p.icon,
+            )
+            for p in personas
+        ],
+        total=len(personas),
+    )
+
+
+@router.get(
+    "/mentions/search",
+    response_model=MentionSearchResponse,
+    summary="Search for mentionable entities",
+    description="Search meetings, actions, or datasets for @mention autocomplete",
+)
+@handle_api_errors("search mentions")
+async def search_mentions(
+    type: str = Query(..., description="Entity type: meeting, action, dataset"),
+    q: str = Query("", description="Search query (optional, returns recent if empty)"),
+    limit: int = Query(10, ge=1, le=20, description="Max results"),
+    user: dict = Depends(get_current_user),
+) -> MentionSearchResponse:
+    """Search for entities to mention in chat.
+
+    Returns matching meetings, actions, or datasets with preview text.
+    Used by frontend autocomplete when user types @.
+    """
+    from bo1.state.repositories.action_repository import ActionRepository
+    from bo1.state.repositories.dataset_repository import DatasetRepository
+    from bo1.state.repositories.session_repository import SessionRepository
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+
+    if type not in ("meeting", "action", "dataset"):
+        raise HTTPException(
+            status_code=400, detail="Invalid type. Must be: meeting, action, dataset"
+        )
+
+    suggestions: list[MentionSuggestion] = []
+    query_lower = q.lower().strip()
+
+    if type == "meeting":
+        repo = SessionRepository()
+        sessions = repo.list_by_user(user_id, limit=50, status_filter=None)
+        for s in sessions:
+            problem = s.get("problem_statement", "")
+            # Filter by query if provided
+            if query_lower and query_lower not in problem.lower():
+                continue
+            suggestions.append(
+                MentionSuggestion(
+                    id=str(s["id"]),
+                    type="meeting",
+                    title=problem[:80] + ("..." if len(problem) > 80 else ""),
+                    preview=s.get("status", ""),
+                )
+            )
+            if len(suggestions) >= limit:
+                break
+
+    elif type == "action":
+        repo = ActionRepository()
+        actions = repo.get_by_user(user_id, limit=50)
+        for a in actions:
+            title = a.get("title", "Untitled")
+            # Filter by query if provided
+            if query_lower and query_lower not in title.lower():
+                continue
+            suggestions.append(
+                MentionSuggestion(
+                    id=str(a["id"]),
+                    type="action",
+                    title=title,
+                    preview=a.get("status", ""),
+                )
+            )
+            if len(suggestions) >= limit:
+                break
+
+    elif type == "dataset":
+        repo = DatasetRepository()
+        datasets, _total = repo.list_by_user(user_id, limit=50)
+        for d in datasets:
+            name = d.get("name", "Unnamed")
+            # Filter by query if provided
+            if query_lower and query_lower not in name.lower():
+                continue
+            row_count = d.get("row_count", 0)
+            suggestions.append(
+                MentionSuggestion(
+                    id=str(d["id"]),
+                    type="dataset",
+                    title=name,
+                    preview=f"{row_count} rows" if row_count else None,
+                )
+            )
+            if len(suggestions) >= limit:
+                break
+
+    return MentionSearchResponse(suggestions=suggestions, total=len(suggestions))
 
 
 @router.get(

@@ -22,14 +22,21 @@ from backend.api.context.competitors import (
     refresh_market_trends,
 )
 from backend.api.context.models import (
+    ApproveUpdateResponse,
     BusinessContext,
     ClarificationInsight,
     CompetitorDetectRequest,
     CompetitorDetectResponse,
     ContextResponse,
+    ContextUpdateSource,
+    ContextUpdateSuggestion,
+    ContextWithTrends,
     EnrichmentRequest,
     EnrichmentResponse,
+    InsightCategory,
+    InsightMetricResponse,
     InsightsResponse,
+    PendingUpdatesResponse,
     RefreshCheckResponse,
     TrendsRefreshRequest,
     TrendsRefreshResponse,
@@ -532,13 +539,39 @@ async def get_insights(
 
     for question, data in raw_clarifications.items():
         if isinstance(data, dict):
-            # New format with metadata
+            # Build metric response if present
+            metric_response = None
+            if data.get("metric"):
+                m = data["metric"]
+                metric_response = InsightMetricResponse(
+                    value=m.get("value"),
+                    unit=m.get("unit"),
+                    metric_type=m.get("metric_type"),
+                    period=m.get("period"),
+                    raw_text=m.get("raw_text"),
+                )
+
+            # Parse category
+            category = None
+            if data.get("category"):
+                try:
+                    category = InsightCategory(data["category"])
+                except ValueError:
+                    category = InsightCategory.UNCATEGORIZED
+
+            # New format with metadata (including structured fields)
             clarifications.append(
                 ClarificationInsight(
                     question=question,
                     answer=data.get("answer", ""),
                     answered_at=data.get("answered_at"),
                     session_id=data.get("session_id"),
+                    category=category,
+                    metric=metric_response,
+                    confidence_score=data.get("confidence_score"),
+                    summary=data.get("summary"),
+                    key_entities=data.get("key_entities"),
+                    parsed_at=data.get("parsed_at"),
                 )
             )
         else:
@@ -617,6 +650,37 @@ async def update_insight(
     if request.note:
         existing["update_note"] = request.note
 
+    # Re-parse with Haiku for structured fields
+    try:
+        from backend.services.insight_parser import parse_insight
+
+        structured = await parse_insight(request.value)
+        existing["category"] = structured.category.value
+        existing["confidence_score"] = structured.confidence_score
+        if structured.metric:
+            existing["metric"] = {
+                "value": structured.metric.value,
+                "unit": structured.metric.unit,
+                "metric_type": structured.metric.metric_type,
+                "period": structured.metric.period,
+                "raw_text": structured.metric.raw_text,
+            }
+        else:
+            existing.pop("metric", None)
+        if structured.summary:
+            existing["summary"] = structured.summary
+        else:
+            existing.pop("summary", None)
+        if structured.key_entities:
+            existing["key_entities"] = structured.key_entities
+        else:
+            existing.pop("key_entities", None)
+        existing["parsed_at"] = structured.parsed_at
+    except Exception as parse_err:
+        logger.debug(f"Insight parsing failed during update (non-blocking): {parse_err}")
+        existing["category"] = "uncategorized"
+        existing["confidence_score"] = 0.0
+
     clarifications[question] = existing
     context_data["clarifications"] = clarifications
 
@@ -624,12 +688,30 @@ async def update_insight(
     user_repository.save_context(user_id, context_data)
     logger.info(f"Updated clarification insight for user {user_id}: {question[:50]}...")
 
-    # Return updated insight
+    # Build metric response if present
+    metric_response = None
+    if existing.get("metric"):
+        m = existing["metric"]
+        metric_response = InsightMetricResponse(
+            value=m.get("value"),
+            unit=m.get("unit"),
+            metric_type=m.get("metric_type"),
+            period=m.get("period"),
+            raw_text=m.get("raw_text"),
+        )
+
+    # Return updated insight with structured fields
     return ClarificationInsight(
         question=question,
         answer=existing["answer"],
         answered_at=existing.get("answered_at"),
         session_id=existing.get("session_id"),
+        category=InsightCategory(existing.get("category", "uncategorized")),
+        metric=metric_response,
+        confidence_score=existing.get("confidence_score"),
+        summary=existing.get("summary"),
+        key_entities=existing.get("key_entities"),
+        parsed_at=existing.get("parsed_at"),
     )
 
 
@@ -777,3 +859,220 @@ async def clear_demo_questions(
     clear_cached_questions(user_id)
 
     return {"status": "cleared"}
+
+
+# =============================================================================
+# Phase 6: Pending Updates Endpoints (Context Auto-Update)
+# =============================================================================
+
+
+@router.get(
+    "/v1/context/pending-updates",
+    response_model=PendingUpdatesResponse,
+    summary="List pending context update suggestions",
+    description="""
+    Get pending context update suggestions that require user approval.
+
+    These are updates extracted with < 80% confidence from:
+    - Clarification answers during meetings
+    - Problem statements when creating meetings
+    - Action completion/cancellation notes
+
+    **Use Cases:**
+    - Display "Suggested Updates" section in Settings > Context
+    - Allow users to review and approve/dismiss detected changes
+    """,
+)
+@handle_api_errors("get pending updates")
+async def get_pending_updates(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> PendingUpdatesResponse:
+    """Get pending context update suggestions."""
+    user_id = extract_user_id(user)
+
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        return PendingUpdatesResponse(suggestions=[], count=0)
+
+    pending = context_data.get("pending_updates", [])
+    suggestions = []
+
+    for item in pending:
+        try:
+            suggestions.append(
+                ContextUpdateSuggestion(
+                    id=item.get("id", ""),
+                    field_name=item.get("field_name", ""),
+                    new_value=item.get("new_value", ""),
+                    current_value=item.get("current_value"),
+                    confidence=item.get("confidence", 0.5),
+                    source_type=ContextUpdateSource(item.get("source_type", "clarification")),
+                    source_text=item.get("source_text", ""),
+                    extracted_at=datetime.fromisoformat(
+                        item.get("extracted_at", "2025-01-01T00:00:00")
+                    ),
+                    session_id=item.get("session_id"),
+                )
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse pending update: {e}")
+            continue
+
+    return PendingUpdatesResponse(suggestions=suggestions, count=len(suggestions))
+
+
+@router.post(
+    "/v1/context/pending-updates/{suggestion_id}/approve",
+    response_model=ApproveUpdateResponse,
+    summary="Approve a pending context update",
+    description="""
+    Apply a pending context update suggestion.
+
+    This will:
+    1. Update the specified context field with the suggested value
+    2. Record the change in metric history for trend tracking
+    3. Remove the suggestion from pending updates
+    """,
+)
+@handle_api_errors("approve pending update")
+async def approve_pending_update(
+    suggestion_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ApproveUpdateResponse:
+    """Approve and apply a pending context update."""
+    user_id = extract_user_id(user)
+
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        raise HTTPException(status_code=404, detail="No context found")
+
+    pending = context_data.get("pending_updates", [])
+
+    # Find the suggestion
+    suggestion = None
+    suggestion_idx = None
+    for idx, item in enumerate(pending):
+        if item.get("id") == suggestion_id:
+            suggestion = item
+            suggestion_idx = idx
+            break
+
+    if suggestion is None:
+        raise HTTPException(status_code=404, detail="Pending update not found")
+
+    # Apply the update
+    field_name = suggestion.get("field_name", "")
+    new_value = suggestion.get("new_value", "")
+
+    context_data[field_name] = new_value
+
+    # Track in metric history
+    metric_history = context_data.get("context_metric_history", {})
+    if field_name not in metric_history:
+        metric_history[field_name] = []
+    metric_history[field_name].insert(
+        0,
+        {
+            "value": new_value,
+            "recorded_at": datetime.now(UTC).isoformat(),
+            "source_type": suggestion.get("source_type", "clarification"),
+            "source_id": suggestion.get("session_id"),
+        },
+    )
+    metric_history[field_name] = metric_history[field_name][:10]
+    context_data["context_metric_history"] = metric_history
+
+    # Remove from pending
+    pending.pop(suggestion_idx)
+    context_data["pending_updates"] = pending
+
+    # Save
+    user_repository.save_context(user_id, context_data)
+    logger.info(f"User {user_id} approved pending update: {field_name}={new_value}")
+
+    return ApproveUpdateResponse(
+        success=True,
+        field_name=field_name,
+        new_value=new_value,
+    )
+
+
+@router.delete(
+    "/v1/context/pending-updates/{suggestion_id}",
+    response_model=dict[str, str],
+    summary="Dismiss a pending context update",
+    description="""
+    Dismiss a pending context update suggestion without applying it.
+
+    The suggestion is removed from the pending list and will not be shown again.
+    """,
+)
+@handle_api_errors("dismiss pending update")
+async def dismiss_pending_update(
+    suggestion_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    """Dismiss a pending context update without applying it."""
+    user_id = extract_user_id(user)
+
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        raise HTTPException(status_code=404, detail="No context found")
+
+    pending = context_data.get("pending_updates", [])
+
+    # Find and remove the suggestion
+    new_pending = [item for item in pending if item.get("id") != suggestion_id]
+
+    if len(new_pending) == len(pending):
+        raise HTTPException(status_code=404, detail="Pending update not found")
+
+    context_data["pending_updates"] = new_pending
+    user_repository.save_context(user_id, context_data)
+    logger.info(f"User {user_id} dismissed pending update: {suggestion_id}")
+
+    return {"status": "dismissed"}
+
+
+@router.get(
+    "/v1/context/with-trends",
+    response_model=ContextWithTrends,
+    summary="Get business context with trend indicators",
+    description="""
+    Get the user's business context along with trend indicators for metrics
+    that have historical values.
+
+    **Use Cases:**
+    - Display metrics with up/down indicators in the context overview
+    - Show change percentages for revenue, customers, growth, etc.
+    """,
+)
+@handle_api_errors("get context with trends")
+async def get_context_with_trends(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ContextWithTrends:
+    """Get business context with trend calculations."""
+    from backend.services.trend_calculator import calculate_all_trends
+
+    user_id = extract_user_id(user)
+
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        return ContextWithTrends(
+            context=BusinessContext(),
+            trends=[],
+            updated_at=None,
+        )
+
+    # Convert to BusinessContext model
+    context_model = context_data_to_model(context_data)
+
+    # Calculate trends from metric history
+    metric_history = context_data.get("context_metric_history", {})
+    trends = calculate_all_trends(metric_history)
+
+    return ContextWithTrends(
+        context=context_model,
+        trends=trends,
+        updated_at=context_data.get("updated_at"),
+    )

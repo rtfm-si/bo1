@@ -205,6 +205,56 @@ export interface ObservabilityLinksResponse {
 }
 
 // =============================================================================
+// Impersonation Types
+// =============================================================================
+
+export interface StartImpersonationRequest {
+	reason: string;
+	write_mode: boolean;
+	duration_minutes: number;
+}
+
+export interface ImpersonationSessionResponse {
+	admin_user_id: string;
+	target_user_id: string;
+	target_email: string | null;
+	reason: string;
+	is_write_mode: boolean;
+	started_at: string;
+	expires_at: string;
+	remaining_seconds: number;
+}
+
+export interface ImpersonationStatusResponse {
+	is_impersonating: boolean;
+	session: ImpersonationSessionResponse | null;
+}
+
+export interface EndImpersonationResponse {
+	ended: boolean;
+	message: string;
+}
+
+export interface ImpersonationHistoryItem {
+	id: number;
+	admin_user_id: string;
+	admin_email: string;
+	target_user_id: string;
+	target_email: string;
+	reason: string;
+	is_write_mode: boolean;
+	started_at: string;
+	expires_at: string;
+	ended_at: string | null;
+}
+
+export interface ImpersonationHistoryResponse {
+	total: number;
+	sessions: ImpersonationHistoryItem[];
+	limit: number;
+}
+
+// =============================================================================
 // Admin API Client
 // =============================================================================
 
@@ -380,6 +430,46 @@ class AdminApiClient {
 
 	async getObservabilityLinks(): Promise<ObservabilityLinksResponse> {
 		return this.fetch<ObservabilityLinksResponse>('/api/admin/observability-links');
+	}
+
+	// =========================================================================
+	// Impersonation
+	// =========================================================================
+
+	async startImpersonation(
+		userId: string,
+		request: StartImpersonationRequest
+	): Promise<ImpersonationSessionResponse> {
+		return this.fetch<ImpersonationSessionResponse>(`/api/admin/impersonate/${userId}`, {
+			method: 'POST',
+			body: JSON.stringify(request)
+		});
+	}
+
+	async endImpersonation(): Promise<EndImpersonationResponse> {
+		return this.fetch<EndImpersonationResponse>('/api/admin/impersonate', {
+			method: 'DELETE'
+		});
+	}
+
+	async getImpersonationStatus(): Promise<ImpersonationStatusResponse> {
+		return this.fetch<ImpersonationStatusResponse>('/api/admin/impersonate/status');
+	}
+
+	async getImpersonationHistory(params?: {
+		admin_user_id?: string;
+		target_user_id?: string;
+		limit?: number;
+	}): Promise<ImpersonationHistoryResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.admin_user_id) searchParams.set('admin_user_id', params.admin_user_id);
+		if (params?.target_user_id) searchParams.set('target_user_id', params.target_user_id);
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+
+		const query = searchParams.toString();
+		return this.fetch<ImpersonationHistoryResponse>(
+			`/api/admin/impersonate/history${query ? `?${query}` : ''}`
+		);
 	}
 }
 

@@ -25,7 +25,7 @@ import logging
 import os
 from typing import Any
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 
@@ -75,9 +75,14 @@ def require_production_auth() -> None:
 
 
 async def _get_current_user_with_session(
+    request: Request,
     session: SessionContainer = Depends(verify_session()),
 ) -> dict[str, Any]:
-    """Internal function that requires SuperTokens session verification."""
+    """Internal function that requires SuperTokens session verification.
+
+    Supports admin impersonation: if admin has active impersonation session,
+    returns target user's data while preserving admin identity for audit.
+    """
     try:
         user_id = session.get_user_id()
         session_handle = session.get_handle()
@@ -88,6 +93,32 @@ async def _get_current_user_with_session(
         from bo1.state.repositories import user_repository
 
         user_data = user_repository.get(user_id)
+
+        # Check for impersonation (set by ImpersonationMiddleware)
+        is_impersonation = getattr(request.state, "is_impersonation", False)
+        impersonation_target_id = getattr(request.state, "impersonation_target_id", None)
+
+        if is_impersonation and impersonation_target_id:
+            # Admin is impersonating - fetch target user's data
+            target_data = user_repository.get(impersonation_target_id)
+            if target_data:
+                logger.info(
+                    f"Impersonation active: admin {user_id} viewing as {impersonation_target_id}"
+                )
+                return {
+                    "user_id": impersonation_target_id,
+                    "email": target_data.get("email"),
+                    "role": "authenticated",
+                    "subscription_tier": target_data.get("subscription_tier", "free"),
+                    "is_admin": False,  # Never grant admin rights while impersonating
+                    "session_handle": session_handle,
+                    # Impersonation metadata for audit
+                    "is_impersonation": True,
+                    "real_admin_id": user_id,
+                    "impersonation_write_mode": getattr(
+                        request.state, "impersonation_write_mode", False
+                    ),
+                }
 
         # Use database values if available, otherwise defaults
         return {

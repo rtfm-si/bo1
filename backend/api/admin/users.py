@@ -28,6 +28,8 @@ from backend.api.admin.models import (
     DeleteUserResponse,
     LockUserRequest,
     LockUserResponse,
+    SetTierOverrideRequest,
+    TierOverrideResponse,
     UpdateUserRequest,
     UserInfo,
     UserListResponse,
@@ -396,4 +398,207 @@ async def delete_user(
         hard_delete=request.hard_delete,
         sessions_revoked=sessions_revoked,
         message=f"{message} {sessions_revoked} session(s) revoked.",
+    )
+
+
+# ==============================================================================
+# Tier Override Endpoints
+# ==============================================================================
+
+
+@router.get(
+    "/users/{user_id}/tier-override",
+    response_model=TierOverrideResponse,
+    summary="Get user tier override",
+    description="Get the current tier override for a user.",
+    responses={
+        200: {"description": "Tier override retrieved successfully"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        404: {"description": "User not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("get tier override")
+async def get_tier_override(
+    user_id: str,
+    _admin: str = Depends(require_admin_any),
+) -> TierOverrideResponse:
+    """Get the current tier override for a user."""
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found: {user_id}",
+        )
+
+    # Get user's tier info
+    row = execute_query(
+        "SELECT subscription_tier, tier_override FROM users WHERE id = %s",
+        (user_id,),
+        fetch="one",
+    )
+
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    base_tier = row["subscription_tier"]
+    tier_override = row["tier_override"]
+
+    # Determine effective tier
+    effective_tier = base_tier
+    if tier_override and isinstance(tier_override, dict):
+        # Check expiry
+        if tier_override.get("expires_at"):
+            from datetime import UTC, datetime
+
+            expires = datetime.fromisoformat(tier_override["expires_at"].replace("Z", "+00:00"))
+            if expires > datetime.now(UTC):
+                effective_tier = tier_override.get("tier", base_tier)
+        else:
+            effective_tier = tier_override.get("tier", base_tier)
+
+    return TierOverrideResponse(
+        user_id=user_id,
+        tier_override=tier_override,
+        effective_tier=effective_tier,
+        message="Tier override retrieved" if tier_override else "No tier override set",
+    )
+
+
+@router.post(
+    "/users/{user_id}/tier-override",
+    response_model=TierOverrideResponse,
+    summary="Set user tier override",
+    description="Set a temporary tier override for a user (e.g., for beta testers or goodwill).",
+    responses={
+        200: {"description": "Tier override set successfully"},
+        400: {"description": "Invalid tier", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        404: {"description": "User not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("set tier override")
+async def set_tier_override(
+    user_id: str,
+    request: SetTierOverrideRequest,
+    admin_id: str = Depends(require_admin_any),
+) -> TierOverrideResponse:
+    """Set a tier override for a user."""
+    import json
+    from datetime import UTC, datetime
+
+    # Validate tier
+    valid_tiers = ["free", "starter", "pro", "enterprise"]
+    if request.tier.lower() not in valid_tiers:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid tier: {request.tier}. Must be one of: {', '.join(valid_tiers)}",
+        )
+
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found: {user_id}",
+        )
+
+    # Build override object
+    override = {
+        "tier": request.tier.lower(),
+        "reason": request.reason,
+        "set_by": admin_id,
+        "set_at": datetime.now(UTC).isoformat(),
+    }
+    if request.expires_at:
+        override["expires_at"] = request.expires_at
+
+    # Update user
+    execute_query(
+        "UPDATE users SET tier_override = %s, updated_at = NOW() WHERE id = %s",
+        (json.dumps(override), user_id),
+        fetch="none",
+    )
+
+    # Log admin action
+    AdminUserService.log_admin_action(
+        admin_id=admin_id,
+        action="tier_override_set",
+        resource_type="user",
+        resource_id=user_id,
+        details=override,
+    )
+
+    logger.info(f"Admin {admin_id}: Set tier override for {user_id} to {request.tier}")
+
+    return TierOverrideResponse(
+        user_id=user_id,
+        tier_override=override,
+        effective_tier=request.tier.lower(),
+        message=f"Tier override set to {request.tier}",
+    )
+
+
+@router.delete(
+    "/users/{user_id}/tier-override",
+    response_model=TierOverrideResponse,
+    summary="Delete user tier override",
+    description="Remove the tier override for a user, reverting to their base subscription tier.",
+    responses={
+        200: {"description": "Tier override removed successfully"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        404: {"description": "User not found", "model": ErrorResponse},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("delete tier override")
+async def delete_tier_override(
+    user_id: str,
+    admin_id: str = Depends(require_admin_any),
+) -> TierOverrideResponse:
+    """Remove the tier override for a user."""
+    # Check if user exists
+    if not AdminQueryService.user_exists(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found: {user_id}",
+        )
+
+    # Get base tier before clearing
+    row = execute_query(
+        "SELECT subscription_tier FROM users WHERE id = %s",
+        (user_id,),
+        fetch="one",
+    )
+
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    base_tier = row["subscription_tier"]
+
+    # Clear override
+    execute_query(
+        "UPDATE users SET tier_override = NULL, updated_at = NOW() WHERE id = %s",
+        (user_id,),
+        fetch="none",
+    )
+
+    # Log admin action
+    AdminUserService.log_admin_action(
+        admin_id=admin_id,
+        action="tier_override_deleted",
+        resource_type="user",
+        resource_id=user_id,
+    )
+
+    logger.info(f"Admin {admin_id}: Removed tier override for {user_id}")
+
+    return TierOverrideResponse(
+        user_id=user_id,
+        tier_override=None,
+        effective_tier=base_tier,
+        message=f"Tier override removed. User reverted to {base_tier} tier.",
     )

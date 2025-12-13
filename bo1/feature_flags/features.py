@@ -60,6 +60,12 @@ LINKEDIN_OAUTH_ENABLED = _parse_bool(os.getenv("LINKEDIN_OAUTH_ENABLED"), defaul
 # Enable GitHub OAuth provider in SuperTokens
 GITHUB_OAUTH_ENABLED = _parse_bool(os.getenv("GITHUB_OAUTH_ENABLED"), default=True)
 
+# Enable Twitter/X OAuth provider in SuperTokens
+TWITTER_OAUTH_ENABLED = _parse_bool(os.getenv("TWITTER_OAUTH_ENABLED"), default=False)
+
+# Enable Bluesky OAuth provider (AT Protocol) in SuperTokens
+BLUESKY_OAUTH_ENABLED = _parse_bool(os.getenv("BLUESKY_OAUTH_ENABLED"), default=False)
+
 
 # ============================================================================
 # Parallel Processing

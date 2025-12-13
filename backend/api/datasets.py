@@ -23,6 +23,7 @@ from fastapi.responses import StreamingResponse
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import UPLOAD_RATE_LIMIT, limiter
+from backend.api.middleware.tier_limits import record_dataset_usage, require_dataset_limit
 from backend.api.models import (
     AskRequest,
     ChartResultResponse,
@@ -50,6 +51,7 @@ from backend.services.profiler import ProfileError, profile_dataset, save_profil
 from backend.services.query_engine import QueryError, execute_query
 from backend.services.spaces import SpacesError, get_spaces_client
 from backend.services.summary_generator import generate_dataset_summary, invalidate_summary_cache
+from backend.services.usage_tracking import UsageResult
 from bo1.llm.client import ClaudeClient
 from bo1.prompts.data_analyst import (
     DATA_ANALYST_SYSTEM,
@@ -161,6 +163,7 @@ async def upload_dataset(
     name: str = Form(..., min_length=1, max_length=255, description="Dataset name"),
     description: str | None = Form(None, max_length=5000, description="Dataset description"),
     user: dict = Depends(get_current_user),
+    tier_usage: UsageResult = Depends(require_dataset_limit),
 ) -> DatasetResponse:
     """Upload a CSV file to create a new dataset."""
     user_id = user.get("user_id")
@@ -244,6 +247,14 @@ async def upload_dataset(
         raise HTTPException(status_code=500, detail="Failed to create dataset") from None
 
     logger.info(f"Created dataset {dataset['id']} for user {user_id}")
+
+    # Record dataset usage for tier tracking
+    try:
+        record_dataset_usage(user_id)
+    except Exception as e:
+        # Non-blocking - log and continue
+        logger.debug(f"Usage tracking failed (non-blocking): {e}")
+
     return _format_dataset_response(dataset)
 
 

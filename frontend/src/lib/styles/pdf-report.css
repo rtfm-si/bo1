@@ -469,16 +469,103 @@ body {
 
 .action-meta {
 	display: flex;
-	gap: 16px;
+	flex-wrap: wrap;
+	gap: 12px;
 	font-size: 11px;
 	color: var(--text-muted);
+	margin-top: 8px;
 }
 
 .action-timeline,
-.action-due {
+.action-due,
+.action-assignee,
+.action-progress,
+.action-effort {
 	display: flex;
 	align-items: center;
 	gap: 4px;
+}
+
+/* Category badge */
+.action-category {
+	font-size: 10px;
+	font-weight: 500;
+	text-transform: capitalize;
+	padding: 2px 8px;
+	background: var(--bg-subtle);
+	border: 1px solid var(--border-color);
+	border-radius: 4px;
+	color: var(--text-secondary);
+}
+
+/* Overdue styling */
+.action-overdue {
+	border-color: #fca5a5;
+	background: #fef2f2;
+}
+
+.action-due.overdue {
+	color: #dc2626;
+	font-weight: 600;
+}
+
+/* Action sections (what_and_how, success_criteria, dependencies) */
+.action-section {
+	margin: 10px 0;
+	padding-left: 12px;
+	border-left: 2px solid var(--border-color);
+}
+
+.action-section-label {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--text-muted);
+	margin-bottom: 6px;
+}
+
+.action-list {
+	margin: 0;
+	padding-left: 16px;
+	font-size: 11px;
+	line-height: 1.5;
+	color: var(--text-secondary);
+}
+
+.action-list li {
+	margin-bottom: 4px;
+}
+
+.action-list .more-items {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.action-dependencies {
+	list-style-type: circle;
+}
+
+/* Empty state */
+.actions-empty {
+	padding: 24px;
+	text-align: center;
+	background: var(--bg-subtle);
+	border: 1px dashed var(--border-color);
+	border-radius: 8px;
+	color: var(--text-muted);
+	font-size: 13px;
+}
+
+/* Truncation notice */
+.actions-truncated {
+	padding: 12px;
+	text-align: center;
+	background: var(--bg-subtle);
+	border-top: 1px solid var(--border-color);
+	color: var(--text-muted);
+	font-size: 11px;
+	font-style: italic;
 }
 
 /* Footer */

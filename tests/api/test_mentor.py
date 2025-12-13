@@ -12,6 +12,65 @@ def mock_auth_user():
     return {"user_id": "test-user-123", "email": "test@example.com"}
 
 
+class TestMentorPersonaListing:
+    """Tests for mentor persona listing."""
+
+    def test_list_all_personas(self):
+        """Should return all available personas with metadata."""
+        from backend.services.mentor_persona import list_all_personas
+
+        personas = list_all_personas()
+
+        assert len(personas) == 3
+        persona_ids = [p.id for p in personas]
+        assert "general" in persona_ids
+        assert "action_coach" in persona_ids
+        assert "data_analyst" in persona_ids
+
+        # Check each persona has required fields
+        for persona in personas:
+            assert persona.id
+            assert persona.name
+            assert persona.description
+            assert isinstance(persona.expertise, list)
+            assert persona.icon
+
+    def test_get_persona_by_id(self):
+        """Should return persona by ID or None."""
+        from backend.services.mentor_persona import get_persona_by_id
+
+        general = get_persona_by_id("general")
+        assert general is not None
+        assert general.id == "general"
+        assert general.name == "General Business Advisor"
+
+        action = get_persona_by_id("action_coach")
+        assert action is not None
+        assert "task" in action.description.lower() or "execution" in action.description.lower()
+
+        invalid = get_persona_by_id("invalid_persona")
+        assert invalid is None
+
+    def test_persona_to_dict(self):
+        """Persona should serialize to dict correctly."""
+        from backend.services.mentor_persona import MentorPersona
+
+        persona = MentorPersona(
+            id="test",
+            name="Test Persona",
+            description="A test persona",
+            expertise=["testing", "mocking"],
+            icon="flask",
+        )
+
+        result = persona.to_dict()
+        assert result["id"] == "test"
+        assert result["name"] == "Test Persona"
+        assert result["description"] == "A test persona"
+        assert result["expertise"] == ["testing", "mocking"]
+        assert result["icon"] == "flask"
+
+
 class TestMentorPersonaSelection:
     """Tests for mentor persona auto-selection."""
 

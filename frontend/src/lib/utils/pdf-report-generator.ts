@@ -50,6 +50,15 @@ export interface ReportAction {
 	priority: 'high' | 'medium' | 'low';
 	timeline: string;
 	target_end_date: string | null;
+	// Extended fields for full details
+	what_and_how?: string[];
+	success_criteria?: string[];
+	dependencies?: string[];
+	assignee?: string | null;
+	progress_value?: number | null;
+	progress_type?: 'percentage' | 'points' | 'status' | null;
+	estimated_effort_points?: number | null;
+	category?: string;
 }
 
 /**
@@ -136,6 +145,39 @@ function formatDate(dateStr: string | null): string {
 }
 
 /**
+ * Check if a date is overdue (past today)
+ */
+function isOverdue(dateStr: string | null): boolean {
+	if (!dateStr) return false;
+	try {
+		const dueDate = new Date(dateStr);
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		return dueDate < today;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Truncate text with ellipsis if too long
+ */
+function truncateText(text: string, maxLength: number): string {
+	if (!text || text.length <= maxLength) return text;
+	return text.substring(0, maxLength).trim() + '...';
+}
+
+/**
+ * Format progress value for display
+ */
+function formatProgress(value: number | null | undefined, type: string | null | undefined): string {
+	if (value === null || value === undefined) return '';
+	if (type === 'percentage') return `${value}%`;
+	if (type === 'points') return `${value} pts`;
+	return `${value}`;
+}
+
+/**
  * Get status badge class
  */
 function getStatusClass(status: ActionStatus): string {
@@ -158,23 +200,70 @@ function getPriorityClass(priority: 'high' | 'medium' | 'low'): string {
 }
 
 /**
- * Render an action item HTML
+ * Render list items HTML (for what_and_how, success_criteria, dependencies)
+ */
+function renderListItems(items: string[] | undefined, limit: number = 3): string {
+	if (!items || items.length === 0) return '';
+	const displayItems = items.slice(0, limit);
+	const remaining = items.length - limit;
+	let html = displayItems.map((item) => `<li>${truncateText(item, 150)}</li>`).join('');
+	if (remaining > 0) {
+		html += `<li class="more-items">+${remaining} more...</li>`;
+	}
+	return html;
+}
+
+/**
+ * Render an action item HTML with full details
  */
 function renderActionItem(action: ReportAction): string {
 	const statusLabel = action.status.replace('_', ' ');
+	const overdue = isOverdue(action.target_end_date) && action.status !== 'done' && action.status !== 'cancelled';
+	const description = truncateText(action.description || '', 500);
+	const progress = formatProgress(action.progress_value, action.progress_type);
+
+	// Build optional sections
+	const whatAndHowHtml = action.what_and_how?.length
+		? `<div class="action-section">
+			<div class="action-section-label">How to Complete</div>
+			<ul class="action-list">${renderListItems(action.what_and_how)}</ul>
+		</div>`
+		: '';
+
+	const successCriteriaHtml = action.success_criteria?.length
+		? `<div class="action-section">
+			<div class="action-section-label">Success Criteria</div>
+			<ul class="action-list">${renderListItems(action.success_criteria)}</ul>
+		</div>`
+		: '';
+
+	const dependenciesHtml = action.dependencies?.length
+		? `<div class="action-section">
+			<div class="action-section-label">Dependencies</div>
+			<ul class="action-list action-dependencies">${renderListItems(action.dependencies)}</ul>
+		</div>`
+		: '';
+
 	return `
-		<div class="action-item">
+		<div class="action-item${overdue ? ' action-overdue' : ''}">
 			<div class="action-header">
 				<span class="action-title">${action.title}</span>
 				<div class="action-badges">
 					<span class="action-status ${getStatusClass(action.status)}">${statusLabel}</span>
 					<span class="action-priority ${getPriorityClass(action.priority)}">${action.priority}</span>
+					${action.category ? `<span class="action-category">${action.category}</span>` : ''}
 				</div>
 			</div>
-			<div class="action-description">${action.description}</div>
+			${description ? `<div class="action-description">${description}</div>` : ''}
+			${whatAndHowHtml}
+			${successCriteriaHtml}
+			${dependenciesHtml}
 			<div class="action-meta">
-				<span class="action-timeline">${action.timeline}</span>
-				${action.target_end_date ? `<span class="action-due">Due: ${formatDate(action.target_end_date)}</span>` : ''}
+				${action.timeline ? `<span class="action-timeline">${action.timeline}</span>` : ''}
+				${action.target_end_date ? `<span class="action-due${overdue ? ' overdue' : ''}">Due: ${formatDate(action.target_end_date)}${overdue ? ' (Overdue)' : ''}</span>` : ''}
+				${action.assignee ? `<span class="action-assignee">Assigned: ${action.assignee}</span>` : ''}
+				${progress ? `<span class="action-progress">Progress: ${progress}</span>` : ''}
+				${action.estimated_effort_points ? `<span class="action-effort">Effort: ${action.estimated_effort_points} pts</span>` : ''}
 			</div>
 		</div>`;
 }
@@ -182,8 +271,21 @@ function renderActionItem(action: ReportAction): string {
 /**
  * Render actions section HTML
  */
-function renderActionsSection(actions: ReportAction[], sectionNum: number): string {
-	if (!actions || actions.length === 0) return '';
+function renderActionsSection(actions: ReportAction[], sectionNum: number, showEmptyState: boolean = true): string {
+	// Handle empty state
+	if (!actions || actions.length === 0) {
+		if (!showEmptyState) return '';
+		return `
+		<div class="section">
+			<div class="section-header">
+				<span class="section-number">${sectionNum}</span>
+				<span class="section-title">Action Items</span>
+			</div>
+			<div class="actions-empty">
+				<p>No actions were generated for this meeting.</p>
+			</div>
+		</div>`;
+	}
 
 	// Sort by priority (high first) then by status
 	const sortedActions = [...actions].sort((a, b) => {
@@ -193,14 +295,19 @@ function renderActionsSection(actions: ReportAction[], sectionNum: number): stri
 		return a.status.localeCompare(b.status);
 	});
 
+	// Limit to 50 actions to prevent PDF overflow
+	const displayActions = sortedActions.slice(0, 50);
+	const hiddenCount = sortedActions.length - 50;
+
 	return `
 		<div class="section">
 			<div class="section-header">
 				<span class="section-number">${sectionNum}</span>
-				<span class="section-title">Action Items</span>
+				<span class="section-title">Action Items (${actions.length})</span>
 			</div>
 			<div class="actions-section">
-				${sortedActions.map((action) => renderActionItem(action)).join('')}
+				${displayActions.map((action) => renderActionItem(action)).join('')}
+				${hiddenCount > 0 ? `<div class="actions-truncated">+${hiddenCount} more actions not shown</div>` : ''}
 			</div>
 		</div>`;
 }
@@ -282,10 +389,9 @@ export function generateReportHTML(params: ReportGeneratorParams): string {
 		return html;
 	};
 
-	// Build actions section HTML
+	// Build actions section HTML (always show section, with empty state if no actions)
 	const buildActionsSection = (): string => {
-		if (!actions || actions.length === 0) return '';
-		return renderActionsSection(actions, lastSectionNum);
+		return renderActionsSection(actions || [], lastSectionNum, true);
 	};
 
 	return `<!DOCTYPE html>

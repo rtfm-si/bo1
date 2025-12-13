@@ -144,8 +144,8 @@
 - [x] [TEAMS][P3] Create workspaces/workspace_members database schema ✅ aa1_create_workspaces migration + workspace_repository.py + Pydantic models
 - [x] [TEAMS][P3] Add workspace FKs to meetings/datasets tables ✅ aa2_add_workspace_to_sessions + aa3_add_workspace_to_datasets migrations
 - [x] [TEAMS][P3] Implement workspace authorization layer ✅ backend/services/workspace_auth.py (role-based permissions) + backend/api/middleware/workspace_auth.py (FastAPI dependencies) + backend/api/workspaces/routes.py (CRUD + member management) + 40 unit tests
-- [ ] [TEAMS][P3] Implement invitation system (email invite, accept/decline)
-- [ ] [TEAMS][P3] Implement workspace switching UI
+- [x] [TEAMS][P3] Implement invitation system (email invite, accept/decline) ✅ ab1_create_workspace_invitations migration + invitation_repository.py + invitation_service.py + render_workspace_invitation_email() + API endpoints + frontend InvitationManager.svelte + /invite/[token] page + 18 tests
+- [x] [TEAMS][P3] Implement workspace switching UI ✅ WorkspaceSwitcher.svelte + CreateWorkspaceModal.svelte + workspace store + Header integration + /settings/workspace page + API client methods
 - [ ] [TEAMS][P3] Implement per-workspace billing
 
 #### Projects System [P3-PROJECTS]
@@ -155,16 +155,19 @@
 - [x] [PROJECTS][P3] Add filter views by project ✅ GET /api/v1/actions with ?project_id filter
 - [x] [PROJECTS][P3] Add Gantt chart per project ✅ GET /api/v1/projects/{id}/gantt endpoint
 
-#### Advanced Tier Features [P3-TIERS]
+#### Advanced Tier Features [P3-TIERS] ✅ PHASE 1 COMPLETE
 
-- [ ] [TIERS][P3] Implement feature flags per tier (datasets, mentor, API access)
-- [ ] [TIERS][P3] Add usage tracking (meetings, analyses, API calls)
-- [ ] [TIERS][P3] Add admin override capability
+- [x] [TIERS][P3] Implement feature flags per tier (datasets, mentor, API access) ✅ bo1/constants.py TierFeatureFlags + TierLimits
+- [x] [TIERS][P3] Add usage tracking (meetings, analyses, API calls) ✅ backend/services/usage_tracking.py + Redis+Postgres hybrid + ag1_add_usage_tracking migration
+- [x] [TIERS][P3] Add admin override capability ✅ tier_override JSONB column + GET/POST/DELETE /api/admin/users/{id}/tier-override
+- [x] [TIERS][P3] Implement tier limit enforcement on endpoints ✅ backend/api/middleware/tier_limits.py + sessions/datasets/mentor integration
+- [x] [TIERS][P3] Add usage API endpoints ✅ GET /api/v1/user/usage + GET /api/v1/user/tier-info
+- [x] [TIERS][P3] Add frontend usage components ✅ UsageMeter.svelte + UsagePanel.svelte
 - [ ] [TIERS][P3] Create pricing page with comparison table
 
 #### Admin Improvements [P3-ADMIN]
 
-- [ ] [ADMIN][P3] Implement admin impersonation ("view as user")
+- [x] [ADMIN][P3] Implement admin impersonation ("view as user") ✅ ah1_add_admin_impersonation migration + backend/services/admin_impersonation.py + backend/api/admin/impersonation.py (POST/DELETE/GET) + ImpersonationMiddleware + auth dependency mod + ImpersonationBanner.svelte + admin users page modal + 18 tests
 - [ ] [ADMIN][P3] Add in-app feature request form
 - [ ] [ADMIN][P3] Add in-app problem reporting (auto-attach context)
 
@@ -232,7 +235,7 @@
 - [ ] [EMAIL][P4] Implement payment receipt email trigger on Stripe webhook - blocked on Stripe integration
 - [x] [EMAIL][P1] Add unsubscribe link to all emails ✅ generate_unsubscribe_token() + /v1/email/unsubscribe endpoint
 - [x] [EMAIL][P2] Create email preferences page (frontend) - API exists at GET/PATCH /v1/user/email-preferences ✅ /settings/privacy
-- [ ] [EMAIL][P2] Test email deliverability across clients
+- [x] [EMAIL][P2] Test email deliverability across clients ✅ backend/scripts/test_email_deliverability.py + Makefile targets (test-email-deliverability, test-email-template, list-email-templates) + 26 unit tests
 
 ### Production Monitoring [MONITORING]
 
@@ -337,8 +340,8 @@
 
 - [x] [AUTH][P2] Implement LinkedIn OAuth login ✅ bo1/config.py + supertokens_config.py + login/+page.svelte + tests/api/test_auth_linkedin.py
 - [x] [AUTH][P2] Implement GitHub OAuth login ✅ bo1/feature_flags/features.py + supertokens_config.py + login/+page.svelte + tests/api/test_auth_github.py
-- [ ] [AUTH][P2] Implement Bluesky login
-- [ ] [AUTH][P2] Implement Twitter/X OAuth login
+- [x] [AUTH][P2] Implement Bluesky login ✅ bo1/config.py + bo1/feature_flags/features.py + supertokens_config.py + login/+page.svelte + af1_add_bluesky_auth.py + tests/api/test_auth_bluesky.py
+- [x] [AUTH][P2] Implement Twitter/X OAuth login ✅ bo1/feature_flags/features.py + bo1/config.py + supertokens_config.py + login/+page.svelte + tests/api/test_auth_twitter.py
 
 ### Social Posting [SOCIAL]
 
@@ -422,7 +425,7 @@
 
 - [x] [UX][P2] Track action delays and early start/finish dates for variance analysis ✅ a2_add_action_progress migration + calculate_variance() method + ActionVariance model
 - [x] [UX][P2] Add progress measurement to actions (percentage, points, or expanded status states) ✅ progress_type/progress_value/estimated_effort_points fields + PATCH /api/v1/actions/{id}/progress endpoint + ActionProgressUpdate model
-- [ ] [UX][P2] Show full action details in exported PDF/report (not just title) - deferred to Step 5 (PDF export enhancement)
+- [x] [UX][P2] Show full action details in exported PDF/report (not just title) ✅ Extended ReportAction interface, enhanced renderActionItem with what_and_how/success_criteria/dependencies/progress, added overdue highlighting, CSS styling, 20 unit tests
 
 ### Projects System & Action Dependencies [PROJECTS-COMPLETE]
 
@@ -454,12 +457,12 @@
 ### Dev Workflow [DEV-FLOW]
 
 - [ ] [DEV][P2] Clarify scope of: "update live MCP prompt (fix.md) - dev server is running via docker only, stop if inaccessible"
-- [ ] [UX][P2] Add observability for slow/failing/repeated operations (timing, error tracking)
+- [x] [UX][P2] Add observability for slow/failing/repeated operations (timing, error tracking) ✅ Frontend operation-tracker.ts + API client instrumentation + POST /api/v1/metrics/client + Redis storage + 15 tests
 - [ ] [DEV][P3] Automate plan→build flow loop using hooks
 
 ### Deliberation Improvements [DELIB-IMPROVE]
 
-- [ ] [DELIB][P2] Evaluate adding pragmatist/realist expert persona to improve actionable recommendations
+- [x] [DELIB][P2] Evaluate adding pragmatist/realist expert persona to improve actionable recommendations ✅ Added Implementation Realist persona (Marcus Chen) to bo1/data/personas.json + ae1_impl_realist_persona migration
 
 ### Insights System [INSIGHTS] ✅ COMPLETE
 
@@ -650,32 +653,54 @@
 
 ### Privacy Settings Fix [BUG-PRIVACY]
 
-- [ ] [BUG][P1] Fix 500 error on GET /api/v1/user/retention endpoint (settings > privacy page broken)
+- [x] [BUG][P1] Fix 500 error on GET /api/v1/user/retention endpoint (settings > privacy page broken) ✅ Added NULL fallback handling in get_retention_setting() + integration tests
 
 ### Mentor Enhancements [MENTOR-ENH]
 
-- [ ] [MENTOR][P2] Allow user to select any expert persona for mentor coaching session (not just auto-selected)
-- [ ] [MENTOR][P2] Add ability to @ mention meetings, actions, and datasets in mentor chat for context injection
+- [x] [MENTOR][P2] Allow user to select any expert persona for mentor coaching session (not just auto-selected) ✅ GET /api/v1/mentor/personas endpoint + PersonaPicker fetches from API + Auto option + persona override in chat
+- [x] [MENTOR][P2] Add ability to @ mention meetings, actions, and datasets in mentor chat for context injection ✅ @meeting/@action/@dataset:UUID parsing + MentionResolver + MentionAutocomplete.svelte + message chips + prompt injection + 30 tests
 
 ### Data Retention Policy [RETENTION-POLICY]
 
-- [ ] [UX][P2] Extend data retention minimum to 1 year (current options too short for monthly plan users)
-- [ ] [UX][P3] Evaluate removing user-facing retention config (data available until account closure)
+- [x] [UX][P2] Extend data retention minimum to 1 year (current options too short for monthly plan users) ✅ Range now 365-3650 days (1-10 years); ac1_extend_retention_range migration
+- [x] [UX][P3] Evaluate removing user-facing retention config (data available until account closure) ✅ Evaluation complete in _PLAN.md; **DECISION REQUIRED**: Option A (remove config, infinite retention) vs Option B (keep); implementation blocked pending user decision
 
-### Insights Enhancement [INSIGHTS-ENH]
+### Insights Enhancement [INSIGHTS-ENH] ✅ COMPLETE
 
-- [ ] [INSIGHTS][P2] Use Haiku to categorize and structure user-provided insights (extract metrics, map to business context)
-- [ ] [INSIGHTS][P2] Auto-parse raw insight text into structured metric/category format
+- [x] [INSIGHTS][P2] Use Haiku to categorize and structure user-provided insights (extract metrics, map to business context) ✅ backend/services/insight_parser.py
+- [x] [INSIGHTS][P2] Auto-parse raw insight text into structured metric/category format ✅ InsightCategory enum + InsightMetric dataclass + category badges in UI
 
-### Context Auto-Update [CONTEXT-AUTO]
+### Context Auto-Update [CONTEXT-AUTO] ✅ COMPLETE
 
-- [ ] [CONTEXT][P2] Detect business context updates from user input across all flows (clarifications, problem statements, action updates)
-- [ ] [CONTEXT][P2] Auto-update context with >80% confidence; prompt user confirmation if <80% confident
-- [ ] [CONTEXT][P2] Maintain history of metric changes to show trend direction (improving/worsening)
+- [x] [CONTEXT][P2] Detect business context updates from user input across all flows (clarifications, problem statements, action updates) ✅ backend/services/context_extractor.py + integration in control.py, sessions.py, actions.py
+- [x] [CONTEXT][P2] Auto-update context with >80% confidence; prompt user confirmation if <80% confident ✅ filter_high_confidence_updates() + pending_updates JSONB + GET/POST/DELETE /api/v1/context/pending-updates endpoints + PendingUpdates.svelte
+- [x] [CONTEXT][P2] Maintain history of metric changes to show trend direction (improving/worsening) ✅ context_metric_history JSONB + ad1_add_context_metric_history migration + backend/services/trend_calculator.py + GET /api/v1/context/with-trends endpoint
 
-### Industry Benchmarking [INDUSTRY-BENCH]
+### Industry Benchmarking [INDUSTRY-BENCH] ✅ COMPLETE
 
-- [ ] [INDUSTRY][P3] Extend competitor watch to industry/market benchmarking (churn, ARPU, etc.)
-- [ ] [INDUSTRY][P3] Implement tiered industry comparison limits (Free=3, Standard=5, Pro=all)
+- [x] [INDUSTRY][P3] Extend competitor watch to industry/market benchmarking (churn, ARPU, etc.) ✅ backend/api/industry_insights.py expanded with 4 benchmark categories (growth, retention, efficiency, engagement), 15+ metrics across 4 industry segments (SaaS, E-commerce, Fintech, Marketplace)
+- [x] [INDUSTRY][P3] Implement tiered industry comparison limits (Free=3, Starter=5, Pro=all) ✅ bo1/constants.py IndustryBenchmarkLimits + tier filtering in get_stub_insights() + locked field on IndustryInsight + upgrade_prompt in response
+- [x] [INDUSTRY][P3] Add user benchmark comparison endpoint ✅ GET /api/v1/industry-insights/compare with percentile calculation + performance status
+- [x] [INDUSTRY][P3] Create frontend benchmarks UI page ✅ frontend/src/routes/(app)/settings/intelligence/benchmarks/+page.svelte with category filtering, percentile visualization, tier awareness
+- [x] [INDUSTRY][P3] Write unit tests for benchmark tier filtering ✅ tests/api/test_industry_benchmarks.py (41 tests)
+
+---
+
+## E2E Test Failures (from CI, 2025-12-12) ✅ FIXED
+
+### Actions E2E Tests [E2E-ACTIONS] ✅
+
+- [x] [E2E][P2] Fix actions.spec.ts - Updated mock data to match AllActionsResponse structure (sessions array with nested tasks)
+- [x] [E2E][P2] Fix actions.spec.ts - Added ActionDetailResponse mock for detail page tests
+
+### Datasets E2E Tests [E2E-DATASETS] ✅
+
+- [x] [E2E][P2] Fix datasets.spec.ts - Updated mock data to match DatasetListResponse structure (source_type, file_size_bytes, etc.)
+- [x] [E2E][P2] Fix datasets.spec.ts - Updated mockDatasetProfile to match DatasetDetailResponse with profiles array (column_name field)
+
+### Meeting E2E Tests [E2E-MEETING] ✅
+
+- [x] [E2E][P2] Fix meeting-complete.spec.ts - Updated mockCompletedSession to match SessionResponse structure (phase, last_activity_at, etc.)
+- [x] [E2E][P2] Fix meeting-complete.spec.ts - Fixed in_progress session mock to use 'active' status (valid enum value)
 
 ---

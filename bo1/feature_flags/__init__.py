@@ -5,6 +5,7 @@ Import flags from here rather than directly from features.py.
 """
 
 from .features import (
+    BLUESKY_OAUTH_ENABLED,
     EARLY_START_THRESHOLD,
     ENABLE_PARALLEL_ROUNDS,
     ENABLE_PARALLEL_SUBPROBLEMS,
@@ -13,6 +14,7 @@ from .features import (
     GITHUB_OAUTH_ENABLED,
     GOOGLE_OAUTH_ENABLED,
     LINKEDIN_OAUTH_ENABLED,
+    TWITTER_OAUTH_ENABLED,
     USE_SUBGRAPH_DELIBERATION,
 )
 
@@ -20,9 +22,11 @@ __all__ = [
     # Authentication & Authorization
     "ENABLE_SUPERTOKENS_AUTH",
     # OAuth Providers
+    "BLUESKY_OAUTH_ENABLED",
     "GITHUB_OAUTH_ENABLED",
     "GOOGLE_OAUTH_ENABLED",
     "LINKEDIN_OAUTH_ENABLED",
+    "TWITTER_OAUTH_ENABLED",
     # Parallel Processing
     "ENABLE_PARALLEL_SUBPROBLEMS",
     "ENABLE_PARALLEL_ROUNDS",

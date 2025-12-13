@@ -3,8 +3,9 @@
 	import { page } from '$app/stores';
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
-	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2 } from 'lucide-svelte';
+	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2, Eye } from 'lucide-svelte';
 	import { getTierColor } from '$lib/utils/colors';
+	import { adminApi, type StartImpersonationRequest } from '$lib/api/admin';
 
 	let { data } = $props();
 
@@ -19,11 +20,15 @@
 	let editForm = $state<{ subscription_tier?: string; is_admin?: boolean }>({});
 	let isSubmitting = $state(false);
 
-	// Modal state for lock/delete actions
+	// Modal state for lock/delete/impersonate actions
 	let lockModalUser = $state<{ user_id: string; email: string } | null>(null);
 	let deleteModalUser = $state<{ user_id: string; email: string } | null>(null);
+	let impersonateModalUser = $state<{ user_id: string; email: string; is_admin: boolean } | null>(null);
 	let lockReason = $state('');
 	let hardDelete = $state(false);
+	let impersonateReason = $state('');
+	let impersonateWriteMode = $state(false);
+	let impersonateDuration = $state(30);
 
 	// Update local state when data changes
 	$effect(() => {
@@ -97,6 +102,41 @@
 	function closeDeleteModal() {
 		deleteModalUser = null;
 		hardDelete = false;
+	}
+
+	function openImpersonateModal(user: { user_id: string; email: string; is_admin: boolean }) {
+		impersonateModalUser = user;
+		impersonateReason = '';
+		impersonateWriteMode = false;
+		impersonateDuration = 30;
+	}
+
+	function closeImpersonateModal() {
+		impersonateModalUser = null;
+		impersonateReason = '';
+		impersonateWriteMode = false;
+		impersonateDuration = 30;
+	}
+
+	async function handleImpersonate() {
+		if (!impersonateModalUser || !impersonateReason.trim()) return;
+
+		isSubmitting = true;
+		try {
+			const request: StartImpersonationRequest = {
+				reason: impersonateReason,
+				write_mode: impersonateWriteMode,
+				duration_minutes: impersonateDuration
+			};
+			await adminApi.startImpersonation(impersonateModalUser.user_id, request);
+			// Reload the page to apply impersonation context
+			window.location.href = '/dashboard';
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : 'Failed to start impersonation';
+			alert(message);
+		} finally {
+			isSubmitting = false;
+		}
 	}
 </script>
 
@@ -333,6 +373,16 @@
 													<Trash2 class="w-3 h-3" />
 													Delete
 												</button>
+
+												{#if !user.is_admin && !user.deleted_at}
+													<button
+														onclick={() => openImpersonateModal(user)}
+														class="text-info-600 dark:text-info-400 hover:underline flex items-center gap-1"
+													>
+														<Eye class="w-3 h-3" />
+														Impersonate
+													</button>
+												{/if}
 											</div>
 										{/if}
 									</td>
@@ -487,6 +537,100 @@
 					</Button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Impersonate User Modal -->
+{#if impersonateModalUser}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={closeImpersonateModal} role="presentation">
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
+				<Eye class="w-5 h-5 text-info-500" />
+				View As User
+			</h2>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+				You will see the application as <strong>{impersonateModalUser.email}</strong>. This is logged for audit purposes.
+			</p>
+
+			<div class="space-y-4">
+				<div>
+					<label for="impersonateReason" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+						Reason <span class="text-error-500">*</span>
+					</label>
+					<input
+						type="text"
+						id="impersonateReason"
+						bind:value={impersonateReason}
+						placeholder="e.g., Investigating user-reported bug"
+						minlength="5"
+						required
+						class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-info-500"
+					/>
+					<p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+						Required for audit trail (min 5 characters)
+					</p>
+				</div>
+
+				<div>
+					<label for="impersonateDuration" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+						Duration
+					</label>
+					<select
+						id="impersonateDuration"
+						bind:value={impersonateDuration}
+						class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-info-500"
+					>
+						<option value={5}>5 minutes</option>
+						<option value={15}>15 minutes</option>
+						<option value={30}>30 minutes</option>
+						<option value={60}>60 minutes</option>
+					</select>
+				</div>
+
+				<div>
+					<label class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+						<input
+							type="checkbox"
+							bind:checked={impersonateWriteMode}
+							class="rounded border-neutral-300 dark:border-neutral-600"
+						/>
+						<span>Enable write mode (allow mutations)</span>
+					</label>
+					{#if impersonateWriteMode}
+						<p class="mt-2 text-xs text-warning-600 dark:text-warning-400">
+							Warning: Write mode allows creating, editing, and deleting data as this user.
+						</p>
+					{:else}
+						<p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+							Read-only mode: You can view the app but cannot make changes.
+						</p>
+					{/if}
+				</div>
+			</div>
+
+			<div class="flex justify-end gap-3 mt-6">
+				<Button variant="secondary" size="md" onclick={closeImpersonateModal} disabled={isSubmitting}>
+					{#snippet children()}Cancel{/snippet}
+				</Button>
+				<Button
+					variant="brand"
+					size="md"
+					onclick={handleImpersonate}
+					disabled={isSubmitting || impersonateReason.trim().length < 5}
+				>
+					{#snippet children()}
+						{#if isSubmitting}
+							Starting...
+						{:else}
+							<Eye class="w-4 h-4" />
+							View As User
+						{/if}
+					{/snippet}
+				</Button>
+			</div>
 		</div>
 	</div>
 {/if}

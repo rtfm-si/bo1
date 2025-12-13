@@ -136,6 +136,12 @@ class Settings(BaseSettings):
         description="Comma-separated list of allowed CORS origins",
     )
 
+    # Frontend URL (for email links, invitations, etc.)
+    frontend_url: str = Field(
+        default="http://localhost:5173",
+        description="Frontend application URL for email links and redirects",
+    )
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS origins into a list."""
@@ -163,6 +169,19 @@ class Settings(BaseSettings):
     # LinkedIn OAuth Configuration
     linkedin_client_id: str = Field(default="", description="LinkedIn OAuth client ID")
     linkedin_client_secret: str = Field(default="", description="LinkedIn OAuth client secret")
+
+    # GitHub OAuth Configuration
+    github_client_id: str = Field(default="", description="GitHub OAuth client ID")
+    github_client_secret: str = Field(default="", description="GitHub OAuth client secret")
+
+    # Twitter/X OAuth Configuration
+    twitter_client_id: str = Field(default="", description="Twitter/X OAuth client ID")
+    twitter_client_secret: str = Field(default="", description="Twitter/X OAuth client secret")
+
+    # Bluesky OAuth Configuration (AT Protocol)
+    bluesky_client_id: str = Field(default="", description="Bluesky OAuth client ID (app handle)")
+    bluesky_client_secret: str = Field(default="", description="Bluesky OAuth client secret")
+    bluesky_redirect_uri: str = Field(default="", description="Bluesky OAuth redirect URI")
 
     # Google Sheets API Configuration
     google_api_key: str = Field(

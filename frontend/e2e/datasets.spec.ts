@@ -13,45 +13,63 @@
  */
 import { test, expect } from '@playwright/test';
 
-// Mock datasets data
+// Mock datasets data - matches DatasetListResponse structure
 const mockDatasets = {
 	datasets: [
 		{
 			id: 'ds-1',
+			user_id: 'test-user',
 			name: 'sales_2024.csv',
-			source: 'upload',
-			file_size: 102400,
+			description: 'Sales data for 2024',
+			source_type: 'upload' as const,
+			source_uri: null,
+			file_key: 'datasets/test-user/sales_2024.csv',
 			row_count: 1500,
 			column_count: 12,
+			file_size_bytes: 102400,
 			created_at: new Date().toISOString(),
-			profiled_at: new Date().toISOString()
+			updated_at: new Date().toISOString()
 		},
 		{
 			id: 'ds-2',
+			user_id: 'test-user',
 			name: 'Customer Survey',
-			source: 'sheets',
-			file_size: null,
+			description: 'Customer satisfaction survey',
+			source_type: 'sheets' as const,
+			source_uri: 'https://docs.google.com/spreadsheets/d/test',
+			file_key: null,
 			row_count: 500,
 			column_count: 8,
+			file_size_bytes: null,
 			created_at: new Date().toISOString(),
-			profiled_at: new Date().toISOString()
+			updated_at: new Date().toISOString()
 		}
 	],
-	total: 2
+	total: 2,
+	limit: 50,
+	offset: 0
 };
 
+// Mock dataset detail - matches DatasetDetailResponse structure
 const mockDatasetProfile = {
 	id: 'ds-1',
+	user_id: 'test-user',
 	name: 'sales_2024.csv',
-	source: 'upload',
+	description: 'Sales data for 2024',
+	source_type: 'upload' as const,
+	source_uri: null,
+	file_key: 'datasets/test-user/sales_2024.csv',
 	row_count: 1500,
 	column_count: 12,
+	file_size_bytes: 102400,
+	created_at: new Date().toISOString(),
+	updated_at: new Date().toISOString(),
 	summary: 'This dataset contains sales data for 2024 including revenue, units, and customer segments.',
-	columns: [
-		{ name: 'date', type: 'date', null_count: 0, unique_count: 365 },
-		{ name: 'revenue', type: 'currency', null_count: 5, min: 100, max: 50000, mean: 5432 },
-		{ name: 'units', type: 'integer', null_count: 0, min: 1, max: 1000, mean: 45 },
-		{ name: 'segment', type: 'categorical', null_count: 0, unique_count: 4 }
+	profiles: [
+		{ id: 'p1', column_name: 'date', data_type: 'date', null_count: 0, unique_count: 365, min_value: '2024-01-01', max_value: '2024-12-31', mean_value: null, sample_values: ['2024-01-01', '2024-06-15'] },
+		{ id: 'p2', column_name: 'revenue', data_type: 'currency', null_count: 5, unique_count: 1200, min_value: '100', max_value: '50000', mean_value: 5432, sample_values: [100, 5000, 12000] },
+		{ id: 'p3', column_name: 'units', data_type: 'integer', null_count: 0, unique_count: 500, min_value: '1', max_value: '1000', mean_value: 45, sample_values: [1, 45, 100] },
+		{ id: 'p4', column_name: 'segment', data_type: 'categorical', null_count: 0, unique_count: 4, min_value: null, max_value: null, mean_value: null, sample_values: ['Enterprise', 'SMB', 'Consumer', 'Startup'] }
 	]
 };
 
@@ -142,7 +160,7 @@ test.describe('Datasets List Page', () => {
 				route.fulfill({
 					status: 200,
 					contentType: 'application/json',
-					body: JSON.stringify({ datasets: [], total: 0 })
+					body: JSON.stringify({ datasets: [], total: 0, limit: 50, offset: 0 })
 				})
 			);
 

@@ -7,13 +7,15 @@ that benefit all users. Currently returns stub data; full aggregation
 pipeline to be implemented later.
 
 Provides:
-- GET /api/v1/industry-insights - Get insights for user's industry
+- GET /api/v1/industry-insights - Get insights for user's industry (tier-limited)
 - GET /api/v1/industry-insights/:industry - Get insights for specific industry
+- GET /api/v1/industry-insights/compare - Compare user metrics against benchmarks
 """
 
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
+from enum import Enum
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,6 +25,7 @@ from pydantic import BaseModel, Field
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors
+from bo1.constants import IndustryBenchmarkLimits
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
@@ -33,6 +36,15 @@ router = APIRouter(tags=["industry-insights"])
 # =============================================================================
 # Models
 # =============================================================================
+
+
+class BenchmarkCategory(str, Enum):
+    """Benchmark metric categories."""
+
+    GROWTH = "growth"
+    RETENTION = "retention"
+    EFFICIENCY = "efficiency"
+    ENGAGEMENT = "engagement"
 
 
 class InsightContent(BaseModel):
@@ -48,6 +60,8 @@ class BenchmarkContent(InsightContent):
 
     metric_name: str = Field(..., description="Metric being benchmarked")
     metric_unit: str = Field(..., description="Unit of measurement")
+    category: BenchmarkCategory = Field(..., description="Benchmark category")
+    industry_segment: str = Field(..., description="Industry segment")
     p25: float | None = Field(None, description="25th percentile")
     p50: float | None = Field(None, description="Median (50th percentile)")
     p75: float | None = Field(None, description="75th percentile")
@@ -65,6 +79,7 @@ class IndustryInsight(BaseModel):
     confidence: float = Field(0.5, description="Confidence score 0-1")
     expires_at: datetime | None = Field(None, description="When this insight expires")
     created_at: datetime = Field(..., description="Creation timestamp")
+    locked: bool = Field(False, description="Whether this insight is tier-locked")
 
 
 class IndustryInsightsResponse(BaseModel):
@@ -73,6 +88,42 @@ class IndustryInsightsResponse(BaseModel):
     industry: str = Field(..., description="Industry the insights are for")
     insights: list[IndustryInsight] = Field(default_factory=list, description="List of insights")
     has_benchmarks: bool = Field(False, description="Whether benchmark data is available")
+    locked_count: int = Field(0, description="Number of tier-locked benchmarks")
+    upgrade_prompt: str | None = Field(None, description="Upgrade message if benchmarks are locked")
+    user_tier: str = Field("free", description="User's current subscription tier")
+
+
+class BenchmarkComparison(BaseModel):
+    """User's metrics compared to industry benchmarks."""
+
+    metric_name: str = Field(..., description="Metric being compared")
+    metric_unit: str = Field(..., description="Unit of measurement")
+    category: BenchmarkCategory = Field(..., description="Benchmark category")
+    user_value: float | None = Field(None, description="User's metric value")
+    p25: float | None = Field(None, description="25th percentile")
+    p50: float | None = Field(None, description="Median (50th percentile)")
+    p75: float | None = Field(None, description="75th percentile")
+    percentile: float | None = Field(None, description="User's percentile rank (0-100)")
+    status: str = Field(
+        "unknown",
+        description="Performance status: below_average, average, above_average, top_performer",
+    )
+    locked: bool = Field(False, description="Whether this comparison is tier-locked")
+
+
+class BenchmarkComparisonResponse(BaseModel):
+    """Response with user benchmark comparisons."""
+
+    industry: str = Field(..., description="Industry used for comparison")
+    comparisons: list[BenchmarkComparison] = Field(
+        default_factory=list, description="List of comparisons"
+    )
+    total_metrics: int = Field(0, description="Total benchmark metrics available")
+    compared_count: int = Field(0, description="Metrics user has data for")
+    locked_count: int = Field(0, description="Tier-locked metrics")
+    upgrade_prompt: str | None = Field(
+        None, description="Upgrade message if comparisons are locked"
+    )
 
 
 # =============================================================================
@@ -80,21 +131,17 @@ class IndustryInsightsResponse(BaseModel):
 # =============================================================================
 
 
-def get_stub_insights(industry: str) -> list[IndustryInsight]:
-    """Generate stub insights for demonstration.
-
-    In production, these would come from the industry_insights table
-    populated by an aggregation job.
-    """
-    now = datetime.now(UTC)
-
-    # SaaS-specific benchmarks
-    saas_benchmarks = [
+# Comprehensive benchmark data by industry segment
+BENCHMARK_DATA: dict[str, list[dict[str, Any]]] = {
+    "SaaS": [
+        # Retention metrics
         {
             "title": "Monthly Churn Rate",
             "description": "Average monthly customer churn for SaaS companies",
             "metric_name": "monthly_churn",
             "metric_unit": "%",
+            "category": BenchmarkCategory.RETENTION,
+            "industry_segment": "SaaS",
             "p25": 1.5,
             "p50": 3.0,
             "p75": 5.0,
@@ -102,27 +149,268 @@ def get_stub_insights(industry: str) -> list[IndustryInsight]:
         },
         {
             "title": "Net Revenue Retention",
-            "description": "Typical NRR for B2B SaaS companies",
+            "description": "NRR measures expansion minus churn from existing customers",
             "metric_name": "nrr",
             "metric_unit": "%",
+            "category": BenchmarkCategory.RETENTION,
+            "industry_segment": "SaaS",
             "p25": 95,
             "p50": 105,
             "p75": 120,
             "sample_size": 120,
         },
+        # Efficiency metrics
         {
             "title": "LTV:CAC Ratio",
             "description": "Healthy LTV to CAC ratio benchmarks",
-            "metric_name": "ltv_cac_ratio",
+            "metric_name": "ltv_cac",
             "metric_unit": "ratio",
+            "category": BenchmarkCategory.EFFICIENCY,
+            "industry_segment": "SaaS",
             "p25": 2.0,
             "p50": 3.5,
             "p75": 5.0,
             "sample_size": 100,
         },
-    ]
+        {
+            "title": "CAC Payback Period",
+            "description": "Months to recover customer acquisition cost",
+            "metric_name": "cac_payback",
+            "metric_unit": "months",
+            "category": BenchmarkCategory.EFFICIENCY,
+            "industry_segment": "SaaS",
+            "p25": 18,
+            "p50": 12,
+            "p75": 6,
+            "sample_size": 95,
+        },
+        # Growth metrics
+        {
+            "title": "Average Revenue Per User",
+            "description": "Monthly ARPU for B2B SaaS",
+            "metric_name": "arpu",
+            "metric_unit": "USD/month",
+            "category": BenchmarkCategory.GROWTH,
+            "industry_segment": "SaaS",
+            "p25": 25,
+            "p50": 75,
+            "p75": 200,
+            "sample_size": 180,
+        },
+        {
+            "title": "MRR Growth Rate",
+            "description": "Month-over-month recurring revenue growth",
+            "metric_name": "mrr_growth",
+            "metric_unit": "%",
+            "category": BenchmarkCategory.GROWTH,
+            "industry_segment": "SaaS",
+            "p25": 3,
+            "p50": 8,
+            "p75": 15,
+            "sample_size": 140,
+        },
+        # Engagement metrics
+        {
+            "title": "DAU/MAU Ratio",
+            "description": "Daily to monthly active user engagement ratio",
+            "metric_name": "dau_mau",
+            "metric_unit": "ratio",
+            "category": BenchmarkCategory.ENGAGEMENT,
+            "industry_segment": "SaaS",
+            "p25": 0.10,
+            "p50": 0.20,
+            "p75": 0.40,
+            "sample_size": 110,
+        },
+        {
+            "title": "Activation Rate",
+            "description": "Percentage of signups reaching activation milestone",
+            "metric_name": "activation_rate",
+            "metric_unit": "%",
+            "category": BenchmarkCategory.ENGAGEMENT,
+            "industry_segment": "SaaS",
+            "p25": 20,
+            "p50": 35,
+            "p75": 55,
+            "sample_size": 130,
+        },
+    ],
+    "E-commerce": [
+        {
+            "title": "Cart Abandonment Rate",
+            "description": "Percentage of carts abandoned before checkout",
+            "metric_name": "cart_abandonment",
+            "metric_unit": "%",
+            "category": BenchmarkCategory.RETENTION,
+            "industry_segment": "E-commerce",
+            "p25": 75,
+            "p50": 70,
+            "p75": 60,
+            "sample_size": 200,
+        },
+        {
+            "title": "Customer Return Rate",
+            "description": "Percentage of customers making repeat purchases",
+            "metric_name": "return_rate",
+            "metric_unit": "%",
+            "category": BenchmarkCategory.RETENTION,
+            "industry_segment": "E-commerce",
+            "p25": 15,
+            "p50": 25,
+            "p75": 40,
+            "sample_size": 175,
+        },
+        {
+            "title": "Average Order Value",
+            "description": "Average transaction value",
+            "metric_name": "aov",
+            "metric_unit": "USD",
+            "category": BenchmarkCategory.GROWTH,
+            "industry_segment": "E-commerce",
+            "p25": 45,
+            "p50": 85,
+            "p75": 150,
+            "sample_size": 190,
+        },
+    ],
+    "Fintech": [
+        {
+            "title": "Customer Acquisition Cost",
+            "description": "Average cost to acquire a new customer",
+            "metric_name": "cac",
+            "metric_unit": "USD",
+            "category": BenchmarkCategory.EFFICIENCY,
+            "industry_segment": "Fintech",
+            "p25": 200,
+            "p50": 350,
+            "p75": 600,
+            "sample_size": 80,
+        },
+        {
+            "title": "Net Promoter Score",
+            "description": "Customer satisfaction and loyalty metric",
+            "metric_name": "nps",
+            "metric_unit": "score",
+            "category": BenchmarkCategory.ENGAGEMENT,
+            "industry_segment": "Fintech",
+            "p25": 20,
+            "p50": 40,
+            "p75": 60,
+            "sample_size": 95,
+        },
+    ],
+    "Marketplace": [
+        {
+            "title": "Take Rate",
+            "description": "Percentage commission on transactions",
+            "metric_name": "take_rate",
+            "metric_unit": "%",
+            "category": BenchmarkCategory.GROWTH,
+            "industry_segment": "Marketplace",
+            "p25": 8,
+            "p50": 15,
+            "p75": 25,
+            "sample_size": 65,
+        },
+        {
+            "title": "Gross Merchandise Value Growth",
+            "description": "Year-over-year GMV growth",
+            "metric_name": "gmv_growth",
+            "metric_unit": "%",
+            "category": BenchmarkCategory.GROWTH,
+            "industry_segment": "Marketplace",
+            "p25": 20,
+            "p50": 40,
+            "p75": 80,
+            "sample_size": 55,
+        },
+    ],
+}
 
-    # General trends (apply to most industries)
+# Metric name to context field mapping (for comparison endpoint)
+METRIC_TO_CONTEXT_FIELD: dict[str, str] = {
+    "monthly_churn": "churn_rate",
+    "nrr": "net_revenue_retention",
+    "ltv_cac": "ltv_cac_ratio",
+    "cac_payback": "cac_payback_months",
+    "arpu": "arpu",
+    "mrr_growth": "mrr_growth_rate",
+    "dau_mau": "dau_mau_ratio",
+    "activation_rate": "activation_rate",
+    "cac": "cac",
+    "nps": "nps_score",
+    "aov": "average_order_value",
+    "cart_abandonment": "cart_abandonment_rate",
+    "return_rate": "customer_return_rate",
+    "take_rate": "take_rate",
+    "gmv_growth": "gmv_growth_rate",
+}
+
+
+def get_benchmarks_for_industry(industry: str) -> list[dict[str, Any]]:
+    """Get benchmark data for a specific industry.
+
+    Matches industry string to closest segment.
+    """
+    industry_lower = industry.lower()
+
+    # Direct segment match
+    for segment in BENCHMARK_DATA:
+        if segment.lower() in industry_lower:
+            return BENCHMARK_DATA[segment]
+
+    # Fallback matches
+    if any(term in industry_lower for term in ["software", "tech", "b2b", "subscription"]):
+        return BENCHMARK_DATA["SaaS"]
+    if any(term in industry_lower for term in ["retail", "shop", "commerce", "store"]):
+        return BENCHMARK_DATA["E-commerce"]
+    if any(term in industry_lower for term in ["finance", "bank", "payment", "insurance"]):
+        return BENCHMARK_DATA["Fintech"]
+    if any(term in industry_lower for term in ["marketplace", "platform", "two-sided"]):
+        return BENCHMARK_DATA["Marketplace"]
+
+    # Default to SaaS
+    return BENCHMARK_DATA["SaaS"]
+
+
+def get_stub_insights(industry: str, tier: str = "free") -> tuple[list[IndustryInsight], int]:
+    """Generate stub insights for demonstration with tier filtering.
+
+    In production, these would come from the industry_insights table
+    populated by an aggregation job.
+
+    Returns:
+        Tuple of (insights list, locked_count)
+    """
+    now = datetime.now(UTC)
+    limit = IndustryBenchmarkLimits.get_limit_for_tier(tier)
+
+    # Get benchmarks for industry
+    benchmarks = get_benchmarks_for_industry(industry)
+    insights: list[IndustryInsight] = []
+    locked_count = 0
+
+    # Add benchmarks with tier filtering
+    for i, bm in enumerate(benchmarks):
+        is_locked = limit != -1 and i >= limit
+        if is_locked:
+            locked_count += 1
+
+        insights.append(
+            IndustryInsight(
+                id=f"benchmark-{i + 1}",
+                industry=industry,
+                insight_type="benchmark",
+                content=bm,
+                source_count=bm.get("sample_size", 50),
+                confidence=0.85,
+                expires_at=now + timedelta(days=90),
+                created_at=now - timedelta(days=30),
+                locked=is_locked,
+            )
+        )
+
+    # General trends (not tier-limited)
     general_trends = [
         {
             "title": "AI Integration Acceleration",
@@ -138,7 +426,22 @@ def get_stub_insights(industry: str) -> list[IndustryInsight]:
         },
     ]
 
-    # Best practices
+    for i, trend in enumerate(general_trends):
+        insights.append(
+            IndustryInsight(
+                id=f"trend-{i + 1}",
+                industry=industry,
+                insight_type="trend",
+                content=trend,
+                source_count=200,
+                confidence=0.75,
+                expires_at=now + timedelta(days=7),
+                created_at=now - timedelta(days=2),
+                locked=False,
+            )
+        )
+
+    # Best practices (not tier-limited)
     best_practices = [
         {
             "title": "Customer Health Scoring",
@@ -150,40 +453,6 @@ def get_stub_insights(industry: str) -> list[IndustryInsight]:
         },
     ]
 
-    insights = []
-
-    # Add benchmarks for SaaS
-    if "saas" in industry.lower() or "software" in industry.lower():
-        for i, bm in enumerate(saas_benchmarks):
-            insights.append(
-                IndustryInsight(
-                    id=f"benchmark-{i + 1}",
-                    industry=industry,
-                    insight_type="benchmark",
-                    content=bm,
-                    source_count=bm.get("sample_size", 50),
-                    confidence=0.85,
-                    expires_at=now + timedelta(days=90),  # Quarterly refresh
-                    created_at=now - timedelta(days=30),
-                )
-            )
-
-    # Add trends
-    for i, trend in enumerate(general_trends):
-        insights.append(
-            IndustryInsight(
-                id=f"trend-{i + 1}",
-                industry=industry,
-                insight_type="trend",
-                content=trend,
-                source_count=200,
-                confidence=0.75,
-                expires_at=now + timedelta(days=7),  # Weekly refresh
-                created_at=now - timedelta(days=2),
-            )
-        )
-
-    # Add best practices
     for i, bp in enumerate(best_practices):
         insights.append(
             IndustryInsight(
@@ -193,12 +462,107 @@ def get_stub_insights(industry: str) -> list[IndustryInsight]:
                 content=bp,
                 source_count=50,
                 confidence=0.8,
-                expires_at=None,  # Evergreen
+                expires_at=None,
                 created_at=now - timedelta(days=60),
+                locked=False,
             )
         )
 
-    return insights
+    return insights, locked_count
+
+
+def calculate_percentile(
+    value: float, p25: float, p50: float, p75: float, lower_is_better: bool = False
+) -> float:
+    """Calculate approximate percentile for a user value.
+
+    Uses linear interpolation between known percentiles.
+
+    Args:
+        value: User's metric value
+        p25: 25th percentile benchmark
+        p50: 50th percentile benchmark (median)
+        p75: 75th percentile benchmark
+        lower_is_better: If True, lower values rank higher (e.g., churn)
+
+    Returns:
+        Estimated percentile (0-100)
+    """
+    if lower_is_better:
+        # Invert for metrics where lower is better
+        if value >= p25:
+            return 12.5 + (p25 - value) / max(p25, 0.01) * 12.5  # 0-25
+        elif value >= p50:
+            return 25 + (p25 - value) / max(p25 - p50, 0.01) * 25  # 25-50
+        elif value >= p75:
+            return 50 + (p50 - value) / max(p50 - p75, 0.01) * 25  # 50-75
+        else:
+            return min(100, 75 + (p75 - value) / max(p75, 0.01) * 25)  # 75-100
+    else:
+        # Higher values rank higher
+        if value <= p25:
+            return max(0, value / max(p25, 0.01) * 25)  # 0-25
+        elif value <= p50:
+            return 25 + (value - p25) / max(p50 - p25, 0.01) * 25  # 25-50
+        elif value <= p75:
+            return 50 + (value - p50) / max(p75 - p50, 0.01) * 25  # 50-75
+        else:
+            return min(100, 75 + (value - p75) / max(p75, 0.01) * 25)  # 75-100
+
+
+def get_performance_status(percentile: float) -> str:
+    """Get performance status label from percentile."""
+    if percentile < 25:
+        return "below_average"
+    elif percentile < 50:
+        return "average"
+    elif percentile < 75:
+        return "above_average"
+    else:
+        return "top_performer"
+
+
+# Metrics where lower values are better
+LOWER_IS_BETTER_METRICS = {"monthly_churn", "cac_payback", "cac", "cart_abandonment"}
+
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+
+def get_user_tier(user_id: str) -> str:
+    """Get user's subscription tier from database.
+
+    Falls back to 'free' if not found.
+    """
+    from backend.api.utils.db_helpers import execute_query
+
+    try:
+        result = execute_query(
+            "SELECT subscription_tier FROM users WHERE id = %s",
+            (user_id,),
+            fetch="one",
+        )
+        if result:
+            tier = result.get("subscription_tier")
+            return tier if tier else "free"
+        return "free"
+    except Exception as e:
+        logger.warning(f"Failed to get user tier: {e}, defaulting to free")
+        return "free"
+
+
+def get_upgrade_prompt(tier: str, locked_count: int) -> str | None:
+    """Get upgrade prompt message based on tier and locked count."""
+    if locked_count == 0:
+        return None
+
+    if tier == "free":
+        return f"Upgrade to Starter to unlock {min(2, locked_count)} more benchmarks, or Pro for unlimited access."
+    elif tier == "starter":
+        return f"Upgrade to Pro to unlock all {locked_count} remaining benchmarks."
+    return None
 
 
 # =============================================================================
@@ -216,7 +580,12 @@ def get_stub_insights(industry: str) -> list[IndustryInsight]:
     Uses the industry from the user's saved business context.
     Returns benchmarks, trends, and best practices.
 
-    **Note:** Currently returns example data. Real aggregation pipeline coming soon.
+    **Tier Limits:**
+    - Free: 3 benchmark metrics
+    - Starter: 5 benchmark metrics
+    - Pro/Enterprise: Unlimited
+
+    Locked benchmarks are returned with `locked=true` and limited content.
     """,
 )
 @handle_api_errors("get insights for user")
@@ -224,9 +593,12 @@ async def get_insights_for_user(
     insight_type: str | None = Query(
         None, description="Filter by type: trend, benchmark, best_practice"
     ),
+    category: str | None = Query(
+        None, description="Filter benchmarks by category: growth, retention, efficiency, engagement"
+    ),
     user: dict[str, Any] = Depends(get_current_user),
 ) -> IndustryInsightsResponse:
-    """Get industry insights for the user's industry."""
+    """Get industry insights for the user's industry with tier-based filtering."""
     try:
         user_id = extract_user_id(user)
 
@@ -239,19 +611,44 @@ async def get_insights_for_user(
                 industry="Unknown",
                 insights=[],
                 has_benchmarks=False,
+                locked_count=0,
+                user_tier="free",
             )
 
-        # Get insights (currently stub data)
-        insights = get_stub_insights(industry)
+        # Get user's tier
+        tier = get_user_tier(user_id)
+
+        # Get insights with tier filtering
+        insights, locked_count = get_stub_insights(industry, tier)
 
         # Filter by type if specified
         if insight_type:
             insights = [i for i in insights if i.insight_type == insight_type]
+            # Recalculate locked count for filtered results
+            if insight_type == "benchmark":
+                locked_count = sum(1 for i in insights if i.locked)
+            else:
+                locked_count = 0
+
+        # Filter by category if specified (only applies to benchmarks)
+        if category:
+            insights = [
+                i
+                for i in insights
+                if i.insight_type != "benchmark" or i.content.get("category") == category
+            ]
+            locked_count = sum(1 for i in insights if i.locked)
+
+        # Get upgrade prompt if needed
+        upgrade_prompt = get_upgrade_prompt(tier, locked_count)
 
         return IndustryInsightsResponse(
             industry=industry,
             insights=insights,
             has_benchmarks=any(i.insight_type == "benchmark" for i in insights),
+            locked_count=locked_count,
+            upgrade_prompt=upgrade_prompt,
+            user_tier=tier,
         )
 
     except (DatabaseError, OperationalError) as e:
@@ -271,6 +668,131 @@ async def get_insights_for_user(
 
 
 @router.get(
+    "/v1/industry-insights/compare",
+    response_model=BenchmarkComparisonResponse,
+    summary="Compare user metrics against benchmarks",
+    description="""
+    Compare the authenticated user's metrics against industry benchmarks.
+
+    Extracts metrics from the user's business context (churn rate, revenue, etc.)
+    and calculates their percentile ranking against industry benchmarks.
+
+    **Tier Limits:**
+    - Free: 3 comparisons
+    - Starter: 5 comparisons
+    - Pro/Enterprise: Unlimited
+
+    Returns percentile ranking and performance status for each metric.
+    """,
+)
+@handle_api_errors("compare benchmarks")
+async def compare_benchmarks(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> BenchmarkComparisonResponse:
+    """Compare user metrics against industry benchmarks."""
+    try:
+        user_id = extract_user_id(user)
+
+        # Get user's context
+        context_data = user_repository.get_context(user_id)
+        industry = context_data.get("industry") if context_data else None
+
+        if not industry:
+            return BenchmarkComparisonResponse(
+                industry="Unknown",
+                comparisons=[],
+                total_metrics=0,
+                compared_count=0,
+                locked_count=0,
+            )
+
+        # Get user's tier
+        tier = get_user_tier(user_id)
+        limit = IndustryBenchmarkLimits.get_limit_for_tier(tier)
+
+        # Get benchmarks for industry
+        benchmarks = get_benchmarks_for_industry(industry)
+        comparisons: list[BenchmarkComparison] = []
+        compared_count = 0
+        locked_count = 0
+
+        for i, bm in enumerate(benchmarks):
+            is_locked = limit != -1 and i >= limit
+            if is_locked:
+                locked_count += 1
+
+            metric_name = bm["metric_name"]
+            context_field = METRIC_TO_CONTEXT_FIELD.get(metric_name)
+
+            # Try to get user's value for this metric
+            user_value = None
+            if context_field and context_data:
+                user_value = context_data.get(context_field)
+                # Also try nested fields
+                if user_value is None and "metrics" in context_data:
+                    user_value = context_data["metrics"].get(context_field)
+
+            # Calculate percentile if we have user data
+            percentile = None
+            status = "unknown"
+            if user_value is not None and not is_locked:
+                compared_count += 1
+                lower_is_better = metric_name in LOWER_IS_BETTER_METRICS
+                percentile = calculate_percentile(
+                    float(user_value),
+                    bm["p25"],
+                    bm["p50"],
+                    bm["p75"],
+                    lower_is_better,
+                )
+                status = get_performance_status(percentile)
+
+            comparisons.append(
+                BenchmarkComparison(
+                    metric_name=metric_name,
+                    metric_unit=bm["metric_unit"],
+                    category=bm["category"],
+                    user_value=float(user_value)
+                    if user_value is not None and not is_locked
+                    else None,
+                    p25=bm["p25"] if not is_locked else None,
+                    p50=bm["p50"] if not is_locked else None,
+                    p75=bm["p75"] if not is_locked else None,
+                    percentile=round(percentile, 1) if percentile is not None else None,
+                    status=status if not is_locked else "locked",
+                    locked=is_locked,
+                )
+            )
+
+        # Get upgrade prompt if needed
+        upgrade_prompt = get_upgrade_prompt(tier, locked_count)
+
+        return BenchmarkComparisonResponse(
+            industry=industry,
+            comparisons=comparisons,
+            total_metrics=len(benchmarks),
+            compared_count=compared_count,
+            locked_count=locked_count,
+            upgrade_prompt=upgrade_prompt,
+        )
+
+    except (DatabaseError, OperationalError) as e:
+        logger.error(f"Database error comparing benchmarks: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Database error while comparing benchmarks",
+        ) from e
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error comparing benchmarks: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to compare benchmarks: {str(e)}",
+        ) from e
+
+
+@router.get(
     "/v1/industry-insights/{industry}",
     response_model=IndustryInsightsResponse,
     summary="Get insights for specific industry",
@@ -278,8 +800,7 @@ async def get_insights_for_user(
     Retrieve aggregated industry insights for a specific industry.
 
     Returns benchmarks, trends, and best practices for the specified industry.
-
-    **Note:** Currently returns example data. Real aggregation pipeline coming soon.
+    Tier limits are applied based on the authenticated user's subscription.
     """,
 )
 @handle_api_errors("get insights by industry")
@@ -292,17 +813,30 @@ async def get_insights_by_industry(
 ) -> IndustryInsightsResponse:
     """Get industry insights for a specific industry."""
     try:
-        # Get insights (currently stub data)
-        insights = get_stub_insights(industry)
+        user_id = extract_user_id(user)
+        tier = get_user_tier(user_id)
+
+        # Get insights with tier filtering
+        insights, locked_count = get_stub_insights(industry, tier)
 
         # Filter by type if specified
         if insight_type:
             insights = [i for i in insights if i.insight_type == insight_type]
+            if insight_type == "benchmark":
+                locked_count = sum(1 for i in insights if i.locked)
+            else:
+                locked_count = 0
+
+        # Get upgrade prompt if needed
+        upgrade_prompt = get_upgrade_prompt(tier, locked_count)
 
         return IndustryInsightsResponse(
             industry=industry,
             insights=insights,
             has_benchmarks=any(i.insight_type == "benchmark" for i in insights),
+            locked_count=locked_count,
+            upgrade_prompt=upgrade_prompt,
+            user_tier=tier,
         )
 
     except asyncio.CancelledError:

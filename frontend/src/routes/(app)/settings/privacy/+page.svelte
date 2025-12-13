@@ -10,13 +10,13 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
 
-	// Retention period options (days)
+	// Retention period options (days) - 1 to 10 years
 	const RETENTION_OPTIONS = [
-		{ value: 30, label: '30 days' },
-		{ value: 90, label: '90 days' },
-		{ value: 180, label: '6 months' },
 		{ value: 365, label: '1 year' },
-		{ value: 730, label: '2 years' }
+		{ value: 730, label: '2 years' },
+		{ value: 1095, label: '3 years' },
+		{ value: 1825, label: '5 years' },
+		{ value: 3650, label: '10 years' }
 	];
 
 	// State

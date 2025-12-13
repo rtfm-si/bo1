@@ -571,6 +571,37 @@ osv-scan: ## Run OSV scanner for malware/typosquatting detection
 	@echo "✓ OSV scan complete"
 
 # =============================================================================
+# Email Deliverability Testing
+# =============================================================================
+
+.PHONY: test-email-deliverability
+test-email-deliverability: ## Send all test emails to RECIPIENT (requires RECIPIENT=email@example.com)
+	@if [ -z "$(RECIPIENT)" ]; then \
+		echo "Error: RECIPIENT not specified"; \
+		echo "Usage: make test-email-deliverability RECIPIENT=test@gmail.com"; \
+		exit 1; \
+	fi
+	docker-compose run --rm bo1 python -m backend.scripts.test_email_deliverability --recipient $(RECIPIENT)
+
+.PHONY: test-email-template
+test-email-template: ## Send specific test email (requires RECIPIENT and TEMPLATE)
+	@if [ -z "$(RECIPIENT)" ]; then \
+		echo "Error: RECIPIENT not specified"; \
+		echo "Usage: make test-email-template RECIPIENT=test@gmail.com TEMPLATE=welcome"; \
+		exit 1; \
+	fi
+	@if [ -z "$(TEMPLATE)" ]; then \
+		echo "Error: TEMPLATE not specified"; \
+		echo "Available templates: welcome, meeting_completed, action_reminder, action_reminder_overdue, weekly_digest, workspace_invitation"; \
+		exit 1; \
+	fi
+	docker-compose run --rm bo1 python -m backend.scripts.test_email_deliverability --recipient $(RECIPIENT) --template $(TEMPLATE)
+
+.PHONY: list-email-templates
+list-email-templates: ## List available email templates for testing
+	docker-compose run --rm bo1 python -m backend.scripts.test_email_deliverability --list-templates
+
+# =============================================================================
 # Information Commands
 # =============================================================================
 

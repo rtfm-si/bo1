@@ -3,11 +3,12 @@
 	 * MentorChat - Main chat interface for mentor conversations
 	 */
 	import { apiClient } from '$lib/api/client';
-	import type { MentorMessage as MessageType, MentorPersona } from '$lib/api/types';
+	import type { MentorMessage as MessageType, MentorPersonaId, ResolvedMentions } from '$lib/api/types';
 	import { Button } from '$lib/components/ui';
 	import MentorMessage from './MentorMessage.svelte';
 	import PersonaPicker from './PersonaPicker.svelte';
 	import ContextSourcesBadge from './ContextSourcesBadge.svelte';
+	import MentionAutocomplete from './MentionAutocomplete.svelte';
 	import { Send, Square, Loader2 } from 'lucide-svelte';
 
 	// Chat state
@@ -18,9 +19,17 @@
 	let error = $state<string | null>(null);
 	let conversationId = $state<string | null>(null);
 	let streamingContent = $state('');
-	let selectedPersona = $state<MentorPersona>('general');
+	let selectedPersona = $state<MentorPersonaId | null>(null); // null = auto-select
+	let activePersona = $state<MentorPersonaId | null>(null); // Actual persona being used
 	let contextSources = $state<string[]>([]);
 	let messagesContainer: HTMLDivElement;
+	let textareaElement: HTMLTextAreaElement;
+
+	// Mention autocomplete state
+	let showMentionAutocomplete = $state(false);
+	let mentionQuery = $state('');
+	let mentionPosition = $state({ top: 0, left: 0 });
+	let mentionAutocomplete: { onKeyDown: (e: KeyboardEvent) => void } | undefined;
 
 	// Abort controller for current stream
 	let currentAbort: (() => void) | null = null;
@@ -29,6 +38,73 @@
 		if (messagesContainer) {
 			messagesContainer.scrollTop = messagesContainer.scrollHeight;
 		}
+	}
+
+	// Detect @ trigger and extract query after @
+	function checkForMentionTrigger(text: string, cursorPos: number) {
+		// Look backwards from cursor for @ symbol
+		const beforeCursor = text.substring(0, cursorPos);
+		const atIndex = beforeCursor.lastIndexOf('@');
+
+		if (atIndex === -1) {
+			showMentionAutocomplete = false;
+			return;
+		}
+
+		// Check if @ is at start or preceded by whitespace
+		if (atIndex > 0 && !/\s/.test(beforeCursor[atIndex - 1])) {
+			showMentionAutocomplete = false;
+			return;
+		}
+
+		// Extract query after @
+		const afterAt = beforeCursor.substring(atIndex + 1);
+
+		// If there's a colon with UUID already, don't show autocomplete
+		if (/^(meeting|action|dataset):[0-9a-f-]+$/i.test(afterAt)) {
+			showMentionAutocomplete = false;
+			return;
+		}
+
+		// Show autocomplete with query
+		mentionQuery = afterAt;
+		showMentionAutocomplete = true;
+
+		// Position dropdown above the input (simplified positioning)
+		mentionPosition = { top: -280, left: 0 };
+	}
+
+	function handleMentionSelect(type: 'meeting' | 'action' | 'dataset', id: string, title: string) {
+		if (!textareaElement) return;
+
+		const cursorPos = textareaElement.selectionStart;
+		const beforeCursor = inputValue.substring(0, cursorPos);
+		const afterCursor = inputValue.substring(cursorPos);
+
+		// Find the @ symbol position
+		const atIndex = beforeCursor.lastIndexOf('@');
+		if (atIndex === -1) return;
+
+		// Replace @query with @type:id
+		const beforeAt = inputValue.substring(0, atIndex);
+		const mention = `@${type}:${id} `;
+		inputValue = beforeAt + mention + afterCursor;
+
+		// Close autocomplete
+		showMentionAutocomplete = false;
+		mentionQuery = '';
+
+		// Focus and set cursor after the inserted mention
+		textareaElement.focus();
+		const newCursorPos = atIndex + mention.length;
+		setTimeout(() => {
+			textareaElement.setSelectionRange(newCursorPos, newCursorPos);
+		}, 0);
+	}
+
+	function handleMentionClose() {
+		showMentionAutocomplete = false;
+		mentionQuery = '';
 	}
 
 	async function handleSubmit(e: Event) {
@@ -64,9 +140,9 @@
 							const thinkingData = JSON.parse(data);
 							if (thinkingData.status === 'calling_llm') {
 								isThinking = false;
-								// Update persona if auto-selected
+								// Track actual persona being used (whether auto-selected or manual)
 								if (thinkingData.persona) {
-									selectedPersona = thinkingData.persona;
+									activePersona = thinkingData.persona;
 								}
 							}
 						} catch {
@@ -104,7 +180,7 @@
 									role: 'assistant',
 									content: streamingContent,
 									timestamp: new Date().toISOString(),
-									persona: selectedPersona
+									persona: activePersona
 								};
 								messages = [...messages, assistantMessage];
 							}
@@ -119,7 +195,7 @@
 							const doneData = JSON.parse(data);
 							conversationId = doneData.conversation_id || conversationId;
 							if (doneData.persona) {
-								selectedPersona = doneData.persona;
+								activePersona = doneData.persona;
 							}
 						} catch {
 							// Ignore parse errors
@@ -150,10 +226,24 @@
 	}
 
 	function handleKeyDown(e: KeyboardEvent) {
+		// Delegate to autocomplete when visible
+		if (showMentionAutocomplete && mentionAutocomplete) {
+			// Let autocomplete handle navigation keys
+			if (['ArrowUp', 'ArrowDown', 'Enter', 'Escape', 'Tab'].includes(e.key)) {
+				mentionAutocomplete.onKeyDown(e);
+				return;
+			}
+		}
+
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
 			handleSubmit(e);
 		}
+	}
+
+	function handleInput(e: Event) {
+		const target = e.target as HTMLTextAreaElement;
+		checkForMentionTrigger(target.value, target.selectionStart);
 	}
 
 	function handleCancel() {
@@ -171,9 +261,15 @@
 		conversationId = null;
 		error = null;
 		contextSources = [];
+		activePersona = null;
 	}
 
-	function handlePersonaChange(persona: MentorPersona) {
+	function handlePersonaChange(persona: MentorPersonaId | null) {
+		// If changing persona mid-conversation, warn and start new conversation
+		if (messages.length > 0 && persona !== selectedPersona) {
+			// Clear conversation when switching persona
+			clearConversation();
+		}
 		selectedPersona = persona;
 	}
 </script>
@@ -184,9 +280,16 @@
 	<!-- Header -->
 	<div class="flex flex-col gap-3 px-4 py-3 border-b border-neutral-200 dark:border-neutral-700">
 		<div class="flex items-center justify-between">
-			<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
-				Ask Your Mentor
-			</h3>
+			<div>
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
+					Ask Your Mentor
+				</h3>
+				{#if activePersona && messages.length > 0}
+					<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+						Currently using: <span class="font-medium capitalize">{activePersona.replace('_', ' ')}</span>
+					</p>
+				{/if}
+			</div>
 			{#if messages.length > 0}
 				<button
 					onclick={clearConversation}
@@ -254,11 +357,23 @@
 
 	<!-- Input -->
 	<form onsubmit={handleSubmit} class="p-4 border-t border-neutral-200 dark:border-neutral-700">
-		<div class="flex gap-2">
+		<div class="relative flex gap-2">
+			<!-- Mention Autocomplete -->
+			<MentionAutocomplete
+				bind:this={mentionAutocomplete}
+				visible={showMentionAutocomplete}
+				query={mentionQuery}
+				onSelect={handleMentionSelect}
+				onClose={handleMentionClose}
+				position={mentionPosition}
+			/>
+
 			<textarea
+				bind:this={textareaElement}
 				bind:value={inputValue}
 				onkeydown={handleKeyDown}
-				placeholder="Ask your mentor anything..."
+				oninput={handleInput}
+				placeholder="Ask your mentor anything... (type @ to mention)"
 				disabled={isStreaming}
 				rows="1"
 				class="flex-1 px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50 resize-none min-h-[40px] max-h-[120px]"

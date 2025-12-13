@@ -368,3 +368,79 @@ View All Actions: https://boardof.one/actions
 """
 
     return html, plain_text
+
+
+# =============================================================================
+# Workspace Invitation Email
+# =============================================================================
+
+
+def render_workspace_invitation_email(
+    workspace_name: str,
+    inviter_name: str,
+    role: str,
+    accept_url: str,
+    expires_at: date | str | None = None,
+) -> tuple[str, str]:
+    """Render workspace invitation email.
+
+    Args:
+        workspace_name: Name of the workspace
+        inviter_name: Name/email of the person who sent the invite
+        role: Role being offered (member, admin)
+        accept_url: URL to accept the invitation
+        expires_at: When the invitation expires
+
+    Returns:
+        Tuple of (html_content, plain_text)
+    """
+    expires_str = ""
+    if expires_at:
+        if hasattr(expires_at, "strftime"):
+            expires_str = expires_at.strftime("%B %d, %Y")
+        else:
+            expires_str = str(expires_at)[:10]
+
+    role_display = role.replace("_", " ").title()
+
+    content = f"""
+<h2>You've been invited to join a workspace</h2>
+
+<p><strong>{inviter_name}</strong> has invited you to join <strong>{workspace_name}</strong> on Board of One.</p>
+
+<div class="summary-box">
+<p><strong>Workspace:</strong> {workspace_name}</p>
+<p><strong>Role:</strong> {role_display}</p>
+{f"<p><strong>Expires:</strong> {expires_str}</p>" if expires_str else ""}
+</div>
+
+<p>As a {role_display.lower()}, you'll be able to collaborate on meetings, share data, and track actions together with your team.</p>
+
+<p>
+<a href="{accept_url}" class="button">Accept Invitation</a>
+</p>
+
+<p style="font-size: 14px; color: #666;">
+If you don't want to join this workspace, you can simply ignore this email.
+The invitation will expire automatically.
+</p>
+"""
+
+    html = _wrap_email(content)
+
+    plain_text = f"""You've been invited to join a workspace
+
+{inviter_name} has invited you to join {workspace_name} on Board of One.
+
+Workspace: {workspace_name}
+Role: {role_display}
+{f"Expires: {expires_str}" if expires_str else ""}
+
+As a {role_display.lower()}, you'll be able to collaborate on meetings, share data, and track actions together with your team.
+
+Accept Invitation: {accept_url}
+
+If you don't want to join this workspace, you can simply ignore this email.
+"""
+
+    return html, plain_text

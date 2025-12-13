@@ -1587,15 +1587,118 @@ async def _submit_clarification_impl(
             # Load existing business context
             existing_context = user_repository.get_context(user_id) or {}
 
-            # Add/update clarifications section
+            # Add/update clarifications section with structured parsing
             clarifications = existing_context.get("clarifications", {})
             for question, answer in answers_to_process.items():
-                clarifications[question] = {
+                clarification_entry = {
                     "answer": answer,
                     "answered_at": datetime.now(UTC).isoformat(),
                     "session_id": session_id,
                 }
+
+                # Parse insight with Haiku for structured categorization
+                try:
+                    from backend.services.insight_parser import parse_insight
+
+                    structured = await parse_insight(answer)
+                    clarification_entry["category"] = structured.category.value
+                    clarification_entry["confidence_score"] = structured.confidence_score
+                    if structured.metric:
+                        clarification_entry["metric"] = {
+                            "value": structured.metric.value,
+                            "unit": structured.metric.unit,
+                            "metric_type": structured.metric.metric_type,
+                            "period": structured.metric.period,
+                            "raw_text": structured.metric.raw_text,
+                        }
+                    if structured.summary:
+                        clarification_entry["summary"] = structured.summary
+                    if structured.key_entities:
+                        clarification_entry["key_entities"] = structured.key_entities
+                    clarification_entry["parsed_at"] = structured.parsed_at
+                except Exception as parse_err:
+                    # Non-blocking - fallback to uncategorized
+                    logger.debug(f"Insight parsing failed (non-blocking): {parse_err}")
+                    clarification_entry["category"] = "uncategorized"
+                    clarification_entry["confidence_score"] = 0.0
+
+                clarifications[question] = clarification_entry
             existing_context["clarifications"] = clarifications
+
+            # Context Auto-Update: Extract business context updates from clarification answers
+            try:
+                from backend.services.context_extractor import (
+                    ContextUpdateSource,
+                    extract_context_updates,
+                    filter_high_confidence_updates,
+                )
+
+                # Concatenate all answers for extraction
+                all_answers = " ".join(answers_to_process.values())
+                updates = await extract_context_updates(
+                    all_answers, existing_context, ContextUpdateSource.CLARIFICATION
+                )
+
+                if updates:
+                    high_conf, low_conf = filter_high_confidence_updates(updates)
+
+                    # Auto-apply high confidence updates
+                    if high_conf:
+                        metric_history = existing_context.get("context_metric_history", {})
+                        for upd in high_conf:
+                            # Update the context field
+                            existing_context[upd.field_name] = upd.new_value
+                            logger.info(
+                                f"Auto-applied context update: {upd.field_name}={upd.new_value} "
+                                f"(conf={upd.confidence:.2f})"
+                            )
+
+                            # Track in metric history (keep last 10 values)
+                            if upd.field_name not in metric_history:
+                                metric_history[upd.field_name] = []
+                            metric_history[upd.field_name].insert(
+                                0,
+                                {
+                                    "value": upd.new_value,
+                                    "recorded_at": upd.extracted_at,
+                                    "source_type": upd.source_type.value,
+                                    "source_id": session_id,
+                                },
+                            )
+                            # Keep only last 10 entries
+                            metric_history[upd.field_name] = metric_history[upd.field_name][:10]
+
+                        existing_context["context_metric_history"] = metric_history
+                        logger.info(f"Auto-applied {len(high_conf)} context update(s)")
+
+                    # Queue low confidence updates for user review
+                    if low_conf:
+                        import uuid
+
+                        pending = existing_context.get("pending_updates", [])
+                        for upd in low_conf:
+                            # Limit to 5 pending updates
+                            if len(pending) >= 5:
+                                break
+                            pending.append(
+                                {
+                                    "id": str(uuid.uuid4())[:8],
+                                    "field_name": upd.field_name,
+                                    "new_value": upd.new_value,
+                                    "current_value": existing_context.get(upd.field_name),
+                                    "confidence": upd.confidence,
+                                    "source_type": upd.source_type.value,
+                                    "source_text": upd.source_text,
+                                    "extracted_at": upd.extracted_at,
+                                    "session_id": session_id,
+                                }
+                            )
+                        existing_context["pending_updates"] = pending
+                        logger.info(f"Queued {len(low_conf)} low-confidence update(s) for review")
+
+            except Exception as extract_err:
+                # Non-blocking - don't fail if context extraction fails
+                logger.debug(f"Context extraction failed (non-blocking): {extract_err}")
 
             # Save updated context
             user_repository.save_context(user_id, existing_context)

@@ -162,6 +162,33 @@ export interface UserContextResponse {
 // ============================================================================
 
 /**
+ * Business insight category (from Haiku parsing)
+ */
+export type InsightCategory =
+	| 'revenue'
+	| 'growth'
+	| 'customers'
+	| 'team'
+	| 'product'
+	| 'operations'
+	| 'market'
+	| 'competition'
+	| 'funding'
+	| 'costs'
+	| 'uncategorized';
+
+/**
+ * Extracted metric from insight (from Haiku parsing)
+ */
+export interface InsightMetric {
+	value?: number | null;
+	unit?: string | null; // USD, %, count, etc.
+	metric_type?: string | null; // MRR, ARR, headcount, etc.
+	period?: string | null; // monthly, yearly, etc.
+	raw_text?: string | null;
+}
+
+/**
  * A clarification answer from a meeting
  */
 export interface ClarificationInsight {
@@ -169,6 +196,13 @@ export interface ClarificationInsight {
 	answer: string;
 	answered_at?: string;
 	session_id?: string;
+	// Structured fields (from Haiku parsing)
+	category?: InsightCategory;
+	metric?: InsightMetric;
+	confidence_score?: number;
+	summary?: string;
+	key_entities?: string[];
+	parsed_at?: string;
 }
 
 /**
@@ -177,6 +211,73 @@ export interface ClarificationInsight {
 export interface InsightsResponse {
 	clarifications: ClarificationInsight[];
 	total_count: number;
+}
+
+// ============================================================================
+// Context Auto-Update Types (Phase 6)
+// ============================================================================
+
+/**
+ * Source of a context update
+ */
+export type ContextUpdateSource = 'clarification' | 'problem_statement' | 'action';
+
+/**
+ * A pending context update suggestion requiring user approval
+ */
+export interface ContextUpdateSuggestion {
+	id: string;
+	field_name: string;
+	new_value: string | number | string[];
+	current_value?: string | number | string[] | null;
+	confidence: number;
+	source_type: ContextUpdateSource;
+	source_text: string;
+	extracted_at: string;
+	session_id?: string | null;
+}
+
+/**
+ * Response for pending updates endpoint
+ */
+export interface PendingUpdatesResponse {
+	suggestions: ContextUpdateSuggestion[];
+	count: number;
+}
+
+/**
+ * Response after approving a pending update
+ */
+export interface ApproveUpdateResponse {
+	success: boolean;
+	field_name: string;
+	new_value: string | number | string[];
+}
+
+/**
+ * Trend direction for a metric
+ */
+export type TrendDirection = 'improving' | 'worsening' | 'stable' | 'insufficient_data';
+
+/**
+ * Trend information for a context metric
+ */
+export interface MetricTrend {
+	field_name: string;
+	direction: TrendDirection;
+	current_value?: string | number | null;
+	previous_value?: string | number | null;
+	change_percent?: number | null;
+	period_description?: string | null;
+}
+
+/**
+ * Business context with trend indicators
+ */
+export interface ContextWithTrends {
+	context: UserContext;
+	trends: MetricTrend[];
+	updated_at?: string | null;
 }
 
 // ============================================================================
@@ -1223,7 +1324,26 @@ export interface DatasetAskEvent {
 // Mentor Chat Types
 // ============================================================================
 
-export type MentorPersona = 'general' | 'action_coach' | 'data_analyst';
+export type MentorPersonaId = 'general' | 'action_coach' | 'data_analyst';
+
+/**
+ * Detailed mentor persona information
+ */
+export interface MentorPersonaDetail {
+	id: MentorPersonaId;
+	name: string;
+	description: string;
+	expertise: string[];
+	icon: string;
+}
+
+/**
+ * List of mentor personas response
+ */
+export interface MentorPersonaListResponse {
+	personas: MentorPersonaDetail[];
+	total: number;
+}
 
 /**
  * Mentor chat request
@@ -1231,7 +1351,7 @@ export type MentorPersona = 'general' | 'action_coach' | 'data_analyst';
 export interface MentorChatRequest {
 	message: string;
 	conversation_id?: string | null;
-	persona?: MentorPersona | null;
+	persona?: MentorPersonaId | null;
 }
 
 /**
@@ -1241,7 +1361,7 @@ export interface MentorMessage {
 	role: 'user' | 'assistant';
 	content: string;
 	timestamp: string;
-	persona?: MentorPersona | null;
+	persona?: MentorPersonaId | null;
 }
 
 /**
@@ -1250,7 +1370,7 @@ export interface MentorMessage {
 export interface MentorConversationResponse {
 	id: string;
 	user_id: string;
-	persona: MentorPersona;
+	persona: MentorPersonaId;
 	created_at: string;
 	updated_at: string;
 	message_count: number;
@@ -1276,3 +1396,268 @@ export interface MentorConversationListResponse {
  * SSE event types for mentor chat streaming
  */
 export type MentorChatEventType = 'thinking' | 'context' | 'response' | 'done' | 'error';
+
+/**
+ * Mention suggestion for autocomplete
+ */
+export interface MentionSuggestion {
+	id: string;
+	type: 'meeting' | 'action' | 'dataset';
+	title: string;
+	preview?: string | null;
+}
+
+/**
+ * Mention search response
+ */
+export interface MentionSearchResponse {
+	suggestions: MentionSuggestion[];
+	total: number;
+}
+
+/**
+ * Resolved mention reference (returned in done event)
+ */
+export interface MentionRef {
+	id: string;
+	title: string;
+}
+
+/**
+ * Resolved mentions in done event
+ */
+export interface ResolvedMentions {
+	meetings?: MentionRef[];
+	actions?: MentionRef[];
+	datasets?: MentionRef[];
+}
+
+// ============================================================================
+// Workspace & Invitation Types
+// ============================================================================
+
+/**
+ * Member role in a workspace
+ */
+export type MemberRole = 'owner' | 'admin' | 'member';
+
+/**
+ * Invitation status
+ */
+export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'revoked' | 'expired';
+
+/**
+ * Workspace response
+ */
+export interface WorkspaceResponse {
+	id: string;
+	name: string;
+	slug: string;
+	owner_id: string;
+	created_at: string;
+	updated_at: string;
+	member_count?: number;
+}
+
+/**
+ * Workspace member response
+ */
+export interface WorkspaceMemberResponse {
+	id: string;
+	workspace_id: string;
+	user_id: string;
+	role: MemberRole;
+	invited_by?: string;
+	joined_at: string;
+	user_email?: string;
+	user_name?: string;
+}
+
+/**
+ * Workspace list response
+ */
+export interface WorkspaceListResponse {
+	workspaces: WorkspaceResponse[];
+	total: number;
+}
+
+/**
+ * Invitation create request
+ */
+export interface InvitationCreateRequest {
+	email: string;
+	role?: MemberRole;
+}
+
+/**
+ * Invitation response
+ */
+export interface InvitationResponse {
+	id: string;
+	workspace_id: string;
+	email: string;
+	role: MemberRole;
+	status: InvitationStatus;
+	expires_at: string;
+	created_at: string;
+	invited_by?: string;
+	accepted_at?: string;
+	workspace_name?: string;
+	inviter_name?: string;
+}
+
+/**
+ * Invitation list response
+ */
+export interface InvitationListResponse {
+	invitations: InvitationResponse[];
+	total: number;
+}
+
+/**
+ * Invitation accept request
+ */
+export interface InvitationAcceptRequest {
+	token: string;
+}
+
+/**
+ * Invitation decline request
+ */
+export interface InvitationDeclineRequest {
+	token: string;
+}
+
+// ============================================================================
+// Industry Benchmarks Types
+// ============================================================================
+
+/**
+ * Benchmark metric category
+ */
+export type BenchmarkCategory = 'growth' | 'retention' | 'efficiency' | 'engagement';
+
+/**
+ * Industry insight base content
+ */
+export interface InsightContent {
+	title: string;
+	description: string;
+	metadata?: Record<string, unknown>;
+}
+
+/**
+ * Benchmark content with percentile data
+ */
+export interface BenchmarkContent extends InsightContent {
+	metric_name: string;
+	metric_unit: string;
+	category: BenchmarkCategory;
+	industry_segment: string;
+	p25?: number;
+	p50?: number;
+	p75?: number;
+	sample_size?: number;
+}
+
+/**
+ * Industry insight
+ */
+export interface IndustryInsight {
+	id: string;
+	industry: string;
+	insight_type: 'trend' | 'benchmark' | 'competitor' | 'best_practice';
+	content: InsightContent | BenchmarkContent | Record<string, unknown>;
+	source_count: number;
+	confidence: number;
+	expires_at?: string;
+	created_at: string;
+	locked: boolean;
+}
+
+/**
+ * Industry insights response
+ */
+export interface IndustryInsightsResponse {
+	industry: string;
+	insights: IndustryInsight[];
+	has_benchmarks: boolean;
+	locked_count: number;
+	upgrade_prompt?: string;
+	user_tier: string;
+}
+
+/**
+ * Benchmark comparison result
+ */
+export interface BenchmarkComparison {
+	metric_name: string;
+	metric_unit: string;
+	category: BenchmarkCategory;
+	user_value?: number;
+	p25?: number;
+	p50?: number;
+	p75?: number;
+	percentile?: number;
+	status: 'below_average' | 'average' | 'above_average' | 'top_performer' | 'unknown' | 'locked';
+	locked: boolean;
+}
+
+/**
+ * Benchmark comparison response
+ */
+export interface BenchmarkComparisonResponse {
+	industry: string;
+	comparisons: BenchmarkComparison[];
+	total_metrics: number;
+	compared_count: number;
+	locked_count: number;
+	upgrade_prompt?: string;
+}
+
+// =============================================================================
+// Usage & Tier Types
+// =============================================================================
+
+/**
+ * Single metric usage details
+ */
+export interface UsageMetric {
+	metric: string;
+	current: number;
+	limit: number;
+	remaining: number;
+	reset_at: string | null;
+}
+
+/**
+ * User usage response
+ */
+export interface UsageResponse {
+	tier: string;
+	effective_tier: string;
+	metrics: UsageMetric[];
+	features: Record<string, boolean>;
+}
+
+/**
+ * Tier limits response
+ */
+export interface TierLimitsResponse {
+	tier: string;
+	limits: Record<string, number>;
+	features: Record<string, boolean>;
+}
+
+/**
+ * Tier limit error (429 response)
+ */
+export interface TierLimitError {
+	error: 'tier_limit_exceeded';
+	metric: string;
+	current: number;
+	limit: number;
+	remaining: number;
+	reset_at: string | null;
+	upgrade_prompt: string;
+}

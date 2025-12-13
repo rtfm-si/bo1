@@ -3,7 +3,7 @@
 Validates:
 - GET /v1/user/retention returns current retention setting
 - PATCH /v1/user/retention updates retention setting
-- Validation: 30 <= days <= 730
+- Validation: 365 <= days <= 3650 (1-10 years)
 """
 
 from unittest.mock import MagicMock, patch
@@ -25,30 +25,30 @@ class TestRetentionSettingModels:
 
     def test_retention_update_valid(self) -> None:
         """Test valid retention update request."""
-        update = RetentionSettingUpdate(days=90)
-        assert update.days == 90
-
-    def test_retention_update_minimum(self) -> None:
-        """Test minimum value (30 days)."""
-        update = RetentionSettingUpdate(days=30)
-        assert update.days == 30
-
-    def test_retention_update_maximum(self) -> None:
-        """Test maximum value (730 days)."""
         update = RetentionSettingUpdate(days=730)
         assert update.days == 730
 
+    def test_retention_update_minimum(self) -> None:
+        """Test minimum value (365 days / 1 year)."""
+        update = RetentionSettingUpdate(days=365)
+        assert update.days == 365
+
+    def test_retention_update_maximum(self) -> None:
+        """Test maximum value (3650 days / 10 years)."""
+        update = RetentionSettingUpdate(days=3650)
+        assert update.days == 3650
+
     def test_retention_update_below_minimum(self) -> None:
-        """Test that values below 30 are rejected."""
+        """Test that values below 365 are rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            RetentionSettingUpdate(days=29)
-        assert "greater than or equal to 30" in str(exc_info.value)
+            RetentionSettingUpdate(days=364)
+        assert "greater than or equal to 365" in str(exc_info.value)
 
     def test_retention_update_above_maximum(self) -> None:
-        """Test that values above 730 are rejected."""
+        """Test that values above 3650 are rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            RetentionSettingUpdate(days=731)
-        assert "less than or equal to 730" in str(exc_info.value)
+            RetentionSettingUpdate(days=3651)
+        assert "less than or equal to 3650" in str(exc_info.value)
 
     def test_retention_update_zero(self) -> None:
         """Test that zero is rejected."""

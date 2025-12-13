@@ -13,14 +13,21 @@
  */
 import { test, expect } from '@playwright/test';
 
-// Mock completed session data
+// Mock completed session data - matches SessionResponse structure
 const mockCompletedSession = {
 	id: 'test-completed-session',
 	problem_statement: 'Should we expand to European markets this quarter?',
-	status: 'completed',
+	status: 'completed' as const,
+	phase: 'complete',
 	created_at: new Date().toISOString(),
-	completed_at: new Date().toISOString(),
-	user_id: 'test_user_1'
+	updated_at: new Date().toISOString(),
+	last_activity_at: new Date().toISOString(),
+	cost: 0.15,
+	expert_count: 2,
+	contribution_count: 2,
+	task_count: 2,
+	focus_area_count: 2,
+	stale_insights: null
 };
 
 // Mock events for a completed meeting
@@ -559,8 +566,8 @@ test.describe('Meeting in progress', () => {
 				body: JSON.stringify({
 					...mockCompletedSession,
 					id: 'test-active-session',
-					status: 'in_progress',
-					completed_at: null
+					status: 'active',
+					phase: 'deliberation'
 				})
 			})
 		);

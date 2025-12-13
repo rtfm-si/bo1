@@ -23,6 +23,8 @@ from backend.services.audit import (
     log_gdpr_event,
 )
 from backend.services.gdpr import GDPRError, collect_user_data, delete_user_data
+from backend.services.usage_tracking import get_all_usage, get_effective_tier
+from bo1.constants import TierFeatureFlags, TierLimits
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -35,14 +37,14 @@ class RetentionSettingResponse(BaseModel):
     """Response for retention setting endpoint."""
 
     data_retention_days: int = Field(
-        ..., ge=30, le=730, description="Data retention period in days"
+        ..., ge=365, le=3650, description="Data retention period in days (1-10 years)"
     )
 
 
 class RetentionSettingUpdate(BaseModel):
     """Request body for updating retention setting."""
 
-    days: int = Field(..., ge=30, le=730, description="Data retention period (30-730 days)")
+    days: int = Field(..., ge=365, le=3650, description="Data retention period (365-3650 days)")
 
 
 def _get_client_ip(request: Request) -> str | None:
@@ -311,7 +313,12 @@ async def get_retention_setting(
                 if not row:
                     raise HTTPException(status_code=404, detail="User not found")
 
-                return RetentionSettingResponse(data_retention_days=row["data_retention_days"])
+                # Handle potential NULL from users created before migration
+                retention_days = row["data_retention_days"]
+                if retention_days is None:
+                    retention_days = 365  # Default fallback
+
+                return RetentionSettingResponse(data_retention_days=retention_days)
 
     except HTTPException:
         raise
@@ -326,10 +333,10 @@ async def get_retention_setting(
     description="""
     Update the user's data retention period.
 
-    Valid range: 30-730 days (1 month to 2 years).
+    Valid range: 365-3650 days (1 year to 10 years).
 
-    - Minimum 30 days prevents accidental data loss
-    - Maximum 730 days (2 years) for compliance
+    - Minimum 1 year ensures data is available for annual reviews
+    - Maximum 10 years for enterprise compliance needs
 
     Note: Changing to a shorter period does not immediately delete data.
     The scheduled cleanup job will remove data past the new retention period
@@ -338,7 +345,7 @@ async def get_retention_setting(
     response_model=RetentionSettingResponse,
     responses={
         200: {"description": "Retention setting updated"},
-        422: {"description": "Invalid retention period (must be 30-730 days)"},
+        422: {"description": "Invalid retention period (must be 365-3650 days)"},
         500: {"description": "Failed to update setting", "model": ErrorResponse},
     },
 )
@@ -609,3 +616,113 @@ async def update_gantt_color_preference(
     except Exception as e:
         logger.error(f"Failed to update Gantt color preference for {user_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update preference") from e
+
+
+# =============================================================================
+# Usage & Limits
+# =============================================================================
+
+
+class UsageMetricResponse(BaseModel):
+    """Single metric usage details."""
+
+    metric: str = Field(..., description="Metric name")
+    current: int = Field(..., description="Current usage count")
+    limit: int = Field(..., description="Limit (-1 = unlimited)")
+    remaining: int = Field(..., description="Remaining quota (-1 = unlimited)")
+    reset_at: str | None = Field(None, description="When usage resets (ISO 8601)")
+
+
+class UsageResponse(BaseModel):
+    """User's current usage across all metrics."""
+
+    tier: str = Field(..., description="User's subscription tier")
+    effective_tier: str = Field(..., description="Effective tier (may differ if override active)")
+    metrics: list[UsageMetricResponse] = Field(..., description="Usage per metric")
+    features: dict[str, bool] = Field(..., description="Feature flags for tier")
+
+
+@router.get(
+    "/usage",
+    summary="Get user usage",
+    description="Get current usage across all metrics (meetings, datasets, mentor chats).",
+    response_model=UsageResponse,
+    responses={
+        200: {"description": "Usage retrieved successfully"},
+        401: {"description": "Authentication required", "model": ErrorResponse},
+        500: {"description": "Failed to get usage", "model": ErrorResponse},
+    },
+)
+async def get_usage(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> UsageResponse:
+    """Get user's current usage and limits."""
+    user_id = user["user_id"]
+    base_tier = user.get("subscription_tier", "free")
+
+    try:
+        # Get effective tier (considering overrides)
+        effective_tier = get_effective_tier(user_id, base_tier)
+
+        # Get usage for all metrics
+        all_usage = get_all_usage(user_id, effective_tier)
+
+        # Format metrics
+        metrics = []
+        for metric_name, result in all_usage.items():
+            metrics.append(
+                UsageMetricResponse(
+                    metric=metric_name,
+                    current=result.current,
+                    limit=result.limit,
+                    remaining=result.remaining,
+                    reset_at=result.reset_at.isoformat() if result.reset_at else None,
+                )
+            )
+
+        # Get feature flags
+        features = TierFeatureFlags.get_features(effective_tier)
+
+        return UsageResponse(
+            tier=base_tier,
+            effective_tier=effective_tier,
+            metrics=metrics,
+            features=features,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to get usage for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get usage") from e
+
+
+class TierLimitsResponse(BaseModel):
+    """Tier limits information."""
+
+    tier: str = Field(..., description="Tier name")
+    limits: dict[str, int] = Field(..., description="Limits per metric")
+    features: dict[str, bool] = Field(..., description="Feature flags")
+
+
+@router.get(
+    "/tier-info",
+    summary="Get tier information",
+    description="Get limits and features for user's current tier.",
+    response_model=TierLimitsResponse,
+    responses={
+        200: {"description": "Tier info retrieved successfully"},
+        401: {"description": "Authentication required", "model": ErrorResponse},
+    },
+)
+async def get_tier_info(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> TierLimitsResponse:
+    """Get user's tier limits and features."""
+    user_id = user["user_id"]
+    base_tier = user.get("subscription_tier", "free")
+    effective_tier = get_effective_tier(user_id, base_tier)
+
+    return TierLimitsResponse(
+        tier=effective_tier,
+        limits=TierLimits.get_limits(effective_tier),
+        features=TierFeatureFlags.get_features(effective_tier),
+    )

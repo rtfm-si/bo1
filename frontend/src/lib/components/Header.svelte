@@ -6,6 +6,8 @@
 	import { page } from '$app/stores';
 	import Button from '$lib/components/ui/Button.svelte';
 	import NavDropdown from '$lib/components/ui/NavDropdown.svelte';
+	import WorkspaceSwitcher from '$lib/components/workspace/WorkspaceSwitcher.svelte';
+	import CreateWorkspaceModal from '$lib/components/workspace/CreateWorkspaceModal.svelte';
 	import { isAuthenticated, user, signOut } from '$lib/stores/auth';
 	import { Menu, X, ChevronDown, ChevronRight, HelpCircle } from 'lucide-svelte';
 
@@ -42,6 +44,9 @@
 	let mobileMenuOpen = $state(false);
 	let mobileWorkExpanded = $state(false);
 	let mobileDataExpanded = $state(false);
+
+	// Workspace modal state
+	let showCreateWorkspaceModal = $state(false);
 
 	function toggleMobileMenu() {
 		mobileMenuOpen = !mobileMenuOpen;
@@ -126,6 +131,13 @@
 					Board of One
 				</span>
 			</a>
+
+			<!-- Workspace Switcher (authenticated only, desktop) -->
+			{#if $isAuthenticated}
+				<div class="hidden md:block ml-4">
+					<WorkspaceSwitcher onCreateWorkspace={() => (showCreateWorkspaceModal = true)} />
+				</div>
+			{/if}
 
 			<!-- Desktop Navigation -->
 			<div class="hidden md:flex items-center gap-5">
@@ -212,6 +224,12 @@
 		<div class="md:hidden border-t border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
 			<div class="px-4 py-4 space-y-1">
 				{#if $isAuthenticated}
+					<!-- Mobile Workspace Switcher -->
+					<div class="pb-3 mb-1 border-b border-neutral-200 dark:border-neutral-700">
+						<span class="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2 block">Workspace</span>
+						<WorkspaceSwitcher onCreateWorkspace={() => { closeMobileMenu(); showCreateWorkspaceModal = true; }} />
+					</div>
+
 					<a
 						href="/dashboard"
 						class={isActive('/dashboard')
@@ -370,3 +388,6 @@
 		</div>
 	{/if}
 </header>
+
+<!-- Create Workspace Modal -->
+<CreateWorkspaceModal bind:open={showCreateWorkspaceModal} />

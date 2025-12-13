@@ -4,7 +4,10 @@ Provides system prompts and formatters for the mentor chat feature.
 Personas: general, action_coach, data_analyst
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from backend.services.mention_resolver import ResolvedMentions
 
 # =============================================================================
 # Mentor System Prompts (by persona)
@@ -307,6 +310,7 @@ def build_mentor_prompt(
     actions_context: str = "",
     datasets_context: str = "",
     conversation_history: str = "",
+    mentioned_context: str = "",
 ) -> str:
     """Build the full user prompt for the mentor.
 
@@ -317,6 +321,7 @@ def build_mentor_prompt(
         actions_context: Formatted active actions
         datasets_context: Formatted dataset summaries
         conversation_history: Formatted conversation history
+        mentioned_context: Formatted @mention context (meetings, actions, datasets)
 
     Returns:
         Complete user prompt
@@ -331,9 +336,83 @@ def build_mentor_prompt(
         parts.append(actions_context)
     if datasets_context:
         parts.append(datasets_context)
+    # Add mentioned context just before conversation history and question
+    if mentioned_context:
+        parts.append(mentioned_context)
     if conversation_history:
         parts.append(conversation_history)
 
     parts.append(f"<question>{question}</question>")
 
     return "\n\n".join(parts)
+
+
+# =============================================================================
+# Mentioned Context Formatter
+# =============================================================================
+
+
+def format_mentioned_context(resolved: "ResolvedMentions") -> str:
+    """Format resolved mentions for injection into mentor prompt.
+
+    Args:
+        resolved: ResolvedMentions from mention_resolver
+
+    Returns:
+        Formatted XML string for prompt injection, or empty string if no context
+    """
+    if not resolved.has_context():
+        return ""
+
+    lines = [
+        "<mentioned_context>",
+        "The user has specifically referenced these items:",
+    ]
+
+    # Format meetings
+    if resolved.meetings:
+        lines.append("  <referenced_meetings>")
+        for m in resolved.meetings:
+            lines.append(
+                f'    <meeting id="{m.id}" status="{m.status}" date="{m.created_at or "unknown"}">'
+            )
+            lines.append(f"      <topic>{m.problem_statement}</topic>")
+            if m.synthesis_summary:
+                lines.append(f"      <outcome>{m.synthesis_summary}</outcome>")
+            lines.append("    </meeting>")
+        lines.append("  </referenced_meetings>")
+
+    # Format actions
+    if resolved.actions:
+        lines.append("  <referenced_actions>")
+        for a in resolved.actions:
+            due_attr = f' due="{a.due_date}"' if a.due_date else ""
+            priority_attr = f' priority="{a.priority}"' if a.priority else ""
+            lines.append(f'    <action id="{a.id}" status="{a.status}"{priority_attr}{due_attr}>')
+            lines.append(f"      <title>{a.title}</title>")
+            if a.description:
+                lines.append(f"      <description>{a.description}</description>")
+            lines.append("    </action>")
+        lines.append("  </referenced_actions>")
+
+    # Format datasets
+    if resolved.datasets:
+        lines.append("  <referenced_datasets>")
+        for d in resolved.datasets:
+            rows = d.row_count or 0
+            cols = d.column_count or 0
+            lines.append(f'    <dataset id="{d.id}" rows="{rows}" columns="{cols}">')
+            lines.append(f"      <name>{d.name}</name>")
+            if d.description:
+                lines.append(f"      <description>{d.description}</description>")
+            if d.summary:
+                lines.append(f"      <summary>{d.summary}</summary>")
+            lines.append("    </dataset>")
+        lines.append("  </referenced_datasets>")
+
+    # Note if some mentions couldn't be resolved
+    if resolved.not_found:
+        lines.append(f"  <not_found>{', '.join(resolved.not_found)}</not_found>")
+
+    lines.append("</mentioned_context>")
+    return "\n".join(lines)

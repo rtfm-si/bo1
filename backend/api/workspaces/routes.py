@@ -412,3 +412,12 @@ async def remove_member(
         raise HTTPException(status_code=404, detail="Member not found")
 
     logger.info(f"Removed member {target_user_id} from workspace {workspace_id} (by {actor_id})")
+
+
+# =============================================================================
+# Include invitation routes
+# =============================================================================
+
+from backend.api.workspaces.invitations import workspace_router as invitations_router  # noqa: E402
+
+router.include_router(invitations_router, prefix="")

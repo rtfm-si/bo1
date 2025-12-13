@@ -268,6 +268,7 @@ services:
       - PUBLIC_API_URL=http://localhost:8000
       - INTERNAL_API_URL=http://api:8000
       - VITE_API_BASE_URL=http://localhost:8000
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-}
     ports:
       - "5173:5173"  # Vite dev server
     volumes:

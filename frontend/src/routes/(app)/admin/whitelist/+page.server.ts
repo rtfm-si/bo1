@@ -1,17 +1,13 @@
 import { error, fail } from '@sveltejs/kit';
+import { adminFetch } from '$lib/server/admin-fetch';
 import type { PageServerLoad, Actions } from './$types';
-
-const API_BASE_URL = process.env.INTERNAL_API_URL || 'http://api:8000';
 
 export const load: PageServerLoad = async ({ request }) => {
 	try {
-		// Forward all cookies from the incoming request
 		const cookieHeader = request.headers.get('cookie') || '';
 
-		const response = await fetch(`${API_BASE_URL}/api/admin/beta-whitelist`, {
-			headers: {
-				'Cookie': cookieHeader
-			}
+		const response = await adminFetch('/api/admin/beta-whitelist', {
+			cookieHeader
 		});
 
 		if (!response.ok) {
@@ -41,19 +37,12 @@ export const actions: Actions = {
 		}
 
 		try {
-			// Forward all cookies from the incoming request
 			const cookieHeader = request.headers.get('cookie') || '';
 
-			const response = await fetch(`${API_BASE_URL}/api/admin/beta-whitelist`, {
+			const response = await adminFetch('/api/admin/beta-whitelist', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'Cookie': cookieHeader
-				},
-				body: JSON.stringify({
-					email,
-					notes: notes || undefined
-				})
+				cookieHeader,
+				body: { email, notes: notes || undefined }
 			});
 
 			if (!response.ok) {
@@ -76,14 +65,11 @@ export const actions: Actions = {
 		}
 
 		try {
-			// Forward all cookies from the incoming request
 			const cookieHeader = request.headers.get('cookie') || '';
 
-			const response = await fetch(`${API_BASE_URL}/api/admin/beta-whitelist/${encodeURIComponent(email)}`, {
+			const response = await adminFetch(`/api/admin/beta-whitelist/${encodeURIComponent(email)}`, {
 				method: 'DELETE',
-				headers: {
-					'Cookie': cookieHeader
-				}
+				cookieHeader
 			});
 
 			if (!response.ok) {

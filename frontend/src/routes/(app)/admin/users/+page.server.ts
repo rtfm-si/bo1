@@ -1,27 +1,22 @@
 import { error, fail } from '@sveltejs/kit';
+import { adminFetch } from '$lib/server/admin-fetch';
 import type { PageServerLoad, Actions } from './$types';
-
-const API_BASE_URL = process.env.INTERNAL_API_URL || 'http://api:8000';
 
 export const load: PageServerLoad = async ({ url, request }) => {
 	const page = parseInt(url.searchParams.get('page') || '1');
 	const per_page = parseInt(url.searchParams.get('per_page') || '20');
 	const email = url.searchParams.get('email') || '';
 
-	// Build query string
 	const searchParams = new URLSearchParams();
 	searchParams.set('page', page.toString());
 	searchParams.set('per_page', per_page.toString());
 	if (email) searchParams.set('email', email);
 
 	try {
-		// Forward all cookies from the incoming request
 		const cookieHeader = request.headers.get('cookie') || '';
 
-		const response = await fetch(`${API_BASE_URL}/api/admin/users?${searchParams}`, {
-			headers: {
-				'Cookie': cookieHeader
-			}
+		const response = await adminFetch(`/api/admin/users?${searchParams}`, {
+			cookieHeader
 		});
 
 		if (!response.ok) {
@@ -58,16 +53,12 @@ export const actions: Actions = {
 		updateData.is_admin = isAdmin;
 
 		try {
-			// Forward all cookies from the incoming request
 			const cookieHeader = request.headers.get('cookie') || '';
 
-			const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
+			const response = await adminFetch(`/api/admin/users/${userId}`, {
 				method: 'PATCH',
-				headers: {
-					'Content-Type': 'application/json',
-					'Cookie': cookieHeader
-				},
-				body: JSON.stringify(updateData)
+				cookieHeader,
+				body: updateData
 			});
 
 			if (!response.ok) {
@@ -93,13 +84,10 @@ export const actions: Actions = {
 		try {
 			const cookieHeader = request.headers.get('cookie') || '';
 
-			const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/lock`, {
+			const response = await adminFetch(`/api/admin/users/${userId}/lock`, {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'Cookie': cookieHeader
-				},
-				body: JSON.stringify({ reason })
+				cookieHeader,
+				body: { reason }
 			});
 
 			if (!response.ok) {
@@ -124,12 +112,9 @@ export const actions: Actions = {
 		try {
 			const cookieHeader = request.headers.get('cookie') || '';
 
-			const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/unlock`, {
+			const response = await adminFetch(`/api/admin/users/${userId}/unlock`, {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'Cookie': cookieHeader
-				}
+				cookieHeader
 			});
 
 			if (!response.ok) {
@@ -155,13 +140,10 @@ export const actions: Actions = {
 		try {
 			const cookieHeader = request.headers.get('cookie') || '';
 
-			const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
+			const response = await adminFetch(`/api/admin/users/${userId}`, {
 				method: 'DELETE',
-				headers: {
-					'Content-Type': 'application/json',
-					'Cookie': cookieHeader
-				},
-				body: JSON.stringify({ hard_delete: hardDelete, revoke_sessions: true })
+				cookieHeader,
+				body: { hard_delete: hardDelete, revoke_sessions: true }
 			});
 
 			if (!response.ok) {

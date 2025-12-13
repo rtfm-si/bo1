@@ -24,23 +24,21 @@ const config = {
 			publicPrefix: 'PUBLIC_'
 		},
 
-		// Content Security Policy with nonce-based script loading
-		// SvelteKit auto-generates nonces for inline scripts and styles
+		// Content Security Policy
+		// Note: Production CSP is enforced by nginx, so this is mainly for dev
+		// Always allow localhost for local development flexibility
 		csp: {
 			mode: 'auto',
 			directives: {
 				'default-src': ['self'],
-				'script-src': dev ? ['self', 'unsafe-inline'] : ['self'],
+				'script-src': ['self', 'unsafe-inline'],
 				'style-src': ['self', 'unsafe-inline'],
 				'img-src': ['self', 'data:', 'https:'],
 				'font-src': ['self', 'data:'],
-				'connect-src': dev
-					? ['self', 'https:', 'wss:', 'http://localhost:*', 'ws://localhost:*']
-					: ['self', 'https:', 'wss:'],
+				'connect-src': ['self', 'https:', 'wss:', 'http://localhost:*', 'ws://localhost:*'],
 				'frame-ancestors': ['none'],
 				'base-uri': ['self'],
-				'form-action': ['self'],
-				'report-uri': ['/api/v1/csp-report']
+				'form-action': ['self']
 			}
 		}
 	}

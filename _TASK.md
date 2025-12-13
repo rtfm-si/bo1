@@ -518,11 +518,13 @@
 ### Session Export & Sharing [SESSION-EXPORT] ✅ COMPLETE
 
 **Completed (2025-12-12):**
+
 - [x] [EXPORT][P3] Create session export service (JSON/Markdown) ✅ backend/services/session_export.py
 - [x] [EXPORT][P3] Create session_shares migration and schema ✅ migrations/versions/z2_create_session_shares.py (with merge resolution)
 - [x] [EXPORT][P3] Create session share service (tokens, expiry, validation) ✅ backend/services/session_share.py
 
 **Completed (2025-12-12, phase 2):**
+
 - [x] [EXPORT][P3] Add export API endpoints (GET /sessions/{id}/export?format=json|markdown) ✅ backend/api/sessions.py + SessionExporter
 - [x] [EXPORT][P3] Add share API endpoints (POST/GET/DELETE /sessions/{id}/share) ✅ backend/api/sessions.py
 - [x] [EXPORT][P3] Add public share endpoint (GET /api/v1/share/{token}) ✅ backend/api/share.py
@@ -530,6 +532,7 @@
 - [x] [EXPORT][P3] Add session_repository sharing methods (create_share, list_shares, revoke_share, get_share_by_token) ✅ bo1/state/repositories/session_repository.py
 
 **Completed (2025-12-12, phase 3 - frontend):**
+
 - [x] [EXPORT][P3] Add API client methods for export/sharing ✅ frontend/src/lib/api/client.ts (exportSession, createShare, listShares, revokeShare, getPublicShare)
 - [x] [EXPORT][P3] Implement session detail export UI (download buttons) ✅ MeetingHeader.svelte with Export dropdown (JSON/Markdown)
 - [x] [EXPORT][P3] Implement public share UI and modal (TTL selector, copy URL) ✅ frontend/src/lib/components/meeting/ShareModal.svelte
@@ -637,8 +640,9 @@
 ### Logging & Monitoring [SEC][LOG]
 
 - [x] [SEC][LOG][P2] Audit logs for PII/secret leakage ✅ bo1/utils/log_sanitizer.py + JsonFormatter integration + Promtail scrubbing + 33 tests
+
   - Centralized sanitizer: password/secret/token/api_key redaction
-  - Email partial masking (j***@example.com)
+  - Email partial masking (j\*\*\*@example.com)
   - Bearer token truncation (8 chars + ...)
   - Nested dict recursive sanitization
   - Defense-in-depth: app-level + Promtail pipeline
@@ -663,7 +667,7 @@
 ### Data Retention Policy [RETENTION-POLICY]
 
 - [x] [UX][P2] Extend data retention minimum to 1 year (current options too short for monthly plan users) ✅ Range now 365-3650 days (1-10 years); ac1_extend_retention_range migration
-- [x] [UX][P3] Evaluate removing user-facing retention config (data available until account closure) ✅ Evaluation complete in _PLAN.md; **DECISION REQUIRED**: Option A (remove config, infinite retention) vs Option B (keep); implementation blocked pending user decision
+- [x] [UX][P3] Evaluate removing user-facing retention config (data available until account closure) ✅ Evaluation complete in \_PLAN.md; **DECISION REQUIRED**: Option A (remove config, infinite retention) vs Option B (keep); implementation blocked pending user decision
 
 ### Insights Enhancement [INSIGHTS-ENH] ✅ COMPLETE
 
@@ -683,6 +687,16 @@
 - [x] [INDUSTRY][P3] Add user benchmark comparison endpoint ✅ GET /api/v1/industry-insights/compare with percentile calculation + performance status
 - [x] [INDUSTRY][P3] Create frontend benchmarks UI page ✅ frontend/src/routes/(app)/settings/intelligence/benchmarks/+page.svelte with category filtering, percentile visualization, tier awareness
 - [x] [INDUSTRY][P3] Write unit tests for benchmark tier filtering ✅ tests/api/test_industry_benchmarks.py (41 tests)
+
+---
+
+## Task backlog (from \_TODO.md, 2025-12-13)
+
+### Dashboard Completion Trends Bug [BUG-TRENDS]
+
+- [ ] [BUG][P1] Fix dashboard completion trends timeframe toggles (1m, 3m, 1y) - buttons don't update displayed data
+- [ ] [BUG][P1] Fix dashboard completion trends chart box positioning - boxes not aligned to correct month on x-axis
+- [ ] [BUG][P1] Investigate and fix root cause of dashboard completion trends display issues
 
 ---
 

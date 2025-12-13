@@ -436,7 +436,7 @@ async def get_global_gantt(
 
     # Initialize color service
     settings = get_settings()
-    redis_client = redis.from_url(settings.REDIS_URL, decode_responses=False)
+    redis_client = redis.from_url(settings.redis_url, decode_responses=False)
     color_service = GanttColorService(redis_client)
 
     for action_id, action in action_data_map.items():
@@ -547,7 +547,6 @@ async def get_action_stats(
             FROM sessions
             WHERE user_id = %s
               AND created_at >= CURRENT_DATE - INTERVAL '%s days'
-              AND deleted_at IS NULL
             GROUP BY DATE(created_at)
         ),
         meetings_completed_counts AS (
@@ -556,7 +555,6 @@ async def get_action_stats(
             WHERE user_id = %s
               AND status = 'completed'
               AND updated_at >= CURRENT_DATE - INTERVAL '%s days'
-              AND deleted_at IS NULL
             GROUP BY DATE(updated_at)
         )
         SELECT

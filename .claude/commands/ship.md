@@ -38,6 +38,9 @@ docker-compose run --rm bo1 mypy bo1/ --install-types --non-interactive
 
 # Frontend
 docker-compose run --rm frontend npm run check
+
+# Database migrations (ensure migrations are up to date)
+docker-compose exec bo1 uv run alembic upgrade heads
 ```
 
 If checks fail:

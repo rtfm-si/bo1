@@ -753,3 +753,107 @@
 - [x] [E2E][P2] Fix meeting-complete.spec.ts - Fixed in_progress session mock to use 'active' status (valid enum value)
 
 ---
+
+## Task backlog (from \_TODO.md, 2025-12-13)
+
+### Analytics & Tracking [ANALYTICS]
+
+- [ ] [ANALYTICS][P2] Implement country/region visitor tracking for website analytics
+
+### Build & Deployment [BUILD]
+
+- [ ] [BUILD][P2] Run database migrations as part of /build script
+- [ ] [BUILD][P2] Batch and run migrations at end of build process
+- [ ] [BUILD][P2] Update /ship script to auto-fix lintable issues before commit
+
+### Monitoring & Debugging [MONITORING-FIX]
+
+- [ ] [MONITORING][P2] Fix Grafana templating "Failed to upgrade legacy queries" error for bo1 logs
+
+### Feedback Modal Bugs [BUG-FEEDBACK]
+
+- [ ] [BUG][P1] Fix feedback modal: test button renders on top of feedback card
+- [ ] [BUG][P1] Fix feedback modal: cancel button not working
+- [ ] [BUG][P1] Fix feedback modal: close button not working
+- [ ] [UX][P2] Capture logged-in user account ID when submitting bug/feedback reports
+
+### Dashboard Completion Trends [TRENDS-ENH]
+
+- [ ] [UX][P2] Rename "meetings started" to "meetings" in completion trends chart
+- [ ] [UX][P2] Add mentor sessions to completion trends chart
+
+### Dashboard & Navigation UX [NAV-UX]
+
+- [ ] [UX][P2] Remove duplicate "new meeting" button from dashboard (keep single entry point)
+- [ ] [UX][P2] Move Datasets and Mentor from "Data" dropdown to "Work" dropdown in header nav
+- [ ] [UX][P2] Rename "Work" dropdown to action-oriented name aligned with "Board of One" branding
+
+### Data Analysis Feature [DATA-STANDALONE]
+
+- [ ] [UX][P2] Extract data analysis section from Mentor into standalone feature accessible from main nav
+
+### Workspace Multi-Tenancy [WORKSPACE-ENH]
+
+- [ ] [WORKSPACE][P2] Create default workspace for each new user on signup
+- [ ] [WORKSPACE][P2] Implement workspace join by invitation and approval flow
+- [ ] [WORKSPACE][P2] Implement admin/owner role transfer between workspace users
+
+### Project-Meeting Scoping [PROJECT-SCOPE]
+
+- [ ] [PROJECTS][P2] Enforce single-workspace constraint on meetings (meeting belongs to exactly one workspace)
+- [ ] [PROJECTS][P2] Allow meetings to discuss/work on multiple projects within same workspace
+- [ ] [PROJECTS][P2] Auto-suggest project creation from meeting questions and resulting actions
+
+---
+
+## Task backlog (from \_TODO.md, 2025-12-13)
+
+### Landing Page Analytics [ANALYTICS-WEB]
+
+- [ ] [ANALYTICS][P2] Implement visitor country/region tracking for landing page
+- [ ] [ANALYTICS][P2] Add bounce rate tracking and reporting for landing page
+- [ ] [ANALYTICS][P2] Track click-through rate from landing page to signup
+- [ ] [ANALYTICS][P2] Create admin analytics page for landing page metrics (integrate with SEO system)
+
+### Dashboard Actions Display [DASH-ACTIONS]
+
+- [ ] [UX][P2] Show latest update timestamp on outstanding actions in dashboard (without increasing visual footprint)
+
+### Action-Project Assignment [ACTION-PROJECT]
+
+- [ ] [UX][P2] Add project selector when viewing action detail (assign action to project or create new project)
+
+### Projects Autogeneration [PROJECT-GEN]
+
+- [ ] [PROJECTS][P2] Implement "autogenerate projects" feature from existing actions in projects page
+- [ ] [PROJECTS][P2] Suggest projects from business context focus areas and strategic priorities
+
+### Project Meetings [PROJECT-MEET]
+
+- [ ] [PROJECTS][P2] Enable meeting creation from project detail page to discuss project delivery
+
+---
+
+## Task backlog (from \_TODO.md, 2025-12-13 update)
+
+### Social Sharing [SOCIAL-SHARE]
+
+- [ ] [SOCIAL][P3] Add social media share button for activity heatmap (non-intrusive placement)
+- [ ] [SOCIAL][P3] Add shareable meeting insight/summary cards for social media
+- [ ] [SOCIAL][P3] Add shareable action completion achievements for social media
+
+### Value Metrics Dashboard [VALUE-METRICS]
+
+- [ ] [UX][P2] Add dynamic value metrics to completion trends based on user business context
+- [ ] [UX][P2] Show metric improvement trends (e.g. churn, sales) derived from context updates
+- [ ] [UX][P2] Add projected meeting cost calculator (estimate based on participant salary, duration, research time)
+
+### Action Reminders & Chase System [ACTION-CHASE]
+
+- [ ] [ACTIONS][P2] Add configurable action start reminder ("anticipated start" prompt if not started)
+- [ ] [ACTIONS][P2] Add approaching-deadline reminder for actions with no recent updates
+- [ ] [ACTIONS][P2] Implement user-configurable reminder frequency ("remind me in X days")
+- [ ] [ACTIONS][P2] Highlight pending action reminders on dashboard
+- [ ] [EMAIL][P2] Send email notifications for action reminders (start overdue, deadline approaching)
+
+---

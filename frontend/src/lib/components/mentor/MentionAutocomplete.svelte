@@ -37,6 +37,9 @@
 	$effect(() => {
 		if (!visible) return;
 
+		// Track activeTab as dependency by reading it in the synchronous part
+		const currentTab = activeTab;
+
 		// Clear previous timeout
 		if (searchTimeout) {
 			clearTimeout(searchTimeout);
@@ -44,7 +47,7 @@
 
 		// Debounce search (300ms)
 		searchTimeout = setTimeout(() => {
-			searchMentions(activeTab, query);
+			searchMentions(currentTab, query);
 		}, 300);
 
 		return () => {

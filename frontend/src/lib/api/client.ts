@@ -101,7 +101,12 @@ import type {
 	BenchmarkComparisonResponse,
 	// Usage & Tier types
 	UsageResponse,
-	TierLimitsResponse
+	TierLimitsResponse,
+	// Feedback types
+	FeedbackCreateRequest,
+	FeedbackResponse,
+	// Calendar types
+	CalendarStatusResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -341,6 +346,30 @@ export interface BillingPortalResponse {
 	url: string | null;
 	message: string;
 	available: boolean;
+}
+
+export interface CheckoutRequest {
+	price_id: string;
+}
+
+export interface CheckoutResponse {
+	session_id: string;
+	url: string;
+}
+
+// Workspace Billing Types
+export interface WorkspaceBillingInfoResponse {
+	workspace_id: string;
+	workspace_name: string;
+	tier: string;
+	billing_email: string | null;
+	has_billing_account: boolean;
+	is_billing_owner: boolean;
+	can_manage_billing: boolean;
+}
+
+export interface WorkspacePortalResponse {
+	url: string;
 }
 
 // Privacy & GDPR Types
@@ -1046,6 +1075,31 @@ export class ApiClient {
 
 	async createBillingPortalSession(): Promise<BillingPortalResponse> {
 		return this.post<BillingPortalResponse>('/api/v1/billing/portal');
+	}
+
+	async createCheckoutSession(priceId: string): Promise<CheckoutResponse> {
+		return this.post<CheckoutResponse>('/api/v1/billing/checkout', { price_id: priceId });
+	}
+
+	// ==========================================================================
+	// Workspace Billing Endpoints
+	// ==========================================================================
+
+	async getWorkspaceBilling(workspaceId: string): Promise<WorkspaceBillingInfoResponse> {
+		return this.fetch<WorkspaceBillingInfoResponse>(`/api/v1/workspaces/${workspaceId}/billing`);
+	}
+
+	async createWorkspaceCheckout(
+		workspaceId: string,
+		priceId: string
+	): Promise<CheckoutResponse> {
+		return this.post<CheckoutResponse>(`/api/v1/workspaces/${workspaceId}/billing/checkout`, {
+			price_id: priceId
+		});
+	}
+
+	async createWorkspacePortalSession(workspaceId: string): Promise<WorkspacePortalResponse> {
+		return this.post<WorkspacePortalResponse>(`/api/v1/workspaces/${workspaceId}/billing/portal`);
 	}
 
 	// ==========================================================================
@@ -1978,6 +2032,36 @@ export class ApiClient {
 	 */
 	async getTierInfo(): Promise<TierLimitsResponse> {
 		return this.fetch<TierLimitsResponse>('/api/v1/user/tier-info');
+	}
+
+	// ============================================================================
+	// Feedback
+	// ============================================================================
+
+	/**
+	 * Submit feedback (feature request or problem report)
+	 * Rate limited to 5 submissions per hour
+	 */
+	async submitFeedback(data: FeedbackCreateRequest): Promise<FeedbackResponse> {
+		return this.post<FeedbackResponse>('/api/v1/feedback', data);
+	}
+
+	// ============================================================================
+	// Calendar Integration
+	// ============================================================================
+
+	/**
+	 * Get Google Calendar connection status
+	 */
+	async getCalendarStatus(): Promise<CalendarStatusResponse> {
+		return this.fetch<CalendarStatusResponse>('/api/v1/integrations/calendar/status');
+	}
+
+	/**
+	 * Disconnect Google Calendar integration
+	 */
+	async disconnectCalendar(): Promise<{ success: boolean }> {
+		return this.delete<{ success: boolean }>('/api/v1/integrations/calendar/disconnect');
 	}
 }
 

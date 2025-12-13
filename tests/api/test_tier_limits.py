@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from backend.api.middleware.tier_limits import (
+    MeetingLimitResult,
     TierLimitError,
     record_dataset_usage,
     record_meeting_usage,
@@ -22,6 +23,7 @@ from backend.api.middleware.tier_limits import (
     require_meeting_limit,
     require_mentor_limit,
 )
+from backend.services.promotion_service import AllowanceResult
 from backend.services.usage_tracking import UsageResult
 
 
@@ -99,24 +101,31 @@ class TestRequireMeetingLimit:
 
         result = await require_meeting_limit(request, user)
 
-        assert result.allowed is True
-        assert result.remaining == 1
+        assert isinstance(result, MeetingLimitResult)
+        assert result.usage.allowed is True
+        assert result.usage.remaining == 1
+        assert result.uses_promo_credit is False
 
     @pytest.mark.asyncio
+    @patch("backend.api.middleware.tier_limits.check_deliberation_allowance")
     @patch("backend.api.middleware.tier_limits.check_limit")
     @patch("backend.api.middleware.tier_limits.get_effective_tier")
     @patch("backend.api.middleware.tier_limits.extract_user_id")
-    async def test_blocks_when_at_limit(
+    async def test_blocks_when_at_limit_no_promo(
         self,
         mock_extract_user: MagicMock,
         mock_get_tier: MagicMock,
         mock_check: MagicMock,
+        mock_check_promo: MagicMock,
     ) -> None:
-        """Should raise TierLimitError when at limit."""
+        """Should raise TierLimitError when at limit and no promo credits."""
         mock_extract_user.return_value = "user123"
         mock_get_tier.return_value = "free"
         mock_check.return_value = UsageResult(
             allowed=False, current=3, limit=3, remaining=0, reset_at=None
+        )
+        mock_check_promo.return_value = AllowanceResult(
+            total_remaining=0, active_promos=[], has_credits=False
         )
 
         request = MagicMock()
@@ -127,6 +136,37 @@ class TestRequireMeetingLimit:
 
         assert exc_info.value.status_code == 429
         assert exc_info.value.detail["metric"] == "meetings_monthly"
+
+    @pytest.mark.asyncio
+    @patch("backend.api.middleware.tier_limits.check_deliberation_allowance")
+    @patch("backend.api.middleware.tier_limits.check_limit")
+    @patch("backend.api.middleware.tier_limits.get_effective_tier")
+    @patch("backend.api.middleware.tier_limits.extract_user_id")
+    async def test_allows_with_promo_when_at_tier_limit(
+        self,
+        mock_extract_user: MagicMock,
+        mock_get_tier: MagicMock,
+        mock_check: MagicMock,
+        mock_check_promo: MagicMock,
+    ) -> None:
+        """Should allow meeting when tier limit exceeded but promo credits available."""
+        mock_extract_user.return_value = "user123"
+        mock_get_tier.return_value = "free"
+        mock_check.return_value = UsageResult(
+            allowed=False, current=3, limit=3, remaining=0, reset_at=None
+        )
+        mock_check_promo.return_value = AllowanceResult(
+            total_remaining=5, active_promos=["promo-1"], has_credits=True
+        )
+
+        request = MagicMock()
+        user = {"id": "user123", "subscription_tier": "free"}
+
+        result = await require_meeting_limit(request, user)
+
+        assert isinstance(result, MeetingLimitResult)
+        assert result.uses_promo_credit is True
+        assert result.promo_credits_remaining == 4  # 5 - 1
 
 
 @pytest.mark.unit
@@ -328,5 +368,5 @@ class TestTierOverrideIntegration:
 
         result = await require_meeting_limit(request, user)
 
-        assert result.allowed is True
-        assert result.limit == -1  # Unlimited due to pro tier override
+        assert result.usage.allowed is True
+        assert result.usage.limit == -1  # Unlimited due to pro tier override

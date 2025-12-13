@@ -118,7 +118,7 @@
 						Need more capacity? Upgrade to unlock higher limits.
 					</p>
 					<a
-						href="/settings/billing"
+						href="/pricing"
 						class="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
 					>
 						View Plans

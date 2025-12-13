@@ -20,7 +20,11 @@ from backend.api.dependencies import (
 from backend.api.metrics import track_api_call
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import SESSION_RATE_LIMIT, limiter, user_rate_limiter
-from backend.api.middleware.tier_limits import record_meeting_usage, require_meeting_limit
+from backend.api.middleware.tier_limits import (
+    MeetingLimitResult,
+    record_meeting_usage,
+    require_meeting_limit,
+)
 from backend.api.middleware.workspace_auth import require_workspace_access
 from backend.api.models import (
     CreateSessionRequest,
@@ -44,7 +48,6 @@ from backend.api.utils.validation import validate_session_id
 from backend.services.insight_staleness import get_stale_insights
 from backend.services.session_export import SessionExporter
 from backend.services.session_share import SessionShareService
-from backend.services.usage_tracking import UsageResult
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
 from bo1.llm.cost_tracker import CostTracker
@@ -108,7 +111,7 @@ async def create_session(
     request: Request,
     session_request: CreateSessionRequest,
     user: dict[str, Any] = Depends(get_current_user),
-    tier_usage: UsageResult = Depends(require_meeting_limit),
+    tier_usage: MeetingLimitResult = Depends(require_meeting_limit),
 ) -> SessionResponse:
     """Create a new deliberation session.
 
@@ -116,11 +119,14 @@ async def create_session(
     the initial state to Redis. The session is ready to be started via the
     /start endpoint.
 
+    If tier limit is exceeded but user has promo credits, the session
+    will be created using a promo credit (marked with used_promo_credit=True).
+
     Args:
         request: FastAPI request object for rate limiting
         session_request: Session creation request with problem statement
         user: Authenticated user data
-        tier_usage: Usage result from tier limit check
+        tier_usage: Meeting limit result with promo credit fallback info
 
     Returns:
         SessionResponse with session details
@@ -204,6 +210,72 @@ async def create_session(
                     detail="Invalid workspace_id format",
                 ) from e
 
+        # Validate context_ids ownership if provided
+        validated_context_ids: dict[str, list[str]] | None = None
+        if session_request.context_ids:
+            validated_context_ids = {"meetings": [], "actions": [], "datasets": []}
+
+            # Validate meeting_ids - must be owned by user
+            meeting_ids = session_request.context_ids.get("meetings", [])
+            if meeting_ids:
+                # Limit to 5 meetings max per plan constraints
+                if len(meeting_ids) > 5:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Maximum 5 past meetings can be attached",
+                    )
+                for mid in meeting_ids:
+                    session = session_repository.get(mid)
+                    if not session or session.get("user_id") != user_id:
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Meeting {mid} not found or not owned by user",
+                        )
+                    validated_context_ids["meetings"].append(mid)
+
+            # Validate action_ids - must be owned by user
+            action_ids = session_request.context_ids.get("actions", [])
+            if action_ids:
+                # Limit to 10 actions max per plan constraints
+                if len(action_ids) > 10:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Maximum 10 actions can be attached",
+                    )
+                from bo1.state.repositories.action_repository import ActionRepository
+
+                action_repo = ActionRepository()
+                for aid in action_ids:
+                    action = action_repo.get(aid)
+                    if not action or action.get("user_id") != user_id:
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Action {aid} not found or not owned by user",
+                        )
+                    validated_context_ids["actions"].append(aid)
+
+            # Validate dataset_ids - must be owned by user
+            ds_ids = session_request.context_ids.get("datasets", [])
+            if ds_ids:
+                # Limit to 3 datasets max per plan constraints
+                if len(ds_ids) > 3:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Maximum 3 datasets can be attached",
+                    )
+                for did in ds_ids:
+                    ds = dataset_repository.get_by_id(did, user_id)
+                    if not ds:
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Dataset {did} not found or not owned by user",
+                        )
+                    validated_context_ids["datasets"].append(did)
+
+            # If all lists are empty, set to None
+            if not any(validated_context_ids.values()):
+                validated_context_ids = None
+
         # Generate session ID
         session_id = redis_manager.create_session()
 
@@ -258,6 +330,7 @@ async def create_session(
             "updated_at": now.isoformat(),
             "problem_statement": sanitized_problem,
             "problem_context": merged_context,
+            "context_ids": validated_context_ids,  # User-selected context references
         }
 
         # Save metadata to Redis (for live state and fast lookup)
@@ -289,6 +362,8 @@ async def create_session(
                 status="created",
                 dataset_id=validated_dataset_id,
                 workspace_id=validated_workspace_id,
+                used_promo_credit=tier_usage.uses_promo_credit,
+                context_ids=validated_context_ids,
             )
             logger.info(
                 f"Created session: {session_id} for user: {user_id} (saved to both Redis and PostgreSQL)"
@@ -413,12 +488,13 @@ async def create_session(
             # Non-blocking - log and continue
             logger.debug(f"Staleness check failed (non-blocking): {e}")
 
-        # Record meeting usage for tier tracking
-        try:
-            record_meeting_usage(user_id)
-        except Exception as e:
-            # Non-blocking - log and continue
-            logger.debug(f"Usage tracking failed (non-blocking): {e}")
+        # Record meeting usage for tier tracking (only if NOT using promo)
+        if not tier_usage.uses_promo_credit:
+            try:
+                record_meeting_usage(user_id)
+            except Exception as e:
+                # Non-blocking - log and continue
+                logger.debug(f"Usage tracking failed (non-blocking): {e}")
 
         # Return session response
         return SessionResponse(
@@ -430,6 +506,9 @@ async def create_session(
             problem_statement=truncate_text(sanitized_problem),
             cost=None,
             stale_insights=stale_insights_list,
+            promo_credits_remaining=(
+                tier_usage.promo_credits_remaining if tier_usage.uses_promo_credit else None
+            ),
         )
 
 

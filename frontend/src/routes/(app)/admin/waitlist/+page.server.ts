@@ -38,7 +38,7 @@ export const load: PageServerLoad = async ({ url, request }) => {
 };
 
 export const actions: Actions = {
-	approve: async ({ request }) => {
+	approve: async ({ request, cookies }) => {
 		const formData = await request.formData();
 		const email = formData.get('email') as string;
 
@@ -49,11 +49,14 @@ export const actions: Actions = {
 		try {
 			// Forward all cookies from the incoming request
 			const cookieHeader = request.headers.get('cookie') || '';
+			// Get CSRF token from cookie for header
+			const csrfToken = cookies.get('csrf_token') || '';
 
 			const response = await fetch(`${API_BASE_URL}/api/admin/waitlist/${encodeURIComponent(email)}/approve`, {
 				method: 'POST',
 				headers: {
-					'Cookie': cookieHeader
+					'Cookie': cookieHeader,
+					'X-CSRF-Token': csrfToken
 				}
 			});
 

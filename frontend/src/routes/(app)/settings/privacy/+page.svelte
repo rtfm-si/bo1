@@ -10,18 +10,31 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
 
-	// Retention period options (days) - 1 to 10 years
+	// Retention period options (days) - 1-3 years or forever
 	const RETENTION_OPTIONS = [
 		{ value: 365, label: '1 year' },
 		{ value: 730, label: '2 years' },
 		{ value: 1095, label: '3 years' },
-		{ value: 1825, label: '5 years' },
-		{ value: 3650, label: '10 years' }
+		{ value: -1, label: 'Forever' }
 	];
+
+	// Compute display options (includes legacy value if needed)
+	const displayOptions = $derived(() => {
+		const knownValues = RETENTION_OPTIONS.map((o) => o.value);
+		if (!knownValues.includes(retentionDays) && retentionDays > 0) {
+			// Legacy value (e.g., 5 years = 1825, 10 years = 3650)
+			const years = Math.round(retentionDays / 365);
+			return [
+				{ value: retentionDays, label: `${years} years (legacy)` },
+				...RETENTION_OPTIONS
+			];
+		}
+		return RETENTION_OPTIONS;
+	});
 
 	// State
 	let emailPrefs = $state<EmailPreferences | null>(null);
-	let retentionDays = $state<number>(365);
+	let retentionDays = $state<number>(730);
 	let isLoading = $state(true);
 	let isSaving = $state(false);
 	let isSavingRetention = $state(false);
@@ -55,7 +68,7 @@
 				reminder_emails: true,
 				digest_emails: true
 			};
-			retentionDays = 365;
+			retentionDays = 730;
 		} finally {
 			isLoading = false;
 		}
@@ -290,7 +303,8 @@
 			<h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Data Retention</h2>
 			<p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
 				Choose how long to keep your meeting data. After this period, meetings, actions, and
-				associated data will be automatically deleted.
+				associated data will be automatically deleted. Select "Forever" to keep data until you
+				delete your account.
 			</p>
 
 			{#if retentionError}
@@ -312,7 +326,7 @@
 					bind:value={retentionDays}
 					class="flex-1 sm:flex-none sm:w-48 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
 				>
-					{#each RETENTION_OPTIONS as option}
+					{#each displayOptions() as option}
 						<option value={option.value}>{option.label}</option>
 					{/each}
 				</select>

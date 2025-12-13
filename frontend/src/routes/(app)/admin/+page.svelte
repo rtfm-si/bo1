@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench } from 'lucide-svelte';
 
 	interface AdminStats {
 		totalUsers: number;
@@ -214,6 +214,23 @@
 				</div>
 				<span class="text-sm text-warning-600 dark:text-warning-400">View alerts →</span>
 			</a>
+
+			<!-- AI Ops Self-Healing Card -->
+			<a
+				href="/admin/ops"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-accent-300 dark:hover:border-accent-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-accent-100 dark:bg-accent-900/30 rounded-lg">
+						<Wrench class="w-6 h-6 text-accent-600 dark:text-accent-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">AI Ops Self-Healing</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Error patterns & auto-remediation</p>
+					</div>
+				</div>
+				<span class="text-sm text-accent-600 dark:text-accent-400">View ops →</span>
+			</a>
 		</div>
 
 		<!-- Quick Links - User Management -->
@@ -274,6 +291,40 @@
 					</div>
 				</div>
 				<span class="text-sm text-warning-600 dark:text-warning-400">Manage whitelist →</span>
+			</a>
+
+			<!-- Promotions Card -->
+			<a
+				href="/admin/promotions"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-accent-300 dark:hover:border-accent-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-accent-100 dark:bg-accent-900/30 rounded-lg">
+						<Tag class="w-6 h-6 text-accent-600 dark:text-accent-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Promotions</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Manage promo codes</p>
+					</div>
+				</div>
+				<span class="text-sm text-accent-600 dark:text-accent-400">Manage promotions →</span>
+			</a>
+
+			<!-- Feedback Card -->
+			<a
+				href="/admin/feedback"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-info-300 dark:hover:border-info-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-info-100 dark:bg-info-900/30 rounded-lg">
+						<MessageSquare class="w-6 h-6 text-info-600 dark:text-info-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">User Feedback</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Feature requests & problems</p>
+					</div>
+				</div>
+				<span class="text-sm text-info-600 dark:text-info-400">View feedback →</span>
 			</a>
 		</div>
 	</main>

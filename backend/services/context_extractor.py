@@ -55,7 +55,7 @@ class ContextUpdate:
     """A proposed update to business context."""
 
     field_name: str
-    new_value: str | float | int | list[str]
+    new_value: str | float | int | list[str] | list[dict[str, Any]]
     confidence: float  # 0.0 - 1.0
     source_type: ContextUpdateSource
     source_text: str  # Original text snippet
@@ -152,7 +152,20 @@ Look for explicit mentions of:
 - team size (field: team_size, value: string like "small (2-5)" or "8 people")
 - business stage (field: business_stage, value: "idea"|"early"|"growing"|"scaling")
 - industry (field: industry, value: string)
-- competitors (field: competitors, value: comma-separated string)
+- competitors (field: competitors, value: array of objects)
+
+COMPETITORS - IMPORTANT:
+Extract SPECIFIC company names only, NOT generic categories.
+
+GOOD examples:
+- "We compete against Asana and Monday.com" → [{{"name": "Asana", "category": "direct", "confidence": 0.95}}, {{"name": "Monday.com", "category": "direct", "confidence": 0.95}}]
+- "Our main competitor is Figma" → [{{"name": "Figma", "category": "direct", "confidence": 0.9}}]
+- "We're also watching Canva and Adobe XD" → [{{"name": "Canva", "category": "indirect", "confidence": 0.8}}, {{"name": "Adobe XD", "category": "indirect", "confidence": 0.8}}]
+
+BAD examples (do NOT extract):
+- "project management tools" → NOT specific companies
+- "SaaS competitors" → NOT specific companies
+- "other design software" → NOT specific companies
 
 Return JSON array of updates:
 [{{
@@ -160,6 +173,12 @@ Return JSON array of updates:
   "new_value": "$50,000 MRR",
   "confidence": 0.95,
   "source_text": "our MRR is $50,000"
+}},
+{{
+  "field_name": "competitors",
+  "new_value": [{{"name": "Asana", "category": "direct", "confidence": 0.95}}],
+  "confidence": 0.95,
+  "source_text": "we compete against Asana"
 }}]
 
 Confidence scoring:
@@ -168,9 +187,14 @@ Confidence scoring:
 - 0.5-0.69: Hedged/uncertain ("revenue is around $50K", "might be")
 - <0.5: Speculation or unclear
 
+For competitors specifically:
+- "direct": Head-to-head competitor in same market
+- "indirect": Related product or potential substitute
+
 Return [] if no updates found. Only extract EXPLICIT statements about the business.
 Do NOT infer or guess values not clearly stated.
 Do NOT extract metaphorical statements ("customers are gold").
+Do NOT extract generic competitor categories (e.g., "project management tools").
 
 Return ONLY valid JSON array, no other text."""
 
@@ -302,7 +326,133 @@ Return ONLY valid JSON array, no other text."""
                 )
             )
 
+        # Competitor patterns - extract specific company names
+        competitor_updates = self._extract_competitors_fallback(text, source_type, now)
+        updates.extend(competitor_updates)
+
         return updates
+
+    def _extract_competitors_fallback(
+        self, text: str, source_type: ContextUpdateSource, now: str
+    ) -> list[ContextUpdate]:
+        """Extract specific competitor company names using pattern matching."""
+        competitors: list[dict[str, Any]] = []
+
+        # Pattern 1: "competing with X and Y" / "compete against X and Y"
+        compete_pattern = re.search(
+            r"compet(?:e|ing)\s+(?:with|against)\s+([^.]+)",
+            text,
+            re.IGNORECASE,
+        )
+        if compete_pattern:
+            names = self._extract_proper_nouns(compete_pattern.group(1))
+            for name in names:
+                competitors.append({"name": name, "category": "direct", "confidence": 0.7})
+
+        # Pattern 2: "X is our main competitor" / "our competitor is X"
+        main_competitor = re.search(
+            r"(?:main|primary|biggest|key)\s+competitor\s+(?:is\s+)?([A-Z][a-zA-Z0-9]+(?:\.[a-zA-Z]+)?)",
+            text,
+            re.IGNORECASE,
+        )
+        if main_competitor:
+            name = main_competitor.group(1).strip().rstrip(".")
+            if self._is_likely_company_name(name):
+                competitors.append({"name": name, "category": "direct", "confidence": 0.75})
+
+        # Pattern 3: "competitors like X, Y, Z" / "competitors include X, Y, Z"
+        competitors_list = re.search(
+            r"competitors?\s+(?:like|include|are|such\s+as)\s+([^.]+)",
+            text,
+            re.IGNORECASE,
+        )
+        if competitors_list:
+            names = self._extract_proper_nouns(competitors_list.group(1))
+            for name in names:
+                if not any(c["name"].lower() == name.lower() for c in competitors):
+                    competitors.append({"name": name, "category": "direct", "confidence": 0.65})
+
+        # Pattern 4: "X and Y are our competitors"
+        are_competitors = re.search(
+            r"([A-Z][a-zA-Z0-9.,\s]+)\s+are\s+(?:our\s+)?competitors?",
+            text,
+        )
+        if are_competitors:
+            names = self._extract_proper_nouns(are_competitors.group(1))
+            for name in names:
+                if not any(c["name"].lower() == name.lower() for c in competitors):
+                    competitors.append({"name": name, "category": "direct", "confidence": 0.65})
+
+        if not competitors:
+            return []
+
+        # Return as single update with list of competitors
+        source_text = text[:100] if len(text) > 100 else text
+        return [
+            ContextUpdate(
+                field_name="competitors",
+                new_value=competitors,
+                confidence=max(c["confidence"] for c in competitors),
+                source_type=source_type,
+                source_text=source_text,
+                extracted_at=now,
+            )
+        ]
+
+    def _extract_proper_nouns(self, text: str) -> list[str]:
+        """Extract proper nouns (potential company names) from text."""
+        # Split by common separators: and, or, comma
+        parts = re.split(r",\s*|\s+and\s+|\s+or\s+", text)
+        names = []
+
+        for part in parts:
+            part = part.strip()
+            # Look for capitalized words or known company patterns
+            # Match: "Asana", "Monday.com", "Adobe XD", "Slack"
+            match = re.match(
+                r"^([A-Z][a-zA-Z0-9]*(?:\.[a-zA-Z]+)?(?:\s+[A-Z][a-zA-Z0-9]*)*)$", part
+            )
+            if match and self._is_likely_company_name(match.group(1)):
+                names.append(match.group(1))
+            else:
+                # Try to extract capitalized words from the part
+                words = re.findall(r"\b([A-Z][a-zA-Z0-9]*(?:\.[a-zA-Z]+)?)\b", part)
+                for word in words:
+                    if self._is_likely_company_name(word):
+                        names.append(word)
+
+        return names
+
+    def _is_likely_company_name(self, name: str) -> bool:
+        """Check if a name is likely a company name (not a generic term)."""
+        # Exclude common words that are capitalized at sentence start
+        generic_words = {
+            "the",
+            "a",
+            "an",
+            "our",
+            "their",
+            "we",
+            "they",
+            "it",
+            "project",
+            "management",
+            "tools",
+            "software",
+            "apps",
+            "saas",
+            "companies",
+            "competitors",
+            "products",
+            "services",
+            "other",
+            "many",
+            "some",
+            "all",
+            "most",
+            "few",
+        }
+        return len(name) >= 2 and name.lower() not in generic_words and name[0].isupper()
 
 
 # Module-level singleton
@@ -352,3 +502,75 @@ def filter_high_confidence_updates(
     high = [u for u in updates if u.confidence >= threshold]
     low = [u for u in updates if u.confidence < threshold]
     return high, low
+
+
+def merge_competitors(
+    existing: list[dict[str, Any]] | str | None,
+    new: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Merge extracted competitors with existing, deduplicating by name.
+
+    Args:
+        existing: Current competitors (list of dicts or comma-separated string)
+        new: Newly extracted competitors
+
+    Returns:
+        Merged list of competitor dicts, deduplicated by name (case-insensitive)
+    """
+    result: list[dict[str, Any]] = []
+    seen_names: set[str] = set()
+
+    # Handle existing competitors
+    if existing:
+        if isinstance(existing, str):
+            # Convert comma-separated string to list of dicts
+            for name in existing.split(","):
+                name = name.strip()
+                if name and name.lower() not in seen_names:
+                    seen_names.add(name.lower())
+                    result.append({"name": name, "category": "direct", "confidence": 1.0})
+        elif isinstance(existing, list):
+            for comp in existing:
+                if isinstance(comp, dict) and "name" in comp:
+                    name = comp["name"]
+                    if name.lower() not in seen_names:
+                        seen_names.add(name.lower())
+                        result.append(comp)
+                elif isinstance(comp, str):
+                    if comp.lower() not in seen_names:
+                        seen_names.add(comp.lower())
+                        result.append({"name": comp, "category": "direct", "confidence": 1.0})
+
+    # Add new competitors
+    for comp in new:
+        name = comp.get("name", "")
+        if name and name.lower() not in seen_names:
+            seen_names.add(name.lower())
+            result.append(comp)
+
+    return result
+
+
+def format_competitors_for_display(competitors: list[dict[str, Any]] | str | None) -> str:
+    """Format competitors list for human-readable display.
+
+    Args:
+        competitors: List of competitor dicts or comma-separated string
+
+    Returns:
+        Human-readable string like "Asana, Monday.com, Figma"
+    """
+    if not competitors:
+        return ""
+
+    if isinstance(competitors, str):
+        return competitors
+
+    names = []
+    for comp in competitors:
+        if isinstance(comp, dict) and "name" in comp:
+            names.append(comp["name"])
+        elif isinstance(comp, str):
+            names.append(comp)
+
+    return ", ".join(names)

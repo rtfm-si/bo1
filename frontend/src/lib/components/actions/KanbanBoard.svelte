@@ -105,6 +105,7 @@
 			</div>
 			<div
 				class="column-content"
+				class:empty={columnTasks.length === 0}
 				use:dndzone={{
 					items: columnTasks,
 					flipDurationMs,
@@ -113,24 +114,15 @@
 				onconsider={(e) => handleDndConsider(column.id, e)}
 				onfinalize={(e) => handleDndFinalize(column.id, e)}
 			>
-				{#if columnTasks.length === 0}
-					<div class="empty-state">
-						{#if column.id === 'todo'}
-							Drop tasks here
-						{:else if column.id === 'in_progress'}
-							Drop tasks here
-						{:else}
-							Drop completed tasks here
-						{/if}
+				{#each columnTasks as task (task.id)}
+					<div animate:flip={{ duration: flipDurationMs }} class="task-wrapper">
+						<TaskCard {task} {onStatusChange} {onDelete} />
 					</div>
-				{:else}
-					{#each columnTasks as task (task.id)}
-						<div animate:flip={{ duration: flipDurationMs }} class="task-wrapper">
-							<TaskCard {task} {onStatusChange} {onDelete} />
-						</div>
-					{/each}
-				{/if}
+				{/each}
 			</div>
+			{#if columnTasks.length === 0}
+				<div class="empty-hint">Drop tasks here</div>
+			{/if}
 		</div>
 	{/each}
 </div>
@@ -155,6 +147,7 @@
 	}
 
 	.kanban-column {
+		position: relative;
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
 		border-radius: 12px;
@@ -192,20 +185,26 @@
 		flex: 1;
 		overflow-y: auto;
 		max-height: 600px;
+		min-height: 100px;
 	}
 
-	.empty-state {
-		text-align: center;
-		padding: 24px;
-		color: var(--color-muted);
-		font-size: 0.85rem;
-		min-height: 60px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+	.column-content.empty {
 		border: 2px dashed var(--color-border);
 		border-radius: 8px;
 		margin: 4px;
+	}
+
+	.empty-hint {
+		text-align: center;
+		padding: 8px;
+		color: var(--color-muted);
+		font-size: 0.8rem;
+		pointer-events: none;
+		position: absolute;
+		top: 50%;
+		left: 0;
+		right: 0;
+		transform: translateY(-50%);
 	}
 
 	.task-wrapper {

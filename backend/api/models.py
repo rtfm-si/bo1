@@ -44,6 +44,11 @@ class CreateSessionRequest(BaseModel):
         None,
         description="Optional workspace UUID to scope the session to a team workspace",
     )
+    context_ids: dict[str, list[str]] | None = Field(
+        None,
+        description="Optional context to inject: {meetings: [...ids], actions: [...ids], datasets: [...ids]}",
+        examples=[{"meetings": ["bo1_abc123"], "actions": ["uuid-1"], "datasets": ["uuid-2"]}],
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -152,6 +157,7 @@ class SessionResponse(BaseModel):
         contribution_count: Total contributions (for dashboard cards)
         task_count: Number of extracted tasks (for dashboard cards)
         focus_area_count: Number of focus areas/sub-problems (for dashboard cards)
+        promo_credits_remaining: Remaining promo credits after session creation (if used promo)
     """
 
     id: str = Field(..., description="Unique session identifier (UUID)")
@@ -181,6 +187,11 @@ class SessionResponse(BaseModel):
     stale_insights: list[dict[str, Any]] | None = Field(
         None,
         description="List of stale insights (>30 days old) for user warning during creation",
+    )
+    # Promo credits (returned on session creation when promo was used)
+    promo_credits_remaining: int | None = Field(
+        None,
+        description="Remaining promo credits after this session (if session used promo credit)",
     )
 
 
@@ -2241,3 +2252,449 @@ class TerminationResponse(BaseModel):
     completed_sub_problems: int = Field(..., description="Sub-problems completed")
     total_sub_problems: int = Field(..., description="Total sub-problems")
     synthesis_available: bool = Field(..., description="Whether early synthesis is available")
+
+
+# ============================================================================
+# Promotions Models
+# ============================================================================
+
+
+class PromotionType(str):
+    """Promotion type constants."""
+
+    GOODWILL_CREDITS = "goodwill_credits"
+    PERCENTAGE_DISCOUNT = "percentage_discount"
+    FLAT_DISCOUNT = "flat_discount"
+    EXTRA_DELIBERATIONS = "extra_deliberations"
+
+
+class UserPromotionStatus(str):
+    """User promotion status constants."""
+
+    ACTIVE = "active"
+    EXHAUSTED = "exhausted"
+    EXPIRED = "expired"
+
+
+class Promotion(BaseModel):
+    """Promotion response model.
+
+    Attributes:
+        id: Unique promotion identifier (UUID)
+        code: Unique promo code string
+        type: Type of promotion (goodwill_credits, percentage_discount, etc.)
+        value: Promotion value (percentage, flat amount, or number of credits)
+        max_uses: Maximum number of uses (null = unlimited)
+        uses_count: Current number of times promo has been used
+        expires_at: Expiration timestamp (null = never expires)
+        created_at: Creation timestamp
+        is_active: Whether the promotion is currently active
+    """
+
+    id: str = Field(..., description="Unique promotion identifier (UUID)")
+    code: str = Field(..., min_length=3, max_length=50, description="Unique promo code")
+    type: str = Field(
+        ...,
+        description="Promotion type: goodwill_credits, percentage_discount, flat_discount, extra_deliberations",
+    )
+    value: float = Field(..., gt=0, description="Promotion value")
+    max_uses: int | None = Field(None, description="Maximum uses (null = unlimited)")
+    uses_count: int = Field(0, ge=0, description="Current usage count")
+    expires_at: datetime | None = Field(None, description="Expiration timestamp (UTC)")
+    created_at: datetime = Field(..., description="Creation timestamp (UTC)")
+    is_active: bool = Field(True, description="Whether promotion is active")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "code": "WELCOME10",
+                    "type": "percentage_discount",
+                    "value": 10.0,
+                    "max_uses": 1000,
+                    "uses_count": 42,
+                    "expires_at": None,
+                    "created_at": "2025-01-01T00:00:00Z",
+                    "is_active": True,
+                }
+            ]
+        }
+    }
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        """Validate promotion type."""
+        valid_types = {
+            PromotionType.GOODWILL_CREDITS,
+            PromotionType.PERCENTAGE_DISCOUNT,
+            PromotionType.FLAT_DISCOUNT,
+            PromotionType.EXTRA_DELIBERATIONS,
+        }
+        if v not in valid_types:
+            raise ValueError(f"Invalid promotion type: {v}. Must be one of: {valid_types}")
+        return v
+
+
+class UserPromotion(BaseModel):
+    """User's applied promotion response model.
+
+    Attributes:
+        id: Unique user_promotion identifier (UUID)
+        promotion: Nested promotion details
+        applied_at: When the user applied the promo
+        deliberations_remaining: Remaining credits (for credit-type promos)
+        discount_applied: Discount amount applied (for discount-type promos)
+        status: Current status (active, exhausted, expired)
+    """
+
+    id: str = Field(..., description="Unique identifier (UUID)")
+    promotion: Promotion = Field(..., description="Promotion details")
+    applied_at: datetime = Field(..., description="When promo was applied (UTC)")
+    deliberations_remaining: int | None = Field(
+        None, description="Remaining credits (credit promos only)"
+    )
+    discount_applied: float | None = Field(
+        None, description="Discount applied (discount promos only)"
+    )
+    status: str = Field(..., description="Status: active, exhausted, expired")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": "660e8400-e29b-41d4-a716-446655440001",
+                    "promotion": {
+                        "id": "550e8400-e29b-41d4-a716-446655440000",
+                        "code": "GOODWILL5",
+                        "type": "extra_deliberations",
+                        "value": 5.0,
+                        "max_uses": None,
+                        "uses_count": 100,
+                        "expires_at": None,
+                        "created_at": "2025-01-01T00:00:00Z",
+                        "is_active": True,
+                    },
+                    "applied_at": "2025-01-15T10:30:00Z",
+                    "deliberations_remaining": 3,
+                    "discount_applied": None,
+                    "status": "active",
+                }
+            ]
+        }
+    }
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        """Validate user promotion status."""
+        valid_statuses = {
+            UserPromotionStatus.ACTIVE,
+            UserPromotionStatus.EXHAUSTED,
+            UserPromotionStatus.EXPIRED,
+        }
+        if v not in valid_statuses:
+            raise ValueError(f"Invalid status: {v}. Must be one of: {valid_statuses}")
+        return v
+
+
+class AddPromotionRequest(BaseModel):
+    """Admin request to create a new promotion.
+
+    Attributes:
+        code: Unique promo code (3-50 chars, alphanumeric + underscore)
+        type: Promotion type
+        value: Promotion value (> 0)
+        max_uses: Optional maximum uses
+        expires_at: Optional expiration timestamp
+    """
+
+    code: str = Field(
+        ...,
+        min_length=3,
+        max_length=50,
+        pattern=r"^[A-Z0-9_]+$",
+        description="Promo code (uppercase alphanumeric + underscore)",
+    )
+    type: str = Field(..., description="Promotion type")
+    value: float = Field(..., gt=0, description="Promotion value")
+    max_uses: int | None = Field(None, gt=0, description="Maximum uses (null = unlimited)")
+    expires_at: datetime | None = Field(None, description="Expiration timestamp (UTC)")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "code": "SUMMER2025",
+                    "type": "percentage_discount",
+                    "value": 20.0,
+                    "max_uses": 500,
+                    "expires_at": "2025-08-31T23:59:59Z",
+                }
+            ]
+        }
+    }
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        """Validate promotion type."""
+        valid_types = {
+            PromotionType.GOODWILL_CREDITS,
+            PromotionType.PERCENTAGE_DISCOUNT,
+            PromotionType.FLAT_DISCOUNT,
+            PromotionType.EXTRA_DELIBERATIONS,
+        }
+        if v not in valid_types:
+            raise ValueError(f"Invalid promotion type: {v}. Must be one of: {valid_types}")
+        return v
+
+
+class ApplyPromoCodeRequest(BaseModel):
+    """User request to apply a promo code.
+
+    Attributes:
+        code: The promo code to apply
+    """
+
+    code: str = Field(
+        ...,
+        min_length=3,
+        max_length=50,
+        description="Promo code to apply",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {"code": "WELCOME10"},
+                {"code": "GOODWILL5"},
+            ]
+        }
+    }
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, v: str) -> str:
+        """Normalize and validate promo code."""
+        # Normalize to uppercase
+        v = v.strip().upper()
+        if not v:
+            raise ValueError("Promo code cannot be empty")
+        # Allow alphanumeric and underscore
+        if not re.match(r"^[A-Z0-9_]+$", v):
+            raise ValueError("Promo code must be alphanumeric (letters, numbers, underscore)")
+        return v
+
+
+# =============================================================================
+# Feedback Models
+# =============================================================================
+
+
+class FeedbackType:
+    """Valid feedback types."""
+
+    FEATURE_REQUEST = "feature_request"
+    PROBLEM_REPORT = "problem_report"
+
+
+class FeedbackStatus:
+    """Valid feedback statuses."""
+
+    NEW = "new"
+    REVIEWING = "reviewing"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
+
+class FeedbackCreate(BaseModel):
+    """Request model for submitting feedback.
+
+    Attributes:
+        type: Feedback type (feature_request or problem_report)
+        title: Brief title/summary
+        description: Detailed description
+        include_context: Whether to auto-attach context (for problem reports)
+    """
+
+    type: str = Field(
+        ...,
+        description="Feedback type (feature_request or problem_report)",
+    )
+    title: str = Field(
+        ...,
+        min_length=5,
+        max_length=200,
+        description="Brief title/summary",
+    )
+    description: str = Field(
+        ...,
+        min_length=10,
+        max_length=5000,
+        description="Detailed description",
+    )
+    include_context: bool = Field(
+        default=True,
+        description="Whether to auto-attach context (for problem reports)",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "type": "feature_request",
+                    "title": "Add dark mode support",
+                    "description": "It would be great to have a dark mode option for the UI.",
+                    "include_context": False,
+                },
+                {
+                    "type": "problem_report",
+                    "title": "Meeting page not loading",
+                    "description": "When I click on a meeting, the page shows a spinner but never loads.",
+                    "include_context": True,
+                },
+            ]
+        }
+    }
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        """Validate feedback type."""
+        valid_types = {FeedbackType.FEATURE_REQUEST, FeedbackType.PROBLEM_REPORT}
+        if v not in valid_types:
+            raise ValueError(f"Invalid feedback type. Must be one of: {valid_types}")
+        return v
+
+
+class FeedbackContext(BaseModel):
+    """Auto-attached context for problem reports.
+
+    Attributes:
+        user_tier: User's subscription tier
+        page_url: Page URL where problem occurred
+        user_agent: Browser user agent
+        timestamp: When the problem was reported
+    """
+
+    user_tier: str | None = Field(None, description="User's subscription tier")
+    page_url: str | None = Field(None, description="Page URL where problem occurred")
+    user_agent: str | None = Field(None, description="Browser user agent")
+    timestamp: str | None = Field(None, description="Timestamp of report (ISO format)")
+
+
+class FeedbackAnalysis(BaseModel):
+    """Analysis result for feedback (sentiment and themes).
+
+    Attributes:
+        sentiment: Sentiment classification (positive, negative, neutral, mixed)
+        sentiment_confidence: Confidence score (0.0-1.0)
+        themes: List of theme tags (1-5 tags)
+        analyzed_at: When analysis was performed
+    """
+
+    sentiment: str = Field(..., description="Sentiment: positive, negative, neutral, mixed")
+    sentiment_confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence (0-1)")
+    themes: list[str] = Field(default_factory=list, description="Theme tags")
+    analyzed_at: str | None = Field(None, description="Analysis timestamp (ISO)")
+
+
+class FeedbackResponse(BaseModel):
+    """Response model for a single feedback item.
+
+    Attributes:
+        id: Feedback UUID
+        user_id: Submitter's user ID
+        type: Feedback type
+        title: Brief title/summary
+        description: Detailed description
+        context: Auto-attached context (if available)
+        analysis: Sentiment and themes analysis (if available)
+        status: Current status
+        created_at: Creation timestamp
+        updated_at: Last update timestamp
+    """
+
+    id: str = Field(..., description="Feedback UUID")
+    user_id: str = Field(..., description="Submitter's user ID")
+    type: str = Field(..., description="Feedback type")
+    title: str = Field(..., description="Brief title/summary")
+    description: str = Field(..., description="Detailed description")
+    context: dict | None = Field(None, description="Auto-attached context")
+    analysis: FeedbackAnalysis | None = Field(None, description="Sentiment and themes analysis")
+    status: str = Field(..., description="Current status")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+
+class FeedbackListResponse(BaseModel):
+    """Response model for listing feedback items.
+
+    Attributes:
+        items: List of feedback items
+        total: Total count (for pagination)
+    """
+
+    items: list[FeedbackResponse] = Field(..., description="List of feedback items")
+    total: int = Field(..., description="Total count")
+
+
+class FeedbackStatusUpdate(BaseModel):
+    """Request model for updating feedback status.
+
+    Attributes:
+        status: New status (new, reviewing, resolved, closed)
+    """
+
+    status: str = Field(..., description="New status")
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        """Validate status."""
+        valid_statuses = {
+            FeedbackStatus.NEW,
+            FeedbackStatus.REVIEWING,
+            FeedbackStatus.RESOLVED,
+            FeedbackStatus.CLOSED,
+        }
+        if v not in valid_statuses:
+            raise ValueError(f"Invalid status. Must be one of: {valid_statuses}")
+        return v
+
+
+class FeedbackStats(BaseModel):
+    """Response model for feedback statistics.
+
+    Attributes:
+        total: Total feedback count
+        by_type: Counts by type
+        by_status: Counts by status
+    """
+
+    total: int = Field(..., description="Total feedback count")
+    by_type: dict[str, int] = Field(..., description="Counts by type")
+    by_status: dict[str, int] = Field(..., description="Counts by status")
+
+
+class ThemeCount(BaseModel):
+    """Theme with its count."""
+
+    theme: str = Field(..., description="Theme tag")
+    count: int = Field(..., description="Number of feedback items with this theme")
+
+
+class FeedbackAnalysisSummary(BaseModel):
+    """Aggregated feedback analysis summary.
+
+    Attributes:
+        analyzed_count: Number of feedback items with analysis
+        sentiment_counts: Distribution by sentiment
+        top_themes: Most common themes with counts
+    """
+
+    analyzed_count: int = Field(..., description="Feedback items with analysis")
+    sentiment_counts: dict[str, int] = Field(..., description="Counts by sentiment")
+    top_themes: list[ThemeCount] = Field(..., description="Top themes with counts")

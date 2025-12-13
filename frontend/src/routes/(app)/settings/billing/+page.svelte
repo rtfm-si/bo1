@@ -1,13 +1,19 @@
 <script lang="ts">
 	/**
 	 * Billing Settings - Plan and usage management
-	 * Uses actual data from billing API
+	 * Uses actual data from billing API with Stripe checkout integration
 	 */
 	import { onMount } from 'svelte';
+	import { env } from '$env/dynamic/public';
 	import { apiClient } from '$lib/api/client';
 	import type { PlanDetails, UsageStats } from '$lib/api/client';
+	import { PRICING_TIERS } from '$lib/data/pricing';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+
+	// Get Stripe price IDs from environment
+	const STRIPE_PRICE_STARTER = env.PUBLIC_STRIPE_PRICE_STARTER || '';
+	const STRIPE_PRICE_PRO = env.PUBLIC_STRIPE_PRICE_PRO || '';
 
 	// State
 	let plan = $state<PlanDetails | null>(null);
@@ -15,6 +21,7 @@
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let portalMessage = $state<string | null>(null);
+	let isUpgrading = $state(false);
 
 	// Format price in dollars
 	function formatPrice(cents: number): string {
@@ -26,6 +33,25 @@
 	function getUsagePercent(used: number, limit: number | null): number {
 		if (!limit) return 0; // Unlimited
 		return Math.min((used / limit) * 100, 100);
+	}
+
+	// Get available upgrade tiers (tiers higher than current)
+	function getUpgradeTiers() {
+		const tierOrder = ['free', 'starter', 'pro'];
+		const currentIndex = tierOrder.indexOf(plan?.tier || 'free');
+		return PRICING_TIERS.filter((t) => tierOrder.indexOf(t.id) > currentIndex);
+	}
+
+	// Get price ID for a tier
+	function getPriceId(tierId: string): string | null {
+		switch (tierId) {
+			case 'starter':
+				return STRIPE_PRICE_STARTER || null;
+			case 'pro':
+				return STRIPE_PRICE_PRO || null;
+			default:
+				return null;
+		}
 	}
 
 	onMount(async () => {
@@ -57,6 +83,22 @@
 			}
 		} catch (e) {
 			portalMessage = e instanceof Error ? e.message : 'Failed to open billing portal';
+		}
+	}
+
+	async function startCheckout(priceId: string) {
+		if (isUpgrading) return;
+
+		isUpgrading = true;
+		error = null;
+
+		try {
+			const result = await apiClient.createCheckoutSession(priceId);
+			// Redirect to Stripe Checkout
+			window.location.href = result.url;
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to start checkout';
+			isUpgrading = false;
 		}
 	}
 </script>
@@ -101,9 +143,11 @@
 						{plan ? (plan.price_monthly > 0 ? `${formatPrice(plan.price_monthly)}/month` : 'Free') : '$0/month'}
 					</p>
 				</div>
-				<Button variant="secondary" onclick={openBillingPortal}>
-					Manage Plan
-				</Button>
+				{#if plan?.tier !== 'free'}
+					<Button variant="secondary" onclick={openBillingPortal}>
+						Manage Subscription
+					</Button>
+				{/if}
 			</div>
 
 			{#if plan?.features && plan.features.length > 0}
@@ -122,6 +166,80 @@
 				</div>
 			{/if}
 		</div>
+
+		<!-- Upgrade Options (only show if not on pro) -->
+		{#if plan?.tier !== 'pro' && getUpgradeTiers().length > 0}
+			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+				<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+					Upgrade Your Plan
+				</h3>
+
+				<div class="grid gap-4 {getUpgradeTiers().length === 1 ? '' : 'md:grid-cols-2'}">
+					{#each getUpgradeTiers() as tier}
+						{@const priceId = getPriceId(tier.id)}
+						<div class="p-4 rounded-lg border {tier.highlight ? 'border-brand-500 bg-brand-50/50 dark:bg-brand-900/10' : 'border-slate-200 dark:border-slate-700'}">
+							<div class="flex items-start justify-between mb-3">
+								<div>
+									<h4 class="font-semibold text-slate-900 dark:text-white">
+										{tier.name}
+										{#if tier.highlight}
+											<span class="ml-2 text-xs bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-400 px-2 py-0.5 rounded-full">
+												Popular
+											</span>
+										{/if}
+									</h4>
+									<p class="text-sm text-slate-600 dark:text-slate-400">{tier.description}</p>
+								</div>
+								<div class="text-right">
+									<span class="text-xl font-bold text-slate-900 dark:text-white">{tier.priceLabel}</span>
+									<span class="text-sm text-slate-500 dark:text-slate-400">/{tier.period}</span>
+								</div>
+							</div>
+
+							<ul class="space-y-1 mb-4">
+								<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+									<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+									</svg>
+									{tier.limits.meetings_monthly === -1 ? 'Unlimited meetings' : `${tier.limits.meetings_monthly} meetings/month`}
+								</li>
+								{#if tier.features.api_access}
+									<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+										<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+										</svg>
+										API access
+									</li>
+								{/if}
+								{#if tier.features.priority_support}
+									<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+										<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+										</svg>
+										Priority support
+									</li>
+								{/if}
+							</ul>
+
+							{#if priceId}
+								<Button
+									variant={tier.highlight ? 'brand' : 'secondary'}
+									onclick={() => startCheckout(priceId)}
+									disabled={isUpgrading}
+									class="w-full"
+								>
+									{isUpgrading ? 'Processing...' : `Upgrade to ${tier.name}`}
+								</Button>
+							{:else}
+								<Button variant="secondary" onclick={() => window.location.href = '/pricing'} class="w-full">
+									View Details
+								</Button>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
 
 		<!-- Usage -->
 		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
@@ -167,37 +285,47 @@
 			</div>
 		</div>
 
-		<!-- Payment Method -->
-		<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-6">
-			<div class="flex items-center gap-4">
-				<div class="text-2xl">💳</div>
-				<div class="flex-1">
-					<h3 class="font-medium text-slate-700 dark:text-slate-300">Payment Method</h3>
-					<p class="text-sm text-slate-500 dark:text-slate-400">
-						Manage payment methods through the billing portal
-					</p>
+		<!-- Payment Method (only show for paying customers) -->
+		{#if plan?.tier !== 'free'}
+			<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-6">
+				<div class="flex items-center gap-4">
+					<div class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+						<svg class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+						</svg>
+					</div>
+					<div class="flex-1">
+						<h3 class="font-medium text-slate-700 dark:text-slate-300">Payment Method</h3>
+						<p class="text-sm text-slate-500 dark:text-slate-400">
+							Manage payment methods through the billing portal
+						</p>
+					</div>
+					<Button variant="secondary" onclick={openBillingPortal}>
+						Manage
+					</Button>
 				</div>
-				<Button variant="secondary" onclick={openBillingPortal}>
-					Manage
-				</Button>
 			</div>
-		</div>
 
-		<!-- Invoices -->
-		<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-6">
-			<div class="flex items-center gap-4">
-				<div class="text-2xl">📄</div>
-				<div class="flex-1">
-					<h3 class="font-medium text-slate-700 dark:text-slate-300">Invoices</h3>
-					<p class="text-sm text-slate-500 dark:text-slate-400">
-						View and download invoices through the billing portal
-					</p>
+			<!-- Invoices -->
+			<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-6">
+				<div class="flex items-center gap-4">
+					<div class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+						<svg class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+						</svg>
+					</div>
+					<div class="flex-1">
+						<h3 class="font-medium text-slate-700 dark:text-slate-300">Invoices</h3>
+						<p class="text-sm text-slate-500 dark:text-slate-400">
+							View and download invoices through the billing portal
+						</p>
+					</div>
+					<Button variant="secondary" onclick={openBillingPortal}>
+						View
+					</Button>
 				</div>
-				<Button variant="secondary" onclick={openBillingPortal}>
-					View
-				</Button>
 			</div>
-		</div>
+		{/if}
 
 		<!-- Help Note -->
 		<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">

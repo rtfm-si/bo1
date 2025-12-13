@@ -124,6 +124,9 @@ class DeliberationGraphState(TypedDict, total=False):
     attached_datasets: list[str]  # Dataset IDs attached to this session
     data_analysis_results: list[dict[str, Any]]  # Results from data analysis during deliberation
 
+    # USER-SELECTED CONTEXT (Meeting Context Selector)
+    context_ids: dict[str, list[str]] | None  # {meetings: [...], actions: [...], datasets: [...]}
+
     # USER PREFERENCES (Clarification Toggle)
     skip_clarification: bool  # User preference to skip pre-meeting clarifying questions
 
@@ -141,6 +144,7 @@ def create_initial_state(
     user_id: str | None = None,
     collect_context: bool = True,
     skip_clarification: bool = False,
+    context_ids: dict[str, list[str]] | None = None,
 ) -> DeliberationGraphState:
     """Create initial graph state from a problem.
 
@@ -152,6 +156,7 @@ def create_initial_state(
         user_id: Optional user ID for context persistence
         collect_context: Whether to collect business context (default: True)
         skip_clarification: Whether to skip pre-meeting clarifying questions (default: False)
+        context_ids: Optional user-selected context {meetings: [...], actions: [...], datasets: [...]}
 
     Returns:
         Initial DeliberationGraphState ready for graph execution
@@ -213,6 +218,8 @@ def create_initial_state(
         # DATA ANALYSIS INTEGRATION (EPIC 4)
         attached_datasets=[],  # Dataset IDs attached to this session
         data_analysis_results=[],  # Results from data analysis during deliberation
+        # USER-SELECTED CONTEXT
+        context_ids=context_ids,  # User-selected meetings/actions/datasets
         # USER PREFERENCES
         skip_clarification=skip_clarification,  # Skip pre-meeting clarifying questions
         # EARLY TERMINATION

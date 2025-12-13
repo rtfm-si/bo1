@@ -25,7 +25,8 @@ def cleanup_expired_sessions(retention_days: int | None = None) -> dict[str, int
     aggregate statistics while complying with GDPR.
 
     Uses per-user data_retention_days from users table, falling back to
-    DEFAULT_RETENTION_DAYS (365) if not set.
+    DEFAULT_RETENTION_DAYS (365) if not set. Users with data_retention_days = -1
+    (forever) are skipped entirely.
 
     Args:
         retention_days: Override retention period for all users (for testing).
@@ -65,15 +66,17 @@ def cleanup_expired_sessions(retention_days: int | None = None) -> dict[str, int
                     )
                 else:
                     # Per-user mode: use each user's data_retention_days setting
+                    # Skip users with -1 (forever) retention
                     cur.execute(
                         """
                         SELECT s.id
                         FROM sessions s
                         JOIN users u ON s.user_id = u.id
-                        WHERE s.created_at < NOW() - (COALESCE(u.data_retention_days, %s) || ' days')::interval
+                        WHERE COALESCE(u.data_retention_days, %s) != -1
+                          AND s.created_at < NOW() - (COALESCE(u.data_retention_days, %s) || ' days')::interval
                           AND s.user_id IS NOT NULL
                         """,
-                        (DEFAULT_RETENTION_DAYS,),
+                        (DEFAULT_RETENTION_DAYS, DEFAULT_RETENTION_DAYS),
                     )
                 session_ids = [row["id"] for row in cur.fetchall()]
 

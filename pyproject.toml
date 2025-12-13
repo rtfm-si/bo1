@@ -56,15 +56,16 @@ dependencies = [
     "networkx>=3.5", # Graph library
     "resend>=2.19.0",
     # Object Storage (DigitalOcean Spaces / S3-compatible)
-    "boto3>=1.35.0,<2.0",  # AWS SDK for S3-compatible object storage
+    "boto3>=1.35.0,<2.0", # AWS SDK for S3-compatible object storage
     # Data Analysis
-    "pandas>=2.2.0,<3.0",  # DataFrame operations for dataset profiling
-    "plotly>=5.18.0,<7.0",  # Chart generation (JSON for frontend)
-    "matplotlib>=3.8.0",  # PNG chart export for PDF embedding (no Chromium needed)
+    "pandas>=2.2.0,<3.0", # DataFrame operations for dataset profiling
+    "plotly>=5.18.0,<7.0", # Chart generation (JSON for frontend)
+    "matplotlib>=3.8.0", # PNG chart export for PDF embedding (no Chromium needed)
     # Observability
-    "prometheus-client>=0.21.0",  # Prometheus metrics
-    "prometheus-fastapi-instrumentator>=7.0.0",  # FastAPI auto-instrumentation
-    "cryptography>=43.0.0",  # Fernet encryption for OAuth tokens at rest
+    "prometheus-client>=0.21.0", # Prometheus metrics
+    "prometheus-fastapi-instrumentator>=7.0.0", # FastAPI auto-instrumentation
+    "cryptography>=43.0.0", # Fernet encryption for OAuth tokens at rest
+    "stripe>=14.0.1",
 ]
 
 [project.optional-dependencies]

@@ -41,6 +41,7 @@ from backend.api import (
     csp_reports,
     datasets,
     email,
+    feedback,
     health,
     industry_insights,
     mentor,
@@ -55,6 +56,7 @@ from backend.api import (
     waitlist,
     workspaces,
 )
+from backend.api.integrations import calendar_router
 from backend.api.middleware.api_version import API_VERSION, ApiVersionMiddleware
 from backend.api.middleware.audit_logging import AuditLoggingMiddleware
 from backend.api.middleware.auth import require_admin
@@ -447,12 +449,15 @@ app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])
 app.include_router(client_errors.router, prefix="/api", tags=["client-errors"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
 app.include_router(email.router, prefix="/api", tags=["email"])
+app.include_router(feedback.router, prefix="/api", tags=["feedback"])
 app.include_router(user.router, prefix="/api", tags=["user"])
 app.include_router(status.router, prefix="/api", tags=["status"])
 app.include_router(workspaces.router, prefix="/api", tags=["workspaces"])
 app.include_router(workspaces.invitations_user_router, prefix="/api", tags=["invitations"])
+app.include_router(workspaces.billing_router, prefix="/api", tags=["workspace-billing"])
 app.include_router(csp_reports.router, tags=["security"])
 app.include_router(client_metrics.router, tags=["metrics"])
+app.include_router(calendar_router, prefix="/api", tags=["integrations"])
 
 # Initialize Prometheus metrics instrumentation
 # Exposes /metrics endpoint for Prometheus scraping

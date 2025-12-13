@@ -102,6 +102,35 @@
 			day: 'numeric'
 		});
 	}
+
+	// Type for structured competitor
+	interface CompetitorEntry {
+		name: string;
+		category?: 'direct' | 'indirect';
+		confidence?: number;
+	}
+
+	function isCompetitorList(value: unknown): value is CompetitorEntry[] {
+		return (
+			Array.isArray(value) &&
+			value.length > 0 &&
+			typeof value[0] === 'object' &&
+			value[0] !== null &&
+			'name' in value[0]
+		);
+	}
+
+	function formatValue(
+		fieldName: string,
+		value: string | number | CompetitorEntry[] | unknown
+	): string {
+		// Handle competitors field with structured data
+		if (fieldName === 'competitors' && isCompetitorList(value)) {
+			return value.map((c) => c.name).join(', ');
+		}
+		// Default: stringify
+		return String(value);
+	}
 </script>
 
 {#if isLoading}
@@ -181,13 +210,35 @@
 							<div class="flex items-center gap-2 text-sm mb-2">
 								{#if suggestion.current_value}
 									<span class="text-slate-500 dark:text-slate-400 line-through">
-										{suggestion.current_value}
+										{formatValue(suggestion.field_name, suggestion.current_value)}
 									</span>
 									<span class="text-slate-400">→</span>
 								{/if}
-								<span class="font-medium text-brand-600 dark:text-brand-400">
-									{suggestion.new_value}
-								</span>
+								<!-- Competitors: show as chips with category badges -->
+								{#if suggestion.field_name === 'competitors' && isCompetitorList(suggestion.new_value)}
+									<div class="flex flex-wrap gap-1.5">
+										{#each suggestion.new_value as competitor}
+											<span
+												class="inline-flex items-center gap-1 px-2 py-0.5 text-sm bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 rounded-full"
+											>
+												{competitor.name}
+												{#if competitor.category}
+													<span
+														class="text-xs px-1 py-0.5 rounded {competitor.category === 'direct'
+															? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+															: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'}"
+													>
+														{competitor.category}
+													</span>
+												{/if}
+											</span>
+										{/each}
+									</div>
+								{:else}
+									<span class="font-medium text-brand-600 dark:text-brand-400">
+										{formatValue(suggestion.field_name, suggestion.new_value)}
+									</span>
+								{/if}
 							</div>
 
 							<!-- Source text -->

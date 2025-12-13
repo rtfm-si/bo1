@@ -55,24 +55,24 @@
 - [x] [DATA][P1] Show analysis history and chart gallery on dataset detail ✅ AnalysisGallery.svelte + GET /api/v1/datasets/{id}/analyses
 - [x] [DATA][P1] Add dataset attachment selector to meeting creation ✅ g3_add_dataset_sessions.py + Svelte 5 selector + ownership validation
 
-### P4 Stripe Integration [P4-STRIPE]
+### P4 Stripe Integration [P4-STRIPE] ✅ PHASE 1 COMPLETE
 
-- [ ] [BILLING][P4] Create Stripe account and configure products/prices (Free/Starter/Pro)
-- [ ] [BILLING][P4] Add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` to env
-- [ ] [BILLING][P4] Install `stripe` package
-- [ ] [BILLING][P4] Implement Stripe webhook handler endpoint
-- [ ] [BILLING][P4] Handle key webhook events (checkout.session.completed, subscription.updated/deleted, invoice.payment_failed)
-- [ ] [BILLING][P4] Add idempotency checks to webhook handler
-- [ ] [BILLING][P4] Implement checkout session creation endpoint
-- [ ] [BILLING][P4] Handle checkout success/cancel redirects
-- [ ] [BILLING][P4] Implement billing portal session creation
-- [ ] [BILLING][P4] Store stripe_customer_id in users table
-- [ ] [BILLING][P4] Implement tier checking middleware
-- [ ] [BILLING][P4] Add meeting limit checks to session creation
-- [ ] [BILLING][P4] Add graceful upgrade prompts on limit reached
-- [ ] [BILLING][P4] Add Checkout button integration to billing settings
-- [ ] [BILLING][P4] Fix Portal button stub in billing settings
-- [ ] [BILLING][P4] Show upgrade prompts when near usage limit
+- [ ] [BILLING][P4] Create Stripe account and configure products/prices (Free/Starter/Pro) - Manual setup required
+- [x] [BILLING][P4] Add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` to env ✅ bo1/config.py
+- [x] [BILLING][P4] Install `stripe` package ✅ stripe==14.0.1
+- [x] [BILLING][P4] Implement Stripe webhook handler endpoint ✅ POST /api/v1/billing/webhook
+- [x] [BILLING][P4] Handle key webhook events (checkout.session.completed, subscription.updated/deleted, invoice.payment_failed) ✅ backend/api/billing.py
+- [x] [BILLING][P4] Add idempotency checks to webhook handler ✅ stripe_events table + _is_event_processed()
+- [x] [BILLING][P4] Implement checkout session creation endpoint ✅ POST /api/v1/billing/checkout
+- [x] [BILLING][P4] Handle checkout success/cancel redirects ✅ /billing/success + /billing/cancel pages
+- [x] [BILLING][P4] Implement billing portal session creation ✅ POST /api/v1/billing/portal
+- [x] [BILLING][P4] Store stripe_customer_id in users table ✅ ao1_add_stripe_customer migration + user_repository methods
+- [x] [BILLING][P4] Implement tier checking middleware ✅ Pre-existing in backend/api/middleware/tier_limits.py
+- [x] [BILLING][P4] Add meeting limit checks to session creation ✅ Pre-existing in tier_limits.py check_meeting_limit()
+- [x] [BILLING][P4] Add graceful upgrade prompts on limit reached ✅ Pre-existing tier_limits upgrade_url
+- [x] [BILLING][P4] Add Checkout button integration to billing settings ✅ /settings/billing upgrade cards
+- [x] [BILLING][P4] Fix Portal button stub in billing settings ✅ Stripe portal integration complete
+- [ ] [BILLING][P4] Show upgrade prompts when near usage limit - Deferred (nice-to-have)
 
 ### P1  Critical UX Fixes [P1-UI]
 
@@ -146,7 +146,7 @@
 - [x] [TEAMS][P3] Implement workspace authorization layer ✅ backend/services/workspace_auth.py (role-based permissions) + backend/api/middleware/workspace_auth.py (FastAPI dependencies) + backend/api/workspaces/routes.py (CRUD + member management) + 40 unit tests
 - [x] [TEAMS][P3] Implement invitation system (email invite, accept/decline) ✅ ab1_create_workspace_invitations migration + invitation_repository.py + invitation_service.py + render_workspace_invitation_email() + API endpoints + frontend InvitationManager.svelte + /invite/[token] page + 18 tests
 - [x] [TEAMS][P3] Implement workspace switching UI ✅ WorkspaceSwitcher.svelte + CreateWorkspaceModal.svelte + workspace store + Header integration + /settings/workspace page + API client methods
-- [ ] [TEAMS][P3] Implement per-workspace billing
+- [x] [TEAMS][P3] Implement per-workspace billing ✅ aq1_add_workspace_billing migration + workspace_repository billing methods + workspace_billing_service.py + API endpoints (billing info, checkout, portal) + webhook handlers for workspace customers + tier_limits workspace context + /settings/workspace/billing UI + 16 unit tests
 
 #### Projects System [P3-PROJECTS]
 
@@ -163,13 +163,13 @@
 - [x] [TIERS][P3] Implement tier limit enforcement on endpoints ✅ backend/api/middleware/tier_limits.py + sessions/datasets/mentor integration
 - [x] [TIERS][P3] Add usage API endpoints ✅ GET /api/v1/user/usage + GET /api/v1/user/tier-info
 - [x] [TIERS][P3] Add frontend usage components ✅ UsageMeter.svelte + UsagePanel.svelte
-- [ ] [TIERS][P3] Create pricing page with comparison table
+- [x] [TIERS][P3] Create pricing page with comparison table ✅ /pricing page + PricingTable.svelte + pricing.ts data config + Header nav links + UsagePanel upgrade link + tier_limits upgrade_url
 
 #### Admin Improvements [P3-ADMIN]
 
 - [x] [ADMIN][P3] Implement admin impersonation ("view as user") ✅ ah1_add_admin_impersonation migration + backend/services/admin_impersonation.py + backend/api/admin/impersonation.py (POST/DELETE/GET) + ImpersonationMiddleware + auth dependency mod + ImpersonationBanner.svelte + admin users page modal + 18 tests
-- [ ] [ADMIN][P3] Add in-app feature request form
-- [ ] [ADMIN][P3] Add in-app problem reporting (auto-attach context)
+- [x] [ADMIN][P3] Add in-app feature request form ✅ FeedbackModal.svelte + POST /api/v1/feedback + admin review at /admin/feedback
+- [x] [ADMIN][P3] Add in-app problem reporting (auto-attach context) ✅ FeedbackModal with context checkbox + tier/URL/browser auto-attach for problem reports
 
 #### AI Content Engine [P3-SEO]
 
@@ -177,12 +177,12 @@
 - [ ] [SEO][P3] Implement social posting (LinkedIn, Twitter)
 - [ ] [SEO][P3] Add performance tracking and iteration
 
-#### AI Ops Self-Healing [P3-OPS]
+#### AI Ops Self-Healing [P3-OPS] ✅ COMPLETE
 
-- [ ] [OPS][P3] Implement error pattern detection
-- [ ] [OPS][P3] Create known error → known fix mapping
-- [ ] [OPS][P3] Implement automated recovery procedures
-- [ ] [OPS][P3] Create self-monitoring dashboard
+- [x] [OPS][P3] Implement error pattern detection ✅ backend/services/error_detector.py + ErrorPattern dataclass + detect_patterns() + frequency tracking
+- [x] [OPS][P3] Create known error → known fix mapping ✅ ar1_create_error_patterns + ar2_seed_error_patterns migrations + error_fixes table
+- [x] [OPS][P3] Implement automated recovery procedures ✅ backend/services/auto_remediation.py (7 fix types: redis reconnect, db pool reset, circuit break, SSE reset, cache clear, session kill, alert only)
+- [x] [OPS][P3] Create self-monitoring dashboard ✅ backend/api/admin/ops.py + frontend/src/routes/(app)/admin/ops/+page.svelte + 45 unit tests
 
 ---
 
@@ -200,31 +200,32 @@
 
 ### Promotions System [PROMO]
 
-- [ ] [PROMO][P2] Create promotions and user_promotions database migration
-- [ ] [PROMO][P2] Create Pydantic models for Promotion, UserPromotion, AddPromotionRequest
-- [ ] [PROMO][P2] Seed common promotion templates (goodwill, discounts)
-- [ ] [PROMO][P2] Implement check_deliberation_allowance() service
-- [ ] [PROMO][P2] Implement consume_promo_deliberation() service
-- [ ] [PROMO][P2] Implement apply_promotions_to_invoice() service
-- [ ] [PROMO][P2] Implement daily promo expiry background job
-- [ ] [PROMO][P2] Create admin promotions API endpoints (GET/POST/DELETE)
-- [ ] [PROMO][P2] Create user promo code apply endpoint
-- [ ] [PROMO][P2] Integrate promotions with deliberation flow (start/complete)
-- [ ] [PROMO][P2] Integrate promotions with Stripe invoice creation
-- [ ] [PROMO][P2] Create admin promotions management page (Svelte)
-- [ ] [PROMO][P2] Create AddPromotionModal component
-- [ ] [PROMO][P2] Create PromotionCard component
-- [ ] [PROMO][P2] Write promotions E2E tests
+- [x] [PROMO][P2] Create promotions and user_promotions database migration ✅ ai1_create_promotions.py
+- [x] [PROMO][P2] Create Pydantic models for Promotion, UserPromotion, AddPromotionRequest ✅ backend/api/models.py
+- [x] [PROMO][P2] Seed common promotion templates (goodwill, discounts) ✅ WELCOME10, GOODWILL5, LAUNCH2025
+- [x] [PROMO][P2] Add promotion repository ✅ bo1/state/repositories/promotion_repository.py
+- [x] [PROMO][P2] Implement check_deliberation_allowance() service ✅ backend/services/promotion_service.py
+- [x] [PROMO][P2] Implement consume_promo_deliberation() service ✅ backend/services/promotion_service.py
+- [x] [PROMO][P2] Implement apply_promotions_to_invoice() service ✅ backend/services/promotion_service.py
+- [x] [PROMO][P2] Implement daily promo expiry background job ✅ backend/jobs/promotion_expiry.py
+- [x] [PROMO][P2] Create admin promotions API endpoints (GET/POST/DELETE) ✅ backend/api/admin/promotions.py
+- [x] [PROMO][P2] Create user promo code apply endpoint ✅ POST /api/v1/user/promo-code
+- [x] [PROMO][P2] Integrate promotions with deliberation flow (start/complete) ✅ aj1_add_session_promo_tracking migration + MeetingLimitResult with promo fallback + session used_promo_credit flag + event_collector consume on completion + SessionResponse.promo_credits_remaining
+- [x] [PROMO][P2] Integrate promotions with Stripe invoice creation ✅ ap1_add_promo_invoice_tracking migration + apply_promotions_to_stripe_invoice service + invoice.created webhook handler + create_invoice_item Stripe method + idempotency tracking + 18 unit tests
+- [x] [PROMO][P2] Create admin promotions management page (Svelte) ✅ /admin/promotions page + admin API client methods
+- [x] [PROMO][P2] Create AddPromotionModal component ✅ frontend/src/lib/components/admin/AddPromotionModal.svelte
+- [x] [PROMO][P2] Create PromotionCard component ✅ frontend/src/lib/components/admin/PromotionCard.svelte
+- [x] [PROMO][P2] Write promotions E2E tests ✅ frontend/e2e/admin-promotions.spec.ts (24 tests: list, filter tabs, create flow, delete flow, form validation, empty state, error handling)
 
-### Stripe Integration (Checkout & Webhooks) [STRIPE-EXT]
+### Stripe Integration (Checkout & Webhooks) [STRIPE-EXT] ✅ COMPLETE
 
-- [ ] [STRIPE][P4] Implement Stripe webhook signature validation
-- [ ] [STRIPE][P4] Handle invoice.payment_failed webhook
-- [ ] [STRIPE][P4] Implement replay attack prevention (reject old timestamps)
-- [ ] [STRIPE][P4] Implement webhook idempotency
-- [ ] [STRIPE][P4] Create billing/success page
-- [ ] [STRIPE][P4] Create billing/cancel page
-- [ ] [STRIPE][P4] Implement Stripe Customer Portal endpoint
+- [x] [STRIPE][P4] Implement Stripe webhook signature validation ✅ stripe_service.construct_webhook_event()
+- [x] [STRIPE][P4] Handle invoice.payment_failed webhook ✅ _handle_payment_failed() in billing.py
+- [x] [STRIPE][P4] Implement replay attack prevention (reject old timestamps) ✅ _validate_webhook_timestamp() 5-minute tolerance
+- [x] [STRIPE][P4] Implement webhook idempotency ✅ stripe_events table + _is_event_processed()/_record_event()
+- [x] [STRIPE][P4] Create billing/success page ✅ /billing/success
+- [x] [STRIPE][P4] Create billing/cancel page ✅ /billing/cancel
+- [x] [STRIPE][P4] Implement Stripe Customer Portal endpoint ✅ POST /api/v1/billing/portal
 
 ### Email Integration (Resend) [EMAIL-EXT]
 
@@ -364,7 +365,7 @@
 
 ### Integrations [INTEGRATIONS]
 
-- [ ] [INTEGRATIONS][P2] Implement Google Calendar integration for actions (sync due dates)
+- [x] [INTEGRATIONS][P2] Implement Google Calendar integration for actions (sync due dates) ✅ backend/services/google_calendar.py + action_calendar_sync.py + API endpoints + /settings/integrations UI + 27 unit tests
 - [x] [LLM][P1] Implement OpenAI fallback when Anthropic unavailable ✅ Provider-agnostic tier system (core/fast) + circuit breaker fallback
 
 ### Backlog Review [META]
@@ -458,7 +459,7 @@
 
 - [ ] [DEV][P2] Clarify scope of: "update live MCP prompt (fix.md) - dev server is running via docker only, stop if inaccessible"
 - [x] [UX][P2] Add observability for slow/failing/repeated operations (timing, error tracking) ✅ Frontend operation-tracker.ts + API client instrumentation + POST /api/v1/metrics/client + Redis storage + 15 tests
-- [ ] [DEV][P3] Automate plan→build flow loop using hooks
+- [x] [DEV][P3] Automate plan→build flow loop using hooks ✅ .claude/settings.json Stop hook + plan.md approval step + workflow-state.json
 
 ### Deliberation Improvements [DELIB-IMPROVE]
 
@@ -692,16 +693,45 @@
 
 ## Task backlog (from \_TODO.md, 2025-12-13)
 
-### Dashboard Completion Trends Bug [BUG-TRENDS]
+### Dashboard Completion Trends Bug [BUG-TRENDS] ✅ COMPLETE
 
-- [ ] [BUG][P1] Fix dashboard completion trends timeframe toggles (1m, 3m, 1y) - buttons don't update displayed data
-- [ ] [BUG][P1] Fix dashboard completion trends chart box positioning - boxes not aligned to correct month on x-axis
-- [ ] [BUG][P1] Investigate and fix root cause of dashboard completion trends display issues
+- [x] [BUG][P1] Fix dashboard completion trends timeframe toggles (1m, 3m, 1y) - buttons don't update displayed data ✅ Fixed date filtering by actual date range instead of array slice
+- [x] [BUG][P1] Fix dashboard completion trends chart box positioning - boxes not aligned to correct month on x-axis ✅ Fixed grid generation to use relative week offsets from range start
+- [x] [BUG][P1] Investigate and fix root cause of dashboard completion trends display issues ✅ Root causes: 1) slice by index instead of date filter, 2) grid relative to year start instead of range start, 3) hardcoded month positions
 
-### Privacy Retention Settings [RETENTION-UX]
+### Privacy Retention Settings [RETENTION-UX] ✅ COMPLETE
 
-- [ ] [UX][P2] Change default privacy retention setting to 2 years (currently different default)
-- [ ] [UX][P2] Replace 5-year and 10-year retention options with single 'forever' option in settings UI
+- [x] [UX][P2] Change default privacy retention setting to 2 years ✅ af2_change_retention_default migration + backend fallback updated
+- [x] [UX][P2] Replace 5-year and 10-year retention options with single 'forever' option ✅ Frontend RETENTION_OPTIONS updated, backend validation accepts -1, cleanup job skips -1 users
+
+---
+
+## Task backlog (from \_TODO.md, 2025-12-13)
+
+### Feedback Analysis System [FEEDBACK-AI] ✅ COMPLETE
+
+- [x] [FEEDBACK][P2] Run submitted feedback through Haiku to extract sentiment (positive/negative/neutral) ✅ backend/services/feedback_analyzer.py + FeedbackAnalysis dataclass + Sentiment enum
+- [x] [FEEDBACK][P2] Extract top themes and topics from feedback via LLM analysis ✅ 15 standard themes + Haiku extraction + fallback keyword detection
+- [x] [FEEDBACK][P2] Track users who requested specific features (link feedback to user for follow-up) ✅ GET /api/admin/feedback/by-theme/{theme} + theme filtering in list endpoint
+- [x] [FEEDBACK][P2] Display feedback themes and sentiment summary in admin page ✅ FeedbackAnalysisSummary + sentiment badges + theme tags + filtering UI
+
+### Dashboard Activity Heatmap [HEATMAP-ENH] ✅ COMPLETE
+
+- [x] [UX][P2] Change activity heatmap to rolling 12-month view (6 months back, 6 months forward) ✅ ActivityHeatmap.svelte - fixed 12-month window (dateRange calculation)
+- [x] [UX][P2] Add colour coding per activity type (meetings run, actions completed, actions started, mentor sessions) ✅ ACTIVITY_COLORS constant + getDominantType() + getColor() with type-based colours (brand/success/warning/info)
+- [x] [UX][P2] Add toggle buttons to show/hide individual activity types on heatmap ✅ enabledTypes state + toggleType() + clickable legend items + toggle buttons above heatmap
+
+### Mentor @ Feature Bug [BUG-MENTOR]
+
+- [x] [BUG][P1] Fix mentor @ feature: content list doesn't update when tabbing between meetings/actions/data ✅ Fixed $effect dependency tracking by reading activeTab synchronously
+
+### Meeting Context Selection [MEETING-CONTEXT] ✅ COMPLETE
+
+- [x] [UX][P2] Add context selector to meeting setup for attaching specific data, past meetings, and actions ✅ MeetingContextSelector.svelte + context_ids in CreateSessionRequest + backend validation + context_collection_node injection + an1_add_session_context migration + 8 unit tests
+
+### Context Auto-Detection [CONTEXT-ENH]
+
+- [x] [UX][P2] Improve competitor auto-detect to identify specific competitors (not generic industry groups) ✅ Enhanced LLM prompt + fallback regex + merge_competitors() + format_competitors_for_display() + PendingUpdates chip UI
 
 ---
 

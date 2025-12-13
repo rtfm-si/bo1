@@ -3,13 +3,12 @@
 Validates:
 - GET /v1/user/retention returns current retention setting
 - PATCH /v1/user/retention updates retention setting
-- Validation: 365 <= days <= 3650 (1-10 years)
+- Validation: -1 (forever) OR 365 <= days <= 1095 (1-3 years)
 """
 
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pydantic import ValidationError
 
 from backend.api.user import RetentionSettingResponse, RetentionSettingUpdate
 
@@ -34,31 +33,36 @@ class TestRetentionSettingModels:
         assert update.days == 365
 
     def test_retention_update_maximum(self) -> None:
-        """Test maximum value (3650 days / 10 years)."""
-        update = RetentionSettingUpdate(days=3650)
-        assert update.days == 3650
+        """Test maximum value (1095 days / 3 years)."""
+        update = RetentionSettingUpdate(days=1095)
+        assert update.days == 1095
+
+    def test_retention_update_forever(self) -> None:
+        """Test forever value (-1) is accepted."""
+        update = RetentionSettingUpdate(days=-1)
+        assert update.days == -1
 
     def test_retention_update_below_minimum(self) -> None:
-        """Test that values below 365 are rejected."""
-        with pytest.raises(ValidationError) as exc_info:
+        """Test that values below 365 are rejected (except -1)."""
+        with pytest.raises(ValueError) as exc_info:
             RetentionSettingUpdate(days=364)
-        assert "greater than or equal to 365" in str(exc_info.value)
+        assert "at least 365 days" in str(exc_info.value)
 
     def test_retention_update_above_maximum(self) -> None:
-        """Test that values above 3650 are rejected."""
-        with pytest.raises(ValidationError) as exc_info:
-            RetentionSettingUpdate(days=3651)
-        assert "less than or equal to 3650" in str(exc_info.value)
+        """Test that values above 1095 are rejected."""
+        with pytest.raises(ValueError) as exc_info:
+            RetentionSettingUpdate(days=1096)
+        assert "cannot exceed 1095 days" in str(exc_info.value)
 
     def test_retention_update_zero(self) -> None:
         """Test that zero is rejected."""
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError):
             RetentionSettingUpdate(days=0)
 
-    def test_retention_update_negative(self) -> None:
-        """Test that negative values are rejected."""
-        with pytest.raises(ValidationError):
-            RetentionSettingUpdate(days=-1)
+    def test_retention_update_other_negative(self) -> None:
+        """Test that negative values other than -1 are rejected."""
+        with pytest.raises(ValueError):
+            RetentionSettingUpdate(days=-2)
 
 
 @pytest.mark.unit
@@ -151,3 +155,28 @@ class TestSessionCleanupPerUserRetention:
         sql = call_args[0][0]
         # Override query doesn't join users table
         assert "join" not in sql.lower()
+
+    @patch("backend.jobs.session_cleanup.db_session")
+    def test_cleanup_skips_forever_retention_users(self, mock_db: MagicMock) -> None:
+        """Test cleanup job skips users with -1 (forever) retention."""
+        from backend.jobs.session_cleanup import cleanup_expired_sessions
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = []
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        # Run cleanup without override (per-user mode)
+        result = cleanup_expired_sessions()
+
+        assert result["sessions_anonymized"] == 0
+        assert result["errors"] == 0
+        # Verify the query excludes -1 retention users
+        call_args = mock_cursor.execute.call_args
+        assert call_args is not None
+        sql = call_args[0][0]
+        # Query should have condition to exclude -1 retention
+        assert "!= -1" in sql or "<> -1" in sql

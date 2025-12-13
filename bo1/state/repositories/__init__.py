@@ -24,6 +24,14 @@ from bo1.state.repositories.contribution_repository import (
     ContributionRepository,
     contribution_repository,
 )
+from bo1.state.repositories.feedback_repository import (
+    FeedbackRepository,
+    feedback_repository,
+)
+from bo1.state.repositories.promotion_repository import (
+    PromotionRepository,
+    promotion_repository,
+)
 from bo1.state.repositories.session_repository import (
     SessionRepository,
     session_repository,
@@ -40,4 +48,8 @@ __all__ = [
     "cache_repository",
     "ContributionRepository",
     "contribution_repository",
+    "FeedbackRepository",
+    "feedback_repository",
+    "PromotionRepository",
+    "promotion_repository",
 ]

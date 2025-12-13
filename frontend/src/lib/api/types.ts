@@ -4,10 +4,20 @@
  * These types match the Pydantic models in backend/api/models.py
  */
 
+/**
+ * Context IDs for attaching past meetings, actions, and datasets to a new session
+ */
+export interface SessionContextIds {
+	meetings?: string[];
+	actions?: string[];
+	datasets?: string[];
+}
+
 export interface CreateSessionRequest {
 	problem_statement: string;
 	problem_context?: Record<string, unknown>;
 	dataset_id?: string;
+	context_ids?: SessionContextIds;
 }
 
 export interface StaleInsight {
@@ -1660,4 +1670,83 @@ export interface TierLimitError {
 	remaining: number;
 	reset_at: string | null;
 	upgrade_prompt: string;
+}
+
+// =============================================================================
+// Feedback Types
+// =============================================================================
+
+/**
+ * Feedback type
+ */
+export type FeedbackType = 'feature_request' | 'problem_report';
+
+/**
+ * Feedback status
+ */
+export type FeedbackStatus = 'new' | 'reviewing' | 'resolved' | 'closed';
+
+/**
+ * Feedback create request
+ */
+export interface FeedbackCreateRequest {
+	type: FeedbackType;
+	title: string;
+	description: string;
+	include_context?: boolean;
+}
+
+/**
+ * Feedback context (auto-attached for problem reports)
+ */
+export interface FeedbackContext {
+	user_tier?: string;
+	page_url?: string;
+	user_agent?: string;
+	timestamp?: string;
+}
+
+/**
+ * Feedback response
+ */
+export interface FeedbackResponse {
+	id: string;
+	user_id: string;
+	type: FeedbackType;
+	title: string;
+	description: string;
+	context?: FeedbackContext | null;
+	status: FeedbackStatus;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * Feedback list response
+ */
+export interface FeedbackListResponse {
+	items: FeedbackResponse[];
+	total: number;
+}
+
+/**
+ * Feedback stats response
+ */
+export interface FeedbackStatsResponse {
+	total: number;
+	by_type: Record<FeedbackType, number>;
+	by_status: Record<FeedbackStatus, number>;
+}
+
+// =============================================================================
+// Calendar Integration Types
+// =============================================================================
+
+/**
+ * Google Calendar connection status
+ */
+export interface CalendarStatusResponse {
+	connected: boolean;
+	connected_at: string | null;
+	feature_enabled: boolean;
 }

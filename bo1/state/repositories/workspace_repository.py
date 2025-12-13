@@ -491,6 +491,180 @@ class WorkspaceRepository(BaseRepository):
         row = self._execute_one(query, (slug,))
         return row is not None
 
+    # =========================================================================
+    # Billing Methods
+    # =========================================================================
+
+    def set_stripe_customer(
+        self,
+        workspace_id: uuid.UUID,
+        customer_id: str,
+        billing_email: str | None = None,
+    ) -> bool:
+        """Set Stripe customer ID for a workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+            customer_id: Stripe customer ID
+            billing_email: Optional billing email
+
+        Returns:
+            True if updated
+        """
+        query = """
+            UPDATE workspaces
+            SET stripe_customer_id = %s,
+                billing_email = COALESCE(%s, billing_email),
+                updated_at = NOW()
+            WHERE id = %s
+        """
+        count = self._execute_count(query, (customer_id, billing_email, workspace_id))
+        return count > 0
+
+    def set_subscription(
+        self,
+        workspace_id: uuid.UUID,
+        subscription_id: str,
+        tier: str,
+    ) -> bool:
+        """Set subscription for a workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+            subscription_id: Stripe subscription ID
+            tier: Subscription tier (starter, pro, enterprise)
+
+        Returns:
+            True if updated
+        """
+        query = """
+            UPDATE workspaces
+            SET stripe_subscription_id = %s,
+                subscription_tier = %s,
+                updated_at = NOW()
+            WHERE id = %s
+        """
+        count = self._execute_count(query, (subscription_id, tier, workspace_id))
+        return count > 0
+
+    def clear_subscription(self, workspace_id: uuid.UUID) -> bool:
+        """Clear subscription and reset to free tier.
+
+        Args:
+            workspace_id: Workspace UUID
+
+        Returns:
+            True if updated
+        """
+        query = """
+            UPDATE workspaces
+            SET stripe_subscription_id = NULL,
+                subscription_tier = 'free',
+                updated_at = NOW()
+            WHERE id = %s
+        """
+        count = self._execute_count(query, (workspace_id,))
+        return count > 0
+
+    def get_billing_info(self, workspace_id: uuid.UUID) -> dict[str, Any] | None:
+        """Get billing information for a workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+
+        Returns:
+            Dict with billing info or None if workspace not found
+        """
+        query = """
+            SELECT id, name, stripe_customer_id, stripe_subscription_id,
+                   billing_email, subscription_tier, billing_owner_id, owner_id
+            FROM workspaces
+            WHERE id = %s
+        """
+        row = self._execute_one(query, (workspace_id,))
+        if not row:
+            return None
+
+        return {
+            "workspace_id": row["id"],
+            "name": row["name"],
+            "stripe_customer_id": row["stripe_customer_id"],
+            "stripe_subscription_id": row["stripe_subscription_id"],
+            "billing_email": row["billing_email"],
+            "tier": row["subscription_tier"],
+            "billing_owner_id": row["billing_owner_id"],
+            "owner_id": row["owner_id"],
+        }
+
+    def get_workspace_by_stripe_customer(
+        self,
+        customer_id: str,
+    ) -> dict[str, Any] | None:
+        """Get workspace by Stripe customer ID.
+
+        Args:
+            customer_id: Stripe customer ID
+
+        Returns:
+            Workspace dict or None if not found
+        """
+        query = """
+            SELECT id, name, slug, owner_id, stripe_customer_id,
+                   stripe_subscription_id, subscription_tier, billing_owner_id
+            FROM workspaces
+            WHERE stripe_customer_id = %s
+        """
+        row = self._execute_one(query, (customer_id,))
+        if not row:
+            return None
+
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "slug": row["slug"],
+            "owner_id": row["owner_id"],
+            "stripe_customer_id": row["stripe_customer_id"],
+            "stripe_subscription_id": row["stripe_subscription_id"],
+            "tier": row["subscription_tier"],
+            "billing_owner_id": row["billing_owner_id"],
+        }
+
+    def set_billing_owner(
+        self,
+        workspace_id: uuid.UUID,
+        billing_owner_id: str,
+    ) -> bool:
+        """Set the billing owner for a workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+            billing_owner_id: User ID of new billing owner
+
+        Returns:
+            True if updated
+        """
+        query = """
+            UPDATE workspaces
+            SET billing_owner_id = %s,
+                updated_at = NOW()
+            WHERE id = %s
+        """
+        count = self._execute_count(query, (billing_owner_id, workspace_id))
+        return count > 0
+
+    def get_workspace_tier(self, workspace_id: uuid.UUID) -> str:
+        """Get subscription tier for a workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+
+        Returns:
+            Tier string (defaults to 'free')
+        """
+        query = "SELECT subscription_tier FROM workspaces WHERE id = %s"
+        row = self._execute_one(query, (workspace_id,))
+        return row["subscription_tier"] if row else "free"
+
 
 # Singleton instance
 workspace_repository = WorkspaceRepository()

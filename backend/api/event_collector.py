@@ -1268,6 +1268,23 @@ class EventCollector:
             except Exception as cost_error:
                 logger.warning(f"Failed to record user cost tracking: {cost_error}")
 
+            # Consume promo credit if session was created using one
+            try:
+                if current_session and current_session.get("used_promo_credit"):
+                    from backend.services.promotion_service import consume_promo_deliberation
+
+                    user_id = current_session.get("user_id")
+                    if user_id:
+                        consumed = consume_promo_deliberation(user_id)
+                        if consumed:
+                            logger.info(f"Consumed promo credit for completed session {session_id}")
+                        else:
+                            logger.warning(
+                                f"Session {session_id} marked as promo but no credits consumed"
+                            )
+            except Exception as promo_error:
+                logger.warning(f"Failed to consume promo credit: {promo_error}")
+
         # If status update failed, emit error event to frontend
         if not status_update_success:
             try:

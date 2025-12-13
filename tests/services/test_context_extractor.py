@@ -15,7 +15,9 @@ from backend.services.context_extractor import (
     ContextUpdateSource,
     extract_context_updates,
     filter_high_confidence_updates,
+    format_competitors_for_display,
     get_context_extractor,
+    merge_competitors,
 )
 
 
@@ -332,3 +334,243 @@ class TestUpdatableContextFields:
             assert field in UPDATABLE_CONTEXT_FIELDS, (
                 f"{field} missing from UPDATABLE_CONTEXT_FIELDS"
             )
+
+
+class TestCompetitorFallbackExtraction:
+    """Test competitor-specific fallback extraction."""
+
+    @pytest.fixture
+    def extractor(self):
+        return ContextExtractor()
+
+    def test_extract_compete_against_pattern(self, extractor):
+        """Test 'compete against X and Y' pattern."""
+        updates = extractor._fallback_extract(
+            "We compete against Asana and Monday.com in the project management space.",
+            ContextUpdateSource.CLARIFICATION,
+        )
+        competitor_updates = [u for u in updates if u.field_name == "competitors"]
+        assert len(competitor_updates) == 1
+        competitors = competitor_updates[0].new_value
+        assert isinstance(competitors, list)
+        names = [c["name"] for c in competitors]
+        assert "Asana" in names
+        assert "Monday" in names or "Monday.com" in names
+
+    def test_extract_main_competitor_pattern(self, extractor):
+        """Test 'main competitor is X' pattern."""
+        updates = extractor._fallback_extract(
+            "Our main competitor is Figma.",
+            ContextUpdateSource.CLARIFICATION,
+        )
+        competitor_updates = [u for u in updates if u.field_name == "competitors"]
+        assert len(competitor_updates) == 1
+        competitors = competitor_updates[0].new_value
+        names = [c["name"] for c in competitors]
+        assert "Figma" in names
+
+    def test_extract_competitors_like_pattern(self, extractor):
+        """Test 'competitors like X, Y, Z' pattern."""
+        updates = extractor._fallback_extract(
+            "Our competitors include Figma, Sketch, and Adobe XD.",
+            ContextUpdateSource.PROBLEM_STATEMENT,
+        )
+        competitor_updates = [u for u in updates if u.field_name == "competitors"]
+        assert len(competitor_updates) == 1
+        competitors = competitor_updates[0].new_value
+        names = [c["name"] for c in competitors]
+        assert len(names) >= 2  # At least Figma and Sketch
+
+    def test_reject_generic_categories(self, extractor):
+        """Test that generic categories are not extracted."""
+        updates = extractor._fallback_extract(
+            "We're in the project management tools space with many SaaS competitors.",
+            ContextUpdateSource.CLARIFICATION,
+        )
+        competitor_updates = [u for u in updates if u.field_name == "competitors"]
+        # Should not extract generic terms
+        if competitor_updates:
+            competitors = competitor_updates[0].new_value
+            names = [c["name"].lower() for c in competitors]
+            assert "project" not in names
+            assert "management" not in names
+            assert "tools" not in names
+            assert "saas" not in names
+
+    def test_competitor_confidence_scoring(self, extractor):
+        """Test that competitor extractions have appropriate confidence."""
+        updates = extractor._fallback_extract(
+            "We compete against Asana.",
+            ContextUpdateSource.CLARIFICATION,
+        )
+        competitor_updates = [u for u in updates if u.field_name == "competitors"]
+        assert len(competitor_updates) == 1
+        # Fallback should have moderate confidence (0.6-0.8)
+        assert 0.5 <= competitor_updates[0].confidence <= 0.8
+
+    def test_competitor_category_direct(self, extractor):
+        """Test that extracted competitors have category field."""
+        updates = extractor._fallback_extract(
+            "We compete against Asana.",
+            ContextUpdateSource.CLARIFICATION,
+        )
+        competitor_updates = [u for u in updates if u.field_name == "competitors"]
+        assert len(competitor_updates) == 1
+        competitors = competitor_updates[0].new_value
+        assert all(c.get("category") == "direct" for c in competitors)
+
+
+class TestCompetitorLLMExtraction:
+    """Test LLM-based competitor extraction with mocked responses."""
+
+    @pytest.fixture
+    def extractor(self):
+        return ContextExtractor()
+
+    @pytest.mark.asyncio
+    async def test_llm_extract_specific_competitors(self, extractor):
+        """Test LLM extracts specific company names."""
+        mock_response = """[{
+            "field_name": "competitors",
+            "new_value": [
+                {"name": "Asana", "category": "direct", "confidence": 0.95},
+                {"name": "Monday.com", "category": "direct", "confidence": 0.95}
+            ],
+            "confidence": 0.95,
+            "source_text": "We compete against Asana and Monday.com"
+        }]"""
+
+        with patch.object(extractor, "_get_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.call = AsyncMock(return_value=(mock_response, {}))
+            mock_get_client.return_value = mock_client
+
+            updates = await extractor._extract_with_llm(
+                "We compete against Asana and Monday.com",
+                None,
+                ContextUpdateSource.CLARIFICATION,
+            )
+
+            assert len(updates) == 1
+            assert updates[0].field_name == "competitors"
+            competitors = updates[0].new_value
+            assert isinstance(competitors, list)
+            assert len(competitors) == 2
+
+    @pytest.mark.asyncio
+    async def test_llm_extract_with_categories(self, extractor):
+        """Test LLM extracts direct and indirect categories."""
+        mock_response = """[{
+            "field_name": "competitors",
+            "new_value": [
+                {"name": "Figma", "category": "direct", "confidence": 0.9},
+                {"name": "Canva", "category": "indirect", "confidence": 0.8}
+            ],
+            "confidence": 0.85,
+            "source_text": "Figma is our main competitor, Canva is indirect"
+        }]"""
+
+        with patch.object(extractor, "_get_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.call = AsyncMock(return_value=(mock_response, {}))
+            mock_get_client.return_value = mock_client
+
+            updates = await extractor._extract_with_llm(
+                "Figma is our main competitor, we also watch Canva",
+                None,
+                ContextUpdateSource.CLARIFICATION,
+            )
+
+            assert len(updates) == 1
+            competitors = updates[0].new_value
+            direct = [c for c in competitors if c.get("category") == "direct"]
+            indirect = [c for c in competitors if c.get("category") == "indirect"]
+            assert len(direct) == 1
+            assert len(indirect) == 1
+
+
+class TestMergeCompetitors:
+    """Test competitor merging and deduplication."""
+
+    def test_merge_empty_existing(self):
+        """Test merging with no existing competitors."""
+        new = [{"name": "Asana", "category": "direct", "confidence": 0.9}]
+        result = merge_competitors(None, new)
+        assert len(result) == 1
+        assert result[0]["name"] == "Asana"
+
+    def test_merge_string_existing(self):
+        """Test merging with comma-separated string existing."""
+        existing = "Figma, Sketch"
+        new = [{"name": "Adobe XD", "category": "direct", "confidence": 0.8}]
+        result = merge_competitors(existing, new)
+        assert len(result) == 3
+        names = [c["name"] for c in result]
+        assert "Figma" in names
+        assert "Sketch" in names
+        assert "Adobe XD" in names
+
+    def test_merge_list_existing(self):
+        """Test merging with list of dicts existing."""
+        existing = [
+            {"name": "Asana", "category": "direct", "confidence": 1.0},
+            {"name": "Monday.com", "category": "direct", "confidence": 1.0},
+        ]
+        new = [{"name": "Clickup", "category": "direct", "confidence": 0.8}]
+        result = merge_competitors(existing, new)
+        assert len(result) == 3
+
+    def test_merge_deduplicates_by_name(self):
+        """Test that merging deduplicates by name (case-insensitive)."""
+        existing = [{"name": "Asana", "category": "direct", "confidence": 1.0}]
+        new = [
+            {"name": "asana", "category": "indirect", "confidence": 0.8},  # Duplicate
+            {"name": "Monday.com", "category": "direct", "confidence": 0.9},
+        ]
+        result = merge_competitors(existing, new)
+        assert len(result) == 2
+        names = [c["name"].lower() for c in result]
+        assert names.count("asana") == 1
+
+    def test_merge_preserves_existing_data(self):
+        """Test that existing competitor data is preserved over new."""
+        existing = [{"name": "Asana", "category": "direct", "confidence": 1.0}]
+        new = [{"name": "Asana", "category": "indirect", "confidence": 0.5}]
+        result = merge_competitors(existing, new)
+        assert len(result) == 1
+        # Should keep the existing entry
+        assert result[0]["confidence"] == 1.0
+
+
+class TestFormatCompetitorsForDisplay:
+    """Test competitor display formatting."""
+
+    def test_format_list_of_dicts(self):
+        """Test formatting list of competitor dicts."""
+        competitors = [
+            {"name": "Asana", "category": "direct"},
+            {"name": "Monday.com", "category": "direct"},
+            {"name": "Figma", "category": "indirect"},
+        ]
+        result = format_competitors_for_display(competitors)
+        assert result == "Asana, Monday.com, Figma"
+
+    def test_format_string_passthrough(self):
+        """Test that string input passes through."""
+        result = format_competitors_for_display("Asana, Monday.com")
+        assert result == "Asana, Monday.com"
+
+    def test_format_empty(self):
+        """Test formatting empty input."""
+        assert format_competitors_for_display(None) == ""
+        assert format_competitors_for_display([]) == ""
+
+    def test_format_mixed_types(self):
+        """Test formatting mixed list (strings and dicts)."""
+        competitors = [
+            {"name": "Asana", "category": "direct"},
+            "Slack",  # Legacy string format
+        ]
+        result = format_competitors_for_display(competitors)
+        assert "Asana" in result
+        assert "Slack" in result

@@ -202,6 +202,29 @@
 			</div>
 		{/if}
 
+		<!-- Billing (admin+) -->
+		{#if isAdmin}
+			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+				<div class="flex items-center justify-between">
+					<div>
+						<h3 class="text-lg font-medium text-slate-900 dark:text-white">Billing</h3>
+						<p class="text-sm text-slate-600 dark:text-slate-400">
+							Manage workspace subscription and billing
+						</p>
+					</div>
+					<a
+						href="/settings/workspace/billing"
+						class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 transition-colors"
+					>
+						Manage Billing
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+						</svg>
+					</a>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Danger Zone -->
 		{#if !isOwner}
 			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-red-200 dark:border-red-900 p-6">

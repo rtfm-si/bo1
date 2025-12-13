@@ -37,6 +37,8 @@ class SessionRepository(BaseRepository):
         status: str = "created",
         dataset_id: str | None = None,
         workspace_id: str | None = None,
+        used_promo_credit: bool = False,
+        context_ids: dict[str, list[str]] | None = None,
     ) -> dict[str, Any]:
         """Save a new session to PostgreSQL.
 
@@ -48,6 +50,8 @@ class SessionRepository(BaseRepository):
             status: Initial status (default: 'created')
             dataset_id: Optional dataset UUID to attach for data-driven deliberations
             workspace_id: Optional workspace UUID to scope session to a team
+            used_promo_credit: Whether session uses promo credit vs tier allowance
+            context_ids: Optional user-selected context {meetings: [...], actions: [...], datasets: [...]}
 
         Returns:
             Saved session record with timestamps
@@ -57,9 +61,10 @@ class SessionRepository(BaseRepository):
                 cur.execute(
                     """
                     INSERT INTO sessions (
-                        id, user_id, problem_statement, problem_context, status, dataset_id, workspace_id
+                        id, user_id, problem_statement, problem_context, status,
+                        dataset_id, workspace_id, used_promo_credit, context_ids
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO UPDATE
                     SET user_id = EXCLUDED.user_id,
                         problem_statement = EXCLUDED.problem_statement,
@@ -67,9 +72,12 @@ class SessionRepository(BaseRepository):
                         status = EXCLUDED.status,
                         dataset_id = EXCLUDED.dataset_id,
                         workspace_id = EXCLUDED.workspace_id,
+                        used_promo_credit = EXCLUDED.used_promo_credit,
+                        context_ids = EXCLUDED.context_ids,
                         updated_at = NOW()
                     RETURNING id, user_id, problem_statement, problem_context, status,
-                              phase, total_cost, round_number, created_at, updated_at, dataset_id, workspace_id
+                              phase, total_cost, round_number, created_at, updated_at,
+                              dataset_id, workspace_id, used_promo_credit, context_ids
                     """,
                     (
                         session_id,
@@ -79,6 +87,8 @@ class SessionRepository(BaseRepository):
                         status,
                         dataset_id,
                         workspace_id,
+                        used_promo_credit,
+                        Json(context_ids) if context_ids else None,
                     ),
                 )
                 result = cur.fetchone()
@@ -125,7 +135,7 @@ class SessionRepository(BaseRepository):
             """
             SELECT id, user_id, problem_statement, problem_context, status,
                    phase, total_cost, round_number, created_at, updated_at,
-                   synthesis_text, final_recommendation
+                   synthesis_text, final_recommendation, used_promo_credit
             FROM sessions
             WHERE id = %s
             """,

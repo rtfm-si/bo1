@@ -606,6 +606,9 @@ async def start_deliberation(
         except Exception as e:
             logger.debug(f"Could not load skip_clarification preference: {e}")
 
+        # Load context_ids from metadata (user-selected meetings/actions/datasets)
+        context_ids = metadata.get("context_ids")
+
         # Create initial state
         state = create_initial_state(
             session_id=session_id,
@@ -613,6 +616,7 @@ async def start_deliberation(
             personas=personas,
             max_rounds=6,  # Hard cap for parallel architecture
             skip_clarification=skip_clarification,
+            context_ids=context_ids,
         )
 
         # Create graph

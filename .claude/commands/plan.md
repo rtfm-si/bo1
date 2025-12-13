@@ -127,4 +127,22 @@ Before finalising `_PLAN.md`:
 - Keep explanations in the chat minimal (e.g. a short bullet summary of what you planned).
 - Do not restate this prompt.
 
+---
+
+## STEP 5 – REQUEST APPROVAL
+
+After writing `_PLAN.md`:
+
+1. Present a brief summary of the plan to the user.
+2. Ask: "Approve this plan to proceed with `/build`? (yes/no)"
+3. Wait for user response.
+
+If the user approves (responds with "yes", "approve", "go ahead", "looks good", etc.):
+- The Stop hook will detect the approval and automatically trigger `/build`.
+
+If the user does not approve:
+- Normal session end; no build triggered.
+
+---
+
 Now perform this process: read `_TASK.md`, pick the next most obvious task(s), build the concise implementation plan, and write it to `_PLAN.md`.

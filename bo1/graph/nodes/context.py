@@ -186,6 +186,82 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
         except Exception as e:
             logger.warning(f"Failed to load business context: {e}")
 
+    # Step 2: Load user-selected context (meetings, actions, datasets)
+    context_ids = state.get("context_ids")
+    if context_ids:
+        selected_context_lines: list[str] = []
+
+        # Load past meetings
+        meeting_ids = context_ids.get("meetings", [])
+        if meeting_ids:
+            from bo1.state.repositories import session_repository as sess_repo
+
+            selected_context_lines.append("\n\n## Referenced Past Meetings")
+            for mid in meeting_ids[:5]:  # Limit to 5
+                try:
+                    meeting = sess_repo.get(mid)
+                    if meeting:
+                        stmt = meeting.get("problem_statement", "")[:500]
+                        synth = meeting.get("synthesis_text", "")
+                        final_rec = meeting.get("final_recommendation", "")
+
+                        selected_context_lines.append(f"\n### Meeting: {stmt[:100]}...")
+                        if synth:
+                            selected_context_lines.append(f"**Outcome:** {synth[:800]}")
+                        if final_rec:
+                            selected_context_lines.append(f"**Recommendation:** {final_rec[:500]}")
+                except Exception as e:
+                    logger.warning(f"Failed to load meeting {mid}: {e}")
+            logger.info(f"Injected {len(meeting_ids)} past meetings into context")
+
+        # Load actions
+        action_ids = context_ids.get("actions", [])
+        if action_ids:
+            from bo1.state.repositories.action_repository import ActionRepository
+
+            action_repo = ActionRepository()
+            selected_context_lines.append("\n\n## Referenced Actions")
+            for aid in action_ids[:10]:  # Limit to 10
+                try:
+                    action = action_repo.get(aid)
+                    if action:
+                        title = action.get("title", "")
+                        status = action.get("status", "")
+                        desc = action.get("description", "")[:300]
+                        selected_context_lines.append(f"- **{title}** ({status}): {desc}")
+                except Exception as e:
+                    logger.warning(f"Failed to load action {aid}: {e}")
+            logger.info(f"Injected {len(action_ids)} actions into context")
+
+        # Load datasets (profile info only, not raw data)
+        dataset_ids = context_ids.get("datasets", [])
+        if dataset_ids:
+            from bo1.state.repositories.dataset_repository import DatasetRepository
+
+            ds_repo = DatasetRepository()
+            selected_context_lines.append("\n\n## Referenced Datasets")
+            for did in dataset_ids[:3]:  # Limit to 3
+                try:
+                    ds = ds_repo.get_by_id(did, user_id) if user_id else None
+                    if ds:
+                        name = ds.get("name", "")
+                        rows = ds.get("row_count", 0)
+                        cols = ds.get("column_count", 0)
+                        desc = ds.get("description", "")[:200]
+                        selected_context_lines.append(
+                            f"- **{name}** ({rows:,} rows, {cols} columns)"
+                        )
+                        if desc:
+                            selected_context_lines.append(f"  {desc}")
+                except Exception as e:
+                    logger.warning(f"Failed to load dataset {did}: {e}")
+            logger.info(f"Injected {len(dataset_ids)} datasets into context")
+
+        # Append selected context to problem.context
+        if selected_context_lines:
+            problem.context = problem.context + "\n".join(selected_context_lines)
+            logger.info("Injected user-selected context into problem.context")
+
     # Track cost in metrics (data loading = $0, no LLM calls)
     track_phase_cost(metrics, "context_collection", None)
 

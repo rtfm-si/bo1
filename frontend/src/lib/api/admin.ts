@@ -255,6 +255,188 @@ export interface ImpersonationHistoryResponse {
 }
 
 // =============================================================================
+// Promotion Types
+// =============================================================================
+
+export interface Promotion {
+	id: string;
+	code: string;
+	type: string;
+	value: number;
+	max_uses: number | null;
+	uses_count: number;
+	expires_at: string | null;
+	created_at: string;
+	is_active: boolean;
+}
+
+export interface CreatePromotionRequest {
+	code: string;
+	type: string;
+	value: number;
+	max_uses?: number | null;
+	expires_at?: string | null;
+}
+
+export interface DeactivatePromotionResponse {
+	status: string;
+	promotion_id: string;
+}
+
+// =============================================================================
+// Feedback Types
+// =============================================================================
+
+export type FeedbackType = 'feature_request' | 'problem_report';
+export type FeedbackStatus = 'new' | 'reviewing' | 'resolved' | 'closed';
+
+export interface FeedbackContext {
+	user_tier?: string;
+	page_url?: string;
+	user_agent?: string;
+	timestamp?: string;
+}
+
+export type FeedbackSentiment = 'positive' | 'negative' | 'neutral' | 'mixed';
+
+export interface FeedbackAnalysis {
+	sentiment: FeedbackSentiment;
+	sentiment_confidence: number;
+	themes: string[];
+	analyzed_at?: string | null;
+}
+
+export interface FeedbackResponse {
+	id: string;
+	user_id: string;
+	type: FeedbackType;
+	title: string;
+	description: string;
+	context?: FeedbackContext | null;
+	analysis?: FeedbackAnalysis | null;
+	status: FeedbackStatus;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface FeedbackListResponse {
+	items: FeedbackResponse[];
+	total: number;
+}
+
+export interface FeedbackStatsResponse {
+	total: number;
+	by_type: Partial<Record<FeedbackType, number>>;
+	by_status: Partial<Record<FeedbackStatus, number>>;
+}
+
+export interface ThemeCount {
+	theme: string;
+	count: number;
+}
+
+export interface FeedbackAnalysisSummary {
+	analyzed_count: number;
+	sentiment_counts: Partial<Record<FeedbackSentiment, number>>;
+	top_themes: ThemeCount[];
+}
+
+// =============================================================================
+// Ops/Self-Healing Types
+// =============================================================================
+
+export interface ErrorPattern {
+	id: number;
+	pattern_name: string;
+	pattern_regex: string;
+	error_type: string;
+	severity: string;
+	description: string | null;
+	enabled: boolean;
+	threshold_count: number;
+	threshold_window_minutes: number;
+	cooldown_minutes: number;
+	created_at: string;
+	recent_matches: number;
+	fix_count: number;
+	last_remediation: string | null;
+}
+
+export interface ErrorPatternListResponse {
+	patterns: ErrorPattern[];
+	total: number;
+}
+
+export interface RemediationLogEntry {
+	id: number;
+	pattern_name: string | null;
+	fix_type: string | null;
+	triggered_at: string;
+	outcome: string;
+	details: Record<string, unknown> | null;
+	duration_ms: number | null;
+}
+
+export interface RemediationHistoryResponse {
+	entries: RemediationLogEntry[];
+	total: number;
+}
+
+export interface SystemHealthComponent {
+	status: string;
+	error?: string;
+}
+
+export interface SystemHealthResponse {
+	checked_at: string;
+	overall: string;
+	components: Record<string, SystemHealthComponent | Record<string, unknown>>;
+	recent_remediations: Record<string, number>;
+}
+
+export interface CreatePatternRequest {
+	pattern_name: string;
+	pattern_regex: string;
+	error_type: string;
+	severity?: string;
+	description?: string;
+	threshold_count?: number;
+	threshold_window_minutes?: number;
+	cooldown_minutes?: number;
+}
+
+export interface UpdatePatternRequest {
+	pattern_regex?: string;
+	severity?: string;
+	description?: string;
+	enabled?: boolean;
+	threshold_count?: number;
+	threshold_window_minutes?: number;
+	cooldown_minutes?: number;
+}
+
+export interface ErrorCheckResult {
+	checked_at: string;
+	errors_scanned: number;
+	patterns_matched: number;
+	remediations_triggered: number;
+	detections: Array<{
+		pattern_name: string;
+		error_type: string;
+		severity: string;
+		matched_text: string;
+	}>;
+	remediations: Array<{
+		pattern_name: string;
+		fix_type: string;
+		outcome: string;
+		message: string;
+		duration_ms: number;
+	}>;
+	error?: string;
+}
+
+// =============================================================================
 // Admin API Client
 // =============================================================================
 
@@ -469,6 +651,140 @@ class AdminApiClient {
 		const query = searchParams.toString();
 		return this.fetch<ImpersonationHistoryResponse>(
 			`/api/admin/impersonate/history${query ? `?${query}` : ''}`
+		);
+	}
+
+	// =========================================================================
+	// Promotions
+	// =========================================================================
+
+	async listPromotions(): Promise<Promotion[]> {
+		return this.fetch<Promotion[]>('/api/admin/promotions');
+	}
+
+	async createPromotion(data: CreatePromotionRequest): Promise<Promotion> {
+		return this.fetch<Promotion>('/api/admin/promotions', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async deletePromotion(promotionId: string): Promise<DeactivatePromotionResponse> {
+		return this.fetch<DeactivatePromotionResponse>(`/api/admin/promotions/${promotionId}`, {
+			method: 'DELETE'
+		});
+	}
+
+	// =========================================================================
+	// Feedback
+	// =========================================================================
+
+	async listFeedback(params?: {
+		type?: 'feature_request' | 'problem_report';
+		status?: 'new' | 'reviewing' | 'resolved' | 'closed';
+		sentiment?: FeedbackSentiment;
+		theme?: string;
+		limit?: number;
+		offset?: number;
+	}): Promise<FeedbackListResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.type) searchParams.set('type', params.type);
+		if (params?.status) searchParams.set('status', params.status);
+		if (params?.sentiment) searchParams.set('sentiment', params.sentiment);
+		if (params?.theme) searchParams.set('theme', params.theme);
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+		if (params?.offset) searchParams.set('offset', String(params.offset));
+
+		const query = searchParams.toString();
+		return this.fetch<FeedbackListResponse>(
+			`/api/admin/feedback${query ? `?${query}` : ''}`
+		);
+	}
+
+	async getFeedbackStats(): Promise<FeedbackStatsResponse> {
+		return this.fetch<FeedbackStatsResponse>('/api/admin/feedback/stats');
+	}
+
+	async getFeedbackAnalysisSummary(): Promise<FeedbackAnalysisSummary> {
+		return this.fetch<FeedbackAnalysisSummary>('/api/admin/feedback/analysis-summary');
+	}
+
+	async getFeedbackByTheme(theme: string, limit: number = 50): Promise<FeedbackListResponse> {
+		return this.fetch<FeedbackListResponse>(
+			`/api/admin/feedback/by-theme/${encodeURIComponent(theme)}?limit=${limit}`
+		);
+	}
+
+	async getFeedback(feedbackId: string): Promise<FeedbackResponse> {
+		return this.fetch<FeedbackResponse>(`/api/admin/feedback/${feedbackId}`);
+	}
+
+	async updateFeedbackStatus(
+		feedbackId: string,
+		status: 'new' | 'reviewing' | 'resolved' | 'closed'
+	): Promise<FeedbackResponse> {
+		return this.fetch<FeedbackResponse>(`/api/admin/feedback/${feedbackId}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ status })
+		});
+	}
+
+	// =========================================================================
+	// Ops / Self-Healing
+	// =========================================================================
+
+	async getErrorPatterns(params?: {
+		error_type?: string;
+		enabled_only?: boolean;
+	}): Promise<ErrorPatternListResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.error_type) searchParams.set('error_type', params.error_type);
+		if (params?.enabled_only) searchParams.set('enabled_only', 'true');
+
+		const query = searchParams.toString();
+		return this.fetch<ErrorPatternListResponse>(
+			`/api/admin/ops/patterns${query ? `?${query}` : ''}`
+		);
+	}
+
+	async getRemediationHistory(params?: {
+		limit?: number;
+		offset?: number;
+		outcome?: string;
+	}): Promise<RemediationHistoryResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+		if (params?.offset) searchParams.set('offset', String(params.offset));
+		if (params?.outcome) searchParams.set('outcome', params.outcome);
+
+		const query = searchParams.toString();
+		return this.fetch<RemediationHistoryResponse>(
+			`/api/admin/ops/remediations${query ? `?${query}` : ''}`
+		);
+	}
+
+	async getSystemHealth(): Promise<SystemHealthResponse> {
+		return this.fetch<SystemHealthResponse>('/api/admin/ops/health');
+	}
+
+	async createErrorPattern(data: CreatePatternRequest): Promise<{ id: number; pattern_name: string; message: string }> {
+		return this.fetch<{ id: number; pattern_name: string; message: string }>('/api/admin/ops/patterns', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async updateErrorPattern(patternId: number, data: UpdatePatternRequest): Promise<{ message: string }> {
+		return this.fetch<{ message: string }>(`/api/admin/ops/patterns/${patternId}`, {
+			method: 'PATCH',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async triggerErrorCheck(executeFixes: boolean = true): Promise<ErrorCheckResult> {
+		return this.fetch<ErrorCheckResult>(
+			`/api/admin/ops/check?execute_fixes=${executeFixes}`,
+			{ method: 'POST' }
 		);
 	}
 }

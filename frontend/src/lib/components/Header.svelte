@@ -8,8 +8,9 @@
 	import NavDropdown from '$lib/components/ui/NavDropdown.svelte';
 	import WorkspaceSwitcher from '$lib/components/workspace/WorkspaceSwitcher.svelte';
 	import CreateWorkspaceModal from '$lib/components/workspace/CreateWorkspaceModal.svelte';
+	import FeedbackModal from '$lib/components/feedback/FeedbackModal.svelte';
 	import { isAuthenticated, user, signOut } from '$lib/stores/auth';
-	import { Menu, X, ChevronDown, ChevronRight, HelpCircle } from 'lucide-svelte';
+	import { Menu, X, ChevronDown, ChevronRight, HelpCircle, MessageSquarePlus } from 'lucide-svelte';
 
 	// Check if a nav link is active (supports prefix matching for nested routes)
 	function isActive(href: string): boolean {
@@ -47,6 +48,9 @@
 
 	// Workspace modal state
 	let showCreateWorkspaceModal = $state(false);
+
+	// Feedback modal state
+	let showFeedbackModal = $state(false);
 
 	function toggleMobileMenu() {
 		mobileMenuOpen = !mobileMenuOpen;
@@ -169,6 +173,14 @@
 					>
 						<HelpCircle class="w-5 h-5" />
 					</a>
+					<button
+						type="button"
+						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+						title="Send Feedback"
+						onclick={() => (showFeedbackModal = true)}
+					>
+						<MessageSquarePlus class="w-5 h-5" />
+					</button>
 					{#if $user?.is_admin}
 						<a
 							href="/admin"
@@ -191,6 +203,14 @@
 						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
 					>
 						Features
+					</a>
+					<a
+						href="/pricing"
+						class={isActive('/pricing')
+							? 'text-brand-600 dark:text-brand-400 font-medium'
+							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}
+					>
+						Pricing
 					</a>
 				{/if}
 			</div>
@@ -330,6 +350,15 @@
 							Help
 						</a>
 					</div>
+					<div class="border-t border-neutral-100 dark:border-neutral-800">
+						<button
+							type="button"
+							class="w-full text-left block py-3 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400"
+							onclick={() => { closeMobileMenu(); showFeedbackModal = true; }}
+						>
+							Send Feedback
+						</button>
+					</div>
 					{#if $user?.is_admin}
 						<div class="border-t border-neutral-100 dark:border-neutral-800">
 							<a
@@ -373,6 +402,15 @@
 					>
 						Features
 					</a>
+					<a
+						href="/pricing"
+						class={isActive('/pricing')
+							? 'block py-3 text-base font-medium text-brand-600 dark:text-brand-400'
+							: 'block py-3 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400'}
+						onclick={closeMobileMenu}
+					>
+						Pricing
+					</a>
 					<div class="pt-3 border-t border-neutral-200 dark:border-neutral-700">
 						<div class="flex flex-col gap-2 pt-2">
 							<Button variant="brand" size="sm" onclick={() => { closeMobileMenu(); handleGetStarted(); }}>
@@ -391,3 +429,8 @@
 
 <!-- Create Workspace Modal -->
 <CreateWorkspaceModal bind:open={showCreateWorkspaceModal} />
+
+<!-- Feedback Modal -->
+{#if $isAuthenticated}
+	<FeedbackModal bind:open={showFeedbackModal} />
+{/if}

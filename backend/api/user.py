@@ -16,13 +16,14 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
-from backend.api.models import ErrorResponse
+from backend.api.models import ApplyPromoCodeRequest, ErrorResponse, UserPromotion
 from backend.services.audit import (
     get_recent_deletion_request,
     get_recent_export_request,
     log_gdpr_event,
 )
 from backend.services.gdpr import GDPRError, collect_user_data, delete_user_data
+from backend.services.promotion_service import PromoValidationError, validate_and_apply_code
 from backend.services.usage_tracking import get_all_usage, get_effective_tier
 from bo1.constants import TierFeatureFlags, TierLimits
 from bo1.state.database import db_session
@@ -37,14 +38,38 @@ class RetentionSettingResponse(BaseModel):
     """Response for retention setting endpoint."""
 
     data_retention_days: int = Field(
-        ..., ge=365, le=3650, description="Data retention period in days (1-10 years)"
+        ..., description="Data retention period in days (-1=forever, 365-1095)"
     )
 
 
 class RetentionSettingUpdate(BaseModel):
-    """Request body for updating retention setting."""
+    """Request body for updating retention setting.
 
-    days: int = Field(..., ge=365, le=3650, description="Data retention period (365-3650 days)")
+    Valid values:
+    - -1: Forever (data kept until account deletion)
+    - 365-1095: 1 to 3 years
+    """
+
+    days: int = Field(..., description="Data retention period (-1=forever, 365-1095 days)")
+
+    @classmethod
+    def validate_days(cls, v: int) -> int:
+        """Validate retention days: -1 (forever) or 365-1095 (1-3 years)."""
+        if v == -1:
+            return v
+        if v < 365:
+            raise ValueError(
+                "Retention period must be at least 365 days (1 year) or -1 for forever"
+            )
+        if v > 1095:
+            raise ValueError(
+                "Retention period cannot exceed 1095 days (3 years). Use -1 for forever."
+            )
+        return v
+
+    def model_post_init(self, _context: object) -> None:
+        """Validate days after initialization."""
+        self.days = self.validate_days(self.days)
 
 
 def _get_client_ip(request: Request) -> str | None:
@@ -316,7 +341,7 @@ async def get_retention_setting(
                 # Handle potential NULL from users created before migration
                 retention_days = row["data_retention_days"]
                 if retention_days is None:
-                    retention_days = 365  # Default fallback
+                    retention_days = 730  # Default fallback (2 years)
 
                 return RetentionSettingResponse(data_retention_days=retention_days)
 
@@ -333,19 +358,19 @@ async def get_retention_setting(
     description="""
     Update the user's data retention period.
 
-    Valid range: 365-3650 days (1 year to 10 years).
-
-    - Minimum 1 year ensures data is available for annual reviews
-    - Maximum 10 years for enterprise compliance needs
+    Valid values:
+    - -1: Forever (data kept until account deletion)
+    - 365-1095: 1 to 3 years
 
     Note: Changing to a shorter period does not immediately delete data.
     The scheduled cleanup job will remove data past the new retention period
-    during its next run.
+    during its next run. Users with "Forever" retention (-1) are skipped by
+    the cleanup job entirely.
     """,
     response_model=RetentionSettingResponse,
     responses={
         200: {"description": "Retention setting updated"},
-        422: {"description": "Invalid retention period (must be 365-3650 days)"},
+        422: {"description": "Invalid retention period (must be -1 or 365-1095 days)"},
         500: {"description": "Failed to update setting", "model": ErrorResponse},
     },
 )
@@ -726,3 +751,75 @@ async def get_tier_info(
         limits=TierLimits.get_limits(effective_tier),
         features=TierFeatureFlags.get_features(effective_tier),
     )
+
+
+# =============================================================================
+# Promotions
+# =============================================================================
+
+
+@router.post(
+    "/promo-code",
+    response_model=UserPromotion,
+    summary="Apply promo code",
+    description="""
+    Apply a promo code to your account.
+
+    Validation checks:
+    - Code must exist and be active
+    - Code must not be expired
+    - Code must not have reached maximum uses
+    - You cannot apply the same code twice
+    """,
+    responses={
+        200: {"description": "Promo code applied successfully"},
+        404: {"description": "Promo code not found", "model": ErrorResponse},
+        409: {"description": "Code already applied", "model": ErrorResponse},
+        410: {"description": "Code expired or at max uses", "model": ErrorResponse},
+        422: {"description": "Invalid promo code format", "model": ErrorResponse},
+    },
+)
+async def apply_promo_code(
+    body: ApplyPromoCodeRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> UserPromotion:
+    """Apply a promo code to user's account."""
+    user_id = user["user_id"]
+
+    try:
+        result = validate_and_apply_code(user_id, body.code)
+        logger.info(f"User {user_id} applied promo code {body.code}")
+
+        # Convert to Pydantic model
+        from backend.api.models import Promotion
+
+        return UserPromotion(
+            id=result["id"],
+            promotion=Promotion(**result["promotion"]),
+            applied_at=result["applied_at"],
+            deliberations_remaining=result["deliberations_remaining"],
+            discount_applied=result["discount_applied"],
+            status=result["status"],
+        )
+
+    except PromoValidationError as e:
+        if e.code == "not_found":
+            raise HTTPException(status_code=404, detail=e.message) from e
+        elif e.code == "already_applied":
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "Already applied",
+                    "message": e.message,
+                },
+            ) from e
+        elif e.code in ("expired", "inactive", "max_uses_reached"):
+            raise HTTPException(
+                status_code=410,
+                detail={
+                    "error": e.code,
+                    "message": e.message,
+                },
+            ) from e
+        else:
+            raise HTTPException(status_code=400, detail=e.message) from e

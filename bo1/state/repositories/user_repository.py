@@ -502,6 +502,318 @@ class UserRepository(BaseRepository):
             logger.error(f"Failed to clear Google tokens for user {user_id}: {e}")
             return False
 
+    # =========================================================================
+    # Google Calendar Tokens (separate from Sheets)
+    # =========================================================================
+
+    def save_calendar_tokens(
+        self,
+        user_id: str,
+        access_token: str,
+        refresh_token: str | None,
+        expires_at: str | None,
+    ) -> bool:
+        """Save Google Calendar OAuth tokens for a user (encrypted at rest).
+
+        Args:
+            user_id: User identifier
+            access_token: Google access token
+            refresh_token: Google refresh token (for token refresh)
+            expires_at: ISO timestamp when access token expires
+
+        Returns:
+            True if saved successfully
+        """
+        tokens = {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_at": expires_at,
+        }
+
+        # Encrypt tokens if encryption key is configured
+        encrypted_tokens: str
+        try:
+            from backend.services.encryption import get_encryption_service
+
+            encryption = get_encryption_service()
+            encrypted_tokens = encryption.encrypt_json(tokens)
+        except Exception as e:
+            # If encryption not configured, fall back to plaintext JSON (dev only)
+            import json
+
+            logger.warning(f"Encryption not available, storing calendar tokens as plaintext: {e}")
+            encrypted_tokens = json.dumps(tokens)
+
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET google_calendar_tokens = %s,
+                            google_calendar_connected_at = NOW(),
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (encrypted_tokens, user_id),
+                    )
+                    return bool(cur.rowcount and cur.rowcount > 0)
+        except Exception as e:
+            logger.error(f"Failed to save Calendar tokens for user {user_id}: {e}")
+            return False
+
+    def get_calendar_tokens(self, user_id: str) -> dict[str, Any] | None:
+        """Get Google Calendar OAuth tokens for a user (decrypted from storage).
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Dict with access_token, refresh_token, expires_at or None
+        """
+        try:
+            result = self._execute_one(
+                """
+                SELECT google_calendar_tokens, google_calendar_connected_at
+                FROM users
+                WHERE id = %s
+                """,
+                (user_id,),
+            )
+            if not result:
+                return None
+
+            stored_tokens = result.get("google_calendar_tokens")
+            if not stored_tokens:
+                return None
+
+            # Decrypt tokens - handle both encrypted string and legacy JSON
+            tokens: dict[str, Any]
+            if isinstance(stored_tokens, str):
+                try:
+                    from backend.services.encryption import (
+                        get_encryption_service,
+                        is_encrypted,
+                    )
+
+                    if is_encrypted(stored_tokens):
+                        encryption = get_encryption_service()
+                        tokens = encryption.decrypt_json(stored_tokens)
+                    else:
+                        import json
+
+                        tokens = json.loads(stored_tokens)
+                except Exception as e:
+                    logger.error(f"Failed to decrypt calendar tokens for user {user_id}: {e}")
+                    self.clear_calendar_tokens(user_id)
+                    return None
+            elif isinstance(stored_tokens, dict):
+                tokens = stored_tokens
+            else:
+                logger.error(
+                    f"Unexpected calendar token format for user {user_id}: {type(stored_tokens)}"
+                )
+                return None
+
+            tokens["connected_at"] = result.get("google_calendar_connected_at")
+            return tokens
+        except Exception as e:
+            logger.error(f"Failed to get Calendar tokens for user {user_id}: {e}")
+            return None
+
+    def has_calendar_connected(self, user_id: str) -> bool:
+        """Check if user has Google Calendar connected.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if user has valid Google Calendar tokens
+        """
+        tokens = self.get_calendar_tokens(user_id)
+        return tokens is not None and bool(tokens.get("access_token"))
+
+    def clear_calendar_tokens(self, user_id: str) -> bool:
+        """Clear Google Calendar OAuth tokens for a user (disconnect).
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if cleared successfully
+        """
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET google_calendar_tokens = NULL,
+                            google_calendar_connected_at = NULL,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (user_id,),
+                    )
+                    return True
+        except Exception as e:
+            logger.error(f"Failed to clear Calendar tokens for user {user_id}: {e}")
+            return False
+
+    # =========================================================================
+    # Stripe Billing
+    # =========================================================================
+
+    def get_stripe_customer_id(self, user_id: str) -> str | None:
+        """Get Stripe customer ID for a user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Stripe customer ID or None if not set
+        """
+        result = self._execute_one(
+            "SELECT stripe_customer_id FROM users WHERE id = %s",
+            (user_id,),
+        )
+        return result.get("stripe_customer_id") if result else None
+
+    def save_stripe_customer_id(self, user_id: str, customer_id: str) -> bool:
+        """Save Stripe customer ID for a user.
+
+        Args:
+            user_id: User identifier
+            customer_id: Stripe customer ID (cus_...)
+
+        Returns:
+            True if saved successfully
+        """
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET stripe_customer_id = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (customer_id, user_id),
+                    )
+                    return bool(cur.rowcount and cur.rowcount > 0)
+        except Exception as e:
+            logger.error(f"Failed to save Stripe customer ID for user {user_id}: {e}")
+            return False
+
+    def save_stripe_subscription(
+        self,
+        user_id: str,
+        subscription_id: str,
+        tier: str,
+    ) -> bool:
+        """Save Stripe subscription and update user tier.
+
+        Args:
+            user_id: User identifier
+            subscription_id: Stripe subscription ID (sub_...)
+            tier: Subscription tier (starter, pro)
+
+        Returns:
+            True if saved successfully
+        """
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET stripe_subscription_id = %s,
+                            subscription_tier = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (subscription_id, tier, user_id),
+                    )
+                    return bool(cur.rowcount and cur.rowcount > 0)
+        except Exception as e:
+            logger.error(f"Failed to save subscription for user {user_id}: {e}")
+            return False
+
+    def update_subscription_tier(self, user_id: str, tier: str) -> bool:
+        """Update user's subscription tier.
+
+        Args:
+            user_id: User identifier
+            tier: New subscription tier
+
+        Returns:
+            True if updated successfully
+        """
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET subscription_tier = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (tier, user_id),
+                    )
+                    return bool(cur.rowcount and cur.rowcount > 0)
+        except Exception as e:
+            logger.error(f"Failed to update tier for user {user_id}: {e}")
+            return False
+
+    def clear_stripe_subscription(self, user_id: str) -> bool:
+        """Clear Stripe subscription and downgrade to free tier.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if cleared successfully
+        """
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET stripe_subscription_id = NULL,
+                            subscription_tier = 'free',
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (user_id,),
+                    )
+                    return bool(cur.rowcount and cur.rowcount > 0)
+        except Exception as e:
+            logger.error(f"Failed to clear subscription for user {user_id}: {e}")
+            return False
+
+    def get_user_by_stripe_customer(self, customer_id: str) -> dict[str, Any] | None:
+        """Get user by Stripe customer ID.
+
+        Args:
+            customer_id: Stripe customer ID
+
+        Returns:
+            User data dict or None if not found
+        """
+        return self._execute_one(
+            """
+            SELECT id, email, auth_provider, subscription_tier,
+                   stripe_customer_id, stripe_subscription_id,
+                   is_admin, created_at, updated_at
+            FROM users
+            WHERE stripe_customer_id = %s
+            """,
+            (customer_id,),
+        )
+
 
 # Validate SQL identifiers at module load time (defense-in-depth)
 UserRepository._validate_sql_identifiers()

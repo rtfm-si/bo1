@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Check if the last action was running /plan and the user has approved the plan. If the plan was approved (user said 'yes', 'approve', 'looks good', 'go ahead', etc.), respond with: {\"decision\": \"block\", \"reason\": \"Plan approved - executing /build now.\"} to continue. If the plan was not approved or /plan was not just run, respond with: {\"continue\": true} to allow normal completion."
+          }
+        ]
+      }
+    ]
+  }
+}

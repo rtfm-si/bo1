@@ -162,6 +162,18 @@ class Settings(BaseSettings):
         default="", description="SuperTokens API key (required in production)"
     )
 
+    # Stripe Configuration
+    stripe_secret_key: str = Field(default="", description="Stripe secret key (sk_...)")
+    stripe_webhook_secret: str = Field(
+        default="", description="Stripe webhook signing secret (whsec_...)"
+    )
+    stripe_price_starter: str = Field(
+        default="", description="Stripe price ID for Starter plan (price_...)"
+    )
+    stripe_price_pro: str = Field(
+        default="", description="Stripe price ID for Pro plan (price_...)"
+    )
+
     # OAuth Configuration
     google_oauth_client_id: str = Field(default="", description="Google OAuth client ID")
     google_oauth_client_secret: str = Field(default="", description="Google OAuth client secret")
@@ -186,6 +198,11 @@ class Settings(BaseSettings):
     # Google Sheets API Configuration
     google_api_key: str = Field(
         default="", description="Google API key for Sheets access (public sheets only)"
+    )
+
+    # Google Calendar Integration (reuses google_oauth_client_id/secret)
+    google_calendar_enabled: bool = Field(
+        default=False, description="Enable Google Calendar integration for actions"
     )
 
     # Encryption Configuration

@@ -11,7 +11,11 @@ def __getattr__(name: str) -> object:
         from backend.api.workspaces.invitations import user_router
 
         return user_router
+    if name == "billing_router":
+        from backend.api.workspaces.billing import router
+
+        return router
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-__all__ = ["router", "invitations_user_router"]
+__all__ = ["router", "invitations_user_router", "billing_router"]

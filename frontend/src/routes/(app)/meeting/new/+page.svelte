@@ -5,7 +5,8 @@
 	import { isAuthenticated } from '$lib/stores/auth';
 	import { apiClient } from '$lib/api/client';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
-	import type { Dataset, StaleInsight } from '$lib/api/types';
+	import MeetingContextSelector from '$lib/components/meeting/MeetingContextSelector.svelte';
+	import type { Dataset, StaleInsight, SessionContextIds } from '$lib/api/types';
 
 	let problemStatement = $state('');
 	let isSubmitting = $state(false);
@@ -17,6 +18,8 @@
 	let pendingSessionId = $state<string | null>(null);
 	let staleInsights = $state<StaleInsight[]>([]);
 	let showStalenessWarning = $state(false);
+	// Context selection state
+	let selectedContext = $state<SessionContextIds>({});
 
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
@@ -67,10 +70,17 @@
 			isSubmitting = true;
 			error = null;
 
-			// Create session with optional dataset
+			// Build context_ids if any selected
+			const hasContext =
+				(selectedContext.meetings?.length ?? 0) > 0 ||
+				(selectedContext.actions?.length ?? 0) > 0 ||
+				(selectedContext.datasets?.length ?? 0) > 0;
+
+			// Create session with optional dataset and context
 			const sessionData = await apiClient.createSession({
 				problem_statement: problemStatement.trim(),
-				dataset_id: selectedDatasetId || undefined
+				dataset_id: selectedDatasetId || undefined,
+				context_ids: hasContext ? selectedContext : undefined
 			});
 
 			const sessionId = sessionData.id;
@@ -132,6 +142,10 @@
 
 	function useExample(example: string) {
 		problemStatement = example;
+	}
+
+	function handleContextChange(context: SessionContextIds) {
+		selectedContext = context;
 	}
 </script>
 
@@ -239,6 +253,9 @@
 						{/if}
 					</div>
 				{/if}
+
+				<!-- Context Selector -->
+				<MeetingContextSelector onContextChange={handleContextChange} />
 
 				<!-- Examples -->
 				<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4">

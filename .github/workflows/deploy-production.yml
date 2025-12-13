@@ -273,6 +273,7 @@ jobs:
           username: ${{ secrets.PRODUCTION_USER }}
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
           port: ${{ secrets.PRODUCTION_SSH_PORT || '22' }}
+          command_timeout: 30m
           envs: GITHUB_SHA,REGISTRY,IMAGE_NAME_API,IMAGE_NAME_FRONTEND
           script: |
             set -e

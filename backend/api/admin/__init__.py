@@ -23,6 +23,7 @@ from fastapi import APIRouter
 from backend.api.admin import (
     alerts,
     beta_whitelist,
+    blog,
     cost_analytics,
     feature_flags,
     feedback,
@@ -57,6 +58,7 @@ router.include_router(impersonation.router)
 router.include_router(promotions.router)
 router.include_router(feedback.router)
 router.include_router(ops.router)
+router.include_router(blog.router)
 
 # Re-export models for backward compatibility
 from backend.api.admin.models import (  # noqa: E402, F401

@@ -111,26 +111,26 @@ export const PRICING_TIERS: PricingTier[] = [
 		id: 'starter',
 		name: 'Starter',
 		description: 'For growing businesses making regular decisions',
-		price: 29,
-		priceLabel: '$29',
-		period: 'per month',
+		price: null, // Pricing not yet finalized
+		priceLabel: 'Coming Soon',
+		period: '',
 		limits: TIER_LIMITS.starter,
 		features: TIER_FEATURES.starter,
 		highlight: true,
-		ctaLabel: 'Start Free Trial',
-		ctaHref: '/waitlist'
+		ctaLabel: 'Contact Sales',
+		ctaHref: 'mailto:support@boardof.one?subject=Upgrade%20Inquiry'
 	},
 	{
 		id: 'pro',
 		name: 'Pro',
 		description: 'For power users and teams requiring unlimited access',
-		price: 99,
-		priceLabel: '$99',
-		period: 'per month',
+		price: null, // Pricing not yet finalized
+		priceLabel: 'Coming Soon',
+		period: '',
 		limits: TIER_LIMITS.pro,
 		features: TIER_FEATURES.pro,
-		ctaLabel: 'Start Free Trial',
-		ctaHref: '/waitlist'
+		ctaLabel: 'Contact Sales',
+		ctaHref: 'mailto:support@boardof.one?subject=Upgrade%20Inquiry'
 	}
 ];
 

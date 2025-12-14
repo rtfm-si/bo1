@@ -25,7 +25,7 @@
 			id: 'context',
 			title: 'Set up business context',
 			description: 'Help us understand your business for better recommendations',
-			href: '/settings/context',
+			href: '/context',
 			completed: !!(userContext?.business_model || userContext?.product_description),
 		},
 		{

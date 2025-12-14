@@ -134,7 +134,9 @@ import type {
 	ContextProjectSuggestion,
 	ContextSuggestionsResponse,
 	// Cost Calculator types
-	CostCalculatorDefaults
+	CostCalculatorDefaults,
+	// Value Metrics types
+	ValueMetricsResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -445,7 +447,7 @@ export interface UserPreferencesResponse {
  * Read the CSRF token from the csrf_token cookie.
  * Returns null if not found (e.g., before first GET request).
  */
-function getCsrfToken(): string | null {
+export function getCsrfToken(): string | null {
 	if (typeof document === 'undefined') return null; // SSR safety
 	const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
 	return match ? decodeURIComponent(match[1]) : null;
@@ -732,6 +734,10 @@ export class ApiClient {
 
 	async deleteUserContext(): Promise<{ status: string }> {
 		return this.delete<{ status: string }>('/api/v1/context');
+	}
+
+	async getValueMetrics(): Promise<ValueMetricsResponse> {
+		return this.fetch<ValueMetricsResponse>('/api/v1/user/value-metrics');
 	}
 
 	async getDemoQuestions(refresh: boolean = false): Promise<DemoQuestionsResponse> {

@@ -99,7 +99,7 @@
 
 			<!-- Actions -->
 			<div class="flex items-center gap-2 flex-shrink-0">
-				<a href="/settings/context" onclick={handleUpdate}>
+				<a href="/context" onclick={handleUpdate}>
 					<Button size="sm" variant="accent">
 						Update
 					</Button>

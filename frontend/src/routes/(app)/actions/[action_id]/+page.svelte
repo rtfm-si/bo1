@@ -31,9 +31,12 @@
 		Loader2,
 		ExternalLink,
 		X,
-		FolderKanban
+		FolderKanban,
+		Trophy
 	} from 'lucide-svelte';
 	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, getEffectiveDueDate } from '$lib/utils/due-dates';
+	import ActionSocialShare from '$lib/components/actions/ActionSocialShare.svelte';
+	import type { ActionAchievementData } from '$lib/utils/canvas-export';
 
 	// Helper function to format dates nicely
 	function formatDate(dateStr: string | null | undefined): string {
@@ -96,6 +99,27 @@
 	let isCreatingReplanMeeting = $state(false);
 	let replanningSuggestionError = $state<string | null>(null);
 	let replanSuggestionContext = $state<any>(null);
+
+	// Derive achievement data for social sharing (completed actions only)
+	const achievementData = $derived.by((): ActionAchievementData | null => {
+		if (!action || action.status !== 'done') return null;
+
+		// Calculate days to complete
+		let daysToComplete: number | undefined;
+		if (action.actual_start_date && action.actual_end_date) {
+			const start = new Date(action.actual_start_date);
+			const end = new Date(action.actual_end_date);
+			daysToComplete = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+		}
+
+		return {
+			title: action.title,
+			completionDate: action.actual_end_date || new Date().toISOString(),
+			daysToComplete,
+			projectName: undefined, // Could be fetched from project if needed
+			priority: action.priority as 'high' | 'medium' | 'low'
+		};
+	});
 
 	// Open replan modal
 	function openReplanModal() {
@@ -542,6 +566,11 @@
 									<XCircle class="w-4 h-4 mr-1" />
 									Cancel
 								</Button>
+							{/if}
+
+							<!-- Share Achievement (completed actions only) -->
+							{#if achievementData}
+								<ActionSocialShare achievement={achievementData} />
 							{/if}
 						</div>
 					</div>

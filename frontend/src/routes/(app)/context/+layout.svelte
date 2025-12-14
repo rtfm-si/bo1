@@ -1,7 +1,7 @@
 <script lang="ts">
 	/**
 	 * Context Layout - Simple wrapper for context pages
-	 * Navigation is handled by the sidebar, so no tabs needed here.
+	 * Navigation is handled by the header, so no tabs needed here.
 	 */
 	import type { Snippet } from 'svelte';
 

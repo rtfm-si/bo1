@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { DailyActionStat } from '$lib/api/types';
+	import ShareButton from '$lib/components/ui/ShareButton.svelte';
+	import type { ActivityStats } from '$lib/utils/share-content';
 
 	interface Props {
 		data: DailyActionStat[];
@@ -8,21 +10,26 @@
 
 	let { data }: Props = $props();
 
+	// Reference to heatmap container for image export
+	let heatmapContainer: HTMLElement | null = $state(null);
+
 	// Activity types for filtering
-	type ActivityType = 'sessions_run' | 'sessions_completed' | 'created_count' | 'completed_count' | 'mentor_sessions';
+	type ActivityType = 'sessions_run' | 'completed_count' | 'in_progress_count' | 'mentor_sessions' | 'estimated_starts' | 'estimated_completions';
 
 	// Activity type colours - using design system tokens
-	const ACTIVITY_COLORS: Record<ActivityType, { light: string; dark: string; label: string }> = {
+	// Estimated types use lighter (200) variants of their related actual types
+	const ACTIVITY_COLORS: Record<ActivityType, { light: string; dark: string; label: string; isEstimate?: boolean }> = {
 		sessions_run: { light: 'bg-brand-500', dark: 'dark:bg-brand-400', label: 'Meetings' },
-		sessions_completed: { light: 'bg-success-500', dark: 'dark:bg-success-400', label: 'Meetings completed' },
-		created_count: { light: 'bg-warning-500', dark: 'dark:bg-warning-400', label: 'Actions created' },
-		completed_count: { light: 'bg-info-500', dark: 'dark:bg-info-400', label: 'Actions completed' },
-		mentor_sessions: { light: 'bg-purple-500', dark: 'dark:bg-purple-400', label: 'Mentor sessions' }
+		completed_count: { light: 'bg-success-500', dark: 'dark:bg-success-400', label: 'Actions completed' },
+		in_progress_count: { light: 'bg-warning-500', dark: 'dark:bg-warning-400', label: 'Actions started' },
+		mentor_sessions: { light: 'bg-purple-500', dark: 'dark:bg-purple-400', label: 'Mentor sessions' },
+		estimated_starts: { light: 'bg-warning-200', dark: 'dark:bg-warning-300', label: 'Planned starts', isEstimate: true },
+		estimated_completions: { light: 'bg-success-200', dark: 'dark:bg-success-300', label: 'Due dates', isEstimate: true }
 	};
 
 	// Enabled activity types (all enabled by default) - SvelteSet for reactive mutations
 	let enabledTypes = new SvelteSet<ActivityType>([
-		'sessions_run', 'sessions_completed', 'created_count', 'completed_count', 'mentor_sessions'
+		'sessions_run', 'completed_count', 'in_progress_count', 'mentor_sessions', 'estimated_starts', 'estimated_completions'
 	]);
 
 	// Toggle an activity type
@@ -134,10 +141,11 @@
 		if (!stat) return 0;
 		let total = 0;
 		if (enabledTypes.has('sessions_run')) total += stat.sessions_run;
-		if (enabledTypes.has('sessions_completed')) total += stat.sessions_completed;
-		if (enabledTypes.has('created_count')) total += stat.created_count;
 		if (enabledTypes.has('completed_count')) total += stat.completed_count;
+		if (enabledTypes.has('in_progress_count')) total += stat.in_progress_count;
 		if (enabledTypes.has('mentor_sessions')) total += stat.mentor_sessions;
+		if (enabledTypes.has('estimated_starts')) total += stat.estimated_starts ?? 0;
+		if (enabledTypes.has('estimated_completions')) total += stat.estimated_completions ?? 0;
 		return total;
 	}
 
@@ -158,10 +166,11 @@
 
 		const types: { type: ActivityType; count: number }[] = [
 			{ type: 'sessions_run', count: enabledTypes.has('sessions_run') ? stat.sessions_run : 0 },
-			{ type: 'sessions_completed', count: enabledTypes.has('sessions_completed') ? stat.sessions_completed : 0 },
-			{ type: 'created_count', count: enabledTypes.has('created_count') ? stat.created_count : 0 },
 			{ type: 'completed_count', count: enabledTypes.has('completed_count') ? stat.completed_count : 0 },
-			{ type: 'mentor_sessions', count: enabledTypes.has('mentor_sessions') ? stat.mentor_sessions : 0 }
+			{ type: 'in_progress_count', count: enabledTypes.has('in_progress_count') ? stat.in_progress_count : 0 },
+			{ type: 'mentor_sessions', count: enabledTypes.has('mentor_sessions') ? stat.mentor_sessions : 0 },
+			{ type: 'estimated_starts', count: enabledTypes.has('estimated_starts') ? (stat.estimated_starts ?? 0) : 0 },
+			{ type: 'estimated_completions', count: enabledTypes.has('estimated_completions') ? (stat.estimated_completions ?? 0) : 0 }
 		];
 
 		const dominant = types.reduce((max, curr) => (curr.count > max.count ? curr : max), types[0]);
@@ -202,11 +211,10 @@
 	function formatTooltip(cell: { date: Date; stat: DailyActionStat | null }, isFuture: boolean): string {
 		const dateStr = cell.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
-		if (isFuture) {
-			return `${dateStr}\n(Future date)`;
-		}
-
 		if (!cell.stat) {
+			if (isFuture) {
+				return `${dateStr}\n(Future date - no planned activity)`;
+			}
 			return `${dateStr}\nNo activity`;
 		}
 
@@ -220,13 +228,19 @@
 			}
 		};
 
+		// Past/actual activities
 		showItem('sessions_run', cell.stat.sessions_run, 'Meetings');
-		showItem('sessions_completed', cell.stat.sessions_completed, 'Meetings completed');
-		showItem('created_count', cell.stat.created_count, 'Actions created');
 		showItem('completed_count', cell.stat.completed_count, 'Actions completed');
+		showItem('in_progress_count', cell.stat.in_progress_count, 'Actions started');
 		showItem('mentor_sessions', cell.stat.mentor_sessions, 'Mentor sessions');
 
-		if (lines.length === 1) lines.push('No activity');
+		// Future/estimated activities
+		showItem('estimated_starts', cell.stat.estimated_starts ?? 0, 'Planned starts');
+		showItem('estimated_completions', cell.stat.estimated_completions ?? 0, 'Due dates');
+
+		if (lines.length === 1) {
+			lines.push(isFuture ? 'No planned activity' : 'No activity');
+		}
 
 		return lines.join('\n');
 	}
@@ -244,15 +258,41 @@
 	// Day labels
 	const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-	// Activity types as array for iteration
-	const activityTypes: ActivityType[] = ['sessions_run', 'sessions_completed', 'created_count', 'completed_count', 'mentor_sessions'];
+	// Activity types as array for iteration - actual types first, then estimates
+	const activityTypes: ActivityType[] = ['sessions_run', 'completed_count', 'in_progress_count', 'mentor_sessions', 'estimated_starts', 'estimated_completions'];
+
+	// Calculate activity stats for sharing (only past data within range)
+	const activityStats = $derived.by((): ActivityStats => {
+		const { start, today } = dateRange;
+		const pastData = data.filter((d) => {
+			const date = new Date(d.date);
+			return date >= start && date <= today;
+		});
+
+		const totals = pastData.reduce(
+			(acc, stat) => ({
+				meetings: acc.meetings + stat.sessions_run,
+				actionsCompleted: acc.actionsCompleted + stat.completed_count,
+				mentorSessions: acc.mentorSessions + stat.mentor_sessions
+			}),
+			{ meetings: 0, actionsCompleted: 0, mentorSessions: 0 }
+		);
+
+		return {
+			...totals,
+			period: 'this year'
+		};
+	});
 </script>
 
 <div class="w-full space-y-4">
-	<!-- Header with title -->
+	<!-- Header with title and share button -->
 	<div class="flex items-center justify-between">
 		<h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Activity Heatmap</h3>
-		<span class="text-xs text-neutral-500 dark:text-neutral-400">Rolling 12 months</span>
+		<div class="flex items-center gap-2">
+			<span class="text-xs text-neutral-500 dark:text-neutral-400">Rolling 12 months</span>
+			<ShareButton targetElement={heatmapContainer} stats={activityStats} compact={true} />
+		</div>
 	</div>
 
 	<!-- Activity type toggles -->
@@ -275,7 +315,7 @@
 	</div>
 
 	<!-- Heatmap grid -->
-	<div class="overflow-x-auto">
+	<div class="overflow-x-auto" bind:this={heatmapContainer}>
 		{#if data.length === 0}
 			<div class="flex items-center justify-center h-32 text-neutral-500 dark:text-neutral-400 text-sm">
 				No activity data available

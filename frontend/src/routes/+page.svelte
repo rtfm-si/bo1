@@ -4,7 +4,7 @@
 	 * Hormozi Framework: Complete implementation with personality
 	 * Design Token System: Applied throughout with alive animations
 	 */
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
@@ -25,6 +25,12 @@
 	} from '$lib/data/landing-page-data';
 	import { sampleDecisions } from '$lib/data/samples';
 	import type { SampleDecision } from '$lib/data/samples';
+	import {
+		initPageTracking,
+		cleanupPageTracking,
+		trackWaitlistSubmit,
+		trackSignupClick
+	} from '$lib/analytics/page-tracker';
 
 	// Waitlist form state
 	let email = $state('');
@@ -76,6 +82,13 @@
 
 	onMount(() => {
 		mounted = true;
+		// Initialize page analytics tracking
+		initPageTracking();
+	});
+
+	onDestroy(() => {
+		// Cleanup tracking on navigation
+		cleanupPageTracking();
 	});
 
 	async function handleWaitlistSubmit(e: Event) {
@@ -97,6 +110,8 @@
 
 			if (response.ok) {
 				submitted = true;
+				// Track waitlist submission
+				trackWaitlistSubmit(email);
 			} else {
 				error = 'Something went wrong. Please try again.';
 			}

@@ -15,6 +15,9 @@
 	const STRIPE_PRICE_STARTER = env.PUBLIC_STRIPE_PRICE_STARTER || '';
 	const STRIPE_PRICE_PRO = env.PUBLIC_STRIPE_PRICE_PRO || '';
 
+	// Check if Stripe pricing is configured
+	const isStripeConfigured = Boolean(STRIPE_PRICE_STARTER && STRIPE_PRICE_PRO);
+
 	// State
 	let plan = $state<PlanDetails | null>(null);
 	let usage = $state<UsageStats | null>(null);
@@ -167,78 +170,111 @@
 			{/if}
 		</div>
 
-		<!-- Upgrade Options (only show if not on pro) -->
-		{#if plan?.tier !== 'pro' && getUpgradeTiers().length > 0}
-			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-				<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-					Upgrade Your Plan
-				</h3>
+		<!-- Upgrade Options -->
+		{#if plan?.tier !== 'pro'}
+			{#if isStripeConfigured && getUpgradeTiers().length > 0}
+				<!-- Show upgrade cards when Stripe is configured -->
+				<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+					<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+						Upgrade Your Plan
+					</h3>
 
-				<div class="grid gap-4 {getUpgradeTiers().length === 1 ? '' : 'md:grid-cols-2'}">
-					{#each getUpgradeTiers() as tier}
-						{@const priceId = getPriceId(tier.id)}
-						<div class="p-4 rounded-lg border {tier.highlight ? 'border-brand-500 bg-brand-50/50 dark:bg-brand-900/10' : 'border-slate-200 dark:border-slate-700'}">
-							<div class="flex items-start justify-between mb-3">
-								<div>
-									<h4 class="font-semibold text-slate-900 dark:text-white">
-										{tier.name}
-										{#if tier.highlight}
-											<span class="ml-2 text-xs bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-400 px-2 py-0.5 rounded-full">
-												Popular
-											</span>
+					<div class="grid gap-4 {getUpgradeTiers().length === 1 ? '' : 'md:grid-cols-2'}">
+						{#each getUpgradeTiers() as tier}
+							{@const priceId = getPriceId(tier.id)}
+							<div class="p-4 rounded-lg border {tier.highlight ? 'border-brand-500 bg-brand-50/50 dark:bg-brand-900/10' : 'border-slate-200 dark:border-slate-700'}">
+								<div class="flex items-start justify-between mb-3">
+									<div>
+										<h4 class="font-semibold text-slate-900 dark:text-white">
+											{tier.name}
+											{#if tier.highlight}
+												<span class="ml-2 text-xs bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-400 px-2 py-0.5 rounded-full">
+													Popular
+												</span>
+											{/if}
+										</h4>
+										<p class="text-sm text-slate-600 dark:text-slate-400">{tier.description}</p>
+									</div>
+									<div class="text-right">
+										<span class="text-xl font-bold text-slate-900 dark:text-white">{tier.priceLabel}</span>
+										{#if tier.period}
+											<span class="text-sm text-slate-500 dark:text-slate-400">/{tier.period}</span>
 										{/if}
-									</h4>
-									<p class="text-sm text-slate-600 dark:text-slate-400">{tier.description}</p>
+									</div>
 								</div>
-								<div class="text-right">
-									<span class="text-xl font-bold text-slate-900 dark:text-white">{tier.priceLabel}</span>
-									<span class="text-sm text-slate-500 dark:text-slate-400">/{tier.period}</span>
-								</div>
+
+								<ul class="space-y-1 mb-4">
+									<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+										<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+										</svg>
+										{tier.limits.meetings_monthly === -1 ? 'Unlimited meetings' : `${tier.limits.meetings_monthly} meetings/month`}
+									</li>
+									{#if tier.features.api_access}
+										<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+											<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+											</svg>
+											API access
+										</li>
+									{/if}
+									{#if tier.features.priority_support}
+										<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+											<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+											</svg>
+											Priority support
+										</li>
+									{/if}
+								</ul>
+
+								{#if priceId}
+									<Button
+										variant={tier.highlight ? 'brand' : 'secondary'}
+										onclick={() => startCheckout(priceId)}
+										disabled={isUpgrading}
+										class="w-full"
+									>
+										{isUpgrading ? 'Processing...' : `Upgrade to ${tier.name}`}
+									</Button>
+								{:else}
+									<Button variant="secondary" onclick={() => window.location.href = 'mailto:support@boardof.one?subject=Upgrade%20Inquiry'} class="w-full">
+										Contact Sales
+									</Button>
+								{/if}
 							</div>
-
-							<ul class="space-y-1 mb-4">
-								<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-									<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-									</svg>
-									{tier.limits.meetings_monthly === -1 ? 'Unlimited meetings' : `${tier.limits.meetings_monthly} meetings/month`}
-								</li>
-								{#if tier.features.api_access}
-									<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-										<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-										</svg>
-										API access
-									</li>
-								{/if}
-								{#if tier.features.priority_support}
-									<li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-										<svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-										</svg>
-										Priority support
-									</li>
-								{/if}
-							</ul>
-
-							{#if priceId}
-								<Button
-									variant={tier.highlight ? 'brand' : 'secondary'}
-									onclick={() => startCheckout(priceId)}
-									disabled={isUpgrading}
-									class="w-full"
-								>
-									{isUpgrading ? 'Processing...' : `Upgrade to ${tier.name}`}
-								</Button>
-							{:else}
-								<Button variant="secondary" onclick={() => window.location.href = 'mailto:support@boardof.one?subject=Upgrade%20Inquiry'} class="w-full">
-									Contact Sales
-								</Button>
-							{/if}
-						</div>
-					{/each}
+						{/each}
+					</div>
 				</div>
-			</div>
+			{:else}
+				<!-- Show "Coming Soon" when Stripe not configured -->
+				<div class="bg-gradient-to-br from-brand-50 to-purple-50 dark:from-brand-900/20 dark:to-purple-900/20 rounded-xl shadow-sm border border-brand-200 dark:border-brand-800 p-6">
+					<div class="flex items-start gap-4">
+						<div class="w-12 h-12 rounded-full bg-brand-100 dark:bg-brand-900/50 flex items-center justify-center flex-shrink-0">
+							<svg class="w-6 h-6 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+							</svg>
+						</div>
+						<div class="flex-1">
+							<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+								Paid Plans Coming Soon
+							</h3>
+							<p class="text-slate-600 dark:text-slate-400 mb-4">
+								We're finalizing our pricing for Starter and Pro plans. Enjoy full access to all features during our beta period.
+							</p>
+							<p class="text-sm text-slate-500 dark:text-slate-400 mb-4">
+								Interested in upgrading when available? Let us know and we'll notify you.
+							</p>
+							<Button
+								variant="secondary"
+								onclick={() => window.location.href = 'mailto:support@boardof.one?subject=Upgrade%20Interest'}
+							>
+								Contact Sales
+							</Button>
+						</div>
+					</div>
+				</div>
+			{/if}
 		{/if}
 
 		<!-- Usage -->

@@ -23,11 +23,26 @@
 
 	// Navigation link groups - consolidated under "Board" (Board of One branding)
 	const boardLinks = [
+		{ href: '/meeting', label: 'Meetings' },
 		{ href: '/actions', label: 'Actions' },
 		{ href: '/projects', label: 'Projects' },
 		{ href: '/datasets', label: 'Datasets' },
 		{ href: '/analysis', label: 'Analysis' },
 		{ href: '/mentor', label: 'Mentor' },
+	];
+
+	// Context navigation (business context settings)
+	const contextLinks = [
+		{ href: '/context/overview', label: 'Overview' },
+		{ href: '/context/metrics', label: 'Metrics' },
+		{ href: '/context/strategic', label: 'Strategic' },
+		{ href: '/context/insights', label: 'Insights' },
+	];
+
+	// Reports navigation (intelligence features)
+	const reportsLinks = [
+		{ href: '/reports/competitors', label: 'Competitors' },
+		{ href: '/reports/benchmarks', label: 'Benchmarks' },
 	];
 
 	// Props
@@ -42,6 +57,8 @@
 	// Mobile menu state
 	let mobileMenuOpen = $state(false);
 	let mobileBoardExpanded = $state(false);
+	let mobileContextExpanded = $state(false);
+	let mobileReportsExpanded = $state(false);
 
 	// Workspace modal state
 	let showCreateWorkspaceModal = $state(false);
@@ -54,18 +71,24 @@
 		// Reset expanded groups when closing
 		if (!mobileMenuOpen) {
 			mobileBoardExpanded = false;
+			mobileContextExpanded = false;
+			mobileReportsExpanded = false;
 		}
 	}
 
 	function closeMobileMenu() {
 		mobileMenuOpen = false;
 		mobileBoardExpanded = false;
+		mobileContextExpanded = false;
+		mobileReportsExpanded = false;
 	}
 
 	// Close mobile menu on navigation
 	beforeNavigate(() => {
 		mobileMenuOpen = false;
 		mobileBoardExpanded = false;
+		mobileContextExpanded = false;
+		mobileReportsExpanded = false;
 	});
 
 	// Navigation handlers
@@ -149,6 +172,8 @@
 						Dashboard
 					</a>
 					<NavDropdown label="Board" links={boardLinks} isGroupActive={() => isGroupActive(boardLinks)} />
+					<NavDropdown label="Context" links={contextLinks} isGroupActive={() => isGroupActive(contextLinks)} />
+					<NavDropdown label="Reports" links={reportsLinks} isGroupActive={() => isGroupActive(reportsLinks)} />
 					<a
 						href="/settings"
 						class={isActive('/settings')
@@ -265,6 +290,74 @@
 						{#if mobileBoardExpanded}
 							<div class="pl-4 pb-2 space-y-1">
 								{#each boardLinks as link}
+									<a
+										href={link.href}
+										class={isActive(link.href)
+											? 'block py-2 text-sm font-medium text-brand-600 dark:text-brand-400'
+											: 'block py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400'}
+										onclick={closeMobileMenu}
+									>
+										{link.label}
+									</a>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<!-- Context Group (collapsible) -->
+					<div class="border-t border-neutral-100 dark:border-neutral-800">
+						<button
+							type="button"
+							class="w-full flex items-center justify-between py-3 text-base font-medium {isGroupActive(contextLinks)
+								? 'text-brand-600 dark:text-brand-400'
+								: 'text-neutral-700 dark:text-neutral-300'}"
+							onclick={() => (mobileContextExpanded = !mobileContextExpanded)}
+							aria-expanded={mobileContextExpanded}
+						>
+							Context
+							{#if mobileContextExpanded}
+								<ChevronDown class="w-5 h-5" />
+							{:else}
+								<ChevronRight class="w-5 h-5" />
+							{/if}
+						</button>
+						{#if mobileContextExpanded}
+							<div class="pl-4 pb-2 space-y-1">
+								{#each contextLinks as link}
+									<a
+										href={link.href}
+										class={isActive(link.href)
+											? 'block py-2 text-sm font-medium text-brand-600 dark:text-brand-400'
+											: 'block py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400'}
+										onclick={closeMobileMenu}
+									>
+										{link.label}
+									</a>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<!-- Reports Group (collapsible) -->
+					<div class="border-t border-neutral-100 dark:border-neutral-800">
+						<button
+							type="button"
+							class="w-full flex items-center justify-between py-3 text-base font-medium {isGroupActive(reportsLinks)
+								? 'text-brand-600 dark:text-brand-400'
+								: 'text-neutral-700 dark:text-neutral-300'}"
+							onclick={() => (mobileReportsExpanded = !mobileReportsExpanded)}
+							aria-expanded={mobileReportsExpanded}
+						>
+							Reports
+							{#if mobileReportsExpanded}
+								<ChevronDown class="w-5 h-5" />
+							{:else}
+								<ChevronRight class="w-5 h-5" />
+							{/if}
+						</button>
+						{#if mobileReportsExpanded}
+							<div class="pl-4 pb-2 space-y-1">
+								{#each reportsLinks as link}
 									<a
 										href={link.href}
 										class={isActive(link.href)

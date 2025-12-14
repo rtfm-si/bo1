@@ -39,6 +39,7 @@ CSRF_EXEMPT_PREFIXES = (
     "/api/v1/csp-report",
     "/api/v1/waitlist",  # Public form submission
     "/api/v1/metrics/client",  # Browser sendBeacon for observability metrics
+    "/api/v1/analytics/",  # Public page analytics (landing page, unauthenticated)
 )
 
 # SuperTokens paths (have their own anti-csrf via 'anti-csrf' header)

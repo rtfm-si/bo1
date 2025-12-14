@@ -195,6 +195,51 @@ export interface AlertSettingsResponse {
 }
 
 // =============================================================================
+// Page Analytics Types
+// =============================================================================
+
+export interface DailyStat {
+	date: string;
+	total_views: number;
+	unique_visitors: number;
+	avg_duration_ms: number | null;
+	avg_scroll_depth: number | null;
+}
+
+export interface GeoBreakdownItem {
+	country: string;
+	views: number;
+	visitors: number;
+}
+
+export interface FunnelStats {
+	start_date: string;
+	end_date: string;
+	unique_visitors: number;
+	signup_clicks: number;
+	signup_completions: number;
+	click_through_rate: number;
+	completion_rate: number;
+	overall_conversion_rate: number;
+}
+
+export interface BounceRateStats {
+	path: string;
+	start_date: string;
+	end_date: string;
+	total_sessions: number;
+	bounced_sessions: number;
+	bounce_rate: number;
+}
+
+export interface LandingPageMetricsResponse {
+	daily_stats: DailyStat[];
+	geo_breakdown: GeoBreakdownItem[];
+	funnel: FunnelStats;
+	bounce_rate: BounceRateStats;
+}
+
+// =============================================================================
 // Observability Links Types
 // =============================================================================
 
@@ -787,6 +832,226 @@ class AdminApiClient {
 			{ method: 'POST' }
 		);
 	}
+
+	// =========================================================================
+	// Page Analytics (Landing Page)
+	// =========================================================================
+
+	async getLandingPageMetrics(params?: {
+		start_date?: string;
+		end_date?: string;
+	}): Promise<LandingPageMetricsResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.start_date) searchParams.set('start_date', params.start_date);
+		if (params?.end_date) searchParams.set('end_date', params.end_date);
+
+		const query = searchParams.toString();
+		return this.fetch<LandingPageMetricsResponse>(
+			`/api/admin/analytics/landing-page${query ? `?${query}` : ''}`
+		);
+	}
+
+	async getDailyPageStats(params?: {
+		start_date?: string;
+		end_date?: string;
+		path?: string;
+	}): Promise<DailyStat[]> {
+		const searchParams = new URLSearchParams();
+		if (params?.start_date) searchParams.set('start_date', params.start_date);
+		if (params?.end_date) searchParams.set('end_date', params.end_date);
+		if (params?.path) searchParams.set('path', params.path);
+
+		const query = searchParams.toString();
+		return this.fetch<DailyStat[]>(`/api/admin/analytics/daily-stats${query ? `?${query}` : ''}`);
+	}
+
+	async getGeoBreakdown(params?: {
+		start_date?: string;
+		end_date?: string;
+		limit?: number;
+	}): Promise<GeoBreakdownItem[]> {
+		const searchParams = new URLSearchParams();
+		if (params?.start_date) searchParams.set('start_date', params.start_date);
+		if (params?.end_date) searchParams.set('end_date', params.end_date);
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+
+		const query = searchParams.toString();
+		return this.fetch<GeoBreakdownItem[]>(
+			`/api/admin/analytics/geo-breakdown${query ? `?${query}` : ''}`
+		);
+	}
+
+	async getFunnelStatsPage(params?: {
+		start_date?: string;
+		end_date?: string;
+	}): Promise<FunnelStats> {
+		const searchParams = new URLSearchParams();
+		if (params?.start_date) searchParams.set('start_date', params.start_date);
+		if (params?.end_date) searchParams.set('end_date', params.end_date);
+
+		const query = searchParams.toString();
+		return this.fetch<FunnelStats>(`/api/admin/analytics/funnel${query ? `?${query}` : ''}`);
+	}
+
+	async getBounceRate(params?: {
+		start_date?: string;
+		end_date?: string;
+		path?: string;
+	}): Promise<BounceRateStats> {
+		const searchParams = new URLSearchParams();
+		if (params?.start_date) searchParams.set('start_date', params.start_date);
+		if (params?.end_date) searchParams.set('end_date', params.end_date);
+		if (params?.path) searchParams.set('path', params.path);
+
+		const query = searchParams.toString();
+		return this.fetch<BounceRateStats>(`/api/admin/analytics/bounce-rate${query ? `?${query}` : ''}`);
+	}
+
+	// =========================================================================
+	// Blog Management
+	// =========================================================================
+
+	async listBlogPosts(params?: {
+		status?: 'draft' | 'scheduled' | 'published';
+		limit?: number;
+		offset?: number;
+	}): Promise<BlogPostListResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.status) searchParams.set('status', params.status);
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+		if (params?.offset) searchParams.set('offset', String(params.offset));
+
+		const query = searchParams.toString();
+		return this.fetch<BlogPostListResponse>(`/api/admin/blog/posts${query ? `?${query}` : ''}`);
+	}
+
+	async createBlogPost(request: BlogPostCreate): Promise<BlogPost> {
+		return this.fetch<BlogPost>('/api/admin/blog/posts', {
+			method: 'POST',
+			body: JSON.stringify(request)
+		});
+	}
+
+	async getBlogPost(id: string): Promise<BlogPost> {
+		return this.fetch<BlogPost>(`/api/admin/blog/posts/${id}`);
+	}
+
+	async updateBlogPost(id: string, request: BlogPostUpdate): Promise<BlogPost> {
+		return this.fetch<BlogPost>(`/api/admin/blog/posts/${id}`, {
+			method: 'PATCH',
+			body: JSON.stringify(request)
+		});
+	}
+
+	async deleteBlogPost(id: string): Promise<{ success: boolean; message: string }> {
+		return this.fetch<{ success: boolean; message: string }>(`/api/admin/blog/posts/${id}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async publishBlogPost(id: string): Promise<BlogPost> {
+		return this.fetch<BlogPost>(`/api/admin/blog/posts/${id}/publish`, {
+			method: 'POST'
+		});
+	}
+
+	async scheduleBlogPost(id: string, publishAt: string): Promise<BlogPost> {
+		return this.fetch<BlogPost>(`/api/admin/blog/posts/${id}/schedule`, {
+			method: 'POST',
+			body: JSON.stringify({ published_at: publishAt })
+		});
+	}
+
+	async generateBlogPost(
+		request: BlogGenerateRequest,
+		saveDraft: boolean = true
+	): Promise<BlogGenerateResponse> {
+		return this.fetch<BlogGenerateResponse>(
+			`/api/admin/blog/generate?save_draft=${saveDraft}`,
+			{
+				method: 'POST',
+				body: JSON.stringify(request)
+			}
+		);
+	}
+
+	async discoverTopics(industry?: string): Promise<TopicsResponse> {
+		const searchParams = new URLSearchParams();
+		if (industry) searchParams.set('industry', industry);
+		const query = searchParams.toString();
+		return this.fetch<TopicsResponse>(`/api/admin/blog/topics${query ? `?${query}` : ''}`);
+	}
+}
+
+// Blog Post Types
+export interface BlogPost {
+	id: string;
+	title: string;
+	slug: string;
+	content?: string;
+	excerpt?: string;
+	status: 'draft' | 'scheduled' | 'published';
+	published_at?: string;
+	seo_keywords?: string[];
+	generated_by_topic?: string;
+	meta_title?: string;
+	meta_description?: string;
+	author_id?: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface BlogPostListResponse {
+	posts: BlogPost[];
+	total: number;
+}
+
+export interface BlogPostCreate {
+	title: string;
+	content: string;
+	excerpt?: string;
+	status?: 'draft' | 'scheduled' | 'published';
+	published_at?: string;
+	seo_keywords?: string[];
+	meta_title?: string;
+	meta_description?: string;
+}
+
+export interface BlogPostUpdate {
+	title?: string;
+	content?: string;
+	excerpt?: string;
+	status?: 'draft' | 'scheduled' | 'published';
+	published_at?: string;
+	seo_keywords?: string[];
+	meta_title?: string;
+	meta_description?: string;
+}
+
+export interface BlogGenerateRequest {
+	topic: string;
+	keywords?: string[];
+}
+
+export interface BlogGenerateResponse {
+	title: string;
+	excerpt: string;
+	content: string;
+	meta_title: string;
+	meta_description: string;
+	post_id?: string;
+}
+
+export interface Topic {
+	title: string;
+	description: string;
+	keywords: string[];
+	relevance_score: number;
+	source: 'context' | 'trend' | 'gap';
+}
+
+export interface TopicsResponse {
+	topics: Topic[];
 }
 
 export const adminApi = new AdminApiClient();

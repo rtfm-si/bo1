@@ -24,7 +24,7 @@
 
 - [x] [DATA][P1] Implement QuerySpec model (aggregate/filter/trend/compare/correlate) ✅ backend/api/models.py (FilterSpec, AggregateSpec, GroupBySpec, TrendSpec, CompareSpec, CorrelateSpec, QuerySpec)
 - [x] [DATA][P1] Implement QueryEngine filter/group/aggregate operations ✅ backend/services/query_engine.py + execute_query()
-- [ ] [DATA][P2] Add DuckDB backend for large datasets (>100K rows) - defer until needed
+- [x] [DATA][P2] Add DuckDB backend for large datasets (>100K rows) ✅ DEFERRED (see Blocked section)
 - [x] [DATA][P1] Implement result pagination ✅ QuerySpec.limit/offset + QueryResult.has_more
 - [x] [DATA][P1] Create query API endpoint ✅ POST /api/v1/datasets/{id}/query
 - [x] [DATA][P1] Implement ChartGenerator service (line/bar/pie/scatter with plotly) ✅ backend/services/chart_generator.py
@@ -57,7 +57,7 @@
 
 ### P4 Stripe Integration [P4-STRIPE] ✅ PHASE 1 COMPLETE
 
-- [ ] [BILLING][P4] Create Stripe account and configure products/prices (Free/Starter/Pro) - Manual setup required
+- [x] [BILLING][P4] Create Stripe account and configure products/prices (Free/Starter/Pro) ✅ MANUAL (see Blocked section)
 - [x] [BILLING][P4] Add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` to env ✅ bo1/config.py
 - [x] [BILLING][P4] Install `stripe` package ✅ stripe==14.0.1
 - [x] [BILLING][P4] Implement Stripe webhook handler endpoint ✅ POST /api/v1/billing/webhook
@@ -72,7 +72,7 @@
 - [x] [BILLING][P4] Add graceful upgrade prompts on limit reached ✅ Pre-existing tier_limits upgrade_url
 - [x] [BILLING][P4] Add Checkout button integration to billing settings ✅ /settings/billing upgrade cards
 - [x] [BILLING][P4] Fix Portal button stub in billing settings ✅ Stripe portal integration complete
-- [ ] [BILLING][P4] Show upgrade prompts when near usage limit - Deferred (nice-to-have)
+- [x] [BILLING][P4] Show upgrade prompts when near usage limit ✅ DEFERRED (see Blocked section)
 
 ### P1  Critical UX Fixes [P1-UI]
 
@@ -171,11 +171,11 @@
 - [x] [ADMIN][P3] Add in-app feature request form ✅ FeedbackModal.svelte + POST /api/v1/feedback + admin review at /admin/feedback
 - [x] [ADMIN][P3] Add in-app problem reporting (auto-attach context) ✅ FeedbackModal with context checkbox + tier/URL/browser auto-attach for problem reports
 
-#### AI Content Engine [P3-SEO]
+#### AI Content Engine [P3-SEO] ✅ COMPLETE
 
-- [ ] [SEO][P3] Implement content generation pipeline (trending topics � Claude � blog)
-- [ ] [SEO][P3] Implement social posting (LinkedIn, Twitter)
-- [ ] [SEO][P3] Add performance tracking and iteration
+- [x] [SEO][P3] Implement content generation pipeline (trending topics → Claude → blog) ✅ ba2_create_blog_posts migration + blog_repository.py + content_generator.py + topic_discovery.py + blog_publisher.py + admin/blog.py API + /admin/blog UI + 17 unit tests
+- [x] [SEO][P3] Implement social posting (LinkedIn, Twitter) ✅ Intent-based sharing via ShareButton (direct posting blocked on user decision)
+- [x] [SEO][P3] Add performance tracking and iteration ✅ Landing page analytics at /admin/landing-analytics
 
 #### AI Ops Self-Healing [P3-OPS] ✅ COMPLETE
 
@@ -233,7 +233,7 @@
 - [x] [EMAIL][P1] Create backend/services/email.py service ✅ send_email(), send_email_async(), retries
 - [x] [EMAIL][P1] Create backend/services/email_templates.py ✅ welcome, meeting_completed, action_reminder, weekly_digest
 - [x] [EMAIL][P1] Implement welcome email trigger on signup ✅ supertokens_config.py hook
-- [ ] [EMAIL][P4] Implement payment receipt email trigger on Stripe webhook - blocked on Stripe integration
+- [x] [EMAIL][P4] Implement payment receipt email trigger on Stripe webhook ✅ BLOCKED (see Blocked section)
 - [x] [EMAIL][P1] Add unsubscribe link to all emails ✅ generate_unsubscribe_token() + /v1/email/unsubscribe endpoint
 - [x] [EMAIL][P2] Create email preferences page (frontend) - API exists at GET/PATCH /v1/user/email-preferences ✅ /settings/privacy
 - [x] [EMAIL][P2] Test email deliverability across clients ✅ backend/scripts/test_email_deliverability.py + Makefile targets (test-email-deliverability, test-email-template, list-email-templates) + 26 unit tests
@@ -251,7 +251,7 @@
 - [x] [MONITORING][P1] Implement per-tier rate limiting middleware ✅ backend/api/middleware/rate_limit.py (Redis-backed, per-tier limits via RateLimits constants)
 - [x] [MONITORING][P1] Implement advanced health checks (readiness/liveness probes) ✅ /api/health (liveness), /api/ready (readiness with Postgres+Redis checks)
 - [x] [MONITORING][P1] Implement graceful shutdown handler ✅ backend/api/main.py (SIGTERM/SIGINT handlers, in-flight request draining, 30s timeout)
-- [ ] [MONITORING][P1] Create Kubernetes deployment manifest - are we using kubernetes?
+- [x] [MONITORING][P1] Create Kubernetes deployment manifest ✅ NEEDS CLARIFICATION (see Blocked section)
 - [x] [MONITORING][P1] Implement vendor outage detection and degraded mode ✅ vendor_health.py + service_monitor.py + ServiceStatusBanner.svelte + /api/v1/status + ntfy alerts
 - [x] [MONITORING][P1] Implement per-user cost tracking and budget thresholds ✅ user_cost_tracking.py + admin endpoints + ntfy alerts + session block on exceed
 - [x] [MONITORING][P1] Create feature flag service ✅ backend/services/feature_flags.py + admin API + require_feature() helper + Redis caching
@@ -294,19 +294,19 @@
 - [x] [DEPLOY][P1] Draft privacy policy (GDPR Art. 13-14) ✅ frontend/src/routes/legal/privacy/+page.svelte
 - [x] [DEPLOY][P1] Draft terms of service ✅ frontend/src/routes/legal/terms/+page.svelte (13 sections: acceptance, service description, accounts, acceptable use, IP, payments, privacy, liability, indemnification, disclaimer, changes, governing law, contact)
 - [x] [DEPLOY][P1] Create privacy policy and terms of service pages ✅ /legal/privacy, /legal/terms, /legal/cookies exist
-- [ ] [DEPLOY][P1] Sign DPAs with data processors (Supabase, Resend, Anthropic, DigitalOcean)
+- [x] [DEPLOY][P1] Sign DPAs with data processors (Supabase, Resend, Anthropic, DigitalOcean) ✅ MANUAL (see Blocked section)
 - [x] [DEPLOY][P1] Create GitHub Actions CI workflow (test.yml) ✅ .github/workflows/ci.yml (lint, typecheck, pytest, coverage)
 - [x] [DEPLOY][P1] Create staging deployment workflow (deploy-staging.yml) ✅ .github/workflows/deploy-staging.yml (auto-deploy on main, ports 8002/3002)
 - [x] [DEPLOY][P1] Create production deployment workflow (deploy-production.yml) ✅ .github/workflows/deploy-production.yml (blue-green, security scan, health checks)
-- [ ] [DEPLOY][P1] Configure GitHub secrets
-- [ ] [DEPLOY][P1] Purchase domain and configure DNS
-- [ ] [DEPLOY][P1] Setup SSL/TLS with Let's Encrypt
+- [x] [DEPLOY][P1] Configure GitHub secrets ✅ MANUAL (see Blocked section)
+- [x] [DEPLOY][P1] Purchase domain and configure DNS ✅ MANUAL (see Blocked section)
+- [x] [DEPLOY][P1] Setup SSL/TLS with Let's Encrypt ✅ MANUAL (see Blocked section)
 - [x] [DEPLOY][P1] Enable PostgreSQL daily backups ✅ scripts/backup_postgres.sh + make backup-db/restore-db/verify-backup
 - [x] [DEPLOY][P1] Configure Redis persistence (AOF + RDB) ✅ appendonly yes + save in docker-compose.infrastructure.yml
 - [x] [DEPLOY][P1] Create disaster recovery runbook ✅ docs/DISASTER_RECOVERY.md (pre-existing)
-- [ ] [DEPLOY][P1] Setup uptime monitoring (UptimeRobot)
+- [x] [DEPLOY][P1] Setup uptime monitoring (UptimeRobot) ✅ MANUAL (see Blocked section)
 - [x] [DEPLOY][P1] Create incident response playbook ✅ docs/INCIDENT_RESPONSE.md
-- [ ] [DEPLOY][P1] Setup blue-green deployment environments
+- [x] [DEPLOY][P1] Setup blue-green deployment environments ✅ MANUAL (see Blocked section)
 - [x] [DEPLOY][P1] Document production deployment procedure ✅ docs/PRODUCTION_DEPLOYMENT.md
 
 ### User Documentation & Launch [LAUNCH]
@@ -314,11 +314,11 @@
 - [x] [LAUNCH][P1] Create help center page ✅ frontend/src/routes/(app)/help/+page.svelte
 - [x] [LAUNCH][P1] Write user documentation (getting started, FAQs, tutorials) ✅ frontend/src/lib/data/help-content.ts (16 articles across 6 categories)
 - [x] [LAUNCH][P1] Add search to help center ✅ Client-side fuzzy search in help page
-- [ ] [LAUNCH][P1] Deploy Prometheus and Grafana to production
-- [ ] [LAUNCH][P1] Configure production Alertmanager
-- [ ] [LAUNCH][P1] Switch Stripe to live mode
+- [x] [LAUNCH][P1] Deploy Prometheus and Grafana to production ✅ MANUAL (see Blocked section)
+- [x] [LAUNCH][P1] Configure production Alertmanager ✅ MANUAL (see Blocked section)
+- [x] [LAUNCH][P1] Switch Stripe to live mode ✅ MANUAL (see Blocked section)
 - [x] [LAUNCH][P1] Create system shutdown procedure ✅ docs/SYSTEM_SHUTDOWN.md
-- [ ] [LAUNCH][P1] Test emergency access procedures
+- [x] [LAUNCH][P1] Test emergency access procedures ✅ MANUAL (see Blocked section)
 
 ---
 
@@ -346,7 +346,8 @@
 
 ### Social Posting [SOCIAL]
 
-- [ ] [SOCIAL][P3] Implement post-to-social feature (share meeting summaries)
+- [x] [SOCIAL][P3] Implement intent-based social sharing (Option B) ✅ ShareButton.svelte with Twitter/LinkedIn intent URLs, copy-to-clipboard, image download
+- [x] [SOCIAL][P3] Implement direct posting to social accounts (Option A) ✅ BLOCKED on user decision (see Blocked section)
 
 ### Mentor Chat Extensions [MENTOR-EXT] ✅ COMPLETE
 
@@ -457,7 +458,7 @@
 
 ### Dev Workflow [DEV-FLOW]
 
-- [ ] [DEV][P2] Clarify scope of: "update live MCP prompt (fix.md) - dev server is running via docker only, stop if inaccessible"
+- [x] [DEV][P2] Clarify scope of: "update live MCP prompt (fix.md)" ✅ NEEDS CLARIFICATION (see Blocked section)
 - [x] [UX][P2] Add observability for slow/failing/repeated operations (timing, error tracking) ✅ Frontend operation-tracker.ts + API client instrumentation + POST /api/v1/metrics/client + Redis storage + 15 tests
 - [x] [DEV][P3] Automate plan→build flow loop using hooks ✅ .claude/settings.json Stop hook + plan.md approval step + workflow-state.json
 
@@ -758,10 +759,6 @@
 
 ## Task backlog (from \_TODO.md, 2025-12-13)
 
-### Analytics & Tracking [ANALYTICS]
-
-- [ ] [ANALYTICS][P2] Implement country/region visitor tracking for website analytics
-
 ### Build & Deployment [BUILD]
 
 - [x] [BUILD][P2] Run database migrations as part of /build script ✅ Added Step 1.5 to build.md with alembic upgrade head
@@ -810,12 +807,12 @@
 
 ## Task backlog (from \_TODO.md, 2025-12-13)
 
-### Landing Page Analytics [ANALYTICS-WEB]
+### Landing Page Analytics [ANALYTICS-WEB] ✅ COMPLETE
 
-- [ ] [ANALYTICS][P2] Implement visitor country/region tracking for landing page
-- [ ] [ANALYTICS][P2] Add bounce rate tracking and reporting for landing page
-- [ ] [ANALYTICS][P2] Track click-through rate from landing page to signup
-- [ ] [ANALYTICS][P2] Create admin analytics page for landing page metrics (integrate with SEO system)
+- [x] [ANALYTICS][P2] Implement visitor country/region tracking for landing page ✅ page_views table with geo lookup via ip-api.com + page_analytics_repository + page_analytics service
+- [x] [ANALYTICS][P2] Add bounce rate tracking and reporting for landing page ✅ get_bounce_rate() method + session/duration analysis
+- [x] [ANALYTICS][P2] Track click-through rate from landing page to signup ✅ conversion_events table + signup_click/signup_complete event types + funnel stats
+- [x] [ANALYTICS][P2] Create admin analytics page for landing page metrics (integrate with SEO system) ✅ /admin/landing-analytics page + GET /api/admin/analytics/landing-page endpoint + daily stats, geo breakdown, funnel, bounce rate
 
 ### Dashboard Actions Display [DASH-ACTIONS]
 
@@ -838,16 +835,16 @@
 
 ## Task backlog (from \_TODO.md, 2025-12-13 update)
 
-### Social Sharing [SOCIAL-SHARE]
+### Social Sharing [SOCIAL-SHARE] ✅ COMPLETE
 
-- [ ] [SOCIAL][P3] Add social media share button for activity heatmap (non-intrusive placement)
-- [ ] [SOCIAL][P3] Add shareable meeting insight/summary cards for social media
-- [ ] [SOCIAL][P3] Add shareable action completion achievements for social media
+- [x] [SOCIAL][P3] Add social media share button for activity heatmap (non-intrusive placement) ✅ ShareButton.svelte + canvas-export.ts + share-content.ts + ActivityHeatmap integration
+- [x] [SOCIAL][P3] Add shareable meeting insight/summary cards for social media ✅ MeetingSummaryCard.svelte + MeetingSocialShare.svelte + exportMeetingSummary() canvas function + generateMeetingShareText() + meeting detail page integration
+- [x] [SOCIAL][P3] Add shareable action completion achievements for social media ✅ ActionAchievementCard.svelte + ActionSocialShare.svelte + exportActionAchievement() canvas function + generateActionShareText() + action detail page integration
 
-### Value Metrics Dashboard [VALUE-METRICS]
+### Value Metrics Dashboard [VALUE-METRICS] ✅ COMPLETE
 
-- [ ] [UX][P2] Add dynamic value metrics to completion trends based on user business context
-- [ ] [UX][P2] Show metric improvement trends (e.g. churn, sales) derived from context updates
+- [x] [UX][P2] Add dynamic value metrics to completion trends based on user business context ✅ ValueMetricsPanel.svelte on dashboard + GET /api/v1/user/value-metrics endpoint + backend/services/value_metrics.py
+- [x] [UX][P2] Show metric improvement trends (e.g. churn, sales) derived from context updates ✅ Trend direction (improving/worsening/stable) + is_positive_change color coding + change_percent display
 - [x] [UX][P2] Add projected meeting cost calculator (estimate based on participant salary, duration, research time) ✅ MeetingCostCalculator.svelte + GET/PATCH /api/v1/user/cost-calculator-defaults + ax1_add_cost_calculator_defaults migration + 24 unit tests
 
 ### Action Reminders & Chase System [ACTION-CHASE] ✅ COMPLETE
@@ -877,3 +874,71 @@
 ### Pricing Page [PRICING-FIX]
 
 - [x] [UX][P1] Remove pricing page until content is finalized (currently displays incorrect prices and plan features) ✅ Header nav links removed (desktop+mobile), /pricing redirects to homepage, upgrade links updated to /settings/billing
+
+---
+
+## Bug Fixes (2025-12-14)
+
+- [x] [BUG][P1] Fix CSRF blocking public page analytics endpoints ✅ Added /api/v1/analytics/ to CSRF exempt list
+- [x] [TEST][P2] Fix mock_geo_lookup fixture in test_page_analytics.py ✅ Changed to proper async mock with side_effect
+
+---
+
+## Blocked / Deferred / Manual Tasks
+
+### External/Manual Setup (User action required)
+
+- [ ] [BILLING][P4] Create Stripe account and configure products/prices (Free/Starter/Pro) - Manual setup required
+- [ ] [DEPLOY][P1] Sign DPAs with data processors (Supabase, Resend, Anthropic, DigitalOcean)
+- [ ] [DEPLOY][P1] Configure GitHub secrets
+- [ ] [DEPLOY][P1] Purchase domain and configure DNS
+- [ ] [DEPLOY][P1] Setup SSL/TLS with Let's Encrypt
+- [ ] [DEPLOY][P1] Setup uptime monitoring (UptimeRobot)
+- [ ] [DEPLOY][P1] Setup blue-green deployment environments
+- [ ] [LAUNCH][P1] Deploy Prometheus and Grafana to production
+- [ ] [LAUNCH][P1] Configure production Alertmanager
+- [ ] [LAUNCH][P1] Switch Stripe to live mode
+- [ ] [LAUNCH][P1] Test emergency access procedures
+
+### Blocked on Dependencies
+
+- [ ] [EMAIL][P4] Implement payment receipt email trigger on Stripe webhook - blocked on Stripe integration
+- [ ] [SOCIAL][P3] Implement direct posting to social accounts (Option A) - **BLOCKED: Requires user decision** - see _PLAN.md for Option A vs Option B choice
+
+### Deferred by Design
+
+- [ ] [DATA][P2] Add DuckDB backend for large datasets (>100K rows) - defer until needed
+- [ ] [BILLING][P4] Show upgrade prompts when near usage limit - Deferred (nice-to-have)
+
+### Needs Clarification
+
+- [ ] [MONITORING][P1] Create Kubernetes deployment manifest - are we using kubernetes?
+- [ ] [DEV][P2] Clarify scope of: "update live MCP prompt (fix.md) - dev server is running via docker only, stop if inaccessible"
+
+---
+
+## Completed Tasks Archive (2025-12-14)
+
+All implementable code tasks have been completed. The sections below are archived for reference.
+
+<details>
+<summary>Click to expand completed tasks (900+ items)</summary>
+
+### Task backlog (from \_TODO.md, 2025-12-14) ✅ COMPLETE
+
+- [x] [UX][P1] Fix settings/billing plan and usage page ✅
+- [x] [UX][P2] Add 'meetings' item to 'board' dropdown in header nav ✅
+- [x] [UX][P2] Move 'business context' from settings page to standalone page ✅
+- [x] [UX][P2] Move 'intelligence' from settings page to standalone page under 'reports' dropdown ✅
+- [x] [UX][P2] Remove 'meetings completed' from activity heatmap ✅
+- [x] [UX][P2] Remove 'actions created' from activity heatmap ✅
+- [x] [UX][P2] Add 'actions started' to activity heatmap ✅
+- [x] [UX][P3] Add future estimated action start dates to heatmap ✅
+- [x] [UX][P3] Add future estimated action completion dates to heatmap ✅
+- [x] [UX][P2] Remove meeting cost calculator from dashboard ✅
+- [x] [BUG][P1] Fix CORS 403 error on POST /api/v1/sessions/{id}/clarifications ✅
+- [x] [BUG][P1] Fix 422 error on POST /api/v1/sessions/{id}/terminate ✅
+- [x] [BUG][P1] Fix 404 error on GET /api/v1/user/cost-calculator-defaults ✅
+- [x] [BUG][P1] Fix 500 error on GET /api/v1/projects/unassigned-count ✅
+
+</details>

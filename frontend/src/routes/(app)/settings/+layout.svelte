@@ -24,7 +24,7 @@
 		items: NavItem[];
 	}
 
-	// Navigation structure
+	// Navigation structure - Context and Intelligence moved to header nav
 	const navSections: NavSection[] = [
 		{
 			title: 'Account',
@@ -32,21 +32,6 @@
 				{ href: '/settings/account', label: 'Profile', icon: '👤' },
 				{ href: '/settings/privacy', label: 'Privacy', icon: '🔒' },
 				{ href: '/settings/workspace', label: 'Workspace', icon: '🏢' }
-			]
-		},
-		{
-			title: 'Context',
-			items: [
-				{ href: '/settings/context/overview', label: 'Overview', icon: '🏢' },
-				{ href: '/settings/context/strategic', label: 'Strategic', icon: '🎯' },
-				{ href: '/settings/context/metrics', label: 'Metrics', icon: '📊' },
-				{ href: '/settings/context/insights', label: 'Insights', icon: '💡' }
-			]
-		},
-		{
-			title: 'Intelligence',
-			items: [
-				{ href: '/settings/intelligence/competitors', label: 'Competitor Watch', icon: '🔍' }
 			]
 		},
 		{

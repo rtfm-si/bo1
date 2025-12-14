@@ -31,7 +31,9 @@
 		ExpertSummariesPanel,
 		ResearchPanel,
 		ShareModal,
+		MeetingSocialShare,
 	} from '$lib/components/meeting';
+	import type { MeetingSummaryData } from '$lib/utils/canvas-export';
 	import type { ContextInsufficientEvent } from '$lib/api/sse-events';
 
 	// Import utilities
@@ -117,6 +119,44 @@
 	let reportActions = $state<ReportAction[]>([]);
 	let clarificationFormRef: HTMLElement | undefined = $state(undefined);
 	let shareModalOpen = $state(false);
+
+	// Derive meeting summary data for social sharing
+	const meetingSummaryData = $derived.by((): MeetingSummaryData | null => {
+		if (!session || session.status !== 'completed') return null;
+
+		// Extract recommendation from synthesis events
+		const synthesisEvent = eventState.metaSynthesisEvent || eventState.synthesisCompleteEvent;
+		// Cast data to Record to access nested properties safely
+		const eventData = synthesisEvent?.data as Record<string, unknown> | undefined;
+		const synthesis = eventData?.synthesis as Record<string, unknown> | undefined;
+		const recommendation = synthesis?.executive_summary
+			|| synthesis?.recommendation
+			|| eventData?.recommendation
+			|| session.problem?.statement
+			|| 'Meeting completed';
+
+		// Count unique experts
+		const expertCount = Object.keys(eventState.personasBySubProblem).reduce((count, key) => {
+			const personas = eventState.personasBySubProblem[parseInt(key)] || [];
+			return count + personas.length;
+		}, 0) || 3; // Default to 3 if no personas found
+
+		// Get consensus level from convergence events or default
+		const convergenceEvents = events.filter(e => e.event_type === 'convergence');
+		const lastConvergence = convergenceEvents[convergenceEvents.length - 1];
+		const convergenceData = lastConvergence?.data as Record<string, unknown> | undefined;
+		const consensusLevel = convergenceData?.score
+			? Number(convergenceData.score)
+			: 0.75;
+
+		return {
+			recommendation: typeof recommendation === 'string' ? recommendation : JSON.stringify(recommendation),
+			consensusLevel,
+			expertCount,
+			completionDate: session.created_at || new Date().toISOString(),
+			problemStatement: session.problem?.statement
+		};
+	});
 
 	// ============================================================================
 	// EFFECTS
@@ -963,12 +1003,25 @@
 					</div>
 
 					{#if session.status === 'completed'}
-						<Button variant="brand" size="lg" class="w-full" onclick={exportPDF} disabled={isExporting}>
-							{#snippet children()}
-								<Download size={18} />
-								<span>{isExporting ? 'Generating...' : 'Export PDF'}</span>
-							{/snippet}
-						</Button>
+						<div class="flex flex-col gap-2">
+							<Button variant="brand" size="lg" class="w-full" onclick={exportPDF} disabled={isExporting}>
+								{#snippet children()}
+									<Download size={18} />
+									<span>{isExporting ? 'Generating...' : 'Export PDF'}</span>
+								{/snippet}
+							</Button>
+
+							<!-- Social Share Button -->
+							{#if meetingSummaryData}
+								<div class="flex justify-center">
+									<MeetingSocialShare
+										summary={meetingSummaryData}
+										compact={false}
+										onShareLinkClick={() => (shareModalOpen = true)}
+									/>
+								</div>
+							{/if}
+						</div>
 					{/if}
 				{/if}
 			</div>

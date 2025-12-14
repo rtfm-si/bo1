@@ -583,11 +583,12 @@ async def get_action_stats(
     logger.info(f"Fetching action stats for user {user_id} (last {days} days)")
 
     # Get daily stats using SQL aggregation
+    # Extended date range: past + future for estimated activities
     daily_query = """
         WITH date_series AS (
             SELECT generate_series(
                 CURRENT_DATE - INTERVAL '%s days',
-                CURRENT_DATE,
+                CURRENT_DATE + INTERVAL '180 days',
                 '1 day'::interval
             )::date AS date
         ),
@@ -601,13 +602,14 @@ async def get_action_stats(
               AND deleted_at IS NULL
             GROUP BY DATE(actual_end_date)
         ),
-        created_counts AS (
-            SELECT DATE(created_at) AS date, COUNT(*) AS count
+        in_progress_counts AS (
+            SELECT DATE(actual_start_date) AS date, COUNT(*) AS count
             FROM actions
             WHERE user_id = %s
-              AND created_at >= CURRENT_DATE - INTERVAL '%s days'
+              AND actual_start_date IS NOT NULL
+              AND actual_start_date >= CURRENT_DATE - INTERVAL '%s days'
               AND deleted_at IS NULL
-            GROUP BY DATE(created_at)
+            GROUP BY DATE(actual_start_date)
         ),
         meetings_run_counts AS (
             SELECT DATE(created_at) AS date, COUNT(*) AS count
@@ -616,14 +618,6 @@ async def get_action_stats(
               AND created_at >= CURRENT_DATE - INTERVAL '%s days'
             GROUP BY DATE(created_at)
         ),
-        meetings_completed_counts AS (
-            SELECT DATE(updated_at) AS date, COUNT(*) AS count
-            FROM sessions
-            WHERE user_id = %s
-              AND status = 'completed'
-              AND updated_at >= CURRENT_DATE - INTERVAL '%s days'
-            GROUP BY DATE(updated_at)
-        ),
         mentor_session_counts AS (
             SELECT TO_DATE(period, 'YYYY-MM-DD') AS date, count
             FROM user_usage
@@ -631,26 +625,47 @@ async def get_action_stats(
               AND metric = 'mentor_chats'
               AND LENGTH(period) = 10
               AND TO_DATE(period, 'YYYY-MM-DD') >= CURRENT_DATE - INTERVAL '%s days'
+        ),
+        estimated_start_counts AS (
+            SELECT DATE(COALESCE(target_start_date, estimated_start_date)) AS date, COUNT(*) AS count
+            FROM actions
+            WHERE user_id = %s
+              AND COALESCE(target_start_date, estimated_start_date) >= CURRENT_DATE
+              AND actual_start_date IS NULL
+              AND status NOT IN ('done', 'cancelled')
+              AND deleted_at IS NULL
+            GROUP BY DATE(COALESCE(target_start_date, estimated_start_date))
+        ),
+        estimated_completion_counts AS (
+            SELECT DATE(COALESCE(target_end_date, estimated_end_date)) AS date, COUNT(*) AS count
+            FROM actions
+            WHERE user_id = %s
+              AND COALESCE(target_end_date, estimated_end_date) >= CURRENT_DATE
+              AND status NOT IN ('done', 'cancelled')
+              AND deleted_at IS NULL
+            GROUP BY DATE(COALESCE(target_end_date, estimated_end_date))
         )
         SELECT
             ds.date,
             COALESCE(cc.count, 0) AS completed_count,
-            COALESCE(cr.count, 0) AS created_count,
+            COALESCE(ip.count, 0) AS in_progress_count,
             COALESCE(mr.count, 0) AS sessions_run,
-            COALESCE(mc.count, 0) AS sessions_completed,
-            COALESCE(ms.count, 0) AS mentor_sessions
+            COALESCE(ms.count, 0) AS mentor_sessions,
+            COALESCE(es.count, 0) AS estimated_starts,
+            COALESCE(ec.count, 0) AS estimated_completions
         FROM date_series ds
         LEFT JOIN completed_counts cc ON ds.date = cc.date
-        LEFT JOIN created_counts cr ON ds.date = cr.date
+        LEFT JOIN in_progress_counts ip ON ds.date = ip.date
         LEFT JOIN meetings_run_counts mr ON ds.date = mr.date
-        LEFT JOIN meetings_completed_counts mc ON ds.date = mc.date
         LEFT JOIN mentor_session_counts ms ON ds.date = ms.date
+        LEFT JOIN estimated_start_counts es ON ds.date = es.date
+        LEFT JOIN estimated_completion_counts ec ON ds.date = ec.date
         ORDER BY ds.date DESC
     """
 
     daily_rows = execute_query(
         daily_query,
-        (days, user_id, days, user_id, days, user_id, days, user_id, days, user_id, days),
+        (days, user_id, days, user_id, days, user_id, days, user_id, days, user_id, user_id),
         fetch="all",
     )
 
@@ -658,10 +673,11 @@ async def get_action_stats(
         DailyActionStat(
             date=row["date"].isoformat(),
             completed_count=row["completed_count"],
-            created_count=row["created_count"],
+            in_progress_count=row["in_progress_count"],
             sessions_run=row["sessions_run"],
-            sessions_completed=row["sessions_completed"],
             mentor_sessions=row["mentor_sessions"],
+            estimated_starts=row["estimated_starts"],
+            estimated_completions=row["estimated_completions"],
         )
         for row in (daily_rows or [])
     ]

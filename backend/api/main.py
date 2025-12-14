@@ -47,6 +47,7 @@ from backend.api import (
     industry_insights,
     mentor,
     onboarding,
+    page_analytics,
     projects,
     sessions,
     share,
@@ -460,6 +461,8 @@ app.include_router(workspaces.billing_router, prefix="/api", tags=["workspace-bi
 app.include_router(csp_reports.router, tags=["security"])
 app.include_router(client_metrics.router, tags=["metrics"])
 app.include_router(calendar_router, prefix="/api", tags=["integrations"])
+app.include_router(page_analytics.router, prefix="/api", tags=["analytics"])
+app.include_router(page_analytics.admin_router, prefix="/api", tags=["admin"])
 
 # Initialize Prometheus metrics instrumentation
 # Exposes /metrics endpoint for Prometheus scraping

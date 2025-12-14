@@ -433,7 +433,7 @@
 					{#if industry === 'Unknown'}
 						Set your industry in
 						<a
-							href="/settings/context"
+							href="/context"
 							class="text-brand-600 dark:text-brand-400 hover:underline"
 						>
 							Business Context
@@ -472,7 +472,7 @@
 						<li>
 							Add your metrics in
 							<a
-								href="/settings/context/metrics"
+								href="/context/metrics"
 								class="text-blue-700 dark:text-blue-400 hover:underline"
 							>
 								Context &rarr; Metrics

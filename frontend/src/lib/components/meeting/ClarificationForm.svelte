@@ -2,7 +2,7 @@
 	import { fade } from 'svelte/transition';
 	import { AlertCircle } from 'lucide-svelte';
 	import { env } from '$env/dynamic/public';
-	import { apiClient } from '$lib/api/client';
+	import { apiClient, getCsrfToken } from '$lib/api/client';
 
 	interface ClarificationQuestion {
 		question: string;
@@ -36,13 +36,19 @@
 		error = null;
 
 		try {
+			const csrfToken = getCsrfToken();
+			const headers: HeadersInit = {
+				'Content-Type': 'application/json',
+			};
+			if (csrfToken) {
+				headers['X-CSRF-Token'] = csrfToken;
+			}
+
 			const response = await fetch(
 				`${env.PUBLIC_API_URL}/api/v1/sessions/${sessionId}/clarifications`,
 				{
 					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-					},
+					headers,
 					credentials: 'include',
 					body: JSON.stringify({
 						answers,
@@ -70,13 +76,19 @@
 		error = null;
 
 		try {
+			const csrfToken = getCsrfToken();
+			const headers: HeadersInit = {
+				'Content-Type': 'application/json',
+			};
+			if (csrfToken) {
+				headers['X-CSRF-Token'] = csrfToken;
+			}
+
 			const response = await fetch(
 				`${env.PUBLIC_API_URL}/api/v1/sessions/${sessionId}/clarifications`,
 				{
 					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-					},
+					headers,
 					credentials: 'include',
 					body: JSON.stringify({
 						answers: {},

@@ -20,26 +20,60 @@ class TestActionStatsModels:
         stat = DailyActionStat(
             date="2025-12-01",
             completed_count=5,
-            created_count=3,
+            in_progress_count=3,
             sessions_run=2,
-            sessions_completed=1,
             mentor_sessions=4,
         )
         assert stat.date == "2025-12-01"
         assert stat.completed_count == 5
-        assert stat.created_count == 3
+        assert stat.in_progress_count == 3
         assert stat.sessions_run == 2
-        assert stat.sessions_completed == 1
         assert stat.mentor_sessions == 4
 
     def test_daily_action_stat_defaults(self):
         """Test DailyActionStat default values."""
         stat = DailyActionStat(date="2025-12-01")
         assert stat.completed_count == 0
-        assert stat.created_count == 0
+        assert stat.in_progress_count == 0
         assert stat.sessions_run == 0
-        assert stat.sessions_completed == 0
         assert stat.mentor_sessions == 0
+        assert stat.estimated_starts == 0
+        assert stat.estimated_completions == 0
+
+    def test_daily_action_stat_with_estimates(self):
+        """Test DailyActionStat with estimated future counts."""
+        stat = DailyActionStat(
+            date="2025-12-20",
+            completed_count=0,
+            in_progress_count=0,
+            sessions_run=0,
+            mentor_sessions=0,
+            estimated_starts=3,
+            estimated_completions=2,
+        )
+        assert stat.date == "2025-12-20"
+        assert stat.estimated_starts == 3
+        assert stat.estimated_completions == 2
+        # Actuals should be 0 for future dates
+        assert stat.completed_count == 0
+        assert stat.in_progress_count == 0
+
+    def test_daily_action_stat_mixed_actuals_and_estimates(self):
+        """Test edge case: today could have both actuals and estimates."""
+        stat = DailyActionStat(
+            date="2025-12-14",  # "today"
+            completed_count=2,
+            in_progress_count=1,
+            sessions_run=1,
+            mentor_sessions=0,
+            estimated_starts=1,  # Actions due to start today but not yet started
+            estimated_completions=3,  # Actions due today but not yet completed
+        )
+        # Both actuals and estimates can coexist on today's date
+        assert stat.completed_count == 2
+        assert stat.estimated_completions == 3
+        assert stat.in_progress_count == 1
+        assert stat.estimated_starts == 1
 
     def test_action_stats_totals_creation(self):
         """Test ActionStatsTotals model creation."""
@@ -65,17 +99,15 @@ class TestActionStatsModels:
             DailyActionStat(
                 date="2025-12-01",
                 completed_count=2,
-                created_count=1,
+                in_progress_count=1,
                 sessions_run=1,
-                sessions_completed=0,
                 mentor_sessions=2,
             ),
             DailyActionStat(
                 date="2025-12-02",
                 completed_count=3,
-                created_count=2,
+                in_progress_count=2,
                 sessions_run=2,
-                sessions_completed=1,
                 mentor_sessions=3,
             ),
         ]
@@ -99,10 +131,11 @@ class TestActionStatsEndpointLogic:
             DailyActionStat(
                 date="2025-12-10",
                 completed_count=0,
-                created_count=0,
+                in_progress_count=0,
                 sessions_run=0,
-                sessions_completed=0,
                 mentor_sessions=0,
+                estimated_starts=0,
+                estimated_completions=0,
             )
             for _ in range(14)
         ]
@@ -118,8 +151,10 @@ class TestActionStatsEndpointLogic:
         # Verify all daily stats have heatmap fields
         for stat in json_data["daily"]:
             assert "sessions_run" in stat
-            assert "sessions_completed" in stat
+            assert "in_progress_count" in stat
             assert "mentor_sessions" in stat
+            assert "estimated_starts" in stat
+            assert "estimated_completions" in stat
 
     def test_totals_sum_calculation(self):
         """Test that totals represent sum of all actions."""
@@ -135,7 +170,7 @@ class TestActionStatsEndpointLogic:
         stat = DailyActionStat(
             date=today.isoformat(),
             completed_count=1,
-            created_count=2,
+            in_progress_count=2,
         )
 
         # Verify date can be parsed back

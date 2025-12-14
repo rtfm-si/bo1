@@ -951,3 +951,136 @@ async def update_cost_calculator_defaults(
     except Exception as e:
         logger.error(f"Failed to update cost calculator defaults for {user_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update defaults") from e
+
+
+# =============================================================================
+# Value Metrics Endpoints
+# =============================================================================
+
+
+class ValueMetricResponse(BaseModel):
+    """A single value metric with trend information."""
+
+    name: str = Field(..., description="Field name (e.g., 'revenue')")
+    label: str = Field(..., description="Human-readable label (e.g., 'Revenue')")
+    current_value: str | float | int | None = Field(None, description="Current display value")
+    previous_value: str | float | int | None = Field(None, description="Previous value")
+    change_percent: float | None = Field(None, description="Percentage change")
+    trend_direction: str = Field("stable", description="Trend: improving/worsening/stable")
+    metric_type: str = Field("neutral", description="higher_is_better/lower_is_better/neutral")
+    last_updated: datetime | None = Field(None, description="When metric was last updated")
+    is_positive_change: bool | None = Field(None, description="True if change is good")
+
+
+class ValueMetricsResponse(BaseModel):
+    """Response for value metrics endpoint."""
+
+    metrics: list[ValueMetricResponse] = Field(
+        default_factory=list, description="List of value metrics"
+    )
+    has_context: bool = Field(False, description="Whether user has business context")
+    has_history: bool = Field(False, description="Whether metrics have historical data")
+
+
+@router.get(
+    "/value-metrics",
+    summary="Get user's key value metrics with trends",
+    description="""
+    Get the user's key business metrics from their context with trend indicators.
+
+    Returns up to 5 key metrics (revenue, customers, growth, etc.) along with:
+    - Current and previous values
+    - Percentage change
+    - Trend direction (improving/worsening/stable)
+    - Color coding guidance (is_positive_change)
+
+    **Use Cases:**
+    - Dashboard value metrics panel
+    - Show business health at a glance
+    - Track metric improvements over time
+
+    **Empty State:**
+    If `has_context` is false, display a prompt to set up business context.
+    If `has_history` is false, trends will show as "insufficient_data".
+    """,
+    response_model=ValueMetricsResponse,
+    responses={
+        200: {
+            "description": "Value metrics retrieved successfully",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "with_metrics": {
+                            "summary": "User with metrics",
+                            "value": {
+                                "metrics": [
+                                    {
+                                        "name": "revenue",
+                                        "label": "Revenue",
+                                        "current_value": "$50K",
+                                        "previous_value": "$45K",
+                                        "change_percent": 11.1,
+                                        "trend_direction": "improving",
+                                        "metric_type": "higher_is_better",
+                                        "is_positive_change": True,
+                                    }
+                                ],
+                                "has_context": True,
+                                "has_history": True,
+                            },
+                        },
+                        "no_context": {
+                            "summary": "User without context",
+                            "value": {
+                                "metrics": [],
+                                "has_context": False,
+                                "has_history": False,
+                            },
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+async def get_value_metrics(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ValueMetricsResponse:
+    """Get user's key business metrics with trend information."""
+    from backend.services.value_metrics import extract_value_metrics
+    from bo1.state.repositories import user_repository
+
+    user_id = user["user_id"]
+
+    try:
+        # Load user's business context
+        context_data = user_repository.get_context(user_id)
+
+        # Extract value metrics
+        result = extract_value_metrics(context_data, max_metrics=5)
+
+        # Convert to response model
+        metrics = [
+            ValueMetricResponse(
+                name=m.name,
+                label=m.label,
+                current_value=m.current_value,
+                previous_value=m.previous_value,
+                change_percent=m.change_percent,
+                trend_direction=m.trend_direction,
+                metric_type=m.metric_type,
+                last_updated=m.last_updated,
+                is_positive_change=m.is_positive_change,
+            )
+            for m in result.metrics
+        ]
+
+        return ValueMetricsResponse(
+            metrics=metrics,
+            has_context=result.has_context,
+            has_history=result.has_history,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to get value metrics for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get value metrics") from e

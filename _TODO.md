@@ -5,6 +5,12 @@ add 'meetings' to 'board' drop down
 move 'business context' from settings to its own page and seperate drop down
 move 'intelligence' from settings to its own page and a 'reports' drop down
 
+activity heatmap on dashboard still shows 'meetings completed' and 'meetings' - remove 'meetings completed', just keep 'meetings'
+activity heatmap on dashboard: remove actions created - these will always be created after a meeting
+activity heatmap on dashboard: add actions started, but only when an action is 'in progress'
+activity heatmap on dashboard: add action start for future estimated starts - use a lighter shade of same colour as 'action started'
+activity heatmap on dashboard: add action completed for future estimated completion - use a lighter shade of same colour as 'action completed'
+
 remove meeting cost calculator from dashboard
 
 failed to submit clarification questions

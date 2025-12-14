@@ -1110,10 +1110,11 @@ export interface GlobalGanttResponse {
 export interface DailyActionStat {
 	date: string;
 	completed_count: number;
-	created_count: number;
+	in_progress_count: number;
 	sessions_run: number;
-	sessions_completed: number;
 	mentor_sessions: number;
+	estimated_starts: number;
+	estimated_completions: number;
 }
 
 /**
@@ -2069,4 +2070,39 @@ export interface CreatedProjectResponse {
 	};
 	session_id: string;
 	action_count: number;
+}
+
+// =============================================================================
+// Value Metrics Types
+// =============================================================================
+
+// TrendDirection already defined earlier in this file (line ~270)
+
+/**
+ * Metric type classification for color coding
+ */
+export type MetricType = 'higher_is_better' | 'lower_is_better' | 'neutral';
+
+/**
+ * A single value metric with trend information
+ */
+export interface ValueMetric {
+	name: string;
+	label: string;
+	current_value: string | number | null;
+	previous_value: string | number | null;
+	change_percent: number | null;
+	trend_direction: TrendDirection;
+	metric_type: MetricType;
+	last_updated: string | null;
+	is_positive_change: boolean | null;
+}
+
+/**
+ * Response from GET /api/v1/user/value-metrics
+ */
+export interface ValueMetricsResponse {
+	metrics: ValueMetric[];
+	has_context: boolean;
+	has_history: boolean;
 }

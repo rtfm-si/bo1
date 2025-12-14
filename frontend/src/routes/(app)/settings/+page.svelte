@@ -3,9 +3,9 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 
-	// Redirect to context overview on mount (client-side)
+	// Redirect to account settings on mount (client-side)
 	onMount(() => {
-		goto('/settings/context/overview', { replaceState: true });
+		goto('/settings/account', { replaceState: true });
 	});
 </script>
 

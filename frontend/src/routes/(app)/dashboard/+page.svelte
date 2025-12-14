@@ -10,7 +10,7 @@
 	import OnboardingChecklist from '$lib/components/ui/OnboardingChecklist.svelte';
 	import ActivityHeatmap from '$lib/components/dashboard/ActivityHeatmap.svelte';
 	import PendingReminders from '$lib/components/dashboard/PendingReminders.svelte';
-	import MeetingCostCalculator from '$lib/components/dashboard/MeetingCostCalculator.svelte';
+	import ValueMetricsPanel from '$lib/components/dashboard/ValueMetricsPanel.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { getSessionStatusColor } from '$lib/utils/colors';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
@@ -304,9 +304,9 @@
 			</div>
 		{/if}
 
-		<!-- Meeting Cost Calculator Widget -->
+		<!-- Value Metrics Panel -->
 		<div class="mb-8">
-			<MeetingCostCalculator />
+			<ValueMetricsPanel />
 		</div>
 
 		<!-- Actions Needing Attention (overdue + due today) -->

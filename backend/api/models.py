@@ -1609,18 +1609,20 @@ class DailyActionStat(BaseModel):
     Attributes:
         date: Date (YYYY-MM-DD)
         completed_count: Actions completed on this date
-        created_count: Actions created on this date
+        in_progress_count: Actions started (transitioned to in_progress) on this date
         sessions_run: Sessions run on this date
-        sessions_completed: Sessions completed on this date
         mentor_sessions: Mentor chat sessions on this date
+        estimated_starts: Future actions with start_date on this date (not yet started)
+        estimated_completions: Future actions with due_date on this date (not yet completed)
     """
 
     date: str = Field(..., description="Date (YYYY-MM-DD)")
     completed_count: int = Field(default=0, description="Actions completed")
-    created_count: int = Field(default=0, description="Actions created")
+    in_progress_count: int = Field(default=0, description="Actions started (in_progress)")
     sessions_run: int = Field(default=0, description="Sessions run (started)")
-    sessions_completed: int = Field(default=0, description="Sessions completed")
     mentor_sessions: int = Field(default=0, description="Mentor chat sessions")
+    estimated_starts: int = Field(default=0, description="Future planned starts (start_date)")
+    estimated_completions: int = Field(default=0, description="Future due dates (due_date)")
 
 
 class ActionStatsTotals(BaseModel):
@@ -3058,3 +3060,136 @@ class FeedbackAnalysisSummary(BaseModel):
     analyzed_count: int = Field(..., description="Feedback items with analysis")
     sentiment_counts: dict[str, int] = Field(..., description="Counts by sentiment")
     top_themes: list[ThemeCount] = Field(..., description="Top themes with counts")
+
+
+# ============================================================================
+# Blog Post Models
+# ============================================================================
+
+
+class BlogPostStatus:
+    """Valid blog post statuses."""
+
+    DRAFT = "draft"
+    SCHEDULED = "scheduled"
+    PUBLISHED = "published"
+
+
+class BlogPostCreate(BaseModel):
+    """Request model for creating a blog post.
+
+    Attributes:
+        title: Post title
+        content: Markdown content
+        excerpt: Short excerpt for previews
+        status: draft, scheduled, or published
+        published_at: Scheduled publication datetime
+        seo_keywords: Target keywords
+        meta_title: Custom SEO title
+        meta_description: Custom SEO description
+    """
+
+    title: str = Field(..., min_length=1, max_length=500, description="Post title")
+    content: str = Field(..., min_length=1, description="Markdown content")
+    excerpt: str | None = Field(None, max_length=500, description="Short excerpt")
+    status: str = Field(default="draft", description="draft, scheduled, or published")
+    published_at: datetime | None = Field(None, description="Scheduled publication datetime")
+    seo_keywords: list[str] | None = Field(None, description="Target keywords")
+    meta_title: str | None = Field(None, max_length=100, description="Custom SEO title")
+    meta_description: str | None = Field(None, max_length=300, description="Custom SEO description")
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        """Validate status."""
+        valid = {BlogPostStatus.DRAFT, BlogPostStatus.SCHEDULED, BlogPostStatus.PUBLISHED}
+        if v not in valid:
+            raise ValueError(f"Invalid status. Must be one of: {valid}")
+        return v
+
+
+class BlogPostUpdate(BaseModel):
+    """Request model for updating a blog post.
+
+    All fields are optional - only provided fields are updated.
+    """
+
+    title: str | None = Field(None, min_length=1, max_length=500, description="Post title")
+    content: str | None = Field(None, min_length=1, description="Markdown content")
+    excerpt: str | None = Field(None, max_length=500, description="Short excerpt")
+    status: str | None = Field(None, description="draft, scheduled, or published")
+    published_at: datetime | None = Field(None, description="Scheduled publication datetime")
+    seo_keywords: list[str] | None = Field(None, description="Target keywords")
+    meta_title: str | None = Field(None, max_length=100, description="Custom SEO title")
+    meta_description: str | None = Field(None, max_length=300, description="Custom SEO description")
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str | None) -> str | None:
+        """Validate status if provided."""
+        if v is None:
+            return v
+        valid = {BlogPostStatus.DRAFT, BlogPostStatus.SCHEDULED, BlogPostStatus.PUBLISHED}
+        if v not in valid:
+            raise ValueError(f"Invalid status. Must be one of: {valid}")
+        return v
+
+
+class BlogPostResponse(BaseModel):
+    """Response model for a blog post."""
+
+    id: str = Field(..., description="Post UUID")
+    title: str = Field(..., description="Post title")
+    slug: str = Field(..., description="URL slug")
+    content: str | None = Field(None, description="Markdown content")
+    excerpt: str | None = Field(None, description="Short excerpt")
+    status: str = Field(..., description="draft, scheduled, or published")
+    published_at: datetime | None = Field(None, description="Publication datetime")
+    seo_keywords: list[str] | None = Field(None, description="Target keywords")
+    generated_by_topic: str | None = Field(None, description="Topic that triggered generation")
+    meta_title: str | None = Field(None, description="Custom SEO title")
+    meta_description: str | None = Field(None, description="Custom SEO description")
+    author_id: str | None = Field(None, description="Author user ID")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+
+class BlogPostListResponse(BaseModel):
+    """Response model for blog post list."""
+
+    posts: list[BlogPostResponse] = Field(..., description="List of posts")
+    total: int = Field(..., description="Total count")
+
+
+class BlogGenerateRequest(BaseModel):
+    """Request model for AI blog post generation."""
+
+    topic: str = Field(..., min_length=3, max_length=500, description="Topic to write about")
+    keywords: list[str] | None = Field(None, description="Target SEO keywords")
+
+
+class BlogGenerateResponse(BaseModel):
+    """Response model for generated blog content."""
+
+    title: str = Field(..., description="Generated title")
+    excerpt: str = Field(..., description="Generated excerpt")
+    content: str = Field(..., description="Generated markdown content")
+    meta_title: str = Field(..., description="Generated SEO title")
+    meta_description: str = Field(..., description="Generated SEO description")
+    post_id: str | None = Field(None, description="Created post ID if saved")
+
+
+class TopicResponse(BaseModel):
+    """Response model for a discovered topic."""
+
+    title: str = Field(..., description="Topic title")
+    description: str = Field(..., description="Topic description")
+    keywords: list[str] = Field(..., description="Suggested keywords")
+    relevance_score: float = Field(..., description="Relevance score 0-1")
+    source: str = Field(..., description="Source: context, trend, or gap")
+
+
+class TopicsResponse(BaseModel):
+    """Response model for topic discovery."""
+
+    topics: list[TopicResponse] = Field(..., description="Discovered topics")

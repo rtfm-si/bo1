@@ -414,7 +414,7 @@
 					</p>
 				{/if}
 				<a
-					href="/settings/context"
+					href="/context"
 					class="inline-block mt-4 text-sm text-brand-600 dark:text-brand-400 hover:underline"
 				>
 					Complete your business profile

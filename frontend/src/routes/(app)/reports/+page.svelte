@@ -1,12 +1,12 @@
 <script lang="ts">
 	/**
-	 * Context Index - Redirects to overview
+	 * Reports Index - Redirects to competitors
 	 */
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 
 	onMount(() => {
-		goto('/settings/context/overview', { replaceState: true });
+		goto('/reports/competitors', { replaceState: true });
 	});
 </script>
 

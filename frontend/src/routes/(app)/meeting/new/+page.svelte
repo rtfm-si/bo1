@@ -418,7 +418,7 @@
 
 			<div class="flex flex-col sm:flex-row gap-3">
 				<a
-					href="/settings/context/insights"
+					href="/context/insights"
 					class="flex-1 px-4 py-2 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 font-medium rounded-lg transition-colors duration-200 text-center"
 				>
 					Update Insights

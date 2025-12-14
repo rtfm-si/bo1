@@ -814,6 +814,144 @@ class UserRepository(BaseRepository):
             (customer_id,),
         )
 
+    # =========================================================================
+    # Default Workspace
+    # =========================================================================
+
+    def get_default_workspace(self, user_id: str) -> Any | None:
+        """Get user's default workspace ID.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Default workspace UUID or None if not set
+        """
+        result = self._execute_one(
+            "SELECT default_workspace_id FROM users WHERE id = %s",
+            (user_id,),
+        )
+        return result.get("default_workspace_id") if result else None
+
+    def set_default_workspace(self, user_id: str, workspace_id: Any) -> bool:
+        """Set user's default workspace.
+
+        Args:
+            user_id: User identifier
+            workspace_id: Workspace UUID to set as default
+
+        Returns:
+            True if updated successfully
+        """
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET default_workspace_id = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (workspace_id, user_id),
+                    )
+                    return bool(cur.rowcount and cur.rowcount > 0)
+        except Exception as e:
+            logger.error(f"Failed to set default workspace for user {user_id}: {e}")
+            return False
+
+    def clear_default_workspace(self, user_id: str) -> bool:
+        """Clear user's default workspace.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if cleared successfully
+        """
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET default_workspace_id = NULL,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (user_id,),
+                    )
+                    return True
+        except Exception as e:
+            logger.error(f"Failed to clear default workspace for user {user_id}: {e}")
+            return False
+
+    # =========================================================================
+    # Cost Calculator Defaults
+    # =========================================================================
+
+    # Default values for cost calculator widget
+    DEFAULT_COST_CALCULATOR = {
+        "avg_hourly_rate": 75,
+        "typical_participants": 5,
+        "typical_duration_mins": 60,
+        "typical_prep_mins": 30,
+    }
+
+    def get_cost_calculator_defaults(self, user_id: str) -> dict[str, Any]:
+        """Get user's cost calculator defaults.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Cost calculator defaults (saved or default values)
+        """
+        result = self._execute_one(
+            "SELECT cost_calculator_defaults FROM users WHERE id = %s",
+            (user_id,),
+        )
+        if result and result.get("cost_calculator_defaults"):
+            defaults: dict[str, Any] = result["cost_calculator_defaults"]
+            return defaults
+        return self.DEFAULT_COST_CALCULATOR.copy()
+
+    def update_cost_calculator_defaults(
+        self, user_id: str, defaults: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Update user's cost calculator defaults.
+
+        Args:
+            user_id: User identifier
+            defaults: Dictionary with avg_hourly_rate, typical_participants,
+                     typical_duration_mins, typical_prep_mins
+
+        Returns:
+            Updated defaults
+        """
+        import json
+
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET cost_calculator_defaults = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        RETURNING cost_calculator_defaults
+                        """,
+                        (json.dumps(defaults), user_id),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        return row[0] if isinstance(row[0], dict) else json.loads(row[0])
+                    return defaults
+        except Exception as e:
+            logger.error(f"Failed to update cost calculator defaults for user {user_id}: {e}")
+            return defaults
+
 
 # Validate SQL identifiers at module load time (defense-in-depth)
 UserRepository._validate_sql_identifiers()

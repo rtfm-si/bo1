@@ -420,12 +420,7 @@
         "multi": true,
         "name": "service",
         "options": [],
-        "query": {
-          "label": "service",
-          "refId": "LokiVariableQueryEditor-VariableQuery",
-          "stream": "{compose_project=~\"bo1.*\"}",
-          "type": 1
-        },
+        "query": "label_values({compose_project=~\"bo1.*\"}, service)",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

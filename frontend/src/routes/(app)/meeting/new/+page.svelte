@@ -6,6 +6,7 @@
 	import { apiClient } from '$lib/api/client';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import MeetingContextSelector from '$lib/components/meeting/MeetingContextSelector.svelte';
+	import MeetingProjectSelector from '$lib/components/meeting/MeetingProjectSelector.svelte';
 	import type { Dataset, StaleInsight, SessionContextIds } from '$lib/api/types';
 
 	let problemStatement = $state('');
@@ -20,6 +21,8 @@
 	let showStalenessWarning = $state(false);
 	// Context selection state
 	let selectedContext = $state<SessionContextIds>({});
+	// Project linking state
+	let selectedProjectIds = $state<string[]>([]);
 
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
@@ -32,6 +35,12 @@
 		const prefillQuestion = $page.url.searchParams.get('q');
 		if (prefillQuestion) {
 			problemStatement = prefillQuestion;
+		}
+
+		// Pre-select project if project_id is in URL (from project detail page)
+		const projectIdParam = $page.url.searchParams.get('project_id');
+		if (projectIdParam) {
+			selectedProjectIds = [projectIdParam];
 		}
 
 		// Load user's datasets for the selector
@@ -84,6 +93,19 @@
 			});
 
 			const sessionId = sessionData.id;
+
+			// Link selected projects if any
+			if (selectedProjectIds.length > 0) {
+				try {
+					await apiClient.linkProjectsToSession(sessionId, {
+						project_ids: selectedProjectIds,
+						relationship: 'discusses'
+					});
+				} catch (projectErr) {
+					console.warn('Failed to link projects to session:', projectErr);
+					// Non-blocking - continue with meeting creation
+				}
+			}
 
 			// Check for stale insights warning
 			if (sessionData.stale_insights && sessionData.stale_insights.length > 0) {
@@ -146,6 +168,10 @@
 
 	function handleContextChange(context: SessionContextIds) {
 		selectedContext = context;
+	}
+
+	function handleProjectSelectionChange(projectIds: string[]) {
+		selectedProjectIds = projectIds;
 	}
 </script>
 
@@ -256,6 +282,20 @@
 
 				<!-- Context Selector -->
 				<MeetingContextSelector onContextChange={handleContextChange} />
+
+				<!-- Project Selector -->
+				<div>
+					<label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+						Link to Projects (Optional)
+					</label>
+					<p class="text-sm text-slate-500 dark:text-slate-400 mb-3">
+						Connect this meeting to existing projects for better organization.
+					</p>
+					<MeetingProjectSelector
+						selectedProjectIds={selectedProjectIds}
+						onSelectionChange={handleProjectSelectionChange}
+					/>
+				</div>
 
 				<!-- Examples -->
 				<div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4">

@@ -414,6 +414,9 @@ class PreferencesResponse(BaseModel):
     skip_clarification: bool = Field(
         default=False, description="Skip pre-meeting clarifying questions by default"
     )
+    default_reminder_frequency_days: int = Field(
+        default=3, description="Default reminder frequency for new actions (1-14 days)"
+    )
 
 
 class PreferencesUpdate(BaseModel):
@@ -421,6 +424,12 @@ class PreferencesUpdate(BaseModel):
 
     skip_clarification: bool | None = Field(
         default=None, description="Skip pre-meeting clarifying questions by default"
+    )
+    default_reminder_frequency_days: int | None = Field(
+        default=None,
+        ge=1,
+        le=14,
+        description="Default reminder frequency for new actions (1-14 days)",
     )
 
 
@@ -444,7 +453,7 @@ async def get_preferences(
         with db_session() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT skip_clarification FROM users WHERE id = %s",
+                    "SELECT skip_clarification, default_reminder_frequency_days FROM users WHERE id = %s",
                     (user_id,),
                 )
                 row = cur.fetchone()
@@ -452,7 +461,8 @@ async def get_preferences(
                     raise HTTPException(status_code=404, detail="User not found")
 
                 return PreferencesResponse(
-                    skip_clarification=row.get("skip_clarification", False) or False
+                    skip_clarification=row.get("skip_clarification", False) or False,
+                    default_reminder_frequency_days=row.get("default_reminder_frequency_days") or 3,
                 )
 
     except HTTPException:
@@ -494,6 +504,12 @@ async def update_preferences(
         updates.append("skip_clarification = %s")
         params.append(body.skip_clarification)
 
+    if body.default_reminder_frequency_days is not None:
+        # Clamp to valid range
+        freq = max(1, min(14, body.default_reminder_frequency_days))
+        updates.append("default_reminder_frequency_days = %s")
+        params.append(freq)
+
     if not updates:
         # No changes requested, return current values
         return await get_preferences(user)
@@ -508,7 +524,7 @@ async def update_preferences(
                     UPDATE users
                     SET {", ".join(updates)}, updated_at = NOW()
                     WHERE id = %s
-                    RETURNING skip_clarification
+                    RETURNING skip_clarification, default_reminder_frequency_days
                     """,
                     params,
                 )
@@ -517,10 +533,12 @@ async def update_preferences(
                     raise HTTPException(status_code=404, detail="User not found")
 
                 logger.info(
-                    f"Updated preferences for {user_id}: skip_clarification={row.get('skip_clarification')}"
+                    f"Updated preferences for {user_id}: skip_clarification={row.get('skip_clarification')}, "
+                    f"default_reminder_frequency_days={row.get('default_reminder_frequency_days')}"
                 )
                 return PreferencesResponse(
-                    skip_clarification=row.get("skip_clarification", False) or False
+                    skip_clarification=row.get("skip_clarification", False) or False,
+                    default_reminder_frequency_days=row.get("default_reminder_frequency_days") or 3,
                 )
 
     except HTTPException:
@@ -823,3 +841,113 @@ async def apply_promo_code(
             ) from e
         else:
             raise HTTPException(status_code=400, detail=e.message) from e
+
+
+# =============================================================================
+# Cost Calculator Defaults
+# =============================================================================
+
+
+class CostCalculatorDefaults(BaseModel):
+    """User defaults for meeting cost calculator widget."""
+
+    avg_hourly_rate: int = Field(
+        default=75,
+        ge=10,
+        le=1000,
+        description="Average hourly rate per participant ($)",
+    )
+    typical_participants: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Typical number of meeting participants",
+    )
+    typical_duration_mins: int = Field(
+        default=60,
+        ge=15,
+        le=480,
+        description="Typical meeting duration in minutes",
+    )
+    typical_prep_mins: int = Field(
+        default=30,
+        ge=0,
+        le=240,
+        description="Typical preparation time per participant in minutes",
+    )
+
+
+@router.get(
+    "/cost-calculator-defaults",
+    summary="Get cost calculator defaults",
+    description="Get the user's saved defaults for the meeting cost calculator widget.",
+    response_model=CostCalculatorDefaults,
+    responses={
+        200: {"description": "Cost calculator defaults"},
+        500: {"description": "Failed to get defaults", "model": ErrorResponse},
+    },
+)
+async def get_cost_calculator_defaults(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> CostCalculatorDefaults:
+    """Get user's cost calculator defaults."""
+    from bo1.state.repositories.user_repository import user_repository
+
+    user_id = user["user_id"]
+
+    try:
+        defaults = user_repository.get_cost_calculator_defaults(user_id)
+        return CostCalculatorDefaults(**defaults)
+
+    except Exception as e:
+        logger.error(f"Failed to get cost calculator defaults for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get defaults") from e
+
+
+@router.patch(
+    "/cost-calculator-defaults",
+    summary="Update cost calculator defaults",
+    description="""
+    Update the user's defaults for the meeting cost calculator widget.
+
+    These defaults are used to pre-populate the calculator when estimating
+    traditional meeting costs vs Bo1 meeting costs.
+
+    Constraints:
+    - avg_hourly_rate: $10-1000
+    - typical_participants: 1-20
+    - typical_duration_mins: 15-480 (8 hours max)
+    - typical_prep_mins: 0-240 (4 hours max)
+    """,
+    response_model=CostCalculatorDefaults,
+    responses={
+        200: {"description": "Defaults updated"},
+        422: {"description": "Invalid values", "model": ErrorResponse},
+        500: {"description": "Failed to update defaults", "model": ErrorResponse},
+    },
+)
+async def update_cost_calculator_defaults(
+    body: CostCalculatorDefaults,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> CostCalculatorDefaults:
+    """Update user's cost calculator defaults."""
+    from bo1.state.repositories.user_repository import user_repository
+
+    user_id = user["user_id"]
+
+    try:
+        defaults = user_repository.update_cost_calculator_defaults(
+            user_id,
+            {
+                "avg_hourly_rate": body.avg_hourly_rate,
+                "typical_participants": body.typical_participants,
+                "typical_duration_mins": body.typical_duration_mins,
+                "typical_prep_mins": body.typical_prep_mins,
+            },
+        )
+        logger.info(f"Updated cost calculator defaults for {user_id}")
+        return CostCalculatorDefaults(**defaults)
+
+    except Exception as e:
+        logger.error(f"Failed to update cost calculator defaults for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update defaults") from e

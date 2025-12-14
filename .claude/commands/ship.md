@@ -26,27 +26,38 @@ Output a SHORT summary:
 
 ---
 
-## STEP 2: PRE-COMMIT CHECKS (Docker)
+## STEP 2: AUTO-FIX & PRE-COMMIT CHECKS (Docker)
 
-Run checks in Docker (matches CI):
+First, auto-fix lintable issues:
 
 ```bash
-# Backend
+# Auto-fix backend lint issues
+docker-compose run --rm bo1 ruff check --fix .
+docker-compose run --rm bo1 ruff format .
+```
+
+Then run checks in Docker (matches CI):
+
+```bash
+# Backend (verify fixes applied)
 docker-compose run --rm bo1 ruff check .
 docker-compose run --rm bo1 ruff format --check .
 docker-compose run --rm bo1 mypy bo1/ --install-types --non-interactive
 
-# Frontend
+# Frontend (no auto-fix available for svelte-check)
 docker-compose run --rm frontend npm run check
 
 # Database migrations (ensure migrations are up to date)
 docker-compose exec bo1 uv run alembic upgrade heads
 ```
 
-If checks fail:
-- Show SHORT error summary
-- Ask: "Fix issues automatically? (ruff can auto-fix)"
-- If yes, run `docker-compose run --rm bo1 ruff check --fix . && docker-compose run --rm bo1 ruff format .`
+If auto-fix modified files:
+- Show list of modified files
+- These will be staged with the commit
+
+If checks fail after auto-fix:
+- Show SHORT error summary (these require manual intervention)
+- STOP and ask user how to proceed
 
 If checks pass, continue.
 

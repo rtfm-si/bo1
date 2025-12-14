@@ -8,10 +8,11 @@ Provides:
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.errors import handle_api_errors
 from backend.services import onboarding_analytics, user_analytics
@@ -176,8 +177,10 @@ async def get_user_metrics(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get usage metrics")
 async def get_usage_metrics(
+    request: Request,
     days: int = Query(default=30, ge=1, le=90, description="Days for daily breakdown"),
     _admin: str = Depends(require_admin_any),
 ) -> UsageMetricsResponse:
@@ -215,8 +218,10 @@ async def get_usage_metrics(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get onboarding metrics")
 async def get_onboarding_metrics(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> OnboardingFunnelResponse:
     """Get onboarding funnel metrics (admin only)."""

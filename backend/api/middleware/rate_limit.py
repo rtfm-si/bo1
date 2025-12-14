@@ -278,6 +278,7 @@ STREAMING_RATE_LIMIT = RateLimits.STREAMING
 UPLOAD_RATE_LIMIT = RateLimits.UPLOAD  # For dataset uploads
 GENERAL_RATE_LIMIT = RateLimits.GENERAL
 CONTROL_RATE_LIMIT = RateLimits.CONTROL
+ADMIN_RATE_LIMIT = RateLimits.ADMIN  # Higher limit for admin dashboard endpoints
 
 
 def get_tiered_session_limit(request: Request) -> str:

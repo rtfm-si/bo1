@@ -168,19 +168,19 @@ async def list_error_patterns(
         for row in rows:
             patterns.append(
                 ErrorPatternResponse(
-                    id=row[0],
-                    pattern_name=row[1],
-                    pattern_regex=row[2],
-                    error_type=row[3],
-                    severity=row[4],
-                    description=row[5],
-                    enabled=row[6],
-                    threshold_count=row[7],
-                    threshold_window_minutes=row[8],
-                    cooldown_minutes=row[9],
-                    created_at=row[10],
-                    fix_count=row[11],
-                    last_remediation=row[12],
+                    id=row["id"],
+                    pattern_name=row["pattern_name"],
+                    pattern_regex=row["pattern_regex"],
+                    error_type=row["error_type"],
+                    severity=row["severity"],
+                    description=row["description"],
+                    enabled=row["enabled"],
+                    threshold_count=row["threshold_count"],
+                    threshold_window_minutes=row["threshold_window_minutes"],
+                    cooldown_minutes=row["cooldown_minutes"],
+                    created_at=row["created_at"],
+                    fix_count=row["fix_count"],
+                    last_remediation=row["last_remediation"],
                 )
             )
 
@@ -217,7 +217,7 @@ async def list_remediations(
                     count_params.append(outcome)
 
                 cur.execute(count_query, count_params)
-                total = cur.fetchone()[0]
+                total = cur.fetchone()["count"]
 
                 # Fetch entries
                 query = """
@@ -245,13 +245,13 @@ async def list_remediations(
         for row in rows:
             entries.append(
                 RemediationLogEntry(
-                    id=row[0],
-                    pattern_name=row[1],
-                    fix_type=row[2],
-                    triggered_at=row[3],
-                    outcome=row[4],
-                    details=row[5],
-                    duration_ms=row[6],
+                    id=row["id"],
+                    pattern_name=row["pattern_name"],
+                    fix_type=row["fix_type"],
+                    triggered_at=row["triggered_at"],
+                    outcome=row["outcome"],
+                    details=row["details"],
+                    duration_ms=row["duration_ms"],
                 )
             )
 
@@ -302,7 +302,7 @@ async def create_pattern(
                         request.cooldown_minutes,
                     ),
                 )
-                pattern_id = cur.fetchone()[0]
+                pattern_id = cur.fetchone()["id"]
             conn.commit()
 
         return PatternCreateResponse(

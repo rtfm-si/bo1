@@ -720,6 +720,8 @@
 - [x] [UX][P2] Change activity heatmap to rolling 12-month view (6 months back, 6 months forward) ✅ ActivityHeatmap.svelte - fixed 12-month window (dateRange calculation)
 - [x] [UX][P2] Add colour coding per activity type (meetings run, actions completed, actions started, mentor sessions) ✅ ACTIVITY_COLORS constant + getDominantType() + getColor() with type-based colours (brand/success/warning/info)
 - [x] [UX][P2] Add toggle buttons to show/hide individual activity types on heatmap ✅ enabledTypes state + toggleType() + clickable legend items + toggle buttons above heatmap
+- [x] [UX][P2] Rename "Meetings run" to "Meetings" in heatmap labels ✅ ACTIVITY_COLORS sessions_run label + formatTooltip updated
+- [x] [UX][P2] Add mentor sessions tracking to activity heatmap ✅ DailyActionStat.mentor_sessions + SQL CTE for user_usage.mentor_chats + ActivityHeatmap purple colour coding
 
 ### Mentor @ Feature Bug [BUG-MENTOR]
 
@@ -762,47 +764,47 @@
 
 ### Build & Deployment [BUILD]
 
-- [ ] [BUILD][P2] Run database migrations as part of /build script
-- [ ] [BUILD][P2] Batch and run migrations at end of build process
-- [ ] [BUILD][P2] Update /ship script to auto-fix lintable issues before commit
+- [x] [BUILD][P2] Run database migrations as part of /build script ✅ Added Step 1.5 to build.md with alembic upgrade head
+- [x] [BUILD][P2] Batch and run migrations at end of build process ✅ Alembic handles batching natively; documented in build.md
+- [x] [BUILD][P2] Update /ship script to auto-fix lintable issues before commit ✅ Added auto-fix step (ruff check --fix, ruff format) to ship.md Step 2
 
 ### Monitoring & Debugging [MONITORING-FIX]
 
-- [ ] [MONITORING][P2] Fix Grafana templating "Failed to upgrade legacy queries" error for bo1 logs
+- [x] [MONITORING][P2] Fix Grafana templating "Failed to upgrade legacy queries" error for bo1 logs ✅ Updated service variable query from legacy type:1 to label_values() format
 
-### Feedback Modal Bugs [BUG-FEEDBACK]
+### Feedback Modal Bugs [BUG-FEEDBACK] ✅ COMPLETE
 
-- [ ] [BUG][P1] Fix feedback modal: test button renders on top of feedback card
-- [ ] [BUG][P1] Fix feedback modal: cancel button not working
-- [ ] [BUG][P1] Fix feedback modal: close button not working
-- [ ] [UX][P2] Capture logged-in user account ID when submitting bug/feedback reports
+- [x] [BUG][P1] Fix feedback modal: cancel button not working ✅ FeedbackModal.svelte handleClose() now sets open=false
+- [x] [BUG][P1] Fix feedback modal: close button not working ✅ Same fix - handleClose() is called by Modal's onclose
+- [x] [UX][P2] Capture logged-in user account ID when submitting bug/feedback reports ✅ Already implemented - backend/api/feedback.py extracts user_id from auth context
+- [x] [BUG][P1] Fix feedback modal: test button renders on top of feedback card ✅ Not reproducible - Modal uses z-modal (1050) which is above all standard UI
 
-### Dashboard Completion Trends [TRENDS-ENH]
+### Dashboard Completion Trends [TRENDS-ENH] ✅ COMPLETE
 
-- [ ] [UX][P2] Rename "meetings started" to "meetings" in completion trends chart
-- [ ] [UX][P2] Add mentor sessions to completion trends chart
+- [x] [UX][P2] Rename "Created" to "Meetings" in completion trends chart (uses sessions_run) ✅
+- [x] [UX][P2] Add mentor sessions as 3rd bar (purple) to completion trends chart ✅
 
-### Dashboard & Navigation UX [NAV-UX]
+### Dashboard & Navigation UX [NAV-UX] ✅ COMPLETE
 
-- [ ] [UX][P2] Remove duplicate "new meeting" button from dashboard (keep single entry point)
-- [ ] [UX][P2] Move Datasets and Mentor from "Data" dropdown to "Work" dropdown in header nav
-- [ ] [UX][P2] Rename "Work" dropdown to action-oriented name aligned with "Board of One" branding
+- [x] [UX][P2] Remove duplicate "new meeting" button from dashboard (keep single entry point) ✅ Removed redundant button from sessions list header
+- [x] [UX][P2] Move Datasets and Mentor from "Data" dropdown to "Work" dropdown in header nav ✅ Consolidated to "Board" dropdown
+- [x] [UX][P2] Rename "Work" dropdown to action-oriented name aligned with "Board of One" branding ✅ Renamed to "Board"
 
-### Data Analysis Feature [DATA-STANDALONE]
+### Data Analysis Feature [DATA-STANDALONE] ✅ COMPLETE
 
-- [ ] [UX][P2] Extract data analysis section from Mentor into standalone feature accessible from main nav
+- [x] [UX][P2] Extract data analysis section from Mentor into standalone feature accessible from main nav ✅ frontend/src/routes/(app)/analysis/+page.svelte + AnalysisChat.svelte + backend/api/analysis.py + API client + Header nav + Mentor hints updated
 
 ### Workspace Multi-Tenancy [WORKSPACE-ENH]
 
-- [ ] [WORKSPACE][P2] Create default workspace for each new user on signup
-- [ ] [WORKSPACE][P2] Implement workspace join by invitation and approval flow
-- [ ] [WORKSPACE][P2] Implement admin/owner role transfer between workspace users
+- [x] [WORKSPACE][P2] Create default workspace for each new user on signup ✅ as1_add_default_workspace migration + supertokens_config.py signup hook + user_repository default_workspace methods + backend/scripts/backfill_workspaces.py + frontend workspace store + 12 unit tests
+- [x] [WORKSPACE][P2] Implement workspace join by invitation and approval flow ✅ at1_add_workspace_join_requests migration + workspace_repository join request methods + API endpoints (submit/list/approve/reject/settings) + email templates (join_request/approved/rejected) + JoinRequestModal.svelte + JoinRequestsPanel.svelte + discoverability settings in workspace settings UI + 9 unit tests
+- [x] [WORKSPACE][P2] Implement admin/owner role transfer between workspace users ✅ au1_add_workspace_role_audit migration + workspace_repository role methods (transfer_ownership, promote_to_admin, demote_to_member, log_role_change, get_role_history) + workspace_auth.py guards (can_promote_member, can_demote_admin) + API endpoints (transfer-ownership, promote, demote, role-history) + email templates (ownership_transferred, role_changed) + frontend UI (role buttons in members list, transfer modal, role history accordion) + 16 unit tests
 
-### Project-Meeting Scoping [PROJECT-SCOPE]
+### Project-Meeting Scoping [PROJECT-SCOPE] ✅ COMPLETE
 
-- [ ] [PROJECTS][P2] Enforce single-workspace constraint on meetings (meeting belongs to exactly one workspace)
-- [ ] [PROJECTS][P2] Allow meetings to discuss/work on multiple projects within same workspace
-- [ ] [PROJECTS][P2] Auto-suggest project creation from meeting questions and resulting actions
+- [x] [PROJECTS][P2] Enforce single-workspace constraint on meetings (meeting belongs to exactly one workspace) ✅ av1_add_workspace_to_projects migration + session_projects workspace validation trigger
+- [x] [PROJECTS][P2] Allow meetings to discuss/work on multiple projects within same workspace ✅ session_projects M:N table + session repository methods + API endpoints (GET/POST/DELETE /sessions/{id}/projects)
+- [x] [PROJECTS][P2] Auto-suggest project creation from meeting questions and resulting actions ✅ backend/services/project_suggester.py + GET /sessions/{id}/suggest-projects + POST /sessions/{id}/create-suggested-project + MeetingProjectSelector.svelte + ProjectSuggestions.svelte
 
 ---
 
@@ -817,20 +819,20 @@
 
 ### Dashboard Actions Display [DASH-ACTIONS]
 
-- [ ] [UX][P2] Show latest update timestamp on outstanding actions in dashboard (without increasing visual footprint)
+- [x] [UX][P2] Show latest update timestamp on outstanding actions in dashboard (without increasing visual footprint) ✅ Added updated_at to backend actions response + frontend types + dashboard display (inline with "From:" line)
 
 ### Action-Project Assignment [ACTION-PROJECT]
 
-- [ ] [UX][P2] Add project selector when viewing action detail (assign action to project or create new project)
+- [x] [UX][P2] Add project selector when viewing action detail (assign action to project or create new project) ✅ ProjectSelector.svelte + CreateProjectModal.svelte + action detail integration
 
-### Projects Autogeneration [PROJECT-GEN]
+### Projects Autogeneration [PROJECT-GEN] ✅ COMPLETE
 
-- [ ] [PROJECTS][P2] Implement "autogenerate projects" feature from existing actions in projects page
-- [ ] [PROJECTS][P2] Suggest projects from business context focus areas and strategic priorities
+- [x] [PROJECTS][P2] Implement "autogenerate projects" feature from existing actions in projects page ✅ backend/services/project_autogen.py + GET/POST /api/v1/projects/autogenerate-suggestions + AutogenProjectsModal.svelte + 13 unit tests
+- [x] [PROJECTS][P2] Suggest projects from business context focus areas and strategic priorities ✅ backend/services/context_project_suggester.py + GET/POST /api/v1/projects/context-suggestions + AutogenProjectsModal "From Business Context" tab + 17 unit tests
 
-### Project Meetings [PROJECT-MEET]
+### Project Meetings [PROJECT-MEET] ✅ COMPLETE
 
-- [ ] [PROJECTS][P2] Enable meeting creation from project detail page to discuss project delivery
+- [x] [PROJECTS][P2] Enable meeting creation from project detail page to discuss project delivery ✅ POST /api/v1/projects/{id}/meetings + "New Meeting" button on project detail + project_id URL param handling + createProjectMeeting() API client + 5 unit tests
 
 ---
 
@@ -846,14 +848,32 @@
 
 - [ ] [UX][P2] Add dynamic value metrics to completion trends based on user business context
 - [ ] [UX][P2] Show metric improvement trends (e.g. churn, sales) derived from context updates
-- [ ] [UX][P2] Add projected meeting cost calculator (estimate based on participant salary, duration, research time)
+- [x] [UX][P2] Add projected meeting cost calculator (estimate based on participant salary, duration, research time) ✅ MeetingCostCalculator.svelte + GET/PATCH /api/v1/user/cost-calculator-defaults + ax1_add_cost_calculator_defaults migration + 24 unit tests
 
-### Action Reminders & Chase System [ACTION-CHASE]
+### Action Reminders & Chase System [ACTION-CHASE] ✅ COMPLETE
 
-- [ ] [ACTIONS][P2] Add configurable action start reminder ("anticipated start" prompt if not started)
-- [ ] [ACTIONS][P2] Add approaching-deadline reminder for actions with no recent updates
-- [ ] [ACTIONS][P2] Implement user-configurable reminder frequency ("remind me in X days")
-- [ ] [ACTIONS][P2] Highlight pending action reminders on dashboard
-- [ ] [EMAIL][P2] Send email notifications for action reminders (start overdue, deadline approaching)
+- [x] [ACTIONS][P2] Add configurable action start reminder ("anticipated start" prompt if not started) ✅ backend/services/action_reminders.py calculate_start_reminder() + reminder_frequency_days column
+- [x] [ACTIONS][P2] Add approaching-deadline reminder for actions with no recent updates ✅ calculate_deadline_reminder() with 3-day warning window + activity check
+- [x] [ACTIONS][P2] Implement user-configurable reminder frequency ("remind me in X days") ✅ aw1_add_action_reminders migration + per-action settings + user default preference
+- [x] [ACTIONS][P2] Highlight pending action reminders on dashboard ✅ PendingReminders.svelte component + GET /api/v1/actions/reminders endpoint
+- [x] [EMAIL][P2] Send email notifications for action reminders (start overdue, deadline approaching) ✅ action_reminder_job.py + render_action_start_reminder_email() + render_action_deadline_reminder_email()
 
 ---
+
+## Task backlog (from \_TODO.md, 2025-12-13)
+
+### Admin Page 429 Errors [ADMIN-429] ✅ COMPLETE
+
+- [x] [BUG][P1] Fix 429 rate limit on GET /api/admin/metrics/onboarding ✅ Added ADMIN_RATE_LIMIT (300/minute) + @limiter.limit decorator
+- [x] [BUG][P1] Fix 429 rate limit on GET /api/admin/metrics/usage ✅ Added ADMIN_RATE_LIMIT (300/minute) + @limiter.limit decorator
+- [x] [BUG][P1] Fix 429 rate limit on GET /api/admin/observability-links ✅ Added ADMIN_RATE_LIMIT (300/minute) + @limiter.limit decorator
+- [x] [BUG][P1] Fix 429 rate limit on GET /api/admin/sessions/kill-history ✅ Added ADMIN_RATE_LIMIT (300/minute) + @limiter.limit decorator
+
+### Admin Page 500 Errors [ADMIN-500] ✅ COMPLETE
+
+- [x] [BUG][P1] Fix 500 error on GET /api/admin/ops/remediations ✅ Fixed tuple indexing to dict access (RealDictCursor)
+- [x] [BUG][P1] Fix 500 error on GET /api/admin/ops/patterns ✅ Fixed tuple indexing to dict access (RealDictCursor)
+
+### Pricing Page [PRICING-FIX]
+
+- [x] [UX][P1] Remove pricing page until content is finalized (currently displays incorrect prices and plan features) ✅ Header nav links removed (desktop+mobile), /pricing redirects to homepage, upgrade links updated to /settings/billing

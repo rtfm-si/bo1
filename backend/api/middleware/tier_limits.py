@@ -76,7 +76,7 @@ class TierLimitError(HTTPException):
             "remaining": result.remaining,
             "reset_at": result.reset_at.isoformat() if result.reset_at else None,
             "upgrade_prompt": "Upgrade your plan to increase your limits.",
-            "upgrade_url": "/pricing",
+            "upgrade_url": "/settings/billing",
         }
         super().__init__(status_code=429, detail=detail)
 

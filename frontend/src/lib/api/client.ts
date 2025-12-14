@@ -70,6 +70,10 @@ import type {
 	ApproveUpdateResponse,
 	// Action Stats types
 	ActionStatsResponse,
+	// Action Reminder types
+	ActionRemindersResponse,
+	ReminderSettingsResponse,
+	ReminderSettingsUpdateRequest,
 	// Query types (Data Analysis)
 	QuerySpec,
 	QueryResultResponse,
@@ -95,6 +99,14 @@ import type {
 	InvitationListResponse,
 	WorkspaceResponse,
 	WorkspaceListResponse,
+	// Join Request types
+	JoinRequestResponse,
+	JoinRequestListResponse,
+	// Role Management types
+	WorkspaceMemberResponse,
+	RoleHistoryResponse,
+	WorkspaceSettingsUpdate,
+	WorkspaceDiscoverability,
 	// Industry Benchmarks types
 	IndustryInsight,
 	IndustryInsightsResponse,
@@ -106,7 +118,23 @@ import type {
 	FeedbackCreateRequest,
 	FeedbackResponse,
 	// Calendar types
-	CalendarStatusResponse
+	CalendarStatusResponse,
+	// Session-Project types
+	SessionProjectLinkRequest,
+	SessionProjectsResponse,
+	AvailableProjectsResponse,
+	ProjectSuggestionsResponse,
+	CreatedProjectResponse,
+	// Autogen types
+	AutogenSuggestion,
+	AutogenSuggestionsResponse,
+	AutogenCreateResponse,
+	UnassignedCountResponse,
+	// Context suggestion types
+	ContextProjectSuggestion,
+	ContextSuggestionsResponse,
+	// Cost Calculator types
+	CostCalculatorDefaults
 } from './types';
 
 // Re-export types that are used by other modules
@@ -883,6 +911,32 @@ export class ApiClient {
 	}
 
 	// ==========================================================================
+	// Action Reminders Endpoints
+	// ==========================================================================
+
+	async getActionReminders(limit?: number): Promise<ActionRemindersResponse> {
+		const endpoint = withQueryString('/api/v1/actions/reminders', limit ? { limit } : {});
+		return this.fetch<ActionRemindersResponse>(endpoint);
+	}
+
+	async getActionReminderSettings(actionId: string): Promise<ReminderSettingsResponse> {
+		return this.fetch<ReminderSettingsResponse>(`/api/v1/actions/${actionId}/reminder-settings`);
+	}
+
+	async updateActionReminderSettings(
+		actionId: string,
+		settings: ReminderSettingsUpdateRequest
+	): Promise<ReminderSettingsResponse> {
+		return this.patch<ReminderSettingsResponse>(`/api/v1/actions/${actionId}/reminder-settings`, settings);
+	}
+
+	async snoozeActionReminder(actionId: string, snoozeDays: number): Promise<{ message: string }> {
+		return this.post<{ message: string }>(`/api/v1/actions/${actionId}/snooze-reminder`, {
+			snooze_days: snoozeDays
+		});
+	}
+
+	// ==========================================================================
 	// Admin Endpoints - Users
 	// ==========================================================================
 
@@ -1166,6 +1220,18 @@ export class ApiClient {
 	}
 
 	// ==========================================================================
+	// Cost Calculator Defaults
+	// ==========================================================================
+
+	async getCostCalculatorDefaults(): Promise<CostCalculatorDefaults> {
+		return this.fetch<CostCalculatorDefaults>('/api/v1/user/cost-calculator-defaults');
+	}
+
+	async updateCostCalculatorDefaults(defaults: CostCalculatorDefaults): Promise<CostCalculatorDefaults> {
+		return this.patch<CostCalculatorDefaults>('/api/v1/user/cost-calculator-defaults', defaults);
+	}
+
+	// ==========================================================================
 	// Project Endpoints
 	// ==========================================================================
 
@@ -1241,6 +1307,79 @@ export class ApiClient {
 
 	async getProjectSessions(projectId: string): Promise<ProjectSessionsResponse> {
 		return this.fetch<ProjectSessionsResponse>(`/api/v1/projects/${projectId}/sessions`);
+	}
+
+	/**
+	 * Create a meeting linked to a project
+	 *
+	 * Creates a new deliberation session pre-linked to the project.
+	 */
+	async createProjectMeeting(
+		projectId: string,
+		request?: { problem_statement?: string; include_project_context?: boolean }
+	): Promise<SessionResponse> {
+		return this.post<SessionResponse>(`/api/v1/projects/${projectId}/meetings`, request || {});
+	}
+
+	// ==========================================================================
+	// Project Autogeneration Endpoints
+	// ==========================================================================
+
+	/**
+	 * Get autogenerate suggestions from unassigned actions
+	 *
+	 * Analyzes unassigned actions and suggests project groupings.
+	 */
+	async getAutogenSuggestions(): Promise<AutogenSuggestionsResponse> {
+		return this.fetch<AutogenSuggestionsResponse>('/api/v1/projects/autogenerate-suggestions');
+	}
+
+	/**
+	 * Create projects from autogen suggestions
+	 *
+	 * Creates projects from selected suggestions and assigns actions.
+	 */
+	async createFromAutogenSuggestions(
+		suggestions: AutogenSuggestion[],
+		workspaceId?: string
+	): Promise<AutogenCreateResponse> {
+		return this.post<AutogenCreateResponse>('/api/v1/projects/autogenerate', {
+			suggestions,
+			workspace_id: workspaceId
+		});
+	}
+
+	/**
+	 * Get unassigned actions count
+	 *
+	 * Returns count of actions not assigned to any project.
+	 */
+	async getUnassignedCount(): Promise<UnassignedCountResponse> {
+		return this.fetch<UnassignedCountResponse>('/api/v1/projects/unassigned-count');
+	}
+
+	/**
+	 * Get context-based project suggestions
+	 *
+	 * Analyzes user's business context and suggests strategic projects.
+	 */
+	async getContextProjectSuggestions(): Promise<ContextSuggestionsResponse> {
+		return this.fetch<ContextSuggestionsResponse>('/api/v1/projects/context-suggestions');
+	}
+
+	/**
+	 * Create projects from context suggestions
+	 *
+	 * Creates projects from selected context-based suggestions.
+	 */
+	async createFromContextSuggestions(
+		suggestions: ContextProjectSuggestion[],
+		workspaceId?: string
+	): Promise<AutogenCreateResponse> {
+		return this.post<AutogenCreateResponse>('/api/v1/projects/context-suggestions', {
+			suggestions,
+			workspace_id: workspaceId
+		});
 	}
 
 	// ==========================================================================
@@ -1601,6 +1740,92 @@ export class ApiClient {
 	 */
 	async deleteConversation(datasetId: string, conversationId: string): Promise<void> {
 		await this.delete<void>(`/api/v1/datasets/${datasetId}/conversations/${conversationId}`);
+	}
+
+	// ============================================================================
+	// Analysis Methods
+	// ============================================================================
+
+	/**
+	 * Ask data analysis question using SSE streaming
+	 * Routes to dataset Q&A if datasetId provided, otherwise general guidance
+	 * Returns an object with connect() that yields SSE events
+	 */
+	askAnalysis(
+		question: string,
+		conversationId?: string | null,
+		datasetId?: string | null
+	): {
+		connect: () => AsyncGenerator<{ event: string; data: string }, void, unknown>;
+		abort: () => void;
+	} {
+		const abortController = new AbortController();
+		const url = `${this.baseUrl}/api/v1/analysis/ask`;
+
+		const connect = async function* () {
+			const headers: Record<string, string> = {
+				'Content-Type': 'application/json',
+				Accept: 'text/event-stream'
+			};
+			const csrfToken = getCsrfToken();
+			if (csrfToken) {
+				headers['X-CSRF-Token'] = csrfToken;
+			}
+
+			const response = await fetch(url, {
+				method: 'POST',
+				headers,
+				credentials: 'include',
+				signal: abortController.signal,
+				body: JSON.stringify({
+					question,
+					conversation_id: conversationId,
+					dataset_id: datasetId
+				})
+			});
+
+			if (!response.ok) {
+				const error = await response.text();
+				throw new Error(`Analysis failed: ${response.status} - ${error}`);
+			}
+
+			const reader = response.body?.getReader();
+			if (!reader) {
+				throw new Error('No response body');
+			}
+
+			const decoder = new TextDecoder();
+			let buffer = '';
+
+			try {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split('\n');
+					buffer = lines.pop() || '';
+
+					let currentEvent = 'message';
+					for (const line of lines) {
+						if (line.startsWith('event:')) {
+							currentEvent = line.slice(6).trim();
+						} else if (line.startsWith('data:')) {
+							const data = line.slice(5).trim();
+							yield { event: currentEvent, data };
+							currentEvent = 'message';
+						}
+					}
+				}
+			} finally {
+				reader.releaseLock();
+			}
+		};
+
+		return {
+			connect,
+			abort: () => abortController.abort()
+		};
 	}
 
 	// ============================================================================
@@ -1989,6 +2214,124 @@ export class ApiClient {
 		return this.delete<void>(`/api/v1/workspaces/${workspaceId}/members/${userId}`);
 	}
 
+	// =========================================================================
+	// Workspace Join Request Methods
+	// =========================================================================
+
+	/**
+	 * Submit a request to join a workspace
+	 * Only works for workspaces with request_to_join discoverability
+	 */
+	async submitJoinRequest(workspaceId: string, message?: string): Promise<JoinRequestResponse> {
+		return this.post<JoinRequestResponse>(`/api/v1/workspaces/${workspaceId}/join-request`, {
+			message
+		});
+	}
+
+	/**
+	 * List pending join requests for a workspace (admin/owner only)
+	 */
+	async listJoinRequests(workspaceId: string): Promise<JoinRequestListResponse> {
+		return this.fetch<JoinRequestListResponse>(
+			`/api/v1/workspaces/${workspaceId}/join-requests`
+		);
+	}
+
+	/**
+	 * Approve a join request (admin/owner only)
+	 */
+	async approveJoinRequest(
+		workspaceId: string,
+		requestId: string
+	): Promise<JoinRequestResponse> {
+		return this.post<JoinRequestResponse>(
+			`/api/v1/workspaces/${workspaceId}/join-requests/${requestId}/approve`
+		);
+	}
+
+	/**
+	 * Reject a join request (admin/owner only)
+	 */
+	async rejectJoinRequest(
+		workspaceId: string,
+		requestId: string,
+		reason?: string
+	): Promise<JoinRequestResponse> {
+		return this.post<JoinRequestResponse>(
+			`/api/v1/workspaces/${workspaceId}/join-requests/${requestId}/reject`,
+			{ reason }
+		);
+	}
+
+	/**
+	 * Update workspace settings (admin/owner only)
+	 */
+	async updateWorkspaceSettings(
+		workspaceId: string,
+		settings: WorkspaceSettingsUpdate
+	): Promise<WorkspaceResponse> {
+		return this.patch<WorkspaceResponse>(
+			`/api/v1/workspaces/${workspaceId}/settings`,
+			settings
+		);
+	}
+
+	// =========================================================================
+	// Workspace Role Management Methods
+	// =========================================================================
+
+	/**
+	 * Transfer workspace ownership to another member (owner only)
+	 * The current owner will become an admin after the transfer
+	 */
+	async transferWorkspaceOwnership(
+		workspaceId: string,
+		newOwnerId: string
+	): Promise<WorkspaceResponse> {
+		return this.post<WorkspaceResponse>(
+			`/api/v1/workspaces/${workspaceId}/transfer-ownership`,
+			{ new_owner_id: newOwnerId, confirm: true }
+		);
+	}
+
+	/**
+	 * Promote a member to admin role (owner only)
+	 */
+	async promoteMember(
+		workspaceId: string,
+		userId: string
+	): Promise<WorkspaceMemberResponse> {
+		return this.post<WorkspaceMemberResponse>(
+			`/api/v1/workspaces/${workspaceId}/members/${userId}/promote`
+		);
+	}
+
+	/**
+	 * Demote an admin to member role (owner only)
+	 */
+	async demoteMember(
+		workspaceId: string,
+		userId: string
+	): Promise<WorkspaceMemberResponse> {
+		return this.post<WorkspaceMemberResponse>(
+			`/api/v1/workspaces/${workspaceId}/members/${userId}/demote`
+		);
+	}
+
+	/**
+	 * Get role change history for a workspace (admin/owner only)
+	 */
+	async getRoleHistory(
+		workspaceId: string,
+		limit: number = 50
+	): Promise<RoleHistoryResponse> {
+		const endpoint = withQueryString(
+			`/api/v1/workspaces/${workspaceId}/role-history`,
+			{ limit }
+		);
+		return this.fetch<RoleHistoryResponse>(endpoint);
+	}
+
 	// ============================================================================
 	// Industry Benchmarks (additional methods)
 	// ============================================================================
@@ -2062,6 +2405,69 @@ export class ApiClient {
 	 */
 	async disconnectCalendar(): Promise<{ success: boolean }> {
 		return this.delete<{ success: boolean }>('/api/v1/integrations/calendar/disconnect');
+	}
+
+	// ============================================================================
+	// Session-Project Linking
+	// ============================================================================
+
+	/**
+	 * Get projects linked to a session
+	 */
+	async getSessionProjects(sessionId: string): Promise<SessionProjectsResponse> {
+		return this.fetch<SessionProjectsResponse>(`/api/v1/sessions/${sessionId}/projects`);
+	}
+
+	/**
+	 * Get projects available for linking (same workspace)
+	 */
+	async getAvailableProjects(sessionId: string): Promise<AvailableProjectsResponse> {
+		return this.fetch<AvailableProjectsResponse>(`/api/v1/sessions/${sessionId}/available-projects`);
+	}
+
+	/**
+	 * Link projects to a session
+	 */
+	async linkProjectsToSession(
+		sessionId: string,
+		data: SessionProjectLinkRequest
+	): Promise<{ session_id: string; linked_count: number; project_ids: string[] }> {
+		return this.post<{ session_id: string; linked_count: number; project_ids: string[] }>(
+			`/api/v1/sessions/${sessionId}/projects`,
+			data
+		);
+	}
+
+	/**
+	 * Unlink a project from a session
+	 */
+	async unlinkProjectFromSession(sessionId: string, projectId: string): Promise<void> {
+		return this.delete<void>(`/api/v1/sessions/${sessionId}/projects/${projectId}`);
+	}
+
+	/**
+	 * Get project suggestions from a completed meeting
+	 */
+	async getProjectSuggestions(
+		sessionId: string,
+		minConfidence: number = 0.6
+	): Promise<ProjectSuggestionsResponse> {
+		return this.fetch<ProjectSuggestionsResponse>(
+			`/api/v1/sessions/${sessionId}/suggest-projects?min_confidence=${minConfidence}`
+		);
+	}
+
+	/**
+	 * Create a project from a suggestion
+	 */
+	async createSuggestedProject(
+		sessionId: string,
+		suggestion: { name: string; description: string; action_ids: string[] }
+	): Promise<CreatedProjectResponse> {
+		return this.post<CreatedProjectResponse>(
+			`/api/v1/sessions/${sessionId}/create-suggested-project`,
+			suggestion
+		);
 	}
 }
 

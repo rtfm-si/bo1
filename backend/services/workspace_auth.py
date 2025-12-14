@@ -195,3 +195,84 @@ def can_remove_member(
         return False, "Insufficient permissions to remove members"
 
     return True, None
+
+
+def can_promote_member(
+    workspace_id: uuid.UUID,
+    actor_id: str,
+    target_id: str,
+) -> tuple[bool, str | None]:
+    """Check if promotion to admin is allowed.
+
+    Only owner can promote members to admin.
+
+    Args:
+        workspace_id: Workspace UUID
+        actor_id: User performing the action
+        target_id: User being promoted
+
+    Returns:
+        Tuple of (allowed, error_message)
+    """
+    workspace = workspace_repository.get_workspace(workspace_id)
+    if not workspace:
+        return False, "Workspace not found"
+
+    # Only owner can promote
+    if workspace.owner_id != actor_id:
+        return False, "Only the owner can promote members to admin"
+
+    # Cannot promote self
+    if actor_id == target_id:
+        return False, "Cannot promote yourself"
+
+    # Check target is a member
+    target_role = workspace_repository.get_member_role(workspace_id, target_id)
+    if not target_role:
+        return False, "User is not a member of this workspace"
+
+    # Can only promote members, not admins or owner
+    if target_role != MemberRole.MEMBER:
+        return False, f"User is already {target_role.value}, cannot promote"
+
+    return True, None
+
+
+def can_demote_admin(
+    workspace_id: uuid.UUID,
+    actor_id: str,
+    target_id: str,
+) -> tuple[bool, str | None]:
+    """Check if demotion from admin is allowed.
+
+    Only owner can demote admins. Cannot demote self or owner.
+
+    Args:
+        workspace_id: Workspace UUID
+        actor_id: User performing the action
+        target_id: User being demoted
+
+    Returns:
+        Tuple of (allowed, error_message)
+    """
+    workspace = workspace_repository.get_workspace(workspace_id)
+    if not workspace:
+        return False, "Workspace not found"
+
+    # Only owner can demote
+    if workspace.owner_id != actor_id:
+        return False, "Only the owner can demote admins"
+
+    # Cannot demote owner (which is self since only owner can demote)
+    if target_id == workspace.owner_id:
+        return False, "Cannot demote the workspace owner"
+
+    # Check target is an admin
+    target_role = workspace_repository.get_member_role(workspace_id, target_id)
+    if not target_role:
+        return False, "User is not a member of this workspace"
+
+    if target_role != MemberRole.ADMIN:
+        return False, f"User is {target_role.value}, not admin"
+
+    return True, None

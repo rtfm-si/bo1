@@ -2024,4 +2024,374 @@ async def revoke_share(
             ) from e
 
 
+# =========================================================================
+# Session-Project Linking
+# =========================================================================
+
+
+@router.get(
+    "/{session_id}/projects",
+    summary="Get session's linked projects",
+    description="Get all projects linked to this session",
+    responses={
+        200: {"description": "Projects retrieved successfully"},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("get session projects")
+async def get_session_projects(
+    session_id: str,
+    session_data: VerifiedSession,
+) -> dict[str, Any]:
+    """Get all projects linked to a session.
+
+    Args:
+        session_id: Session identifier
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        SessionProjectsResponse with linked projects
+    """
+    from backend.api.models import SessionProjectsResponse
+
+    with track_api_call("sessions.get_projects", "GET"):
+        session_id = validate_session_id(session_id)
+        user_id, _ = session_data
+
+        projects = session_repository.get_session_projects(session_id)
+
+        return SessionProjectsResponse(
+            session_id=session_id,
+            projects=[
+                {
+                    "project_id": str(p["project_id"]),
+                    "name": p["name"],
+                    "description": p.get("description"),
+                    "status": p["project_status"],
+                    "progress_percent": p.get("progress_percent", 0),
+                    "relationship": p["relationship"],
+                    "linked_at": (p["linked_at"].isoformat() if p.get("linked_at") else None),
+                }
+                for p in projects
+            ],
+        )
+
+
+@router.get(
+    "/{session_id}/available-projects",
+    summary="Get projects available for linking",
+    description="Get projects that can be linked to this session (same workspace)",
+    responses={
+        200: {"description": "Available projects retrieved successfully"},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("get available projects")
+async def get_available_projects(
+    session_id: str,
+    session_data: VerifiedSession,
+) -> dict[str, Any]:
+    """Get projects available for linking to a session (same workspace).
+
+    Args:
+        session_id: Session identifier
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        AvailableProjectsResponse with available projects
+    """
+    from backend.api.models import AvailableProjectsResponse
+
+    with track_api_call("sessions.get_available_projects", "GET"):
+        session_id = validate_session_id(session_id)
+        user_id, _ = session_data
+
+        projects = session_repository.get_available_projects_for_session(
+            session_id=session_id,
+            user_id=user_id,
+        )
+
+        return AvailableProjectsResponse(
+            session_id=session_id,
+            projects=[
+                {
+                    "id": str(p["id"]),
+                    "name": p["name"],
+                    "description": p.get("description"),
+                    "status": p["status"],
+                    "progress_percent": p.get("progress_percent", 0),
+                    "is_linked": p.get("is_linked", False),
+                }
+                for p in projects
+            ],
+        )
+
+
+@router.post(
+    "/{session_id}/projects",
+    status_code=201,
+    summary="Link projects to session",
+    description="Link one or more projects to this session",
+    responses={
+        201: {"description": "Projects linked successfully"},
+        400: {"description": "Workspace mismatch or invalid project", "model": ErrorResponse},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("link projects to session")
+async def link_projects_to_session(
+    session_id: str,
+    request: Request,
+    session_data: VerifiedSession,
+) -> dict[str, Any]:
+    """Link projects to a session.
+
+    Args:
+        session_id: Session identifier
+        request: Request with project_ids and relationship
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        Dict with session_id and linked project count
+    """
+    from backend.api.models import SessionProjectLink
+
+    with track_api_call("sessions.link_projects", "POST"):
+        session_id = validate_session_id(session_id)
+        user_id, _ = session_data
+
+        # Parse request body
+        body = await request.json()
+        link_request = SessionProjectLink(**body)
+
+        # Validate workspace match
+        is_valid, mismatched = session_repository.validate_project_workspace_match(
+            session_id=session_id,
+            project_ids=link_request.project_ids,
+        )
+        if not is_valid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Projects {mismatched} are in a different workspace than session",
+            )
+
+        # Link projects
+        try:
+            results = session_repository.link_session_to_projects(
+                session_id=session_id,
+                project_ids=link_request.project_ids,
+                relationship=link_request.relationship,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from None
+
+        return {
+            "session_id": session_id,
+            "linked_count": len(results),
+            "project_ids": link_request.project_ids,
+        }
+
+
+@router.delete(
+    "/{session_id}/projects/{project_id}",
+    status_code=204,
+    summary="Unlink project from session",
+    description="Remove a project link from this session",
+    responses={
+        204: {"description": "Project unlinked successfully"},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session or link not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("unlink project from session")
+async def unlink_project_from_session(
+    session_id: str,
+    project_id: str,
+    session_data: VerifiedSession,
+) -> None:
+    """Unlink a project from a session.
+
+    Args:
+        session_id: Session identifier
+        project_id: Project UUID to unlink
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        None (204 No Content)
+    """
+    from fastapi.responses import Response
+
+    with track_api_call("sessions.unlink_project", "DELETE"):
+        session_id = validate_session_id(session_id)
+        user_id, _ = session_data
+
+        success = session_repository.unlink_session_from_project(
+            session_id=session_id,
+            project_id=project_id,
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Project {project_id} not linked to session {session_id}",
+            )
+
+        return Response(status_code=204)
+
+
+# =========================================================================
+# Project Suggestions
+# =========================================================================
+
+
+@router.get(
+    "/{session_id}/suggest-projects",
+    summary="Get project suggestions from meeting",
+    description="Analyze meeting and suggest potential projects to create",
+    responses={
+        200: {"description": "Suggestions retrieved successfully"},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("suggest projects")
+async def suggest_projects(
+    session_id: str,
+    session_data: VerifiedSession,
+    min_confidence: float = Query(0.6, ge=0.0, le=1.0, description="Minimum confidence threshold"),
+) -> dict[str, Any]:
+    """Get project suggestions from a completed meeting.
+
+    Analyzes the meeting's problem statement and resulting actions
+    to suggest potential projects that could be created.
+
+    Args:
+        session_id: Session identifier
+        session_data: Verified session (user_id, metadata) from dependency
+        min_confidence: Minimum confidence for suggestions (default 0.6)
+
+    Returns:
+        Dict with suggestions list
+    """
+    from backend.services.project_suggester import suggest_projects_from_session
+
+    with track_api_call("sessions.suggest_projects", "GET"):
+        session_id = validate_session_id(session_id)
+        user_id, metadata = session_data
+
+        # Check session is completed (suggestions only make sense for finished meetings)
+        session = session_repository.get(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        if session.get("status") not in ("completed", "terminated"):
+            raise HTTPException(
+                status_code=400,
+                detail="Project suggestions are only available for completed meetings",
+            )
+
+        suggestions = await suggest_projects_from_session(
+            session_id=session_id,
+            min_confidence=min_confidence,
+        )
+
+        return {
+            "session_id": session_id,
+            "suggestions": [
+                {
+                    "name": s.name,
+                    "description": s.description,
+                    "action_ids": s.action_ids,
+                    "confidence": s.confidence,
+                    "rationale": s.rationale,
+                }
+                for s in suggestions
+            ],
+        }
+
+
+@router.post(
+    "/{session_id}/create-suggested-project",
+    status_code=201,
+    summary="Create project from suggestion",
+    description="Create a project from a suggestion and assign actions",
+    responses={
+        201: {"description": "Project created successfully"},
+        400: {"description": "Invalid suggestion data", "model": ErrorResponse},
+        403: {"description": "User does not own this session", "model": ErrorResponse},
+        404: {"description": "Session not found", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("create suggested project")
+async def create_suggested_project(
+    session_id: str,
+    request: Request,
+    session_data: VerifiedSession,
+) -> dict[str, Any]:
+    """Create a project from a suggestion.
+
+    Args:
+        session_id: Session identifier
+        request: Request with suggestion data (name, description, action_ids)
+        session_data: Verified session (user_id, metadata) from dependency
+
+    Returns:
+        Created project data
+    """
+    from backend.services.project_suggester import (
+        ProjectSuggestion,
+        create_project_from_suggestion,
+    )
+
+    with track_api_call("sessions.create_suggested_project", "POST"):
+        session_id = validate_session_id(session_id)
+        user_id, _ = session_data
+
+        # Parse request body
+        body = await request.json()
+
+        # Get session for workspace_id
+        session = session_repository.get(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        workspace_id = session.get("workspace_id")
+
+        # Create suggestion object
+        suggestion = ProjectSuggestion(
+            name=body.get("name", "Untitled Project"),
+            description=body.get("description", ""),
+            action_ids=body.get("action_ids", []),
+            confidence=body.get("confidence", 1.0),
+            rationale=body.get("rationale", "User-created from suggestion"),
+        )
+
+        if not suggestion.name:
+            raise HTTPException(status_code=400, detail="Project name is required")
+
+        # Create project
+        project = await create_project_from_suggestion(
+            session_id=session_id,
+            suggestion=suggestion,
+            user_id=user_id,
+            workspace_id=str(workspace_id) if workspace_id else None,
+        )
+
+        return {
+            "project": {
+                "id": str(project["id"]),
+                "name": project["name"],
+                "description": project.get("description"),
+                "status": project["status"],
+                "progress_percent": project.get("progress_percent", 0),
+                "total_actions": project.get("total_actions", 0),
+            },
+            "session_id": session_id,
+            "action_count": len(suggestion.action_ids),
+        }
+
+
 # Public share endpoint is in backend/api/share.py

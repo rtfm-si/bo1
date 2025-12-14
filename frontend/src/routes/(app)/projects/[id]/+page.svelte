@@ -32,7 +32,8 @@
 		Archive,
 		Target,
 		XCircle,
-		GanttChartSquare
+		GanttChartSquare,
+		MessageSquarePlus
 	} from 'lucide-svelte';
 
 	const projectId = $page.params.id!;
@@ -333,8 +334,20 @@
 							</div>
 						</div>
 
-						<!-- Status Change Buttons -->
+						<!-- Action Buttons -->
 						<div class="flex items-center gap-2">
+							<!-- New Meeting Button -->
+							{#if project.status !== 'archived'}
+								<Button
+									variant="brand"
+									size="sm"
+									onclick={() => goto(`/meeting/new?project_id=${projectId}`)}
+								>
+									<MessageSquarePlus class="w-4 h-4 mr-1" />
+									New Meeting
+								</Button>
+							{/if}
+							<!-- Status Change Buttons -->
 							{#if project.status !== 'active'}
 								<Button
 									variant="ghost"
@@ -359,7 +372,7 @@
 							{/if}
 							{#if project.status !== 'completed' && project.status !== 'archived'}
 								<Button
-									variant="brand"
+									variant="secondary"
 									size="sm"
 									onclick={() => updateProjectStatus('completed')}
 									disabled={isUpdatingStatus}

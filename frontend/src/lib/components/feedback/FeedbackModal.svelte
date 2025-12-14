@@ -26,7 +26,8 @@
 	let success = $state(false);
 
 	function handleClose() {
-		// Reset form state
+		// Close modal and reset form state
+		open = false;
 		feedbackType = 'feature_request';
 		title = '';
 		description = '';

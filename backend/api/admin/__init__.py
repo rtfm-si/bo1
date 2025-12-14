@@ -8,6 +8,11 @@ This module provides a unified router for all admin endpoints, organized by doma
 - Waitlist: Waitlist management and approvals
 - Metrics: System metrics and monitoring
 
+Rate Limiting:
+    Admin endpoints use higher rate limits (300/minute) to support dashboard
+    page loads that fire multiple API requests in parallel. This is safe because
+    admin endpoints require API key authentication.
+
 Usage:
     from backend.api import admin
     app.include_router(admin.router, prefix="/api", tags=["admin"])

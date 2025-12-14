@@ -12,7 +12,10 @@ import uuid
 from typing import Any
 
 from backend.api.workspaces.models import (
+    JoinRequestResponse,
+    JoinRequestStatus,
     MemberRole,
+    WorkspaceDiscoverability,
     WorkspaceMemberResponse,
     WorkspaceResponse,
 )
@@ -664,6 +667,633 @@ class WorkspaceRepository(BaseRepository):
         query = "SELECT subscription_tier FROM workspaces WHERE id = %s"
         row = self._execute_one(query, (workspace_id,))
         return row["subscription_tier"] if row else "free"
+
+    # =========================================================================
+    # Join Request Methods
+    # =========================================================================
+
+    def create_join_request(
+        self,
+        workspace_id: uuid.UUID,
+        user_id: str,
+        message: str | None = None,
+    ) -> JoinRequestResponse:
+        """Create a join request for a workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+            user_id: Requesting user's ID
+            message: Optional message from requester
+
+        Returns:
+            Created join request
+
+        Raises:
+            ValueError: If user already has pending request or is already a member
+        """
+        # Check if user is already a member
+        if self.is_member(workspace_id, user_id):
+            raise ValueError("User is already a member of this workspace")
+
+        # Check for existing pending request
+        existing = self.get_pending_join_request(workspace_id, user_id)
+        if existing:
+            raise ValueError("User already has a pending join request")
+
+        request_id = uuid.uuid4()
+        query = """
+            INSERT INTO workspace_join_requests
+                (id, workspace_id, user_id, message, status)
+            VALUES (%s, %s, %s, %s, 'pending')
+            RETURNING id, workspace_id, user_id, message, status,
+                      rejection_reason, reviewed_by, reviewed_at, created_at
+        """
+        row = self._execute_returning(
+            query,
+            (request_id, workspace_id, user_id, message),
+        )
+
+        return JoinRequestResponse(
+            id=row["id"],
+            workspace_id=row["workspace_id"],
+            user_id=row["user_id"],
+            message=row["message"],
+            status=JoinRequestStatus(row["status"]),
+            rejection_reason=row["rejection_reason"],
+            reviewed_by=row["reviewed_by"],
+            reviewed_at=row["reviewed_at"],
+            created_at=row["created_at"],
+        )
+
+    def get_pending_join_request(
+        self,
+        workspace_id: uuid.UUID,
+        user_id: str,
+    ) -> JoinRequestResponse | None:
+        """Get a pending join request for a user and workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+            user_id: User ID
+
+        Returns:
+            Join request or None if not found
+        """
+        query = """
+            SELECT jr.id, jr.workspace_id, jr.user_id, jr.message, jr.status,
+                   jr.rejection_reason, jr.reviewed_by, jr.reviewed_at, jr.created_at,
+                   u.email as user_email, w.name as workspace_name
+            FROM workspace_join_requests jr
+            LEFT JOIN users u ON jr.user_id = u.id
+            LEFT JOIN workspaces w ON jr.workspace_id = w.id
+            WHERE jr.workspace_id = %s AND jr.user_id = %s AND jr.status = 'pending'
+        """
+        row = self._execute_one(query, (workspace_id, user_id))
+        if not row:
+            return None
+
+        return JoinRequestResponse(
+            id=row["id"],
+            workspace_id=row["workspace_id"],
+            user_id=row["user_id"],
+            message=row["message"],
+            status=JoinRequestStatus(row["status"]),
+            rejection_reason=row["rejection_reason"],
+            reviewed_by=row["reviewed_by"],
+            reviewed_at=row["reviewed_at"],
+            created_at=row["created_at"],
+            user_email=row.get("user_email"),
+            workspace_name=row.get("workspace_name"),
+        )
+
+    def get_join_request(
+        self,
+        request_id: uuid.UUID,
+    ) -> JoinRequestResponse | None:
+        """Get a join request by ID.
+
+        Args:
+            request_id: Join request UUID
+
+        Returns:
+            Join request or None if not found
+        """
+        query = """
+            SELECT jr.id, jr.workspace_id, jr.user_id, jr.message, jr.status,
+                   jr.rejection_reason, jr.reviewed_by, jr.reviewed_at, jr.created_at,
+                   u.email as user_email, w.name as workspace_name
+            FROM workspace_join_requests jr
+            LEFT JOIN users u ON jr.user_id = u.id
+            LEFT JOIN workspaces w ON jr.workspace_id = w.id
+            WHERE jr.id = %s
+        """
+        row = self._execute_one(query, (request_id,))
+        if not row:
+            return None
+
+        return JoinRequestResponse(
+            id=row["id"],
+            workspace_id=row["workspace_id"],
+            user_id=row["user_id"],
+            message=row["message"],
+            status=JoinRequestStatus(row["status"]),
+            rejection_reason=row["rejection_reason"],
+            reviewed_by=row["reviewed_by"],
+            reviewed_at=row["reviewed_at"],
+            created_at=row["created_at"],
+            user_email=row.get("user_email"),
+            workspace_name=row.get("workspace_name"),
+        )
+
+    def list_pending_requests(
+        self,
+        workspace_id: uuid.UUID,
+    ) -> list[JoinRequestResponse]:
+        """List all pending join requests for a workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+
+        Returns:
+            List of pending join requests
+        """
+        query = """
+            SELECT jr.id, jr.workspace_id, jr.user_id, jr.message, jr.status,
+                   jr.rejection_reason, jr.reviewed_by, jr.reviewed_at, jr.created_at,
+                   u.email as user_email, w.name as workspace_name
+            FROM workspace_join_requests jr
+            LEFT JOIN users u ON jr.user_id = u.id
+            LEFT JOIN workspaces w ON jr.workspace_id = w.id
+            WHERE jr.workspace_id = %s AND jr.status = 'pending'
+            ORDER BY jr.created_at ASC
+        """
+        rows = self._execute_query(query, (workspace_id,))
+
+        return [
+            JoinRequestResponse(
+                id=row["id"],
+                workspace_id=row["workspace_id"],
+                user_id=row["user_id"],
+                message=row["message"],
+                status=JoinRequestStatus(row["status"]),
+                rejection_reason=row["rejection_reason"],
+                reviewed_by=row["reviewed_by"],
+                reviewed_at=row["reviewed_at"],
+                created_at=row["created_at"],
+                user_email=row.get("user_email"),
+                workspace_name=row.get("workspace_name"),
+            )
+            for row in rows
+        ]
+
+    def approve_request(
+        self,
+        request_id: uuid.UUID,
+        reviewer_id: str,
+    ) -> JoinRequestResponse | None:
+        """Approve a join request and add user as member.
+
+        Args:
+            request_id: Join request UUID
+            reviewer_id: ID of user approving the request
+
+        Returns:
+            Updated join request or None if not found
+        """
+        # Get request first to get workspace_id and user_id
+        request = self.get_join_request(request_id)
+        if not request or request.status != JoinRequestStatus.PENDING:
+            return None
+
+        # Update request status
+        query = """
+            UPDATE workspace_join_requests
+            SET status = 'approved', reviewed_by = %s, reviewed_at = NOW()
+            WHERE id = %s AND status = 'pending'
+            RETURNING id, workspace_id, user_id, message, status,
+                      rejection_reason, reviewed_by, reviewed_at, created_at
+        """
+        row = self._execute_one(query, (reviewer_id, request_id))
+        if not row:
+            return None
+
+        # Add user as member
+        self._add_member_internal(
+            workspace_id=request.workspace_id,
+            user_id=request.user_id,
+            role=MemberRole.MEMBER,
+            invited_by=reviewer_id,
+        )
+
+        return JoinRequestResponse(
+            id=row["id"],
+            workspace_id=row["workspace_id"],
+            user_id=row["user_id"],
+            message=row["message"],
+            status=JoinRequestStatus(row["status"]),
+            rejection_reason=row["rejection_reason"],
+            reviewed_by=row["reviewed_by"],
+            reviewed_at=row["reviewed_at"],
+            created_at=row["created_at"],
+        )
+
+    def reject_request(
+        self,
+        request_id: uuid.UUID,
+        reviewer_id: str,
+        reason: str | None = None,
+    ) -> JoinRequestResponse | None:
+        """Reject a join request.
+
+        Args:
+            request_id: Join request UUID
+            reviewer_id: ID of user rejecting the request
+            reason: Optional reason for rejection
+
+        Returns:
+            Updated join request or None if not found
+        """
+        query = """
+            UPDATE workspace_join_requests
+            SET status = 'rejected', reviewed_by = %s, reviewed_at = NOW(),
+                rejection_reason = %s
+            WHERE id = %s AND status = 'pending'
+            RETURNING id, workspace_id, user_id, message, status,
+                      rejection_reason, reviewed_by, reviewed_at, created_at
+        """
+        row = self._execute_one(query, (reviewer_id, reason, request_id))
+        if not row:
+            return None
+
+        return JoinRequestResponse(
+            id=row["id"],
+            workspace_id=row["workspace_id"],
+            user_id=row["user_id"],
+            message=row["message"],
+            status=JoinRequestStatus(row["status"]),
+            rejection_reason=row["rejection_reason"],
+            reviewed_by=row["reviewed_by"],
+            reviewed_at=row["reviewed_at"],
+            created_at=row["created_at"],
+        )
+
+    def cancel_join_request(
+        self,
+        request_id: uuid.UUID,
+        user_id: str,
+    ) -> bool:
+        """Cancel a pending join request (by the requester).
+
+        Args:
+            request_id: Join request UUID
+            user_id: ID of user cancelling (must be requester)
+
+        Returns:
+            True if cancelled, False if not found or not authorized
+        """
+        query = """
+            UPDATE workspace_join_requests
+            SET status = 'cancelled'
+            WHERE id = %s AND user_id = %s AND status = 'pending'
+        """
+        count = self._execute_count(query, (request_id, user_id))
+        return count > 0
+
+    def get_user_join_requests(
+        self,
+        user_id: str,
+        status: JoinRequestStatus | None = None,
+    ) -> list[JoinRequestResponse]:
+        """Get all join requests for a user.
+
+        Args:
+            user_id: User ID
+            status: Optional status filter
+
+        Returns:
+            List of join requests
+        """
+        if status:
+            query = """
+                SELECT jr.id, jr.workspace_id, jr.user_id, jr.message, jr.status,
+                       jr.rejection_reason, jr.reviewed_by, jr.reviewed_at, jr.created_at,
+                       w.name as workspace_name
+                FROM workspace_join_requests jr
+                LEFT JOIN workspaces w ON jr.workspace_id = w.id
+                WHERE jr.user_id = %s AND jr.status = %s
+                ORDER BY jr.created_at DESC
+            """
+            rows = self._execute_query(query, (user_id, status.value))
+        else:
+            query = """
+                SELECT jr.id, jr.workspace_id, jr.user_id, jr.message, jr.status,
+                       jr.rejection_reason, jr.reviewed_by, jr.reviewed_at, jr.created_at,
+                       w.name as workspace_name
+                FROM workspace_join_requests jr
+                LEFT JOIN workspaces w ON jr.workspace_id = w.id
+                WHERE jr.user_id = %s
+                ORDER BY jr.created_at DESC
+            """
+            rows = self._execute_query(query, (user_id,))
+
+        return [
+            JoinRequestResponse(
+                id=row["id"],
+                workspace_id=row["workspace_id"],
+                user_id=row["user_id"],
+                message=row["message"],
+                status=JoinRequestStatus(row["status"]),
+                rejection_reason=row["rejection_reason"],
+                reviewed_by=row["reviewed_by"],
+                reviewed_at=row["reviewed_at"],
+                created_at=row["created_at"],
+                workspace_name=row.get("workspace_name"),
+            )
+            for row in rows
+        ]
+
+    # =========================================================================
+    # Discoverability Methods
+    # =========================================================================
+
+    def get_discoverability(
+        self,
+        workspace_id: uuid.UUID,
+    ) -> WorkspaceDiscoverability:
+        """Get discoverability setting for a workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+
+        Returns:
+            Discoverability setting (defaults to PRIVATE)
+        """
+        query = "SELECT discoverability FROM workspaces WHERE id = %s"
+        row = self._execute_one(query, (workspace_id,))
+        if not row:
+            return WorkspaceDiscoverability.PRIVATE
+        return WorkspaceDiscoverability(row["discoverability"])
+
+    def update_discoverability(
+        self,
+        workspace_id: uuid.UUID,
+        discoverability: WorkspaceDiscoverability,
+    ) -> bool:
+        """Update discoverability setting for a workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+            discoverability: New discoverability setting
+
+        Returns:
+            True if updated
+        """
+        query = """
+            UPDATE workspaces
+            SET discoverability = %s, updated_at = NOW()
+            WHERE id = %s
+        """
+        count = self._execute_count(query, (discoverability.value, workspace_id))
+        return count > 0
+
+    def count_pending_requests(self, workspace_id: uuid.UUID) -> int:
+        """Count pending join requests for a workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+
+        Returns:
+            Number of pending requests
+        """
+        query = """
+            SELECT COUNT(*) as count
+            FROM workspace_join_requests
+            WHERE workspace_id = %s AND status = 'pending'
+        """
+        row = self._execute_one(query, (workspace_id,))
+        return row["count"] if row else 0
+
+    # =========================================================================
+    # Role Management Methods
+    # =========================================================================
+
+    def transfer_ownership(
+        self,
+        workspace_id: uuid.UUID,
+        from_user_id: str,
+        to_user_id: str,
+    ) -> bool:
+        """Transfer workspace ownership atomically.
+
+        The old owner becomes an admin, and the new owner gets full ownership.
+        Both the workspace owner_id and member roles are updated.
+
+        Args:
+            workspace_id: Workspace UUID
+            from_user_id: Current owner's user ID
+            to_user_id: New owner's user ID
+
+        Returns:
+            True if transfer successful
+
+        Note:
+            This is an atomic operation - all changes succeed or none do.
+        """
+        # Demote old owner to admin
+        self._execute_count(
+            """
+            UPDATE workspace_members
+            SET role = 'admin'
+            WHERE workspace_id = %s AND user_id = %s
+            """,
+            (workspace_id, from_user_id),
+        )
+
+        # Promote new owner
+        self._execute_count(
+            """
+            UPDATE workspace_members
+            SET role = 'owner'
+            WHERE workspace_id = %s AND user_id = %s
+            """,
+            (workspace_id, to_user_id),
+        )
+
+        # Update workspace owner_id
+        count = self._execute_count(
+            """
+            UPDATE workspaces
+            SET owner_id = %s, updated_at = NOW()
+            WHERE id = %s AND owner_id = %s
+            """,
+            (to_user_id, workspace_id, from_user_id),
+        )
+
+        if count > 0:
+            # Log role changes
+            self.log_role_change(
+                workspace_id=workspace_id,
+                user_id=from_user_id,
+                old_role=MemberRole.OWNER,
+                new_role=MemberRole.ADMIN,
+                changed_by=from_user_id,
+                change_type="transfer_ownership",
+            )
+            self.log_role_change(
+                workspace_id=workspace_id,
+                user_id=to_user_id,
+                old_role=MemberRole.ADMIN,  # Could be MEMBER, but we log the effective change
+                new_role=MemberRole.OWNER,
+                changed_by=from_user_id,
+                change_type="transfer_ownership",
+            )
+
+        return count > 0
+
+    def promote_to_admin(
+        self,
+        workspace_id: uuid.UUID,
+        user_id: str,
+        promoted_by: str,
+    ) -> WorkspaceMemberResponse | None:
+        """Promote a member to admin role.
+
+        Args:
+            workspace_id: Workspace UUID
+            user_id: User to promote
+            promoted_by: User performing the promotion
+
+        Returns:
+            Updated member or None if not found
+        """
+        # Get current role for audit
+        current_role = self.get_member_role(workspace_id, user_id)
+        if not current_role or current_role != MemberRole.MEMBER:
+            return None
+
+        result = self.update_member_role(workspace_id, user_id, MemberRole.ADMIN)
+        if result:
+            self.log_role_change(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                old_role=current_role,
+                new_role=MemberRole.ADMIN,
+                changed_by=promoted_by,
+                change_type="promote",
+            )
+        return result
+
+    def demote_to_member(
+        self,
+        workspace_id: uuid.UUID,
+        user_id: str,
+        demoted_by: str,
+    ) -> WorkspaceMemberResponse | None:
+        """Demote an admin to member role.
+
+        Args:
+            workspace_id: Workspace UUID
+            user_id: User to demote
+            demoted_by: User performing the demotion
+
+        Returns:
+            Updated member or None if not found
+        """
+        # Get current role for audit
+        current_role = self.get_member_role(workspace_id, user_id)
+        if not current_role or current_role != MemberRole.ADMIN:
+            return None
+
+        result = self.update_member_role(workspace_id, user_id, MemberRole.MEMBER)
+        if result:
+            self.log_role_change(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                old_role=current_role,
+                new_role=MemberRole.MEMBER,
+                changed_by=demoted_by,
+                change_type="demote",
+            )
+        return result
+
+    def log_role_change(
+        self,
+        workspace_id: uuid.UUID,
+        user_id: str,
+        old_role: MemberRole,
+        new_role: MemberRole,
+        changed_by: str,
+        change_type: str,
+    ) -> None:
+        """Log a role change to the audit table.
+
+        Args:
+            workspace_id: Workspace UUID
+            user_id: User whose role changed
+            old_role: Previous role
+            new_role: New role
+            changed_by: User who made the change
+            change_type: Type of change (transfer_ownership, promote, demote)
+        """
+        change_id = uuid.uuid4()
+        self._execute_count(
+            """
+            INSERT INTO workspace_role_changes
+                (id, workspace_id, user_id, old_role, new_role, change_type, changed_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                change_id,
+                workspace_id,
+                user_id,
+                old_role.value,
+                new_role.value,
+                change_type,
+                changed_by,
+            ),
+        )
+
+    def get_role_history(
+        self,
+        workspace_id: uuid.UUID,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Get role change history for a workspace.
+
+        Args:
+            workspace_id: Workspace UUID
+            limit: Maximum number of records to return
+
+        Returns:
+            List of role change records
+        """
+        query = """
+            SELECT rc.id, rc.workspace_id, rc.user_id, rc.old_role, rc.new_role,
+                   rc.change_type, rc.changed_by, rc.changed_at,
+                   u.email as user_email, cb.email as changed_by_email
+            FROM workspace_role_changes rc
+            LEFT JOIN users u ON rc.user_id = u.id
+            LEFT JOIN users cb ON rc.changed_by = cb.id
+            WHERE rc.workspace_id = %s
+            ORDER BY rc.changed_at DESC
+            LIMIT %s
+        """
+        rows = self._execute_query(query, (workspace_id, limit))
+        return [
+            {
+                "id": row["id"],
+                "workspace_id": row["workspace_id"],
+                "user_id": row["user_id"],
+                "user_email": row.get("user_email"),
+                "old_role": row["old_role"],
+                "new_role": row["new_role"],
+                "change_type": row["change_type"],
+                "changed_by": row["changed_by"],
+                "changed_by_email": row.get("changed_by_email"),
+                "changed_at": row["changed_at"],
+            }
+            for row in rows
+        ]
 
 
 # Singleton instance

@@ -23,12 +23,14 @@ class TestActionStatsModels:
             created_count=3,
             sessions_run=2,
             sessions_completed=1,
+            mentor_sessions=4,
         )
         assert stat.date == "2025-12-01"
         assert stat.completed_count == 5
         assert stat.created_count == 3
         assert stat.sessions_run == 2
         assert stat.sessions_completed == 1
+        assert stat.mentor_sessions == 4
 
     def test_daily_action_stat_defaults(self):
         """Test DailyActionStat default values."""
@@ -37,6 +39,7 @@ class TestActionStatsModels:
         assert stat.created_count == 0
         assert stat.sessions_run == 0
         assert stat.sessions_completed == 0
+        assert stat.mentor_sessions == 0
 
     def test_action_stats_totals_creation(self):
         """Test ActionStatsTotals model creation."""
@@ -65,6 +68,7 @@ class TestActionStatsModels:
                 created_count=1,
                 sessions_run=1,
                 sessions_completed=0,
+                mentor_sessions=2,
             ),
             DailyActionStat(
                 date="2025-12-02",
@@ -72,6 +76,7 @@ class TestActionStatsModels:
                 created_count=2,
                 sessions_run=2,
                 sessions_completed=1,
+                mentor_sessions=3,
             ),
         ]
         totals = ActionStatsTotals(completed=10, in_progress=3, todo=5)
@@ -81,6 +86,7 @@ class TestActionStatsModels:
         assert len(response.daily) == 2
         assert response.daily[0].date == "2025-12-01"
         assert response.daily[0].sessions_run == 1
+        assert response.daily[0].mentor_sessions == 2
         assert response.totals.completed == 10
 
 
@@ -96,6 +102,7 @@ class TestActionStatsEndpointLogic:
                 created_count=0,
                 sessions_run=0,
                 sessions_completed=0,
+                mentor_sessions=0,
             )
             for _ in range(14)
         ]
@@ -112,6 +119,7 @@ class TestActionStatsEndpointLogic:
         for stat in json_data["daily"]:
             assert "sessions_run" in stat
             assert "sessions_completed" in stat
+            assert "mentor_sessions" in stat
 
     def test_totals_sum_calculation(self):
         """Test that totals represent sum of all actions."""

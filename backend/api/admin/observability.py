@@ -4,9 +4,10 @@ Provides:
 - GET /api/admin/observability-links - Get observability tool URLs
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.errors import handle_api_errors
 from backend.services.observability import ObservabilityLinks, get_observability_links
@@ -32,8 +33,10 @@ router = APIRouter(prefix="", tags=["Admin - Observability"])
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get observability links")
 async def get_observability_links_endpoint(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> ObservabilityLinks:
     """Get observability tool URLs (admin only).

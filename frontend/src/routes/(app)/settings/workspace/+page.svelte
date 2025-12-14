@@ -10,7 +10,8 @@
 	import { apiClient } from '$lib/api/client';
 	import InvitationManager from '$lib/components/workspace/InvitationManager.svelte';
 	import CreateWorkspaceModal from '$lib/components/workspace/CreateWorkspaceModal.svelte';
-	import type { WorkspaceMemberResponse } from '$lib/api/types';
+	import JoinRequestsPanel from '$lib/components/workspace/JoinRequestsPanel.svelte';
+	import type { WorkspaceMemberResponse, WorkspaceDiscoverability, RoleChangeResponse } from '$lib/api/types';
 
 	let members = $state<WorkspaceMemberResponse[]>([]);
 	let isLoading = $state(false);
@@ -19,12 +20,28 @@
 	let leaveConfirmOpen = $state(false);
 	let isLeaving = $state(false);
 
-	// Load members when workspace changes
+	// Discoverability state
+	let discoverability = $state<WorkspaceDiscoverability>('private');
+	let isSavingDiscoverability = $state(false);
+	let pendingRequestsCount = $state(0);
+
+	// Role management state
+	let showTransferModal = $state(false);
+	let transferTargetId = $state<string | null>(null);
+	let isTransferring = $state(false);
+	let roleHistoryExpanded = $state(false);
+	let roleHistory = $state<RoleChangeResponse[]>([]);
+	let isLoadingHistory = $state(false);
+	let isChangingRole = $state<string | null>(null);
+
+	// Load members and pending requests when workspace changes
 	$effect(() => {
 		if ($currentWorkspace) {
 			loadMembers();
+			loadPendingRequestsCount();
 		} else {
 			members = [];
+			pendingRequestsCount = 0;
 		}
 	});
 
@@ -51,6 +68,40 @@
 		}
 	}
 
+	async function loadPendingRequestsCount() {
+		if (!$currentWorkspace) return;
+
+		try {
+			const response = await apiClient.listJoinRequests($currentWorkspace.id);
+			pendingRequestsCount = response.total;
+		} catch {
+			// Silently fail - user may not have admin access
+			pendingRequestsCount = 0;
+		}
+	}
+
+	async function handleDiscoverabilityChange(newValue: WorkspaceDiscoverability) {
+		if (!$currentWorkspace || isSavingDiscoverability) return;
+
+		isSavingDiscoverability = true;
+		error = null;
+
+		try {
+			await apiClient.updateWorkspaceSettings($currentWorkspace.id, {
+				discoverability: newValue
+			});
+			discoverability = newValue;
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to update discoverability';
+		} finally {
+			isSavingDiscoverability = false;
+		}
+	}
+
+	function handleRequestProcessed() {
+		loadPendingRequestsCount();
+	}
+
 	async function handleLeaveWorkspace() {
 		if (!$currentWorkspace || !$user) return;
 
@@ -70,10 +121,106 @@
 		showCreateModal = false;
 	}
 
+	// Role management functions
+	async function handlePromote(userId: string) {
+		if (!$currentWorkspace || isChangingRole) return;
+
+		isChangingRole = userId;
+		error = null;
+
+		try {
+			await apiClient.promoteMember($currentWorkspace.id, userId);
+			await loadMembers();
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to promote member';
+		} finally {
+			isChangingRole = null;
+		}
+	}
+
+	async function handleDemote(userId: string) {
+		if (!$currentWorkspace || isChangingRole) return;
+
+		isChangingRole = userId;
+		error = null;
+
+		try {
+			await apiClient.demoteMember($currentWorkspace.id, userId);
+			await loadMembers();
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to demote admin';
+		} finally {
+			isChangingRole = null;
+		}
+	}
+
+	function openTransferModal(userId: string) {
+		transferTargetId = userId;
+		showTransferModal = true;
+	}
+
+	async function handleTransferOwnership() {
+		if (!$currentWorkspace || !transferTargetId || isTransferring) return;
+
+		isTransferring = true;
+		error = null;
+
+		try {
+			await apiClient.transferWorkspaceOwnership($currentWorkspace.id, transferTargetId);
+			await refreshWorkspaces();
+			await loadMembers();
+			showTransferModal = false;
+			transferTargetId = null;
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to transfer ownership';
+		} finally {
+			isTransferring = false;
+		}
+	}
+
+	async function loadRoleHistory() {
+		if (!$currentWorkspace || isLoadingHistory) return;
+
+		isLoadingHistory = true;
+		try {
+			const response = await apiClient.getRoleHistory($currentWorkspace.id);
+			roleHistory = response.changes;
+		} catch {
+			// Silently fail - user may not have admin access
+			roleHistory = [];
+		} finally {
+			isLoadingHistory = false;
+		}
+	}
+
+	function toggleRoleHistory() {
+		roleHistoryExpanded = !roleHistoryExpanded;
+		if (roleHistoryExpanded && roleHistory.length === 0) {
+			loadRoleHistory();
+		}
+	}
+
+	function formatRoleChange(change: RoleChangeResponse): string {
+		const userLabel = change.user_email || change.user_id;
+		switch (change.change_type) {
+			case 'transfer_ownership':
+				return change.new_role === 'owner'
+					? `${userLabel} became owner`
+					: `${userLabel} became admin (former owner)`;
+			case 'promote':
+				return `${userLabel} promoted to admin`;
+			case 'demote':
+				return `${userLabel} demoted to member`;
+			default:
+				return `${userLabel} role changed from ${change.old_role} to ${change.new_role}`;
+		}
+	}
+
 	// Check if current user is owner
 	const isOwner = $derived($currentWorkspace?.owner_id === $user?.id);
 	const currentMember = $derived(members.find((m) => m.user_id === $user?.id));
 	const isAdmin = $derived(currentMember?.role === 'admin' || currentMember?.role === 'owner');
+	const transferTarget = $derived(members.find((m) => m.user_id === transferTargetId));
 </script>
 
 <svelte:head>
@@ -178,16 +325,44 @@
 			{:else}
 				<ul class="divide-y divide-slate-200 dark:divide-slate-700">
 					{#each members as member}
-						<li class="py-3 flex items-center justify-between">
-							<div>
-								<p class="font-medium text-slate-900 dark:text-white">
+						<li class="py-3 flex items-center justify-between gap-4">
+							<div class="flex-1 min-w-0">
+								<p class="font-medium text-slate-900 dark:text-white truncate">
 									{member.user_email || member.user_id}
 								</p>
 								<p class="text-sm text-slate-500 capitalize">{member.role}</p>
 							</div>
-							<span class="text-sm text-slate-500">
-								Joined {new Date(member.joined_at).toLocaleDateString()}
-							</span>
+							<div class="flex items-center gap-2">
+								<span class="text-sm text-slate-500 hidden sm:inline">
+									Joined {new Date(member.joined_at).toLocaleDateString()}
+								</span>
+								<!-- Role management actions (owner only) -->
+								{#if isOwner && member.user_id !== $user?.id}
+									{#if member.role === 'member'}
+										<button
+											onclick={() => handlePromote(member.user_id)}
+											disabled={isChangingRole === member.user_id}
+											class="px-2 py-1 text-xs font-medium text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:text-brand-400 dark:hover:text-brand-300 dark:hover:bg-brand-900/20 rounded transition-colors disabled:opacity-50"
+										>
+											{isChangingRole === member.user_id ? 'Promoting...' : 'Make Admin'}
+										</button>
+									{:else if member.role === 'admin'}
+										<button
+											onclick={() => handleDemote(member.user_id)}
+											disabled={isChangingRole === member.user_id}
+											class="px-2 py-1 text-xs font-medium text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:text-amber-300 dark:hover:bg-amber-900/20 rounded transition-colors disabled:opacity-50"
+										>
+											{isChangingRole === member.user_id ? 'Demoting...' : 'Remove Admin'}
+										</button>
+										<button
+											onclick={() => openTransferModal(member.user_id)}
+											class="px-2 py-1 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 rounded transition-colors"
+										>
+											Transfer Ownership
+										</button>
+									{/if}
+								{/if}
+							</div>
 						</li>
 					{/each}
 				</ul>
@@ -199,6 +374,91 @@
 			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
 				<h3 class="text-lg font-medium text-slate-900 dark:text-white mb-4">Invitations</h3>
 				<InvitationManager workspaceId={$currentWorkspace.id} />
+			</div>
+		{/if}
+
+		<!-- Discoverability Settings (admin+) -->
+		{#if isAdmin}
+			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+				<h3 class="text-lg font-medium text-slate-900 dark:text-white mb-2">Discoverability</h3>
+				<p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+					Control how users can find and join this workspace.
+				</p>
+
+				<div class="space-y-3">
+					<label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors {discoverability === 'private' ? 'ring-2 ring-brand-500 border-brand-500' : ''}">
+						<input
+							type="radio"
+							name="discoverability"
+							value="private"
+							checked={discoverability === 'private'}
+							onchange={() => handleDiscoverabilityChange('private')}
+							disabled={isSavingDiscoverability}
+							class="mt-1"
+						/>
+						<div>
+							<p class="font-medium text-slate-900 dark:text-white">Private</p>
+							<p class="text-sm text-slate-500 dark:text-slate-400">
+								Only invited members can join. Workspace is not discoverable.
+							</p>
+						</div>
+					</label>
+
+					<label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors {discoverability === 'invite_only' ? 'ring-2 ring-brand-500 border-brand-500' : ''}">
+						<input
+							type="radio"
+							name="discoverability"
+							value="invite_only"
+							checked={discoverability === 'invite_only'}
+							onchange={() => handleDiscoverabilityChange('invite_only')}
+							disabled={isSavingDiscoverability}
+							class="mt-1"
+						/>
+						<div>
+							<p class="font-medium text-slate-900 dark:text-white">Invite Only</p>
+							<p class="text-sm text-slate-500 dark:text-slate-400">
+								Only invited members can join. Workspace is visible but not joinable.
+							</p>
+						</div>
+					</label>
+
+					<label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors {discoverability === 'request_to_join' ? 'ring-2 ring-brand-500 border-brand-500' : ''}">
+						<input
+							type="radio"
+							name="discoverability"
+							value="request_to_join"
+							checked={discoverability === 'request_to_join'}
+							onchange={() => handleDiscoverabilityChange('request_to_join')}
+							disabled={isSavingDiscoverability}
+							class="mt-1"
+						/>
+						<div>
+							<p class="font-medium text-slate-900 dark:text-white">Request to Join</p>
+							<p class="text-sm text-slate-500 dark:text-slate-400">
+								Anyone can request to join. Admins must approve each request.
+							</p>
+						</div>
+					</label>
+				</div>
+
+				{#if isSavingDiscoverability}
+					<p class="text-sm text-slate-500 mt-3">Saving...</p>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Join Requests (admin+) -->
+		{#if isAdmin}
+			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+				<div class="flex items-center justify-between mb-4">
+					<h3 class="text-lg font-medium text-slate-900 dark:text-white">Join Requests</h3>
+					{#if pendingRequestsCount > 0}
+						<span class="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded-full">
+							{pendingRequestsCount} pending
+						</span>
+					{/if}
+				</div>
+				<JoinRequestsPanel workspaceId={$currentWorkspace.id} onRequestProcessed={handleRequestProcessed} />
 			</div>
 		{/if}
 
@@ -222,6 +482,63 @@
 						</svg>
 					</a>
 				</div>
+			</div>
+		{/if}
+
+		<!-- Role History (admin+) -->
+		{#if isAdmin}
+			<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+				<button
+					onclick={toggleRoleHistory}
+					class="w-full p-6 flex items-center justify-between text-left"
+				>
+					<div>
+						<h3 class="text-lg font-medium text-slate-900 dark:text-white">Role History</h3>
+						<p class="text-sm text-slate-600 dark:text-slate-400">
+							View all role changes in this workspace
+						</p>
+					</div>
+					<svg
+						class="w-5 h-5 text-slate-400 transition-transform {roleHistoryExpanded ? 'rotate-180' : ''}"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+					</svg>
+				</button>
+
+				{#if roleHistoryExpanded}
+					<div class="px-6 pb-6 border-t border-slate-200 dark:border-slate-700 pt-4">
+						{#if isLoadingHistory}
+							<div class="py-4 text-center">
+								<div class="animate-spin h-6 w-6 border-2 border-brand-600 border-t-transparent rounded-full mx-auto"></div>
+							</div>
+						{:else if roleHistory.length === 0}
+							<p class="text-slate-500 text-sm py-2">No role changes recorded yet.</p>
+						{:else}
+							<ul class="space-y-2">
+								{#each roleHistory as change}
+									<li class="flex items-start justify-between gap-4 py-2 border-b border-slate-100 dark:border-slate-700/50 last:border-0">
+										<div>
+											<p class="text-sm text-slate-900 dark:text-white">
+												{formatRoleChange(change)}
+											</p>
+											{#if change.changed_by_email}
+												<p class="text-xs text-slate-500">
+													by {change.changed_by_email}
+												</p>
+											{/if}
+										</div>
+										<span class="text-xs text-slate-400 whitespace-nowrap">
+											{new Date(change.changed_at).toLocaleDateString()}
+										</span>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
+				{/if}
 			</div>
 		{/if}
 
@@ -254,3 +571,46 @@
 
 <!-- Create Workspace Modal -->
 <CreateWorkspaceModal bind:open={showCreateModal} onsuccess={handleCreateSuccess} />
+
+<!-- Transfer Ownership Modal -->
+{#if showTransferModal && transferTarget}
+	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+		<div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6">
+			<h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+				Transfer Ownership
+			</h3>
+			<div class="space-y-4">
+				<Alert variant="warning">
+					You are about to transfer ownership of this workspace to <strong>{transferTarget.user_email || transferTarget.user_id}</strong>. This action cannot be undone.
+				</Alert>
+				<p class="text-sm text-slate-600 dark:text-slate-400">
+					After the transfer:
+				</p>
+				<ul class="text-sm text-slate-600 dark:text-slate-400 list-disc list-inside space-y-1">
+					<li>You will become an Admin</li>
+					<li>The new owner will have full control</li>
+					<li>Only the new owner can transfer ownership again</li>
+				</ul>
+			</div>
+			<div class="flex items-center justify-end gap-3 mt-6">
+				<Button
+					variant="ghost"
+					onclick={() => {
+						showTransferModal = false;
+						transferTargetId = null;
+					}}
+					disabled={isTransferring}
+				>
+					Cancel
+				</Button>
+				<Button
+					variant="danger"
+					onclick={handleTransferOwnership}
+					loading={isTransferring}
+				>
+					Transfer Ownership
+				</Button>
+			</div>
+		</div>
+	</div>
+{/if}

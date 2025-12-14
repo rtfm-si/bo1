@@ -444,3 +444,376 @@ If you don't want to join this workspace, you can simply ignore this email.
 """
 
     return html, plain_text
+
+
+# =============================================================================
+# Workspace Join Request Email
+# =============================================================================
+
+
+def render_join_request_email(
+    workspace_name: str,
+    requester_email: str,
+    message: str | None = None,
+) -> tuple[str, str]:
+    """Render email notifying admins of a new join request.
+
+    Args:
+        workspace_name: Name of the workspace
+        requester_email: Email of the user requesting to join
+        message: Optional message from the requester
+
+    Returns:
+        Tuple of (subject, html_content)
+    """
+    message_html = ""
+    if message:
+        message_html = f"""
+<div class="summary-box">
+<p class="summary-title">Message from {requester_email}</p>
+<p>{message}</p>
+</div>
+"""
+
+    content = f"""
+<h2>New Join Request</h2>
+
+<p><strong>{requester_email}</strong> has requested to join <strong>{workspace_name}</strong>.</p>
+
+{message_html}
+
+<p>You can review and respond to this request from the workspace settings.</p>
+
+<p>
+<a href="https://boardof.one/settings/workspace" class="button">Review Request</a>
+</p>
+"""
+
+    html = _wrap_email(content)
+
+    subject = f"[Board of One] Join request for {workspace_name}"
+
+    return subject, html
+
+
+def render_join_approved_email(
+    workspace_name: str,
+) -> tuple[str, str]:
+    """Render email notifying user their join request was approved.
+
+    Args:
+        workspace_name: Name of the workspace
+
+    Returns:
+        Tuple of (subject, html_content)
+    """
+    content = f"""
+<h2>Join Request Approved</h2>
+
+<p>Great news! Your request to join <strong>{workspace_name}</strong> has been approved.</p>
+
+<p>You can now access the workspace and collaborate with your team.</p>
+
+<p>
+<a href="https://boardof.one/dashboard" class="button">Go to Dashboard</a>
+</p>
+"""
+
+    html = _wrap_email(content)
+
+    subject = f"[Board of One] You've been added to {workspace_name}"
+
+    return subject, html
+
+
+def render_join_rejected_email(
+    workspace_name: str,
+    reason: str | None = None,
+) -> tuple[str, str]:
+    """Render email notifying user their join request was rejected.
+
+    Args:
+        workspace_name: Name of the workspace
+        reason: Optional reason for rejection
+
+    Returns:
+        Tuple of (subject, html_content)
+    """
+    reason_html = ""
+    if reason:
+        reason_html = f"""
+<div class="summary-box">
+<p class="summary-title">Reason</p>
+<p>{reason}</p>
+</div>
+"""
+
+    content = f"""
+<h2>Join Request Not Approved</h2>
+
+<p>Your request to join <strong>{workspace_name}</strong> was not approved.</p>
+
+{reason_html}
+
+<p>If you believe this was a mistake, please contact the workspace administrator directly.</p>
+"""
+
+    html = _wrap_email(content)
+
+    subject = f"[Board of One] Update on your request to join {workspace_name}"
+
+    return subject, html
+
+
+# =============================================================================
+# Workspace Role Change Emails
+# =============================================================================
+
+
+def render_ownership_transferred_email(
+    workspace_name: str,
+    is_new_owner: bool,
+) -> tuple[str, str]:
+    """Render email notifying about ownership transfer.
+
+    Args:
+        workspace_name: Name of the workspace
+        is_new_owner: True if recipient is the new owner, False if old owner
+
+    Returns:
+        Tuple of (subject, html_content)
+    """
+    if is_new_owner:
+        content = f"""
+<h2>You are now the owner of {workspace_name}</h2>
+
+<p>Ownership of <strong>{workspace_name}</strong> has been transferred to you.</p>
+
+<div class="summary-box">
+<p class="summary-title">What this means</p>
+<ul>
+<li>You have full control over the workspace settings</li>
+<li>You can manage all members and their roles</li>
+<li>You can transfer ownership to another member</li>
+<li>You manage the workspace billing</li>
+</ul>
+</div>
+
+<p>
+<a href="https://boardof.one/settings/workspace" class="button">Manage Workspace</a>
+</p>
+"""
+        subject = f"[Board of One] You are now owner of {workspace_name}"
+    else:
+        content = f"""
+<h2>Ownership of {workspace_name} has been transferred</h2>
+
+<p>You have transferred ownership of <strong>{workspace_name}</strong>.</p>
+
+<p>Your role has been changed to <strong>Admin</strong>. You still have administrative access to manage members and workspace settings, but ownership now belongs to the new owner.</p>
+
+<div class="summary-box">
+<p class="summary-title">As an Admin, you can still</p>
+<ul>
+<li>Manage workspace members</li>
+<li>Edit workspace settings</li>
+<li>Create and manage meetings, actions, and data</li>
+</ul>
+</div>
+"""
+        subject = f"[Board of One] Ownership transferred for {workspace_name}"
+
+    html = _wrap_email(content)
+
+    return subject, html
+
+
+def render_role_changed_email(
+    workspace_name: str,
+    old_role: str,
+    new_role: str,
+) -> tuple[str, str]:
+    """Render email notifying user of role change.
+
+    Args:
+        workspace_name: Name of the workspace
+        old_role: Previous role
+        new_role: New role
+
+    Returns:
+        Tuple of (subject, html_content)
+    """
+    is_promotion = new_role == "admin" and old_role == "member"
+
+    if is_promotion:
+        content = f"""
+<h2>You've been promoted to Admin</h2>
+
+<p>Your role in <strong>{workspace_name}</strong> has been changed from <strong>Member</strong> to <strong>Admin</strong>.</p>
+
+<div class="summary-box">
+<p class="summary-title">What this means</p>
+<ul>
+<li>You can now invite and manage workspace members</li>
+<li>You can approve or reject join requests</li>
+<li>You can edit workspace settings</li>
+</ul>
+</div>
+
+<p>
+<a href="https://boardof.one/settings/workspace" class="button">Manage Workspace</a>
+</p>
+"""
+        subject = f"[Board of One] You're now an Admin of {workspace_name}"
+    else:
+        # Demotion
+        content = f"""
+<h2>Your role has been updated</h2>
+
+<p>Your role in <strong>{workspace_name}</strong> has been changed from <strong>{old_role.title()}</strong> to <strong>{new_role.title()}</strong>.</p>
+
+<p>You still have full access to create meetings, manage actions, and collaborate with your team in this workspace.</p>
+
+<p>
+<a href="https://boardof.one/dashboard" class="button">Go to Dashboard</a>
+</p>
+"""
+        subject = f"[Board of One] Your role in {workspace_name} has changed"
+
+    html = _wrap_email(content)
+
+    return subject, html
+
+
+# =============================================================================
+# Action Start/Deadline Reminder Emails (Frequency-aware)
+# =============================================================================
+
+
+def render_action_start_reminder_email(
+    user_id: str,
+    action_title: str,
+    action_url: str,
+    days_overdue: int,
+    session_id: str = "",
+) -> tuple[str, str]:
+    """Render email for an action whose start date has passed.
+
+    Args:
+        user_id: User ID for unsubscribe link
+        action_title: Title of the action
+        action_url: URL to view/edit the action
+        days_overdue: Days since the start date passed
+        session_id: Source meeting ID
+
+    Returns:
+        Tuple of (html_content, plain_text)
+    """
+    urgency = "overdue" if days_overdue > 3 else "due-soon"
+    days_text = (
+        "today"
+        if days_overdue == 0
+        else f"{days_overdue} day{'s' if days_overdue != 1 else ''} ago"
+    )
+
+    content = f"""
+<h2>Action start date has passed</h2>
+
+<div class="action-item {urgency}">
+<p class="action-title">{action_title}</p>
+<p class="action-due">Planned start: {days_text}</p>
+</div>
+
+<p>This action was scheduled to begin but hasn't been started yet. Would you like to start it now or adjust the timeline?</p>
+
+<p>
+<a href="{action_url}" class="button">View Action</a>
+</p>
+
+<p style="font-size: 14px; color: #666;">
+You can snooze or disable reminders for this action from the action detail page.
+</p>
+"""
+
+    html = _wrap_email(content, user_id, "reminders")
+
+    plain_text = f"""Action start date has passed
+
+Title: {action_title}
+Planned start: {days_text}
+
+This action was scheduled to begin but hasn't been started yet.
+
+View action: {action_url}
+
+---
+You can snooze or disable reminders from the action detail page.
+"""
+
+    return html, plain_text
+
+
+def render_action_deadline_reminder_email(
+    user_id: str,
+    action_title: str,
+    action_url: str,
+    days_until: int,
+    session_id: str = "",
+) -> tuple[str, str]:
+    """Render email for an action with an approaching deadline.
+
+    Args:
+        user_id: User ID for unsubscribe link
+        action_title: Title of the action
+        action_url: URL to view/edit the action
+        days_until: Days until the deadline
+        session_id: Source meeting ID
+
+    Returns:
+        Tuple of (html_content, plain_text)
+    """
+    if days_until <= 0:
+        urgency = "overdue"
+        if days_until == 0:
+            days_text = "today"
+        else:
+            days_text = f"{abs(days_until)} day{'s' if abs(days_until) != 1 else ''} overdue"
+    else:
+        urgency = "due-soon"
+        days_text = f"in {days_until} day{'s' if days_until != 1 else ''}"
+
+    content = f"""
+<h2>Action deadline approaching</h2>
+
+<div class="action-item {urgency}">
+<p class="action-title">{action_title}</p>
+<p class="action-due">Due: {days_text}</p>
+</div>
+
+<p>Your deadline is coming up. Make sure to complete or update this action.</p>
+
+<p>
+<a href="{action_url}" class="button">View Action</a>
+</p>
+
+<p style="font-size: 14px; color: #666;">
+You can snooze or disable reminders for this action from the action detail page.
+</p>
+"""
+
+    html = _wrap_email(content, user_id, "reminders")
+
+    plain_text = f"""Action deadline approaching
+
+Title: {action_title}
+Due: {days_text}
+
+Your deadline is coming up. Make sure to complete or update this action.
+
+View action: {action_url}
+
+---
+You can snooze or disable reminders from the action detail page.
+"""
+
+    return html, plain_text

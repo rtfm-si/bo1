@@ -9,19 +9,20 @@
 	let { data }: Props = $props();
 
 	// Activity types for filtering
-	type ActivityType = 'sessions_run' | 'sessions_completed' | 'created_count' | 'completed_count';
+	type ActivityType = 'sessions_run' | 'sessions_completed' | 'created_count' | 'completed_count' | 'mentor_sessions';
 
 	// Activity type colours - using design system tokens
 	const ACTIVITY_COLORS: Record<ActivityType, { light: string; dark: string; label: string }> = {
-		sessions_run: { light: 'bg-brand-500', dark: 'dark:bg-brand-400', label: 'Meetings run' },
+		sessions_run: { light: 'bg-brand-500', dark: 'dark:bg-brand-400', label: 'Meetings' },
 		sessions_completed: { light: 'bg-success-500', dark: 'dark:bg-success-400', label: 'Meetings completed' },
 		created_count: { light: 'bg-warning-500', dark: 'dark:bg-warning-400', label: 'Actions created' },
-		completed_count: { light: 'bg-info-500', dark: 'dark:bg-info-400', label: 'Actions completed' }
+		completed_count: { light: 'bg-info-500', dark: 'dark:bg-info-400', label: 'Actions completed' },
+		mentor_sessions: { light: 'bg-purple-500', dark: 'dark:bg-purple-400', label: 'Mentor sessions' }
 	};
 
 	// Enabled activity types (all enabled by default) - SvelteSet for reactive mutations
 	let enabledTypes = new SvelteSet<ActivityType>([
-		'sessions_run', 'sessions_completed', 'created_count', 'completed_count'
+		'sessions_run', 'sessions_completed', 'created_count', 'completed_count', 'mentor_sessions'
 	]);
 
 	// Toggle an activity type
@@ -136,6 +137,7 @@
 		if (enabledTypes.has('sessions_completed')) total += stat.sessions_completed;
 		if (enabledTypes.has('created_count')) total += stat.created_count;
 		if (enabledTypes.has('completed_count')) total += stat.completed_count;
+		if (enabledTypes.has('mentor_sessions')) total += stat.mentor_sessions;
 		return total;
 	}
 
@@ -158,7 +160,8 @@
 			{ type: 'sessions_run', count: enabledTypes.has('sessions_run') ? stat.sessions_run : 0 },
 			{ type: 'sessions_completed', count: enabledTypes.has('sessions_completed') ? stat.sessions_completed : 0 },
 			{ type: 'created_count', count: enabledTypes.has('created_count') ? stat.created_count : 0 },
-			{ type: 'completed_count', count: enabledTypes.has('completed_count') ? stat.completed_count : 0 }
+			{ type: 'completed_count', count: enabledTypes.has('completed_count') ? stat.completed_count : 0 },
+			{ type: 'mentor_sessions', count: enabledTypes.has('mentor_sessions') ? stat.mentor_sessions : 0 }
 		];
 
 		const dominant = types.reduce((max, curr) => (curr.count > max.count ? curr : max), types[0]);
@@ -217,10 +220,11 @@
 			}
 		};
 
-		showItem('sessions_run', cell.stat.sessions_run, 'Meetings run');
+		showItem('sessions_run', cell.stat.sessions_run, 'Meetings');
 		showItem('sessions_completed', cell.stat.sessions_completed, 'Meetings completed');
 		showItem('created_count', cell.stat.created_count, 'Actions created');
 		showItem('completed_count', cell.stat.completed_count, 'Actions completed');
+		showItem('mentor_sessions', cell.stat.mentor_sessions, 'Mentor sessions');
 
 		if (lines.length === 1) lines.push('No activity');
 
@@ -241,7 +245,7 @@
 	const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 	// Activity types as array for iteration
-	const activityTypes: ActivityType[] = ['sessions_run', 'sessions_completed', 'created_count', 'completed_count'];
+	const activityTypes: ActivityType[] = ['sessions_run', 'sessions_completed', 'created_count', 'completed_count', 'mentor_sessions'];
 </script>
 
 <div class="w-full space-y-4">

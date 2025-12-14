@@ -1097,6 +1097,241 @@ class ProjectSessionLink(BaseModel):
     )
 
 
+class CreateProjectMeetingRequest(BaseModel):
+    """Request model for creating a meeting from a project.
+
+    Attributes:
+        problem_statement: Optional problem statement (if not provided, defaults to project-focused)
+        include_project_context: Whether to include project info in context
+    """
+
+    problem_statement: str | None = Field(
+        None,
+        min_length=10,
+        max_length=10000,
+        description="Problem statement for the meeting (optional - defaults to project delivery focus)",
+    )
+    include_project_context: bool = Field(
+        True,
+        description="Include project description and actions in meeting context",
+    )
+
+
+# Session-Project linking (from session perspective)
+class SessionProjectLink(BaseModel):
+    """Request model for linking projects to a session.
+
+    Attributes:
+        project_ids: List of project UUIDs to link
+        relationship: Type of relationship for all links
+    """
+
+    project_ids: list[str] = Field(..., description="List of project UUIDs to link")
+    relationship: str = Field(
+        default="discusses",
+        pattern="^(discusses|created_from|replanning)$",
+        description="Type of relationship",
+    )
+
+
+class SessionProjectResponse(BaseModel):
+    """Response model for a linked project.
+
+    Attributes:
+        project_id: Project UUID
+        name: Project name
+        description: Project description
+        status: Project status
+        progress_percent: Project progress
+        relationship: Link relationship type
+        linked_at: When the link was created
+    """
+
+    project_id: str = Field(..., description="Project UUID")
+    name: str = Field(..., description="Project name")
+    description: str | None = Field(None, description="Project description")
+    status: str = Field(..., description="Project status")
+    progress_percent: int = Field(0, description="Project progress (0-100)")
+    relationship: str = Field(..., description="Link relationship type")
+    linked_at: str | None = Field(None, description="When the link was created")
+
+
+class SessionProjectsResponse(BaseModel):
+    """Response model for session's linked projects.
+
+    Attributes:
+        session_id: Session identifier
+        projects: List of linked projects
+    """
+
+    session_id: str = Field(..., description="Session identifier")
+    projects: list[SessionProjectResponse] = Field(
+        default_factory=list, description="List of linked projects"
+    )
+
+
+class AvailableProjectResponse(BaseModel):
+    """Response model for a project available for linking.
+
+    Attributes:
+        id: Project UUID
+        name: Project name
+        description: Project description
+        status: Project status
+        progress_percent: Project progress
+        is_linked: Whether already linked to this session
+    """
+
+    id: str = Field(..., description="Project UUID")
+    name: str = Field(..., description="Project name")
+    description: str | None = Field(None, description="Project description")
+    status: str = Field(..., description="Project status")
+    progress_percent: int = Field(0, description="Project progress (0-100)")
+    is_linked: bool = Field(False, description="Whether already linked to this session")
+
+
+class AvailableProjectsResponse(BaseModel):
+    """Response model for projects available for linking to a session.
+
+    Attributes:
+        session_id: Session identifier
+        projects: List of available projects
+    """
+
+    session_id: str = Field(..., description="Session identifier")
+    projects: list[AvailableProjectResponse] = Field(
+        default_factory=list, description="List of available projects"
+    )
+
+
+# =========================================================================
+# Project Autogeneration Models
+# =========================================================================
+
+
+class AutogenSuggestion(BaseModel):
+    """A suggested project from action clustering.
+
+    Attributes:
+        id: Unique identifier for this suggestion
+        name: Suggested project name
+        description: Suggested project description
+        action_ids: List of action UUIDs for this project
+        confidence: Confidence score (0.0-1.0)
+        rationale: Why these actions form a coherent project
+    """
+
+    id: str = Field(..., description="Suggestion identifier")
+    name: str = Field(..., description="Suggested project name")
+    description: str = Field("", description="Suggested project description")
+    action_ids: list[str] = Field(default_factory=list, description="Action UUIDs")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
+    rationale: str = Field("", description="Rationale for grouping")
+
+
+class AutogenSuggestionsResponse(BaseModel):
+    """Response model for autogenerate suggestions.
+
+    Attributes:
+        suggestions: List of project suggestions
+        unassigned_count: Total unassigned actions count
+        min_required: Minimum actions required for autogen
+    """
+
+    suggestions: list[AutogenSuggestion] = Field(
+        default_factory=list, description="List of project suggestions"
+    )
+    unassigned_count: int = Field(0, description="Total unassigned actions")
+    min_required: int = Field(3, description="Minimum actions for autogen")
+
+
+class AutogenCreateRequest(BaseModel):
+    """Request model for creating projects from suggestions.
+
+    Attributes:
+        suggestions: List of suggestions to create
+        workspace_id: Optional workspace for created projects
+    """
+
+    suggestions: list[AutogenSuggestion] = Field(
+        ..., description="Suggestions to create as projects"
+    )
+    workspace_id: str | None = Field(None, description="Workspace for projects")
+
+
+class AutogenCreateResponse(BaseModel):
+    """Response model for created projects from autogen.
+
+    Attributes:
+        created_projects: List of created project details
+        count: Number of projects created
+    """
+
+    created_projects: list["ProjectDetailResponse"] = Field(
+        default_factory=list, description="Created projects"
+    )
+    count: int = Field(0, description="Number of projects created")
+
+
+# =========================================================================
+# Context-Based Project Suggestions
+# =========================================================================
+
+
+class ContextProjectSuggestion(BaseModel):
+    """A suggested project derived from business context.
+
+    Attributes:
+        id: Unique identifier for this suggestion
+        name: Suggested project name
+        description: Project description
+        rationale: Why this project aligns with user's priorities
+        category: Project category (strategy/growth/operations/product/marketing/finance)
+        priority: Suggested priority (high/medium/low)
+    """
+
+    id: str = Field(..., description="Suggestion identifier")
+    name: str = Field(..., description="Suggested project name")
+    description: str = Field("", description="Project description")
+    rationale: str = Field("", description="Why this aligns with priorities")
+    category: str = Field("strategy", description="Project category")
+    priority: str = Field("medium", description="Suggested priority")
+
+
+class ContextSuggestionsResponse(BaseModel):
+    """Response model for context-based project suggestions.
+
+    Attributes:
+        suggestions: List of project suggestions
+        context_completeness: How complete the user's context is (0.0-1.0)
+        has_minimum_context: Whether minimum context is available
+        missing_fields: Fields that would improve suggestions
+    """
+
+    suggestions: list[ContextProjectSuggestion] = Field(
+        default_factory=list, description="List of project suggestions"
+    )
+    context_completeness: float = Field(0.0, description="Context completeness score")
+    has_minimum_context: bool = Field(False, description="Has minimum required context")
+    missing_fields: list[str] = Field(
+        default_factory=list, description="Fields that would improve suggestions"
+    )
+
+
+class ContextCreateRequest(BaseModel):
+    """Request model for creating projects from context suggestions.
+
+    Attributes:
+        suggestions: List of suggestions to create
+        workspace_id: Optional workspace for created projects
+    """
+
+    suggestions: list[ContextProjectSuggestion] = Field(
+        ..., description="Suggestions to create as projects"
+    )
+    workspace_id: str | None = Field(None, description="Workspace for projects")
+
+
 class GanttActionData(BaseModel):
     """Action data for Gantt chart (frappe-gantt format).
 
@@ -1377,6 +1612,7 @@ class DailyActionStat(BaseModel):
         created_count: Actions created on this date
         sessions_run: Sessions run on this date
         sessions_completed: Sessions completed on this date
+        mentor_sessions: Mentor chat sessions on this date
     """
 
     date: str = Field(..., description="Date (YYYY-MM-DD)")
@@ -1384,6 +1620,7 @@ class DailyActionStat(BaseModel):
     created_count: int = Field(default=0, description="Actions created")
     sessions_run: int = Field(default=0, description="Sessions run (started)")
     sessions_completed: int = Field(default=0, description="Sessions completed")
+    mentor_sessions: int = Field(default=0, description="Mentor chat sessions")
 
 
 class ActionStatsTotals(BaseModel):
@@ -1410,6 +1647,129 @@ class ActionStatsResponse(BaseModel):
 
     daily: list[DailyActionStat] = Field(..., description="Daily stats")
     totals: ActionStatsTotals = Field(..., description="Total counts")
+
+
+# =============================================================================
+# Action Reminder Models
+# =============================================================================
+
+
+class ActionReminderResponse(BaseModel):
+    """Response model for a pending action reminder.
+
+    Attributes:
+        action_id: Action UUID
+        action_title: Action title
+        reminder_type: Type of reminder (start_overdue, deadline_approaching)
+        due_date: Relevant date (start date or deadline)
+        days_overdue: Days past start date (for start_overdue type)
+        days_until_deadline: Days until deadline (for deadline_approaching type)
+        session_id: Source meeting ID
+        problem_statement: Meeting context
+    """
+
+    action_id: str = Field(..., description="Action UUID")
+    action_title: str = Field(..., description="Action title")
+    reminder_type: str = Field(
+        ...,
+        description="Reminder type: start_overdue or deadline_approaching",
+        pattern="^(start_overdue|deadline_approaching)$",
+    )
+    due_date: str | None = Field(None, description="Relevant date as ISO string")
+    days_overdue: int | None = Field(None, description="Days past start date")
+    days_until_deadline: int | None = Field(None, description="Days until deadline")
+    session_id: str = Field(..., description="Source meeting ID")
+    problem_statement: str = Field(default="", description="Meeting context")
+
+
+class ActionRemindersResponse(BaseModel):
+    """Response model for list of pending reminders.
+
+    Attributes:
+        reminders: List of pending reminders
+        total: Total count
+    """
+
+    reminders: list[ActionReminderResponse] = Field(..., description="Pending reminders")
+    total: int = Field(..., description="Total reminder count")
+
+
+class ReminderSettingsResponse(BaseModel):
+    """Response model for action reminder settings.
+
+    Attributes:
+        action_id: Action UUID
+        reminders_enabled: Whether reminders are enabled
+        reminder_frequency_days: Days between reminders
+        snoozed_until: Reminder snoozed until this time
+        last_reminder_sent_at: When last reminder was sent
+    """
+
+    action_id: str = Field(..., description="Action UUID")
+    reminders_enabled: bool = Field(..., description="Reminders enabled")
+    reminder_frequency_days: int = Field(..., description="Days between reminders")
+    snoozed_until: str | None = Field(None, description="Snoozed until ISO datetime")
+    last_reminder_sent_at: str | None = Field(None, description="Last sent ISO datetime")
+
+
+class ReminderSettingsUpdate(BaseModel):
+    """Request model for updating reminder settings.
+
+    Attributes:
+        reminders_enabled: Enable/disable reminders
+        reminder_frequency_days: Days between reminders (1-14)
+    """
+
+    reminders_enabled: bool | None = Field(None, description="Enable/disable reminders")
+    reminder_frequency_days: int | None = Field(
+        None,
+        ge=1,
+        le=14,
+        description="Days between reminders (1-14)",
+    )
+
+
+class SnoozeReminderRequest(BaseModel):
+    """Request model for snoozing a reminder.
+
+    Attributes:
+        snooze_days: Days to snooze (1-14)
+    """
+
+    snooze_days: int = Field(
+        default=1,
+        ge=1,
+        le=14,
+        description="Days to snooze reminders (1-14)",
+    )
+
+
+class UserReminderPreferences(BaseModel):
+    """Response model for user reminder preferences.
+
+    Attributes:
+        default_reminder_frequency_days: Default frequency for new actions
+    """
+
+    default_reminder_frequency_days: int = Field(
+        ...,
+        description="Default reminder frequency in days",
+    )
+
+
+class UserReminderPreferencesUpdate(BaseModel):
+    """Request model for updating user reminder preferences.
+
+    Attributes:
+        default_reminder_frequency_days: Default frequency for new actions (1-14)
+    """
+
+    default_reminder_frequency_days: int = Field(
+        ...,
+        ge=1,
+        le=14,
+        description="Default reminder frequency in days (1-14)",
+    )
 
 
 # =============================================================================

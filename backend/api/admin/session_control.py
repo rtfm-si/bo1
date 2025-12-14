@@ -10,7 +10,7 @@ Provides:
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.admin.models import (
     ActiveSessionInfo,
@@ -22,6 +22,7 @@ from backend.api.admin.models import (
 )
 from backend.api.dependencies import get_redis_manager, get_session_manager
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.validation import validate_session_id
@@ -256,8 +257,10 @@ async def admin_kill_all_sessions(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get session kill history")
 async def get_session_kill_history(
+    request: Request,
     limit: int = Query(50, ge=1, le=200, description="Max records to return"),
     offset: int = Query(0, ge=0, description="Records to skip"),
     session_id: str | None = Query(None, description="Filter to specific session"),

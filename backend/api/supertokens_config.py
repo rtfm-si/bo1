@@ -48,6 +48,7 @@ from bo1.feature_flags import (
     TWITTER_OAUTH_ENABLED,
 )
 from bo1.state.repositories import user_repository
+from bo1.state.repositories.workspace_repository import workspace_repository
 
 logger = logging.getLogger(__name__)
 
@@ -472,6 +473,24 @@ def override_thirdparty_functions(
                 except Exception as welcome_err:
                     # Don't block signup on welcome email failure
                     logger.warning(f"Failed to send welcome email: {welcome_err}")
+
+                # Create default personal workspace for new users
+                try:
+                    workspace_name = "Personal Workspace"
+                    workspace = workspace_repository.create_workspace(
+                        name=workspace_name,
+                        owner_id=user_id,
+                    )
+                    # Set as user's default workspace
+                    user_repository.set_default_workspace(user_id, workspace.id)
+                    logger.info(
+                        f"Created personal workspace for new user: {_mask_email(email)} "
+                        f"(workspace_id: {workspace.id})"
+                    )
+                except Exception as workspace_err:
+                    # Don't block signup on workspace creation failure
+                    # User can create workspace manually later
+                    logger.warning(f"Failed to create personal workspace: {workspace_err}")
         except Exception as e:
             # Re-raise lock/delete exceptions
             if "locked or deleted" in str(e):

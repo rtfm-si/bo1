@@ -38,6 +38,23 @@ Do NOT change `_PLAN.md` yet.
 
 ---
 
+## STEP 1.5 – RUN DATABASE MIGRATIONS (IF APPLICABLE)
+
+Before implementing code changes, ensure database is up to date:
+
+```bash
+docker-compose exec bo1 uv run alembic upgrade head
+```
+
+If migration fails:
+- Show error summary
+- STOP build - do not proceed with code changes that depend on schema
+- Migration must succeed before implementation continues
+
+Note: Alembic executes migrations in dependency order automatically. Multiple pending migrations will run sequentially in a single transaction per migration.
+
+---
+
 ## STEP 2 – IMPLEMENT THE PLAN (CODE & SCHEMA)
 
 For each Implementation Step in `_PLAN.md`:

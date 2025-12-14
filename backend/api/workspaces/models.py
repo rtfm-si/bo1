@@ -93,6 +93,7 @@ class WorkspaceListResponse(BaseModel):
 
     workspaces: list[WorkspaceResponse]
     total: int
+    default_workspace_id: UUID | None = None
 
 
 # =============================================================================
@@ -153,4 +154,117 @@ class InvitationListResponse(BaseModel):
     """Response model for listing invitations."""
 
     invitations: list[InvitationResponse]
+    total: int
+
+
+# =============================================================================
+# Join Request Models
+# =============================================================================
+
+
+class WorkspaceDiscoverability(str, Enum):
+    """Discoverability setting for a workspace."""
+
+    PRIVATE = "private"
+    INVITE_ONLY = "invite_only"
+    REQUEST_TO_JOIN = "request_to_join"
+
+
+class JoinRequestStatus(str, Enum):
+    """Status of a workspace join request."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
+
+
+class JoinRequestCreate(BaseModel):
+    """Request model for submitting a join request."""
+
+    message: str | None = Field(
+        None,
+        max_length=1000,
+        description="Optional message explaining why you want to join",
+    )
+
+
+class JoinRequestResponse(BaseModel):
+    """Response model for a join request."""
+
+    id: UUID
+    workspace_id: UUID
+    user_id: str
+    message: str | None = None
+    status: JoinRequestStatus
+    rejection_reason: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime
+    # Optional: populated from joins
+    user_email: str | None = None
+    user_name: str | None = None
+    workspace_name: str | None = None
+
+
+class JoinRequestRejectRequest(BaseModel):
+    """Request model for rejecting a join request."""
+
+    reason: str | None = Field(
+        None,
+        max_length=500,
+        description="Optional reason for rejection",
+    )
+
+
+class JoinRequestListResponse(BaseModel):
+    """Response model for listing join requests."""
+
+    requests: list[JoinRequestResponse]
+    total: int
+
+
+class WorkspaceSettingsUpdate(BaseModel):
+    """Request model for updating workspace settings."""
+
+    discoverability: WorkspaceDiscoverability | None = None
+
+
+# =============================================================================
+# Role Transfer Models
+# =============================================================================
+
+
+class TransferOwnershipRequest(BaseModel):
+    """Request model for transferring workspace ownership."""
+
+    new_owner_id: str = Field(
+        ...,
+        description="User ID of the new owner",
+    )
+    confirm: bool = Field(
+        ...,
+        description="Must be true to confirm the transfer",
+    )
+
+
+class RoleChangeResponse(BaseModel):
+    """Response model for a role change record."""
+
+    id: UUID
+    workspace_id: UUID
+    user_id: str
+    user_email: str | None = None
+    old_role: str
+    new_role: str
+    change_type: str
+    changed_by: str | None = None
+    changed_by_email: str | None = None
+    changed_at: datetime
+
+
+class RoleHistoryResponse(BaseModel):
+    """Response model for role change history."""
+
+    changes: list[RoleChangeResponse]
     total: int

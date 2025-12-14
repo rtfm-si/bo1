@@ -932,6 +932,168 @@ class SessionRepository(BaseRepository):
         return dict(result) if result else None
 
     # =========================================================================
+    # Session-Project Linking
+    # =========================================================================
+
+    def link_session_to_projects(
+        self,
+        session_id: str,
+        project_ids: list[str],
+        relationship: str = "discusses",
+    ) -> list[dict[str, Any]]:
+        """Link a session to multiple projects (bulk operation).
+
+        Args:
+            session_id: Session identifier
+            project_ids: List of project UUIDs to link
+            relationship: Type of link (discusses, created_from, replanning)
+
+        Returns:
+            List of created link records
+
+        Raises:
+            ValueError: If workspace mismatch detected (trigger will fail)
+        """
+        if not project_ids:
+            return []
+
+        results = []
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                for project_id in project_ids:
+                    try:
+                        cur.execute(
+                            """
+                            INSERT INTO session_projects (session_id, project_id, relationship)
+                            VALUES (%s, %s, %s)
+                            ON CONFLICT (session_id, project_id) DO UPDATE
+                            SET relationship = EXCLUDED.relationship
+                            RETURNING session_id, project_id, relationship, created_at
+                            """,
+                            (session_id, project_id, relationship),
+                        )
+                        result = cur.fetchone()
+                        if result:
+                            results.append(dict(result))
+                    except Exception as e:
+                        if "same workspace" in str(e):
+                            raise ValueError(
+                                f"Project {project_id} is in a different workspace than session"
+                            ) from e
+                        raise
+        return results
+
+    def unlink_session_from_project(self, session_id: str, project_id: str) -> bool:
+        """Remove a session-project link.
+
+        Args:
+            session_id: Session identifier
+            project_id: Project UUID
+
+        Returns:
+            True if unlinked, False if link not found
+        """
+        return (
+            self._execute_count(
+                """
+                DELETE FROM session_projects
+                WHERE session_id = %s AND project_id = %s
+                """,
+                (session_id, project_id),
+            )
+            > 0
+        )
+
+    def get_session_projects(self, session_id: str) -> list[dict[str, Any]]:
+        """Get all projects linked to a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            List of project records with link metadata
+        """
+        return self._execute_query(
+            """
+            SELECT sp.session_id, sp.project_id, sp.relationship, sp.created_at as linked_at,
+                   p.name, p.description, p.status as project_status, p.progress_percent,
+                   p.workspace_id
+            FROM session_projects sp
+            JOIN projects p ON p.id = sp.project_id
+            WHERE sp.session_id = %s
+            ORDER BY sp.created_at DESC
+            """,
+            (session_id,),
+        )
+
+    def get_available_projects_for_session(
+        self,
+        session_id: str,
+        user_id: str,
+    ) -> list[dict[str, Any]]:
+        """Get projects available for linking to a session (same workspace).
+
+        Args:
+            session_id: Session identifier
+            user_id: User identifier
+
+        Returns:
+            List of projects in same workspace (or personal if no workspace)
+        """
+        return self._execute_query(
+            """
+            SELECT p.id, p.name, p.description, p.status, p.progress_percent,
+                   p.workspace_id, p.created_at,
+                   CASE WHEN sp.session_id IS NOT NULL THEN true ELSE false END as is_linked
+            FROM projects p
+            LEFT JOIN session_projects sp ON sp.project_id = p.id AND sp.session_id = %s
+            WHERE p.user_id = %s
+              AND p.status != 'archived'
+              AND (
+                  -- Match workspace
+                  p.workspace_id = (SELECT workspace_id FROM sessions WHERE id = %s)
+                  -- Or both are personal (NULL workspace)
+                  OR (p.workspace_id IS NULL AND (SELECT workspace_id FROM sessions WHERE id = %s) IS NULL)
+              )
+            ORDER BY p.updated_at DESC
+            """,
+            (session_id, user_id, session_id, session_id),
+        )
+
+    def validate_project_workspace_match(
+        self,
+        session_id: str,
+        project_ids: list[str],
+    ) -> tuple[bool, list[str]]:
+        """Validate that all projects are in the same workspace as session.
+
+        Args:
+            session_id: Session identifier
+            project_ids: List of project UUIDs to validate
+
+        Returns:
+            Tuple of (all_valid, mismatched_project_ids)
+        """
+        if not project_ids:
+            return True, []
+
+        mismatched = self._execute_query(
+            """
+            SELECT p.id::text as project_id
+            FROM projects p, sessions s
+            WHERE s.id = %s
+              AND p.id = ANY(%s::uuid[])
+              AND NOT (
+                  (p.workspace_id IS NULL AND s.workspace_id IS NULL)
+                  OR p.workspace_id = s.workspace_id
+              )
+            """,
+            (session_id, project_ids),
+        )
+        mismatched_ids = [r["project_id"] for r in mismatched]
+        return len(mismatched_ids) == 0, mismatched_ids
+
+    # =========================================================================
     # Session Synthesis
     # =========================================================================
 

@@ -402,6 +402,7 @@ export interface ExtractedTask {
 	confidence: number;
 	sub_problem_index: number | null;
 	suggested_completion_date?: string | null;
+	updated_at?: string | null;
 }
 
 /**
@@ -810,6 +811,86 @@ export interface ProjectSessionsResponse {
 	sessions: ProjectSessionLink[];
 }
 
+// =========================================================================
+// Project Autogeneration Types
+// =========================================================================
+
+/**
+ * A suggested project from action clustering
+ */
+export interface AutogenSuggestion {
+	id: string;
+	name: string;
+	description: string;
+	action_ids: string[];
+	confidence: number;
+	rationale: string;
+}
+
+/**
+ * Response from autogenerate suggestions endpoint
+ */
+export interface AutogenSuggestionsResponse {
+	suggestions: AutogenSuggestion[];
+	unassigned_count: number;
+	min_required: number;
+}
+
+/**
+ * Request to create projects from suggestions
+ */
+export interface AutogenCreateRequest {
+	suggestions: AutogenSuggestion[];
+	workspace_id?: string;
+}
+
+/**
+ * Response from creating projects from suggestions
+ */
+export interface AutogenCreateResponse {
+	created_projects: ProjectDetailResponse[];
+	count: number;
+}
+
+/**
+ * Unassigned actions count response
+ */
+export interface UnassignedCountResponse {
+	unassigned_count: number;
+	min_required: number;
+	can_autogenerate: boolean;
+}
+
+/**
+ * Context-based project suggestion
+ */
+export interface ContextProjectSuggestion {
+	id: string;
+	name: string;
+	description: string;
+	rationale: string;
+	category: string;
+	priority: string;
+}
+
+/**
+ * Response from context suggestions endpoint
+ */
+export interface ContextSuggestionsResponse {
+	suggestions: ContextProjectSuggestion[];
+	context_completeness: number;
+	has_minimum_context: boolean;
+	missing_fields: string[];
+}
+
+/**
+ * Request to create projects from context suggestions
+ */
+export interface ContextCreateRequest {
+	suggestions: ContextProjectSuggestion[];
+	workspace_id?: string;
+}
+
 /**
  * Gantt action data
  */
@@ -1032,6 +1113,7 @@ export interface DailyActionStat {
 	created_count: number;
 	sessions_run: number;
 	sessions_completed: number;
+	mentor_sessions: number;
 }
 
 /**
@@ -1049,6 +1131,72 @@ export interface ActionStatsTotals {
 export interface ActionStatsResponse {
 	daily: DailyActionStat[];
 	totals: ActionStatsTotals;
+}
+
+// ============================================================================
+// Action Reminder Types
+// ============================================================================
+
+/**
+ * Single pending action reminder
+ */
+export interface ActionReminderResponse {
+	action_id: string;
+	action_title: string;
+	reminder_type: 'start_overdue' | 'deadline_approaching';
+	due_date: string | null;
+	days_overdue: number | null;
+	days_until_deadline: number | null;
+	session_id: string;
+	problem_statement: string;
+}
+
+/**
+ * List of pending reminders response
+ */
+export interface ActionRemindersResponse {
+	reminders: ActionReminderResponse[];
+	total: number;
+}
+
+/**
+ * Reminder settings for an action
+ */
+export interface ReminderSettingsResponse {
+	action_id: string;
+	reminders_enabled: boolean;
+	reminder_frequency_days: number;
+	snoozed_until: string | null;
+	last_reminder_sent_at: string | null;
+}
+
+/**
+ * Request to update reminder settings
+ */
+export interface ReminderSettingsUpdateRequest {
+	reminders_enabled?: boolean;
+	reminder_frequency_days?: number;
+}
+
+/**
+ * Request to snooze a reminder
+ */
+export interface SnoozeReminderRequest {
+	snooze_days: number;
+}
+
+// ============================================================================
+// Cost Calculator Types (Meeting Cost Calculator Widget)
+// ============================================================================
+
+/**
+ * User defaults for the meeting cost calculator widget
+ */
+export interface CostCalculatorDefaults {
+	avg_hourly_rate: number;
+	typical_participants: number;
+	typical_duration_mins: number;
+	typical_prep_mins: number;
 }
 
 // ============================================================================
@@ -1489,6 +1637,7 @@ export interface WorkspaceMemberResponse {
 export interface WorkspaceListResponse {
 	workspaces: WorkspaceResponse[];
 	total: number;
+	default_workspace_id: string | null;
 }
 
 /**
@@ -1536,6 +1685,89 @@ export interface InvitationAcceptRequest {
  */
 export interface InvitationDeclineRequest {
 	token: string;
+}
+
+// ============================================================================
+// Join Request Types
+// ============================================================================
+
+/**
+ * Workspace discoverability setting
+ */
+export type WorkspaceDiscoverability = 'private' | 'invite_only' | 'request_to_join';
+
+/**
+ * Join request status
+ */
+export type JoinRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+/**
+ * Join request response
+ */
+export interface JoinRequestResponse {
+	id: string;
+	workspace_id: string;
+	user_id: string;
+	message: string | null;
+	status: JoinRequestStatus;
+	rejection_reason: string | null;
+	reviewed_by: string | null;
+	reviewed_at: string | null;
+	created_at: string;
+	user_email?: string;
+	user_name?: string;
+	workspace_name?: string;
+}
+
+/**
+ * Join request list response
+ */
+export interface JoinRequestListResponse {
+	requests: JoinRequestResponse[];
+	total: number;
+}
+
+/**
+ * Workspace settings update request
+ */
+export interface WorkspaceSettingsUpdate {
+	discoverability?: WorkspaceDiscoverability;
+}
+
+// ============================================================================
+// Role Transfer Types
+// ============================================================================
+
+/**
+ * Transfer ownership request
+ */
+export interface TransferOwnershipRequest {
+	new_owner_id: string;
+	confirm: boolean;
+}
+
+/**
+ * Role change record
+ */
+export interface RoleChangeResponse {
+	id: string;
+	workspace_id: string;
+	user_id: string;
+	user_email: string | null;
+	old_role: string;
+	new_role: string;
+	change_type: string;
+	changed_by: string | null;
+	changed_by_email: string | null;
+	changed_at: string;
+}
+
+/**
+ * Role history response
+ */
+export interface RoleHistoryResponse {
+	changes: RoleChangeResponse[];
+	total: number;
 }
 
 // ============================================================================
@@ -1749,4 +1981,92 @@ export interface CalendarStatusResponse {
 	connected: boolean;
 	connected_at: string | null;
 	feature_enabled: boolean;
+}
+
+// =============================================================================
+// Session-Project Linking Types
+// =============================================================================
+
+/**
+ * Request to link projects to a session
+ */
+export interface SessionProjectLinkRequest {
+	project_ids: string[];
+	relationship?: 'discusses' | 'created_from' | 'replanning';
+}
+
+/**
+ * A project linked to a session
+ */
+export interface SessionProjectItem {
+	project_id: string;
+	name: string;
+	description: string | null;
+	status: ProjectStatus;
+	progress_percent: number;
+	relationship: string;
+	linked_at: string | null;
+}
+
+/**
+ * Response with session's linked projects
+ */
+export interface SessionProjectsResponse {
+	session_id: string;
+	projects: SessionProjectItem[];
+}
+
+/**
+ * A project available for linking (same workspace)
+ */
+export interface AvailableProjectItem {
+	id: string;
+	name: string;
+	description: string | null;
+	status: ProjectStatus;
+	progress_percent: number;
+	is_linked: boolean;
+}
+
+/**
+ * Response with available projects for linking
+ */
+export interface AvailableProjectsResponse {
+	session_id: string;
+	projects: AvailableProjectItem[];
+}
+
+/**
+ * A project suggestion from meeting analysis
+ */
+export interface ProjectSuggestion {
+	name: string;
+	description: string;
+	action_ids: string[];
+	confidence: number;
+	rationale: string;
+}
+
+/**
+ * Response with project suggestions
+ */
+export interface ProjectSuggestionsResponse {
+	session_id: string;
+	suggestions: ProjectSuggestion[];
+}
+
+/**
+ * Response from creating a suggested project
+ */
+export interface CreatedProjectResponse {
+	project: {
+		id: string;
+		name: string;
+		description: string | null;
+		status: ProjectStatus;
+		progress_percent: number;
+		total_actions: number;
+	};
+	session_id: string;
+	action_count: number;
 }

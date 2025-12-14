@@ -9,6 +9,8 @@
 	import ContextRefreshBanner from '$lib/components/ui/ContextRefreshBanner.svelte';
 	import OnboardingChecklist from '$lib/components/ui/OnboardingChecklist.svelte';
 	import ActivityHeatmap from '$lib/components/dashboard/ActivityHeatmap.svelte';
+	import PendingReminders from '$lib/components/dashboard/PendingReminders.svelte';
+	import MeetingCostCalculator from '$lib/components/dashboard/MeetingCostCalculator.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { getSessionStatusColor } from '$lib/utils/colors';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
@@ -248,6 +250,11 @@
 			</div>
 		</div>
 
+		<!-- Pending Reminders Panel -->
+		<div class="mb-8">
+			<PendingReminders />
+		</div>
+
 		<!-- Completion Trends Chart -->
 		{#if statsData.isLoading}
 			<div class="mb-8">
@@ -296,6 +303,11 @@
 				</div>
 			</div>
 		{/if}
+
+		<!-- Meeting Cost Calculator Widget -->
+		<div class="mb-8">
+			<MeetingCostCalculator />
+		</div>
 
 		<!-- Actions Needing Attention (overdue + due today) -->
 		{#if actionsData.isLoading}
@@ -462,8 +474,12 @@
 											</span>
 										{/if}
 									</div>
-									<div class="text-sm text-neutral-500 dark:text-neutral-400 truncate">
-										From: {truncateProblem(action.problem_statement, 60)}
+									<div class="text-sm text-neutral-500 dark:text-neutral-400 truncate flex items-center gap-2">
+										<span>From: {truncateProblem(action.problem_statement, 50)}</span>
+										{#if action.updated_at}
+											<span class="text-neutral-400 dark:text-neutral-500">·</span>
+											<span class="text-neutral-400 dark:text-neutral-500 whitespace-nowrap">Updated {formatCompactRelativeTime(action.updated_at)}</span>
+										{/if}
 									</div>
 								</div>
 
@@ -542,16 +558,6 @@
 					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white">
 						Your Meetings ({sessions.length})
 					</h2>
-					<a href="/meeting/new">
-						<Button variant="brand" size="md">
-							{#snippet children()}
-								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-								</svg>
-								New Meeting
-							{/snippet}
-						</Button>
-					</a>
 				</div>
 
 				{#each sessions as session (session.id)}

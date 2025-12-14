@@ -307,6 +307,10 @@ class RateLimits:
     CONTROL = "20/minute"
     """Control endpoints (start/kill deliberation)"""
 
+    # Admin tier limits (much higher to allow dashboard page loads)
+    ADMIN = "300/minute"
+    """Admin endpoints (dashboards fire multiple requests on page load)"""
+
 
 # =============================================================================
 # DATABASE CONFIGURATION

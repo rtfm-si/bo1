@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { ProjectDetailResponse, ProjectStatus } from '$lib/api/types';
+	import type { ProjectDetailResponse, ProjectStatus, UnassignedCountResponse } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
+	import AutogenProjectsModal from '$lib/components/projects/AutogenProjectsModal.svelte';
 
 	// Use data fetch utility for projects
 	const projectsData = useDataFetch(() => apiClient.listProjects());
@@ -22,9 +23,29 @@
 	let isCreating = $state(false);
 	let createError = $state<string | null>(null);
 
+	// Autogen modal state
+	let showAutogenModal = $state(false);
+	let unassignedData = $state<UnassignedCountResponse | null>(null);
+
 	onMount(() => {
 		projectsData.fetch();
+		loadUnassignedCount();
 	});
+
+	async function loadUnassignedCount() {
+		try {
+			unassignedData = await apiClient.getUnassignedCount();
+		} catch (err) {
+			console.error('Failed to load unassigned count:', err);
+		}
+	}
+
+	function handleAutogenSuccess(createdProjects: ProjectDetailResponse[]) {
+		// Refresh projects list
+		projectsData.fetch();
+		// Refresh unassigned count
+		loadUnassignedCount();
+	}
 
 	function formatDate(dateString: string | null): string {
 		if (!dateString) return '—';
@@ -110,14 +131,29 @@
 					Organize your actions into value-delivering projects
 				</p>
 			</div>
-			<Button variant="brand" onclick={() => (showCreateModal = true)}>
-				{#snippet children()}
-					<svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-					</svg>
-					New Project
-				{/snippet}
-			</Button>
+			<div class="flex items-center gap-3">
+				<Button variant="ghost" onclick={() => (showAutogenModal = true)}>
+					{#snippet children()}
+						<svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+						</svg>
+						Generate Ideas
+						{#if unassignedData?.can_autogenerate}
+							<span class="ml-1.5">
+								<Badge variant="info" size="sm">{unassignedData?.unassigned_count ?? 0}</Badge>
+							</span>
+						{/if}
+					{/snippet}
+				</Button>
+				<Button variant="brand" onclick={() => (showCreateModal = true)}>
+					{#snippet children()}
+						<svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+						</svg>
+						New Project
+					{/snippet}
+				</Button>
+			</div>
 		</div>
 
 		{#if isLoading}
@@ -157,16 +193,39 @@
 					No projects yet
 				</h2>
 				<p class="text-neutral-600 dark:text-neutral-400 mb-6 max-w-md mx-auto">
-					Create your first project to organize your actions and track progress toward your goals.
+					{#if unassignedData?.can_autogenerate}
+						You have <strong>{unassignedData.unassigned_count}</strong> unassigned actions. Use autogenerate to create projects from them, or create a project manually.
+					{:else}
+						Generate project ideas from your business priorities, or create a project manually.
+					{/if}
 				</p>
-				<Button variant="brand" size="lg" onclick={() => (showCreateModal = true)}>
-					{#snippet children()}
-						<svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-						</svg>
-						Create Your First Project
-					{/snippet}
-				</Button>
+				<div class="flex flex-col items-center justify-center gap-3">
+					<div class="flex items-center gap-3">
+						<Button variant="brand" size="lg" onclick={() => (showAutogenModal = true)}>
+							{#snippet children()}
+								<svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+								</svg>
+								Generate Project Ideas
+							{/snippet}
+						</Button>
+						<Button variant="ghost" size="lg" onclick={() => (showCreateModal = true)}>
+							{#snippet children()}
+								<svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+								</svg>
+								Create Manually
+							{/snippet}
+						</Button>
+					</div>
+					<p class="text-xs text-neutral-500 dark:text-neutral-500 mt-2">
+						{#if unassignedData?.can_autogenerate}
+							Suggestions from your unassigned actions or business context
+						{:else}
+							Suggestions based on your business priorities
+						{/if}
+					</p>
+				</div>
 			</div>
 		{:else}
 			<!-- Projects Grid -->
@@ -317,3 +376,9 @@
 		</div>
 	</div>
 {/if}
+
+<!-- Autogenerate Projects Modal -->
+<AutogenProjectsModal
+	bind:open={showAutogenModal}
+	onsuccess={handleAutogenSuccess}
+/>

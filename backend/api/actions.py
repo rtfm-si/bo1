@@ -21,6 +21,7 @@ from backend.api.models import (
     ActionDatesUpdate,
     ActionDetailResponse,
     ActionProgressUpdate,
+    ActionRemindersResponse,
     ActionStatsResponse,
     ActionStatsTotals,
     ActionStatusUpdate,
@@ -38,8 +39,11 @@ from backend.api.models import (
     GanttActionData,
     GanttDependency,
     GlobalGanttResponse,
+    ReminderSettingsResponse,
+    ReminderSettingsUpdate,
     ReplanRequest,
     ReplanResponse,
+    SnoozeReminderRequest,
     TagResponse,
     UnblockActionRequest,
 )
@@ -203,6 +207,8 @@ async def get_all_actions(
                 }
 
         # Format action for response
+        # Use updated_at if available, otherwise fallback to created_at
+        updated_at = action.get("updated_at") or action.get("created_at")
         action_data = {
             "id": str(action.get("id", "")),
             "title": action.get("title", ""),
@@ -220,6 +226,7 @@ async def get_all_actions(
             "status": action.get("status", "todo"),
             "session_id": session_id,
             "problem_statement": sessions_map.get(session_id, {}).get("problem_statement", ""),
+            "updated_at": updated_at.isoformat() if updated_at else None,
         }
 
         all_actions_list.append(action_data)
@@ -485,6 +492,66 @@ async def get_global_gantt(
 
 
 # =============================================================================
+# Action Reminders Endpoints
+# =============================================================================
+
+
+@router.get(
+    "/reminders",
+    response_model="ActionRemindersResponse",
+    summary="Get pending action reminders",
+    description="Get actions needing reminders (overdue start, approaching deadline).",
+    responses={
+        200: {"description": "Reminders retrieved successfully"},
+    },
+)
+@handle_api_errors("get action reminders")
+async def get_action_reminders(
+    user_data: dict = Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=100, description="Max reminders to return"),
+) -> "ActionRemindersResponse":
+    """Get pending action reminders for the current user.
+
+    Returns actions that:
+    - Have overdue start dates (todo status with passed anticipated start)
+    - Have approaching deadlines (within 3 days)
+    - Respect reminder frequency settings
+    - Are not snoozed
+
+    Args:
+        user_data: Current user from auth
+        limit: Maximum reminders to return
+
+    Returns:
+        ActionRemindersResponse with pending reminders
+    """
+    from backend.api.models import ActionReminderResponse, ActionRemindersResponse
+    from backend.services.action_reminders import get_pending_reminders
+
+    user_id = user_data.get("user_id")
+    logger.info(f"Fetching pending reminders for user {user_id}")
+
+    reminders = get_pending_reminders(user_id, limit=limit)
+
+    return ActionRemindersResponse(
+        reminders=[
+            ActionReminderResponse(
+                action_id=r.action_id,
+                action_title=r.action_title,
+                reminder_type=r.reminder_type,
+                due_date=r.due_date.isoformat() if r.due_date else None,
+                days_overdue=r.days_overdue,
+                days_until_deadline=r.days_until_deadline,
+                session_id=r.session_id,
+                problem_statement=r.problem_statement,
+            )
+            for r in reminders
+        ],
+        total=len(reminders),
+    )
+
+
+# =============================================================================
 # Action Stats Endpoint (Dashboard Progress Visualization)
 # =============================================================================
 
@@ -556,24 +623,34 @@ async def get_action_stats(
               AND status = 'completed'
               AND updated_at >= CURRENT_DATE - INTERVAL '%s days'
             GROUP BY DATE(updated_at)
+        ),
+        mentor_session_counts AS (
+            SELECT TO_DATE(period, 'YYYY-MM-DD') AS date, count
+            FROM user_usage
+            WHERE user_id = %s
+              AND metric = 'mentor_chats'
+              AND LENGTH(period) = 10
+              AND TO_DATE(period, 'YYYY-MM-DD') >= CURRENT_DATE - INTERVAL '%s days'
         )
         SELECT
             ds.date,
             COALESCE(cc.count, 0) AS completed_count,
             COALESCE(cr.count, 0) AS created_count,
             COALESCE(mr.count, 0) AS sessions_run,
-            COALESCE(mc.count, 0) AS sessions_completed
+            COALESCE(mc.count, 0) AS sessions_completed,
+            COALESCE(ms.count, 0) AS mentor_sessions
         FROM date_series ds
         LEFT JOIN completed_counts cc ON ds.date = cc.date
         LEFT JOIN created_counts cr ON ds.date = cr.date
         LEFT JOIN meetings_run_counts mr ON ds.date = mr.date
         LEFT JOIN meetings_completed_counts mc ON ds.date = mc.date
+        LEFT JOIN mentor_session_counts ms ON ds.date = ms.date
         ORDER BY ds.date DESC
     """
 
     daily_rows = execute_query(
         daily_query,
-        (days, user_id, days, user_id, days, user_id, days, user_id, days),
+        (days, user_id, days, user_id, days, user_id, days, user_id, days, user_id, days),
         fetch="all",
     )
 
@@ -584,6 +661,7 @@ async def get_action_stats(
             created_count=row["created_count"],
             sessions_run=row["sessions_run"],
             sessions_completed=row["sessions_completed"],
+            mentor_sessions=row["mentor_sessions"],
         )
         for row in (daily_rows or [])
     ]
@@ -2020,6 +2098,154 @@ async def get_action_variance(
     variance = action_repository.calculate_variance(action_id)
 
     return variance
+
+
+# =============================================================================
+# Action Reminder Settings Endpoints
+# =============================================================================
+
+
+@router.get(
+    "/{action_id}/reminder-settings",
+    response_model="ReminderSettingsResponse",
+    summary="Get action reminder settings",
+    description="Get reminder configuration for a specific action.",
+    responses={
+        200: {"description": "Settings retrieved successfully"},
+        404: {"description": "Action not found"},
+    },
+)
+@handle_api_errors("get reminder settings")
+async def get_action_reminder_settings(
+    action_id: str,
+    user_data: dict = Depends(get_current_user),
+) -> "ReminderSettingsResponse":
+    """Get reminder settings for an action.
+
+    Args:
+        action_id: Action UUID
+        user_data: Current user from auth
+
+    Returns:
+        ReminderSettingsResponse with current settings
+    """
+    from backend.api.models import ReminderSettingsResponse
+    from backend.services.action_reminders import get_reminder_settings
+
+    user_id = user_data.get("user_id")
+
+    settings = get_reminder_settings(action_id, user_id)
+    if not settings:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    return ReminderSettingsResponse(
+        action_id=settings.action_id,
+        reminders_enabled=settings.reminders_enabled,
+        reminder_frequency_days=settings.reminder_frequency_days,
+        snoozed_until=settings.snoozed_until.isoformat() if settings.snoozed_until else None,
+        last_reminder_sent_at=settings.last_reminder_sent_at.isoformat()
+        if settings.last_reminder_sent_at
+        else None,
+    )
+
+
+@router.patch(
+    "/{action_id}/reminder-settings",
+    response_model="ReminderSettingsResponse",
+    summary="Update action reminder settings",
+    description="Update reminder frequency or enable/disable reminders for an action.",
+    responses={
+        200: {"description": "Settings updated successfully"},
+        404: {"description": "Action not found"},
+    },
+)
+@handle_api_errors("update reminder settings")
+async def update_action_reminder_settings(
+    action_id: str,
+    settings_update: "ReminderSettingsUpdate",
+    user_data: dict = Depends(get_current_user),
+) -> "ReminderSettingsResponse":
+    """Update reminder settings for an action.
+
+    Args:
+        action_id: Action UUID
+        settings_update: Settings to update
+        user_data: Current user from auth
+
+    Returns:
+        Updated ReminderSettingsResponse
+    """
+    from backend.api.models import ReminderSettingsResponse
+    from backend.services.action_reminders import update_reminder_settings
+
+    user_id = user_data.get("user_id")
+    logger.info(f"Updating reminder settings for action {action_id}")
+
+    settings = update_reminder_settings(
+        action_id=action_id,
+        user_id=user_id,
+        reminders_enabled=settings_update.reminders_enabled,
+        reminder_frequency_days=settings_update.reminder_frequency_days,
+    )
+
+    if not settings:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    return ReminderSettingsResponse(
+        action_id=settings.action_id,
+        reminders_enabled=settings.reminders_enabled,
+        reminder_frequency_days=settings.reminder_frequency_days,
+        snoozed_until=settings.snoozed_until.isoformat() if settings.snoozed_until else None,
+        last_reminder_sent_at=settings.last_reminder_sent_at.isoformat()
+        if settings.last_reminder_sent_at
+        else None,
+    )
+
+
+@router.post(
+    "/{action_id}/snooze-reminder",
+    summary="Snooze action reminder",
+    description="Delay reminder for this action by N days.",
+    responses={
+        200: {"description": "Reminder snoozed successfully"},
+        404: {"description": "Action not found"},
+    },
+)
+@handle_api_errors("snooze reminder")
+async def snooze_action_reminder(
+    action_id: str,
+    snooze_request: "SnoozeReminderRequest",
+    user_data: dict = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Snooze reminders for an action.
+
+    Args:
+        action_id: Action UUID
+        snooze_request: Snooze configuration
+        user_data: Current user from auth
+
+    Returns:
+        Success message with snooze details
+    """
+    from backend.services.action_reminders import snooze_reminder
+
+    user_id = user_data.get("user_id")
+    logger.info(f"Snoozing reminder for action {action_id} by {snooze_request.snooze_days} days")
+
+    success = snooze_reminder(
+        action_id=action_id,
+        user_id=user_id,
+        snooze_days=snooze_request.snooze_days,
+    )
+
+    if not success:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    return {
+        "message": "Reminder snoozed successfully",
+        "action_id": action_id,
+        "snooze_days": snooze_request.snooze_days,
+    }
 
 
 def _action_to_detail_response(action: dict[str, Any]) -> ActionDetailResponse:

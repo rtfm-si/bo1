@@ -10,6 +10,8 @@
 	import CancellationModal from '$lib/components/actions/CancellationModal.svelte';
 	import ReplanningSuggestionModal from '$lib/components/actions/ReplanningSuggestionModal.svelte';
 	import DependencyGraph from '$lib/components/actions/DependencyGraph.svelte';
+	import ReminderSettings from '$lib/components/actions/ReminderSettings.svelte';
+	import ProjectSelector from '$lib/components/actions/ProjectSelector.svelte';
 	import {
 		ArrowLeft,
 		CheckCircle2,
@@ -28,7 +30,8 @@
 		Sparkles,
 		Loader2,
 		ExternalLink,
-		X
+		X,
+		FolderKanban
 	} from 'lucide-svelte';
 	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, getEffectiveDueDate } from '$lib/utils/due-dates';
 
@@ -356,6 +359,13 @@
 		}
 	}
 
+	// Handle project assignment change
+	function handleProjectChange(projectId: string | null, _projectName: string | null) {
+		if (action) {
+			action = { ...action, project_id: projectId };
+		}
+	}
+
 	// Load activity updates
 	async function loadUpdates() {
 		try {
@@ -554,6 +564,16 @@
 							<span class={`text-sm font-medium ${getCategoryConfig(action.category).color}`}>
 								{getCategoryConfig(action.category).label}
 							</span>
+						</div>
+
+						<!-- Project -->
+						<div class="flex items-center gap-2">
+							<FolderKanban class="w-4 h-4 text-neutral-400" />
+							<ProjectSelector
+								actionId={action.id}
+								currentProjectId={action.project_id}
+								onchange={handleProjectChange}
+							/>
 						</div>
 
 						<!-- Timeline -->
@@ -791,6 +811,11 @@
 							</div>
 						{/if}
 					</div>
+				{/if}
+
+				<!-- Reminder Settings (only for non-completed actions) -->
+				{#if action.status !== 'done' && action.status !== 'cancelled'}
+					<ReminderSettings actionId={action.id} />
 				{/if}
 
 				<!-- Description -->

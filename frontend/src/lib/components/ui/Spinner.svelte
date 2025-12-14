@@ -9,12 +9,14 @@
 		size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 		variant?: 'brand' | 'accent' | 'neutral';
 		ariaLabel?: string;
+		class?: string;
 	}
 
 	let {
 		size = 'md',
 		variant = 'brand',
-		ariaLabel = 'Loading'
+		ariaLabel = 'Loading',
+		class: className = ''
 	}: Props = $props();
 
 	// Variant styles
@@ -38,7 +40,8 @@
 		'animate-spin',
 		variants[variant],
 		sizes[size],
-	].join(' '));
+		className
+	].filter(Boolean).join(' '));
 </script>
 
 <svg

@@ -49,7 +49,7 @@
 		<ul class="text-sm text-neutral-600 dark:text-neutral-400 space-y-1">
 			<li>Ask specific questions about your business challenges</li>
 			<li>Use <strong>Action Coach</strong> when managing tasks and priorities</li>
-			<li>Use <strong>Data Analyst</strong> when working with metrics and datasets</li>
+			<li>For data-specific questions, try the dedicated <a href="/analysis" class="text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 underline">Analysis</a> page</li>
 			<li>The mentor uses your business context automatically</li>
 		</ul>
 	</div>

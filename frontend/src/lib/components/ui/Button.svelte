@@ -11,6 +11,7 @@
 		disabled = false,
 		loading = false,
 		ariaLabel,
+		title,
 		onclick,
 		class: className = '',
 		children,
@@ -21,6 +22,7 @@
 		disabled?: boolean;
 		loading?: boolean;
 		ariaLabel?: string;
+		title?: string;
 		onclick?: (event: MouseEvent) => void;
 		class?: string;
 		children?: import('svelte').Snippet;
@@ -71,6 +73,7 @@
 	disabled={disabled || loading}
 	class={classes}
 	aria-label={ariaLabel}
+	{title}
 	onclick={onclick}
 >
 	{#if loading}

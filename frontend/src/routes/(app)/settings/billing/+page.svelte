@@ -231,8 +231,8 @@
 									{isUpgrading ? 'Processing...' : `Upgrade to ${tier.name}`}
 								</Button>
 							{:else}
-								<Button variant="secondary" onclick={() => window.location.href = '/pricing'} class="w-full">
-									View Details
+								<Button variant="secondary" onclick={() => window.location.href = 'mailto:support@boardof.one?subject=Upgrade%20Inquiry'} class="w-full">
+									Contact Sales
 								</Button>
 							{/if}
 						</div>

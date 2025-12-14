@@ -366,10 +366,10 @@
 							{:else}
 								<Button
 									variant="secondary"
-									onclick={() => (window.location.href = '/pricing')}
+									onclick={() => (window.location.href = 'mailto:support@boardof.one?subject=Upgrade%20Inquiry')}
 									class="w-full"
 								>
-									View Details
+									Contact Sales
 								</Button>
 							{/if}
 						</div>

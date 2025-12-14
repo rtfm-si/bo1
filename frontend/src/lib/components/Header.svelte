@@ -21,14 +21,12 @@
 		return pathname === href || pathname.startsWith(href + '/');
 	}
 
-	// Navigation link groups
-	const workLinks = [
+	// Navigation link groups - consolidated under "Board" (Board of One branding)
+	const boardLinks = [
 		{ href: '/actions', label: 'Actions' },
 		{ href: '/projects', label: 'Projects' },
-	];
-
-	const dataLinks = [
 		{ href: '/datasets', label: 'Datasets' },
+		{ href: '/analysis', label: 'Analysis' },
 		{ href: '/mentor', label: 'Mentor' },
 	];
 
@@ -43,8 +41,7 @@
 
 	// Mobile menu state
 	let mobileMenuOpen = $state(false);
-	let mobileWorkExpanded = $state(false);
-	let mobileDataExpanded = $state(false);
+	let mobileBoardExpanded = $state(false);
 
 	// Workspace modal state
 	let showCreateWorkspaceModal = $state(false);
@@ -56,22 +53,19 @@
 		mobileMenuOpen = !mobileMenuOpen;
 		// Reset expanded groups when closing
 		if (!mobileMenuOpen) {
-			mobileWorkExpanded = false;
-			mobileDataExpanded = false;
+			mobileBoardExpanded = false;
 		}
 	}
 
 	function closeMobileMenu() {
 		mobileMenuOpen = false;
-		mobileWorkExpanded = false;
-		mobileDataExpanded = false;
+		mobileBoardExpanded = false;
 	}
 
 	// Close mobile menu on navigation
 	beforeNavigate(() => {
 		mobileMenuOpen = false;
-		mobileWorkExpanded = false;
-		mobileDataExpanded = false;
+		mobileBoardExpanded = false;
 	});
 
 	// Navigation handlers
@@ -154,8 +148,7 @@
 					>
 						Dashboard
 					</a>
-					<NavDropdown label="Work" links={workLinks} isGroupActive={() => isGroupActive(workLinks)} />
-					<NavDropdown label="Data" links={dataLinks} isGroupActive={() => isGroupActive(dataLinks)} />
+					<NavDropdown label="Board" links={boardLinks} isGroupActive={() => isGroupActive(boardLinks)} />
 					<a
 						href="/settings"
 						class={isActive('/settings')
@@ -203,14 +196,6 @@
 						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
 					>
 						Features
-					</a>
-					<a
-						href="/pricing"
-						class={isActive('/pricing')
-							? 'text-brand-600 dark:text-brand-400 font-medium'
-							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}
-					>
-						Pricing
 					</a>
 				{/if}
 			</div>
@@ -260,60 +245,26 @@
 						Dashboard
 					</a>
 
-					<!-- Work Group (collapsible) -->
+					<!-- Board Group (collapsible) -->
 					<div class="border-t border-neutral-100 dark:border-neutral-800">
 						<button
 							type="button"
-							class="w-full flex items-center justify-between py-3 text-base font-medium {isGroupActive(workLinks)
+							class="w-full flex items-center justify-between py-3 text-base font-medium {isGroupActive(boardLinks)
 								? 'text-brand-600 dark:text-brand-400'
 								: 'text-neutral-700 dark:text-neutral-300'}"
-							onclick={() => (mobileWorkExpanded = !mobileWorkExpanded)}
-							aria-expanded={mobileWorkExpanded}
+							onclick={() => (mobileBoardExpanded = !mobileBoardExpanded)}
+							aria-expanded={mobileBoardExpanded}
 						>
-							Work
-							{#if mobileWorkExpanded}
+							Board
+							{#if mobileBoardExpanded}
 								<ChevronDown class="w-5 h-5" />
 							{:else}
 								<ChevronRight class="w-5 h-5" />
 							{/if}
 						</button>
-						{#if mobileWorkExpanded}
+						{#if mobileBoardExpanded}
 							<div class="pl-4 pb-2 space-y-1">
-								{#each workLinks as link}
-									<a
-										href={link.href}
-										class={isActive(link.href)
-											? 'block py-2 text-sm font-medium text-brand-600 dark:text-brand-400'
-											: 'block py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400'}
-										onclick={closeMobileMenu}
-									>
-										{link.label}
-									</a>
-								{/each}
-							</div>
-						{/if}
-					</div>
-
-					<!-- Data Group (collapsible) -->
-					<div class="border-t border-neutral-100 dark:border-neutral-800">
-						<button
-							type="button"
-							class="w-full flex items-center justify-between py-3 text-base font-medium {isGroupActive(dataLinks)
-								? 'text-brand-600 dark:text-brand-400'
-								: 'text-neutral-700 dark:text-neutral-300'}"
-							onclick={() => (mobileDataExpanded = !mobileDataExpanded)}
-							aria-expanded={mobileDataExpanded}
-						>
-							Data
-							{#if mobileDataExpanded}
-								<ChevronDown class="w-5 h-5" />
-							{:else}
-								<ChevronRight class="w-5 h-5" />
-							{/if}
-						</button>
-						{#if mobileDataExpanded}
-							<div class="pl-4 pb-2 space-y-1">
-								{#each dataLinks as link}
+								{#each boardLinks as link}
 									<a
 										href={link.href}
 										class={isActive(link.href)
@@ -401,15 +352,6 @@
 						onclick={closeMobileMenu}
 					>
 						Features
-					</a>
-					<a
-						href="/pricing"
-						class={isActive('/pricing')
-							? 'block py-3 text-base font-medium text-brand-600 dark:text-brand-400'
-							: 'block py-3 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400'}
-						onclick={closeMobileMenu}
-					>
-						Pricing
 					</a>
 					<div class="pt-3 border-t border-neutral-200 dark:border-neutral-700">
 						<div class="flex flex-col gap-2 pt-2">

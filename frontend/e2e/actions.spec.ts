@@ -371,8 +371,8 @@ test.describe('Actions List Page', () => {
 			await expect(ganttToggle).toBeVisible();
 			await ganttToggle.click();
 
-			// Wait for Gantt container to appear
-			const ganttContainer = page.locator('.gantt-container');
+			// Wait for Gantt container to appear (use .first() as there may be multiple)
+			const ganttContainer = page.locator('.gantt-container').first();
 			await expect(ganttContainer).toBeVisible({ timeout: 10000 });
 
 			// Look for Gantt bar (frappe-gantt uses .bar-wrapper > rect.bar)

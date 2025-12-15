@@ -327,7 +327,12 @@ jobs:
 
       - name: Start frontend dev server
         run: |
-          cd frontend && npm run dev &
+          cd frontend
+          # Write .env file for Vite to pick up
+          echo "PUBLIC_API_URL=http://localhost:8000" > .env
+          echo "PUBLIC_E2E_MODE=true" >> .env
+          cat .env
+          npm run dev &
           # Wait for frontend to be ready
           for i in {1..30}; do
             if curl -s http://localhost:5173 > /dev/null 2>&1; then
@@ -336,9 +341,7 @@ jobs:
             fi
             sleep 1
           done
-        env:
-          PUBLIC_API_URL: http://localhost:8000
-          PUBLIC_E2E_MODE: "true"
+          echo "Frontend startup complete"
 
       - name: Run Playwright tests
         id: e2e

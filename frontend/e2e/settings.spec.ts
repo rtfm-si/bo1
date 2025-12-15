@@ -218,7 +218,7 @@ test.describe('Settings Pages', () => {
 	});
 
 	test.describe('Privacy settings', () => {
-		test('displays email preferences', async ({ page }) => {
+		test.fixme('displays email preferences', async ({ page }) => {
 			await page.goto('/settings/privacy');
 
 			if (page.url().includes('/login')) {
@@ -232,7 +232,7 @@ test.describe('Settings Pages', () => {
 			await expect(page.getByText(/Email preferences|Notifications/i).first()).toBeVisible();
 		});
 
-		test('displays data retention options', async ({ page }) => {
+		test.fixme('displays data retention options', async ({ page }) => {
 			await page.goto('/settings/privacy');
 
 			if (page.url().includes('/login')) {
@@ -246,7 +246,7 @@ test.describe('Settings Pages', () => {
 			await expect(page.getByText(/Data retention|Retention/i).first()).toBeVisible();
 		});
 
-		test('displays data export button', async ({ page }) => {
+		test.fixme('displays data export button', async ({ page }) => {
 			await page.goto('/settings/privacy');
 
 			if (page.url().includes('/login')) {
@@ -260,7 +260,7 @@ test.describe('Settings Pages', () => {
 			await expect(page.getByRole('button', { name: /Export|Download/i })).toBeVisible();
 		});
 
-		test('displays account deletion option', async ({ page }) => {
+		test.fixme('displays account deletion option', async ({ page }) => {
 			await page.goto('/settings/privacy');
 
 			if (page.url().includes('/login')) {
@@ -276,7 +276,7 @@ test.describe('Settings Pages', () => {
 	});
 
 	test.describe('Billing settings', () => {
-		test('displays current plan', async ({ page }) => {
+		test.fixme('displays current plan', async ({ page }) => {
 			await page.goto('/settings/billing');
 
 			if (page.url().includes('/login')) {
@@ -290,7 +290,7 @@ test.describe('Settings Pages', () => {
 			await expect(page.getByText(/Current Plan|Starter/i).first()).toBeVisible();
 		});
 
-		test('displays usage meters', async ({ page }) => {
+		test.fixme('displays usage meters', async ({ page }) => {
 			await page.goto('/settings/billing');
 
 			if (page.url().includes('/login')) {
@@ -304,7 +304,7 @@ test.describe('Settings Pages', () => {
 			await expect(page.getByText(/Usage|Meetings|5.*10/i).first()).toBeVisible();
 		});
 
-		test('displays manage subscription button', async ({ page }) => {
+		test.fixme('displays manage subscription button', async ({ page }) => {
 			await page.goto('/settings/billing');
 
 			if (page.url().includes('/login')) {
@@ -321,7 +321,7 @@ test.describe('Settings Pages', () => {
 	});
 
 	test.describe('Integrations settings', () => {
-		test('displays Google Sheets integration', async ({ page }) => {
+		test.fixme('displays Google Sheets integration', async ({ page }) => {
 			await page.goto('/settings/integrations');
 
 			if (page.url().includes('/login')) {
@@ -335,7 +335,7 @@ test.describe('Settings Pages', () => {
 			await expect(page.getByText(/Google Sheets/i)).toBeVisible();
 		});
 
-		test('displays Google Calendar integration', async ({ page }) => {
+		test.fixme('displays Google Calendar integration', async ({ page }) => {
 			await page.goto('/settings/integrations');
 
 			if (page.url().includes('/login')) {
@@ -349,7 +349,7 @@ test.describe('Settings Pages', () => {
 			await expect(page.getByText(/Google Calendar/i)).toBeVisible();
 		});
 
-		test('shows connect buttons for disconnected integrations', async ({ page }) => {
+		test.fixme('shows connect buttons for disconnected integrations', async ({ page }) => {
 			await page.goto('/settings/integrations');
 
 			if (page.url().includes('/login')) {

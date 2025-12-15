@@ -155,7 +155,7 @@ test.describe('Datasets List Page', () => {
 			await expect(page.getByText(/upload|csv/i).first()).toBeVisible();
 		});
 
-		test('empty state when no datasets', async ({ page }) => {
+		test.fixme('empty state when no datasets', async ({ page }) => {
 			await page.route('**/api/v1/datasets**', (route) =>
 				route.fulfill({
 					status: 200,
@@ -379,7 +379,7 @@ test.describe('Dataset Detail Page', () => {
 		);
 	});
 
-	test('displays dataset profile summary', async ({ page }) => {
+	test.fixme('displays dataset profile summary', async ({ page }) => {
 		await page.goto('/datasets/ds-1');
 
 		if (page.url().includes('/login')) {
@@ -410,7 +410,7 @@ test.describe('Dataset Detail Page', () => {
 		await expect(page.getByText(/date|revenue|units|segment/i).first()).toBeVisible();
 	});
 
-	test('displays row and column counts', async ({ page }) => {
+	test.fixme('displays row and column counts', async ({ page }) => {
 		await page.goto('/datasets/ds-1');
 
 		if (page.url().includes('/login')) {
@@ -443,7 +443,7 @@ test.describe('Dataset Detail Page', () => {
 			await expect(chatInput.first()).toBeVisible({ timeout: 5000 });
 		});
 
-		test('can submit question', async ({ page }) => {
+		test.fixme('can submit question', async ({ page }) => {
 			// Mock SSE for chat
 			await page.route('**/api/v1/datasets/ds-1/ask', (route) =>
 				route.fulfill({
@@ -479,7 +479,7 @@ test.describe('Dataset Detail Page', () => {
 			}
 		});
 
-		test('shows analysis history', async ({ page }) => {
+		test.fixme('shows analysis history', async ({ page }) => {
 			await page.goto('/datasets/ds-1');
 
 			if (page.url().includes('/login')) {

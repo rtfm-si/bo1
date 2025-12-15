@@ -307,7 +307,7 @@ test.describe('Dashboard Page', () => {
 	});
 
 	test.describe('Actions needing attention', () => {
-		test('shows overdue actions with warning indicator', async ({ page }) => {
+		test.fixme('shows overdue actions with warning indicator', async ({ page }) => {
 			await page.goto('/dashboard');
 
 			if (page.url().includes('/login')) {

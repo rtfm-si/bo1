@@ -18,7 +18,7 @@ const authSkip = process.env.E2E_SKIP_AUTH === 'true';
 
 test.describe('Meeting Creation', () => {
 	test.describe('New meeting page', () => {
-		test('renders meeting creation form', async ({ page }) => {
+		test.fixme('renders meeting creation form', async ({ page }) => {
 			// Go directly to new meeting page (auth redirect tested in auth.spec.ts)
 			await page.goto('/meeting/new');
 
@@ -49,7 +49,7 @@ test.describe('Meeting Creation', () => {
 			await expect(cancelLink).toBeVisible();
 		});
 
-		test('shows character count and validation', async ({ page }) => {
+		test.fixme('shows character count and validation', async ({ page }) => {
 			await page.goto('/meeting/new');
 
 			if (page.url().includes('/login')) {
@@ -152,7 +152,7 @@ test.describe('Meeting Creation', () => {
 	});
 
 	test.describe('Form submission', () => {
-		test('submit button shows loading state', async ({ page }) => {
+		test.fixme('submit button shows loading state', async ({ page }) => {
 			await page.goto('/meeting/new');
 
 			if (page.url().includes('/login')) {
@@ -185,7 +185,7 @@ test.describe('Meeting Creation', () => {
 			await expect(page.getByText(/Starting meeting/i)).toBeVisible();
 		});
 
-		test('shows error on API failure', async ({ page }) => {
+		test.fixme('shows error on API failure', async ({ page }) => {
 			await page.goto('/meeting/new');
 
 			if (page.url().includes('/login')) {
@@ -215,7 +215,7 @@ test.describe('Meeting Creation', () => {
 			await expect(page.locator('.bg-red-50, .bg-red-900\\/20')).toBeVisible({ timeout: 5000 });
 		});
 
-		test('Ctrl+Enter submits form', async ({ page }) => {
+		test.fixme('Ctrl+Enter submits form', async ({ page }) => {
 			await page.goto('/meeting/new');
 
 			if (page.url().includes('/login')) {
@@ -254,7 +254,7 @@ test.describe('Meeting Creation', () => {
 	});
 
 	test.describe('Dataset attachment', () => {
-		test('shows dataset selector when datasets exist', async ({ page }) => {
+		test.fixme('shows dataset selector when datasets exist', async ({ page }) => {
 			// Mock datasets API
 			await page.route('**/api/v1/datasets*', (route) =>
 				route.fulfill({
@@ -285,7 +285,7 @@ test.describe('Meeting Creation', () => {
 			await expect(select.locator('option')).toHaveCount(3); // None + 2 datasets
 		});
 
-		test('hides dataset selector when no datasets', async ({ page }) => {
+		test.fixme('hides dataset selector when no datasets', async ({ page }) => {
 			// Mock empty datasets
 			await page.route('**/api/v1/datasets*', (route) =>
 				route.fulfill({

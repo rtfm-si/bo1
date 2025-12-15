@@ -71,6 +71,9 @@ async def test_critical_event_immediate_flush(batcher):
 @pytest.mark.asyncio
 async def test_buffer_full_triggers_flush(batcher):
     """Test that buffer full (100 events) triggers flush."""
+    # Disable window timer to test buffer-full trigger in isolation
+    batcher.BUFFER_WINDOW_MS = 60000  # 60s - won't expire during test
+
     with patch("backend.services.event_batcher.session_repository") as mock_repo:
         mock_repo.save_events_batch = MagicMock(return_value=100)
 

@@ -331,8 +331,9 @@ jobs:
           # Pass env vars directly to process (no .env race condition)
           PUBLIC_API_URL=http://localhost:8000 PUBLIC_E2E_MODE=true npm run dev &
           # Wait for frontend to be ready AND verify E2E mode is active
+          # Note: Uses /_e2e/health (not /api/) to avoid Vite's /api proxy
           for i in {1..30}; do
-            if curl -s http://localhost:5173/api/e2e-health 2>/dev/null | grep -q '"e2e_mode":true'; then
+            if curl -s http://localhost:5173/_e2e/health 2>/dev/null | grep -q '"e2e_mode":true'; then
               echo "Frontend ready with E2E mode after ${i}s"
               break
             elif curl -s http://localhost:5173 > /dev/null 2>&1; then
@@ -341,7 +342,7 @@ jobs:
             sleep 1
           done
           # Final verification
-          curl -s http://localhost:5173/api/e2e-health || echo "Warning: E2E health endpoint not available"
+          curl -s http://localhost:5173/_e2e/health || echo "Warning: E2E health endpoint not available"
           echo "Frontend startup complete"
 
       - name: Run Playwright tests

@@ -13,8 +13,8 @@ async function globalSetup() {
 	const context = await request.newContext({ baseURL });
 
 	try {
-		// Check E2E health endpoint
-		const response = await context.get('/api/e2e-health');
+		// Check E2E health endpoint (uses /_e2e path to avoid Vite /api proxy)
+		const response = await context.get('/_e2e/health');
 
 		if (!response.ok()) {
 			throw new Error(

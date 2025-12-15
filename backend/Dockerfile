@@ -77,6 +77,9 @@ COPY scripts/ /app/scripts/
 COPY alembic.ini /app/alembic.ini
 COPY migrations/ /app/migrations/
 
+# Fix ownership for non-root user
+RUN chown -R appuser:appuser /app
+
 # Expose port
 EXPOSE 8000
 

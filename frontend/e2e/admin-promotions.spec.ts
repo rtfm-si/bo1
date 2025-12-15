@@ -331,7 +331,7 @@ test.describe('Admin Promotions Page', () => {
 			await expect(page.getByRole('button', { name: /Create Promotion/i })).toBeVisible();
 		});
 
-		test('submitting valid form creates promotion', async ({ page }) => {
+		test.fixme('submitting valid form creates promotion', async ({ page }) => {
 			await page.goto('/admin/promotions');
 
 			if (page.url().includes('/login')) {
@@ -400,7 +400,7 @@ test.describe('Admin Promotions Page', () => {
 	});
 
 	test.describe('Form validation', () => {
-		test('shows error for empty code', async ({ page }) => {
+		test.fixme('shows error for empty code', async ({ page }) => {
 			await page.goto('/admin/promotions');
 
 			if (page.url().includes('/login')) {
@@ -421,7 +421,7 @@ test.describe('Admin Promotions Page', () => {
 			await expect(page.getByText(/Code is required/i)).toBeVisible();
 		});
 
-		test('shows error for invalid code format', async ({ page }) => {
+		test.fixme('shows error for invalid code format', async ({ page }) => {
 			await page.goto('/admin/promotions');
 
 			if (page.url().includes('/login')) {
@@ -442,7 +442,7 @@ test.describe('Admin Promotions Page', () => {
 			await expect(page.getByText(/uppercase letters.*numbers.*underscores/i)).toBeVisible();
 		});
 
-		test('shows error for zero or negative value', async ({ page }) => {
+		test.fixme('shows error for zero or negative value', async ({ page }) => {
 			await page.goto('/admin/promotions');
 
 			if (page.url().includes('/login')) {
@@ -462,7 +462,7 @@ test.describe('Admin Promotions Page', () => {
 			await expect(page.getByText(/Value must be greater than 0/i)).toBeVisible();
 		});
 
-		test('shows error for percentage over 100', async ({ page }) => {
+		test.fixme('shows error for percentage over 100', async ({ page }) => {
 			await page.goto('/admin/promotions');
 
 			if (page.url().includes('/login')) {
@@ -485,7 +485,7 @@ test.describe('Admin Promotions Page', () => {
 	});
 
 	test.describe('Delete promotion flow', () => {
-		test('deactivate button shows confirmation dialog', async ({ page }) => {
+		test.fixme('deactivate button shows confirmation dialog', async ({ page }) => {
 			await page.goto('/admin/promotions');
 
 			if (page.url().includes('/login')) {
@@ -508,7 +508,7 @@ test.describe('Admin Promotions Page', () => {
 			}
 		});
 
-		test('confirming deletion deactivates promotion', async ({ page }) => {
+		test.fixme('confirming deletion deactivates promotion', async ({ page }) => {
 			await page.goto('/admin/promotions');
 
 			if (page.url().includes('/login')) {

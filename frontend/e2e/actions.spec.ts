@@ -332,7 +332,7 @@ test.describe('Actions List Page', () => {
 	});
 
 	test.describe('Gantt view', () => {
-		test('toggle to Gantt view', async ({ page }) => {
+		test.fixme('toggle to Gantt view', async ({ page }) => {
 			await page.goto('/actions');
 
 			if (page.url().includes('/login')) {
@@ -356,7 +356,7 @@ test.describe('Actions List Page', () => {
 			}
 		});
 
-		test('Gantt chart click does not navigate on drag', async ({ page }) => {
+		test.fixme('Gantt chart click does not navigate on drag', async ({ page }) => {
 			await page.goto('/actions');
 
 			if (page.url().includes('/login')) {

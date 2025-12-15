@@ -7,5 +7,3 @@ task
 todo
 
 update to sico software ltd as 'company'
-
-how to chec if fixme items pass ci after fixes?

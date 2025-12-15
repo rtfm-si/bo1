@@ -213,8 +213,8 @@ test.describe('Meeting Creation', () => {
 
 			await submitButton.click();
 
-			// Check error container is visible (has bg-red-50 class)
-			await expect(page.locator('.bg-red-50')).toBeVisible({ timeout: 5000 });
+			// API errors show toast notification, not inline error
+			await expect(page.locator('[role="alert"], .toast, [data-sonner-toast]').first()).toBeVisible({ timeout: 5000 });
 		});
 
 		test('Ctrl+Enter submits form', async ({ page }) => {

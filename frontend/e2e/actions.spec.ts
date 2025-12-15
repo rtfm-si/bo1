@@ -196,9 +196,9 @@ test.describe('Actions List Page', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for overdue indicator (red text/badge)
-			const overdueIndicator = page.locator('.text-red-500, .text-red-600, .bg-red-100');
-			await expect(overdueIndicator.first()).toBeVisible({ timeout: 5000 });
+			// Check for overdue indicator (uses error color classes, not red)
+			const overdueIndicator = page.locator('.bg-error-100, .text-error-700, [class*="error"]').first();
+			await expect(overdueIndicator).toBeVisible({ timeout: 5000 });
 		});
 	});
 
@@ -234,10 +234,10 @@ test.describe('Actions List Page', () => {
 			await expect(page.getByText('Conduct market research')).toBeVisible();
 			await expect(page.getByText('Review competitor analysis')).toBeVisible();
 
-			// Find and click status filter
-			const statusSelect = page.locator('select').filter({ hasText: /all|status/i }).first();
+			// Find and click status filter (value is 'done' not 'completed')
+			const statusSelect = page.locator('#status-filter');
 			if (await statusSelect.isVisible()) {
-				await statusSelect.selectOption('completed');
+				await statusSelect.selectOption('done');
 
 				// Wait for filtered results
 				await page.waitForTimeout(500);
@@ -322,8 +322,8 @@ test.describe('Actions List Page', () => {
 			if (await firstCheckbox.isVisible()) {
 				await firstCheckbox.click();
 
-				// Look for bulk complete button
-				const completeBtn = page.getByRole('button', { name: /Mark Complete|Complete/i });
+				// Look for bulk complete button (use first() to avoid strict mode with multiple Complete buttons)
+				const completeBtn = page.getByRole('button', { name: /Mark Complete|Complete/i }).first();
 				if (await completeBtn.isVisible()) {
 					await expect(completeBtn).toBeEnabled();
 				}
@@ -350,8 +350,8 @@ test.describe('Actions List Page', () => {
 				// Wait for Gantt chart to render
 				await page.waitForTimeout(500);
 
-				// Check for Gantt chart container
-				const ganttChart = page.locator('.gantt, [data-testid="gantt-chart"], svg.gantt');
+				// Check for Gantt chart container (actual class is .gantt-chart)
+				const ganttChart = page.locator('.gantt-chart, .gantt-container');
 				await expect(ganttChart.first()).toBeVisible({ timeout: 5000 });
 			}
 		});

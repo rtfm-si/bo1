@@ -138,10 +138,10 @@ test.describe('Admin Promotions Page', () => {
 			// Check Add Promotion button exists
 			await expect(page.getByRole('button', { name: /Add Promotion/i })).toBeVisible();
 
-			// Check promotions are displayed
-			await expect(page.getByText('WELCOME10')).toBeVisible();
-			await expect(page.getByText('SUMMER50')).toBeVisible();
-			await expect(page.getByText('UNLIMITED')).toBeVisible();
+			// Check promotions are displayed (use code element to avoid matching "/ Unlimited" usage text)
+			await expect(page.locator('code').filter({ hasText: 'WELCOME10' })).toBeVisible();
+			await expect(page.locator('code').filter({ hasText: 'SUMMER50' })).toBeVisible();
+			await expect(page.locator('code').filter({ hasText: 'UNLIMITED' })).toBeVisible();
 		});
 
 		test('displays promotion card with code, type, and status', async ({ page }) => {
@@ -233,8 +233,8 @@ test.describe('Admin Promotions Page', () => {
 			await page.waitForTimeout(300);
 
 			// WELCOME10 and UNLIMITED should be visible (active, not expired)
-			await expect(page.getByText('WELCOME10')).toBeVisible();
-			await expect(page.getByText('UNLIMITED')).toBeVisible();
+			await expect(page.locator('code').filter({ hasText: 'WELCOME10' })).toBeVisible();
+			await expect(page.locator('code').filter({ hasText: 'UNLIMITED' })).toBeVisible();
 
 			// INACTIVE_CODE should NOT be visible
 			await expect(page.getByText('INACTIVE_CODE')).not.toBeVisible();
@@ -284,7 +284,7 @@ test.describe('Admin Promotions Page', () => {
 			await expect(page.getByText('WELCOME10')).toBeVisible();
 			await expect(page.getByText('SUMMER50')).toBeVisible();
 			await expect(page.getByText('INACTIVE_CODE')).toBeVisible();
-			await expect(page.getByText('UNLIMITED')).toBeVisible();
+			await expect(page.locator('code').filter({ hasText: 'UNLIMITED' })).toBeVisible();
 		});
 	});
 

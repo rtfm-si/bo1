@@ -7,7 +7,7 @@ Similar to ConversationRepository but for mentor (not dataset-scoped).
 import json
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from bo1.state.redis_manager import RedisManager
@@ -274,6 +274,64 @@ class MentorConversationRepository:
 
         logger.info(f"Deleted {deleted} mentor conversations for user {user_id}")
         return deleted
+
+    def get_all_user_messages(
+        self,
+        user_id: str,
+        days: int = 30,
+        role: str = "user",
+    ) -> list[dict[str, Any]]:
+        """Get all messages from a user within time window.
+
+        Retrieves user messages from all conversations for topic detection.
+        Filters by timestamp if available, otherwise returns all messages.
+
+        Args:
+            user_id: User UUID
+            days: Number of days to look back (7-90)
+            role: Message role to filter ("user" or "assistant")
+
+        Returns:
+            List of message dicts with content, timestamp, conversation_id
+        """
+        index_key = self._index_key(user_id)
+
+        # Get all conversation IDs (no limit)
+        conv_ids = self._redis.client.zrange(index_key, 0, -1)
+
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+        messages: list[dict[str, Any]] = []
+
+        for conv_id in conv_ids:
+            conv_id_str = conv_id.decode("utf-8") if isinstance(conv_id, bytes) else conv_id
+            conv = self.get(conv_id_str, user_id)
+            if not conv:
+                continue
+
+            for msg in conv.get("messages", []):
+                if msg.get("role") != role:
+                    continue
+
+                # Filter by timestamp if available
+                timestamp_str = msg.get("timestamp", "")
+                if timestamp_str:
+                    try:
+                        timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                        if timestamp < cutoff:
+                            continue
+                    except ValueError:
+                        pass  # Include message if timestamp parsing fails
+
+                messages.append(
+                    {
+                        "content": msg.get("content", ""),
+                        "timestamp": timestamp_str,
+                        "conversation_id": conv_id_str,
+                        "persona": msg.get("persona"),
+                    }
+                )
+
+        return messages
 
 
 # Singleton instance

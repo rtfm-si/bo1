@@ -77,12 +77,14 @@ const mockAnalyses = {
 	analyses: [
 		{
 			id: 'analysis-1',
-			query: 'What are the top selling products?',
-			result: 'Top products by revenue are: Product A ($500K), Product B ($350K)',
+			dataset_id: 'ds-1',
+			title: 'Top selling products',
+			chart_spec: { chart_type: 'bar', x_field: 'product', y_field: 'revenue' },
 			chart_url: null,
 			created_at: new Date().toISOString()
 		}
-	]
+	],
+	total: 1
 };
 
 test.describe('Datasets List Page', () => {
@@ -155,7 +157,9 @@ test.describe('Datasets List Page', () => {
 			await expect(page.getByText(/upload|csv/i).first()).toBeVisible();
 		});
 
-		test.fixme('empty state when no datasets', async ({ page }) => {
+		test('empty state when no datasets', async ({ page }) => {
+			// Override mock to return empty datasets - must be set before navigation
+			await page.unroute('**/api/v1/datasets**');
 			await page.route('**/api/v1/datasets**', (route) =>
 				route.fulfill({
 					status: 200,
@@ -173,8 +177,8 @@ test.describe('Datasets List Page', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check empty state message
-			await expect(page.getByText(/No datasets|Upload|Get started/i)).toBeVisible();
+			// Check empty state message - exact text from UI
+			await expect(page.getByText('No datasets yet')).toBeVisible();
 		});
 	});
 
@@ -379,7 +383,7 @@ test.describe('Dataset Detail Page', () => {
 		);
 	});
 
-	test.fixme('displays dataset profile summary', async ({ page }) => {
+	test('displays dataset profile summary', async ({ page }) => {
 		await page.goto('/datasets/ds-1');
 
 		if (page.url().includes('/login')) {
@@ -389,11 +393,14 @@ test.describe('Dataset Detail Page', () => {
 
 		await page.waitForLoadState('networkidle');
 
-		// Check dataset name displayed
-		await expect(page.getByText('sales_2024.csv')).toBeVisible();
+		// Check dataset name displayed in heading (not breadcrumb)
+		await expect(page.getByRole('heading', { name: 'sales_2024.csv' })).toBeVisible();
 
-		// Check summary displayed
-		await expect(page.getByText(/sales data for 2024/i)).toBeVisible();
+		// Check AI Summary section header
+		await expect(page.getByText('AI Summary')).toBeVisible();
+
+		// Check summary content - the mock has "This dataset contains sales data for 2024..."
+		await expect(page.getByText(/contains sales data for 2024/i)).toBeVisible();
 	});
 
 	test('displays column statistics', async ({ page }) => {
@@ -410,7 +417,7 @@ test.describe('Dataset Detail Page', () => {
 		await expect(page.getByText(/date|revenue|units|segment/i).first()).toBeVisible();
 	});
 
-	test.fixme('displays row and column counts', async ({ page }) => {
+	test('displays row and column counts', async ({ page }) => {
 		await page.goto('/datasets/ds-1');
 
 		if (page.url().includes('/login')) {
@@ -420,9 +427,13 @@ test.describe('Dataset Detail Page', () => {
 
 		await page.waitForLoadState('networkidle');
 
-		// Check counts
-		await expect(page.getByText(/1,500|1500/)).toBeVisible();
-		await expect(page.getByText(/12 columns|12 cols/i)).toBeVisible();
+		// Check rows stat - label and value in stats grid
+		const rowsStat = page.locator('.bg-neutral-50, .dark\\:bg-neutral-700\\/50').filter({ hasText: 'Rows' });
+		await expect(rowsStat.getByText('1,500')).toBeVisible();
+
+		// Check columns stat - label and value in stats grid
+		const columnsStat = page.locator('.bg-neutral-50, .dark\\:bg-neutral-700\\/50').filter({ hasText: 'Columns' });
+		await expect(columnsStat.getByText('12')).toBeVisible();
 	});
 
 	test.describe('Chat interface', () => {
@@ -443,13 +454,13 @@ test.describe('Dataset Detail Page', () => {
 			await expect(chatInput.first()).toBeVisible({ timeout: 5000 });
 		});
 
-		test.fixme('can submit question', async ({ page }) => {
-			// Mock SSE for chat
+		test('can submit question', async ({ page }) => {
+			// Mock SSE for chat - proper SSE format with event name
 			await page.route('**/api/v1/datasets/ds-1/ask', (route) =>
 				route.fulfill({
 					status: 200,
 					contentType: 'text/event-stream',
-					body: 'data: {"type":"response","content":"The top products are..."}\n\n'
+					body: 'event: analysis\ndata: {"content":"The top products are Product A and Product B"}\n\nevent: done\ndata: {"conversation_id":"conv-1"}\n\n'
 				})
 			);
 
@@ -462,24 +473,21 @@ test.describe('Dataset Detail Page', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Find and fill chat input
-			const chatInput = page.locator(
-				'input[placeholder*="Ask"], textarea[placeholder*="Ask"], input[placeholder*="question"]'
-			);
-			if (await chatInput.first().isVisible()) {
-				await chatInput.first().fill('What are the top selling products?');
+			// Find and fill chat input - exact placeholder from DatasetChat.svelte
+			const chatInput = page.getByPlaceholder('Ask a question about your data...');
+			await expect(chatInput).toBeVisible();
+			await chatInput.fill('What are the top selling products?');
 
-				// Submit
-				await page.keyboard.press('Enter');
+			// Submit via Enter
+			await page.keyboard.press('Enter');
 
-				// Should show response or loading
-				await expect(page.getByText(/top products|loading|processing/i).first()).toBeVisible({
-					timeout: 5000
-				});
-			}
+			// Response from SSE mock should appear (component shows assistant response)
+			await expect(page.getByText('The top products are Product A and Product B')).toBeVisible({
+				timeout: 5000
+			});
 		});
 
-		test.fixme('shows analysis history', async ({ page }) => {
+		test('shows analysis history', async ({ page }) => {
 			await page.goto('/datasets/ds-1');
 
 			if (page.url().includes('/login')) {
@@ -489,8 +497,13 @@ test.describe('Dataset Detail Page', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for history section
-			await expect(page.getByText(/top selling products/i)).toBeVisible({ timeout: 5000 });
+			// Check for Analysis History section header
+			await expect(page.getByText('Analysis History')).toBeVisible();
+
+			// Analysis gallery should display the mock analysis title on hover
+			// The title is shown in the hover overlay - we can check for the button existence
+			const analysisButton = page.locator('button[type="button"]').filter({ hasText: /Top selling products|Analysis/i });
+			await expect(analysisButton.first()).toBeVisible({ timeout: 5000 });
 		});
 	});
 

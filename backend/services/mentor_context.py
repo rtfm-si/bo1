@@ -20,6 +20,20 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class FailurePatternContext:
+    """Container for failure pattern data."""
+
+    failure_rate: float = 0.0
+    patterns: list[dict[str, Any]] | None = None
+    by_project: dict[str, int] | None = None
+    by_category: dict[str, int] | None = None
+
+    def should_inject(self) -> bool:
+        """Return True if failure rate warrants context injection."""
+        return self.failure_rate >= 0.3 and bool(self.patterns)
+
+
+@dataclass
 class MentorContext:
     """Container for all mentor context data."""
 
@@ -27,6 +41,7 @@ class MentorContext:
     recent_meetings: list[dict[str, Any]] | None = None
     active_actions: list[dict[str, Any]] | None = None
     datasets: list[dict[str, Any]] | None = None
+    failure_patterns: FailurePatternContext | None = None
 
     def sources_used(self) -> list[str]:
         """Return list of context sources that have data."""
@@ -39,6 +54,8 @@ class MentorContext:
             sources.append("active_actions")
         if self.datasets:
             sources.append("datasets")
+        if self.failure_patterns and self.failure_patterns.should_inject():
+            sources.append("failure_patterns")
         return sources
 
 
@@ -147,6 +164,49 @@ class MentorContextService:
             logger.warning(f"Failed to get datasets for {user_id}: {e}")
             return []
 
+    def get_failure_patterns(self, user_id: str, days: int = 30) -> FailurePatternContext:
+        """Get action failure patterns for proactive mentoring.
+
+        Args:
+            user_id: User identifier
+            days: Days to look back
+
+        Returns:
+            FailurePatternContext with patterns and statistics
+        """
+        try:
+            from backend.services.action_failure_detector import get_action_failure_detector
+
+            detector = get_action_failure_detector()
+            summary = detector.detect_failure_patterns(
+                user_id=user_id,
+                days=days,
+                min_failures=3,
+            )
+
+            # Convert patterns to dicts for serialization
+            patterns_dicts = [
+                {
+                    "action_id": p.action_id,
+                    "title": p.title,
+                    "project_name": p.project_name,
+                    "status": p.status,
+                    "failure_reason": p.failure_reason,
+                    "failure_category": p.failure_category,
+                }
+                for p in summary.patterns
+            ]
+
+            return FailurePatternContext(
+                failure_rate=summary.failure_rate,
+                patterns=patterns_dicts,
+                by_project=summary.by_project,
+                by_category=summary.by_category,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to get failure patterns for {user_id}: {e}")
+            return FailurePatternContext()
+
     def gather_context(self, user_id: str) -> MentorContext:
         """Gather all context for mentor chat.
 
@@ -161,6 +221,7 @@ class MentorContextService:
             recent_meetings=self.get_recent_meetings(user_id),
             active_actions=self.get_active_actions(user_id),
             datasets=self.get_dataset_summaries(user_id),
+            failure_patterns=self.get_failure_patterns(user_id),
         )
 
 

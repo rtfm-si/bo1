@@ -136,7 +136,9 @@ import type {
 	// Cost Calculator types
 	CostCalculatorDefaults,
 	// Value Metrics types
-	ValueMetricsResponse
+	ValueMetricsResponse,
+	// Extended KPIs types (Admin)
+	ExtendedKPIsResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -149,15 +151,12 @@ export type { ClarificationInsight, IndustryInsight, IndustryInsightsResponse };
 export type OnboardingStep = 'business_context' | 'first_meeting' | 'expert_panel' | 'results';
 
 export interface OnboardingStatus {
-	is_new_user: boolean;
-	onboarding_completed: boolean;
-	completed_steps: OnboardingStep[];
-	current_step: OnboardingStep | null;
-	tours_completed: string[];
-	skipped: boolean;
-	skipped_at: string | null;
-	started_at: string | null;
-	completed_at: string | null;
+	tour_completed: boolean;
+	tour_completed_at: string | null;
+	steps_completed: OnboardingStep[];
+	context_setup: boolean;
+	first_meeting_id: string | null;
+	needs_onboarding: boolean;
 }
 
 export interface DemoQuestion {
@@ -184,11 +183,24 @@ export interface EnrichmentResponse {
 	error?: string;
 }
 
+export interface StaleFieldSummary {
+	field_name: string;
+	display_name: string;
+	volatility: 'volatile' | 'moderate' | 'stable';
+	days_since_update: number;
+	action_affected: boolean;
+}
+
 export interface RefreshCheckResponse {
 	needs_refresh: boolean;
 	last_updated: string | null;
 	days_since_update: number | null;
-	missing_fields: string[];
+	stale_metrics: StaleFieldSummary[];
+	highest_urgency: 'action_affected' | 'volatile' | 'moderate' | 'stable' | null;
+}
+
+export interface DismissRefreshRequest {
+	volatility?: 'volatile' | 'moderate' | 'stable' | 'action_affected';
 }
 
 // ============================================================================
@@ -989,6 +1001,14 @@ export class ApiClient {
 	}
 
 	// ==========================================================================
+	// Admin Endpoints - Extended KPIs
+	// ==========================================================================
+
+	async getExtendedKPIs(): Promise<ExtendedKPIsResponse> {
+		return this.fetch<ExtendedKPIsResponse>('/api/admin/extended-kpis');
+	}
+
+	// ==========================================================================
 	// Onboarding Endpoints
 	// ==========================================================================
 
@@ -1000,12 +1020,17 @@ export class ApiClient {
 		return this.post<{ status: string; step: string }>('/api/v1/onboarding/step', { step });
 	}
 
-	async completeTour(tourName: string): Promise<{ status: string; tour: string }> {
-		return this.post<{ status: string; tour: string }>('/api/v1/onboarding/tour/complete', { tour_name: tourName });
+	async completeTour(firstMeetingId?: string): Promise<OnboardingStatus> {
+		const body = firstMeetingId ? { first_meeting_id: firstMeetingId } : {};
+		return this.post<OnboardingStatus>('/api/v1/onboarding/tour/complete', body);
 	}
 
-	async skipOnboarding(): Promise<{ status: string }> {
-		return this.post<{ status: string }>('/api/v1/onboarding/skip');
+	async skipOnboarding(): Promise<OnboardingStatus> {
+		return this.post<OnboardingStatus>('/api/v1/onboarding/skip');
+	}
+
+	async resetOnboarding(): Promise<OnboardingStatus> {
+		return this.post<OnboardingStatus>('/api/v1/onboarding/reset');
 	}
 
 	// ==========================================================================
@@ -1020,8 +1045,13 @@ export class ApiClient {
 		return this.fetch<RefreshCheckResponse>('/api/v1/context/refresh-check');
 	}
 
-	async dismissRefresh(): Promise<{ status: string }> {
-		return this.post<{ status: string }>('/api/v1/context/dismiss-refresh');
+	async dismissRefresh(
+		volatility?: 'volatile' | 'moderate' | 'stable' | 'action_affected'
+	): Promise<{ status: string; dismissed_until: string }> {
+		return this.post<{ status: string; dismissed_until: string }>(
+			'/api/v1/context/dismiss-refresh',
+			volatility ? { volatility } : undefined
+		);
 	}
 
 	// ==========================================================================

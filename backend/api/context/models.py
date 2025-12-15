@@ -286,12 +286,37 @@ class ClarificationRequest(BaseModel):
     )
 
 
+class StaleFieldSummary(BaseModel):
+    """Summary of a stale field for refresh banner."""
+
+    field_name: str = Field(..., description="Context field name (e.g., 'revenue')")
+    display_name: str = Field(..., description="Human-readable display name")
+    volatility: str = Field(..., description="Volatility level: volatile, moderate, stable")
+    days_since_update: int = Field(..., description="Days since last update")
+    action_affected: bool = Field(False, description="Whether related to recent action")
+
+
 class RefreshCheckResponse(BaseModel):
     """Response for refresh check endpoint."""
 
     needs_refresh: bool = Field(..., description="Whether context needs refreshing")
     last_updated: datetime | None = Field(None, description="When context was last updated")
     days_since_update: int | None = Field(None, description="Days since last update")
+    stale_metrics: list[StaleFieldSummary] = Field(
+        default_factory=list, description="Stale fields with volatility info"
+    )
+    highest_urgency: str | None = Field(
+        None, description="Highest urgency level: action_affected, volatile, moderate, stable"
+    )
+
+
+class DismissRefreshRequest(BaseModel):
+    """Request to dismiss refresh prompt with volatility context."""
+
+    volatility: str = Field(
+        default="moderate",
+        description="Volatility level to set dismiss expiry: volatile=7d, moderate=30d, stable=90d",
+    )
 
 
 # =============================================================================

@@ -1,10 +1,12 @@
 <script lang="ts">
 	/**
 	 * BlogEditorModal - Create and edit blog posts with markdown preview
+	 * XSS protection via DOMPurify sanitization for preview content
 	 */
 	import { Button, Alert } from '$lib/components/ui';
 	import { X, Eye, Edit, Calendar } from 'lucide-svelte';
 	import { adminApi, type BlogPost, type BlogPostCreate, type BlogPostUpdate } from '$lib/api/admin';
+	import DOMPurify from 'isomorphic-dompurify';
 
 	interface Props {
 		post: BlogPost | null;
@@ -100,9 +102,9 @@
 		}
 	}
 
-	// Simple markdown to HTML (basic support)
+	// Simple markdown to HTML (basic support) - sanitized via DOMPurify
 	function renderMarkdown(md: string): string {
-		return md
+		const html = md
 			.replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>')
 			.replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold mt-6 mb-3">$1</h2>')
 			.replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mt-8 mb-4">$1</h1>')
@@ -110,6 +112,7 @@
 			.replace(/\*(.*?)\*/g, '<em>$1</em>')
 			.replace(/`(.*?)`/g, '<code class="bg-neutral-100 px-1 rounded">$1</code>')
 			.replace(/\n/g, '<br>');
+		return DOMPurify.sanitize(html);
 	}
 </script>
 

@@ -503,3 +503,206 @@ class UserRateLimiter:
 
 # Singleton instance
 user_rate_limiter = UserRateLimiter()
+
+
+class GlobalIPRateLimiter:
+    """Redis-backed global IP rate limiter.
+
+    Provides flood protection at the infrastructure level, running BEFORE
+    any authentication or endpoint-specific rate limits.
+
+    Uses sliding window algorithm for accuracy.
+    Fails open (allows requests) when Redis is unavailable.
+    """
+
+    # Endpoints to skip (health/monitoring must always respond)
+    SKIP_PATHS = frozenset({"/health", "/ready", "/metrics", "/api/health", "/api/ready"})
+
+    def __init__(self) -> None:
+        """Initialize the global rate limiter."""
+        self._redis: Any = None
+        self._initialized = False
+
+    def _get_redis(self) -> Any:
+        """Lazy-initialize Redis connection."""
+        if not self._initialized:
+            try:
+                import redis
+
+                settings = get_settings()
+                self._redis = redis.Redis.from_url(
+                    settings.redis_url,
+                    decode_responses=True,
+                )
+                self._redis.ping()
+                self._initialized = True
+            except Exception as e:
+                logger.warning(f"GlobalIPRateLimiter: Redis not available: {e}")
+                self._redis = None
+                self._initialized = True
+        return self._redis
+
+    def _parse_limit(self, limit_str: str) -> tuple[int, int]:
+        """Parse limit string like '500/minute' into (count, window_seconds)."""
+        parts = limit_str.split("/")
+        count = int(parts[0])
+        unit = parts[1]
+        window_map = {"second": 1, "minute": 60, "hour": 3600}
+        return count, window_map.get(unit, 60)
+
+    def check_limit(self, ip: str) -> tuple[bool, int | None]:
+        """Check if IP is within global rate limit.
+
+        Args:
+            ip: Client IP address
+
+        Returns:
+            (allowed, retry_after) - allowed=True if within limit,
+            retry_after=seconds to wait if blocked
+        """
+        redis_client = self._get_redis()
+
+        if not redis_client:
+            # Fail open for availability
+            rate_limiter_health.record_failure()
+            return True, None
+
+        try:
+            import time
+
+            current_time = int(time.time())
+            limit, window = self._parse_limit(RateLimits.GLOBAL_IP)
+            window_start = current_time - window
+            key = f"global_ip_limit:{ip}"
+
+            # Sliding window: remove old, count, add new, set expiry
+            pipeline = redis_client.pipeline()
+            pipeline.zremrangebyscore(key, 0, window_start)
+            pipeline.zcard(key)
+            pipeline.zadd(key, {str(current_time): current_time})
+            pipeline.expire(key, window + 10)
+            results = pipeline.execute()
+
+            current_count = results[1]
+
+            if current_count >= limit:
+                logger.warning(f"Global IP rate limit exceeded for {ip}: {current_count}/{limit}")
+                # Record metric
+                try:
+                    from backend.api.middleware.metrics import record_global_rate_limit_blocked
+
+                    record_global_rate_limit_blocked(ip)
+                except ImportError:
+                    pass
+                return False, window
+
+            rate_limiter_health.record_success()
+            return True, None
+
+        except Exception as e:
+            logger.error(f"GlobalIPRateLimiter error: {e}")
+            rate_limiter_health.record_failure()
+            return True, None  # Fail open
+
+
+# Singleton instance
+global_ip_rate_limiter = GlobalIPRateLimiter()
+
+
+class GlobalRateLimitMiddleware:
+    """ASGI middleware for global IP-based rate limiting.
+
+    Runs before all other middleware to provide flood protection.
+    Skips health/metrics endpoints to allow monitoring.
+
+    Ordering (app processes in reverse):
+    CORS > GlobalRateLimit > Auth > EndpointRateLimit
+    """
+
+    def __init__(self, app: Any) -> None:
+        """Initialize middleware with ASGI app."""
+        self.app = app
+
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+        """Process ASGI request."""
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Extract path
+        path = scope.get("path", "")
+
+        # Skip health/metrics endpoints
+        if path in GlobalIPRateLimiter.SKIP_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        # Extract IP address
+        ip = self._get_client_ip(scope)
+
+        # Check global limit
+        allowed, retry_after = global_ip_rate_limiter.check_limit(ip)
+
+        if not allowed:
+            # Record metric
+            try:
+                from backend.api.middleware.metrics import record_global_rate_limit_hit
+
+                record_global_rate_limit_hit()
+            except ImportError:
+                pass
+
+            # Return 429 response
+            await self._send_rate_limit_response(send, retry_after or 60)
+            return
+
+        await self.app(scope, receive, send)
+
+    def _get_client_ip(self, scope: dict[str, Any]) -> str:
+        """Extract client IP from request scope.
+
+        Respects X-Forwarded-For if present (for reverse proxy setups).
+        """
+        # Check headers for X-Forwarded-For
+        headers = dict(scope.get("headers", []))
+        forwarded_for = headers.get(b"x-forwarded-for", b"").decode()
+
+        if forwarded_for:
+            # Take first IP (client IP in chain)
+            return forwarded_for.split(",")[0].strip()
+
+        # Fall back to direct client
+        client = scope.get("client")
+        if client:
+            return client[0]
+
+        return "unknown"
+
+    async def _send_rate_limit_response(self, send: Any, retry_after: int) -> None:
+        """Send 429 Too Many Requests response."""
+        import json
+
+        body = json.dumps(
+            {
+                "error": "Rate limit exceeded",
+                "message": "Too many requests from this IP. Please slow down.",
+                "type": "GlobalRateLimitExceeded",
+            }
+        ).encode()
+
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 429,
+                "headers": [
+                    [b"content-type", b"application/json"],
+                    [b"retry-after", str(retry_after).encode()],
+                ],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": body,
+            }
+        )

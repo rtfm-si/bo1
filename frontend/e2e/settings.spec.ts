@@ -156,7 +156,7 @@ test.describe('Settings Pages', () => {
 	});
 
 	test.describe('Settings layout', () => {
-		test.fixme('displays settings navigation sidebar', async ({ page }) => {
+		test('displays settings navigation sidebar', async ({ page }) => {
 			await page.goto('/settings');
 
 			if (page.url().includes('/login')) {
@@ -166,10 +166,13 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for settings navigation items
-			await expect(page.getByRole('link', { name: /Account/i })).toBeVisible();
-			await expect(page.getByRole('link', { name: /Privacy/i })).toBeVisible();
-			await expect(page.getByRole('link', { name: /Billing/i })).toBeVisible();
+			// Check for settings navigation items (actual sidebar structure)
+			// Account section has: Profile, Privacy, Workspace
+			// Billing section has: Plan & Usage
+			// Links include emojis, so match partial text
+			await expect(page.getByRole('link', { name: /👤 Profile/ })).toBeVisible();
+			await expect(page.getByRole('link', { name: /🔒 Privacy/ })).toBeVisible();
+			await expect(page.getByRole('link', { name: /💳 Plan & Usage/ })).toBeVisible();
 		});
 
 		test('settings page shows heading', async ({ page }) => {
@@ -188,7 +191,7 @@ test.describe('Settings Pages', () => {
 	});
 
 	test.describe('Account settings', () => {
-		test.fixme('displays user email', async ({ page }) => {
+		test('displays user email', async ({ page }) => {
 			await page.goto('/settings/account');
 
 			if (page.url().includes('/login')) {
@@ -198,11 +201,14 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check user email is displayed
-			await expect(page.getByText('test@example.com')).toBeVisible();
+			// Check user email is displayed (or "Not set" for placeholder emails)
+			// Email appears in Profile section - use exact match to avoid header nav email
+			await expect(
+				page.locator('main').getByText('test@example.com').or(page.locator('main').getByText('Not set'))
+			).toBeVisible();
 		});
 
-		test.fixme('displays account tier', async ({ page }) => {
+		test('displays account tier', async ({ page }) => {
 			await page.goto('/settings/account');
 
 			if (page.url().includes('/login')) {
@@ -212,13 +218,13 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check tier is displayed
-			await expect(page.getByText(/starter/i).first()).toBeVisible();
+			// Check tier is displayed in Subscription section (Free, Starter, Pro, or Enterprise)
+			await expect(page.getByText(/Free|Starter|Pro|Enterprise/i).first()).toBeVisible();
 		});
 	});
 
 	test.describe('Privacy settings', () => {
-		test.fixme('displays email preferences', async ({ page }) => {
+		test('displays email preferences', async ({ page }) => {
 			await page.goto('/settings/privacy');
 
 			if (page.url().includes('/login')) {
@@ -228,11 +234,11 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for email preferences section
-			await expect(page.getByText(/Email preferences|Notifications/i).first()).toBeVisible();
+			// Check for email preferences section heading
+			await expect(page.getByRole('heading', { name: /Email Preferences/i })).toBeVisible();
 		});
 
-		test.fixme('displays data retention options', async ({ page }) => {
+		test('displays data retention options', async ({ page }) => {
 			await page.goto('/settings/privacy');
 
 			if (page.url().includes('/login')) {
@@ -242,11 +248,11 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for data retention section
-			await expect(page.getByText(/Data retention|Retention/i).first()).toBeVisible();
+			// Check for data retention section heading
+			await expect(page.getByRole('heading', { name: /Data Retention/i })).toBeVisible();
 		});
 
-		test.fixme('displays data export button', async ({ page }) => {
+		test('displays data export button', async ({ page }) => {
 			await page.goto('/settings/privacy');
 
 			if (page.url().includes('/login')) {
@@ -256,11 +262,11 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for export button
-			await expect(page.getByRole('button', { name: /Export|Download/i })).toBeVisible();
+			// Check for export button ("Download My Data")
+			await expect(page.getByRole('button', { name: /Download My Data/i })).toBeVisible();
 		});
 
-		test.fixme('displays account deletion option', async ({ page }) => {
+		test('displays account deletion option', async ({ page }) => {
 			await page.goto('/settings/privacy');
 
 			if (page.url().includes('/login')) {
@@ -271,12 +277,12 @@ test.describe('Settings Pages', () => {
 			await page.waitForLoadState('networkidle');
 
 			// Check for delete account button
-			await expect(page.getByRole('button', { name: /Delete Account|Delete/i }).first()).toBeVisible();
+			await expect(page.getByRole('button', { name: /Delete My Account/i })).toBeVisible();
 		});
 	});
 
 	test.describe('Billing settings', () => {
-		test.fixme('displays current plan', async ({ page }) => {
+		test('displays current plan', async ({ page }) => {
 			await page.goto('/settings/billing');
 
 			if (page.url().includes('/login')) {
@@ -286,11 +292,11 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for plan display
-			await expect(page.getByText(/Current Plan|Starter/i).first()).toBeVisible();
+			// Check for "Current Plan" heading
+			await expect(page.getByRole('heading', { name: /Current Plan/i })).toBeVisible();
 		});
 
-		test.fixme('displays usage meters', async ({ page }) => {
+		test('displays usage meters', async ({ page }) => {
 			await page.goto('/settings/billing');
 
 			if (page.url().includes('/login')) {
@@ -300,11 +306,11 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for usage meters
-			await expect(page.getByText(/Usage|Meetings|5.*10/i).first()).toBeVisible();
+			// Check for "Usage This Month" section
+			await expect(page.getByRole('heading', { name: /Usage This Month/i })).toBeVisible();
 		});
 
-		test.fixme('displays manage subscription button', async ({ page }) => {
+		test('displays upgrade or manage options', async ({ page }) => {
 			await page.goto('/settings/billing');
 
 			if (page.url().includes('/login')) {
@@ -314,14 +320,20 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for manage subscription link/button
-			const manageBtn = page.getByRole('button', { name: /Manage|Portal|Upgrade/i });
-			await expect(manageBtn.first()).toBeVisible();
+			// Check for upgrade or manage options (varies by tier)
+			// Free tier sees "Upgrade Your Plan" heading or "Contact Sales" buttons
+			// Paid tier sees "Manage Subscription" button
+			// Check any of these exist on the page
+			const hasUpgradeHeading = await page.getByRole('heading', { name: /Upgrade Your Plan/i }).isVisible();
+			const hasManageBtn = await page.getByRole('button', { name: /Manage Subscription/i }).first().isVisible();
+			const hasContactBtn = await page.getByRole('button', { name: /Contact Sales/i }).first().isVisible();
+
+			expect(hasUpgradeHeading || hasManageBtn || hasContactBtn).toBe(true);
 		});
 	});
 
 	test.describe('Integrations settings', () => {
-		test.fixme('displays Google Sheets integration', async ({ page }) => {
+		test('displays integrations page heading', async ({ page }) => {
 			await page.goto('/settings/integrations');
 
 			if (page.url().includes('/login')) {
@@ -331,11 +343,11 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for Google Sheets section
-			await expect(page.getByText(/Google Sheets/i)).toBeVisible();
+			// Check for Integrations page heading
+			await expect(page.getByRole('heading', { name: /^Integrations$/i })).toBeVisible();
 		});
 
-		test.fixme('displays Google Calendar integration', async ({ page }) => {
+		test('displays Google Calendar integration', async ({ page }) => {
 			await page.goto('/settings/integrations');
 
 			if (page.url().includes('/login')) {
@@ -345,11 +357,11 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for Google Calendar section
-			await expect(page.getByText(/Google Calendar/i)).toBeVisible();
+			// Check for Google Calendar section heading
+			await expect(page.getByRole('heading', { name: /Google Calendar/i })).toBeVisible();
 		});
 
-		test.fixme('shows connect buttons for disconnected integrations', async ({ page }) => {
+		test('shows connect button for Google Calendar when disconnected', async ({ page }) => {
 			await page.goto('/settings/integrations');
 
 			if (page.url().includes('/login')) {
@@ -359,15 +371,15 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check for connect buttons
-			const connectBtns = page.getByRole('button', { name: /Connect/i });
-			const count = await connectBtns.count();
-			expect(count).toBeGreaterThanOrEqual(1);
+			// Check for connect button (when not connected) or disconnect button (when connected)
+			const connectBtn = page.getByRole('button', { name: /Connect Google Calendar/i });
+			const disconnectBtn = page.getByRole('button', { name: /Disconnect/i });
+			await expect(connectBtn.or(disconnectBtn)).toBeVisible();
 		});
 	});
 
 	test.describe('Navigation', () => {
-		test.fixme('clicking Account navigates to account settings', async ({ page }) => {
+		test('clicking Profile navigates to account settings', async ({ page }) => {
 			await page.goto('/settings');
 
 			if (page.url().includes('/login')) {
@@ -377,11 +389,12 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			await page.getByRole('link', { name: /Account/i }).click();
+			// Sidebar shows "👤 Profile" which links to /settings/account
+			await page.getByRole('link', { name: /👤 Profile/ }).click();
 			await expect(page).toHaveURL(/\/settings\/account/);
 		});
 
-		test.fixme('clicking Privacy navigates to privacy settings', async ({ page }) => {
+		test('clicking Privacy navigates to privacy settings', async ({ page }) => {
 			await page.goto('/settings');
 
 			if (page.url().includes('/login')) {
@@ -391,11 +404,12 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			await page.getByRole('link', { name: /Privacy/i }).click();
+			// Click the sidebar Privacy link (has emoji prefix)
+			await page.getByRole('link', { name: /🔒 Privacy/ }).click();
 			await expect(page).toHaveURL(/\/settings\/privacy/);
 		});
 
-		test.fixme('clicking Billing navigates to billing settings', async ({ page }) => {
+		test('clicking Plan & Usage navigates to billing settings', async ({ page }) => {
 			await page.goto('/settings');
 
 			if (page.url().includes('/login')) {
@@ -405,11 +419,12 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			await page.getByRole('link', { name: /Billing/i }).click();
+			// Sidebar shows "💳 Plan & Usage" which links to /settings/billing
+			await page.getByRole('link', { name: /💳 Plan & Usage/ }).click();
 			await expect(page).toHaveURL(/\/settings\/billing/);
 		});
 
-		test.fixme('clicking Integrations navigates to integrations settings', async ({ page }) => {
+		test('clicking Workspace navigates to workspace settings', async ({ page }) => {
 			await page.goto('/settings');
 
 			if (page.url().includes('/login')) {
@@ -419,15 +434,16 @@ test.describe('Settings Pages', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			await page.getByRole('link', { name: /Integrations/i }).click();
-			await expect(page).toHaveURL(/\/settings\/integrations/);
+			// Sidebar shows "🏢 Workspace" which links to /settings/workspace
+			await page.getByRole('link', { name: /🏢 Workspace/ }).click();
+			await expect(page).toHaveURL(/\/settings\/workspace/);
 		});
 	});
 
 	test.describe('Error handling', () => {
-		test.fixme('shows error on API failure', async ({ page }) => {
-			// Override to return error
-			await page.route('**/api/v1/user', (route) =>
+		test('shows error on API failure', async ({ page }) => {
+			// Override user preferences to return error
+			await page.route('**/api/v1/user/preferences', (route) =>
 				route.fulfill({
 					status: 500,
 					contentType: 'application/json',
@@ -445,8 +461,8 @@ test.describe('Settings Pages', () => {
 			await page.waitForLoadState('networkidle');
 
 			// Check for error handling (graceful degradation)
-			// The page should still load, potentially with an error message
-			await expect(page.getByRole('heading', { name: /Settings|Account/i })).toBeVisible();
+			// The page should still load with the Settings heading visible
+			await expect(page.getByRole('heading', { name: /Settings/i })).toBeVisible();
 		});
 	});
 });

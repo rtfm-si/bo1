@@ -1,12 +1,13 @@
 <script lang="ts">
 	/**
-	 * Card Component - Container for content with variants
+	 * Card Component - shadcn-svelte wrapper with backward-compatible API
+	 * Preserves variant, padding, and slot-based header/footer
 	 */
-
+	import { Card as ShadcnCard, CardHeader, CardContent, CardFooter } from './shadcn/card';
 	import type { Snippet } from 'svelte';
 	import { paddingClasses } from './utils';
 
-	// Props
+	// Props matching the legacy API
 	interface Props {
 		variant?: 'default' | 'bordered' | 'elevated';
 		padding?: 'none' | 'sm' | 'md' | 'lg';
@@ -19,43 +20,37 @@
 	let {
 		variant = 'default',
 		padding = 'md',
-		class: customClass,
+		class: customClass = '',
 		children,
 		header,
 		footer
 	}: Props = $props();
 
-	// Variant styles (use CSS variables for theme support)
-	const variants = {
+	// Variant styles
+	const variantClasses = {
 		default: '',
-		bordered: 'border',
+		bordered: 'border-2',
 		elevated: 'shadow-lg',
 	};
 
-	// Compute classes using design token utilities
-	const classes = $derived([
-		'rounded-lg',
-		variants[variant],
-		paddingClasses(padding),
-		customClass
-	].filter(Boolean).join(' '));
+	const variantClass = $derived(variantClasses[variant] ?? '');
+	const padClass = $derived(paddingClasses(padding));
 </script>
 
-<div
-	class={classes}
-	style="background-color: var(--color-surface); border-color: var(--color-border);"
->
+<ShadcnCard class="{variantClass} {padClass} {customClass}">
 	{#if header}
-		<div class="mb-4">
+		<CardHeader class="p-0 mb-4">
 			{@render header()}
-		</div>
+		</CardHeader>
 	{/if}
 
-	{@render children?.()}
+	<CardContent class="p-0">
+		{@render children?.()}
+	</CardContent>
 
 	{#if footer}
-		<div class="mt-4">
+		<CardFooter class="p-0 mt-4">
 			{@render footer()}
-		</div>
+		</CardFooter>
 	{/if}
-</div>
+</ShadcnCard>

@@ -24,6 +24,7 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import GlobalGanttChart from '$lib/components/actions/GlobalGanttChart.svelte';
 	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses } from '$lib/utils/due-dates';
+	import { toast } from '$lib/stores/toast';
 
 	// Filter state
 	let selectedMeetingId = $state<string | null>(null);
@@ -40,7 +41,6 @@
 
 	// Loading states
 	let isLoading = $state(true);
-	let error = $state<string | null>(null);
 
 	// Data
 	let actionsData = $state<AllActionsResponse | null>(null);
@@ -52,7 +52,6 @@
 	// Fetch all data
 	async function fetchData() {
 		isLoading = true;
-		error = null;
 		try {
 			// Build filter params
 			const params: Record<string, string | undefined> = {};
@@ -77,7 +76,7 @@
 			}
 		} catch (err) {
 			console.error('Failed to fetch actions:', err);
-			error = err instanceof Error ? err.message : 'Failed to load actions';
+			toast.error(err instanceof Error ? err.message : 'Failed to load actions');
 		} finally {
 			isLoading = false;
 		}
@@ -215,6 +214,11 @@
 	// Bulk status update
 	async function handleBulkStatusChange(newStatus: ActionStatus) {
 		if (selectedTaskIds.size === 0) return;
+		// Confirm if updating more than 1 item
+		if (selectedTaskIds.size > 1) {
+			const confirmed = confirm(`Update status of ${selectedTaskIds.size} actions to "${newStatus}"?`);
+			if (!confirmed) return;
+		}
 		isBulkUpdating = true;
 		try {
 			const tasksToUpdate = allTasks.filter(t => selectedTaskIds.has(t.id));
@@ -225,6 +229,7 @@
 			await fetchData();
 		} catch (err) {
 			console.error('Failed to bulk update tasks:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to update actions');
 		} finally {
 			isBulkUpdating = false;
 		}
@@ -246,6 +251,7 @@
 			await fetchData();
 		} catch (err) {
 			console.error('Failed to update task status:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to update action status');
 		} finally {
 			updatingTaskId = null;
 		}
@@ -259,6 +265,7 @@
 			await fetchData();
 		} catch (err) {
 			console.error('Failed to delete action:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to delete action');
 		} finally {
 			deletingTaskId = null;
 		}
@@ -304,7 +311,7 @@
 <div
 	class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800"
 >
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Header with stats -->
 		<div class="mb-8">
 			<div class="flex items-center justify-between mb-4">
@@ -617,40 +624,6 @@
 					</div>
 				{/each}
 			</div>
-		{:else if error}
-			<!-- Error State -->
-			<div
-				class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg p-6"
-			>
-				<div class="flex items-center gap-3">
-					<svg
-						class="w-6 h-6 text-error-600 dark:text-error-400"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-						/>
-					</svg>
-					<div>
-						<h3 class="text-lg font-semibold text-error-900 dark:text-error-200">
-							Error Loading Actions
-						</h3>
-						<p class="text-sm text-error-700 dark:text-error-300">{error}</p>
-					</div>
-				</div>
-				<div class="mt-4">
-					<Button variant="danger" size="md" onclick={() => fetchData()}>
-						{#snippet children()}
-							Retry
-						{/snippet}
-					</Button>
-				</div>
-			</div>
 		{:else if !actionsData || actionsData.total_tasks === 0}
 			<!-- Empty State -->
 			<div
@@ -929,7 +902,7 @@
 				{/each}
 			</div>
 		{/if}
-	</main>
+	</div>
 </div>
 
 <!-- Click outside to close tag dropdown -->

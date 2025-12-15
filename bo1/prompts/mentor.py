@@ -311,6 +311,7 @@ def build_mentor_prompt(
     datasets_context: str = "",
     conversation_history: str = "",
     mentioned_context: str = "",
+    failure_context: str = "",
 ) -> str:
     """Build the full user prompt for the mentor.
 
@@ -322,6 +323,7 @@ def build_mentor_prompt(
         datasets_context: Formatted dataset summaries
         conversation_history: Formatted conversation history
         mentioned_context: Formatted @mention context (meetings, actions, datasets)
+        failure_context: Formatted failure patterns for proactive mentoring
 
     Returns:
         Complete user prompt
@@ -336,6 +338,9 @@ def build_mentor_prompt(
         parts.append(actions_context)
     if datasets_context:
         parts.append(datasets_context)
+    # Add failure patterns before mentioned context (proactive mentoring context)
+    if failure_context:
+        parts.append(failure_context)
     # Add mentioned context just before conversation history and question
     if mentioned_context:
         parts.append(mentioned_context)
@@ -415,4 +420,63 @@ def format_mentioned_context(resolved: "ResolvedMentions") -> str:
         lines.append(f"  <not_found>{', '.join(resolved.not_found)}</not_found>")
 
     lines.append("</mentioned_context>")
+    return "\n".join(lines)
+
+
+# =============================================================================
+# Failure Patterns Formatter
+# =============================================================================
+
+
+def format_failure_patterns(
+    failure_rate: float,
+    patterns: list[dict[str, Any]],
+    by_project: dict[str, int],
+    by_category: dict[str, int],
+) -> str:
+    """Format action failure patterns for proactive mentoring context.
+
+    Args:
+        failure_rate: Rate of failures (0.0-1.0)
+        patterns: List of failure pattern dicts
+        by_project: Failure count by project name
+        by_category: Failure count by category
+
+    Returns:
+        Formatted XML string for prompt injection, or empty string if low failure rate
+    """
+    # Only inject if failure rate is significant (>30%)
+    if failure_rate < 0.3 or not patterns:
+        return ""
+
+    lines = [
+        "<failure_patterns>",
+        f"Note: This user has a {failure_rate:.0%} action failure rate. Consider proactively offering support.",
+    ]
+
+    # Top categories
+    if by_category:
+        lines.append("  <failure_categories>")
+        for cat, count in sorted(by_category.items(), key=lambda x: -x[1])[:3]:
+            lines.append(f'    <category name="{cat}" count="{count}"/>')
+        lines.append("  </failure_categories>")
+
+    # Top projects with failures
+    if by_project:
+        lines.append("  <projects_with_failures>")
+        for proj, count in sorted(by_project.items(), key=lambda x: -x[1])[:3]:
+            lines.append(f'    <project name="{proj}" failures="{count}"/>')
+        lines.append("  </projects_with_failures>")
+
+    # Sample recent failures
+    lines.append("  <recent_failures>")
+    for p in patterns[:5]:
+        reason = p.get("failure_reason") or "No reason given"
+        lines.append(f'    <failed_action status="{p.get("status", "cancelled")}">')
+        lines.append(f"      <title>{p.get('title', 'Untitled')}</title>")
+        lines.append(f"      <reason>{reason}</reason>")
+        lines.append("    </failed_action>")
+    lines.append("  </recent_failures>")
+
+    lines.append("</failure_patterns>")
     return "\n".join(lines)

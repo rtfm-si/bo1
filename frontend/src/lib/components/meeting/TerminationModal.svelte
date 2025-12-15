@@ -94,6 +94,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="termination-modal-title"
+		tabindex="-1"
 		onclick={(e) => e.target === e.currentTarget && handleClose()}
 		onkeydown={handleKeydown}
 	>

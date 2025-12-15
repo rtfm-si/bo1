@@ -214,6 +214,63 @@ ENABLE_EARLY_STOPPING=true
 
 ---
 
+## Security & Proxy Configuration
+
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `TRUSTED_PROXY_IPS` | String | No (Prod: Yes) | `""` | Comma-separated IPs of trusted reverse proxies |
+| `METRICS_AUTH_TOKEN` | String | No (Prod: Yes) | `""` | Bearer token for /metrics endpoint. If set, requires `Authorization: Bearer <token>` |
+
+### TRUSTED_PROXY_IPS
+
+When behind a reverse proxy (Nginx, load balancer, CDN), this setting tells the API which proxy IPs to trust for X-Forwarded-For headers. Without this, IP-based rate limiting and audit logging will record the proxy IP instead of the real client IP.
+
+**Example**:
+```bash
+# Single proxy (e.g., local Nginx)
+TRUSTED_PROXY_IPS=10.0.0.1
+
+# Multiple proxies (e.g., load balancer + CDN)
+TRUSTED_PROXY_IPS=10.0.0.1,10.0.0.2,172.16.0.1
+
+# DigitalOcean App Platform (trust all DO private IPs)
+TRUSTED_PROXY_IPS=10.0.0.0/8
+
+# AWS ALB + Cloudflare
+TRUSTED_PROXY_IPS=10.0.0.0/8,172.16.0.0/12
+```
+
+**Security Warning**: Only add IPs you control. Misconfigured proxy trust enables IP spoofing attacks. See [PRODUCTION_SECURITY.md](./PRODUCTION_SECURITY.md) for details.
+
+### METRICS_AUTH_TOKEN
+
+Protects the `/metrics` Prometheus endpoint with bearer token authentication. When set, Prometheus must include the token in its scrape config.
+
+**Example**:
+```bash
+# Generate a secure random token
+METRICS_AUTH_TOKEN=$(openssl rand -hex 32)
+
+# Or set a specific token
+METRICS_AUTH_TOKEN=your_secure_metrics_token_here
+```
+
+**Prometheus scrape config**:
+```yaml
+scrape_configs:
+  - job_name: 'api'
+    bearer_token_file: /run/secrets/metrics_token
+    static_configs:
+      - targets: ['api:8000']
+```
+
+**Security Notes**:
+- Empty = allow all requests (dev mode)
+- Set in production to prevent metrics exposure
+- Use `bearer_token_file` in Prometheus (not inline token) for secret management
+
+---
+
 ## Authentication (SuperTokens)
 
 SuperTokens authentication with BFF pattern (httpOnly cookies, OAuth support).

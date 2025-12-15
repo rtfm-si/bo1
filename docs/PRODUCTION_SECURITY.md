@@ -79,6 +79,49 @@ All responses include:
 - `Content-Security-Policy`
 - `Referrer-Policy: strict-origin-when-cross-origin`
 
+## Reverse Proxy IP Trust
+
+**Critical Security Setting**: `TRUSTED_PROXY_IPS`
+
+When the API runs behind a reverse proxy (Nginx, load balancer, CDN), it must know which proxy IPs to trust for `X-Forwarded-For` headers. The `_get_client_ip()` function in `backend/api/middleware/auth.py` uses this setting.
+
+### IP Spoofing Risk
+
+**Danger**: If `TRUSTED_PROXY_IPS` is misconfigured:
+- Attackers can spoof their IP by sending fake `X-Forwarded-For` headers
+- Rate limiting becomes ineffective (attacker rotates spoofed IPs)
+- Audit logs record false client IPs
+- IP-based blocking/allowlisting fails
+
+### Safe Configuration
+
+| Scenario | TRUSTED_PROXY_IPS | Notes |
+|----------|-------------------|-------|
+| Direct (no proxy) | `""` (empty) | Default - ignore X-Forwarded-For |
+| Single Nginx | Nginx server IP | Only trust your Nginx |
+| Load balancer | LB internal IPs | Trust only your LB range |
+| CDN + Origin | CDN IPs + Origin proxy | Multi-hop chain |
+
+### Never Do
+
+- ❌ `TRUSTED_PROXY_IPS=*` or trust all IPs
+- ❌ Trust public/external IPs you don't control
+- ❌ Trust 0.0.0.0/0 or overly broad CIDR ranges
+- ❌ Leave empty in production when behind a proxy (rate limiting will target proxy, not clients)
+
+### Verification
+
+```bash
+# Verify only your proxy IP is trusted
+grep TRUSTED_PROXY_IPS /opt/boardofone/.env
+
+# Test - this should NOT work (spoofed header ignored)
+curl -H "X-Forwarded-For: 8.8.8.8" https://boardof.one/api/health
+# Rate limiting should use your real IP, not 8.8.8.8
+```
+
+---
+
 ## Rate Limiting
 
 | Endpoint | Limit | Burst |

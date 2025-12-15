@@ -114,17 +114,21 @@ const mockActions = {
 	by_status: { todo: 2, in_progress: 1, done: 1 }
 };
 
-// Flatten all tasks for gantt data
+// Flatten all tasks for gantt data - matches GlobalGanttResponse structure
 const allTasks = mockActions.sessions.flatMap((s) => s.tasks);
 const mockGanttData = {
-	tasks: allTasks.map((a) => ({
+	actions: allTasks.map((a) => ({
 		id: a.id,
 		name: a.title,
 		start: a.suggested_completion_date || new Date().toISOString(),
 		end: a.suggested_completion_date || new Date().toISOString(),
 		progress: a.status === 'done' ? 100 : a.status === 'in_progress' ? 50 : 0,
-		dependencies: []
-	}))
+		dependencies: '',
+		status: a.status,
+		priority: a.priority,
+		session_id: a.session_id
+	})),
+	dependencies: []
 };
 
 test.describe('Actions List Page', () => {
@@ -157,8 +161,8 @@ test.describe('Actions List Page', () => {
 			})
 		);
 
-		// Mock gantt API
-		await page.route('**/api/v1/gantt**', (route) =>
+		// Mock gantt API (endpoint is /api/v1/actions/gantt)
+		await page.route('**/api/v1/actions/gantt**', (route) =>
 			route.fulfill({
 				status: 200,
 				contentType: 'application/json',
@@ -332,7 +336,7 @@ test.describe('Actions List Page', () => {
 	});
 
 	test.describe('Gantt view', () => {
-		test.fixme('toggle to Gantt view', async ({ page }) => {
+		test('toggle to Gantt view', async ({ page }) => {
 			await page.goto('/actions');
 
 			if (page.url().includes('/login')) {
@@ -342,21 +346,17 @@ test.describe('Actions List Page', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Look for view toggle
+			// Look for view toggle - button contains text "Gantt" with icon
 			const ganttToggle = page.getByRole('button', { name: /Gantt/i });
-			if (await ganttToggle.isVisible()) {
-				await ganttToggle.click();
+			await expect(ganttToggle).toBeVisible();
+			await ganttToggle.click();
 
-				// Wait for Gantt chart to render
-				await page.waitForTimeout(500);
-
-				// Check for Gantt chart container (actual class is .gantt-chart)
-				const ganttChart = page.locator('.gantt-chart, .gantt-container');
-				await expect(ganttChart.first()).toBeVisible({ timeout: 5000 });
-			}
+			// Wait for Gantt container to appear (mocked API should return quickly)
+			const ganttContainer = page.locator('.gantt-container');
+			await expect(ganttContainer).toBeVisible({ timeout: 10000 });
 		});
 
-		test.fixme('Gantt chart click does not navigate on drag', async ({ page }) => {
+		test('Gantt chart click does not navigate on drag', async ({ page }) => {
 			await page.goto('/actions');
 
 			if (page.url().includes('/login')) {
@@ -368,25 +368,32 @@ test.describe('Actions List Page', () => {
 
 			// Switch to Gantt view
 			const ganttToggle = page.getByRole('button', { name: /Gantt/i });
-			if (await ganttToggle.isVisible()) {
-				await ganttToggle.click();
-				await page.waitForTimeout(500);
+			await expect(ganttToggle).toBeVisible();
+			await ganttToggle.click();
 
-				// Simulate drag on Gantt bar (should not navigate)
-				const ganttBar = page.locator('.bar, .gantt-bar').first();
-				if (await ganttBar.isVisible()) {
-					const box = await ganttBar.boundingBox();
-					if (box) {
-						// Drag horizontally
-						await page.mouse.move(box.x + 10, box.y + box.height / 2);
-						await page.mouse.down();
-						await page.mouse.move(box.x + 50, box.y + box.height / 2);
-						await page.mouse.up();
+			// Wait for Gantt container to appear
+			const ganttContainer = page.locator('.gantt-container');
+			await expect(ganttContainer).toBeVisible({ timeout: 10000 });
 
-						// Should still be on actions page
-						await expect(page).toHaveURL(/\/actions/);
-					}
+			// Look for Gantt bar (frappe-gantt uses .bar-wrapper > rect.bar)
+			const ganttBar = page.locator('.gantt .bar-wrapper').first();
+
+			// Only test drag if bars exist (mocked data has dates)
+			if (await ganttBar.isVisible({ timeout: 3000 }).catch(() => false)) {
+				const box = await ganttBar.boundingBox();
+				if (box) {
+					// Drag horizontally
+					await page.mouse.move(box.x + 10, box.y + box.height / 2);
+					await page.mouse.down();
+					await page.mouse.move(box.x + 50, box.y + box.height / 2);
+					await page.mouse.up();
+
+					// Should still be on actions page (no navigation from drag)
+					await expect(page).toHaveURL(/\/actions/);
 				}
+			} else {
+				// No bars visible - verify we're still in Gantt view with container visible
+				await expect(ganttContainer).toBeVisible();
 			}
 		});
 	});

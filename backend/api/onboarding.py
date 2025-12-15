@@ -343,3 +343,53 @@ async def skip_onboarding(
         first_meeting_id=row.get("first_meeting_id"),
         needs_onboarding=False,
     )
+
+
+@router.post(
+    "/reset",
+    response_model=OnboardingStatus,
+    summary="Reset onboarding tour",
+    description="""
+    Reset the onboarding tour so the user can take it again.
+
+    This clears the tour completion status while preserving first_meeting_id.
+    Useful for users who want to revisit the guided tour.
+    """,
+)
+@handle_api_errors("reset onboarding")
+async def reset_onboarding(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> OnboardingStatus:
+    """Reset onboarding tour to allow restart."""
+    user_id = extract_user_id(user)
+
+    # Reset tour_completed but preserve first_meeting_id
+    row = execute_query(
+        """
+        INSERT INTO user_onboarding (user_id, tour_completed, tour_completed_at, steps_completed)
+        VALUES (%s, false, NULL, '[]'::jsonb)
+        ON CONFLICT (user_id) DO UPDATE SET
+            tour_completed = false,
+            tour_completed_at = NULL,
+            steps_completed = '[]'::jsonb,
+            updated_at = NOW()
+        RETURNING tour_completed, tour_completed_at, steps_completed,
+                  first_meeting_id
+        """,
+        (user_id,),
+        fetch="one",
+    )
+
+    if not row:
+        raise HTTPException(status_code=500, detail="Failed to reset onboarding")
+
+    context_setup = _check_context_setup(user_id)
+
+    return OnboardingStatus(
+        tour_completed=False,
+        tour_completed_at=None,
+        steps_completed=[],
+        context_setup=context_setup,
+        first_meeting_id=row.get("first_meeting_id"),
+        needs_onboarding=True,
+    )

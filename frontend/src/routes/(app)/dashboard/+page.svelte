@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { user } from '$lib/stores/auth';
 	import { apiClient } from '$lib/api/client';
 	import type { SessionResponse, AllActionsResponse, TaskWithSessionContext, ActionStatsResponse, UserContextResponse } from '$lib/api/types';
@@ -16,6 +17,9 @@
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { createLogger } from '$lib/utils/debug';
 	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, needsAttention, getDueDateRelativeText } from '$lib/utils/due-dates';
+	import { startOnboardingTour, injectTourStyles } from '$lib/tour/onboarding-tour';
+	import tourStore, { checkOnboardingStatus, setTourActive, completeTour } from '$lib/stores/tour';
+	import { toast } from '$lib/stores/toast';
 
 	const log = createLogger('Dashboard');
 
@@ -33,8 +37,18 @@
 	const isLoading = $derived(sessionsData.isLoading);
 	const error = $derived(sessionsData.error);
 
+	// Show toast when error changes
+	$effect(() => {
+		if (error) {
+			toast.error(error);
+		}
+	});
+
 	// Onboarding state
 	let onboardingDismissed = $state(false);
+
+	// Delete operation state
+	let deletingSessionId = $state<string | null>(null);
 
 	// Show onboarding only for new users who haven't dismissed or completed it
 	const showOnboarding = $derived(
@@ -100,13 +114,29 @@
 	// Check if user is admin for cost display
 	const isAdmin = $derived($user?.is_admin ?? false);
 
-	onMount(() => {
+	onMount(async () => {
 		log.log('Loading sessions for user:', $user?.email);
 		// Auth is already verified by parent layout, safe to load sessions, actions, stats, and context
 		sessionsData.fetch();
 		actionsData.fetch();
 		statsData.fetch();
 		contextData.fetch();
+
+		// Check if user needs onboarding tour
+		if (browser) {
+			const needsTour = await checkOnboardingStatus();
+			if (needsTour) {
+				// Inject tour styles and start after a short delay
+				injectTourStyles();
+				setTimeout(() => {
+					setTourActive(true);
+					startOnboardingTour(() => {
+						setTourActive(false);
+						completeTour();
+					});
+				}, 500);
+			}
+		}
 	});
 
 	async function loadSessions() {
@@ -155,6 +185,7 @@
 			return;
 		}
 
+		deletingSessionId = sessionId;
 		try {
 			await apiClient.deleteSession(sessionId);
 			// Refresh both sessions and actions lists after successful delete
@@ -162,7 +193,9 @@
 			await Promise.all([sessionsData.fetch(), actionsData.fetch()]);
 		} catch (err) {
 			console.error('Failed to delete session:', err);
-			// Error will be reflected in sessionsData.error
+			toast.error(err instanceof Error ? err.message : 'Failed to delete meeting');
+		} finally {
+			deletingSessionId = null;
 		}
 	}
 </script>
@@ -172,9 +205,11 @@
 </svelte:head>
 
 <div class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
+	<!-- Visually hidden page heading for screen readers -->
+	<h1 class="sr-only">Dashboard</h1>
 
-	<!-- Main Content -->
-	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<!-- Page Content -->
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Onboarding checklist for new users -->
 		{#if showOnboarding}
 			<OnboardingChecklist
@@ -193,6 +228,7 @@
 				<!-- New Meeting -->
 				<a
 					href="/meeting/new"
+					data-tour="new-meeting"
 					class="group flex items-center gap-4 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/30 hover:border-brand-300 dark:hover:border-brand-700 transition-all duration-200"
 				>
 					<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-brand-100 dark:bg-brand-800/50 group-hover:bg-brand-200 dark:group-hover:bg-brand-800 transition-colors">
@@ -212,6 +248,7 @@
 				<!-- View Actions -->
 				<a
 					href="/actions"
+					data-tour="actions-view"
 					class="group flex items-center gap-4 p-4 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all duration-200"
 				>
 					<div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-700 group-hover:bg-neutral-200 dark:group-hover:bg-neutral-600 transition-colors">
@@ -508,26 +545,6 @@
 					<ShimmerSkeleton type="card" />
 				{/each}
 			</div>
-		{:else if error}
-			<!-- Error State -->
-			<div class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg p-6">
-				<div class="flex items-center gap-3">
-					<svg class="w-6 h-6 text-error-600 dark:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-					</svg>
-					<div>
-						<h3 class="text-lg font-semibold text-error-900 dark:text-error-200">Error Loading Sessions</h3>
-						<p class="text-sm text-error-700 dark:text-error-300">{error}</p>
-					</div>
-				</div>
-				<div class="mt-4">
-					<Button variant="danger" size="md" onclick={loadSessions}>
-						{#snippet children()}
-							Retry
-						{/snippet}
-					</Button>
-				</div>
-			</div>
 		{:else if sessions.length === 0}
 			<!-- Empty State -->
 			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-12 text-center">
@@ -639,13 +656,21 @@
 							<div class="flex items-center gap-2 flex-shrink-0">
 								<button
 									onclick={(e) => handleDelete(session.id, e)}
-									class="p-2 hover:bg-error-50 dark:hover:bg-error-900/20 rounded-lg transition-colors duration-200 group"
+									class="p-2 hover:bg-error-50 dark:hover:bg-error-900/20 rounded-lg transition-colors duration-200 group disabled:opacity-50 disabled:cursor-not-allowed"
 									title="Delete meeting"
 									aria-label="Delete meeting"
+									disabled={deletingSessionId !== null}
 								>
-									<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 group-hover:text-error-600 dark:group-hover:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-									</svg>
+									{#if deletingSessionId === session.id}
+										<svg class="w-5 h-5 text-neutral-400 animate-spin" fill="none" viewBox="0 0 24 24">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+									{:else}
+										<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500 group-hover:text-error-600 dark:group-hover:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+										</svg>
+									{/if}
 								</button>
 
 								<svg class="w-5 h-5 text-neutral-400 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -657,5 +682,5 @@
 				{/each}
 			</div>
 		{/if}
-	</main>
+	</div>
 </div>

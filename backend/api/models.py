@@ -100,7 +100,7 @@ class CreateSessionRequest(BaseModel):
         if re.search(r"<script[^>]*>", v, re.IGNORECASE):
             raise ValueError("Problem statement cannot contain script tags")
 
-        # Check for SQL injection patterns
+        # Check for basic SQL injection patterns
         sql_patterns = [
             r";\s*drop\s+table",
             r";\s*delete\s+from",
@@ -111,6 +111,13 @@ class CreateSessionRequest(BaseModel):
         for pattern in sql_patterns:
             if re.search(pattern, v, re.IGNORECASE):
                 raise ValueError("Problem statement contains invalid SQL patterns")
+
+        # Check for advanced SQL injection patterns (EXEC, xp_cmdshell, etc.)
+        from bo1.prompts.sanitizer import detect_sql_injection
+
+        sql_detection = detect_sql_injection(v)
+        if sql_detection:
+            raise ValueError("Problem statement contains invalid SQL patterns")
 
         return v
 
@@ -988,6 +995,8 @@ class ProjectDetailResponse(BaseModel):
         completed_actions: Number of completed actions
         color: Hex color for visualization
         icon: Emoji or icon name
+        version: Project version number (1, 2, 3, etc)
+        source_project_id: ID of source project if versioned from another
         created_at: Creation timestamp (ISO)
         updated_at: Last update timestamp (ISO)
     """
@@ -1008,6 +1017,8 @@ class ProjectDetailResponse(BaseModel):
     completed_actions: int = Field(default=0, description="Number of completed actions")
     color: str | None = Field(None, description="Hex color for visualization")
     icon: str | None = Field(None, description="Emoji or icon name")
+    version: int = Field(default=1, description="Project version number")
+    source_project_id: str | None = Field(None, description="Source project ID if versioned")
     created_at: str | None = Field(None, description="Creation timestamp (ISO)")
     updated_at: str | None = Field(None, description="Last update timestamp (ISO)")
 

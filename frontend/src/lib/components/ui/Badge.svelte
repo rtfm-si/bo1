@@ -1,11 +1,12 @@
 <script lang="ts">
 	/**
-	 * Badge Component - Small status indicator
+	 * Badge Component - shadcn-svelte wrapper with backward-compatible API
+	 * Maps legacy variant names to shadcn + custom styling
 	 */
-
+	import { Badge as ShadcnBadge, type BadgeVariant } from './shadcn/badge';
 	import type { Snippet } from 'svelte';
 
-	// Props
+	// Props matching the legacy API
 	interface Props {
 		variant?: 'brand' | 'success' | 'warning' | 'error' | 'info' | 'neutral';
 		size?: 'sm' | 'md' | 'lg';
@@ -18,36 +19,31 @@
 		children
 	}: Props = $props();
 
-	// Variant styles
-	const variants = {
-		brand:
-			'bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200',
-		success:
-			'bg-success-100 text-success-800 dark:bg-success-900 dark:text-success-200',
-		warning:
-			'bg-warning-100 text-warning-800 dark:bg-warning-900 dark:text-warning-200',
-		error: 'bg-error-100 text-error-800 dark:bg-error-900 dark:text-error-200',
-		info: 'bg-info-100 text-info-800 dark:bg-info-900 dark:text-info-200',
-		neutral:
-			'bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200',
+	// Map legacy variants to shadcn variants + custom classes
+	// shadcn only has: default, secondary, destructive, outline
+	const variantConfig: Record<string, { shadcn: BadgeVariant; custom: string }> = {
+		brand: { shadcn: 'default', custom: 'bg-brand-600 text-white border-brand-600 hover:bg-brand-700' },
+		success: { shadcn: 'default', custom: 'bg-success-100 text-success-800 border-success-200 dark:bg-success-900 dark:text-success-200 dark:border-success-800' },
+		warning: { shadcn: 'default', custom: 'bg-warning-100 text-warning-800 border-warning-200 dark:bg-warning-900 dark:text-warning-200 dark:border-warning-800' },
+		error: { shadcn: 'destructive', custom: '' },
+		info: { shadcn: 'default', custom: 'bg-info-100 text-info-800 border-info-200 dark:bg-info-900 dark:text-info-200 dark:border-info-800' },
+		neutral: { shadcn: 'secondary', custom: '' },
 	};
 
-	// Size styles
-	const sizes = {
+	// Size classes
+	const sizeClasses = {
 		sm: 'px-2 py-0.5 text-xs',
 		md: 'px-2.5 py-1 text-sm',
 		lg: 'px-3 py-1.5 text-base',
 	};
 
-	// Compute classes
-	const classes = $derived([
-		'inline-flex items-center gap-1',
-		'font-medium rounded-full',
-		variants[variant],
-		sizes[size],
-	].join(' '));
+	const config = $derived(variantConfig[variant] ?? variantConfig.neutral);
+	const sizeClass = $derived(sizeClasses[size] ?? sizeClasses.md);
 </script>
 
-<span class={classes}>
+<ShadcnBadge
+	variant={config.shadcn}
+	class="{config.custom} {sizeClass}"
+>
 	{@render children?.()}
-</span>
+</ShadcnBadge>

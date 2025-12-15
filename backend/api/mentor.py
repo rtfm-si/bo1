@@ -36,6 +36,7 @@ from bo1.prompts.mentor import (
     format_business_context,
     format_conversation_history,
     format_dataset_summaries,
+    format_failure_patterns,
     format_mentioned_context,
     format_recent_meetings,
     get_mentor_system_prompt,
@@ -151,6 +152,98 @@ class MentionSearchResponse(BaseModel):
 
 
 # =============================================================================
+# Repeated Topics Models
+# =============================================================================
+
+
+class RepeatedTopicResponse(BaseModel):
+    """Response model for a detected repeated topic."""
+
+    topic_summary: str = Field(..., description="Summary of the repeated topic")
+    count: int = Field(..., description="Number of times this topic was asked")
+    first_asked: str = Field(..., description="ISO timestamp of first occurrence")
+    last_asked: str = Field(..., description="ISO timestamp of most recent occurrence")
+    conversation_ids: list[str] = Field(
+        ..., description="IDs of conversations containing this topic"
+    )
+    representative_messages: list[str] = Field(
+        ..., description="Sample messages from this topic cluster"
+    )
+    similarity_score: float = Field(
+        ..., description="Average similarity score within cluster (0-1)"
+    )
+
+
+class RepeatedTopicsListResponse(BaseModel):
+    """Response model for listing repeated topics."""
+
+    topics: list[RepeatedTopicResponse]
+    total: int
+    analysis_timestamp: str = Field(..., description="ISO timestamp of analysis")
+
+
+# =============================================================================
+# Failure Patterns Models
+# =============================================================================
+
+
+class ActionFailurePatternResponse(BaseModel):
+    """Response model for a detected action failure pattern."""
+
+    action_id: str = Field(..., description="Action UUID")
+    title: str = Field(..., description="Action title")
+    project_id: str | None = Field(None, description="Project UUID if assigned")
+    project_name: str | None = Field(None, description="Project name if assigned")
+    status: str = Field(..., description="Action status (cancelled or blocked)")
+    priority: str = Field(..., description="Action priority")
+    failure_reason: str | None = Field(None, description="Reason for failure")
+    failure_category: str | None = Field(
+        None, description="Category: blocker/scope_creep/dependency/unknown"
+    )
+    failed_at: str = Field(..., description="ISO timestamp of failure")
+    tags: list[str] = Field(default_factory=list, description="Action tags")
+
+
+class FailurePatternsResponse(BaseModel):
+    """Response model for failure patterns analysis."""
+
+    patterns: list[ActionFailurePatternResponse] = Field(..., description="List of failed actions")
+    failure_rate: float = Field(..., ge=0.0, le=1.0, description="Failure rate (0.0-1.0)")
+    total_actions: int = Field(..., description="Total actions in period")
+    failed_actions: int = Field(..., description="Number of failed actions")
+    period_days: int = Field(..., description="Analysis period in days")
+    by_project: dict[str, int] = Field(..., description="Failure count by project name")
+    by_category: dict[str, int] = Field(..., description="Failure count by category")
+    analysis_timestamp: str = Field(..., description="ISO timestamp of analysis")
+
+
+# =============================================================================
+# Improvement Plan Models
+# =============================================================================
+
+
+class ImprovementSuggestionResponse(BaseModel):
+    """A single improvement suggestion."""
+
+    category: str = Field(..., description="Category: execution, planning, knowledge, process")
+    title: str = Field(..., description="Brief actionable title")
+    description: str = Field(..., description="Explanation of the issue")
+    action_steps: list[str] = Field(..., description="Specific action steps")
+    priority: str = Field(..., description="Priority: high, medium, low")
+
+
+class ImprovementPlanResponse(BaseModel):
+    """Response model for improvement plan."""
+
+    suggestions: list[ImprovementSuggestionResponse] = Field(
+        ..., description="List of improvement suggestions"
+    )
+    generated_at: str = Field(..., description="ISO timestamp of generation")
+    inputs_summary: dict[str, Any] = Field(..., description="Summary of inputs used for analysis")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0.0-1.0)")
+
+
+# =============================================================================
 # SSE Streaming
 # =============================================================================
 
@@ -242,6 +335,16 @@ async def _stream_mentor_response(
         datasets_ctx = format_dataset_summaries(context.datasets or [])
         conv_history = format_conversation_history(conversation.get("messages", []))
 
+        # Format failure patterns for proactive mentoring (only if high failure rate)
+        failure_ctx = ""
+        if context.failure_patterns and context.failure_patterns.should_inject():
+            failure_ctx = format_failure_patterns(
+                failure_rate=context.failure_patterns.failure_rate,
+                patterns=context.failure_patterns.patterns or [],
+                by_project=context.failure_patterns.by_project or {},
+                by_category=context.failure_patterns.by_category or {},
+            )
+
         # Build prompt (use clean_text if mentions were parsed, else original message)
         # Sanitize user input to prevent prompt injection
         question_text = mention_result.clean_text if mention_result.mentions else message
@@ -254,6 +357,7 @@ async def _stream_mentor_response(
             datasets_context=datasets_ctx,
             conversation_history=conv_history,
             mentioned_context=mentioned_ctx,
+            failure_context=failure_ctx,
         )
 
         # Get system prompt for persona
@@ -585,3 +689,180 @@ async def delete_mentor_conversation(
 
     if not deleted:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+
+@router.get(
+    "/repeated-topics",
+    response_model=RepeatedTopicsListResponse,
+    summary="Detect repeated help request topics",
+    description="Analyze mentor conversations to find repeated topic patterns",
+)
+@handle_api_errors("detect repeated topics")
+async def get_repeated_topics(
+    threshold: float = Query(0.85, ge=0.7, le=0.95, description="Similarity threshold (0.7-0.95)"),
+    min_occurrences: int = Query(
+        3, ge=2, le=10, description="Minimum occurrences to report (2-10)"
+    ),
+    days: int = Query(30, ge=7, le=90, description="Days to look back (7-90)"),
+    user: dict = Depends(get_current_user),
+) -> RepeatedTopicsListResponse:
+    """Detect repeated help request topics from mentor conversations.
+
+    Uses embedding-based similarity to cluster semantically similar questions
+    and surface topics the user has asked about multiple times.
+
+    Results are cached for 1 hour to avoid repeated computation.
+    """
+    from datetime import UTC, datetime
+
+    from backend.services.topic_detector import get_topic_detector
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+
+    # Get user's messages from mentor conversations
+    mentor_conv_repo = get_mentor_conversation_repo()
+    messages = mentor_conv_repo.get_all_user_messages(user_id, days=days)
+
+    # Detect repeated topics
+    detector = get_topic_detector()
+    topics = detector.detect_repeated_topics(
+        user_id=user_id,
+        messages=messages,
+        threshold=threshold,
+        min_occurrences=min_occurrences,
+    )
+
+    return RepeatedTopicsListResponse(
+        topics=[
+            RepeatedTopicResponse(
+                topic_summary=t.topic_summary,
+                count=t.count,
+                first_asked=t.first_asked,
+                last_asked=t.last_asked,
+                conversation_ids=t.conversation_ids,
+                representative_messages=t.representative_messages,
+                similarity_score=t.similarity_score,
+            )
+            for t in topics
+        ],
+        total=len(topics),
+        analysis_timestamp=datetime.now(UTC).isoformat(),
+    )
+
+
+@router.get(
+    "/failure-patterns",
+    response_model=FailurePatternsResponse,
+    summary="Detect action failure patterns",
+    description="Analyze actions to find failure patterns for proactive mentoring",
+)
+@handle_api_errors("detect failure patterns")
+async def get_failure_patterns(
+    days: int = Query(30, ge=7, le=90, description="Days to look back (7-90)"),
+    min_failures: int = Query(3, ge=1, le=20, description="Minimum failures to report (1-20)"),
+    user: dict = Depends(get_current_user),
+) -> FailurePatternsResponse:
+    """Detect action failure patterns for proactive mentoring.
+
+    Analyzes cancelled and blocked actions to identify patterns
+    that might indicate areas where the user needs support.
+
+    Returns failure rate, patterns grouped by project and category.
+    """
+    from datetime import UTC, datetime
+
+    from backend.services.action_failure_detector import get_action_failure_detector
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+
+    detector = get_action_failure_detector()
+    summary = detector.detect_failure_patterns(
+        user_id=user_id,
+        days=days,
+        min_failures=min_failures,
+    )
+
+    # Filter patterns if below min_failures threshold
+    patterns_to_return = summary.patterns
+    if len(patterns_to_return) < min_failures:
+        patterns_to_return = []
+
+    return FailurePatternsResponse(
+        patterns=[
+            ActionFailurePatternResponse(
+                action_id=p.action_id,
+                title=p.title,
+                project_id=p.project_id,
+                project_name=p.project_name,
+                status=p.status,
+                priority=p.priority,
+                failure_reason=p.failure_reason,
+                failure_category=p.failure_category,
+                failed_at=p.failed_at,
+                tags=p.tags,
+            )
+            for p in patterns_to_return
+        ],
+        failure_rate=summary.failure_rate,
+        total_actions=summary.total_actions,
+        failed_actions=summary.failed_actions,
+        period_days=summary.period_days,
+        by_project=summary.by_project,
+        by_category=summary.by_category,
+        analysis_timestamp=datetime.now(UTC).isoformat(),
+    )
+
+
+@router.get(
+    "/improvement-plan",
+    response_model=ImprovementPlanResponse,
+    summary="Get improvement plan",
+    description="Generate a proactive improvement plan based on detected patterns",
+)
+@handle_api_errors("get improvement plan")
+async def get_improvement_plan(
+    days: int = Query(30, ge=7, le=90, description="Days to look back (7-90)"),
+    force_refresh: bool = Query(False, description="Bypass cache and regenerate"),
+    user: dict = Depends(get_current_user),
+) -> ImprovementPlanResponse:
+    """Generate an improvement plan for the current user.
+
+    Analyzes repeated help topics and action failure patterns to generate
+    actionable improvement suggestions. Results are cached for 1 hour.
+
+    Returns 3-5 prioritized suggestions with action steps.
+    """
+    from backend.services.improvement_plan_generator import (
+        get_improvement_plan_generator,
+    )
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+
+    generator = get_improvement_plan_generator()
+    plan = await generator.generate_plan(
+        user_id=user_id,
+        days=days,
+        force_refresh=force_refresh,
+    )
+
+    return ImprovementPlanResponse(
+        suggestions=[
+            ImprovementSuggestionResponse(
+                category=s.category,
+                title=s.title,
+                description=s.description,
+                action_steps=s.action_steps,
+                priority=s.priority,
+            )
+            for s in plan.suggestions
+        ],
+        generated_at=plan.generated_at,
+        inputs_summary=plan.inputs_summary,
+        confidence=plan.confidence,
+    )

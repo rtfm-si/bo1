@@ -16,14 +16,30 @@ from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
 
-# UMAP optional - falls back to PCA
-try:
-    import umap
+# UMAP is lazy-loaded to avoid 7s import overhead at startup
+# Only loaded when UMAP method is explicitly requested
+_umap_module: Any = None
+_umap_check_done: bool = False
 
-    UMAP_AVAILABLE = True
-except ImportError:
-    UMAP_AVAILABLE = False
-    logger.info("umap-learn not available, using PCA for dimensionality reduction")
+
+def _get_umap() -> Any:
+    """Lazy-load UMAP module on first use."""
+    global _umap_module, _umap_check_done
+    if not _umap_check_done:
+        _umap_check_done = True
+        try:
+            import umap as _umap
+
+            _umap_module = _umap
+            logger.info("umap-learn loaded for dimensionality reduction")
+        except ImportError:
+            logger.info("umap-learn not available, using PCA for dimensionality reduction")
+    return _umap_module
+
+
+def is_umap_available() -> bool:
+    """Check if UMAP is available (triggers lazy load)."""
+    return _get_umap() is not None
 
 
 def reduce_dimensions(
@@ -56,9 +72,10 @@ def reduce_dimensions(
             result.append(point)
         return result
 
-    if method == "umap" and UMAP_AVAILABLE and len(embeddings) >= 3:
+    umap_mod = _get_umap()
+    if method == "umap" and umap_mod is not None and len(embeddings) >= 3:
         # UMAP for better cluster preservation (needs at least 3 samples)
-        reducer = umap.UMAP(
+        reducer = umap_mod.UMAP(
             n_components=n_components,
             n_neighbors=min(15, len(embeddings) - 1),
             min_dist=0.1,
@@ -142,7 +159,7 @@ def get_embedding_stats() -> dict[str, Any]:
         },
         "dimensions": 1024,
         "storage_estimate_mb": round(storage_mb, 2),
-        "umap_available": UMAP_AVAILABLE,
+        "umap_available": is_umap_available(),
     }
 
 

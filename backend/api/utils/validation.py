@@ -3,12 +3,18 @@
 Provides validation functions for:
 - Session IDs (UUID format with optional 'bo1_' prefix)
 - User IDs (alphanumeric with common separators)
+- SQL injection detection
 - Other security-critical inputs
 """
 
+import logging
 import re
 
 from fastapi import HTTPException
+
+from bo1.prompts.sanitizer import detect_sql_injection
+
+logger = logging.getLogger(__name__)
 
 
 def validate_session_id(session_id: str) -> str:
@@ -110,3 +116,30 @@ def validate_cache_id(cache_id: str) -> str:
         )
 
     return cache_id.lower()
+
+
+def validate_no_sql_injection(value: str, field_name: str) -> None:
+    """Validate that text does not contain SQL injection patterns.
+
+    Detects advanced SQL injection patterns including command execution,
+    extended stored procedures, time-based attacks, and file operations.
+
+    Args:
+        value: Text value to validate
+        field_name: Name of the field being validated (for logging)
+
+    Raises:
+        HTTPException: 400 if SQL injection patterns detected
+    """
+    if not value:
+        return
+
+    detection_result = detect_sql_injection(value)
+    if detection_result:
+        # Log specific pattern for security audit
+        logger.warning(f"SQL injection attempt blocked in {field_name}: {detection_result}")
+        # Return generic message to client
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid input in {field_name}. Contains disallowed patterns.",
+        )

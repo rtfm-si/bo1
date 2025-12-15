@@ -35,6 +35,7 @@
 		GanttChartSquare,
 		MessageSquarePlus
 	} from 'lucide-svelte';
+	import { toast } from '$lib/stores/toast';
 
 	const projectId = $page.params.id!;
 
@@ -43,7 +44,6 @@
 	let sessions = $state<ProjectSessionLink[]>([]);
 	let ganttData = $state<GanttResponse | null>(null);
 	let isLoading = $state(true);
-	let error = $state<string | null>(null);
 	let isUpdatingStatus = $state(false);
 	let ganttViewMode = $state<'Day' | 'Week' | 'Month' | 'Quarter' | 'Year'>('Week');
 
@@ -136,7 +136,6 @@
 	async function loadProject() {
 		try {
 			isLoading = true;
-			error = null;
 
 			const [projectData, actionsData, sessionsData, ganttDataResult] = await Promise.all([
 				apiClient.getProject(projectId),
@@ -150,7 +149,7 @@
 			sessions = sessionsData.sessions;
 			ganttData = ganttDataResult;
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to load project';
+			toast.error(err instanceof Error ? err.message : 'Failed to load project');
 		} finally {
 			isLoading = false;
 		}
@@ -164,7 +163,7 @@
 			const updated = await apiClient.updateProjectStatus(projectId, newStatus);
 			project = updated;
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to update status';
+			toast.error(err instanceof Error ? err.message : 'Failed to update status');
 		} finally {
 			isUpdatingStatus = false;
 		}
@@ -184,7 +183,7 @@
 				project = { ...project, total_actions: project.total_actions - 1 };
 			}
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to remove action';
+			toast.error(err instanceof Error ? err.message : 'Failed to remove action');
 		}
 	}
 
@@ -195,7 +194,7 @@
 			await apiClient.unlinkSessionFromProject(projectId, sessionId);
 			sessions = sessions.filter((s) => s.session_id !== sessionId);
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to unlink session';
+			toast.error(err instanceof Error ? err.message : 'Failed to unlink session');
 		}
 	}
 
@@ -304,13 +303,6 @@
 				<ShimmerSkeleton type="card" />
 				<ShimmerSkeleton type="card" />
 				<ShimmerSkeleton type="card" />
-			</div>
-		{:else if error}
-			<div class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-xl p-6 text-center">
-				<AlertTriangle class="w-12 h-12 text-error-500 mx-auto mb-3" />
-				<h2 class="text-lg font-semibold text-error-900 dark:text-error-100 mb-2">Error Loading Project</h2>
-				<p class="text-error-700 dark:text-error-300 mb-4">{error}</p>
-				<Button variant="secondary" onclick={loadProject}>Try Again</Button>
 			</div>
 		{:else if project}
 			<div class="space-y-6">

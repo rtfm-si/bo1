@@ -89,6 +89,18 @@ bo1_rate_limiter_redis_failures_total = Counter(
     "Total Redis failures in rate limiter",
 )
 
+# Global IP rate limit metrics
+bo1_global_rate_limit_hits_total = Counter(
+    "bo1_global_rate_limit_hits_total",
+    "Total requests checked by global IP rate limiter",
+)
+
+bo1_global_rate_limit_blocked_total = Counter(
+    "bo1_global_rate_limit_blocked_total",
+    "Total requests blocked by global IP rate limiter",
+    ["ip_hash"],  # Low-cardinality hash of IP for grouping
+)
+
 # Event batching metrics (P2-PERF)
 bo1_events_batched_total = Counter(
     "bo1_events_batched_total",
@@ -285,6 +297,24 @@ def set_rate_limiter_degraded(degraded: bool) -> None:
 def record_rate_limiter_redis_failure() -> None:
     """Record a Redis failure in rate limiter."""
     bo1_rate_limiter_redis_failures_total.inc()
+
+
+def record_global_rate_limit_hit() -> None:
+    """Record a request checked by global rate limiter."""
+    bo1_global_rate_limit_hits_total.inc()
+
+
+def record_global_rate_limit_blocked(ip: str) -> None:
+    """Record a request blocked by global IP rate limiter.
+
+    Args:
+        ip: Client IP address (hashed for low cardinality)
+    """
+    # Hash IP for low cardinality (first 8 chars of hash)
+    import hashlib
+
+    ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:8]
+    bo1_global_rate_limit_blocked_total.labels(ip_hash=ip_hash).inc()
 
 
 def record_citation_compliance(persona_type: str, citation_count: int, is_compliant: bool) -> None:

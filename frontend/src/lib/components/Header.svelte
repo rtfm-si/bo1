@@ -146,7 +146,7 @@
 			</a>
 
 			<!-- Desktop Navigation -->
-			<div class="hidden md:flex items-center gap-3 lg:gap-4">
+			<div class="hidden md:flex items-center gap-4 lg:gap-6">
 				{#if $isAuthenticated}
 					<a
 						href="/dashboard"
@@ -156,8 +156,8 @@
 					>
 						Dashboard
 					</a>
-					<NavDropdown label="Board" links={boardLinks} isGroupActive={() => isGroupActive(boardLinks)} />
-					<NavDropdown label="Context" links={contextLinks} isGroupActive={() => isGroupActive(contextLinks)} />
+					<NavDropdown label="Board" links={boardLinks} isGroupActive={() => isGroupActive(boardLinks)} dataTour="projects-nav" />
+					<NavDropdown label="Context" links={contextLinks} isGroupActive={() => isGroupActive(contextLinks)} dataTour="context-nav" />
 					<NavDropdown label="Reports" links={reportsLinks} isGroupActive={() => isGroupActive(reportsLinks)} />
 					<a
 						href="/settings"
@@ -172,17 +172,17 @@
 						class={isActive('/help')
 							? 'text-brand-600 dark:text-brand-400 font-medium'
 							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}
-						title="Help Center"
+						aria-label="Help Center"
 					>
-						<HelpCircle class="w-4 h-4" />
+						<HelpCircle class="w-4 h-4" aria-hidden="true" />
 					</a>
 					<button
 						type="button"
 						class="text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-						title="Send Feedback"
+						aria-label="Send Feedback"
 						onclick={() => (showFeedbackModal = true)}
 					>
-						<MessageSquarePlus class="w-4 h-4" />
+						<MessageSquarePlus class="w-4 h-4" aria-hidden="true" />
 					</button>
 					{#if $user?.is_admin}
 						<a

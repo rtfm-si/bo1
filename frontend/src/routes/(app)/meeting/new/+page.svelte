@@ -7,7 +7,9 @@
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import MeetingContextSelector from '$lib/components/meeting/MeetingContextSelector.svelte';
 	import MeetingProjectSelector from '$lib/components/meeting/MeetingProjectSelector.svelte';
+	import { AlertTriangle, X } from 'lucide-svelte';
 	import type { Dataset, StaleInsight, SessionContextIds } from '$lib/api/types';
+	import { toast } from '$lib/stores/toast';
 
 	let problemStatement = $state('');
 	let isSubmitting = $state(false);
@@ -23,6 +25,9 @@
 	let selectedContext = $state<SessionContextIds>({});
 	// Project linking state
 	let selectedProjectIds = $state<string[]>([]);
+	// Project link warning state
+	let projectLinkWarning = $state<string | null>(null);
+	let projectLinkWarningTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
@@ -78,6 +83,11 @@
 		try {
 			isSubmitting = true;
 			error = null;
+			projectLinkWarning = null;
+			if (projectLinkWarningTimeout) {
+				clearTimeout(projectLinkWarningTimeout);
+				projectLinkWarningTimeout = null;
+			}
 
 			// Build context_ids if any selected
 			const hasContext =
@@ -103,7 +113,12 @@
 					});
 				} catch (projectErr) {
 					console.warn('Failed to link projects to session:', projectErr);
-					// Non-blocking - continue with meeting creation
+					// Non-blocking - show warning but continue with meeting creation
+					projectLinkWarning = 'Could not link project(s) to this meeting. You can link them later from the meeting page.';
+					// Auto-dismiss after 5 seconds
+					projectLinkWarningTimeout = setTimeout(() => {
+						projectLinkWarning = null;
+					}, 5000);
 				}
 			}
 
@@ -121,7 +136,7 @@
 
 		} catch (err) {
 			console.error('Failed to create meeting:', err);
-			error = err instanceof Error ? err.message : 'Failed to create meeting';
+			toast.error(err instanceof Error ? err.message : 'Failed to create meeting');
 			isSubmitting = false;
 		}
 	}
@@ -135,7 +150,7 @@
 			goto(`/meeting/${sessionId}`);
 		} catch (err) {
 			console.error('Failed to start meeting:', err);
-			error = err instanceof Error ? err.message : 'Failed to start meeting';
+			toast.error(err instanceof Error ? err.message : 'Failed to start meeting');
 			isSubmitting = false;
 		}
 	}
@@ -285,9 +300,9 @@
 
 				<!-- Project Selector -->
 				<div>
-					<label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+					<span class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
 						Link to Projects (Optional)
-					</label>
+					</span>
 					<p class="text-sm text-slate-500 dark:text-slate-400 mb-3">
 						Connect this meeting to existing projects for better organization.
 					</p>
@@ -314,6 +329,28 @@
 						{/each}
 					</div>
 				</div>
+
+				<!-- Project Link Warning -->
+				{#if projectLinkWarning}
+					<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+						<div class="flex items-center justify-between gap-2">
+							<div class="flex items-center gap-2">
+								<AlertTriangle class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+								<p class="text-sm text-amber-900 dark:text-amber-200">
+									{projectLinkWarning}
+								</p>
+							</div>
+							<button
+								type="button"
+								onclick={() => { projectLinkWarning = null; }}
+								class="p-1 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded transition-colors"
+								aria-label="Dismiss warning"
+							>
+								<X class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+							</button>
+						</div>
+					</div>
+				{/if}
 
 				<!-- Error Message -->
 				{#if error}
@@ -382,7 +419,13 @@
 
 <!-- Staleness Warning Modal -->
 {#if showStalenessWarning}
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+	<div
+		class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="staleness-warning-title"
+		onkeydown={(e) => e.key === 'Escape' && dismissStalenessWarning()}
+	>
 		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full p-6">
 			<div class="flex items-start gap-4 mb-4">
 				<div class="flex-shrink-0 p-2 bg-amber-100 dark:bg-amber-900/30 rounded-full">
@@ -391,7 +434,7 @@
 					</svg>
 				</div>
 				<div>
-					<h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+					<h3 id="staleness-warning-title" class="text-lg font-semibold text-slate-900 dark:text-white">
 						Some of your insights may be outdated
 					</h3>
 					<p class="text-sm text-slate-600 dark:text-slate-400 mt-1">

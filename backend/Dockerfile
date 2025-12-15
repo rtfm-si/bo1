@@ -11,9 +11,11 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install system dependencies
+# curl: required for healthcheck probes
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv

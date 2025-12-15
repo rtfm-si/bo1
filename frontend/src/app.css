@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
 
 /* ============================================================================
    Tailwind CSS 4.0 Theme Configuration (CSS-First)
@@ -190,6 +193,30 @@
 	--z-tooltip: 1070;
 }
 
+/* shadcn-svelte theme integration - maps CSS variables to Tailwind colors */
+@theme inline {
+	--radius-sm: calc(var(--shadcn-radius) - 4px);
+	--radius-md: calc(var(--shadcn-radius) - 2px);
+	--radius-lg: var(--shadcn-radius);
+	--radius-xl: calc(var(--shadcn-radius) + 4px);
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-destructive: var(--destructive);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+}
+
 /* ============================================================================
    CSS Custom Properties - Theme-aware variables
    Set by theme system in lib/design/themes.ts
@@ -214,6 +241,48 @@
 	--color-warning: #eab308;
 	--color-error: #dc2626;
 	--color-info: #2563eb;
+
+	/* shadcn-svelte semantic color tokens (using Bo1 brand colors) */
+	--shadcn-radius: 0.5rem;
+	--background: var(--color-neutral-50);
+	--foreground: var(--color-neutral-900);
+	--card: var(--color-surface);
+	--card-foreground: var(--color-neutral-900);
+	--popover: var(--color-surface);
+	--popover-foreground: var(--color-neutral-900);
+	--primary: var(--color-brand-600);
+	--primary-foreground: #ffffff;
+	--secondary: var(--color-neutral-200);
+	--secondary-foreground: var(--color-neutral-900);
+	--muted: var(--color-neutral-100);
+	--muted-foreground: var(--color-neutral-500);
+	--accent: var(--color-accent-500);
+	--accent-foreground: #ffffff;
+	--destructive: var(--color-error-600);
+	--border: var(--color-neutral-200);
+	--input: var(--color-neutral-200);
+	--ring: var(--color-brand-500);
+}
+
+.dark {
+	--background: var(--color-neutral-900);
+	--foreground: var(--color-neutral-100);
+	--card: var(--color-neutral-800);
+	--card-foreground: var(--color-neutral-100);
+	--popover: var(--color-neutral-800);
+	--popover-foreground: var(--color-neutral-100);
+	--primary: var(--color-brand-500);
+	--primary-foreground: #ffffff;
+	--secondary: var(--color-neutral-700);
+	--secondary-foreground: var(--color-neutral-100);
+	--muted: var(--color-neutral-800);
+	--muted-foreground: var(--color-neutral-400);
+	--accent: var(--color-accent-600);
+	--accent-foreground: #ffffff;
+	--destructive: var(--color-error-500);
+	--border: var(--color-neutral-700);
+	--input: var(--color-neutral-700);
+	--ring: var(--color-brand-400);
 }
 
 /* ============================================================================

@@ -41,10 +41,28 @@
 	let modalElement = $state<HTMLDivElement>();
 	let previousActiveElement: Element | null = null;
 
-	// Handle ESC key
+	// Handle ESC key and focus trap
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && closable) {
 			close();
+			return;
+		}
+
+		// Focus trap: Tab key navigation within modal
+		if (e.key === 'Tab' && modalElement) {
+			const focusableElements = modalElement.querySelectorAll<HTMLElement>(
+				'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+			);
+			const firstElement = focusableElements[0];
+			const lastElement = focusableElements[focusableElements.length - 1];
+
+			if (e.shiftKey && document.activeElement === firstElement) {
+				e.preventDefault();
+				lastElement?.focus();
+			} else if (!e.shiftKey && document.activeElement === lastElement) {
+				e.preventDefault();
+				firstElement?.focus();
+			}
 		}
 	}
 
@@ -53,12 +71,21 @@
 		onclose?.();
 	}
 
-	// Lock body scroll when modal opens (only in browser)
+	// Lock body scroll when modal opens (only in browser) and manage focus
 	$effect(() => {
 		if (browser) {
 			if (open) {
 				previousActiveElement = document.activeElement;
 				document.body.style.overflow = 'hidden';
+				// Focus first focusable element in modal after a short delay
+				setTimeout(() => {
+					if (modalElement) {
+						const firstFocusable = modalElement.querySelector<HTMLElement>(
+							'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+						);
+						firstFocusable?.focus();
+					}
+				}, 50);
 			} else {
 				document.body.style.overflow = '';
 				if (previousActiveElement instanceof HTMLElement) {

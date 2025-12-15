@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database } from 'lucide-svelte';
+	import ExtendedKPIsPanel from '$lib/components/admin/ExtendedKPIsPanel.svelte';
 
 	interface AdminStats {
 		totalUsers: number;
@@ -126,6 +127,9 @@
 					</div>
 				</div>
 			</div>
+
+		<!-- Extended KPIs Panel -->
+		<ExtendedKPIsPanel />
 
 		<!-- Quick Links - Monitoring -->
 		<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Monitoring</h2>

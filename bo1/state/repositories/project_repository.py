@@ -20,10 +20,11 @@ logger = logging.getLogger(__name__)
 
 
 # Valid status transitions for projects
+# Note: completed projects cannot transition to active - use create_new_version instead
 VALID_PROJECT_TRANSITIONS: dict[str, list[str]] = {
     "active": ["paused", "completed", "archived"],
     "paused": ["active", "archived"],
-    "completed": ["active", "archived"],  # Can reopen if needed
+    "completed": ["archived"],  # Cannot reopen - use create_new_version instead
     "archived": [],  # Terminal state
 }
 
@@ -76,7 +77,8 @@ class ProjectRepository(BaseRepository):
                               estimated_start_date, estimated_end_date,
                               actual_start_date, actual_end_date,
                               progress_percent, total_actions, completed_actions,
-                              color, icon, created_at, updated_at
+                              color, icon, version, source_project_id,
+                              created_at, updated_at
                     """,
                     (
                         user_id,
@@ -108,7 +110,8 @@ class ProjectRepository(BaseRepository):
                    estimated_start_date, estimated_end_date,
                    actual_start_date, actual_end_date,
                    progress_percent, total_actions, completed_actions,
-                   color, icon, created_at, updated_at
+                   color, icon, version, source_project_id,
+                   created_at, updated_at
             FROM projects
             WHERE id = %s
             """,
@@ -154,7 +157,8 @@ class ProjectRepository(BaseRepository):
                    estimated_start_date, estimated_end_date,
                    actual_start_date, actual_end_date,
                    progress_percent, total_actions, completed_actions,
-                   color, icon, created_at, updated_at
+                   color, icon, version, source_project_id,
+                   created_at, updated_at
             FROM projects
             WHERE {where_sql}
             ORDER BY updated_at DESC
@@ -224,7 +228,8 @@ class ProjectRepository(BaseRepository):
                       estimated_start_date, estimated_end_date,
                       actual_start_date, actual_end_date,
                       progress_percent, total_actions, completed_actions,
-                      color, icon, created_at, updated_at
+                      color, icon, version, source_project_id,
+                      created_at, updated_at
         """
 
         return self._execute_one(query, tuple(params))
@@ -334,10 +339,83 @@ class ProjectRepository(BaseRepository):
                       estimated_start_date, estimated_end_date,
                       actual_start_date, actual_end_date,
                       progress_percent, total_actions, completed_actions,
-                      color, icon, created_at, updated_at
+                      color, icon, version, source_project_id,
+                      created_at, updated_at
             """,
             (new_status, str(project_id), user_id),
         )
+
+    def create_new_version(self, project_id: str | UUID, user_id: str) -> dict[str, Any] | None:
+        """Create a new version of a completed project.
+
+        Completed projects cannot be reopened. Instead, users create a new version
+        which copies the project with incremented version number and active status.
+
+        Args:
+            project_id: Source project UUID (must be completed)
+            user_id: User ID (for verification)
+
+        Returns:
+            New project record (v2, v3, etc), or None if source not found
+
+        Raises:
+            ValueError: If source project is not in 'completed' status
+        """
+        source = self.get(project_id)
+        if not source or source["user_id"] != user_id:
+            return None
+
+        if source["status"] != "completed":
+            raise ValueError(
+                f"Cannot create new version from project with status '{source['status']}'. "
+                "Only completed projects can be versioned."
+            )
+
+        # Get the next version number for this project name
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COALESCE(MAX(version), 0) + 1 as next_version
+                    FROM projects
+                    WHERE user_id = %s AND name = %s
+                    """,
+                    (user_id, source["name"]),
+                )
+                result = cur.fetchone()
+                next_version = result["next_version"]
+
+                # Create the new version
+                cur.execute(
+                    """
+                    INSERT INTO projects (
+                        user_id, name, description, status,
+                        target_start_date, target_end_date,
+                        color, icon, version, source_project_id
+                    )
+                    VALUES (%s, %s, %s, 'active', %s, %s, %s, %s, %s, %s)
+                    RETURNING id, user_id, name, description, status,
+                              target_start_date, target_end_date,
+                              estimated_start_date, estimated_end_date,
+                              actual_start_date, actual_end_date,
+                              progress_percent, total_actions, completed_actions,
+                              color, icon, version, source_project_id,
+                              created_at, updated_at
+                    """,
+                    (
+                        user_id,
+                        source["name"],
+                        source["description"],
+                        source["target_start_date"],
+                        source["target_end_date"],
+                        source["color"],
+                        source["icon"],
+                        next_version,
+                        str(project_id),
+                    ),
+                )
+                new_project = cur.fetchone()
+                return dict(new_project) if new_project else None
 
     # =========================================================================
     # Progress Calculation
@@ -401,7 +479,8 @@ class ProjectRepository(BaseRepository):
                               estimated_start_date, estimated_end_date,
                               actual_start_date, actual_end_date,
                               progress_percent, total_actions, completed_actions,
-                              color, icon, created_at, updated_at
+                              color, icon, version, source_project_id,
+                              created_at, updated_at
                     """,
                     (total, completed, progress, est_start, est_end, first_start, str(project_id)),
                 )
@@ -422,7 +501,8 @@ class ProjectRepository(BaseRepository):
                                       estimated_start_date, estimated_end_date,
                                       actual_start_date, actual_end_date,
                                       progress_percent, total_actions, completed_actions,
-                                      color, icon, created_at, updated_at
+                                      color, icon, version, source_project_id,
+                                      created_at, updated_at
                             """,
                             (str(project_id),),
                         )

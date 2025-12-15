@@ -308,6 +308,13 @@ class CircuitBreakerConfig:
 class RateLimits:
     """API rate limits by endpoint type."""
 
+    # Global IP-based flood protection (runs before all other limits)
+    GLOBAL_IP = "500/minute"
+    """Global per-IP limit to catch flood attacks (generous for NAT/corporate)"""
+
+    GLOBAL_IP_BURST = "50/second"
+    """Short burst protection per IP"""
+
     AUTH = "10/minute"
     """Auth endpoints (login, refresh)"""
 

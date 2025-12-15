@@ -216,6 +216,13 @@ class Settings(BaseSettings):
     cookie_secure: bool = Field(default=False, description="Use secure cookies (HTTPS only)")
     cookie_domain: str = Field(default="localhost", description="Cookie domain")
 
+    # Metrics Endpoint Auth
+    metrics_auth_token: str = Field(
+        default="",
+        description="Bearer token for /metrics endpoint. If set, requires Authorization: Bearer <token>. "
+        "Empty = allow all (dev mode). Required for production.",
+    )
+
     # ntfy Push Notifications
     ntfy_server: str = Field(default="https://ntfy.boardof.one", description="ntfy server URL")
     ntfy_topic_waitlist: str = Field(
@@ -401,6 +408,12 @@ class Settings(BaseSettings):
     enable_context_collection: bool = Field(
         default=True,
         description="Enable business context collection and information gap analysis (improves recommendations by 40%)",
+    )
+
+    # Auto-generate Projects from Actions
+    auto_generate_projects: bool = Field(
+        default=True,
+        description="Auto-create projects from completed actions (deduplicates by title similarity)",
     )
 
     # SSE Streaming Mode

@@ -71,7 +71,8 @@ from backend.api.middleware.correlation_id import CorrelationIdMiddleware  # noq
 from backend.api.middleware.csrf import CSRFMiddleware  # noqa: E402
 from backend.api.middleware.degraded_mode import DegradedModeMiddleware  # noqa: E402
 from backend.api.middleware.metrics import create_instrumentator  # noqa: E402
-from backend.api.middleware.rate_limit import limiter  # noqa: E402
+from backend.api.middleware.metrics_auth import MetricsAuthMiddleware  # noqa: E402
+from backend.api.middleware.rate_limit import GlobalRateLimitMiddleware, limiter  # noqa: E402
 from backend.api.middleware.security_headers import add_security_headers_middleware  # noqa: E402
 from backend.api.supertokens_config import (  # noqa: E402
     add_supertokens_middleware,
@@ -424,6 +425,17 @@ app.add_middleware(
     GZipMiddleware,
     minimum_size=1000,  # Only compress responses >= 1KB (avoid overhead for tiny responses)
 )
+
+# Add metrics auth middleware (protects /metrics if METRICS_AUTH_TOKEN is set)
+# IMPORTANT: Add AFTER GZip (middleware executes in reverse order)
+# This runs early to protect /metrics before rate limiting
+app.add_middleware(MetricsAuthMiddleware)
+
+# Add global IP-based rate limiting middleware
+# IMPORTANT: Add AFTER MetricsAuth (middleware executes in reverse order)
+# This provides flood protection before any auth or endpoint-specific limits
+# Ordering: CORS > GZip > MetricsAuth > GlobalRateLimit > SecurityHeaders > ... > EndpointRateLimit
+app.add_middleware(GlobalRateLimitMiddleware)
 
 # Add security headers middleware (X-Frame-Options, CSP, HSTS, etc.)
 # IMPORTANT: Add AFTER GZip (middleware executes in reverse order)

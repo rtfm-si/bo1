@@ -39,6 +39,55 @@ INJECTION_PATTERNS = [
     r"\[instruction[s]?\]",
 ]
 
+# SQL injection patterns (case-insensitive) - targets advanced SQL attacks
+# Uses word boundaries to avoid false positives on legitimate text
+SQL_INJECTION_PATTERNS = [
+    # Command execution
+    r"\bEXEC\s*\(",
+    r"\bEXECUTE\s*\(",
+    # Extended stored procedures (SQL Server)
+    r"\bxp_cmdshell\b",
+    r"\bxp_regread\b",
+    r"\bxp_regwrite\b",
+    r"\bxp_fileexist\b",
+    # System stored procedures
+    r"\bsp_executesql\b",
+    r"\bsp_makewebtask\b",
+    r"\bsp_oacreate\b",
+    # Time-based injection
+    r"\bWAITFOR\s+DELAY\b",
+    r"\bWAITFOR\s+TIME\b",
+    # File operations
+    r"\bBULK\s+INSERT\b",
+    r"\bOPENROWSET\b",
+    r"\bOPENDATASOURCE\b",
+    r"\bINTO\s+OUTFILE\b",
+    r"\bLOAD_FILE\s*\(",
+]
+
+
+def detect_sql_injection(text: str) -> str | None:
+    """Detect SQL injection patterns in text.
+
+    Scans for advanced SQL injection patterns including command execution,
+    extended stored procedures, time-based attacks, and file operations.
+
+    Args:
+        text: Text to scan for SQL injection patterns
+
+    Returns:
+        Description of detected pattern, or None if no patterns found
+    """
+    if not text:
+        return None
+
+    for pattern in SQL_INJECTION_PATTERNS:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return f"SQL injection pattern detected: {match.group(0)}"
+
+    return None
+
 
 def sanitize_user_input(text: str, context: str = "user input") -> str:
     """Sanitize user-provided text to prevent prompt injection.
@@ -95,7 +144,18 @@ def sanitize_user_input(text: str, context: str = "user input") -> str:
             )
             modifications.append("neutralized injection pattern")
 
-    # 3. Log if any modifications were made
+    # 3. Neutralize SQL injection patterns
+    for pattern in SQL_INJECTION_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            text = re.sub(
+                pattern,
+                lambda m: f"[SQL_SANITIZED: {m.group(0)}]",
+                text,
+                flags=re.IGNORECASE,
+            )
+            modifications.append("neutralized SQL injection pattern")
+
+    # 4. Log if any modifications were made
     if modifications and text != original:
         logger.warning(
             f"Sanitized {context}: {', '.join(set(modifications))}. "

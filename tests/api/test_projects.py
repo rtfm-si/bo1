@@ -204,3 +204,97 @@ class TestProjectTypeValidation:
         """Test ProjectStatusUpdate validation."""
         request = ProjectStatusUpdate(status="paused")
         assert request.status == "paused"
+
+
+class TestProjectVersioning:
+    """Tests for project versioning feature."""
+
+    def test_format_project_response_with_version(self):
+        """Test formatting project with version fields."""
+        project = {
+            "id": "project-v2",
+            "user_id": "test-user",
+            "name": "Test Project",
+            "description": "Test",
+            "status": "active",
+            "target_start_date": None,
+            "target_end_date": None,
+            "estimated_start_date": None,
+            "estimated_end_date": None,
+            "actual_start_date": None,
+            "actual_end_date": None,
+            "progress_percent": 0,
+            "total_actions": 0,
+            "completed_actions": 0,
+            "color": None,
+            "icon": None,
+            "version": 2,
+            "source_project_id": "project-v1",
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+
+        formatted = _format_project_response(project)
+
+        assert formatted["version"] == 2
+        assert formatted["source_project_id"] == "project-v1"
+
+    def test_format_project_response_default_version(self):
+        """Test formatting project without version defaults to 1."""
+        project = {
+            "id": "project-123",
+            "user_id": "test-user",
+            "name": "Test Project",
+            "description": None,
+            "status": "active",
+            "target_start_date": None,
+            "target_end_date": None,
+            "estimated_start_date": None,
+            "estimated_end_date": None,
+            "actual_start_date": None,
+            "actual_end_date": None,
+            "progress_percent": 0,
+            "total_actions": 0,
+            "completed_actions": 0,
+            "color": None,
+            "icon": None,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+
+        formatted = _format_project_response(project)
+
+        assert formatted["version"] == 1
+        assert formatted["source_project_id"] is None
+
+
+class TestProjectStatusTransitionValidation:
+    """Tests for project status transition rules."""
+
+    def test_completed_cannot_transition_to_active(self):
+        """Test that completed projects cannot transition to active."""
+        from bo1.state.repositories.project_repository import VALID_PROJECT_TRANSITIONS
+
+        allowed = VALID_PROJECT_TRANSITIONS.get("completed", [])
+        assert "active" not in allowed, "completed projects should not transition to active"
+
+    def test_completed_can_transition_to_archived(self):
+        """Test that completed projects can transition to archived."""
+        from bo1.state.repositories.project_repository import VALID_PROJECT_TRANSITIONS
+
+        allowed = VALID_PROJECT_TRANSITIONS.get("completed", [])
+        assert "archived" in allowed, "completed projects should be able to archive"
+
+    def test_active_can_transition_to_completed(self):
+        """Test that active projects can transition to completed."""
+        from bo1.state.repositories.project_repository import VALID_PROJECT_TRANSITIONS
+
+        allowed = VALID_PROJECT_TRANSITIONS.get("active", [])
+        assert "completed" in allowed
+
+    def test_paused_can_transition_to_active(self):
+        """Test that paused projects can transition to active."""
+        from bo1.state.repositories.project_repository import VALID_PROJECT_TRANSITIONS
+
+        allowed = VALID_PROJECT_TRANSITIONS.get("paused", [])
+        assert "active" in allowed

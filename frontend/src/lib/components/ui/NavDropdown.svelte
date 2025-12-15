@@ -16,9 +16,10 @@
 		label: string;
 		links: NavLink[];
 		isGroupActive?: (links: NavLink[]) => boolean;
+		dataTour?: string;
 	}
 
-	let { label, links, isGroupActive }: Props = $props();
+	let { label, links, isGroupActive, dataTour }: Props = $props();
 
 	let isOpen = $state(false);
 	let closeTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -77,43 +78,48 @@
 	});
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="relative"
-	role="navigation"
+	data-tour={dataTour}
 	onmouseenter={openDropdown}
 	onmouseleave={closeDropdown}
 >
 	<!-- Trigger button -->
 	<button
 		type="button"
-		class="flex items-center gap-1 px-1 py-2 text-sm transition-colors {isActive
+		id="{label.toLowerCase()}-menu-button"
+		class="flex items-center gap-1 px-1 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 rounded {isActive
 			? 'text-brand-600 dark:text-brand-400 font-medium'
 			: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400'}"
 		aria-expanded={isOpen}
-		aria-haspopup="true"
+		aria-haspopup="menu"
+		aria-controls="{label.toLowerCase()}-menu"
 		onclick={() => (isOpen = !isOpen)}
 		onkeydown={handleKeydown}
 	>
 		{label}
 		<ChevronDown
 			class="w-4 h-4 transition-transform {isOpen ? 'rotate-180' : ''}"
+			aria-hidden="true"
 		/>
 	</button>
 
 	<!-- Dropdown menu -->
 	{#if isOpen}
-		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+		<!-- svelte-ignore a11y_interactive_supports_focus -->
 		<div
+			id="{label.toLowerCase()}-menu"
 			class="absolute left-0 top-full mt-1 min-w-[160px] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg py-1 z-50"
 			role="menu"
-			tabindex="0"
+			aria-labelledby="{label.toLowerCase()}-menu-button"
 			onmouseenter={openDropdown}
 			onmouseleave={closeDropdown}
 		>
 			{#each links as link (link.href)}
 				<a
 					href={link.href}
-					class="block px-4 py-2 text-sm transition-colors {isLinkActive(link.href)
+					class="block px-4 py-2 text-sm transition-colors focus:outline-none focus-visible:bg-brand-50 dark:focus-visible:bg-brand-900/20 {isLinkActive(link.href)
 						? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 font-medium'
 						: 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700'}"
 					role="menuitem"

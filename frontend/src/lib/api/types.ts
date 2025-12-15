@@ -2106,3 +2106,59 @@ export interface ValueMetricsResponse {
 	has_context: boolean;
 	has_history: boolean;
 }
+
+// ============================================================================
+// Extended KPIs Types (Admin)
+// ============================================================================
+
+/**
+ * Mentor session statistics
+ */
+export interface MentorSessionStats {
+	total_sessions: number;
+	sessions_today: number;
+	sessions_this_week: number;
+	sessions_this_month: number;
+}
+
+/**
+ * Dataset analysis statistics
+ */
+export interface DataAnalysisStats {
+	total_analyses: number;
+	analyses_today: number;
+	analyses_this_week: number;
+	analyses_this_month: number;
+}
+
+/**
+ * Project statistics by status
+ */
+export interface ProjectStats {
+	total_projects: number;
+	active: number;
+	paused: number;
+	completed: number;
+	archived: number;
+}
+
+/**
+ * Action statistics by status
+ */
+export interface ActionKPIStats {
+	total_actions: number;
+	pending: number;
+	in_progress: number;
+	completed: number;
+	cancelled: number;
+}
+
+/**
+ * Extended KPIs response from GET /api/admin/extended-kpis
+ */
+export interface ExtendedKPIsResponse {
+	mentor_sessions: MentorSessionStats;
+	data_analyses: DataAnalysisStats;
+	projects: ProjectStats;
+	actions: ActionKPIStats;
+}

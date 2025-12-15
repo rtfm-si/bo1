@@ -88,6 +88,10 @@ def _format_project_response(project: dict) -> dict:
         "completed_actions": project.get("completed_actions", 0),
         "color": project.get("color"),
         "icon": project.get("icon"),
+        "version": project.get("version", 1),
+        "source_project_id": (
+            str(project["source_project_id"]) if project.get("source_project_id") else None
+        ),
         "created_at": (project["created_at"].isoformat() if project.get("created_at") else None),
         "updated_at": (project["updated_at"].isoformat() if project.get("updated_at") else None),
     }
@@ -279,6 +283,39 @@ async def update_project_status(
         raise HTTPException(status_code=404, detail="Project not found")
 
     return _format_project_response(updated)
+
+
+@router.post(
+    "/{project_id}/versions",
+    response_model=ProjectDetailResponse,
+    status_code=201,
+    summary="Create new project version",
+    description="Create a new version of a completed project",
+)
+@handle_api_errors("create project version")
+async def create_project_version(
+    project_id: str,
+    user: dict = Depends(get_current_user),
+) -> ProjectDetailResponse:
+    """Create a new version of a completed project.
+
+    Completed projects cannot be reopened. Instead, create a new version
+    which starts fresh as an active project (v2, v3, etc).
+    """
+    user_id = user["user_id"]
+
+    try:
+        new_project = project_repository.create_new_version(
+            project_id=project_id,
+            user_id=user_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+
+    if not new_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return _format_project_response(new_project)
 
 
 # =========================================================================

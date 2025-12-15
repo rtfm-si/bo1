@@ -26,6 +26,7 @@ from backend.api.admin import (
     blog,
     cost_analytics,
     embeddings,
+    extended_kpis,
     feature_flags,
     feedback,
     impersonation,
@@ -63,6 +64,7 @@ router.include_router(ops.router)
 router.include_router(blog.router)
 router.include_router(partitions.router)
 router.include_router(embeddings.router)
+router.include_router(extended_kpis.router)
 
 # Re-export models for backward compatibility
 from backend.api.admin.models import (  # noqa: E402, F401

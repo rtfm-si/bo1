@@ -769,3 +769,92 @@ class ImpersonationHistoryResponse(BaseModel):
     total: int = Field(..., description="Total records")
     sessions: list[ImpersonationHistoryItem] = Field(..., description="History entries")
     limit: int = Field(..., description="Max records returned")
+
+
+# ==============================================================================
+# Extended KPIs Models
+# ==============================================================================
+
+
+class MentorSessionStats(BaseModel):
+    """Statistics for mentor chat sessions.
+
+    Attributes:
+        total_sessions: Total mentor chat sessions across all users
+        sessions_today: Sessions started today
+        sessions_this_week: Sessions in the last 7 days
+        sessions_this_month: Sessions in the last 30 days
+    """
+
+    total_sessions: int = Field(..., description="Total mentor sessions")
+    sessions_today: int = Field(0, description="Sessions today")
+    sessions_this_week: int = Field(0, description="Sessions in last 7 days")
+    sessions_this_month: int = Field(0, description="Sessions in last 30 days")
+
+
+class DataAnalysisStats(BaseModel):
+    """Statistics for dataset analyses.
+
+    Attributes:
+        total_analyses: Total dataset analyses across all users
+        analyses_today: Analyses started today
+        analyses_this_week: Analyses in the last 7 days
+        analyses_this_month: Analyses in the last 30 days
+    """
+
+    total_analyses: int = Field(..., description="Total dataset analyses")
+    analyses_today: int = Field(0, description="Analyses today")
+    analyses_this_week: int = Field(0, description="Analyses in last 7 days")
+    analyses_this_month: int = Field(0, description="Analyses in last 30 days")
+
+
+class ProjectStats(BaseModel):
+    """Statistics for projects by status.
+
+    Attributes:
+        total_projects: Total projects across all users
+        active: Active projects
+        paused: Paused projects
+        completed: Completed projects
+        archived: Archived projects
+    """
+
+    total_projects: int = Field(..., description="Total projects")
+    active: int = Field(0, description="Active projects")
+    paused: int = Field(0, description="Paused projects")
+    completed: int = Field(0, description="Completed projects")
+    archived: int = Field(0, description="Archived projects")
+
+
+class ActionStats(BaseModel):
+    """Statistics for actions by status.
+
+    Attributes:
+        total_actions: Total actions across all users
+        pending: Pending actions
+        in_progress: In-progress actions
+        completed: Completed actions
+        cancelled: Cancelled actions
+    """
+
+    total_actions: int = Field(..., description="Total actions")
+    pending: int = Field(0, description="Pending actions")
+    in_progress: int = Field(0, description="In-progress actions")
+    completed: int = Field(0, description="Completed actions")
+    cancelled: int = Field(0, description="Cancelled actions")
+
+
+class ExtendedKPIsResponse(BaseModel):
+    """Response model for extended KPIs.
+
+    Attributes:
+        mentor_sessions: Mentor session statistics
+        data_analyses: Dataset analysis statistics
+        projects: Project statistics by status
+        actions: Action statistics by status
+    """
+
+    mentor_sessions: MentorSessionStats = Field(..., description="Mentor session stats")
+    data_analyses: DataAnalysisStats = Field(..., description="Dataset analysis stats")
+    projects: ProjectStats = Field(..., description="Project stats by status")
+    actions: ActionStats = Field(..., description="Action stats by status")

@@ -7,6 +7,7 @@
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
+	import { toast } from '$lib/stores/toast';
 
 	// Use data fetch utility for datasets
 	const datasetsData = useDataFetch(() => apiClient.getDatasets());
@@ -16,12 +17,22 @@
 	const isLoading = $derived(datasetsData.isLoading);
 	const error = $derived(datasetsData.error);
 
+	// Show toast when error changes
+	$effect(() => {
+		if (error) {
+			toast.error(error);
+		}
+	});
+
 	// Upload state
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let uploadProgress = $state(0);
 	let isDragging = $state(false);
 	let fileInput: HTMLInputElement;
+
+	// Delete operation state
+	let deletingDatasetId = $state<string | null>(null);
 
 	// Google Sheets connection state
 	let sheetsConnected = $state(false);
@@ -119,7 +130,7 @@
 			uploadProgress = 100;
 			await datasetsData.fetch();
 		} catch (err) {
-			uploadError = err instanceof Error ? err.message : 'Upload failed';
+			toast.error(err instanceof Error ? err.message : 'Upload failed');
 		} finally {
 			isUploading = false;
 			uploadProgress = 0;
@@ -184,7 +195,7 @@
 			sheetsUrl = '';
 			await datasetsData.fetch();
 		} catch (err) {
-			sheetsError = err instanceof Error ? err.message : 'Import failed';
+			toast.error(err instanceof Error ? err.message : 'Import failed');
 		} finally {
 			isImportingSheets = false;
 		}
@@ -198,11 +209,15 @@
 			return;
 		}
 
+		deletingDatasetId = datasetId;
 		try {
 			await apiClient.deleteDataset(datasetId);
 			await datasetsData.fetch();
 		} catch (err) {
 			console.error('Failed to delete dataset:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to delete dataset');
+		} finally {
+			deletingDatasetId = null;
 		}
 	}
 </script>
@@ -370,26 +385,6 @@
 					<ShimmerSkeleton type="card" />
 				{/each}
 			</div>
-		{:else if error}
-			<!-- Error State -->
-			<div class="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg p-6">
-				<div class="flex items-center gap-3">
-					<svg class="w-6 h-6 text-error-600 dark:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-					</svg>
-					<div>
-						<h3 class="text-lg font-semibold text-error-900 dark:text-error-200">Error Loading Datasets</h3>
-						<p class="text-sm text-error-700 dark:text-error-300">{error}</p>
-					</div>
-				</div>
-				<div class="mt-4">
-					<Button variant="danger" size="md" onclick={() => datasetsData.fetch()}>
-						{#snippet children()}
-							Retry
-						{/snippet}
-					</Button>
-				</div>
-			</div>
 		{:else if datasets.length === 0}
 			<!-- Empty State -->
 			<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-12 text-center">
@@ -464,13 +459,21 @@
 							</span>
 							<button
 								onclick={(e) => handleDelete(dataset.id, e)}
-								class="p-1 hover:bg-error-50 dark:hover:bg-error-900/20 rounded transition-colors group"
+								class="p-1 hover:bg-error-50 dark:hover:bg-error-900/20 rounded transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
 								title="Delete dataset"
 								aria-label="Delete dataset"
+								disabled={deletingDatasetId !== null}
 							>
-								<svg class="w-4 h-4 text-neutral-400 dark:text-neutral-500 group-hover:text-error-600 dark:group-hover:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-								</svg>
+								{#if deletingDatasetId === dataset.id}
+									<svg class="w-4 h-4 text-neutral-400 animate-spin" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
+								{:else}
+									<svg class="w-4 h-4 text-neutral-400 dark:text-neutral-500 group-hover:text-error-600 dark:group-hover:text-error-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+									</svg>
+								{/if}
 							</button>
 						</div>
 					</a>

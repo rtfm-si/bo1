@@ -1,9 +1,12 @@
 <script lang="ts">
 	/**
-	 * Button Component - Reusable button with variants and sizes
+	 * Button Component - shadcn-svelte wrapper with backward-compatible API
+	 * Maps existing Bo1 variant/size props to shadcn equivalents
 	 */
+	import { Button as ShadcnButton, type ButtonProps } from './shadcn/button';
+	import type { Snippet } from 'svelte';
 
-	// Props
+	// Props matching the legacy API
 	let {
 		variant = 'brand',
 		size = 'md',
@@ -25,56 +28,48 @@
 		title?: string;
 		onclick?: (event: MouseEvent) => void;
 		class?: string;
-		children?: import('svelte').Snippet;
+		children?: Snippet;
 	} = $props();
 
-	// Variant styles
-	const variants = {
-		brand:
-			'bg-brand-600 text-white hover:bg-brand-700 focus:ring-brand-500 dark:bg-brand-500 dark:hover:bg-brand-600',
-		accent:
-			'bg-accent-600 text-white hover:bg-accent-700 focus:ring-accent-500 dark:bg-accent-500 dark:hover:bg-accent-600',
-		secondary:
-			'bg-neutral-200 text-neutral-900 hover:bg-neutral-300 focus:ring-neutral-500 dark:bg-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-600',
-		outline:
-			'bg-transparent text-brand-600 border-2 border-brand-600 hover:bg-brand-50 focus:ring-brand-500 dark:text-brand-400 dark:border-brand-400 dark:hover:bg-brand-900/20',
-		ghost:
-			'bg-transparent text-neutral-700 hover:bg-neutral-100 focus:ring-neutral-500 dark:text-neutral-300 dark:hover:bg-neutral-800',
-		danger:
-			'bg-error-600 text-white hover:bg-error-700 focus:ring-error-500 dark:bg-error-500 dark:hover:bg-error-600',
+	// Map legacy variants to shadcn variants
+	const variantMap: Record<string, ButtonProps['variant']> = {
+		brand: 'default',
+		accent: 'default', // Use default with accent styling
+		secondary: 'secondary',
+		outline: 'outline',
+		ghost: 'ghost',
+		danger: 'destructive',
 	};
 
-	// Size styles
-	const sizes = {
-		sm: 'px-3 py-1.5 text-sm',
-		md: 'px-4 py-2 text-base',
-		lg: 'px-6 py-3 text-lg',
+	// Map legacy sizes to shadcn sizes
+	const sizeMap: Record<string, ButtonProps['size']> = {
+		sm: 'sm',
+		md: 'default',
+		lg: 'lg',
 	};
 
-	// Compute classes
-	const classes = $derived(
-		[
-			'inline-flex items-center justify-center gap-2',
-			'font-medium rounded-md',
-			'transition-colors duration-200',
-			'focus:outline-none focus:ring-2 focus:ring-offset-2',
-			'disabled:opacity-50 disabled:cursor-not-allowed',
-			variants[variant],
-			sizes[size],
-			className,
-		]
-			.filter(Boolean)
-			.join(' ')
+	// Custom classes for variants shadcn doesn't have built-in
+	const customVariantClasses: Record<string, string> = {
+		brand: 'bg-brand-600 hover:bg-brand-700 text-white',
+		accent: 'bg-accent-600 hover:bg-accent-700 text-white',
+	};
+
+	const shadcnVariant = $derived(variantMap[variant] ?? 'default');
+	const shadcnSize = $derived(sizeMap[size] ?? 'default');
+	const customClass = $derived(
+		variant === 'brand' || variant === 'accent' ? customVariantClasses[variant] : ''
 	);
 </script>
 
-<button
+<ShadcnButton
 	{type}
+	variant={shadcnVariant}
+	size={shadcnSize}
 	disabled={disabled || loading}
-	class={classes}
 	aria-label={ariaLabel}
 	{title}
-	onclick={onclick}
+	{onclick}
+	class="{customClass} {className}"
 >
 	{#if loading}
 		<svg
@@ -99,4 +94,4 @@
 		</svg>
 	{/if}
 	{@render children?.()}
-</button>
+</ShadcnButton>

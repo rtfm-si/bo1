@@ -22,6 +22,21 @@
 - [ ] [DATA][P2] DuckDB backend for large datasets (>100K rows) - defer until needed
 - [ ] [BILLING][P4] Upgrade prompts near usage limit - nice-to-have
 
+### Toast System [UX] - ✅ COMPLETE
+
+- [x] [UX][P3] Toast system infrastructure (unblocks error auto-dismiss standardization)
+  - Store: `frontend/src/lib/stores/toast.ts` with writable store pattern
+  - API: `toast.success()`, `toast.error()`, `toast.info()`, `toast.warning()`
+  - Auto-dismiss: success=3s, info=5s, warning=7s, error=manual
+  - Component: `ToastContainer.svelte` (bottom-right, stacking, max 5)
+  - Integration: Added to `(app)/+layout.svelte`
+  - Tests: 16 unit tests in `toast.test.ts`
+- [x] [UX][P3] Migrate existing error displays to use toast.error()
+  - Core pages: dashboard, meeting, meeting/new, actions, datasets, projects/[id], analysis
+  - Pattern: API errors → toast.error(); validation errors remain inline
+  - Removed unused error state variables
+  - Added $effect for useDataFetch error reactivity (dashboard, datasets)
+
 ### Needs Clarification
 
 - [ ] [MONITORING][P1] Kubernetes deployment manifest - are we using kubernetes?
@@ -32,21 +47,33 @@
 
 ### Security Testing [SECURITY]
 
-- [ ] [SECURITY][P2] Add security integration tests per audit checklist (auth, authz, input validation)
-- [ ] [SECURITY][P2] Add LLM security tests (prompt injection, jailbreak, data exfiltration patterns)
-- [ ] [SECURITY][P2] Add rate limiting tests (session creation, global flood protection)
+- [x] [SECURITY][P2] Add security integration tests per audit checklist (auth, authz, input validation) - 28 tests in tests/security/test_security_integration.py
+- [x] [SECURITY][P2] Add LLM security tests (prompt injection, jailbreak, data exfiltration patterns) - 37 tests in tests/security/test_prompt_injection.py (95% coverage)
+- [x] [SECURITY][P2] Add rate limiting tests (session creation, global flood protection) - 43 tests in tests/security/test_rate_limiting.py
 
 ### Security Hardening [SECURITY]
 
-- [ ] [SECURITY][P2] Add global IP-based rate limit alongside user limits (M6)
-- [ ] [SECURITY][P2] Strengthen SQL validation regex patterns (EXEC, xp_cmdshell) (M4)
-- [ ] [SECURITY][P3] Add network policy or auth to /metrics endpoint (L2)
-- [ ] [SECURITY][P3] Change pip-audit continue-on-error to false in CI (L3)
-- [ ] [SECURITY][P3] Audit all @html usages for proper DOMPurify sanitization (L1)
+- [x] [SECURITY][P2] Add global IP-based rate limit alongside user limits (M6) - GlobalRateLimitMiddleware (500/min per IP), 15 new tests
+- [x] [SECURITY][P2] Strengthen SQL validation regex patterns (EXEC, xp_cmdshell) (M4) - 25 tests in tests/security/test_sql_injection.py
+- [x] [SECURITY][P3] Add network policy or auth to /metrics endpoint (L2) - MetricsAuthMiddleware with METRICS_AUTH_TOKEN, 7 tests
+- [x] [SECURITY][P3] Change pip-audit continue-on-error to false in CI (L3)
+- [x] [SECURITY][P3] Audit all @html usages for proper DOMPurify sanitization (L1) - HelpArticle + BlogEditorModal fixed, MarkdownContent verified
 
 ### Production Config [DEPLOY]
 
-- [ ] [DEPLOY][P1] Document TRUSTED_PROXY_IPS configuration for production reverse proxy
+- [x] [DEPLOY][P1] Document TRUSTED_PROXY_IPS configuration for production reverse proxy
+
+---
+
+## Task backlog (from Broken Buttons Audit, 2025-12-15)
+
+### UX Polish [UX]
+
+- [x] [UX][P2] Add visual loading state to delete operations (dashboard, meeting, datasets pages) - M1
+- [x] [UX][P2] Add confirmation dialog for bulk status changes affecting >1 item - M2
+- [x] [UX][P3] Show toast on project link failure in meeting creation - L1
+- [x] [UX][P3] Add loading state to onboarding skip button - L2
+- [x] [UX][P3] Disable submit button until meeting form valid (>=20 chars) - L4
 
 ---
 
@@ -54,131 +81,197 @@
 
 ### API Performance [PERF]
 
-- [ ] [PERF][P1] Investigate API container 30s startup time - profile and optimize
+- [x] [PERF][P1] Investigate API container 30s startup time - profile and optimize
+  - Root cause: UMAP import at module load (7s), total was 12.6s not 30s
+  - Fix: Lazy-load UMAP only when explicitly requested
+  - Result: Startup reduced from 12.6s → 6.8s (46% improvement)
+  - Bonus: Fixed healthcheck (added curl to Dockerfile)
 
 ### Header Navigation UX [NAV]
 
-- [ ] [UX][P2] Improve header nav spacing for laptop screens (currently squashed)
-- [ ] [UX][P2] Remove 'New Meeting' button from header (redundant)
-- [ ] [UX][P2] Remove workspace switcher from header (use settings instead)
-- [ ] [UX][P2] Add Meetings link to Reports dropdown on dashboard
+- [x] [UX][P2] Improve header nav spacing for laptop screens (gap-3→gap-4, lg:gap-4→lg:gap-6)
+- [x] [UX][P2] Remove 'New Meeting' button from header (already absent)
+- [x] [UX][P2] Remove workspace switcher from header (already absent)
+- [x] [UX][P2] Add Meetings link to Reports dropdown on dashboard (already present)
 
 ### Projects System [PROJECTS]
 
-- [ ] [PROJECTS][P2] Auto-generate projects from actions (dedupe existing projects)
-- [ ] [PROJECTS][P2] Prevent reopening closed projects - support project versioning (v2, v3, etc.)
+- [x] [PROJECTS][P2] Auto-generate projects from actions (dedupe existing projects). Scope for actions should not be too tight
+  - `backend/services/project_generator.py`: title similarity matching (0.8 threshold), project-worthiness filter
+  - Integration: `complete_action` and `update_action_status` endpoints trigger auto-generation
+  - Config: `AUTO_GENERATE_PROJECTS` env var (default: true)
+  - 29 unit tests in `tests/services/test_project_generator.py`
+- [x] [PROJECTS][P2] Prevent reopening closed projects - support project versioning (v2, v3, etc.)
+  - Migration: `ay1_add_project_version.py` adds `version` and `source_project_id` columns
+  - Status transitions: removed `active` from `completed` transitions
+  - Repository: `create_new_version()` method clones completed project as v2, v3, etc.
+  - API: `POST /api/v1/projects/{id}/versions` endpoint
+  - 6 new tests in `tests/api/test_projects.py`
 
 ### Context Insights Data Quality [CONTEXT]
 
-- [ ] [DATA][P1] Filter null/empty insight responses before storing (allow "none"/"n/a" as valid)
-- [ ] [DATA][P1] Parse meaningful context from responses instead of storing raw input
-- [ ] [CONTEXT][P2] Implement periodic context refresh prompts for stale metrics
-- [ ] [CONTEXT][P2] Refresh volatile/action-affected metrics more frequently than stable metrics
+- [x] [DATA][P1] Filter null/empty insight responses before storing (allow "none"/"n/a" as valid)
+- [x] [DATA][P1] Parse meaningful context from responses instead of storing raw input
+- [x] [CONTEXT][P2] Implement periodic and appropriately timed context refresh prompts for stale metrics
+  - API: GET /api/v1/context/stale-metrics with volatility classification
+  - API: POST /api/v1/context/dismiss-refresh with volatility-aware expiry (7d/30d/90d)
+  - API: GET /api/v1/context/refresh-check now includes stale_metrics array and highest_urgency
+  - UI: ContextRefreshBanner shows specific field names with urgency colors (red/amber/blue)
+  - 12 new unit tests in tests/services/test_insight_staleness.py
+- [x] [CONTEXT][P2] Refresh volatile/action-affected metrics more frequently than stable metrics
+  - Volatile (revenue, customers): 30-day threshold, 7-day dismiss expiry
+  - Moderate (team_size, competitors): 90-day threshold, 30-day dismiss expiry
+  - Stable (business_stage, industry): 180-day threshold, 90-day dismiss expiry
+  - Action completion flags volatile metrics for immediate refresh prompt
 
 ### App Stability [QA]
 
-- [ ] [QA][P0] Audit broken buttons/actions across app (identify fragile operations)
-- [ ] [QA][P1] Increase overall app stability - remove fragile operations
+- [x] [QA][P0] Audit broken buttons/actions across app (identify fragile operations) - see `audits/reports/broken_buttons.report.md`
+- [x] [QA][P1] Increase overall app stability - remove fragile operations
+  - M1-M2: Loading states and confirmation dialogs added
+  - M3: Settings toggle auto-save (optimistic update, loading spinner, error revert)
 
-### E2E Test Fixes [E2E] - 51 tests
+### E2E Test Fixes [E2E] - ✅ ALL FIXED (was 51 tests, now 0 remaining)
 
 see frontend/e2e/FIXME_TESTS.md
 
-#### Settings Page (18 tests) - routes/structure mismatch
+#### Settings Page - ✅ FIXED (18→19 tests, all passing)
 
-- [ ] [E2E] settings.spec.ts:159 - displays settings navigation sidebar
-- [ ] [E2E] settings.spec.ts:191 - displays user email
-- [ ] [E2E] settings.spec.ts:205 - displays account tier
-- [ ] [E2E] settings.spec.ts:221 - displays email preferences
-- [ ] [E2E] settings.spec.ts:235 - displays data retention options
-- [ ] [E2E] settings.spec.ts:249 - displays data export button
-- [ ] [E2E] settings.spec.ts:263 - displays account deletion option
-- [ ] [E2E] settings.spec.ts:279 - displays current plan
-- [ ] [E2E] settings.spec.ts:293 - displays usage meters
-- [ ] [E2E] settings.spec.ts:307 - displays manage subscription button
-- [ ] [E2E] settings.spec.ts:324 - displays Google Sheets integration
-- [ ] [E2E] settings.spec.ts:338 - displays Google Calendar integration
-- [ ] [E2E] settings.spec.ts:352 - shows connect buttons
-- [ ] [E2E] settings.spec.ts:370 - clicking Account navigates
-- [ ] [E2E] settings.spec.ts:384 - clicking Privacy navigates
-- [ ] [E2E] settings.spec.ts:398 - clicking Billing navigates
-- [ ] [E2E] settings.spec.ts:412 - clicking Integrations navigates
-- [ ] [E2E] settings.spec.ts:428 - shows error on API failure
+All settings page tests fixed and passing. Tests updated to match:
 
-#### Meeting Complete (10 tests) - mock events not rendering
+- Actual sidebar structure (Profile/Privacy/Workspace under Account, Plan & Usage under Billing)
+- Emoji prefixes in nav links (👤, 🔒, 🏢, 💳)
+- Google Calendar only (no Google Sheets)
+- Scoped selectors to avoid strict mode violations
 
-- [ ] [E2E] meeting-complete.spec.ts:150 - shows "Meeting Complete"
-- [ ] [E2E] meeting-complete.spec.ts:167 - shows problem statement in header
-- [ ] [E2E] meeting-complete.spec.ts:183 - conclusion/synthesis tab visible
-- [ ] [E2E] meeting-complete.spec.ts:223 - displays executive summary
-- [ ] [E2E] meeting-complete.spec.ts:237 - displays key actions
-- [ ] [E2E] meeting-complete.spec.ts:255 - PDF export button visible
-- [ ] [E2E] meeting-complete.spec.ts:270 - clicking export triggers download
-- [ ] [E2E] meeting-complete.spec.ts:381 - does not display raw JSON
-- [ ] [E2E] meeting-complete.spec.ts:400 - displays formatted recommendations
-- [ ] [E2E] meeting-complete.spec.ts:584 - shows "Meeting in Progress"
+#### Meeting Create - ✅ FIXED (8 tests, all passing)
 
-#### Meeting Create (8 tests) - selector mismatches
+All meeting create tests fixed and passing. Tests updated to:
 
-- [ ] [E2E] meeting-create.spec.ts:21 - renders meeting creation form
-- [ ] [E2E] meeting-create.spec.ts:52 - shows character count and validation
-- [ ] [E2E] meeting-create.spec.ts:139 - shows what happens next info
-- [ ] [E2E] meeting-create.spec.ts:155 - submit button shows loading state
-- [ ] [E2E] meeting-create.spec.ts:188 - shows error on API failure
-- [ ] [E2E] meeting-create.spec.ts:218 - Ctrl+Enter submits form
-- [ ] [E2E] meeting-create.spec.ts:257 - shows dataset selector when datasets exist
-- [ ] [E2E] meeting-create.spec.ts:288 - hides dataset selector when no datasets
+- Use exact text selectors to avoid strict mode violations
+- Match actual UI text ("Starting meeting..." with ellipsis, exact validation messages)
+- Use correct label text for dataset selector ("Attach Dataset (Optional)")
+- Add delays to API mocks to reliably catch loading states
 
-#### Admin Promotions (7 tests) - dialog timing
+#### Meeting Complete - ✅ FIXED (10 tests, all passing)
 
-- [ ] [E2E] admin-promotions.spec.ts:334 - submitting valid form creates promotion
-- [ ] [E2E] admin-promotions.spec.ts:403 - shows error for empty code
-- [ ] [E2E] admin-promotions.spec.ts:424 - shows error for invalid code format
-- [ ] [E2E] admin-promotions.spec.ts:445 - shows error for zero or negative value
-- [ ] [E2E] admin-promotions.spec.ts:465 - shows error for percentage over 100
-- [ ] [E2E] admin-promotions.spec.ts:488 - deactivate button shows confirmation
-- [ ] [E2E] admin-promotions.spec.ts:511 - confirming deletion deactivates
+All meeting-complete tests fixed and passing (21 total). Tests updated to:
 
-#### Datasets (5 tests) - profile not rendering
+- Fix mock session response to include `problem.statement` object (SessionDetailResponse)
+- Fix mock events response to include `session_id` and `count` fields (SessionEventsResponse)
+- Fix mock `meta_synthesis_complete` event to use stringified JSON for `synthesis` field
+- Use `getByRole('tab')` and `getByRole('tabpanel')` for reliable tab selection
+- Add tab navigation before checking content in hidden tab panels
+- Remove all `test.fixme()` markers
 
-- [ ] [E2E] datasets.spec.ts:158 - empty state when no datasets
-- [ ] [E2E] datasets.spec.ts:382 - displays dataset profile summary
-- [ ] [E2E] datasets.spec.ts:413 - displays row and column counts
-- [ ] [E2E] datasets.spec.ts:446 - can submit question
-- [ ] [E2E] datasets.spec.ts:482 - shows analysis history
+#### Admin Promotions - ✅ FIXED (7 tests, all passing)
 
-#### Actions (2 tests) - Gantt not implemented
+All admin promotions tests fixed and passing (24 total). Tests updated to:
 
-- [ ] [E2E] actions.spec.ts:335 - toggle to Gantt view
-- [ ] [E2E] actions.spec.ts:359 - Gantt chart click does not navigate on drag
+- Use JavaScript form dispatch for reliable form submission (button click doesn't trigger form submit in Playwright)
+- Use `getByRole('alert')` for validation error messages (Alert component has role="alert")
+- Use `getByRole('dialog')` scoped selectors for confirmation dialogs
+- Remove all `test.fixme()` markers
 
-#### Dashboard (1 test) - CSS class mismatch
+#### Datasets - ✅ FIXED (5 tests, all passing)
 
-- [ ] [E2E] dashboard.spec.ts:310 - shows overdue actions with warning indicator
+All datasets tests fixed and passing (17 total). Tests updated to:
+
+- Use `page.unroute()` before overriding mocks for empty state test
+- Match exact UI text ("No datasets yet" for empty state)
+- Use `getByRole('heading')` to avoid strict mode violations on duplicate text
+- Use scoped locators with `.filter({ hasText: })` for stats grid
+- Update mock to match `DatasetAnalysis` type (use `title` not `query`)
+- Fix SSE mock format with proper event names
+
+#### Actions Gantt - ✅ FIXED (2 tests → 17 tests all passing)
+
+All actions tests fixed and passing. Tests updated to:
+
+- Fix mock route from `**/api/v1/gantt**` to `**/api/v1/actions/gantt**`
+- Update mock data structure to match `GlobalGanttResponse` type
+- Renamed `tasks` to `actions` array with proper fields (`status`, `priority`, `session_id`)
+- Changed `dependencies` from array to empty string
+- Removed `test.fixme()` markers
+
+#### Dashboard - ✅ FIXED (1 test, all passing)
+
+- [x] [E2E] dashboard.spec.ts:310 - shows overdue actions with warning indicator (updated selector from `text-red-*` to semantic `error-*` tokens)
 
 ### Admin Observability [ADMIN]
 
-- [ ] [ADMIN][P3] Add embeddings visualization page (graphical embedding explorer)
-- [ ] [ADMIN][P2] Add extended KPIs: mentor sessions, data analyses, projects, actions by status
+- [x] [ADMIN][P3] Add embeddings visualization page (graphical embedding explorer)
+  - Backend: `backend/services/embedding_visualizer.py` (PCA/UMAP, stats, sampling)
+  - API: `GET /api/admin/embeddings/stats`, `GET /api/admin/embeddings/sample`
+  - Frontend: `/admin/embeddings` with scatter plot, type filters, method toggle
+  - Link added to admin dashboard
+- [x] [ADMIN][P2] Add extended KPIs: mentor sessions, data analyses, projects, actions by status
+  - Backend: `backend/api/admin/extended_kpis.py` with 4 repository functions
+  - API: `GET /api/admin/extended-kpis` returning ExtendedKPIsResponse
+  - Frontend: `ExtendedKPIsPanel.svelte` component in admin dashboard
+  - Tests: 7 unit tests in `tests/api/admin/test_extended_kpis.py`
 
 ### Proactive Mentoring [MENTOR]
 
-- [ ] [MENTOR][P3] Detect repeated help requests on similar topics
-- [ ] [MENTOR][P3] Detect persistent action failure patterns
-- [ ] [MENTOR][P3] Proactively generate improvement plans for struggling users
+- [x] [MENTOR][P3] Detect repeated help requests on similar topics
+  - Service: `backend/services/topic_detector.py` with embedding-based similarity clustering
+  - API: `GET /api/v1/mentor/repeated-topics` with threshold, min_occurrences, days params
+  - Repository: `get_all_user_messages()` method in MentorConversationRepository
+  - Tests: 17 unit tests + 8 API tests
+- [x] [MENTOR][P3] Detect persistent action failure patterns
+  - Service: `backend/services/action_failure_detector.py` with failure rate calculation
+  - API: `GET /api/v1/mentor/failure-patterns` with days, min_failures params
+  - Response: patterns list, failure_rate, by_project, by_category groupings
+  - Context: Auto-injects into mentor chat when failure_rate >= 30%
+  - Tests: 17 unit tests + 11 API tests
+- [x] [MENTOR][P3] Proactively generate improvement plans for struggling users
+  - Service: `backend/services/improvement_plan_generator.py` with LLM-powered suggestions
+  - Prompt: `bo1/prompts/improvement_plan.py` for plan generation
+  - API: `GET /api/v1/mentor/improvement-plan` with days, force_refresh params
+  - Response: 3-5 prioritized suggestions with action steps, confidence score
+  - Inputs: TopicDetector + ActionFailureDetector patterns
+  - Cache: Redis (1-hour TTL, per-user key)
+  - Tests: 25 unit tests + 9 API tests
 
 ### Accessibility & UI Modernization [UX]
 
-- [ ] [UX][P3] Improve accessibility compliance
-- [ ] [UX][P3] Modernize UI components using shadcn
+- [x] [UX][P3] Improve accessibility compliance
+  - Skip link for keyboard navigation in app layout
+  - ARIA labels on icon-only buttons (Help, Feedback in Header)
+  - NavDropdown: proper aria-controls, aria-labelledby, focus-visible styles
+  - Modal: focus trap and auto-focus first element on open
+  - Button: focus-visible ring instead of focus ring
+  - Breadcrumb nav landmark with aria-label
+  - Main content landmark wrapping page content
+  - Staleness warning modal: proper dialog role and aria-labelledby
+  - TerminationModal: tabindex for dialog role
+  - Dashboard/Actions: removed nested main elements, added sr-only h1
+- [x] [UX][P3] Modernize UI components using shadcn (Phase 1)
+  - shadcn-svelte v1.1.0 installed and configured
+  - 5 core components replaced: Button, Input, Badge, Alert, Card
+  - Backward-compatible wrappers maintain existing API (variant, size, loading, etc.)
+  - Legacy components preserved as *Legacy.svelte for gradual migration
+  - Brand colors integrated via CSS custom properties
+  - Build and type-check validated
 
-### Onboarding Experience [ONBOARDING]
+### Onboarding Experience [ONBOARDING] - ✅ COMPLETE
 
-- [ ] [ONBOARDING][P2] Implement guided onboarding using driver.js
-- [ ] [ONBOARDING][P2] Tour step: Business context setup
-- [ ] [ONBOARDING][P2] Tour step: First meeting creation
-- [ ] [ONBOARDING][P2] Tour step: Post-meeting kanban & gantt views
-- [ ] [ONBOARDING][P2] Tour step: Projects overview
+- [x] [ONBOARDING][P2] Implement guided onboarding using driver.js
+  - driver.js 1.4.0 installed
+  - Tour configuration: `frontend/src/lib/tour/onboarding-tour.ts`
+  - Tour state store: `frontend/src/lib/stores/tour.ts`
+  - Bo1-themed styling with brand colors
+- [x] [ONBOARDING][P2] Tour step: First meeting creation
+  - Highlights "Start New Meeting" card on dashboard
+- [x] [ONBOARDING][P2] Tour step: Actions view
+  - Highlights "View All Actions" card on dashboard
+- [x] [ONBOARDING][P2] Tour step: Business context setup
+  - Highlights Context nav dropdown in header
+- [x] [ONBOARDING][P2] Tour step: Projects overview
+  - Highlights Board nav dropdown in header
+- [x] Tour auto-starts for new users on dashboard
+- [x] Tour restart button in Settings > Account
+- [x] Backend: `POST /api/v1/onboarding/reset` endpoint added
 
 ---
 
@@ -341,16 +434,18 @@ see frontend/e2e/FIXME_TESTS.md
 
 ### E2E Tests ✅
 
-- Dashboard (15 tests), settings (17 tests), actions, datasets, meeting-complete - all blocking in CI
+- Dashboard (15 tests), settings (19 tests), meeting-create (8 tests), meeting-complete (21 tests), actions, datasets - all blocking in CI
 
 ### Data Quality ✅
 
 - Insight response validation, null/empty filtering, storage layer validation
+- Migration to clean existing empty/invalid insights (e3_clean_empty_insights)
 
 ### API Performance ✅
 
 - Startup timing instrumentation, phase metrics (module init ~2.5s, lifespan <50ms)
+- UMAP lazy-loading optimization: 12.6s → 6.8s startup (46% faster)
 
 ---
 
-_Last updated: 2025-12-14_
+_Last updated: 2025-12-15 (shadcn-svelte UI Component Modernization Phase 1)_

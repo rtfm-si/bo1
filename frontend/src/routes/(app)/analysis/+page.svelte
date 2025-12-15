@@ -11,10 +11,10 @@
 	import AnalysisChat from '$lib/components/analysis/AnalysisChat.svelte';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 	import ShimmerSkeleton from '$lib/components/ui/loading/ShimmerSkeleton.svelte';
+	import { toast } from '$lib/stores/toast';
 
 	let datasets = $state<Dataset[]>([]);
 	let loading = $state(true);
-	let error = $state<string | null>(null);
 
 	onMount(async () => {
 		try {
@@ -22,7 +22,7 @@
 			datasets = response.datasets || [];
 		} catch (err) {
 			console.error('Failed to load datasets:', err);
-			error = 'Failed to load datasets';
+			toast.error('Failed to load datasets');
 		} finally {
 			loading = false;
 		}
@@ -62,10 +62,6 @@
 	{#if loading}
 		<div class="h-[600px] bg-white dark:bg-neutral-900 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-4">
 			<ShimmerSkeleton type="chart" />
-		</div>
-	{:else if error}
-		<div class="p-4 bg-error-50 dark:bg-error-900/20 rounded-lg border border-error-200 dark:border-error-800">
-			<p class="text-sm text-error-700 dark:text-error-300">{error}</p>
 		</div>
 	{:else}
 		<AnalysisChat {datasets} />

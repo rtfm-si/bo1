@@ -1,9 +1,11 @@
 <script lang="ts">
 	/**
 	 * HelpArticle - Renders help article content with markdown-style formatting
+	 * XSS protection via DOMPurify sanitization (defense-in-depth alongside escapeHtml)
 	 */
 	import type { HelpArticle } from '$lib/data/help-content';
 	import { helpCategories } from '$lib/data/help-content';
+	import DOMPurify from 'isomorphic-dompurify';
 
 	interface Props {
 		article: HelpArticle;
@@ -93,7 +95,7 @@
 		return result;
 	}
 
-	const renderedContent = $derived(renderContent(article.content));
+	const renderedContent = $derived(DOMPurify.sanitize(renderContent(article.content)));
 </script>
 
 <article class="max-w-none">

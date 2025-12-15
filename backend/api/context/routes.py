@@ -31,6 +31,7 @@ from backend.api.context.models import (
     ContextUpdateSource,
     ContextUpdateSuggestion,
     ContextWithTrends,
+    DismissRefreshRequest,
     EnrichmentRequest,
     EnrichmentResponse,
     InsightCategory,
@@ -38,6 +39,7 @@ from backend.api.context.models import (
     InsightsResponse,
     PendingUpdatesResponse,
     RefreshCheckResponse,
+    StaleFieldSummary,
     StaleMetricResponse,
     StaleMetricsResponse,
     TrendsRefreshRequest,
@@ -330,16 +332,20 @@ async def enrich_context(
     Returns true if:
     - No context exists
     - Context hasn't been updated in {CONTEXT_REFRESH_DAYS} days
-    - Last refresh prompt was dismissed more than {CONTEXT_REFRESH_DAYS} days ago
+    - Last refresh prompt was dismissed and dismiss has expired
+    - Stale metrics exist (based on volatility thresholds)
 
-    Use this to show "Are these details still correct?" prompts.
+    Also returns stale_metrics array with field names, volatility, and urgency
+    for the refresh banner to display specific fields needing attention.
     """,
 )
 @handle_api_errors("check refresh needed")
 async def check_refresh_needed(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> RefreshCheckResponse:
-    """Check if context refresh is needed."""
+    """Check if context refresh is needed, including stale metrics."""
+    from backend.services.insight_staleness import get_stale_metrics_for_session
+
     user_id = extract_user_id(user)
 
     # Get context with extended fields
@@ -361,8 +367,21 @@ async def check_refresh_needed(
         )
 
     updated_at = row.get("updated_at")
-    last_refresh_prompt = row.get("last_refresh_prompt")
     onboarding_completed = row.get("onboarding_completed", False)
+
+    # Get refresh_dismissed_until from context JSON
+    context_data = user_repository.get_context(user_id)
+    refresh_dismissed_until_str = (
+        context_data.get("refresh_dismissed_until") if context_data else None
+    )
+    refresh_dismissed_until = None
+    if refresh_dismissed_until_str:
+        try:
+            refresh_dismissed_until = datetime.fromisoformat(
+                refresh_dismissed_until_str.replace("Z", "+00:00")
+            )
+        except (ValueError, AttributeError):
+            pass
 
     # If onboarding not completed, don't show refresh prompts
     if not onboarding_completed:
@@ -372,24 +391,76 @@ async def check_refresh_needed(
             days_since_update=None,
         )
 
-    # Calculate days since update
     now = datetime.now(UTC)
     days_since_update = (now - updated_at).days if updated_at else None
 
-    # Check if refresh needed
-    needs_refresh = False
-    if days_since_update is not None and days_since_update >= CONTEXT_REFRESH_DAYS:
-        # Check if we already prompted recently
-        if last_refresh_prompt:
-            days_since_prompt = (now - last_refresh_prompt).days
-            needs_refresh = days_since_prompt >= CONTEXT_REFRESH_DAYS
-        else:
-            needs_refresh = True
+    # Check if dismiss is still valid
+    dismiss_valid = refresh_dismissed_until and refresh_dismissed_until > now
+
+    # Get stale metrics with volatility
+    context_data = user_repository.get_context(user_id)
+    action_affected_fields: list[str] = []
+    if context_data:
+        pending = context_data.get("pending_updates", [])
+        for p in pending:
+            if p.get("refresh_reason") == "action_affected" and p.get("field_name"):
+                action_affected_fields.append(p["field_name"])
+
+    stale_result = get_stale_metrics_for_session(
+        user_id=user_id,
+        action_affected_fields=action_affected_fields if action_affected_fields else None,
+    )
+
+    # Build stale metrics summary for frontend
+    stale_summaries: list[StaleFieldSummary] = []
+    highest_urgency: str | None = None
+    field_display_names = {
+        "revenue": "Revenue",
+        "customers": "Customer count",
+        "growth_rate": "Growth rate",
+        "team_size": "Team size",
+        "mau_bucket": "Monthly active users",
+        "competitors": "Competitors",
+        "business_stage": "Business stage",
+        "primary_objective": "Primary objective",
+    }
+
+    for m in stale_result.stale_metrics:
+        is_action_affected = m.reason.value == "action_affected"
+        stale_summaries.append(
+            StaleFieldSummary(
+                field_name=m.field_name,
+                display_name=field_display_names.get(
+                    m.field_name, m.field_name.replace("_", " ").title()
+                ),
+                volatility=m.volatility.value,
+                days_since_update=m.days_since_update,
+                action_affected=is_action_affected,
+            )
+        )
+        # Track highest urgency
+        if is_action_affected:
+            highest_urgency = "action_affected"
+        elif highest_urgency != "action_affected":
+            if m.volatility.value == "volatile" and highest_urgency not in ["action_affected"]:
+                highest_urgency = "volatile"
+            elif m.volatility.value == "moderate" and highest_urgency not in [
+                "action_affected",
+                "volatile",
+            ]:
+                highest_urgency = "moderate"
+            elif m.volatility.value == "stable" and highest_urgency is None:
+                highest_urgency = "stable"
+
+    # Determine if refresh needed: stale metrics exist AND dismiss has expired
+    needs_refresh = stale_result.has_stale_metrics and not dismiss_valid
 
     return RefreshCheckResponse(
         needs_refresh=needs_refresh,
         last_updated=updated_at,
         days_since_update=days_since_update,
+        stale_metrics=stale_summaries,
+        highest_urgency=highest_urgency,
     )
 
 
@@ -400,17 +471,36 @@ async def check_refresh_needed(
     description="""
     Dismiss the "Are these details still correct?" refresh prompt.
 
-    This updates the last_refresh_prompt timestamp so the user won't see
-    the prompt again for another refresh interval.
+    Dismiss expiry varies by volatility of the most urgent stale metric:
+    - volatile: 7 days (revenue, customers change frequently)
+    - moderate: 30 days (team size, competitors change occasionally)
+    - stable: 90 days (business stage, industry rarely change)
+
+    If no volatility provided, defaults to 30 days.
     """,
 )
 @handle_api_errors("dismiss refresh prompt")
 async def dismiss_refresh_prompt(
+    request: DismissRefreshRequest | None = None,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, str]:
-    """Dismiss the refresh prompt."""
+    """Dismiss the refresh prompt with volatility-aware expiry."""
+    from datetime import timedelta
+
     user_id = extract_user_id(user)
 
+    # Determine expiry based on volatility
+    volatility = request.volatility if request else "moderate"
+    expiry_days = {
+        "volatile": 7,
+        "action_affected": 7,  # Same as volatile
+        "moderate": 30,
+        "stable": 90,
+    }.get(volatility, 30)
+
+    dismissed_until = datetime.now(UTC) + timedelta(days=expiry_days)
+
+    # Update timestamp in DB
     result = execute_query(
         """
         UPDATE user_context
@@ -424,7 +514,16 @@ async def dismiss_refresh_prompt(
     if not result:
         raise HTTPException(status_code=404, detail="No context found")
 
-    return {"status": "dismissed"}
+    # Store expiry in context JSON
+    context_data = user_repository.get_context(user_id) or {}
+    context_data["refresh_dismissed_until"] = dismissed_until.isoformat()
+    user_repository.save_context(user_id, context_data)
+
+    logger.info(
+        f"User {user_id} dismissed refresh prompt for {expiry_days} days (volatility={volatility})"
+    )
+
+    return {"status": "dismissed", "dismissed_until": dismissed_until.isoformat()}
 
 
 # =============================================================================

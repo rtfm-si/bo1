@@ -6,7 +6,6 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Dropdown, { type DropdownItem } from '$lib/components/ui/Dropdown.svelte';
-	import { startOnboardingTour } from '$lib/tours';
 	import {
 		trackEvent,
 		AnalyticsEvents,
@@ -28,9 +27,9 @@
 	// UI state
 	let isEnriching = $state(false);
 	let isSaving = $state(false);
+	let isSkipping = $state(false);
 	let enrichmentError = $state<string | null>(null);
 	let enrichedFields = $state<string[]>([]);
-	let showTour = $state(false);
 
 	// Dropdown options
 	const businessStageOptions: DropdownItem[] = [
@@ -54,7 +53,7 @@
 		// Check if user already completed onboarding
 		try {
 			const status = await apiClient.getOnboardingStatus();
-			if (status.onboarding_completed) {
+			if (status.tour_completed && status.context_setup) {
 				goto('/dashboard');
 				return;
 			}
@@ -67,22 +66,6 @@
 				websiteUrl = ctx.website || '';
 				businessStage = ctx.business_stage;
 				primaryObjective = ctx.primary_objective;
-			}
-
-			// Show tour for new users
-			if (status.is_new_user && !status.tours_completed.includes('onboarding')) {
-				showTour = true;
-				setTimeout(() => {
-					startOnboardingTour(
-						() => {
-							apiClient.completeTour('onboarding');
-							showTour = false;
-						},
-						() => {
-							showTour = false;
-						}
-					);
-				}, 500);
 			}
 		} catch (error) {
 			console.error('Failed to check onboarding status:', error);
@@ -176,6 +159,8 @@
 	}
 
 	async function handleSkip() {
+		if (isSkipping) return;
+		isSkipping = true;
 		try {
 			await apiClient.skipOnboarding();
 			trackEvent(AnalyticsEvents.ONBOARDING_SKIPPED);
@@ -318,9 +303,18 @@
 						<button
 							type="button"
 							onclick={handleSkip}
-							class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+							disabled={isSkipping}
+							class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 						>
-							Skip for now
+							{#if isSkipping}
+								<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+								Skipping...
+							{:else}
+								Skip for now
+							{/if}
 						</button>
 						<Button onclick={nextStep} disabled={!canProceedStep1}>
 							Continue

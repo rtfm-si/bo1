@@ -66,6 +66,9 @@ ADMIN_API_KEY=<strong_key>
 
 # Optional: Encryption for backups
 BACKUP_AGE_RECIPIENT=age1...         # Public key for backup encryption
+
+# Metrics Endpoint Auth (recommended)
+METRICS_AUTH_TOKEN=<32_char_hex>     # Protect /metrics from public access
 ```
 
 ### GitHub Secrets
@@ -388,11 +391,116 @@ Before any production deployment:
 |-------|----------|
 | `COOKIE_SECURE=true` in server .env | ☐ |
 | `ENV=production` in server .env | ☐ |
+| `METRICS_AUTH_TOKEN` set (if exposing /metrics) | ☐ |
 | No HIGH/CRITICAL vulnerabilities in audit | ☐ |
 | Recent backup exists (< 24h) | ☐ |
 | Migrations are backward-compatible | ☐ |
 | Feature flags configured for breaking changes | ☐ |
 | GitHub secrets up to date | ☐ |
+
+---
+
+## Reverse Proxy Configuration
+
+When deploying behind a reverse proxy (Nginx, load balancer, CDN), configure `TRUSTED_PROXY_IPS` to ensure correct client IP detection for rate limiting and audit logging.
+
+### How It Works
+
+The API uses `_get_client_ip()` in `backend/api/middleware/auth.py` to extract the real client IP:
+1. If request comes from a trusted proxy IP, it reads the rightmost non-trusted IP from `X-Forwarded-For`
+2. If not from a trusted proxy, it uses the direct connection IP
+3. This prevents IP spoofing while correctly identifying clients behind legitimate proxies
+
+### Nginx Configuration
+
+```nginx
+location / {
+    proxy_pass http://api:8000;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Host $host;
+}
+```
+
+### Environment Setup by Platform
+
+| Platform | TRUSTED_PROXY_IPS Value |
+|----------|-------------------------|
+| Single Nginx | Nginx server's internal IP (e.g., `10.0.0.1`) |
+| DigitalOcean App Platform | `10.0.0.0/8` (DO private network) |
+| AWS ALB | `10.0.0.0/8,172.16.0.0/12` (VPC ranges) |
+| Cloudflare + Origin | Cloudflare IPs + your origin proxy IP |
+
+### Production Example
+
+```bash
+# In production .env
+TRUSTED_PROXY_IPS=10.0.0.1  # Your Nginx/load balancer IP
+```
+
+### Verification
+
+After setting `TRUSTED_PROXY_IPS`, verify correct IP detection:
+
+```bash
+# Check logs show real client IPs (not proxy IPs)
+docker logs boardofone-api-1 2>&1 | grep "client_ip"
+
+# Test rate limiting responds to your IP (not proxy)
+curl -H "X-Forwarded-For: 1.2.3.4" https://boardof.one/api/health
+# Should use YOUR IP, not 1.2.3.4 (unless request came through trusted proxy)
+```
+
+---
+
+## Metrics Endpoint Authentication
+
+The `/metrics` Prometheus endpoint is protected with optional bearer token authentication.
+
+### Setup
+
+1. **Generate a secure token**:
+   ```bash
+   METRICS_AUTH_TOKEN=$(openssl rand -hex 32)
+   ```
+
+2. **Add to production `.env`**:
+   ```bash
+   METRICS_AUTH_TOKEN=<your_generated_token>
+   ```
+
+3. **Configure Prometheus scrape job** (`prometheus.yml`):
+   ```yaml
+   scrape_configs:
+     - job_name: 'api'
+       bearer_token_file: /run/secrets/metrics_token
+       static_configs:
+         - targets: ['api:8000']
+   ```
+
+4. **Store token in secret file** (accessible by Prometheus):
+   ```bash
+   echo -n "<your_generated_token>" | sudo tee /run/secrets/metrics_token > /dev/null
+   sudo chmod 400 /run/secrets/metrics_token
+   sudo chown prometheus:prometheus /run/secrets/metrics_token
+   ```
+
+### Verification
+
+```bash
+# Without token - should return 401
+curl https://boardof.one/metrics
+# {"error": "Unauthorized", "message": "Missing or invalid Authorization header"}
+
+# With token - should return Prometheus metrics
+curl -H "Authorization: Bearer <token>" https://boardof.one/metrics
+# HELP python_gc_objects_collected_total ...
+```
+
+### Development Mode
+
+If `METRICS_AUTH_TOKEN` is empty or unset, `/metrics` allows all requests (no auth required). This is suitable for local development.
 
 ---
 

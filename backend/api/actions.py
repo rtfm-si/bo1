@@ -891,11 +891,61 @@ async def complete_action(
     if unblocked_ids:
         logger.info(f"Auto-unblocked {len(unblocked_ids)} actions after completing {action_id}")
 
-    return {
+    # Auto-generate project from completed action (non-blocking)
+    generated_project = None
+    try:
+        from backend.services.project_generator import maybe_generate_project
+
+        generated_project = await maybe_generate_project(action_id, user_id)
+        if generated_project:
+            logger.info(
+                f"Auto-generated/linked project '{generated_project.get('name')}' "
+                f"from action {action_id}"
+            )
+    except Exception as e:
+        logger.debug(f"Project auto-generation failed (non-blocking): {e}")
+
+    # Flag volatile metrics as action-affected for context refresh prompt
+    try:
+        from bo1.state.repositories import user_repository
+
+        context_data = user_repository.get_context(user_id)
+        if context_data:
+            pending = context_data.get("pending_updates", [])
+            # Flag volatile metrics: revenue, customers, growth_rate
+            volatile_fields = ["revenue", "customers", "growth_rate"]
+            for field in volatile_fields:
+                if context_data.get(field):  # Only flag if field has a value
+                    # Add to pending updates with action_affected flag
+                    pending.append(
+                        {
+                            "field_name": field,
+                            "refresh_reason": "action_affected",
+                            "action_id": action_id,
+                            "flagged_at": datetime.now().isoformat(),
+                        }
+                    )
+            context_data["pending_updates"] = pending
+            user_repository.save_context(user_id, context_data)
+            logger.debug(
+                f"Flagged {len(volatile_fields)} metrics as action-affected for user {user_id}"
+            )
+    except Exception as e:
+        logger.debug(f"Action-affected flagging failed (non-blocking): {e}")
+
+    response: dict[str, Any] = {
         "message": "Action completed successfully",
         "action_id": action_id,
         "unblocked_actions": unblocked_ids,
     }
+
+    if generated_project:
+        response["generated_project"] = {
+            "id": str(generated_project.get("id")),
+            "name": generated_project.get("name"),
+        }
+
+    return response
 
 
 @router.patch(
@@ -1066,12 +1116,35 @@ async def update_action_status(
             # Non-blocking
             logger.debug(f"Context extraction from action failed (non-blocking): {e}")
 
-    return {
+    # Auto-generate project from completed action (when status is done)
+    generated_project = None
+    if status_update.status == "done":
+        try:
+            from backend.services.project_generator import maybe_generate_project
+
+            generated_project = await maybe_generate_project(action_id, user_id)
+            if generated_project:
+                logger.info(
+                    f"Auto-generated/linked project '{generated_project.get('name')}' "
+                    f"from action {action_id}"
+                )
+        except Exception as e:
+            logger.debug(f"Project auto-generation failed (non-blocking): {e}")
+
+    response: dict[str, Any] = {
         "message": "Action status updated successfully",
         "action_id": action_id,
         "status": status_update.status,
         "unblocked_actions": unblocked_ids,
     }
+
+    if generated_project:
+        response["generated_project"] = {
+            "id": str(generated_project.get("id")),
+            "name": generated_project.get("name"),
+        }
+
+    return response
 
 
 # =============================================================================

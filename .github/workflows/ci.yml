@@ -328,19 +328,20 @@ jobs:
       - name: Start frontend dev server
         run: |
           cd frontend
-          # Write .env file for Vite to pick up
-          echo "PUBLIC_API_URL=http://localhost:8000" > .env
-          echo "PUBLIC_E2E_MODE=true" >> .env
-          cat .env
-          npm run dev &
-          # Wait for frontend to be ready
+          # Pass env vars directly to process (no .env race condition)
+          PUBLIC_API_URL=http://localhost:8000 PUBLIC_E2E_MODE=true npm run dev &
+          # Wait for frontend to be ready AND verify E2E mode is active
           for i in {1..30}; do
-            if curl -s http://localhost:5173 > /dev/null 2>&1; then
-              echo "Frontend ready after ${i}s"
+            if curl -s http://localhost:5173/api/e2e-health 2>/dev/null | grep -q '"e2e_mode":true'; then
+              echo "Frontend ready with E2E mode after ${i}s"
               break
+            elif curl -s http://localhost:5173 > /dev/null 2>&1; then
+              echo "Server responding, waiting for E2E mode... (${i}s)"
             fi
             sleep 1
           done
+          # Final verification
+          curl -s http://localhost:5173/api/e2e-health || echo "Warning: E2E health endpoint not available"
           echo "Frontend startup complete"
 
       - name: Run Playwright tests

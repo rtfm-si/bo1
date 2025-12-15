@@ -82,6 +82,7 @@ export async function initAuth(): Promise<void> {
 				email: 'test@example.com',
 				auth_provider: 'google',
 				subscription_tier: 'pro',
+				is_admin: true, // Enable admin access for E2E tests
 			},
 			isAuthenticated: true,
 			isLoading: false,

@@ -68,6 +68,7 @@ dependencies = [
     "stripe>=14.0.1",
     # Embedding visualization (optional - falls back to PCA)
     "umap-learn>=0.5.0", # UMAP dimensionality reduction
+    "urllib3>=2.6.0",
 ]
 
 [project.optional-dependencies]

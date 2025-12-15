@@ -66,6 +66,8 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=7.0.0", # FastAPI auto-instrumentation
     "cryptography>=43.0.0", # Fernet encryption for OAuth tokens at rest
     "stripe>=14.0.1",
+    # Embedding visualization (optional - falls back to PCA)
+    "umap-learn>=0.5.0", # UMAP dimensionality reduction
 ]
 
 [project.optional-dependencies]

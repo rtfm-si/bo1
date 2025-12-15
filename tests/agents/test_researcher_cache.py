@@ -24,7 +24,6 @@ def test_save_research_result_basic():
         confidence="high",
         category="saas_metrics",
         industry="saas",
-        freshness_days=90,
     )
 
     # Verify result structure
@@ -119,7 +118,7 @@ def test_find_cached_research_stale_result():
     # Since we can't easily manipulate research_date in tests,
     # we'll test the max_age_days parameter
 
-    # Save a research result (will use freshness_days=90 by default)
+    # Save a research result
     # Use unique embedding pattern to avoid collision with other tests
     embedding = [0.5 if i % 2 == 0 else 0.4 for i in range(1024)]
     cache_repository.save(
@@ -128,7 +127,6 @@ def test_find_cached_research_stale_result():
         summary="SaaS magic number measures sales efficiency.",
         confidence="high",
         category="saas_metrics",
-        freshness_days=90,
     )
 
     # Find with max_age_days=1 (only results from last day)

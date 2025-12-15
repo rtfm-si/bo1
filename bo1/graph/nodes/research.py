@@ -7,6 +7,7 @@ research requested by the facilitator or triggered proactively.
 import logging
 from typing import Any, Literal
 
+from bo1.constants import SimilarityCacheThresholds
 from bo1.graph.nodes.utils import log_with_session
 from bo1.graph.state import DeliberationGraphState
 
@@ -215,7 +216,7 @@ async def research_node(state: DeliberationGraphState) -> dict[str, Any]:
         query_embedding = generate_embedding(research_query, input_type="query")
         cached_results = cache_repository.find_similar(
             question_embedding=query_embedding,
-            similarity_threshold=0.85,  # Same threshold as in-session dedup
+            similarity_threshold=SimilarityCacheThresholds.RESEARCH_DEDUP,
             limit=1,
         )
         if cached_results:

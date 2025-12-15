@@ -4,10 +4,17 @@ from datetime import UTC, datetime, timedelta
 
 from backend.api.context.models import TrendDirection
 from backend.services.trend_calculator import (
+    INHERENTLY_MODERATE_FIELDS,
+    INHERENTLY_STABLE_FIELDS,
+    INHERENTLY_VOLATILE_FIELDS,
     POSITIVE_DIRECTION_FIELDS,
+    STALENESS_THRESHOLDS,
+    VolatilityLevel,
     calculate_all_trends,
     calculate_trend,
+    classify_volatility,
     extract_numeric_value,
+    get_staleness_threshold,
 )
 
 
@@ -240,3 +247,95 @@ class TestPositiveDirectionFields:
         expected = ["revenue", "customers", "growth_rate", "mau_bucket", "team_size"]
         for field in expected:
             assert field in POSITIVE_DIRECTION_FIELDS
+
+
+class TestClassifyVolatility:
+    """Test metric volatility classification."""
+
+    def test_inherently_volatile_field_no_history(self):
+        """Test that inherently volatile fields return VOLATILE without history."""
+        for field in INHERENTLY_VOLATILE_FIELDS:
+            vol = classify_volatility(field)
+            assert vol == VolatilityLevel.VOLATILE
+
+    def test_inherently_moderate_field_no_history(self):
+        """Test that inherently moderate fields return MODERATE without history."""
+        for field in INHERENTLY_MODERATE_FIELDS:
+            vol = classify_volatility(field)
+            assert vol == VolatilityLevel.MODERATE
+
+    def test_inherently_stable_field_no_history(self):
+        """Test that inherently stable fields return STABLE without history."""
+        for field in INHERENTLY_STABLE_FIELDS:
+            vol = classify_volatility(field)
+            assert vol == VolatilityLevel.STABLE
+
+    def test_unknown_field_returns_moderate(self):
+        """Test that unknown fields default to MODERATE."""
+        vol = classify_volatility("some_random_field")
+        assert vol == VolatilityLevel.MODERATE
+
+    def test_high_variance_history_returns_volatile(self):
+        """Test that high variance (>20%) returns VOLATILE."""
+        now = datetime.now(UTC)
+        history = [
+            {"value": "$60K", "recorded_at": now.isoformat()},
+            {"value": "$45K", "recorded_at": (now - timedelta(days=30)).isoformat()},
+            {"value": "$35K", "recorded_at": (now - timedelta(days=60)).isoformat()},
+        ]
+        # Even for a "stable" field, high variance should override
+        vol = classify_volatility("industry", history)
+        assert vol == VolatilityLevel.VOLATILE
+
+    def test_moderate_variance_history_returns_moderate(self):
+        """Test that moderate variance (5-20%) returns MODERATE."""
+        now = datetime.now(UTC)
+        history = [
+            {"value": "$52K", "recorded_at": now.isoformat()},
+            {"value": "$50K", "recorded_at": (now - timedelta(days=30)).isoformat()},
+            {"value": "$48K", "recorded_at": (now - timedelta(days=60)).isoformat()},
+        ]
+        # ~4-8% change - moderate for a non-volatile field
+        # Use team_size which is inherently moderate
+        vol = classify_volatility("team_size", history)
+        assert vol == VolatilityLevel.MODERATE
+
+    def test_stable_history_uses_base_level(self):
+        """Test that stable history uses inherent level."""
+        now = datetime.now(UTC)
+        history = [
+            {"value": "$50K", "recorded_at": now.isoformat()},
+            {"value": "$50K", "recorded_at": (now - timedelta(days=30)).isoformat()},
+            {"value": "$50K", "recorded_at": (now - timedelta(days=60)).isoformat()},
+        ]
+        # No change - use base level (VOLATILE for revenue)
+        vol = classify_volatility("revenue", history)
+        assert vol == VolatilityLevel.VOLATILE
+
+    def test_single_entry_history_uses_base_level(self):
+        """Test that single entry uses base level."""
+        now = datetime.now(UTC)
+        history = [{"value": "$50K", "recorded_at": now.isoformat()}]
+        vol = classify_volatility("revenue", history)
+        assert vol == VolatilityLevel.VOLATILE
+
+
+class TestGetStalenessThreshold:
+    """Test staleness threshold lookup."""
+
+    def test_volatile_threshold(self):
+        """Test VOLATILE threshold is 30 days."""
+        assert get_staleness_threshold(VolatilityLevel.VOLATILE) == 30
+
+    def test_moderate_threshold(self):
+        """Test MODERATE threshold is 90 days."""
+        assert get_staleness_threshold(VolatilityLevel.MODERATE) == 90
+
+    def test_stable_threshold(self):
+        """Test STABLE threshold is 180 days."""
+        assert get_staleness_threshold(VolatilityLevel.STABLE) == 180
+
+    def test_thresholds_constant_matches(self):
+        """Test that function returns values from STALENESS_THRESHOLDS constant."""
+        for level, expected in STALENESS_THRESHOLDS.items():
+            assert get_staleness_threshold(level) == expected

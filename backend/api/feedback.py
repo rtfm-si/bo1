@@ -22,6 +22,7 @@ from backend.api.models import (
 from backend.api.utils.errors import handle_api_errors
 from backend.services.feedback_analyzer import analyze_feedback
 from backend.services.usage_tracking import get_effective_tier
+from bo1.security import sanitize_for_prompt
 from bo1.state.repositories.feedback_repository import feedback_repository
 from bo1.utils.logging import get_logger
 
@@ -83,10 +84,14 @@ async def submit_feedback(
             "timestamp": datetime.now(UTC).isoformat(),
         }
 
+    # Sanitize user-provided text to prevent prompt injection
+    safe_title = sanitize_for_prompt(body.title)
+    safe_description = sanitize_for_prompt(body.description)
+
     # Analyze feedback with Haiku (sentiment + themes)
     analysis_dict = None
     try:
-        analysis = await analyze_feedback(body.title, body.description)
+        analysis = await analyze_feedback(safe_title, safe_description)
         if analysis:
             analysis_dict = analysis.to_dict()
             logger.debug(
@@ -96,12 +101,12 @@ async def submit_feedback(
         # Don't fail submission if analysis fails
         logger.warning(f"Feedback analysis failed (will store without): {e}")
 
-    # Create feedback
+    # Create feedback (store sanitized values)
     feedback = feedback_repository.create_feedback(
         user_id=user_id,
         feedback_type=body.type,
-        title=body.title,
-        description=body.description,
+        title=safe_title,
+        description=safe_description,
         context=context,
         analysis=analysis_dict,
     )

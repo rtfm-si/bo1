@@ -5,6 +5,21 @@ at the conclusion of deliberations.
 """
 
 # =============================================================================
+# Confidence Level Enumeration
+# =============================================================================
+
+# Enforced confidence levels - no "very high", "extremely low", or percentages
+CONFIDENCE_ENUM = "HIGH | MEDIUM | LOW"
+"""Valid confidence level values for recommendations.
+
+LLM outputs are normalized to these values:
+- "very high" / "extremely high" → HIGH
+- "moderate" / "somewhat confident" → MEDIUM
+- "very low" / "uncertain" → LOW
+- Percentages: >=70% → HIGH, 40-69% → MEDIUM, <40% → LOW
+"""
+
+# =============================================================================
 # Voting Prompt Template
 # =============================================================================
 
@@ -57,7 +72,8 @@ Always consider alternatives beyond just yes/no to the stated option.
 - Evidence or frameworks supporting your recommendation
 </reasoning>
 
-<confidence>high | medium | low</confidence>
+<confidence>HIGH | MEDIUM | LOW</confidence>
+(REQUIRED: Use ONLY these exact values. Do not use "very high", percentages, or other variants.)
 
 <confidence_rationale>
 Why this confidence level? What would increase or decrease it?

@@ -256,7 +256,7 @@ def validate_and_apply_code(user_id: str, code: str) -> dict:
     if promo is None:
         raise PromoValidationError("Promo code not found", "not_found")
 
-    if not promo["is_active"]:
+    if promo["deleted_at"] is not None:
         raise PromoValidationError("This promo code is no longer active", "inactive")
 
     # Check expiration

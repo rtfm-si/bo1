@@ -9,7 +9,13 @@
 		UserPlus,
 		Calendar,
 		Target,
-		ChevronRight
+		ChevronRight,
+		MessageCircle,
+		Database,
+		FolderKanban,
+		Play,
+		CheckCircle,
+		XCircle
 	} from 'lucide-svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
@@ -362,6 +368,107 @@
 						</div>
 					</div>
 				{/if}
+
+				<!-- Extended KPIs -->
+				<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Extended KPIs</h2>
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+					<div
+						class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
+					>
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Mentor Sessions</p>
+								<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
+									{usageMetrics.mentor_sessions_count.toLocaleString()}
+								</p>
+								<p class="text-xs text-neutral-500 mt-1">AI mentor conversations</p>
+							</div>
+							<div class="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+								<MessageCircle class="w-6 h-6 text-purple-600 dark:text-purple-400" />
+							</div>
+						</div>
+					</div>
+					<div
+						class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
+					>
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Data Analyses</p>
+								<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
+									{usageMetrics.data_analyses_count.toLocaleString()}
+								</p>
+								<p class="text-xs text-neutral-500 mt-1">Dataset analyses run</p>
+							</div>
+							<div class="p-3 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
+								<Database class="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
+							</div>
+						</div>
+					</div>
+					<div
+						class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
+					>
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Projects</p>
+								<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
+									{usageMetrics.projects_count.toLocaleString()}
+								</p>
+								<p class="text-xs text-neutral-500 mt-1">Active projects</p>
+							</div>
+							<div class="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+								<FolderKanban class="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+							</div>
+						</div>
+					</div>
+					<div
+						class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
+					>
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Actions Started</p>
+								<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
+									{usageMetrics.actions_started_count.toLocaleString()}
+								</p>
+								<p class="text-xs text-neutral-500 mt-1">In progress</p>
+							</div>
+							<div class="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+								<Play class="w-6 h-6 text-blue-600 dark:text-blue-400" />
+							</div>
+						</div>
+					</div>
+					<div
+						class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
+					>
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Actions Completed</p>
+								<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
+									{usageMetrics.actions_completed_count.toLocaleString()}
+								</p>
+								<p class="text-xs text-neutral-500 mt-1">Done</p>
+							</div>
+							<div class="p-3 bg-success-100 dark:bg-success-900/30 rounded-lg">
+								<CheckCircle class="w-6 h-6 text-success-600 dark:text-success-400" />
+							</div>
+						</div>
+					</div>
+					<div
+						class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700"
+					>
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Actions Cancelled</p>
+								<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
+									{usageMetrics.actions_cancelled_count.toLocaleString()}
+								</p>
+								<p class="text-xs text-neutral-500 mt-1">Cancelled</p>
+							</div>
+							<div class="p-3 bg-error-100 dark:bg-error-900/30 rounded-lg">
+								<XCircle class="w-6 h-6 text-error-600 dark:text-error-400" />
+							</div>
+						</div>
+					</div>
+				</div>
 			{/if}
 
 			<!-- Onboarding Funnel -->

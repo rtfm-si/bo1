@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
+from backend.api.utils.db_helpers import get_user_tier
 from backend.api.utils.errors import handle_api_errors
 from bo1.constants import IndustryBenchmarkLimits
 from bo1.state.repositories import user_repository
@@ -529,28 +530,6 @@ LOWER_IS_BETTER_METRICS = {"monthly_churn", "cac_payback", "cac", "cart_abandonm
 # =============================================================================
 # Helper Functions
 # =============================================================================
-
-
-def get_user_tier(user_id: str) -> str:
-    """Get user's subscription tier from database.
-
-    Falls back to 'free' if not found.
-    """
-    from backend.api.utils.db_helpers import execute_query
-
-    try:
-        result = execute_query(
-            "SELECT subscription_tier FROM users WHERE id = %s",
-            (user_id,),
-            fetch="one",
-        )
-        if result:
-            tier = result.get("subscription_tier")
-            return tier if tier else "free"
-        return "free"
-    except Exception as e:
-        logger.warning(f"Failed to get user tier: {e}, defaulting to free")
-        return "free"
 
 
 def get_upgrade_prompt(tier: str, locked_count: int) -> str | None:

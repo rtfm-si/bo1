@@ -287,7 +287,8 @@ async def get_session_kill_history(
             if session_id:
                 cur.execute(
                     """
-                    SELECT id, session_id, killed_by, reason, cost_at_kill, created_at
+                    SELECT id, session_id, killed_by, reason, cost_at_kill,
+                           created_at, updated_at
                     FROM session_kills
                     WHERE session_id = %s
                     ORDER BY created_at DESC
@@ -298,7 +299,8 @@ async def get_session_kill_history(
             else:
                 cur.execute(
                     """
-                    SELECT id, session_id, killed_by, reason, cost_at_kill, created_at
+                    SELECT id, session_id, killed_by, reason, cost_at_kill,
+                           created_at, updated_at
                     FROM session_kills
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
@@ -315,6 +317,7 @@ async def get_session_kill_history(
             reason=row["reason"],
             cost_at_kill=float(row["cost_at_kill"]) if row["cost_at_kill"] else None,
             created_at=row["created_at"].isoformat() if row["created_at"] else "",
+            updated_at=row["updated_at"].isoformat() if row["updated_at"] else None,
         )
         for row in rows
     ]

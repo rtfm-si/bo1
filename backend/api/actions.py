@@ -36,6 +36,7 @@ from backend.api.models import (
     DependencyCreate,
     DependencyListResponse,
     DependencyResponse,
+    ErrorResponse,
     GanttActionData,
     GanttDependency,
     GlobalGanttResponse,
@@ -48,6 +49,7 @@ from backend.api.models import (
     UnblockActionRequest,
 )
 from backend.api.utils.db_helpers import execute_query
+from backend.api.utils.degradation import check_pool_health
 from backend.api.utils.errors import handle_api_errors
 from backend.services.gantt_service import GanttColorService
 from bo1.config import get_settings
@@ -131,6 +133,7 @@ def _count_by_status(tasks: list[dict[str, Any]]) -> dict[str, int]:
     description="Get all actions across all sessions for the current user. Supports filtering by status, project, session (meeting), and tags.",
     responses={
         200: {"description": "Actions retrieved successfully"},
+        401: {"description": "Not authenticated", "model": ErrorResponse},
     },
 )
 @handle_api_errors("get all actions")
@@ -326,18 +329,23 @@ async def get_global_gantt(
     all_dependencies: list[GanttDependency] = []
     today = date.today()
 
-    # First pass: collect all actions and their dependencies
+    # First pass: collect all actions
     action_data_map: dict[str, dict] = {}
-    deps_map: dict[str, list[tuple[str, int]]] = {}  # action_id -> [(depends_on_id, lag_days)]
+    action_ids: list[str] = []
 
     for action in actions:
         action_id = str(action.get("id", ""))
         action_data_map[action_id] = action
+        action_ids.append(action_id)
 
-        # Get dependencies for this action
-        deps = action_repository.get_dependencies(action_id)
+    # Batch fetch all dependencies in single query (fixes N+1)
+    deps_batch = action_repository.get_dependencies_batch(action_ids)
+
+    # Build deps_map from batch result
+    deps_map: dict[str, list[tuple[str, int]]] = {}  # action_id -> [(depends_on_id, lag_days)]
+    for action_id in action_ids:
         deps_map[action_id] = []
-        for dep in deps:
+        for dep in deps_batch.get(action_id, []):
             depends_on_id = str(dep.get("depends_on_action_id", ""))
             lag_days = dep.get("lag_days", 0)
             deps_map[action_id].append((depends_on_id, lag_days))
@@ -498,7 +506,7 @@ async def get_global_gantt(
 
 @router.get(
     "/reminders",
-    response_model="ActionRemindersResponse",
+    response_model=ActionRemindersResponse,
     summary="Get pending action reminders",
     description="Get actions needing reminders (overdue start, approaching deadline).",
     responses={
@@ -509,7 +517,7 @@ async def get_global_gantt(
 async def get_action_reminders(
     user_data: dict = Depends(get_current_user),
     limit: int = Query(50, ge=1, le=100, description="Max reminders to return"),
-) -> "ActionRemindersResponse":
+) -> ActionRemindersResponse:
     """Get pending action reminders for the current user.
 
     Returns actions that:
@@ -720,7 +728,8 @@ async def get_action_stats(
     description="Get detailed information about a specific action.",
     responses={
         200: {"description": "Action details retrieved successfully"},
-        404: {"description": "Action not found"},
+        401: {"description": "Not authenticated", "model": ErrorResponse},
+        404: {"description": "Action not found", "model": ErrorResponse},
     },
 )
 @handle_api_errors("get action detail")
@@ -897,6 +906,7 @@ async def complete_action(
         200: {"description": "Action status updated successfully"},
         400: {"description": "Invalid status transition"},
         404: {"description": "Action not found"},
+        503: {"description": "Service unavailable - database pool exhausted"},
     },
 )
 @handle_api_errors("update action status")
@@ -904,6 +914,7 @@ async def update_action_status(
     action_id: str,
     status_update: ActionStatusUpdate,
     user_data: dict = Depends(get_current_user),
+    _pool_check: None = Depends(check_pool_health),
 ) -> dict[str, Any]:
     """Update action status.
 
@@ -2123,7 +2134,7 @@ async def get_action_variance(
 
 @router.get(
     "/{action_id}/reminder-settings",
-    response_model="ReminderSettingsResponse",
+    response_model=ReminderSettingsResponse,
     summary="Get action reminder settings",
     description="Get reminder configuration for a specific action.",
     responses={
@@ -2135,7 +2146,7 @@ async def get_action_variance(
 async def get_action_reminder_settings(
     action_id: str,
     user_data: dict = Depends(get_current_user),
-) -> "ReminderSettingsResponse":
+) -> ReminderSettingsResponse:
     """Get reminder settings for an action.
 
     Args:
@@ -2167,7 +2178,7 @@ async def get_action_reminder_settings(
 
 @router.patch(
     "/{action_id}/reminder-settings",
-    response_model="ReminderSettingsResponse",
+    response_model=ReminderSettingsResponse,
     summary="Update action reminder settings",
     description="Update reminder frequency or enable/disable reminders for an action.",
     responses={
@@ -2180,7 +2191,7 @@ async def update_action_reminder_settings(
     action_id: str,
     settings_update: "ReminderSettingsUpdate",
     user_data: dict = Depends(get_current_user),
-) -> "ReminderSettingsResponse":
+) -> ReminderSettingsResponse:
     """Update reminder settings for an action.
 
     Args:

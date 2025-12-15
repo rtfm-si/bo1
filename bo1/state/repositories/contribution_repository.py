@@ -38,6 +38,7 @@ class ContributionRepository(BaseRepository):
         model: str = "unknown",
         embedding: list[float] | None = None,
         user_id: str | None = None,
+        status: str = "committed",
     ) -> dict[str, Any]:
         """Save a persona contribution to PostgreSQL.
 
@@ -52,6 +53,7 @@ class ContributionRepository(BaseRepository):
             model: Model used
             embedding: Optional embedding vector (1024 dimensions for Voyage AI)
             user_id: User ID (optional - will be fetched from session if not provided)
+            status: Contribution status (in_flight, committed, rolled_back)
 
         Returns:
             Saved contribution record with id and created_at
@@ -81,10 +83,10 @@ class ContributionRepository(BaseRepository):
                     """
                     INSERT INTO contributions (
                         session_id, persona_code, content, round_number, phase,
-                        cost, tokens, model, embedding, user_id
+                        cost, tokens, model, embedding, user_id, status
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id, session_id, persona_code, round_number, phase, created_at
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id, session_id, persona_code, round_number, phase, status, created_at
                     """,
                     (
                         session_id,
@@ -97,6 +99,7 @@ class ContributionRepository(BaseRepository):
                         model,
                         embedding,
                         user_id,
+                        status,
                     ),
                 )
                 result = cur.fetchone()
@@ -185,6 +188,97 @@ class ContributionRepository(BaseRepository):
                 )
                 row = cur.fetchone()
                 return row["count"] if row else 0
+
+    def update_contribution_status(self, contribution_id: int, status: str) -> bool:
+        """Update a contribution's status.
+
+        Used for crash recovery - transition from in_flight to committed/rolled_back.
+
+        Args:
+            contribution_id: Contribution record ID
+            status: New status (committed, rolled_back)
+
+        Returns:
+            True if updated successfully
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE contributions SET status = %s WHERE id = %s",
+                    (status, contribution_id),
+                )
+                return bool(cur.rowcount and cur.rowcount > 0)
+
+    def get_in_flight_contributions(self, session_id: str) -> list[dict[str, Any]]:
+        """Get all in-flight contributions for a session (for recovery).
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            List of in-flight contribution records
+        """
+        self._validate_id(session_id, "session_id")
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, session_id, persona_code, content, round_number, phase,
+                           cost, tokens, model, created_at
+                    FROM contributions
+                    WHERE session_id = %s AND status = 'in_flight'
+                    ORDER BY created_at ASC
+                    """,
+                    (session_id,),
+                )
+                return [dict(row) for row in cur.fetchall()]
+
+    def commit_in_flight_contributions(self, session_id: str) -> int:
+        """Commit all in-flight contributions for a session after checkpoint.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Number of contributions committed
+        """
+        self._validate_id(session_id, "session_id")
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE contributions
+                    SET status = 'committed'
+                    WHERE session_id = %s AND status = 'in_flight'
+                    """,
+                    (session_id,),
+                )
+                return cur.rowcount or 0
+
+    def rollback_in_flight_contributions(self, session_id: str) -> int:
+        """Mark all in-flight contributions as rolled back.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Number of contributions rolled back
+        """
+        self._validate_id(session_id, "session_id")
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE contributions
+                    SET status = 'rolled_back'
+                    WHERE session_id = %s AND status = 'in_flight'
+                    """,
+                    (session_id,),
+                )
+                return cur.rowcount or 0
 
     # =========================================================================
     # Recommendation Operations

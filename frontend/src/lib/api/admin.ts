@@ -134,6 +134,13 @@ export interface UsageMetricsResponse {
 	actions_created_7d: number;
 	daily_meetings: DailyCount[];
 	daily_actions: DailyCount[];
+	// Extended KPIs
+	mentor_sessions_count: number;
+	data_analyses_count: number;
+	projects_count: number;
+	actions_started_count: number;
+	actions_completed_count: number;
+	actions_cancelled_count: number;
 }
 
 export interface FunnelStage {
@@ -312,7 +319,7 @@ export interface Promotion {
 	uses_count: number;
 	expires_at: string | null;
 	created_at: string;
-	is_active: boolean;
+	deleted_at: string | null;
 }
 
 export interface CreatePromotionRequest {
@@ -384,6 +391,37 @@ export interface FeedbackAnalysisSummary {
 	analyzed_count: number;
 	sentiment_counts: Partial<Record<FeedbackSentiment, number>>;
 	top_themes: ThemeCount[];
+}
+
+// =============================================================================
+// Embedding Visualization Types
+// =============================================================================
+
+export interface EmbeddingStatsResponse {
+	total_embeddings: number;
+	by_type: {
+		contributions: number;
+		research_cache: number;
+		context_chunks: number;
+	};
+	dimensions: number;
+	storage_estimate_mb: number;
+	umap_available: boolean;
+}
+
+export interface EmbeddingPoint {
+	x: number;
+	y: number;
+	type: 'contribution' | 'research' | 'context';
+	preview: string;
+	metadata: Record<string, unknown>;
+	created_at: string;
+}
+
+export interface EmbeddingSampleResponse {
+	points: EmbeddingPoint[];
+	method: 'pca' | 'umap';
+	total_available: number;
 }
 
 // =============================================================================
@@ -980,6 +1018,30 @@ class AdminApiClient {
 		if (industry) searchParams.set('industry', industry);
 		const query = searchParams.toString();
 		return this.fetch<TopicsResponse>(`/api/admin/blog/topics${query ? `?${query}` : ''}`);
+	}
+
+	// =========================================================================
+	// Embedding Visualization
+	// =========================================================================
+
+	async getEmbeddingStats(): Promise<EmbeddingStatsResponse> {
+		return this.fetch<EmbeddingStatsResponse>('/api/admin/embeddings/stats');
+	}
+
+	async getEmbeddingSample(params?: {
+		embedding_type?: 'all' | 'contributions' | 'research' | 'context';
+		limit?: number;
+		method?: 'pca' | 'umap';
+	}): Promise<EmbeddingSampleResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.embedding_type) searchParams.set('embedding_type', params.embedding_type);
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+		if (params?.method) searchParams.set('method', params.method);
+
+		const query = searchParams.toString();
+		return this.fetch<EmbeddingSampleResponse>(
+			`/api/admin/embeddings/sample${query ? `?${query}` : ''}`
+		);
 	}
 }
 

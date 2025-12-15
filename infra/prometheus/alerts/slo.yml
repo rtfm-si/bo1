@@ -142,3 +142,86 @@ groups:
         annotations:
           summary: "High memory usage in {{ $labels.name }}"
           description: "Memory usage is {{ $value | humanizePercentage }} of limit"
+
+  - name: llm_alerts
+    rules:
+      # LLM Latency High - Warning
+      - alert: LLMLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(bo1_llm_request_duration_seconds_bucket[5m])) by (le)
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High LLM API latency detected"
+          description: "LLM P95 latency is {{ $value | humanizeDuration }} (threshold: 5s)"
+
+      # LLM Latency Critical
+      - alert: LLMLatencyCritical
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(bo1_llm_request_duration_seconds_bucket[5m])) by (le)
+          ) > 10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical LLM API latency detected"
+          description: "LLM P95 latency is {{ $value | humanizeDuration }} (threshold: 10s)"
+
+      # LLM Latency by Model - Warning
+      - alert: LLMModelLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(bo1_llm_request_duration_seconds_bucket[5m])) by (le, model)
+          ) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency for model {{ $labels.model }}"
+          description: "Model {{ $labels.model }} P95 latency is {{ $value | humanizeDuration }}"
+
+      # LLM Circuit Breaker Open
+      - alert: LLMCircuitBreakerOpen
+        expr: bo1_circuit_breaker_state == 2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker OPEN for {{ $labels.service }}"
+          description: "LLM provider {{ $labels.service }} circuit breaker has been open for >1min"
+
+  - name: event_queue_alerts
+    rules:
+      # Event Queue Backlog Warning
+      - alert: EventQueueBacklog
+        expr: bo1_event_queue_depth > 50
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Event queue backlog building"
+          description: "Event queue depth is {{ $value }} (threshold: 50)"
+
+      # Event Queue Critical
+      - alert: EventQueueCritical
+        expr: bo1_event_queue_depth > 100
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Event queue backlog critical"
+          description: "Event queue depth is {{ $value }} (threshold: 100)"
+
+      # Pending Events High (existing metric)
+      - alert: PendingEventsHigh
+        expr: bo1_pending_events > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High pending events in batcher"
+          description: "{{ $value }} events pending in event batcher buffer"

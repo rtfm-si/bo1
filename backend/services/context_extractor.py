@@ -574,3 +574,143 @@ def format_competitors_for_display(competitors: list[dict[str, Any]] | str | Non
             names.append(comp)
 
     return ", ".join(names)
+
+
+# =============================================================================
+# Action-Metric Correlation
+# =============================================================================
+
+# Map action categories/keywords to context metric fields
+ACTION_METRIC_MAPPING: dict[str, list[str]] = {
+    # Sales and revenue actions
+    "sales": ["revenue", "customers", "growth_rate"],
+    "revenue": ["revenue", "growth_rate"],
+    "pricing": ["revenue", "pricing_model"],
+    "deals": ["revenue", "customers"],
+    "contract": ["revenue", "customers"],
+    "subscription": ["revenue", "customers", "mau_bucket"],
+    # Customer actions
+    "customer": ["customers", "mau_bucket", "growth_rate"],
+    "churn": ["customers", "growth_rate"],
+    "retention": ["customers", "growth_rate"],
+    "acquisition": ["customers", "growth_rate"],
+    "onboarding": ["customers", "mau_bucket"],
+    # Team actions
+    "hire": ["team_size"],
+    "hiring": ["team_size"],
+    "recruit": ["team_size"],
+    "team": ["team_size"],
+    "staffing": ["team_size"],
+    # Growth actions
+    "growth": ["growth_rate", "customers", "revenue"],
+    "expand": ["growth_rate", "customers"],
+    "scale": ["growth_rate", "team_size"],
+    # Competition actions
+    "competitor": ["competitors"],
+    "competitive": ["competitors"],
+    "market share": ["competitors", "growth_rate"],
+}
+
+
+def get_affected_metrics_for_action(
+    action_title: str,
+    action_description: str | None = None,
+) -> list[str]:
+    """Identify context metrics that may be affected by an action.
+
+    Uses keyword matching on action title and description to determine
+    which business context fields might need refreshing after the action.
+
+    Args:
+        action_title: Title of the action
+        action_description: Optional description/notes
+
+    Returns:
+        List of context field names that may be affected
+    """
+    affected: set[str] = set()
+
+    # Combine title and description for matching
+    text = action_title.lower()
+    if action_description:
+        text = f"{text} {action_description.lower()}"
+
+    # Check each mapping keyword
+    for keyword, fields in ACTION_METRIC_MAPPING.items():
+        if keyword in text:
+            affected.update(fields)
+
+    return list(affected)
+
+
+def flag_metrics_for_refresh(
+    user_id: str,
+    action_id: str,
+    action_title: str,
+    action_description: str | None = None,
+) -> list[str]:
+    """Flag context metrics as needing refresh due to action completion.
+
+    Called when an action is marked as complete to identify metrics
+    that might be affected by the completed work.
+
+    Args:
+        user_id: User who completed the action
+        action_id: ID of the completed action
+        action_title: Title of the action
+        action_description: Optional description
+
+    Returns:
+        List of field names flagged for refresh
+    """
+    affected_fields = get_affected_metrics_for_action(action_title, action_description)
+
+    if not affected_fields:
+        logger.debug(f"No metrics affected by action {action_id}")
+        return []
+
+    logger.info(
+        f"Action {action_id} completed by user {user_id} - flagging metrics: {affected_fields}"
+    )
+
+    # Store flagged metrics in user context for pickup during meeting creation
+    # This is done via the pending_updates mechanism
+    from bo1.state.repositories import user_repository
+
+    context_data = user_repository.get_context(user_id)
+    if not context_data:
+        return affected_fields
+
+    # Add to pending_updates with action_affected reason
+    pending = context_data.get("pending_updates", [])
+    now = datetime.now(UTC).isoformat()
+
+    for field_name in affected_fields:
+        # Check if already pending for this action
+        already_pending = any(
+            p.get("field_name") == field_name
+            and p.get("source_type") == "action"
+            and p.get("source_id") == action_id
+            for p in pending
+        )
+
+        if not already_pending:
+            pending.append(
+                {
+                    "id": f"action_{action_id}_{field_name}",
+                    "field_name": field_name,
+                    "new_value": None,  # User will provide
+                    "confidence": 0.0,  # Requires user input
+                    "source_type": "action",
+                    "source_text": f"Action completed: {action_title}",
+                    "source_id": action_id,
+                    "extracted_at": now,
+                    "refresh_reason": "action_affected",
+                }
+            )
+
+    # Save back - limit to MAX_PENDING_UPDATES
+    pending = pending[:MAX_PENDING_UPDATES]
+    user_repository.update_context(user_id, {"pending_updates": pending})
+
+    return affected_fields

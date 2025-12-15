@@ -5,9 +5,9 @@ Contains all data models used by the context API endpoints.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 
 
 class BusinessStage(str, Enum):
@@ -527,3 +527,90 @@ class ContextWithTrends(BaseModel):
         default_factory=list, description="Trends for metrics with history"
     )
     updated_at: datetime | None = Field(None, description="Last context update")
+
+
+# =============================================================================
+# Clarification Storage Validation Models
+# =============================================================================
+
+
+ClarificationSource = Literal["meeting", "manual", "migration"]
+
+
+class ClarificationStorageEntry(BaseModel):
+    """Validated structure for a single clarification entry stored in JSONB.
+
+    This model ensures consistent structure for clarification data before
+    persisting to the database. Handles both new entries and legacy formats.
+    """
+
+    answer: str = Field(..., min_length=1, description="User's answer (required)")
+    answered_at: datetime | None = Field(None, description="When answer was provided")
+    session_id: str | None = Field(None, description="Meeting session ID if applicable")
+    source: ClarificationSource = Field(default="meeting", description="Source of clarification")
+    # Structured parsing fields (populated by Haiku)
+    category: InsightCategory | None = Field(None, description="Business category")
+    metric: InsightMetricResponse | None = Field(None, description="Extracted metric")
+    confidence_score: Annotated[float | None, Field(ge=0.0, le=1.0)] = Field(
+        None, description="Parse confidence 0-1"
+    )
+    summary: str | None = Field(None, description="Brief one-line summary")
+    key_entities: list[str] | None = Field(None, description="Mentioned entities")
+    parsed_at: datetime | None = Field(None, description="When parsing occurred")
+    # Update tracking
+    updated_at: datetime | None = Field(None, description="Last update timestamp")
+    update_note: str | None = Field(None, description="Note for manual updates")
+
+
+class ClarificationsStorage(RootModel[dict[str, ClarificationStorageEntry]]):
+    """Validated storage model for the entire clarifications JSONB field.
+
+    Maps question text (str) to ClarificationStorageEntry.
+    Use model_validate() to validate raw dicts from DB before processing.
+    """
+
+    pass
+
+
+# =============================================================================
+# Stale Metrics Detection Models
+# =============================================================================
+
+
+class VolatilityLevel(str, Enum):
+    """Metric volatility classification for refresh scheduling."""
+
+    STABLE = "stable"
+    MODERATE = "moderate"
+    VOLATILE = "volatile"
+
+
+class StalenessReason(str, Enum):
+    """Reason why a metric is considered stale."""
+
+    AGE = "age"
+    ACTION_AFFECTED = "action_affected"
+    VOLATILITY = "volatility"
+
+
+class StaleMetricResponse(BaseModel):
+    """A stale business context metric requiring user refresh."""
+
+    field_name: str = Field(..., description="Context field name (e.g., 'revenue')")
+    current_value: str | float | int | None = Field(None, description="Current stored value")
+    updated_at: datetime | None = Field(None, description="When the metric was last updated")
+    days_since_update: int = Field(..., description="Days since last update")
+    reason: StalenessReason = Field(..., description="Why this metric is stale")
+    volatility: VolatilityLevel = Field(..., description="Volatility classification")
+    threshold_days: int = Field(..., description="Staleness threshold for this metric")
+    action_id: str | None = Field(None, description="Related action ID if action-affected")
+
+
+class StaleMetricsResponse(BaseModel):
+    """Response for stale metrics check endpoint."""
+
+    has_stale_metrics: bool = Field(..., description="Whether any metrics are stale")
+    stale_metrics: list[StaleMetricResponse] = Field(
+        default_factory=list, description="List of stale metrics (max 3)"
+    )
+    total_metrics_checked: int = Field(..., description="Total number of metrics checked")

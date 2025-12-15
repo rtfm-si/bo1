@@ -93,7 +93,7 @@ async def test_clarification_flow_answer_immediately(mock_console_class, mock_is
     assert "clarifications" in result["business_context"]
     clarification = result["business_context"]["clarifications"]["What is your current ARR?"]
     assert clarification["answer"] == "$2M ARR"
-    assert "timestamp" in clarification
+    assert "answered_at" in clarification
 
 
 @pytest.mark.integration
@@ -155,7 +155,7 @@ async def test_clarification_flow_pause_and_resume(mock_console_class, mock_isat
     assert "business_context" in result2
     clarification = result2["business_context"]["clarifications"]["What is your customer CAC?"]
     assert clarification["answer"] == "$500"
-    assert "timestamp" in clarification
+    assert "answered_at" in clarification
 
 
 @pytest.mark.integration

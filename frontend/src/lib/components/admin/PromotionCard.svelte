@@ -15,7 +15,7 @@
 	let copied = $state(false);
 
 	function getStatus(): 'active' | 'expired' | 'upcoming' | 'inactive' {
-		if (!promotion.is_active) return 'inactive';
+		if (promotion.deleted_at) return 'inactive';
 		const now = new Date();
 		if (promotion.expires_at) {
 			const expiresAt = new Date(promotion.expires_at);
@@ -146,7 +146,7 @@
 		<span class="text-xs text-neutral-400">
 			Created {formatDate(promotion.created_at)}
 		</span>
-		{#if promotion.is_active}
+		{#if !promotion.deleted_at}
 			<Button
 				variant="ghost"
 				size="sm"

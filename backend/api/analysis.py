@@ -29,6 +29,7 @@ from bo1.prompts.mentor import (
     format_recent_meetings,
     get_mentor_system_prompt,
 )
+from bo1.security import sanitize_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -130,9 +131,10 @@ async def _stream_analysis_response(
         datasets_ctx = format_dataset_summaries(context.datasets or [])
         conv_history = format_conversation_history(conversation.get("messages", []))
 
-        # Build prompt
+        # Build prompt (sanitize user input to prevent prompt injection)
+        safe_question = sanitize_for_prompt(question)
         user_prompt = build_mentor_prompt(
-            question=question,
+            question=safe_question,
             business_context=business_ctx,
             meetings_context=meetings_ctx,
             actions_context=actions_ctx,

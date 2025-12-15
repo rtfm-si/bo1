@@ -34,16 +34,31 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Batch Buffer Configuration
+# =============================================================================
+BATCH_SIZE = 50  # Flush when buffer exceeds this
+BATCH_INTERVAL_SECONDS = 30  # Flush if time since last flush exceeds this
+MAX_BUFFER_SIZE = 200  # Cap buffer size to prevent memory growth on repeated failures
+
+# =============================================================================
+# Cost Retry Queue Configuration
+# =============================================================================
+COST_RETRY_QUEUE_KEY = "cost_retry_queue"  # Redis key for retry queue
+COST_RETRY_ALERT_THRESHOLD = 100  # Alert if queue exceeds this depth
 
 
 # =============================================================================
@@ -207,7 +222,20 @@ class CostTracker:
     """Track and persist API costs to database.
 
     Static methods for calculating and logging API costs across all providers.
+    Supports batched inserts to reduce database overhead during deliberation.
+
+    Batch Behavior:
+        - Costs are buffered in memory instead of immediate DB inserts
+        - Buffer is flushed when: size > BATCH_SIZE, time > BATCH_INTERVAL_SECONDS,
+          or explicit flush() called
+        - Flush happens at session completion via EventCollector
+        - Thread-safe via lock for concurrent sessions
     """
+
+    # Batch buffer state (class-level for singleton behavior)
+    _pending_costs: list[CostRecord] = []
+    _last_flush_time: datetime = datetime.now(UTC)
+    _buffer_lock: threading.Lock = threading.Lock()
 
     @staticmethod
     def calculate_anthropic_cost(
@@ -429,15 +457,20 @@ class CostTracker:
         except Exception as e:
             logger.debug(f"Failed to check token budget: {e}")
 
-    @staticmethod
-    def log_cost(record: CostRecord) -> str:
-        """Persist cost record to database.
+    @classmethod
+    def log_cost(cls, record: CostRecord) -> str:
+        """Buffer cost record for batch insert (writes to DB on flush).
+
+        Costs are buffered in memory and flushed to database when:
+        - Buffer size exceeds BATCH_SIZE (50)
+        - Time since last flush exceeds BATCH_INTERVAL_SECONDS (30s)
+        - Explicit flush() is called (at session completion)
 
         Args:
-            record: CostRecord to persist
+            record: CostRecord to buffer
 
         Returns:
-            request_id of the logged record (UUID string)
+            request_id of the buffered record (UUID string)
 
         Examples:
             >>> record = CostRecord(
@@ -452,10 +485,92 @@ class CostTracker:
         """
         request_id = str(uuid.uuid4())
 
+        # Store request_id in record metadata for tracking
+        record.metadata["request_id"] = request_id
+
+        with cls._buffer_lock:
+            cls._pending_costs.append(record)
+            buffer_size = len(cls._pending_costs)
+
+            logger.debug(
+                f"Buffered API cost: {record.provider}/{record.operation_type} "
+                f"${record.total_cost:.6f} (buffer size: {buffer_size})"
+            )
+
+            # Check if auto-flush needed
+            time_since_flush = (datetime.now(UTC) - cls._last_flush_time).total_seconds()
+            should_flush = buffer_size >= BATCH_SIZE or time_since_flush >= BATCH_INTERVAL_SECONDS
+
+        # Flush outside lock to avoid holding lock during DB operation
+        if should_flush:
+            cls._flush_batch()
+
+        return request_id
+
+    @classmethod
+    def _flush_batch(cls) -> int:
+        """Flush buffered costs to database using batch insert.
+
+        Uses executemany() for efficient batch insertion.
+        Thread-safe: acquires lock to swap buffer.
+
+        Returns:
+            Number of records flushed
+        """
+        # Swap buffer under lock (minimize lock hold time)
+        with cls._buffer_lock:
+            if not cls._pending_costs:
+                return 0
+            to_flush = cls._pending_costs
+            cls._pending_costs = []
+            cls._last_flush_time = datetime.now(UTC)
+
+        batch_size = len(to_flush)
+        logger.info(f"Flushing {batch_size} cost records to database")
+
         try:
             with db_session() as conn:
                 with conn.cursor() as cur:
-                    cur.execute(
+                    # Build batch insert data
+                    insert_data = []
+                    for record in to_flush:
+                        request_id = record.metadata.get("request_id", str(uuid.uuid4()))
+                        insert_data.append(
+                            (
+                                request_id,
+                                record.session_id,
+                                record.user_id,
+                                record.provider,
+                                record.model_name,
+                                record.operation_type,
+                                record.node_name,
+                                record.phase,
+                                record.persona_name,
+                                record.round_number,
+                                record.sub_problem_index,
+                                record.input_tokens,
+                                record.output_tokens,
+                                record.cache_creation_tokens,
+                                record.cache_read_tokens,
+                                record.cache_hit,
+                                record.input_cost,
+                                record.output_cost,
+                                record.cache_write_cost,
+                                record.cache_read_cost,
+                                record.total_cost,
+                                record.optimization_type,
+                                record.cost_without_optimization,
+                                record.latency_ms,
+                                record.status,
+                                record.error_message,
+                                json.dumps(record.metadata),
+                            )
+                        )
+
+                    # IDEMPOTENCY FIX: Use ON CONFLICT DO NOTHING to prevent double-tracking
+                    # on graph retries. request_id is unique per API call, so duplicates
+                    # from retries will be silently ignored (idempotent insert pattern).
+                    cur.executemany(
                         """
                         INSERT INTO api_costs (
                             request_id, session_id, user_id,
@@ -478,48 +593,268 @@ class CostTracker:
                             %s, %s, %s,
                             %s
                         )
+                        ON CONFLICT (request_id) DO NOTHING
                         """,
-                        (
-                            request_id,
-                            record.session_id,
-                            record.user_id,
-                            record.provider,
-                            record.model_name,
-                            record.operation_type,
-                            record.node_name,
-                            record.phase,
-                            record.persona_name,
-                            record.round_number,
-                            record.sub_problem_index,
-                            record.input_tokens,
-                            record.output_tokens,
-                            record.cache_creation_tokens,
-                            record.cache_read_tokens,
-                            record.cache_hit,
-                            record.input_cost,
-                            record.output_cost,
-                            record.cache_write_cost,
-                            record.cache_read_cost,
-                            record.total_cost,
-                            record.optimization_type,
-                            record.cost_without_optimization,
-                            record.latency_ms,
-                            record.status,
-                            record.error_message,
-                            json.dumps(record.metadata),
-                        ),
+                        insert_data,
                     )
 
-            logger.debug(
-                f"Logged API cost: {record.provider}/{record.operation_type} "
-                f"${record.total_cost:.6f} (saved: ${record.cost_saved:.6f})"
-            )
+            logger.info(f"Successfully flushed {batch_size} cost records")
+            return batch_size
 
         except Exception as e:
-            logger.error(f"Failed to log API cost: {e}")
-            # Don't raise - cost tracking should never block the main flow
+            logger.error(f"Failed to flush cost batch ({batch_size} records): {e}")
+            # Push failed records to Redis retry queue for resilience
+            pushed_count = cls._push_to_retry_queue(to_flush)
+            if pushed_count > 0:
+                logger.info(f"Pushed {pushed_count} cost records to retry queue")
+                # Mark affected sessions as having untracked costs
+                cls._mark_sessions_untracked_costs(to_flush)
+            else:
+                # Redis also failed - fall back to buffer re-add
+                with cls._buffer_lock:
+                    space_available = MAX_BUFFER_SIZE - len(cls._pending_costs)
+                    if space_available < len(to_flush):
+                        evicted = len(to_flush) - space_available
+                        to_flush = to_flush[evicted:]
+                        logger.warning(f"Evicted {evicted} oldest cost records (buffer full)")
+                    cls._pending_costs = to_flush + cls._pending_costs
+            return 0
 
-        return request_id
+    @classmethod
+    def flush(cls, session_id: str | None = None) -> int:
+        """Explicitly flush buffered costs to database.
+
+        Called by EventCollector at session completion and in error handlers.
+        Idempotent - no-op if buffer empty.
+
+        Args:
+            session_id: Optional session ID for logging (not used for filtering)
+
+        Returns:
+            Number of records flushed
+        """
+        with cls._buffer_lock:
+            buffer_size = len(cls._pending_costs)
+
+        if buffer_size == 0:
+            logger.debug(f"Cost buffer empty, nothing to flush (session={session_id})")
+            return 0
+
+        logger.info(f"Explicit flush requested (session={session_id}, buffer={buffer_size})")
+        return cls._flush_batch()
+
+    @classmethod
+    def get_buffer_stats(cls) -> dict[str, Any]:
+        """Get current buffer statistics for monitoring.
+
+        Returns:
+            Dict with buffer_size, last_flush_time, seconds_since_flush
+        """
+        with cls._buffer_lock:
+            buffer_size = len(cls._pending_costs)
+            last_flush = cls._last_flush_time
+
+        seconds_since = (datetime.now(UTC) - last_flush).total_seconds()
+        return {
+            "buffer_size": buffer_size,
+            "last_flush_time": last_flush.isoformat(),
+            "seconds_since_flush": seconds_since,
+        }
+
+    @classmethod
+    def _clear_buffer_for_testing(cls) -> None:
+        """Clear buffer state (for testing only)."""
+        with cls._buffer_lock:
+            cls._pending_costs = []
+            cls._last_flush_time = datetime.now(UTC)
+
+    @classmethod
+    def _push_to_retry_queue(cls, records: list[CostRecord]) -> int:
+        """Push failed cost records to Redis retry queue.
+
+        Args:
+            records: List of CostRecord objects to queue
+
+        Returns:
+            Number of records successfully pushed
+        """
+        try:
+            import redis
+
+            from bo1.config import get_settings
+
+            settings = get_settings()
+            redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+
+            pushed = 0
+            for record in records:
+                retry_data = {
+                    "request_id": record.metadata.get("request_id", str(uuid.uuid4())),
+                    "session_id": record.session_id,
+                    "user_id": record.user_id,
+                    "provider": record.provider,
+                    "model_name": record.model_name,
+                    "operation_type": record.operation_type,
+                    "input_tokens": record.input_tokens,
+                    "output_tokens": record.output_tokens,
+                    "cache_creation_tokens": record.cache_creation_tokens,
+                    "cache_read_tokens": record.cache_read_tokens,
+                    "total_cost": record.total_cost,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "error": "DB flush failed",
+                }
+                redis_client.rpush(COST_RETRY_QUEUE_KEY, json.dumps(retry_data))
+                pushed += 1
+
+            # Check queue depth and alert if too deep
+            queue_depth = redis_client.llen(COST_RETRY_QUEUE_KEY)
+            if queue_depth > COST_RETRY_ALERT_THRESHOLD:
+                logger.warning(
+                    f"Cost retry queue depth ({queue_depth}) exceeds threshold "
+                    f"({COST_RETRY_ALERT_THRESHOLD})"
+                )
+                cls._send_retry_queue_alert(queue_depth)
+
+            return pushed
+
+        except Exception as e:
+            logger.error(f"Failed to push to Redis retry queue: {e}")
+            return 0
+
+    @classmethod
+    def _mark_sessions_untracked_costs(cls, records: list[CostRecord]) -> None:
+        """Mark sessions as having untracked costs.
+
+        Args:
+            records: List of CostRecord objects with session_ids to mark
+        """
+        session_ids = {r.session_id for r in records if r.session_id}
+        if not session_ids:
+            return
+
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE sessions
+                        SET has_untracked_costs = TRUE
+                        WHERE id = ANY(%s)
+                        """,
+                        (list(session_ids),),
+                    )
+                    updated = cur.rowcount or 0
+                    if updated > 0:
+                        logger.info(f"Marked {updated} sessions as having untracked costs")
+        except Exception as e:
+            logger.error(f"Failed to mark sessions as untracked: {e}")
+
+    @staticmethod
+    def _send_retry_queue_alert(queue_depth: int) -> None:
+        """Send alert when retry queue is too deep.
+
+        Args:
+            queue_depth: Current queue depth
+        """
+        try:
+            from bo1.config import get_settings
+
+            settings = get_settings()
+            if not settings.ntfy_topic_alerts:
+                return
+
+            import httpx
+
+            httpx.post(
+                f"https://ntfy.sh/{settings.ntfy_topic_alerts}",
+                content=f"Cost retry queue depth: {queue_depth} (threshold: {COST_RETRY_ALERT_THRESHOLD})",
+                headers={
+                    "Title": "Bo1 Cost Tracking Alert",
+                    "Priority": "high"
+                    if queue_depth > COST_RETRY_ALERT_THRESHOLD * 2
+                    else "default",
+                    "Tags": "warning,cost",
+                },
+                timeout=5,
+            )
+        except Exception as e:
+            logger.debug(f"Failed to send ntfy alert: {e}")
+
+    @classmethod
+    def get_retry_queue_depth(cls) -> int:
+        """Get current retry queue depth.
+
+        Returns:
+            Number of records in retry queue
+        """
+        try:
+            import redis
+
+            from bo1.config import get_settings
+
+            settings = get_settings()
+            redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+            return redis_client.llen(COST_RETRY_QUEUE_KEY)
+        except Exception:
+            return 0
+
+    @classmethod
+    def pop_retry_batch(cls, batch_size: int = 50) -> list[dict[str, Any]]:
+        """Pop a batch of records from the retry queue.
+
+        Used by cost_retry_job worker.
+
+        Args:
+            batch_size: Maximum records to pop
+
+        Returns:
+            List of retry record dicts
+        """
+        try:
+            import redis
+
+            from bo1.config import get_settings
+
+            settings = get_settings()
+            redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+
+            records = []
+            for _ in range(batch_size):
+                data = redis_client.lpop(COST_RETRY_QUEUE_KEY)
+                if data is None:
+                    break
+                records.append(json.loads(data))
+
+            return records
+        except Exception as e:
+            logger.error(f"Failed to pop from retry queue: {e}")
+            return []
+
+    @classmethod
+    def clear_session_untracked_flag(cls, session_id: str) -> bool:
+        """Clear untracked costs flag after successful retry.
+
+        Args:
+            session_id: Session to clear flag for
+
+        Returns:
+            True if flag was cleared
+        """
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE sessions
+                        SET has_untracked_costs = FALSE
+                        WHERE id = %s AND has_untracked_costs = TRUE
+                        """,
+                        (session_id,),
+                    )
+                    return bool(cur.rowcount and cur.rowcount > 0)
+        except Exception as e:
+            logger.error(f"Failed to clear untracked costs flag: {e}")
+            return False
 
     @staticmethod
     @contextmanager

@@ -328,7 +328,11 @@ jobs:
 
       - name: Run Playwright tests
         id: e2e
-        run: cd frontend && npx playwright test --project=chromium --reporter=json,html 2>&1 | tee playwright-output.json || true
+        run: |
+          cd frontend && npx playwright test --project=chromium --reporter=json,html 2>&1 | tee playwright-output.json
+          TEST_EXIT_CODE=${PIPESTATUS[0]}
+          echo "e2e_exit_code=$TEST_EXIT_CODE" >> $GITHUB_OUTPUT
+          exit $TEST_EXIT_CODE
         env:
           E2E_BASE_URL: http://localhost:5173
           E2E_API_URL: http://localhost:8000

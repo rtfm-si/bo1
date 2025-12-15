@@ -79,16 +79,20 @@ class TestReadyEndpoint:
 
     def test_ready_returns_503_when_postgres_down(self, client: TestClient):
         """Ready endpoint should return 503 when Postgres is down."""
+        # Mock RedisManager to return available
+        mock_manager = MagicMock()
+        mock_manager.is_available = True
+        mock_manager.connection_state.value = "connected"
+
         with (
             patch("backend.api.health.psycopg2.connect") as mock_pg,
-            patch("backend.api.health.redis.from_url") as mock_redis,
+            patch(
+                "backend.api.dependencies.get_redis_manager",
+                return_value=mock_manager,
+            ),
         ):
             # Postgres fails
             mock_pg.side_effect = Exception("Connection refused")
-
-            # Redis works
-            mock_redis_client = MagicMock()
-            mock_redis.return_value = mock_redis_client
 
             response = client.get("/api/ready")
             assert response.status_code == 503
@@ -99,9 +103,17 @@ class TestReadyEndpoint:
 
     def test_ready_returns_503_when_redis_down(self, client: TestClient):
         """Ready endpoint should return 503 when Redis is down."""
+        # Mock RedisManager to return unavailable
+        mock_manager = MagicMock()
+        mock_manager.is_available = False
+        mock_manager.connection_state.value = "disconnected"
+
         with (
             patch("backend.api.health.psycopg2.connect") as mock_pg,
-            patch("backend.api.health.redis.from_url") as mock_redis,
+            patch(
+                "backend.api.dependencies.get_redis_manager",
+                return_value=mock_manager,
+            ),
         ):
             # Postgres works
             mock_conn = MagicMock()
@@ -109,9 +121,6 @@ class TestReadyEndpoint:
             mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
             mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
             mock_pg.return_value = mock_conn
-
-            # Redis fails
-            mock_redis.side_effect = Exception("Connection refused")
 
             response = client.get("/api/ready")
             assert response.status_code == 503

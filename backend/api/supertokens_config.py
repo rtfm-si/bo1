@@ -53,6 +53,10 @@ from bo1.state.repositories.workspace_repository import workspace_repository
 logger = logging.getLogger(__name__)
 
 
+# Trusted proxy IPs (configure via environment in production)
+TRUSTED_PROXIES = [p.strip() for p in os.getenv("TRUSTED_PROXY_IPS", "").split(",") if p.strip()]
+
+
 def _get_client_ip(request: Any) -> str:
     """Extract client IP from SuperTokens request wrapper.
 
@@ -65,23 +69,28 @@ def _get_client_ip(request: Any) -> str:
     try:
         # SuperTokens wraps the request - try to get underlying request
         # For FastAPI/Starlette, the request object has headers and client
-        # Check X-Forwarded-For first (for reverse proxy)
-        forwarded_for = request.get_header("x-forwarded-for")
-        if forwarded_for:
-            return str(forwarded_for.split(",")[0].strip())
 
-        # Check X-Real-IP
-        real_ip = request.get_header("x-real-ip")
-        if real_ip:
-            return str(real_ip)
-
-        # Try to get from the underlying request's client attribute
-        # This depends on the SuperTokens wrapper implementation
+        # Get direct client IP first for proxy validation
+        remote_ip = "unknown"
         if hasattr(request, "request") and hasattr(request.request, "client"):
             if request.request.client:
-                return str(request.request.client.host)
+                remote_ip = str(request.request.client.host)
 
-        # Fallback - try direct header access
+        # Check X-Forwarded-For (for reverse proxy) - only trust from known proxies
+        forwarded_for = request.get_header("x-forwarded-for")
+        if forwarded_for and (not TRUSTED_PROXIES or remote_ip in TRUSTED_PROXIES):
+            return str(forwarded_for.split(",")[0].strip())
+
+        # Check X-Real-IP - only trust from known proxies
+        real_ip_header = request.get_header("x-real-ip")
+        if real_ip_header and (not TRUSTED_PROXIES or remote_ip in TRUSTED_PROXIES):
+            return str(real_ip_header)
+
+        # Return direct client IP if available
+        if remote_ip != "unknown":
+            return remote_ip
+
+        # Fallback
         return "unknown"
     except Exception as e:
         logger.warning(f"Could not extract client IP: {e}")

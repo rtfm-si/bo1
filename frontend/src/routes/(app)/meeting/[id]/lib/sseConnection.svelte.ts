@@ -70,6 +70,7 @@ export function createSSEConnection(config: SSEConnectionConfig) {
 	const { sessionId, store, maxRetries = 3, onEvent, onWorkingStatus } = config;
 
 	let sseClient: SSEClient | null = null;
+	let lastEventId: string | null = null;
 
 	/**
 	 * Handle incoming SSE events
@@ -127,8 +128,9 @@ export function createSSEConnection(config: SSEConnectionConfig) {
 	 * Start the SSE connection
 	 */
 	async function connect() {
-		// Close existing connection if any
+		// Preserve lastEventId from previous connection for resume
 		if (sseClient) {
+			lastEventId = sseClient.lastEventId;
 			sseClient.close();
 		}
 
@@ -140,23 +142,28 @@ export function createSSEConnection(config: SSEConnectionConfig) {
 			eventHandlers[eventType] = (event: MessageEvent) => handleSSEEvent(eventType, event);
 		}
 
-		// Create new SSE client
+		// Create new SSE client with lastEventId for resume support
 		sseClient = new SSEClient(`/api/v1/sessions/${sessionId}/stream`, {
+			lastEventId: lastEventId || undefined,
 			onOpen: () => {
-				console.log('[SSE] Connection established');
+				console.log('[SSE] Connection established', lastEventId ? `(resuming from ${lastEventId})` : '');
 				store.setRetryCount(0);
 				store.setConnectionStatus('connected');
 			},
 			onError: (err) => {
 				console.error('[SSE] Connection error:', err, 'retry count:', store.retryCount);
 
+				// Preserve lastEventId before closing
+				if (sseClient) {
+					lastEventId = sseClient.lastEventId;
+				}
 				sseClient?.close();
 
 				if (store.retryCount < maxRetries) {
 					store.setRetryCount(store.retryCount + 1);
 					store.setConnectionStatus('retrying');
 					const delay = Math.min(1000 * Math.pow(2, store.retryCount - 1), 5000);
-					console.log(`[SSE] Retrying in ${delay}ms...`);
+					console.log(`[SSE] Retrying in ${delay}ms... (will resume from ${lastEventId || 'start'})`);
 
 					setTimeout(() => {
 						connect();

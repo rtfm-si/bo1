@@ -121,7 +121,6 @@ def test_research_cache_crud() -> None:
             confidence="high",
             category="saas_metrics",
             industry="saas",
-            freshness_days=90,
             tokens_used=150,
             research_cost_usd=0.05,
         )

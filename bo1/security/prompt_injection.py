@@ -338,12 +338,12 @@ class PromptInjectionAuditor:
 
         except Exception as e:
             logger.error(f"Prompt injection audit failed for {source}: {e}")
-            # Fail open - allow content if audit fails
-            # This prevents audit failures from blocking legitimate users
+            # SECURITY FIX: Fail closed - block content if audit fails
+            # Prevents potential bypass when audit service is down
             return AuditResult(
-                is_safe=True,
+                is_safe=False,
                 categories=[],
-                flagged_categories=[],
+                flagged_categories=["audit_failure"],
                 error=str(e),
             )
 

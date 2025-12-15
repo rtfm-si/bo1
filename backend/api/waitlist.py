@@ -14,6 +14,7 @@ from typing import Literal
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 
+from backend.api.models import ErrorResponse, WhitelistCheckResponse
 from backend.api.utils.db_helpers import execute_query, exists
 from backend.api.utils.errors import handle_api_errors
 
@@ -66,7 +67,17 @@ def is_whitelisted(email: str) -> bool:
         return False  # Fail closed - if DB error, don't grant access
 
 
-@router.post("", response_model=WaitlistResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "",
+    response_model=WaitlistResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Join waitlist (public, no auth required)",
+    description="Add email to closed beta waitlist. No authentication required.",
+    responses={
+        200: {"description": "Email added to waitlist or status returned"},
+        400: {"description": "Invalid email format", "model": ErrorResponse},
+    },
+)
 @handle_api_errors("add to waitlist")
 async def add_to_waitlist(
     request: WaitlistRequest, background_tasks: BackgroundTasks
@@ -132,15 +143,20 @@ async def add_to_waitlist(
     )
 
 
-@router.post("/check", response_model=dict[str, bool])
+@router.post(
+    "/check",
+    response_model=WhitelistCheckResponse,
+    summary="Check whitelist status (public, no auth required)",
+    description="Check if email is whitelisted for closed beta. No authentication required.",
+)
 @handle_api_errors("check whitelist")
-async def check_whitelist(request: WaitlistRequest) -> dict[str, bool]:
+async def check_whitelist(request: WaitlistRequest) -> WhitelistCheckResponse:
     """Check if email is whitelisted for closed beta.
 
     Args:
         request: Request with email to check
 
     Returns:
-        Dict with is_whitelisted boolean
+        WhitelistCheckResponse with is_whitelisted boolean
     """
-    return {"is_whitelisted": is_whitelisted(request.email.lower())}
+    return WhitelistCheckResponse(is_whitelisted=is_whitelisted(request.email.lower()))

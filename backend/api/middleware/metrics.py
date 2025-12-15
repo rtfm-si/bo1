@@ -42,6 +42,7 @@ bo1_sessions_total = Counter(
     ["status"],
 )
 
+# Note: session_id label must be truncated via truncate_label() to limit cardinality
 bo1_deliberation_rounds_total = Counter(
     "bo1_deliberation_rounds_total",
     "Total deliberation rounds completed",
@@ -124,10 +125,57 @@ bo1_event_merge_ratio = Gauge(
     "Ratio of merged events to total events (0.0-1.0)",
 )
 
+# Note: session_id label must be truncated via truncate_label() to limit cardinality
 bo1_sse_frame_count = Counter(
     "bo1_sse_frame_count",
     "Total SSE frames sent to clients",
     ["session_id"],
+)
+
+# Citation compliance metrics (LLM quality tracking)
+bo1_citation_compliance_total = Counter(
+    "bo1_citation_compliance_total",
+    "Citation compliance checks for masked personas",
+    ["persona_type", "compliant"],
+)
+
+bo1_citation_count = Histogram(
+    "bo1_citation_count",
+    "Number of citations per masked persona response",
+    ["persona_type"],
+    buckets=(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+)
+
+# Early exit metrics (cost savings tracking)
+bo1_early_exit_total = Counter(
+    "bo1_early_exit_total",
+    "Total early exits triggered when convergence high and novelty low",
+    ["reason"],
+)
+
+# Circuit breaker metrics
+bo1_circuit_breaker_state = Gauge(
+    "bo1_circuit_breaker_state",
+    "Circuit breaker state (0=closed, 1=half_open, 2=open)",
+    ["service"],
+)
+
+bo1_circuit_breaker_trips_total = Counter(
+    "bo1_circuit_breaker_trips_total",
+    "Total circuit breaker trips (transitions to open state)",
+    ["service"],
+)
+
+bo1_circuit_breaker_fault_total = Counter(
+    "bo1_circuit_breaker_fault_total",
+    "Total faults recorded by circuit breaker by type",
+    ["service", "fault_type"],
+)
+
+# Event queue depth gauge (updated by health checks)
+bo1_event_queue_depth = Gauge(
+    "bo1_event_queue_depth",
+    "Current event queue depth for health monitoring",
 )
 
 
@@ -197,9 +245,10 @@ def record_session_failed() -> None:
 
 def record_round_completed(session_id: str) -> None:
     """Record a deliberation round completion."""
-    # Use truncated session ID to limit cardinality
-    short_id = session_id[:8] if len(session_id) > 8 else session_id
-    bo1_deliberation_rounds_total.labels(session_id=short_id).inc()
+    # Use truncated session ID to limit cardinality (see bo1/utils/metrics.py)
+    from bo1.utils.metrics import truncate_label
+
+    bo1_deliberation_rounds_total.labels(session_id=truncate_label(session_id)).inc()
 
 
 def record_llm_cost(model: str, provider: str, cost_cents: float) -> None:
@@ -236,3 +285,64 @@ def set_rate_limiter_degraded(degraded: bool) -> None:
 def record_rate_limiter_redis_failure() -> None:
     """Record a Redis failure in rate limiter."""
     bo1_rate_limiter_redis_failures_total.inc()
+
+
+def record_citation_compliance(persona_type: str, citation_count: int, is_compliant: bool) -> None:
+    """Record citation compliance for masked persona responses.
+
+    Args:
+        persona_type: Type of persona ("researcher" or "moderator")
+        citation_count: Number of citations found in response
+        is_compliant: Whether response met minimum citation requirements
+    """
+    compliant_str = "true" if is_compliant else "false"
+    bo1_citation_compliance_total.labels(persona_type=persona_type, compliant=compliant_str).inc()
+    bo1_citation_count.labels(persona_type=persona_type).observe(citation_count)
+
+
+def record_early_exit(reason: str = "convergence_high") -> None:
+    """Record an early exit event for cost savings tracking.
+
+    Args:
+        reason: Reason for early exit (default: "convergence_high")
+    """
+    bo1_early_exit_total.labels(reason=reason).inc()
+
+
+def record_circuit_breaker_state(service: str, state: str) -> None:
+    """Record circuit breaker state for a service.
+
+    Args:
+        service: Service name (e.g., "anthropic", "voyage", "brave")
+        state: State string ("closed", "half_open", "open")
+    """
+    state_map = {"closed": 0, "half_open": 1, "open": 2}
+    bo1_circuit_breaker_state.labels(service=service).set(state_map.get(state, -1))
+
+
+def record_circuit_breaker_trip(service: str) -> None:
+    """Record a circuit breaker trip (transition to open state).
+
+    Args:
+        service: Service name that tripped
+    """
+    bo1_circuit_breaker_trips_total.labels(service=service).inc()
+
+
+def record_circuit_breaker_fault(service: str, fault_type: str) -> None:
+    """Record a fault classification in circuit breaker.
+
+    Args:
+        service: Service name (e.g., "anthropic", "voyage", "brave")
+        fault_type: Fault type ("transient", "permanent", "unknown")
+    """
+    bo1_circuit_breaker_fault_total.labels(service=service, fault_type=fault_type).inc()
+
+
+def record_event_queue_depth(depth: int) -> None:
+    """Record current event queue depth.
+
+    Args:
+        depth: Number of pending events in queue
+    """
+    bo1_event_queue_depth.set(depth)

@@ -411,6 +411,11 @@ def should_exit_early(state: DeliberationGraphState) -> bool:
     - ~0.5% of discussions benefit from extended debate past convergence
     - Enables 20-30% reduction in average deliberation time
 
+    Cost savings:
+    - Expected 33-50% reduction in persona calls for converged discussions
+    - Typical session: 5 personas × 5 rounds = 25 calls → early exit at round 3 = 15 calls
+    - Savings tracked via bo1_early_exit_total Prometheus counter
+
     Conditions for early exit:
     - Round >= 2 (minimum exploration phase)
     - Convergence > 0.85 (high agreement)
@@ -448,6 +453,13 @@ def should_exit_early(state: DeliberationGraphState) -> bool:
             f"[EARLY_EXIT] Round {round_num}: convergence={convergence:.2f}, "
             f"novelty={novelty:.2f} - recommending early termination"
         )
+        # Track early exit for cost savings analysis
+        try:
+            from backend.api.middleware.metrics import record_early_exit
+
+            record_early_exit(reason="convergence_high")
+        except ImportError:
+            pass  # Metrics not available in test environment
         return True
 
     return False

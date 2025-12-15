@@ -245,7 +245,15 @@ class BlogRepository(BaseRepository):
 
         Args:
             post_id: Post UUID
-            **fields: Fields to update (None values are skipped)
+            title: New title (optional)
+            content: New content (optional)
+            slug: New slug (optional)
+            excerpt: New excerpt (optional)
+            status: New status (optional)
+            published_at: New publish date (optional)
+            seo_keywords: New SEO keywords (optional)
+            meta_title: New meta title (optional)
+            meta_description: New meta description (optional)
 
         Returns:
             Updated blog post record or None if not found

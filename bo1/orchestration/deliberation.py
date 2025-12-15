@@ -25,7 +25,9 @@ from bo1.orchestration.metrics_calculator import MetricsCalculator
 from bo1.orchestration.persona_executor import PersonaExecutor
 from bo1.orchestration.prompt_builder import PromptBuilder
 from bo1.prompts import get_round_phase_config
+from bo1.utils.async_context import create_task_with_context
 from bo1.utils.checkpoint_helpers import get_sub_problem_context, get_sub_problem_goal
+from bo1.utils.deliberation_logger import get_deliberation_logger
 from bo1.utils.logging_helpers import LogHelper
 
 logger = logging.getLogger(__name__)
@@ -92,7 +94,10 @@ class DeliberationEngine:
             5
         """
         personas = self.state.get("personas", [])
-        logger.info(f"Starting initial round with {len(personas)} personas")
+        session_id = self.state.get("session_id")
+        user_id = self.state.get("user_id")
+        dlog = get_deliberation_logger(session_id, user_id, "deliberation_engine.initial_round")
+        dlog.info("Starting initial round", personas=len(personas))
 
         # Update state phase
         self.state["phase"] = DeliberationPhase.INITIAL_ROUND
@@ -125,9 +130,10 @@ class DeliberationEngine:
 
                 if memory_parts:
                     expert_memory = "\n\n".join(memory_parts)
-                    logger.info(
-                        f"{persona_profile.display_name} has memory from {len(memory_parts)} "
-                        f"previous sub-problem(s)"
+                    dlog.debug(
+                        "Expert has cross-sub-problem memory",
+                        persona=persona_profile.display_name,
+                        memory_parts=len(memory_parts),
                     )
 
             task = self._call_persona_async(
@@ -142,7 +148,7 @@ class DeliberationEngine:
             tasks.append(task)
 
         # Execute all persona calls in parallel
-        logger.info(f"Executing {len(tasks)} persona calls in parallel...")
+        dlog.info("Executing persona calls in parallel", tasks=len(tasks))
         results = await asyncio.gather(*tasks)
 
         # Separate contributions and LLM responses
@@ -155,7 +161,7 @@ class DeliberationEngine:
             contributions_list.append(contribution)
         self.state["contributions"] = contributions_list
 
-        logger.info(f"Initial round complete: {len(contributions)} contributions collected")
+        dlog.info("Initial round complete", contributions=len(contributions))
 
         # Update phase
         self.state["phase"] = DeliberationPhase.DISCUSSION
@@ -516,9 +522,9 @@ class DeliberationEngine:
         if round_number == 1 and current_sp:
             problem_statement = get_sub_problem_goal(current_sp)
 
-        # Create background task
+        # Create background task with context (preserves correlation_id)
         logger.info(f"Triggering background summarization for Round {round_number}")
-        self.pending_summary_task = asyncio.create_task(
+        self.pending_summary_task = create_task_with_context(
             self.summarizer.summarize_round(
                 round_number=round_number,
                 contributions=contributions_data,

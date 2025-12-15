@@ -15,6 +15,7 @@ from bo1.graph.utils import ensure_metrics, track_phase_cost
 from bo1.models.problem import SubProblem
 from bo1.models.state import DeliberationPhase
 from bo1.utils.comparison_detector import ComparisonDetector
+from bo1.utils.deliberation_logger import get_deliberation_logger
 from bo1.utils.json_parsing import extract_json_with_fallback
 
 logger = logging.getLogger(__name__)
@@ -34,9 +35,9 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
     """
     _start_time = time.perf_counter()
     session_id = state.get("session_id")
-    log_with_session(
-        logger, logging.INFO, session_id, "decompose_node: Starting problem decomposition"
-    )
+    user_id = state.get("user_id")
+    dlog = get_deliberation_logger(session_id, user_id, "decompose_node")
+    dlog.info("Starting problem decomposition")
 
     # Create decomposer agent
     decomposer = DecomposerAgent()
@@ -53,20 +54,13 @@ async def decompose_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     pending_research_queries: list[dict[str, str]] = []
     if comparison_result.is_comparison:
-        log_with_session(
-            logger,
-            logging.INFO,
-            session_id,
-            f"decompose_node: Detected comparison question - type='{comparison_result.comparison_type}', "
-            f"options={comparison_result.options}",
+        dlog.info(
+            "Detected comparison question",
+            comparison_type=comparison_result.comparison_type,
+            options=str(comparison_result.options),
         )
         pending_research_queries = comparison_result.research_queries
-        log_with_session(
-            logger,
-            logging.INFO,
-            session_id,
-            f"decompose_node: Generated {len(pending_research_queries)} proactive research queries",
-        )
+        dlog.info("Generated proactive research queries", queries=len(pending_research_queries))
 
     # AUDIT FIX (Priority 5, Task 5.2): Determine complexity-based limits BEFORE decomposition
     # This helps the LLM understand expected decomposition count

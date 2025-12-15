@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING, Any
 from backend.api.dependencies import get_redis_manager
 from backend.api.event_extractors import extract_persona_dict, get_event_registry
 from backend.api.event_publisher import EventPublisher, flush_session_events
-from backend.services.event_batcher import flush_batcher
-from bo1.config import get_settings
+from backend.services.event_batcher import flush_batcher, wait_for_all_flushes
 from bo1.context import set_request_id
 from bo1.llm.cost_tracker import CostTracker
+from bo1.utils.async_context import create_task_with_context
 
 if TYPE_CHECKING:
     from backend.api.contribution_summarizer import ContributionSummarizer
@@ -146,6 +146,12 @@ class EventCollector:
             session_id: Session identifier
             error: The exception that caused the failure
         """
+        # Flush any pending cost records before marking failed
+        try:
+            CostTracker.flush(session_id)
+        except Exception as flush_error:
+            logger.warning(f"Failed to flush cost buffer on session failure: {flush_error}")
+
         # Publish error event to SSE stream
         self.publisher.publish_event(
             session_id,
@@ -1014,6 +1020,12 @@ class EventCollector:
         # Then flush any remaining events in the publisher's batch
         await flush_session_events(session_id)
 
+        # Flush cost tracker buffer to ensure all costs are in DB before breakdown
+        try:
+            CostTracker.flush(session_id)
+        except Exception as flush_error:
+            logger.warning(f"Failed to flush cost buffer on completion: {flush_error}")
+
         # Publish cost breakdown
         self._publish_cost_breakdown(session_id, final_state)
 
@@ -1205,8 +1217,8 @@ class EventCollector:
                 # Count contributions
                 contribution_count = contribution_repository.count_by_session(session_id)
 
-                # Fire-and-forget notification
-                asyncio.create_task(
+                # Fire-and-forget notification (with context for correlation_id)
+                create_task_with_context(
                     notify_meeting_completed(
                         session_id=session_id,
                         problem_statement=problem_statement,
@@ -1253,8 +1265,8 @@ class EventCollector:
                         except Exception as e:
                             logger.debug("Could not fetch user email for alert: %s", e)
 
-                        # Fire-and-forget alert
-                        asyncio.create_task(
+                        # Fire-and-forget alert (with context for correlation_id)
+                        create_task_with_context(
                             alert_user_cost_threshold(
                                 user_id=user_id,
                                 email=email,
@@ -1350,19 +1362,21 @@ class EventCollector:
         Compares Redis event count (temporary) with PostgreSQL event count (permanent)
         to detect persistence failures. Emits warning events if discrepancies are found.
 
-        Note: Adds a delay before verification to allow async persistence tasks to complete.
-        Event persistence runs via asyncio.create_task() and may not be finished immediately.
+        Note: Uses deterministic flush completion tracking instead of fixed sleep delay.
+        Falls back to legacy delay if flush tracking times out.
 
         Args:
             session_id: Session identifier
         """
         try:
-            # Allow async persistence tasks to complete (they run via asyncio.create_task)
-            # This prevents false positives from the race condition where verification
-            # runs before all persistence tasks have finished
-            delay = get_settings().event_verification_delay_seconds
-            if delay > 0:
-                await asyncio.sleep(delay)
+            # Wait for all pending flushes to complete (deterministic)
+            # This replaces the non-deterministic asyncio.sleep() delay
+            flush_completed = await wait_for_all_flushes(timeout=5.0)
+            if not flush_completed:
+                logger.warning(
+                    f"[VERIFY] Flush timeout for {session_id}, proceeding with verification "
+                    f"(some events may not have persisted yet)"
+                )
 
             redis_event_count = self.publisher.redis.llen(f"events_history:{session_id}")
             pg_events = self.session_repo.get_events(session_id)

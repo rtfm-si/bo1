@@ -33,6 +33,7 @@ from bo1.agents.research_consolidation import (
 from bo1.agents.research_metrics import ResearchMetric, track_research_metric
 from bo1.agents.research_rate_limiter import get_rate_limiter
 from bo1.config import get_settings
+from bo1.constants import SimilarityCacheThresholds
 from bo1.llm.circuit_breaker import (
     get_service_circuit_breaker,
 )
@@ -117,7 +118,9 @@ class ResearcherAgent:
 
         # P2-RESEARCH-3: Consolidate similar requests
         if enable_consolidation and len(questions) > 1:
-            batches = consolidate_research_requests(questions, similarity_threshold=0.75)
+            batches = consolidate_research_requests(
+                questions, similarity_threshold=SimilarityCacheThresholds.CONSOLIDATION
+            )
         else:
             # No consolidation - each question is its own batch
             batches = [[q] for q in questions]
@@ -285,7 +288,7 @@ class ResearcherAgent:
         try:
             cached_result = cache_repository.find_by_embedding(
                 question_embedding=embedding,
-                similarity_threshold=0.85,
+                similarity_threshold=SimilarityCacheThresholds.RESEARCH_CACHE,
                 category=category,
                 industry=industry,
                 max_age_days=freshness_days,
@@ -337,7 +340,7 @@ class ResearcherAgent:
                 metadata={
                     "query": question[:100],
                     "cache_age_days": age_days,
-                    "similarity_threshold": 0.85,
+                    "similarity_threshold": SimilarityCacheThresholds.RESEARCH_CACHE,
                     "confidence": cached_result.get("confidence", "medium"),
                     "cache_hit": True,
                 },
@@ -396,7 +399,6 @@ class ResearcherAgent:
                         confidence=research_result["confidence"],
                         category=category,
                         industry=industry,
-                        freshness_days=freshness_days,
                         tokens_used=research_result.get("tokens_used", 0),
                         research_cost_usd=research_result["cost"],
                     )

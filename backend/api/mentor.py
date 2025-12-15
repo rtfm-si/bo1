@@ -40,6 +40,7 @@ from bo1.prompts.mentor import (
     format_recent_meetings,
     get_mentor_system_prompt,
 )
+from bo1.security import sanitize_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -242,9 +243,11 @@ async def _stream_mentor_response(
         conv_history = format_conversation_history(conversation.get("messages", []))
 
         # Build prompt (use clean_text if mentions were parsed, else original message)
+        # Sanitize user input to prevent prompt injection
         question_text = mention_result.clean_text if mention_result.mentions else message
+        safe_question = sanitize_for_prompt(question_text)
         user_prompt = build_mentor_prompt(
-            question=question_text,
+            question=safe_question,
             business_context=business_ctx,
             meetings_context=meetings_ctx,
             actions_context=actions_ctx,
@@ -422,7 +425,9 @@ async def search_mentions(
 
     if type == "meeting":
         repo = SessionRepository()
-        sessions = repo.list_by_user(user_id, limit=50, status_filter=None)
+        sessions = repo.list_by_user(
+            user_id, limit=50, status_filter=None, include_task_count=False
+        )
         for s in sessions:
             problem = s.get("problem_statement", "")
             # Filter by query if provided

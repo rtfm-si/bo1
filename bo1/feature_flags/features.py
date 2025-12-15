@@ -100,6 +100,18 @@ EARLY_START_THRESHOLD = int(os.getenv("EARLY_START_THRESHOLD", "2"))
 
 
 # ============================================================================
+# Cost Optimization
+# ============================================================================
+
+# Use Haiku for persona selection on simple/moderate problems (complexity 1-6)
+# When True: Haiku for complexity 1-6, Sonnet for 7-10 (~10x cheaper for simple problems)
+# When False: Always use Sonnet (legacy behavior)
+USE_HAIKU_FOR_SIMPLE_PERSONAS = _parse_bool(
+    os.getenv("USE_HAIKU_FOR_SIMPLE_PERSONAS"), default=True
+)
+
+
+# ============================================================================
 # Sub-Problem Deliberation
 # ============================================================================
 

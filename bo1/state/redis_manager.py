@@ -5,11 +5,15 @@ Handles:
 - State serialization/deserialization
 - Connection pooling
 - Error handling and fallback
+- Automatic reconnection with exponential backoff
 """
 
+import asyncio
 import json
 import logging
+import time
 import uuid
+from enum import Enum
 from typing import Any, cast
 
 import redis
@@ -17,6 +21,14 @@ import redis
 from bo1.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+class RedisConnectionState(Enum):
+    """Redis connection state for health monitoring."""
+
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+    RECONNECTING = "reconnecting"
 
 
 class RedisManager:
@@ -52,7 +64,7 @@ class RedisManager:
             password: Redis password (defaults to config)
             ttl_seconds: Session TTL in seconds (default: 7 days via DatabaseConfig)
         """
-        from bo1.constants import DatabaseConfig
+        from bo1.constants import DatabaseConfig, RedisReconnection
 
         settings = get_settings()
 
@@ -65,6 +77,12 @@ class RedisManager:
         )
         # Use aligned TTL (7 days) to match checkpoint TTL
         self.ttl_seconds = ttl_seconds or DatabaseConfig.REDIS_METADATA_TTL_SECONDS
+
+        # Reconnection state tracking
+        self._connection_state = RedisConnectionState.DISCONNECTED
+        self._reconnect_attempts = 0
+        self._max_reconnect_attempts = RedisReconnection.MAX_ATTEMPTS
+        self._last_reconnect_time: float = 0.0
 
         # Initialize connection pool
         try:
@@ -91,16 +109,251 @@ class RedisManager:
             auth_status = " (with auth)" if self.password else ""
             logger.info(f"✅ Connected to Redis at {self.host}:{self.port}/{self.db}{auth_status}")
             self._available = True
+            self._connection_state = RedisConnectionState.CONNECTED
 
         except (redis.ConnectionError, redis.TimeoutError) as e:
             logger.warning(f"⚠️  Redis unavailable: {e}. Continuing without persistence.")
             self._available = False
+            self._connection_state = RedisConnectionState.DISCONNECTED
             self.redis = None
 
     @property
     def is_available(self) -> bool:
         """Check if Redis is available."""
         return self._available
+
+    @property
+    def connection_state(self) -> RedisConnectionState:
+        """Get current Redis connection state for health monitoring."""
+        return self._connection_state
+
+    @property
+    def reconnect_attempts(self) -> int:
+        """Get number of reconnection attempts since last disconnect."""
+        return self._reconnect_attempts
+
+    def _calculate_backoff_delay(self) -> float:
+        """Calculate exponential backoff delay in seconds.
+
+        Returns:
+            Delay in seconds based on attempt count with exponential backoff
+        """
+        from bo1.constants import RedisReconnection
+
+        base_delay_s = RedisReconnection.INITIAL_DELAY_MS / 1000.0
+        max_delay_s = RedisReconnection.MAX_DELAY_MS / 1000.0
+
+        delay = base_delay_s * (RedisReconnection.BACKOFF_FACTOR**self._reconnect_attempts)
+        return min(delay, max_delay_s)
+
+    def _attempt_reconnect(self) -> bool:
+        """Attempt to reconnect to Redis with exponential backoff.
+
+        Returns:
+            True if reconnection succeeded, False otherwise
+        """
+        if self._reconnect_attempts >= self._max_reconnect_attempts:
+            logger.error(
+                f"[REDIS_RECONNECT] Max reconnect attempts ({self._max_reconnect_attempts}) "
+                "exceeded, giving up"
+            )
+            return False
+
+        self._connection_state = RedisConnectionState.RECONNECTING
+        self._reconnect_attempts += 1
+
+        # Calculate backoff delay
+        delay = self._calculate_backoff_delay()
+        logger.info(
+            f"[REDIS_RECONNECT] Attempt {self._reconnect_attempts}/{self._max_reconnect_attempts} "
+            f"after {delay:.1f}s delay"
+        )
+
+        # Sleep for backoff delay (synchronous - for async use ensure_connected_async)
+        time.sleep(delay)
+        self._last_reconnect_time = time.time()
+
+        try:
+            # Build connection pool args
+            pool_kwargs: dict[str, Any] = {
+                "host": self.host,
+                "port": self.port,
+                "db": self.db,
+                "decode_responses": True,
+                "max_connections": 10,
+            }
+            if self.password:
+                pool_kwargs["password"] = self.password
+
+            # Create new pool and client
+            self.pool = redis.ConnectionPool(**pool_kwargs)
+            self.redis = redis.Redis(connection_pool=self.pool)  # type: ignore[type-arg,unused-ignore]
+
+            # Test connection
+            self.redis.ping()
+
+            # Success - reset state
+            self._available = True
+            self._connection_state = RedisConnectionState.CONNECTED
+            self._reconnect_attempts = 0
+
+            logger.info(
+                f"[REDIS_RECONNECT] Successfully reconnected to Redis "
+                f"at {self.host}:{self.port}/{self.db}"
+            )
+
+            # Emit Prometheus metric
+            try:
+                from backend.api.metrics import prom_metrics
+
+                prom_metrics.redis_reconnect_total.inc()
+            except ImportError:
+                pass  # Metrics not available in all contexts
+
+            return True
+
+        except (redis.ConnectionError, redis.TimeoutError) as e:
+            logger.warning(f"[REDIS_RECONNECT] Reconnect attempt failed: {e}")
+            self._connection_state = RedisConnectionState.DISCONNECTED
+            return False
+
+    async def _attempt_reconnect_async(self) -> bool:
+        """Async version of reconnection with non-blocking sleep.
+
+        Returns:
+            True if reconnection succeeded, False otherwise
+        """
+        if self._reconnect_attempts >= self._max_reconnect_attempts:
+            logger.error(
+                f"[REDIS_RECONNECT] Max reconnect attempts ({self._max_reconnect_attempts}) "
+                "exceeded, giving up"
+            )
+            return False
+
+        self._connection_state = RedisConnectionState.RECONNECTING
+        self._reconnect_attempts += 1
+
+        # Calculate backoff delay
+        delay = self._calculate_backoff_delay()
+        logger.info(
+            f"[REDIS_RECONNECT] Async attempt {self._reconnect_attempts}/{self._max_reconnect_attempts} "
+            f"after {delay:.1f}s delay"
+        )
+
+        # Non-blocking sleep
+        await asyncio.sleep(delay)
+        self._last_reconnect_time = time.time()
+
+        try:
+            # Build connection pool args
+            pool_kwargs: dict[str, Any] = {
+                "host": self.host,
+                "port": self.port,
+                "db": self.db,
+                "decode_responses": True,
+                "max_connections": 10,
+            }
+            if self.password:
+                pool_kwargs["password"] = self.password
+
+            # Create new pool and client
+            self.pool = redis.ConnectionPool(**pool_kwargs)
+            self.redis = redis.Redis(connection_pool=self.pool)  # type: ignore[type-arg,unused-ignore]
+
+            # Test connection
+            self.redis.ping()
+
+            # Success - reset state
+            self._available = True
+            self._connection_state = RedisConnectionState.CONNECTED
+            self._reconnect_attempts = 0
+
+            logger.info(
+                f"[REDIS_RECONNECT] Successfully reconnected to Redis "
+                f"at {self.host}:{self.port}/{self.db}"
+            )
+
+            # Emit Prometheus metric
+            try:
+                from backend.api.metrics import prom_metrics
+
+                prom_metrics.redis_reconnect_total.inc()
+            except ImportError:
+                pass  # Metrics not available in all contexts
+
+            return True
+
+        except (redis.ConnectionError, redis.TimeoutError) as e:
+            logger.warning(f"[REDIS_RECONNECT] Async reconnect attempt failed: {e}")
+            self._connection_state = RedisConnectionState.DISCONNECTED
+            return False
+
+    def _ensure_connected(self) -> bool:
+        """Ensure Redis connection is available, attempting reconnect if needed.
+
+        Called before Redis operations to handle connection drops gracefully.
+
+        Returns:
+            True if connected (or reconnected), False if unavailable
+        """
+        if self._connection_state == RedisConnectionState.CONNECTED and self._available:
+            # Already connected
+            return True
+
+        if self._connection_state == RedisConnectionState.RECONNECTING:
+            # Reconnection already in progress
+            return False
+
+        # Attempt reconnection
+        return self._attempt_reconnect()
+
+    async def ensure_connected_async(self) -> bool:
+        """Async version of ensure_connected for non-blocking reconnection.
+
+        Returns:
+            True if connected (or reconnected), False if unavailable
+        """
+        if self._connection_state == RedisConnectionState.CONNECTED and self._available:
+            return True
+
+        if self._connection_state == RedisConnectionState.RECONNECTING:
+            return False
+
+        return await self._attempt_reconnect_async()
+
+    def _handle_connection_error(self, error: Exception) -> None:
+        """Handle a connection error by updating state and preparing for reconnect.
+
+        Args:
+            error: The connection error that occurred
+        """
+        if self._connection_state != RedisConnectionState.DISCONNECTED:
+            logger.warning(f"[REDIS_DISCONNECT] Connection lost: {error}")
+            self._available = False
+            self._connection_state = RedisConnectionState.DISCONNECTED
+
+            # Send ntfy alert on disconnection
+            try:
+                import httpx
+
+                from bo1.config import get_settings
+
+                settings = get_settings()
+                if settings.ntfy_topic_alerts:
+                    httpx.post(
+                        f"https://ntfy.sh/{settings.ntfy_topic_alerts}",
+                        content=f"Redis disconnected: {error}",
+                        headers={
+                            "Title": "Redis Connection Lost",
+                            "Priority": "high",
+                            "Tags": "redis,infrastructure",
+                        },
+                        timeout=5,
+                    )
+            except ImportError:
+                pass  # httpx not available in all contexts
+            except Exception as alert_error:
+                logger.debug(f"Failed to send disconnect alert: {alert_error}")
 
     def create_session(self) -> str:
         """Create a new session ID.
@@ -395,11 +648,21 @@ class RedisManager:
             logger.error(f"Failed to save metadata: {e}")
             return False
 
-    def load_metadata(self, session_id: str) -> dict[str, Any] | None:
-        """Load session metadata.
+    def load_metadata(
+        self,
+        session_id: str,
+        recache_ttl_seconds: int = 3600,
+    ) -> dict[str, Any] | None:
+        """Load session metadata with PostgreSQL fallback.
+
+        Attempts to load from Redis first. If Redis returns None (cache miss
+        or TTL expiry), falls back to PostgreSQL via SessionRepository.
+        Optionally re-caches metadata in Redis on successful DB fetch.
 
         Args:
             session_id: Session identifier
+            recache_ttl_seconds: TTL for re-cached metadata (default: 3600).
+                Set to 0 to disable re-caching on DB hit.
 
         Returns:
             Metadata dictionary if found, None otherwise
@@ -410,22 +673,68 @@ class RedisManager:
             >>> if metadata:
             ...     print(f"Session created: {metadata['created_at']}")
         """
-        if not self.is_available:
+        # Try Redis first
+        if self.is_available:
+            try:
+                key = f"metadata:{session_id}"
+                assert self.redis is not None  # Type guard: checked by is_available
+                metadata_json = self.redis.get(key)
+
+                if metadata_json:
+                    metadata: dict[str, Any] = json.loads(str(metadata_json))
+                    return metadata
+
+            except Exception as e:
+                logger.error(f"Failed to load metadata from Redis: {e}")
+
+        # Fallback to PostgreSQL
+        try:
+            from bo1.state.repositories import session_repository
+
+            db_metadata = session_repository.get_metadata(session_id)
+            if db_metadata:
+                logger.info(f"[REDIS_FALLBACK] Loaded metadata from DB for {session_id}")
+
+                # Emit Prometheus metric
+                try:
+                    from backend.api.metrics import prom_metrics
+
+                    prom_metrics.redis_metadata_fallback_total.labels(result="success").inc()
+                except ImportError:
+                    pass  # Metrics not available in all contexts
+
+                # Re-cache in Redis if enabled and Redis is available
+                if recache_ttl_seconds > 0 and self.is_available:
+                    try:
+                        key = f"metadata:{session_id}"
+                        metadata_json = json.dumps(db_metadata)
+                        assert self.redis is not None
+                        self.redis.setex(key, recache_ttl_seconds, metadata_json)
+                        logger.debug(f"[REDIS_FALLBACK] Re-cached metadata for {session_id}")
+                    except Exception as cache_err:
+                        logger.warning(f"Failed to re-cache metadata: {cache_err}")
+
+                return db_metadata
+
+            # DB also returned None
+            logger.debug(f"[REDIS_FALLBACK] Session not found in DB: {session_id}")
+            try:
+                from backend.api.metrics import prom_metrics
+
+                prom_metrics.redis_metadata_fallback_total.labels(result="failure").inc()
+            except ImportError:
+                pass
+
             return None
 
-        try:
-            key = f"metadata:{session_id}"
-            assert self.redis is not None  # Type guard: checked by is_available
-            metadata_json = self.redis.get(key)
-
-            if not metadata_json:
-                return None
-
-            metadata: dict[str, Any] = json.loads(str(metadata_json))
-            return metadata
-
         except Exception as e:
-            logger.error(f"Failed to load metadata: {e}")
+            logger.error(f"[REDIS_FALLBACK] Failed to load metadata from DB: {e}")
+            try:
+                from backend.api.metrics import prom_metrics
+
+                prom_metrics.redis_metadata_fallback_total.labels(result="failure").inc()
+            except ImportError:
+                pass
             return None
 
     def add_session_to_user_index(self, user_id: str, session_id: str) -> bool:
@@ -695,6 +1004,32 @@ class RedisManager:
         except Exception as e:
             logger.error(f"Failed to schedule cleanup for session {session_id}: {e}")
             return False
+
+    def get_cached_user_id(self, session_id: str) -> str | None:
+        """Get user_id from Redis metadata cache with DB fallback.
+
+        Uses load_metadata() which has built-in PostgreSQL fallback when
+        Redis cache misses. This provides a single optimized lookup path.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            user_id if found, None otherwise
+
+        Examples:
+            >>> manager = RedisManager()
+            >>> user_id = manager.get_cached_user_id("bo1_abc123")
+            >>> if user_id:
+            ...     print(f"Session owned by: {user_id}")
+        """
+        # load_metadata has Redis->PostgreSQL fallback with re-caching
+        metadata = self.load_metadata(session_id)
+        if metadata and metadata.get("user_id"):
+            return str(metadata["user_id"])
+
+        logger.debug(f"[REDIS_FALLBACK] No user_id found for {session_id}")
+        return None
 
     def close(self) -> None:
         """Close Redis connection pool.

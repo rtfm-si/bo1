@@ -38,6 +38,19 @@ class Session(BaseModel):
     updated_at: datetime = Field(..., description="Last update timestamp")
     synthesis_text: str | None = Field(None, description="Final synthesis text")
     final_recommendation: str | None = Field(None, description="Final recommendation")
+    # Termination fields (from z3_add_session_termination migration)
+    terminated_at: datetime | None = Field(None, description="When session was terminated")
+    termination_type: str | None = Field(
+        None, description="Type: blocker_identified, user_cancelled, continue_best_effort"
+    )
+    termination_reason: str | None = Field(None, description="Human-readable termination reason")
+    billable_portion: float | None = Field(None, description="Billable portion 0.0-1.0")
+    # Count fields (from d1_add_session_counts migration)
+    expert_count: int = Field(0, description="Number of experts in session")
+    focus_area_count: int = Field(0, description="Number of focus areas in session")
+    # Recovery flags (from c3_add_session_recovery_flags migration)
+    has_untracked_costs: bool = Field(False, description="True when cost inserts failed")
+    recovery_needed: bool = Field(False, description="True when in-flight contributions exist")
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -88,4 +101,15 @@ class Session(BaseModel):
             updated_at=row["updated_at"],
             synthesis_text=row.get("synthesis_text"),
             final_recommendation=row.get("final_recommendation"),
+            # Termination fields
+            terminated_at=row.get("terminated_at"),
+            termination_type=row.get("termination_type"),
+            termination_reason=row.get("termination_reason"),
+            billable_portion=row.get("billable_portion"),
+            # Count fields
+            expert_count=row.get("expert_count", 0),
+            focus_area_count=row.get("focus_area_count", 0),
+            # Recovery flags
+            has_untracked_costs=row.get("has_untracked_costs", False),
+            recovery_needed=row.get("recovery_needed", False),
         )

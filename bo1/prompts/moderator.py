@@ -6,6 +6,7 @@ and improve overall deliberation quality.
 
 from bo1.prompts.protocols import (
     BEHAVIORAL_GUIDELINES,
+    CITATION_REQUIREMENTS,
     EVIDENCE_PROTOCOL,
     SECURITY_PROTOCOL,
 )
@@ -56,9 +57,12 @@ Your strategic challenge (1-2 paragraphs):
 - Challenge a specific assumption or gap in reasoning
 - Raise questions the group may be avoiding
 - Offer an alternative perspective to consider
+- Include at least 1 source citation if making factual claims
 - Keep it focused and hand discussion back to standard personas
 </intervention>
 </communication_protocol>
+
+{citation_requirements}
 
 {security_protocol}
 
@@ -88,5 +92,6 @@ def compose_moderator_prompt(
         trigger_reason=trigger_reason,
         behavioral_guidelines=BEHAVIORAL_GUIDELINES,
         evidence_protocol=EVIDENCE_PROTOCOL,
+        citation_requirements=CITATION_REQUIREMENTS,
         security_protocol=SECURITY_PROTOCOL,
     )

@@ -102,3 +102,70 @@ class TestSessionRoundtrip:
         restored = Session.model_validate_json(session.model_dump_json())
         assert restored.problem_context is None
         assert restored.phase is None
+
+    def test_session_termination_fields(self) -> None:
+        """Termination fields map correctly from DB row."""
+        terminated_at = datetime.now(UTC)
+        row = {
+            "id": "bo1_test",
+            "user_id": "u1",
+            "problem_statement": "test",
+            "status": "completed",
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            "terminated_at": terminated_at,
+            "termination_type": "blocker_identified",
+            "termination_reason": "Missing critical data",
+            "billable_portion": 0.75,
+        }
+        session = Session.from_db_row(row)
+        assert session.terminated_at == terminated_at
+        assert session.termination_type == "blocker_identified"
+        assert session.termination_reason == "Missing critical data"
+        assert session.billable_portion == 0.75
+
+    def test_session_count_fields(self) -> None:
+        """Count fields map correctly from DB row."""
+        row = {
+            "id": "bo1_test",
+            "user_id": "u1",
+            "problem_statement": "test",
+            "status": "running",
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            "expert_count": 5,
+            "focus_area_count": 3,
+        }
+        session = Session.from_db_row(row)
+        assert session.expert_count == 5
+        assert session.focus_area_count == 3
+
+    def test_session_count_fields_default_zero(self) -> None:
+        """Count fields default to 0 when not present in row."""
+        row = {
+            "id": "bo1_test",
+            "user_id": "u1",
+            "problem_statement": "test",
+            "status": "created",
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+        session = Session.from_db_row(row)
+        assert session.expert_count == 0
+        assert session.focus_area_count == 0
+
+    def test_session_termination_fields_optional(self) -> None:
+        """Termination fields default to None when not present."""
+        row = {
+            "id": "bo1_test",
+            "user_id": "u1",
+            "problem_statement": "test",
+            "status": "running",
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+        session = Session.from_db_row(row)
+        assert session.terminated_at is None
+        assert session.termination_type is None
+        assert session.termination_reason is None
+        assert session.billable_portion is None

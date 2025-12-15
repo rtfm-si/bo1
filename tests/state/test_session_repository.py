@@ -166,6 +166,74 @@ class TestListByUserQuery:
         assert params[0] == "user_test"
         assert "completed" in params
 
+    def test_list_by_user_with_task_count_includes_join(self, mock_connection, mock_cursor):
+        """Verify include_task_count=True uses LEFT JOIN to session_tasks."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        mock_cursor.fetchall.return_value = []
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.list_by_user("user_test", include_task_count=True)
+
+        executed_query = mock_cursor.execute.call_args[0][0]
+        assert "LEFT JOIN session_tasks" in executed_query
+        assert "COALESCE(st.total_tasks, 0)" in executed_query
+
+    def test_list_by_user_without_task_count_skips_join(self, mock_connection, mock_cursor):
+        """Verify include_task_count=False skips LEFT JOIN for performance."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        mock_cursor.fetchall.return_value = []
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.list_by_user("user_test", include_task_count=False)
+
+        executed_query = mock_cursor.execute.call_args[0][0]
+        assert "LEFT JOIN session_tasks" not in executed_query
+        # Should return 0 as task_count
+        assert "0 as task_count" in executed_query
+
+    def test_list_by_user_without_task_count_returns_zero(self, mock_connection, mock_cursor):
+        """Verify include_task_count=False returns task_count=0 for type consistency."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        mock_row = {
+            "id": "bo1_test123",
+            "user_id": "user_abc",
+            "problem_statement": "Test problem",
+            "problem_context": None,
+            "status": "completed",
+            "phase": "synthesis",
+            "total_cost": 0.05,
+            "round_number": 3,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+            "synthesis_text": "Final synthesis",
+            "final_recommendation": "Do it",
+            "expert_count": 4,
+            "contribution_count": 12,
+            "task_count": 0,  # Always 0 when include_task_count=False
+            "focus_area_count": 2,
+            "workspace_id": None,
+        }
+        mock_cursor.fetchall.return_value = [mock_row]
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            results = repo.list_by_user("user_abc", include_task_count=False)
+
+        assert len(results) == 1
+        assert results[0]["task_count"] == 0
+        assert isinstance(results[0]["task_count"], int)
+
 
 class TestSaveEventCountIncrements:
     """Test save_event and save_events_batch increment denormalized counts."""
@@ -493,3 +561,152 @@ class TestGetSessionTyped:
             session = repo.get_session("bo1_nonexistent")
 
         assert session is None
+
+
+class TestSaveEventWithCachedUserId:
+    """Test save_event user_id caching optimization."""
+
+    @pytest.fixture
+    def mock_cursor(self):
+        """Create a mock cursor with context manager support."""
+        cursor = MagicMock()
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        cursor.fetchone.return_value = {
+            "id": 1,
+            "session_id": "bo1_test",
+            "event_type": "contribution",
+            "sequence": 1,
+            "created_at": datetime.now(),
+        }
+        return cursor
+
+    @pytest.fixture
+    def mock_connection(self, mock_cursor):
+        """Create a mock connection."""
+        conn = MagicMock()
+        conn.__enter__ = MagicMock(return_value=conn)
+        conn.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = mock_cursor
+        return conn
+
+    def test_save_event_with_user_id_avoids_subquery(self, mock_connection, mock_cursor):
+        """Verify providing user_id avoids SELECT subquery."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_event("bo1_test", "contribution", 1, {"content": "test"}, user_id="user_123")
+
+        # Check the INSERT query doesn't have subquery
+        calls = mock_cursor.execute.call_args_list
+        insert_call = [c for c in calls if "INSERT INTO session_events" in str(c)]
+        assert len(insert_call) >= 1
+        # When user_id is provided, should NOT have SELECT subquery
+        insert_query = str(insert_call[0])
+        assert "SELECT user_id FROM sessions" not in insert_query
+
+    def test_save_event_without_user_id_uses_subquery(self, mock_connection, mock_cursor):
+        """Verify missing user_id falls back to SELECT subquery."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_event("bo1_test", "contribution", 1, {"content": "test"})
+
+        calls = mock_cursor.execute.call_args_list
+        insert_call = [c for c in calls if "INSERT INTO session_events" in str(c)]
+        assert len(insert_call) >= 1
+        # When user_id is NOT provided, should have SELECT subquery
+        insert_query = str(insert_call[0])
+        assert "SELECT user_id FROM sessions" in insert_query
+
+
+class TestSaveEventsBatchWithCachedUserIds:
+    """Test save_events_batch user_id caching optimization."""
+
+    @pytest.fixture
+    def mock_cursor(self):
+        """Create a mock cursor with context manager support."""
+        cursor = MagicMock()
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        return cursor
+
+    @pytest.fixture
+    def mock_connection(self, mock_cursor):
+        """Create a mock connection."""
+        conn = MagicMock()
+        conn.__enter__ = MagicMock(return_value=conn)
+        conn.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = mock_cursor
+        return conn
+
+    def test_save_events_batch_with_user_ids_avoids_subquery(self, mock_connection, mock_cursor):
+        """Verify providing user_ids dict avoids SELECT subqueries."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        events = [
+            ("bo1_test1", "contribution", 1, {"content": "first"}),
+            ("bo1_test1", "contribution", 2, {"content": "second"}),
+        ]
+        user_ids = {"bo1_test1": "user_123"}
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            count = repo.save_events_batch(events, user_ids=user_ids)
+
+        assert count == 2
+        # Check executemany calls - should use direct user_id
+        calls = mock_cursor.executemany.call_args_list
+        assert len(calls) >= 1
+        # First query should NOT have subquery (cached events)
+        query = calls[0][0][0]
+        assert "SELECT user_id FROM sessions" not in query
+
+    def test_save_events_batch_mixed_cached_uncached(self, mock_connection, mock_cursor):
+        """Verify batch handles mix of cached and uncached user_ids."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        events = [
+            ("bo1_cached", "contribution", 1, {"content": "cached"}),
+            ("bo1_uncached", "contribution", 2, {"content": "uncached"}),
+        ]
+        user_ids = {"bo1_cached": "user_123"}  # Only one session cached
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            count = repo.save_events_batch(events, user_ids=user_ids)
+
+        assert count == 2
+        # Should have 2 executemany calls - one for cached, one for uncached
+        calls = mock_cursor.executemany.call_args_list
+        assert len(calls) == 2
+
+    def test_save_events_batch_no_user_ids_uses_subquery(self, mock_connection, mock_cursor):
+        """Verify missing user_ids falls back to SELECT subqueries."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        events = [
+            ("bo1_test1", "contribution", 1, {"content": "first"}),
+        ]
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_events_batch(events)  # No user_ids provided
+
+        calls = mock_cursor.executemany.call_args_list
+        assert len(calls) >= 1
+        # Query should have SELECT subquery
+        query = calls[0][0][0]
+        assert "SELECT user_id FROM sessions" in query

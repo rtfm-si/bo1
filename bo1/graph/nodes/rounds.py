@@ -21,7 +21,6 @@ from bo1.graph.deliberation import (
 from bo1.graph.nodes.utils import (
     emit_node_duration,
     get_phase_prompt,
-    log_with_session,
     phase_prompt_short,
 )
 from bo1.graph.quality.stopping_rules import update_stalled_disagreement_counter
@@ -29,6 +28,7 @@ from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_accumulated_cost, track_aggregated_cost
 from bo1.models.state import DeliberationPhase
 from bo1.utils.checkpoint_helpers import get_problem_context, get_problem_description
+from bo1.utils.deliberation_logger import get_deliberation_logger
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,9 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     _start_time = time.perf_counter()
     session_id = state.get("session_id")
-    log_with_session(logger, logging.INFO, session_id, "initial_round_node: Starting initial round")
+    user_id = state.get("user_id")
+    dlog = get_deliberation_logger(session_id, user_id, "initial_round_node")
+    dlog.info("Starting initial round")
 
     # Create deliberation engine with v2 state
     engine = DeliberationEngine(state=state)
@@ -63,12 +65,10 @@ async def initial_round_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     round_cost = sum(r.cost_total for r in llm_responses)
 
-    log_with_session(
-        logger,
-        logging.INFO,
-        session_id,
-        f"initial_round_node: Complete - {len(contributions)} contributions "
-        f"(cost: ${round_cost:.4f})",
+    dlog.info(
+        "Initial round complete",
+        contributions=len(contributions),
+        cost=f"${round_cost:.4f}",
     )
 
     # Return state updates (include personas for event collection)
@@ -700,12 +700,9 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
     """
     _start_time = time.perf_counter()
     session_id = state.get("session_id")
-    log_with_session(
-        logger,
-        logging.INFO,
-        session_id,
-        "parallel_round_node: Starting parallel round with multiple experts",
-    )
+    user_id = state.get("user_id")
+    dlog = get_deliberation_logger(session_id, user_id, "parallel_round_node")
+    dlog.info("Starting parallel round with multiple experts")
 
     # Get current round and phase
     round_number = state.get("round_number", 1)
@@ -726,13 +723,11 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         if c_round == round_number:
             round_contributions.append(c)
     if round_contributions:
-        log_with_session(
-            logger,
-            logging.WARNING,
-            session_id,
-            f"parallel_round_node: Round {round_number} already has {len(round_contributions)} "
-            f"contributions - skipping to avoid double contribution. "
-            f"Incrementing round_number to {round_number + 1}.",
+        dlog.warning(
+            "Round already has contributions - skipping to avoid double contribution",
+            round_number=round_number,
+            existing_contributions=len(round_contributions),
+            next_round=round_number + 1,
         )
         # Return minimal state update that advances to next round
         return {
@@ -741,20 +736,19 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         }
     max_rounds = state.get("max_rounds", 6)
     current_phase = _determine_phase(round_number, max_rounds)
-    log_with_session(
-        logger,
-        logging.INFO,
-        session_id,
-        f"Round {round_number}/{max_rounds}: Phase = {current_phase}",
+    dlog.info(
+        "Round phase determined",
+        round_number=round_number,
+        max_rounds=max_rounds,
+        phase=current_phase,
     )
 
     # Select experts for this round
     selected_experts = await _select_experts_for_round(state, current_phase, round_number)
-    log_with_session(
-        logger,
-        logging.INFO,
-        session_id,
-        f"parallel_round_node: {len(selected_experts)} experts selected for {current_phase} phase",
+    dlog.info(
+        "Experts selected",
+        experts=len(selected_experts),
+        phase=current_phase,
     )
 
     # Generate contributions in parallel
@@ -764,12 +758,7 @@ async def parallel_round_node(state: DeliberationGraphState) -> dict[str, Any]:
         phase=current_phase,
         round_number=round_number,
     )
-    log_with_session(
-        logger,
-        logging.INFO,
-        session_id,
-        f"parallel_round_node: {len(contributions)} contributions generated",
-    )
+    dlog.info("Contributions generated", contributions=len(contributions))
 
     # Apply semantic deduplication
     filtered_contributions = await _apply_semantic_deduplication(contributions)

@@ -26,6 +26,8 @@ ADMIN_API_KEY = _settings.admin_api_key
 
 if not ADMIN_API_KEY:
     logger.info("ADMIN_API_KEY not set - API key auth disabled, session auth still works")
+elif len(ADMIN_API_KEY) < 32:
+    logger.warning("SECURITY: ADMIN_API_KEY should be at least 32 characters for adequate entropy")
 
 
 def verify_admin_key_secure(provided_key: str, expected_key: str) -> bool:

@@ -4,15 +4,21 @@ Recommends optimal personas for a given problem based on domain expertise,
 problem complexity, and perspective diversity.
 
 Includes semantic caching to reduce LLM API costs by 40-60%.
+Uses adaptive model selection: Haiku for simple/moderate problems (complexity 1-6),
+Sonnet for complex problems (7-10).
 """
 
 import json
 from typing import Any
 
+from prometheus_client import Counter
+
 from bo1.agents.base import BaseAgent
 from bo1.agents.persona_cache import get_persona_cache
 from bo1.config import MODEL_BY_ROLE
+from bo1.constants import ComplexityScores
 from bo1.data import get_active_personas, get_persona_by_code
+from bo1.feature_flags.features import USE_HAIKU_FOR_SIMPLE_PERSONAS
 from bo1.llm.response import LLMResponse
 from bo1.models.problem import SubProblem
 from bo1.prompts.selector_prompts import SELECTOR_PREFILL, SELECTOR_SYSTEM_PROMPT
@@ -20,6 +26,16 @@ from bo1.utils.json_parsing import parse_json_with_fallback
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Prometheus metric for model selection observability
+bo1_persona_selector_model_total = Counter(
+    "bo1_persona_selector_model_total",
+    "Persona selector model usage",
+    [
+        "model",
+        "complexity_bucket",
+    ],  # model: haiku/sonnet, complexity_bucket: simple/moderate/complex
+)
 
 
 def _get_sp_attr(sp: SubProblem | dict[str, Any], attr: str, default: Any = None) -> Any:
@@ -41,11 +57,38 @@ class PersonaSelectorAgent(BaseAgent):
     Analyzes the problem domain and complexity to recommend 3-5 expert personas
     that provide comprehensive coverage and diverse perspectives.
 
-    Uses Sonnet 4.5 for complex persona selection analysis.
+    Uses adaptive model selection:
+    - Haiku for simple/moderate problems (complexity 1-6)
+    - Sonnet for complex problems (complexity 7-10)
     """
 
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize PersonaSelectorAgent with optional complexity score."""
+        self._complexity_score: int | None = None  # Must be set before super().__init__
+        super().__init__(**kwargs)
+
+    def set_complexity(self, score: int) -> None:
+        """Set complexity score for adaptive model selection.
+
+        Args:
+            score: Problem complexity score (1-10)
+        """
+        self._complexity_score = score
+
     def get_default_model(self) -> str:
-        """Return default model for persona selector."""
+        """Return model based on problem complexity.
+
+        Uses Haiku for simple/moderate problems (complexity <= 6),
+        Sonnet for complex problems (complexity > 6).
+
+        Falls back to Sonnet if complexity not set or feature flag disabled.
+        """
+        if (
+            USE_HAIKU_FOR_SIMPLE_PERSONAS
+            and self._complexity_score is not None
+            and self._complexity_score <= ComplexityScores.HAIKU_SELECTOR_THRESHOLD
+        ):
+            return MODEL_BY_ROLE["selector_haiku"]
         return MODEL_BY_ROLE["selector"]
 
     async def recommend_personas(
@@ -88,8 +131,31 @@ class PersonaSelectorAgent(BaseAgent):
             >>> len(recommendation["recommended_personas"])
             4
         """
+        sp_id = _get_sp_attr(sub_problem, "id", "unknown")
+        complexity = _get_sp_attr(sub_problem, "complexity_score", 5)
+
+        # Set complexity for adaptive model selection
+        self.set_complexity(complexity)
+        selected_model = self.get_default_model()
+
+        # Determine complexity bucket for metrics
+        if complexity <= ComplexityScores.SIMPLE_MAX:
+            complexity_bucket = "simple"
+        elif complexity <= ComplexityScores.MODERATE_MAX:
+            complexity_bucket = "moderate"
+        else:
+            complexity_bucket = "complex"
+
+        # Record model selection metric
+        model_name = "haiku" if "haiku" in selected_model else "sonnet"
+        bo1_persona_selector_model_total.labels(
+            model=model_name,
+            complexity_bucket=complexity_bucket,
+        ).inc()
+
         logger.info(
-            f"Recommending personas for sub-problem: {_get_sp_attr(sub_problem, 'id', 'unknown')}"
+            f"Recommending personas for sub-problem: {sp_id} "
+            f"(complexity={complexity}, model={model_name})"
         )
 
         # Step 1: Check semantic cache for similar problems

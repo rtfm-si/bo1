@@ -333,3 +333,461 @@ class TestGetSubproblemCosts:
         assert results[0]["api_calls"] == 0
         assert results[0]["total_tokens"] == 0
         assert results[0]["by_provider"]["anthropic"] == 0.0
+
+
+class TestCostTrackerBatching:
+    """Test batch buffer functionality for cost tracking."""
+
+    def setup_method(self):
+        """Clear buffer before each test."""
+        CostTracker._clear_buffer_for_testing()
+
+    def teardown_method(self):
+        """Clear buffer after each test."""
+        CostTracker._clear_buffer_for_testing()
+
+    def test_log_cost_buffers_records(self):
+        """Verify log_cost adds records to buffer instead of immediate DB write."""
+        record = CostRecord(
+            provider="anthropic",
+            model_name="claude-sonnet-4-5-20250929",
+            operation_type="completion",
+            input_tokens=1000,
+            output_tokens=200,
+            total_cost=0.006,
+            session_id="test_batch_1",
+        )
+
+        with patch("bo1.llm.cost_tracker.db_session"):
+            request_id = CostTracker.log_cost(record)
+
+        # Should have a request_id
+        assert request_id is not None
+        assert len(request_id) == 36  # UUID format
+
+        # Buffer should have 1 record
+        stats = CostTracker.get_buffer_stats()
+        assert stats["buffer_size"] == 1
+
+    def test_flush_writes_all_buffered_records(self):
+        """Verify flush writes all buffered records to database."""
+        # Add multiple records to buffer
+        for i in range(5):
+            record = CostRecord(
+                provider="anthropic",
+                model_name="claude-sonnet-4-5-20250929",
+                operation_type="completion",
+                input_tokens=1000,
+                output_tokens=200,
+                total_cost=0.006,
+                session_id=f"test_flush_{i}",
+            )
+            # Mock db_session during log_cost to prevent auto-flush
+            with patch("bo1.llm.cost_tracker.db_session"):
+                CostTracker.log_cost(record)
+
+        # Verify buffer has 5 records
+        stats = CostTracker.get_buffer_stats()
+        assert stats["buffer_size"] == 5
+
+        # Flush with mocked DB
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            flushed = CostTracker.flush("test_session")
+
+        assert flushed == 5
+        # Verify executemany was called
+        mock_cursor.executemany.assert_called_once()
+        # Buffer should be empty
+        assert CostTracker.get_buffer_stats()["buffer_size"] == 0
+
+    def test_flush_idempotent_when_empty(self):
+        """Verify flush is no-op when buffer is empty."""
+        # Buffer should be empty after setup
+        assert CostTracker.get_buffer_stats()["buffer_size"] == 0
+
+        # Flush should return 0
+        flushed = CostTracker.flush("empty_session")
+        assert flushed == 0
+
+    def test_auto_flush_on_batch_size(self):
+        """Verify auto-flush when buffer exceeds BATCH_SIZE."""
+        from bo1.llm.cost_tracker import BATCH_SIZE
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+
+            # Add BATCH_SIZE records - should trigger auto-flush
+            for i in range(BATCH_SIZE):
+                record = CostRecord(
+                    provider="anthropic",
+                    model_name="claude-sonnet-4-5-20250929",
+                    operation_type="completion",
+                    input_tokens=1000,
+                    output_tokens=200,
+                    total_cost=0.006,
+                    session_id=f"test_auto_{i}",
+                )
+                CostTracker.log_cost(record)
+
+        # executemany should have been called (auto-flush triggered)
+        assert mock_cursor.executemany.call_count >= 1
+        # Buffer should be empty or nearly empty after auto-flush
+        assert CostTracker.get_buffer_stats()["buffer_size"] < BATCH_SIZE
+
+    def test_buffer_preserved_on_db_failure(self):
+        """Verify buffer is preserved (re-added) on DB write failure."""
+        # Add records to buffer
+        for i in range(3):
+            record = CostRecord(
+                provider="anthropic",
+                model_name="claude-sonnet-4-5-20250929",
+                operation_type="completion",
+                input_tokens=1000,
+                output_tokens=200,
+                total_cost=0.006,
+                session_id=f"test_fail_{i}",
+            )
+            with patch("bo1.llm.cost_tracker.db_session"):
+                CostTracker.log_cost(record)
+
+        assert CostTracker.get_buffer_stats()["buffer_size"] == 3
+
+        # Flush with DB error AND Redis error (to test buffer re-add fallback)
+        with (
+            patch("bo1.llm.cost_tracker.db_session") as mock_db,
+            patch.object(
+                CostTracker, "_push_to_retry_queue", return_value=0
+            ),  # Simulate Redis also failing
+        ):
+            mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value.executemany.side_effect = Exception(
+                "DB connection failed"
+            )
+            flushed = CostTracker.flush("fail_session")
+
+        # Should return 0 (failure)
+        assert flushed == 0
+        # Records should be back in buffer (only if Redis also failed)
+        assert CostTracker.get_buffer_stats()["buffer_size"] == 3
+
+    def test_get_buffer_stats_returns_correct_info(self):
+        """Verify get_buffer_stats returns accurate statistics."""
+        # Initially empty
+        stats = CostTracker.get_buffer_stats()
+        assert stats["buffer_size"] == 0
+        assert "last_flush_time" in stats
+        assert "seconds_since_flush" in stats
+
+        # Add a record
+        record = CostRecord(
+            provider="anthropic",
+            model_name="claude-sonnet-4-5-20250929",
+            operation_type="completion",
+            input_tokens=1000,
+            total_cost=0.003,
+        )
+        with patch("bo1.llm.cost_tracker.db_session"):
+            CostTracker.log_cost(record)
+
+        stats = CostTracker.get_buffer_stats()
+        assert stats["buffer_size"] == 1
+        assert stats["seconds_since_flush"] >= 0
+
+    def test_thread_safety_concurrent_logging(self):
+        """Verify buffer is thread-safe under concurrent writes."""
+        import threading
+
+        errors = []
+        record_count = 20
+
+        def log_records():
+            try:
+                for _ in range(record_count):
+                    record = CostRecord(
+                        provider="anthropic",
+                        model_name="claude-sonnet-4-5-20250929",
+                        operation_type="completion",
+                        input_tokens=100,
+                        total_cost=0.001,
+                    )
+                    with patch("bo1.llm.cost_tracker.db_session"):
+                        CostTracker.log_cost(record)
+            except Exception as e:
+                errors.append(e)
+
+        # Run 3 threads concurrently
+        threads = [threading.Thread(target=log_records) for _ in range(3)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # No errors
+        assert len(errors) == 0
+        # All records should be in buffer (3 threads * 20 records = 60)
+        # Note: some may have auto-flushed due to BATCH_SIZE
+        stats = CostTracker.get_buffer_stats()
+        assert stats["buffer_size"] <= 60  # Could be less if auto-flush triggered
+
+
+class TestCostRetryQueue:
+    """Test retry queue functionality for resilience."""
+
+    def setup_method(self):
+        """Clear buffer before each test."""
+        CostTracker._clear_buffer_for_testing()
+
+    def teardown_method(self):
+        """Clear buffer after each test."""
+        CostTracker._clear_buffer_for_testing()
+
+    def test_push_to_retry_queue_on_db_failure(self):
+        """Test that failed DB flush pushes to Redis retry queue."""
+        from unittest.mock import MagicMock
+
+        # Add records to buffer
+        records = []
+        for i in range(3):
+            record = CostRecord(
+                provider="anthropic",
+                model_name="claude-sonnet-4-5-20250929",
+                operation_type="completion",
+                input_tokens=1000,
+                output_tokens=200,
+                total_cost=0.006,
+                session_id=f"test_retry_{i}",
+            )
+            records.append(record)
+            with patch("bo1.llm.cost_tracker.db_session"):
+                CostTracker.log_cost(record)
+
+        # Mock Redis and DB
+        mock_redis = MagicMock()
+        mock_redis.rpush.return_value = 1
+        mock_redis.llen.return_value = 3
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            # DB fails
+            mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value.executemany.side_effect = Exception(
+                "DB connection failed"
+            )
+
+            with patch("redis.Redis.from_url", return_value=mock_redis):
+                with patch.object(CostTracker, "_mark_sessions_untracked_costs"):
+                    flushed = CostTracker.flush("fail_session")
+
+        # Flush returns 0 (DB failed)
+        assert flushed == 0
+
+        # Redis rpush should have been called for each record
+        assert mock_redis.rpush.call_count == 3
+
+    def test_get_retry_queue_depth(self):
+        """Test getting retry queue depth."""
+        from unittest.mock import MagicMock
+
+        mock_redis = MagicMock()
+        mock_redis.llen.return_value = 42
+
+        with patch("redis.Redis.from_url", return_value=mock_redis):
+            depth = CostTracker.get_retry_queue_depth()
+
+        assert depth == 42
+        mock_redis.llen.assert_called_once_with("cost_retry_queue")
+
+    def test_pop_retry_batch(self):
+        """Test popping batch from retry queue."""
+        import json
+        from unittest.mock import MagicMock
+
+        mock_redis = MagicMock()
+        # Simulate 2 records in queue
+        mock_redis.lpop.side_effect = [
+            json.dumps({"request_id": "req1", "session_id": "s1", "total_cost": 0.01}),
+            json.dumps({"request_id": "req2", "session_id": "s2", "total_cost": 0.02}),
+            None,  # Queue empty
+        ]
+
+        with patch("redis.Redis.from_url", return_value=mock_redis):
+            records = CostTracker.pop_retry_batch(batch_size=10)
+
+        assert len(records) == 2
+        assert records[0]["request_id"] == "req1"
+        assert records[1]["request_id"] == "req2"
+
+    def test_clear_session_untracked_flag(self):
+        """Test clearing untracked costs flag for a session."""
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.rowcount = 1
+
+            result = CostTracker.clear_session_untracked_flag("test_session")
+
+        assert result is True
+        # Verify UPDATE query was called
+        call_args = mock_cursor.execute.call_args
+        assert "UPDATE sessions" in call_args[0][0]
+        assert "has_untracked_costs = FALSE" in call_args[0][0]
+
+    def test_mark_sessions_untracked_costs(self):
+        """Test marking sessions as having untracked costs."""
+        records = [
+            CostRecord(
+                provider="anthropic",
+                model_name="claude-sonnet",
+                operation_type="completion",
+                session_id="session_1",
+            ),
+            CostRecord(
+                provider="anthropic",
+                model_name="claude-sonnet",
+                operation_type="completion",
+                session_id="session_2",
+            ),
+            CostRecord(
+                provider="anthropic",
+                model_name="claude-sonnet",
+                operation_type="completion",
+                session_id="session_1",  # Duplicate - should dedupe
+            ),
+        ]
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.rowcount = 2
+
+            CostTracker._mark_sessions_untracked_costs(records)
+
+        # Verify UPDATE was called with unique session IDs
+        call_args = mock_cursor.execute.call_args
+        assert "has_untracked_costs = TRUE" in call_args[0][0]
+        # Should have 2 unique sessions
+        session_ids = call_args[0][1][0]
+        assert len(session_ids) == 2
+        assert "session_1" in session_ids
+        assert "session_2" in session_ids
+
+
+class TestLatencyMetricEmission:
+    """Test LLM latency Prometheus metric emission."""
+
+    def setup_method(self):
+        """Clear buffer before each test."""
+        CostTracker._clear_buffer_for_testing()
+
+    def teardown_method(self):
+        """Clear buffer after each test."""
+        CostTracker._clear_buffer_for_testing()
+
+    def test_record_cost_emits_latency_metric(self):
+        """Verify histogram observation is called when latency_ms is present."""
+        record = CostRecord(
+            provider="anthropic",
+            model_name="claude-sonnet-4-5-20250929",
+            operation_type="completion",
+            input_tokens=1000,
+            output_tokens=200,
+            total_cost=0.006,
+            latency_ms=2500,  # 2.5 seconds
+        )
+
+        with patch("backend.api.metrics.prom_metrics") as mock_prom:
+            CostTracker._emit_prometheus_metrics(record)
+
+        mock_prom.observe_llm_request.assert_called_once_with(
+            provider="anthropic",
+            model="claude-sonnet-4-5-20250929",
+            operation="completion",
+            duration_seconds=2.5,
+            node=None,
+        )
+
+    def test_record_cost_handles_missing_latency(self):
+        """Verify graceful handling when latency_ms is None."""
+        record = CostRecord(
+            provider="anthropic",
+            model_name="claude-sonnet-4-5-20250929",
+            operation_type="completion",
+            input_tokens=1000,
+            output_tokens=200,
+            total_cost=0.006,
+            latency_ms=None,  # No latency
+        )
+
+        with patch("backend.api.metrics.prom_metrics") as mock_prom:
+            CostTracker._emit_prometheus_metrics(record)
+
+        # Should not call observe_llm_request when latency is None
+        mock_prom.observe_llm_request.assert_not_called()
+
+    def test_latency_metric_labels_correct(self):
+        """Verify correct model/provider/operation labels are used."""
+        record = CostRecord(
+            provider="voyage",
+            model_name="voyage-3",
+            operation_type="embedding",
+            input_tokens=500,
+            total_cost=0.00003,
+            latency_ms=150,
+        )
+
+        with patch("backend.api.metrics.prom_metrics") as mock_prom:
+            CostTracker._emit_prometheus_metrics(record)
+
+        mock_prom.observe_llm_request.assert_called_once_with(
+            provider="voyage",
+            model="voyage-3",
+            operation="embedding",
+            duration_seconds=0.15,
+            node=None,
+        )
+
+    def test_latency_metric_with_node_context(self):
+        """Verify node name is passed for context attribution."""
+        record = CostRecord(
+            provider="anthropic",
+            model_name="claude-haiku-4-5-20251001",
+            operation_type="completion",
+            input_tokens=500,
+            output_tokens=100,
+            total_cost=0.0007,
+            latency_ms=800,
+            node_name="parallel_round_node",
+        )
+
+        with patch("backend.api.metrics.prom_metrics") as mock_prom:
+            CostTracker._emit_prometheus_metrics(record)
+
+        mock_prom.observe_llm_request.assert_called_once_with(
+            provider="anthropic",
+            model="claude-haiku-4-5-20251001",
+            operation="completion",
+            duration_seconds=0.8,
+            node="parallel_round_node",
+        )
+
+    def test_latency_conversion_ms_to_seconds(self):
+        """Verify milliseconds are correctly converted to seconds."""
+        test_cases = [
+            (1000, 1.0),
+            (500, 0.5),
+            (2500, 2.5),
+            (100, 0.1),
+            (10000, 10.0),
+        ]
+
+        for latency_ms, expected_seconds in test_cases:
+            record = CostRecord(
+                provider="anthropic",
+                model_name="claude-sonnet-4-5-20250929",
+                operation_type="completion",
+                latency_ms=latency_ms,
+            )
+
+            with patch("backend.api.metrics.prom_metrics") as mock_prom:
+                CostTracker._emit_prometheus_metrics(record)
+
+            call_args = mock_prom.observe_llm_request.call_args
+            assert call_args.kwargs["duration_seconds"] == expected_seconds, (
+                f"Expected {expected_seconds}s for {latency_ms}ms"
+            )

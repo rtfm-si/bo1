@@ -444,6 +444,113 @@ def check_dlq_alerts(dlq_depth: int) -> None:
         )
 
 
+async def get_event_history_with_fallback(
+    redis_client: redis.Redis | None,  # type: ignore[type-arg]
+    session_id: str,
+    last_event_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Get event history with Redis first, PostgreSQL fallback.
+
+    Handles Redis connection errors gracefully by falling back to PostgreSQL.
+    This ensures SSE clients can receive missed events even during Redis outages.
+
+    Args:
+        redis_client: Redis client instance (may be None if unavailable)
+        session_id: Session identifier
+        last_event_id: Optional Last-Event-ID for resume (format: "{session_id}:{sequence}")
+
+    Returns:
+        List of events in chronological order, filtered by last_event_id if provided
+    """
+    events: list[dict[str, Any]] = []
+    used_fallback = False
+
+    # Parse sequence from last_event_id
+    last_sequence = 0
+    if last_event_id:
+        try:
+            # Format: "{session_id}:{sequence}"
+            parts = last_event_id.split(":")
+            if len(parts) >= 2:
+                last_sequence = int(parts[-1])
+        except (ValueError, IndexError):
+            logger.warning(f"Invalid Last-Event-ID format: {last_event_id}")
+
+    # Try Redis first
+    if redis_client is not None:
+        try:
+            history_key = f"events_history:{session_id}"
+            raw_events = redis_client.lrange(history_key, 0, -1)
+
+            if raw_events:
+                for event_data in raw_events:
+                    try:
+                        payload = json.loads(event_data)
+                        events.append(payload)
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to parse Redis event for {session_id}")
+                        continue
+
+                logger.debug(f"Retrieved {len(events)} events from Redis for {session_id}")
+        except (redis.ConnectionError, redis.TimeoutError) as e:
+            logger.warning(f"[REDIS_FALLBACK] Redis unavailable for {session_id}: {e}")
+            used_fallback = True
+        except Exception as e:
+            logger.error(f"[REDIS_FALLBACK] Unexpected Redis error for {session_id}: {e}")
+            used_fallback = True
+    else:
+        used_fallback = True
+
+    # Fall back to PostgreSQL if Redis is empty or unavailable
+    if not events:
+        if used_fallback:
+            logger.info(f"[REDIS_FALLBACK] Using PostgreSQL fallback for {session_id}")
+
+        pg_events = session_repository.get_events(session_id)
+        for pg_event in pg_events:
+            # PostgreSQL stores the full payload in 'data' column
+            event_data = pg_event.get("data", {})
+            if event_data:
+                events.append(event_data)
+
+        if events:
+            logger.info(
+                f"[REDIS_FALLBACK] Loaded {len(events)} events from PostgreSQL for {session_id}"
+            )
+            metrics.increment("event.postgres_fallback")
+
+    # Filter by last_event_id if provided (for resume)
+    if last_sequence > 0:
+        events = [e for e in events if e.get("sequence", 0) > last_sequence]
+        logger.debug(f"Filtered to {len(events)} events after sequence {last_sequence}")
+
+    return events
+
+
+async def get_missed_events(
+    redis_client: redis.Redis | None,  # type: ignore[type-arg]
+    session_id: str,
+    last_event_id: str,
+) -> list[dict[str, Any]]:
+    """Get events missed since Last-Event-ID for SSE resume.
+
+    Convenience wrapper around get_event_history_with_fallback for SSE reconnection.
+
+    Args:
+        redis_client: Redis client instance (may be None)
+        session_id: Session identifier
+        last_event_id: SSE Last-Event-ID header value
+
+    Returns:
+        List of events with sequence > last_event_id's sequence
+    """
+    return await get_event_history_with_fallback(
+        redis_client=redis_client,
+        session_id=session_id,
+        last_event_id=last_event_id,
+    )
+
+
 class ExpertEventBuffer:
     """Per-expert event buffer for micro-batching expert contributions.
 
@@ -749,6 +856,11 @@ class EventPublisher:
     Supports optional expert event buffering for per-expert micro-batching
     and event merging to reduce SSE frame volume (P2-PERF optimization).
 
+    Includes reconnection awareness:
+    - Buffers events in memory during Redis disconnection
+    - Flushes buffered events to Redis on reconnection
+    - Falls back to PostgreSQL-only persistence if Redis unavailable
+
     Examples:
         >>> from bo1.state.redis_manager import RedisManager
         >>> redis_manager = RedisManager()
@@ -764,16 +876,141 @@ class EventPublisher:
         self,
         redis_client: redis.Redis,  # type: ignore[type-arg]
         expert_buffer: ExpertEventBuffer | None = None,
+        redis_manager: Any = None,
     ) -> None:
         """Initialize EventPublisher.
 
         Args:
             redis_client: Redis client instance for publishing
             expert_buffer: Optional ExpertEventBuffer for per-expert micro-batching
+            redis_manager: Optional RedisManager for reconnection support
         """
         self.redis = redis_client
         self._sequence_counters: dict[str, int] = {}  # Track sequence per session
         self._expert_buffer = expert_buffer
+        self._redis_manager = redis_manager
+
+        # Event buffer for disconnection resilience
+        from bo1.constants import RedisReconnection
+
+        self._disconnect_buffer: list[tuple[str, str, int, dict[str, Any]]] = []
+        self._buffer_max_events = RedisReconnection.BUFFER_MAX_EVENTS
+        self._buffer_lock = asyncio.Lock()
+
+    @property
+    def buffer_depth(self) -> int:
+        """Get current number of events in disconnection buffer."""
+        return len(self._disconnect_buffer)
+
+    async def _buffer_event(
+        self,
+        session_id: str,
+        event_type: str,
+        sequence: int,
+        payload: dict[str, Any],
+    ) -> None:
+        """Buffer an event during Redis disconnection.
+
+        Uses FIFO eviction when buffer reaches max capacity.
+
+        Args:
+            session_id: Session identifier
+            event_type: Event type
+            sequence: Event sequence number
+            payload: Full event payload
+        """
+        async with self._buffer_lock:
+            if len(self._disconnect_buffer) >= self._buffer_max_events:
+                # FIFO eviction - drop oldest event
+                dropped = self._disconnect_buffer.pop(0)
+                logger.warning(
+                    f"[REDIS_BUFFER] Buffer full, dropped oldest event: "
+                    f"{dropped[1]} (session {dropped[0]}, seq {dropped[2]})"
+                )
+                metrics.increment("event.buffer_overflow")
+
+            self._disconnect_buffer.append((session_id, event_type, sequence, payload))
+
+            # Update Prometheus gauge
+            try:
+                from backend.api.metrics import prom_metrics
+
+                prom_metrics.redis_buffer_depth.set(len(self._disconnect_buffer))
+            except ImportError:
+                pass
+
+    async def _flush_buffer_to_redis(self) -> int:
+        """Flush buffered events to Redis after reconnection.
+
+        Returns:
+            Number of events flushed
+        """
+        async with self._buffer_lock:
+            if not self._disconnect_buffer:
+                return 0
+
+            events_to_flush = self._disconnect_buffer.copy()
+            self._disconnect_buffer = []
+
+        flushed = 0
+        for session_id, event_type, sequence, payload in events_to_flush:
+            try:
+                channel = f"events:{session_id}"
+                history_key = f"events_history:{session_id}"
+                message = json.dumps(payload)
+
+                # Store in Redis history and publish
+                self.redis.rpush(history_key, message)
+                self.redis.expire(history_key, 7 * 24 * 60 * 60)
+                self.redis.publish(channel, message)
+
+                flushed += 1
+            except Exception as e:
+                logger.error(
+                    f"[REDIS_BUFFER] Failed to flush buffered event "
+                    f"{event_type} (session {session_id}): {e}"
+                )
+                # Re-buffer failed events
+                async with self._buffer_lock:
+                    self._disconnect_buffer.append((session_id, event_type, sequence, payload))
+
+        if flushed > 0:
+            logger.info(f"[REDIS_BUFFER] Flushed {flushed} buffered events to Redis")
+            metrics.increment("event.buffer_flushed", flushed)
+
+        # Update Prometheus gauge
+        try:
+            from backend.api.metrics import prom_metrics
+
+            prom_metrics.redis_buffer_depth.set(len(self._disconnect_buffer))
+        except ImportError:
+            pass
+
+        return flushed
+
+    async def on_redis_reconnect(self) -> None:
+        """Callback when Redis connection is restored.
+
+        Flushes buffered events to Redis and resumes normal operation.
+        """
+        logger.info("[REDIS_RECONNECT] Redis reconnected, flushing buffered events")
+        flushed = await self._flush_buffer_to_redis()
+        logger.info(f"[REDIS_RECONNECT] Flush complete: {flushed} events")
+
+    def _is_redis_available(self) -> bool:
+        """Check if Redis is available for publishing.
+
+        Returns:
+            True if Redis is connected and available
+        """
+        if self._redis_manager is not None:
+            return self._redis_manager.is_available
+        # Fallback: try a ping
+        try:
+            self.redis.ping()
+            return True
+        except Exception:
+            return False
 
     async def publish_event_buffered(
         self,

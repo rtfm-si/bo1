@@ -9,12 +9,66 @@ from typing import Any
 
 from backend.api.context.models import (
     BusinessContext,
+    ClarificationsStorage,
+    ClarificationStorageEntry,
     DetectedCompetitor,
     EnrichmentSource,
 )
 from backend.api.utils.db_helpers import execute_query, get_single_value
+from bo1.security import sanitize_for_prompt
 
 logger = logging.getLogger(__name__)
+
+
+# Fields that contain user-provided text and need sanitization before LLM use
+_TEXT_FIELDS_TO_SANITIZE = frozenset(
+    {
+        "business_model",
+        "target_market",
+        "product_description",
+        "competitors",
+        "company_name",
+        "industry",
+        "pricing_model",
+        "brand_positioning",
+        "brand_tone",
+        "brand_maturity",
+        "ideal_customer_profile",
+        "main_value_proposition",
+        "budget_constraints",
+        "time_constraints",
+        "regulatory_constraints",
+    }
+)
+
+
+def sanitize_context_values(context_dict: dict[str, Any]) -> dict[str, Any]:
+    """Sanitize user-provided text values in context dict to prevent prompt injection.
+
+    Applies XML escape characters to string fields that may be interpolated into
+    LLM prompts. Handles nested lists (e.g., product_categories, tech_stack).
+
+    Args:
+        context_dict: Context dict from context_model_to_dict()
+
+    Returns:
+        Sanitized context dict safe for LLM prompt interpolation
+    """
+    sanitized = context_dict.copy()
+
+    for key, value in sanitized.items():
+        if value is None:
+            continue
+
+        if key in _TEXT_FIELDS_TO_SANITIZE and isinstance(value, str):
+            sanitized[key] = sanitize_for_prompt(value)
+        elif isinstance(value, list):
+            # Handle list fields like product_categories, tech_stack, keywords
+            sanitized[key] = [
+                sanitize_for_prompt(item) if isinstance(item, str) else item for item in value
+            ]
+
+    return sanitized
 
 
 def context_data_to_model(context_data: dict[str, Any]) -> BusinessContext:
@@ -286,3 +340,81 @@ async def auto_save_competitors(user_id: str, competitors: list[DetectedCompetit
     except Exception as e:
         # Don't fail the main request if auto-save fails
         logger.error(f"Failed to auto-save competitors: {e}")
+
+
+# =============================================================================
+# Clarification Validation Helpers
+# =============================================================================
+
+
+def validate_clarification_entry(question: str, data: dict[str, Any]) -> ClarificationStorageEntry:
+    """Validate a single clarification entry before storage.
+
+    Converts legacy string format to dict format if needed.
+
+    Args:
+        question: The clarification question text (for error messages)
+        data: Raw entry dict (or string for legacy format)
+
+    Returns:
+        Validated ClarificationStorageEntry
+
+    Raises:
+        ValidationError: If data doesn't match expected schema
+    """
+    # Handle legacy string format: convert to dict with answer field
+    if isinstance(data, str):
+        data = {"answer": data, "source": "migration"}
+
+    # Validate using Pydantic model
+    return ClarificationStorageEntry.model_validate(data)
+
+
+def validate_clarifications_storage(raw: dict[str, Any]) -> ClarificationsStorage:
+    """Validate the entire clarifications JSONB structure.
+
+    Handles legacy string values by converting them to proper dict format.
+
+    Args:
+        raw: Raw clarifications dict from database
+
+    Returns:
+        Validated ClarificationsStorage model
+
+    Raises:
+        ValidationError: If any entry doesn't match schema
+    """
+    if not raw:
+        return ClarificationsStorage.model_validate({})
+
+    # Convert legacy string entries to dict format
+    normalized: dict[str, dict[str, Any]] = {}
+    for question, entry in raw.items():
+        if isinstance(entry, str):
+            normalized[question] = {"answer": entry, "source": "migration"}
+        elif isinstance(entry, dict):
+            normalized[question] = entry
+        else:
+            raise ValueError(
+                f"Clarification '{question}': expected dict or str, got {type(entry).__name__}"
+            )
+
+    return ClarificationsStorage.model_validate(normalized)
+
+
+def normalize_clarification_for_storage(entry: dict[str, Any]) -> dict[str, Any]:
+    """Normalize and validate a clarification entry, returning serializable dict.
+
+    Use this before saving to ensure the entry is valid and properly formatted.
+
+    Args:
+        entry: Raw entry dict to normalize
+
+    Returns:
+        Validated dict ready for JSON storage
+
+    Raises:
+        ValidationError: If entry is invalid
+    """
+    validated = ClarificationStorageEntry.model_validate(entry)
+    return validated.model_dump(mode="json", exclude_none=True)

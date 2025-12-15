@@ -188,6 +188,11 @@ class SessionResponse(BaseModel):
         None,
         description="List of stale insights (>30 days old) for user warning during creation",
     )
+    # Stale metrics warning (only on creation)
+    stale_metrics: list[dict[str, Any]] | None = Field(
+        None,
+        description="List of stale business metrics requiring refresh before meeting",
+    )
     # Promo credits (returned on session creation when promo was used)
     promo_credits_remaining: int | None = Field(
         None,
@@ -2650,7 +2655,7 @@ class Promotion(BaseModel):
         uses_count: Current number of times promo has been used
         expires_at: Expiration timestamp (null = never expires)
         created_at: Creation timestamp
-        is_active: Whether the promotion is currently active
+        deleted_at: Soft-delete timestamp (null = active)
     """
 
     id: str = Field(..., description="Unique promotion identifier (UUID)")
@@ -2664,7 +2669,7 @@ class Promotion(BaseModel):
     uses_count: int = Field(0, ge=0, description="Current usage count")
     expires_at: datetime | None = Field(None, description="Expiration timestamp (UTC)")
     created_at: datetime = Field(..., description="Creation timestamp (UTC)")
-    is_active: bool = Field(True, description="Whether promotion is active")
+    deleted_at: datetime | None = Field(None, description="Soft-delete timestamp (null = active)")
 
     model_config = {
         "json_schema_extra": {
@@ -2678,7 +2683,7 @@ class Promotion(BaseModel):
                     "uses_count": 42,
                     "expires_at": None,
                     "created_at": "2025-01-01T00:00:00Z",
-                    "is_active": True,
+                    "deleted_at": None,
                 }
             ]
         }
@@ -2736,7 +2741,7 @@ class UserPromotion(BaseModel):
                         "uses_count": 100,
                         "expires_at": None,
                         "created_at": "2025-01-01T00:00:00Z",
-                        "is_active": True,
+                        "deleted_at": None,
                     },
                     "applied_at": "2025-01-15T10:30:00Z",
                     "deliberations_remaining": 3,
@@ -3193,3 +3198,24 @@ class TopicsResponse(BaseModel):
     """Response model for topic discovery."""
 
     topics: list[TopicResponse] = Field(..., description="Discovered topics")
+
+
+# ============================================================================
+# Generic Response Models
+# ============================================================================
+
+
+class MessageResponse(BaseModel):
+    """Generic response for endpoints that return a simple status/message.
+
+    Used for: task status updates, operation confirmations, etc.
+    """
+
+    status: str = Field(..., description="Operation status (e.g., 'success')")
+    message: str = Field(..., description="Human-readable message")
+
+
+class WhitelistCheckResponse(BaseModel):
+    """Response for whitelist/beta access check endpoints."""
+
+    is_whitelisted: bool = Field(..., description="Whether the email is whitelisted")

@@ -19,6 +19,8 @@ export interface SSEClientOptions {
 	onStall?: () => void;
 	/** Interval in milliseconds to check for stalled connection (default: 30000) */
 	stallDetectionInterval?: number;
+	/** Initial Last-Event-ID for resume support */
+	lastEventId?: string;
 }
 
 export class SSEClient {
@@ -30,10 +32,17 @@ export class SSEClient {
 	private lastMessageTime: number = Date.now();
 	private stallCheckInterval: NodeJS.Timeout | null = null;
 	private hasWarned = false;
+	private _lastEventId: string | null = null;
 
 	constructor(url: string, options: SSEClientOptions = {}) {
 		this.url = url;
 		this.options = options;
+		this._lastEventId = options.lastEventId || null;
+	}
+
+	/** Get the last event ID received */
+	get lastEventId(): string | null {
+		return this._lastEventId;
 	}
 
 	async connect(): Promise<void> {
@@ -47,13 +56,19 @@ export class SSEClient {
 			this.startStallDetection();
 		}
 
+		// Build headers with Last-Event-ID for resume support
+		const headers: Record<string, string> = {
+			'Accept': 'text/event-stream',
+			'Cache-Control': 'no-cache',
+		};
+		if (this._lastEventId) {
+			headers['Last-Event-ID'] = this._lastEventId;
+		}
+
 		try {
 			const response = await fetch(this.url, {
 				method: 'GET',
-				headers: {
-					'Accept': 'text/event-stream',
-					'Cache-Control': 'no-cache',
-				},
+				headers,
 				credentials: 'include', // CRITICAL: Send cookies
 				signal: this.abortController.signal,
 			});
@@ -114,17 +129,25 @@ export class SSEClient {
 		const lines = message.split('\n');
 		let eventType = 'message'; // Default event type
 		let data = '';
+		let eventId: string | null = null;
 
 		for (const line of lines) {
-			if (line.startsWith('event: ')) {
+			if (line.startsWith('id: ')) {
+				eventId = line.slice(4).trim();
+			} else if (line.startsWith('event: ')) {
 				eventType = line.slice(7).trim();
 			} else if (line.startsWith('data: ')) {
 				data += line.slice(6);
 			}
 		}
 
+		// Track last event ID for resume support
+		if (eventId) {
+			this._lastEventId = eventId;
+		}
+
 		if (data) {
-			const messageEvent = new MessageEvent(eventType, { data });
+			const messageEvent = new MessageEvent(eventType, { data, lastEventId: eventId || undefined });
 
 			// Call specific event handler if registered
 			const handler = this.options.eventHandlers?.[eventType];

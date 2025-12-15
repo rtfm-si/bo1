@@ -101,6 +101,10 @@ class TestGetUsageStats:
             {"count": 50},  # meetings 7d
             {"count": 200},  # meetings 30d
             {"count": 100},  # actions 7d
+            {"total": 25},  # mentor sessions
+            {"total": 15},  # data analyses
+            {"total": 8},  # projects
+            {"started": 30, "completed": 100, "cancelled": 5},  # action stats
         ]
         mock_cursor.fetchall.side_effect = [
             [{"day": datetime(2025, 1, 1).date(), "count": 5}],  # daily meetings
@@ -117,3 +121,10 @@ class TestGetUsageStats:
         assert result.actions_created_7d == 100
         assert len(result.daily_meetings) == 1
         assert len(result.daily_actions) == 1
+        # Extended KPIs
+        assert result.mentor_sessions_count == 25
+        assert result.data_analyses_count == 15
+        assert result.projects_count == 8
+        assert result.actions_started_count == 30
+        assert result.actions_completed_count == 100
+        assert result.actions_cancelled_count == 5

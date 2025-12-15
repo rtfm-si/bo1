@@ -158,6 +158,9 @@ class ContributionMessage(BaseModel):
     embedding: list[float] | None = Field(
         default=None, description="Voyage embedding vector (1024 dims)", exclude=True
     )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Extra metadata (e.g., contribution_id for recovery)"
+    )
 
     @property
     def tokens_used(self) -> int:

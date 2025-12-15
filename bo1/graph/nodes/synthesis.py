@@ -13,6 +13,7 @@ import logging
 import time
 from typing import Any
 
+from bo1.config import get_settings
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_aggregated_cost, track_phase_cost
@@ -22,6 +23,7 @@ from bo1.prompts.synthesis import (
     SYNTHESIS_MAX_TOKENS,
     SYNTHESIS_TOKEN_WARNING_THRESHOLD,
 )
+from bo1.utils.deliberation_logger import get_deliberation_logger
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +79,9 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     _start_time = time.perf_counter()
     session_id = state.get("session_id")
-    log_with_session(
-        logger, logging.INFO, session_id, "vote_node: Starting recommendation collection phase"
-    )
+    user_id = state.get("user_id")
+    dlog = get_deliberation_logger(session_id, user_id, "vote_node")
+    dlog.info("Starting recommendation collection phase")
 
     # Create broker for LLM calls
     broker = PromptBroker()
@@ -93,11 +95,10 @@ async def vote_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     rec_cost = sum(r.cost_total for r in llm_responses)
 
-    log_with_session(
-        logger,
-        logging.INFO,
-        session_id,
-        f"vote_node: Complete - {len(recommendations)} recommendations collected (cost: ${rec_cost:.4f})",
+    dlog.info(
+        "Recommendations collected",
+        recommendations=len(recommendations),
+        cost=f"${rec_cost:.4f}",
     )
 
     # Convert Recommendation objects to dicts for state storage
@@ -148,12 +149,9 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     _start_time = time.perf_counter()
     session_id = state.get("session_id")
-    log_with_session(
-        logger,
-        logging.INFO,
-        session_id,
-        "synthesize_node: Starting synthesis with lean McKinsey-style template",
-    )
+    user_id = state.get("user_id")
+    dlog = get_deliberation_logger(session_id, user_id, "synthesize_node")
+    dlog.info("Starting synthesis with lean McKinsey-style template")
 
     # Get problem and contributions
     problem = state.get("problem")
@@ -229,11 +227,22 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Create broker and request
     broker = PromptBroker()
+
+    # Select model based on feature flag (Haiku for cost optimization, Sonnet for quality)
+    settings = get_settings()
+    synthesis_model = "haiku" if settings.use_haiku_for_synthesis else "sonnet"
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
+        f"synthesize_node: Using model={synthesis_model} (use_haiku_for_synthesis={settings.use_haiku_for_synthesis})",
+    )
+
     request = PromptRequest(
         system=synthesis_prompt,
         user_message="Generate the executive brief now. Follow the output format exactly.",
         prefill="## The Bottom Line",  # Force immediate answer-first structure (no trailing whitespace)
-        model="sonnet",  # Use Sonnet for high-quality synthesis
+        model=synthesis_model,
         temperature=0.7,
         max_tokens=1500,  # Lean template produces ~800-1000 tokens, leaving headroom
         phase="synthesis",
@@ -312,6 +321,9 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     4. If more sub-problems: resets deliberation state and sets next sub-problem
     5. If all complete: triggers meta-synthesis by setting current_sub_problem=None
 
+    GUARD: Checks if result already exists for current sub_problem_index to prevent
+    double-processing on graph retry (atomicity fix).
+
     Args:
         state: Current graph state
 
@@ -323,12 +335,46 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Extract current sub-problem data
     current_sp = state.get("current_sub_problem")
     problem = state.get("problem")
+    sub_problem_index = state.get("sub_problem_index", 0)
+    previous_results = state.get("sub_problem_results", [])
+
+    # GUARD: Check if result already exists for current index (prevents double-processing)
+    # This can happen on graph retry or checkpoint edge cases
+    current_sp_id = _get_subproblem_attr(current_sp, "id", None) if current_sp else None
+    if current_sp_id:
+        existing_result_ids = {
+            r.sub_problem_id if hasattr(r, "sub_problem_id") else r.get("sub_problem_id")  # type: ignore[attr-defined]
+            for r in previous_results
+        }
+        if current_sp_id in existing_result_ids:
+            session_id = state.get("session_id")
+            log_with_session(
+                logger,
+                logging.WARNING,
+                session_id,
+                f"next_subproblem_node: Result already exists for sub-problem {current_sp_id} "
+                f"(index {sub_problem_index}) - skipping to avoid double-processing",
+            )
+            # Return minimal update - don't add duplicate result
+            sub_problems = _get_problem_attr(problem, "sub_problems", [])
+            next_index = sub_problem_index + 1
+            if next_index < len(sub_problems):
+                return {
+                    "current_sub_problem": sub_problems[next_index],
+                    "sub_problem_index": next_index,
+                    "current_node": "next_subproblem_skipped",
+                }
+            else:
+                return {
+                    "current_sub_problem": None,
+                    "current_node": "next_subproblem_skipped",
+                }
     contributions = state.get("contributions", [])
     votes = state.get("votes", [])
     personas = state.get("personas", [])
     synthesis = state.get("synthesis", "")
     metrics = state.get("metrics")
-    sub_problem_index = state.get("sub_problem_index", 0)
+    # sub_problem_index and previous_results already declared above (for guard check)
 
     # Enhanced logging for sub-problem progression (Bug #3 fix)
     session_id = state.get("session_id")
@@ -351,8 +397,14 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Calculate cost for this sub-problem (all phase costs accumulated)
     # For simplicity, use total_cost - sum of previous sub-problem costs
     total_cost_so_far = metrics.total_cost if metrics else 0.0
-    previous_results = state.get("sub_problem_results", [])
-    previous_cost = sum(r.cost for r in previous_results)
+    # previous_results already declared above (for guard check)
+    previous_cost: float = sum(
+        (
+            float(r.cost if hasattr(r, "cost") else r.get("cost", 0.0))  # type: ignore[attr-defined]
+            for r in previous_results
+        ),
+        0.0,
+    )
     sub_problem_cost = total_cost_so_far - previous_cost
 
     # Track duration (placeholder - could enhance with actual timing)
@@ -588,16 +640,27 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
 
     # Create broker and request
     broker = PromptBroker()
+
+    # Select model based on feature flag (Haiku for cost optimization, Sonnet for quality)
+    settings = get_settings()
+    meta_synthesis_model = "haiku" if settings.use_haiku_for_synthesis else "sonnet"
+    log_with_session(
+        logger,
+        logging.INFO,
+        session_id,
+        f"meta_synthesize_node: Using model={meta_synthesis_model} (use_haiku_for_synthesis={settings.use_haiku_for_synthesis})",
+    )
+
     request = PromptRequest(
         system=meta_prompt,
         user_message="Generate the JSON action plan now:",
         prefill="{",  # Force pure JSON output (no markdown, no XML wrapper)
-        model="sonnet",  # Use Sonnet for high-quality meta-synthesis
+        model=meta_synthesis_model,
         temperature=0.7,
         max_tokens=4000,
         phase="meta_synthesis",
         agent_type="meta_synthesizer",
-        cache_system=True,  # TASK 1 FIX: Enable prompt caching (system prompt = static meta-synthesis template)
+        cache_system=True,  # Enable prompt caching (system prompt = static meta-synthesis template)
     )
 
     # Call LLM

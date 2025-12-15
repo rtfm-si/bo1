@@ -11,6 +11,7 @@ from dataclasses import asdict
 from typing import Any, Literal
 
 from bo1.agents.facilitator import FacilitatorAgent, FacilitatorDecision
+from bo1.constants import SimilarityCacheThresholds
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_accumulated_cost
@@ -219,9 +220,9 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
 
                     similarity = cosine_similarity(query_embedding, completed_embedding)
 
-                    # High similarity threshold (0.85) = very similar query
-                    # Lowered from 0.90 to catch more similar queries (P1-RESEARCH-1)
-                    if similarity > 0.85:
+                    # High similarity threshold = very similar query
+                    # Uses centralized RESEARCH_DEDUP threshold (P1-RESEARCH-1)
+                    if similarity > SimilarityCacheThresholds.RESEARCH_DEDUP:
                         is_duplicate = True
                         logger.warning(
                             f"Research deduplication: Query too similar to completed research "

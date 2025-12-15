@@ -2,16 +2,44 @@
 
 Calculates trends (improving/worsening/stable) based on metric history.
 Uses value comparison for numeric metrics with fallback to text similarity.
+Also classifies metric volatility for smart refresh scheduling.
 """
 
 import logging
 import re
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from backend.api.context.models import MetricTrend, TrendDirection
 
 logger = logging.getLogger(__name__)
+
+
+class VolatilityLevel(str, Enum):
+    """Metric volatility classification for refresh scheduling.
+
+    STABLE: Metrics that change rarely (refresh yearly)
+    MODERATE: Metrics with regular changes (refresh quarterly)
+    VOLATILE: Metrics affected by recent actions or frequent changes (refresh monthly)
+    """
+
+    STABLE = "stable"
+    MODERATE = "moderate"
+    VOLATILE = "volatile"
+
+
+# Staleness thresholds by volatility level (in days)
+STALENESS_THRESHOLDS = {
+    VolatilityLevel.VOLATILE: 30,  # 1 month
+    VolatilityLevel.MODERATE: 90,  # 3 months
+    VolatilityLevel.STABLE: 180,  # 6 months
+}
+
+# Fields that are inherently more volatile
+INHERENTLY_VOLATILE_FIELDS = {"revenue", "customers", "growth_rate"}
+INHERENTLY_MODERATE_FIELDS = {"team_size", "mau_bucket", "competitors"}
+INHERENTLY_STABLE_FIELDS = {"industry", "business_stage", "primary_objective"}
 
 
 # Fields where higher is better
@@ -232,3 +260,70 @@ def calculate_all_trends(
                 trends.append(trend)
 
     return trends
+
+
+def classify_volatility(
+    field_name: str,
+    history: list[dict[str, Any]] | None = None,
+) -> VolatilityLevel:
+    """Classify metric volatility based on rate of change in history.
+
+    Volatility determines how often a metric should be refreshed:
+    - VOLATILE: >20% change in last 3 data points → refresh monthly (30 days)
+    - MODERATE: 5-20% change → refresh quarterly (90 days)
+    - STABLE: <5% change → refresh biannually (180 days)
+
+    Also considers field type - some fields are inherently more volatile.
+
+    Args:
+        field_name: The context field name
+        history: Historical values (newest first), or None if no history
+
+    Returns:
+        VolatilityLevel classification
+    """
+    # Check inherent volatility first
+    if field_name in INHERENTLY_VOLATILE_FIELDS:
+        base_level = VolatilityLevel.VOLATILE
+    elif field_name in INHERENTLY_MODERATE_FIELDS:
+        base_level = VolatilityLevel.MODERATE
+    elif field_name in INHERENTLY_STABLE_FIELDS:
+        base_level = VolatilityLevel.STABLE
+    else:
+        base_level = VolatilityLevel.MODERATE  # Default for unknown fields
+
+    # If no history, use base level
+    if not history or len(history) < 2:
+        return base_level
+
+    # Calculate change rate from last 3 data points
+    recent = history[:3]
+    max_change_percent = 0.0
+
+    for i in range(len(recent) - 1):
+        current_num = extract_numeric_value(recent[i].get("value"))
+        previous_num = extract_numeric_value(recent[i + 1].get("value"))
+
+        if current_num is not None and previous_num is not None and previous_num != 0:
+            change = abs((current_num - previous_num) / abs(previous_num)) * 100
+            max_change_percent = max(max_change_percent, change)
+
+    # Classify based on change rate
+    if max_change_percent > 20:
+        return VolatilityLevel.VOLATILE
+    elif max_change_percent > 5:
+        return VolatilityLevel.MODERATE
+    else:
+        return base_level  # Use inherent level if changes are small
+
+
+def get_staleness_threshold(volatility: VolatilityLevel) -> int:
+    """Get the staleness threshold in days for a given volatility level.
+
+    Args:
+        volatility: The VolatilityLevel to get threshold for
+
+    Returns:
+        Number of days after which the metric is considered stale
+    """
+    return STALENESS_THRESHOLDS.get(volatility, 90)

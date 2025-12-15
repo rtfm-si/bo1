@@ -22,7 +22,12 @@ from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
-from backend.api.utils.db_helpers import count_rows, execute_query, exists, get_single_value
+from backend.api.utils.db_helpers import (
+    count_rows,
+    execute_query,
+    exists,
+    get_user_tier,
+)
 from backend.api.utils.errors import handle_api_errors
 from bo1.config import get_settings
 
@@ -110,16 +115,6 @@ class BulkEnrichResponse(BaseModel):
 # =============================================================================
 # Helper Functions
 # =============================================================================
-
-
-def get_user_tier(user_id: str) -> str:
-    """Get user's subscription tier."""
-    return get_single_value(
-        "SELECT subscription_tier FROM users WHERE id = %s",
-        (user_id,),
-        column="subscription_tier",
-        default="free",
-    )
 
 
 def get_competitor_count(user_id: str) -> int:

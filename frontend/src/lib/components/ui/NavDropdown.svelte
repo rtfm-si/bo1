@@ -86,7 +86,7 @@
 	<!-- Trigger button -->
 	<button
 		type="button"
-		class="flex items-center gap-1 px-1 py-2 transition-colors {isActive
+		class="flex items-center gap-1 px-1 py-2 text-sm transition-colors {isActive
 			? 'text-brand-600 dark:text-brand-400 font-medium'
 			: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400'}"
 		aria-expanded={isOpen}

@@ -613,14 +613,14 @@ def test_check_cost_anomaly_custom_threshold():
 
 
 # ============================================================================
-# Event Verification Delay Tests (ARCH: P2 configurable delay)
+# Event Verification Flush Tracking Tests (Deterministic flush completion)
 # ============================================================================
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_verify_event_persistence_uses_configurable_delay():
-    """Test _verify_event_persistence respects event_verification_delay_seconds setting."""
+async def test_verify_event_persistence_waits_for_flush():
+    """Test _verify_event_persistence calls wait_for_all_flushes for deterministic wait."""
     from unittest.mock import MagicMock, patch
 
     from backend.api.event_collector import EventCollector
@@ -635,28 +635,27 @@ async def test_verify_event_persistence_uses_configurable_delay():
         session_repo=mock_session_repo,
     )
 
-    # Track sleep calls
-    sleep_calls = []
+    wait_calls = []
 
-    async def mock_sleep(seconds):
-        sleep_calls.append(seconds)
+    async def mock_wait_for_all_flushes(timeout=5.0):
+        wait_calls.append(timeout)
+        return True  # Flush completed successfully
 
-    with patch("backend.api.event_collector.asyncio.sleep", mock_sleep):
-        # Use default settings (2.0 seconds)
+    with patch("backend.api.event_collector.wait_for_all_flushes", mock_wait_for_all_flushes):
         await collector._verify_event_persistence("test-session")
 
-    assert len(sleep_calls) == 1
-    assert sleep_calls[0] == 2.0  # Default delay
+    # Should call wait_for_all_flushes with default timeout
+    assert len(wait_calls) == 1
+    assert wait_calls[0] == 5.0
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_verify_event_persistence_skips_sleep_when_delay_zero():
-    """Test _verify_event_persistence skips sleep when delay is 0."""
+async def test_verify_event_persistence_timeout_fallback():
+    """Test _verify_event_persistence proceeds on timeout with warning."""
     from unittest.mock import MagicMock, patch
 
     from backend.api.event_collector import EventCollector
-    from bo1.config import Settings
 
     mock_publisher = MagicMock()
     mock_publisher.redis.llen.return_value = 5
@@ -668,57 +667,60 @@ async def test_verify_event_persistence_skips_sleep_when_delay_zero():
         session_repo=mock_session_repo,
     )
 
-    sleep_calls = []
+    async def mock_wait_timeout(timeout=5.0):
+        return False  # Simulate timeout
 
-    async def mock_sleep(seconds):
-        sleep_calls.append(seconds)
+    with patch("backend.api.event_collector.wait_for_all_flushes", mock_wait_timeout):
+        # Should not raise, proceeds with verification after timeout
+        await collector._verify_event_persistence("test-session")
 
-    # Create settings with delay=0
-    mock_settings = MagicMock(spec=Settings)
-    mock_settings.event_verification_delay_seconds = 0.0
-
-    with patch("backend.api.event_collector.asyncio.sleep", mock_sleep):
-        with patch("backend.api.event_collector.get_settings", return_value=mock_settings):
-            await collector._verify_event_persistence("test-session")
-
-    # Sleep should NOT be called when delay is 0
-    assert len(sleep_calls) == 0
+    # Verify the method still checked event counts
+    mock_publisher.redis.llen.assert_called_once_with("events_history:test-session")
+    mock_session_repo.get_events.assert_called_once_with("test-session")
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_verify_event_persistence_uses_custom_delay():
-    """Test _verify_event_persistence uses custom delay value."""
+async def test_verify_event_persistence_logs_mismatch():
+    """Test _verify_event_persistence detects Redis/PostgreSQL count mismatch."""
     from unittest.mock import MagicMock, patch
 
     from backend.api.event_collector import EventCollector
-    from bo1.config import Settings
 
     mock_publisher = MagicMock()
-    mock_publisher.redis.llen.return_value = 5
+    mock_publisher.redis.llen.return_value = 10  # More in Redis
     mock_session_repo = _create_mock_session_repo()
-    mock_session_repo.get_events.return_value = [MagicMock() for _ in range(5)]
+    mock_session_repo.get_events.return_value = [MagicMock() for _ in range(5)]  # Less in PG
     collector = EventCollector(
         publisher=mock_publisher,
         summarizer=_create_mock_summarizer(),
         session_repo=mock_session_repo,
     )
 
-    sleep_calls = []
+    async def mock_wait_success(timeout=5.0):
+        return True
 
-    async def mock_sleep(seconds):
-        sleep_calls.append(seconds)
+    with patch("backend.api.event_collector.wait_for_all_flushes", mock_wait_success):
+        await collector._verify_event_persistence("test-session")
 
-    # Create settings with custom delay
-    mock_settings = MagicMock(spec=Settings)
-    mock_settings.event_verification_delay_seconds = 0.5
+    # Should publish persistence warning event
+    publish_calls = mock_publisher.publish_event.call_args_list
+    # Find warning call - can be positional args or kwargs
+    warning_call = None
+    for call in publish_calls:
+        args, kwargs = call
+        # Handle both positional and keyword args
+        event_type = args[1] if len(args) > 1 else kwargs.get("event_type")
+        if event_type == "persistence_verification_warning":
+            warning_call = call
+            break
 
-    with patch("backend.api.event_collector.asyncio.sleep", mock_sleep):
-        with patch("backend.api.event_collector.get_settings", return_value=mock_settings):
-            await collector._verify_event_persistence("test-session")
-
-    assert len(sleep_calls) == 1
-    assert sleep_calls[0] == 0.5
+    assert warning_call is not None, f"Expected warning event, got: {publish_calls}"
+    args, kwargs = warning_call
+    warning_data = args[2] if len(args) > 2 else kwargs.get("data")
+    assert warning_data["redis_events"] == 10
+    assert warning_data["postgres_events"] == 5
+    assert warning_data["missing_events"] == 5
 
 
 # NOTE: Schema validation tests moved to tests/api/test_contribution_summarizer.py

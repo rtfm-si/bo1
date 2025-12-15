@@ -893,6 +893,146 @@ class ActionRepository(BaseRepository):
             (str(action_id),),
         )
 
+    def get_dependencies_batch(
+        self,
+        action_ids: list[str | UUID],
+        include_transitive: bool = False,
+        max_depth: int = 20,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Get dependencies for multiple actions in a single query.
+
+        Reduces N+1 queries to single query for batch dependency retrieval.
+
+        Args:
+            action_ids: List of action UUIDs
+            include_transitive: If True, use recursive CTE to get full dependency tree
+            max_depth: Maximum recursion depth to prevent cycles (default: 20)
+
+        Returns:
+            Dict mapping action_id -> list of dependency records
+        """
+        if not action_ids:
+            return {}
+
+        action_id_strs = [str(aid) for aid in action_ids]
+
+        if include_transitive:
+            # Use recursive CTE for transitive dependencies
+            query = """
+                WITH RECURSIVE dep_tree AS (
+                    -- Base case: direct dependencies
+                    SELECT
+                        d.action_id,
+                        d.depends_on_action_id,
+                        d.dependency_type,
+                        d.lag_days,
+                        d.created_at,
+                        1 as depth
+                    FROM action_dependencies d
+                    WHERE d.action_id = ANY(%s)
+
+                    UNION ALL
+
+                    -- Recursive case: dependencies of dependencies
+                    SELECT
+                        dt.action_id,  -- Keep original action_id for grouping
+                        d.depends_on_action_id,
+                        d.dependency_type,
+                        d.lag_days,
+                        d.created_at,
+                        dt.depth + 1 as depth
+                    FROM action_dependencies d
+                    JOIN dep_tree dt ON d.action_id = dt.depends_on_action_id
+                    WHERE dt.depth < %s
+                )
+                SELECT DISTINCT ON (dt.action_id, dt.depends_on_action_id)
+                    dt.action_id,
+                    dt.depends_on_action_id,
+                    dt.dependency_type,
+                    dt.lag_days,
+                    dt.created_at,
+                    dt.depth,
+                    a.title as depends_on_title,
+                    a.status as depends_on_status
+                FROM dep_tree dt
+                JOIN actions a ON a.id = dt.depends_on_action_id
+                ORDER BY dt.action_id, dt.depends_on_action_id, dt.depth
+            """
+            results = self._execute_query(query, (action_id_strs, max_depth))
+        else:
+            # Simple batch query for direct dependencies only
+            query = """
+                SELECT
+                    d.action_id,
+                    d.depends_on_action_id,
+                    d.dependency_type,
+                    d.lag_days,
+                    d.created_at,
+                    a.title as depends_on_title,
+                    a.status as depends_on_status
+                FROM action_dependencies d
+                JOIN actions a ON a.id = d.depends_on_action_id
+                WHERE d.action_id = ANY(%s)
+                ORDER BY d.action_id, d.created_at ASC
+            """
+            results = self._execute_query(query, (action_id_strs,))
+
+        # Group by action_id
+        deps_by_action: dict[str, list[dict[str, Any]]] = {aid: [] for aid in action_id_strs}
+        for row in results:
+            action_id = str(row["action_id"])
+            if action_id in deps_by_action:
+                deps_by_action[action_id].append(row)
+
+        return deps_by_action
+
+    def get_all_dependencies_for_user(
+        self,
+        user_id: str,
+        include_completed: bool = False,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Get all dependencies for all actions belonging to a user.
+
+        Single query fetching all dependencies indexed by action_id for O(1) lookup.
+
+        Args:
+            user_id: User identifier
+            include_completed: If True, include deps for done/cancelled actions
+
+        Returns:
+            Dict mapping action_id -> list of dependency records
+        """
+        status_filter = "" if include_completed else "AND a_src.status NOT IN ('done', 'cancelled')"
+
+        query = f"""
+            SELECT
+                d.action_id,
+                d.depends_on_action_id,
+                d.dependency_type,
+                d.lag_days,
+                d.created_at,
+                a.title as depends_on_title,
+                a.status as depends_on_status
+            FROM action_dependencies d
+            JOIN actions a ON a.id = d.depends_on_action_id
+            JOIN actions a_src ON a_src.id = d.action_id
+            WHERE a_src.user_id = %s
+            {status_filter}
+            ORDER BY d.action_id, d.created_at ASC
+            LIMIT 10000
+        """
+        results = self._execute_query(query, (user_id,))
+
+        # Group by action_id
+        deps_by_action: dict[str, list[dict[str, Any]]] = {}
+        for row in results:
+            action_id = str(row["action_id"])
+            if action_id not in deps_by_action:
+                deps_by_action[action_id] = []
+            deps_by_action[action_id].append(row)
+
+        return deps_by_action
+
     def get_dependents(self, action_id: str | UUID) -> list[dict[str, Any]]:
         """Get all actions that depend on this action.
 

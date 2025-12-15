@@ -493,11 +493,12 @@ async def execute_deliberation_with_timeout(
 # Configurable via environment variable and per-tier limits
 DEFAULT_MAX_COST_PER_SESSION = float(os.getenv("MAX_COST_PER_SESSION", "1.00"))
 
-# Per-tier cost limits (for future use with subscription tiers)
+# Per-tier cost limits (per-session cost caps)
 TIER_COST_LIMITS = {
-    "free": 0.50,  # $0.50 max for free tier
-    "pro": 2.00,  # $2.00 max for pro tier
-    "enterprise": 10.00,  # $10.00 max for enterprise tier
+    "free": 0.50,  # $0.50 max per session for free tier
+    "starter": 1.00,  # $1.00 max per session for starter tier
+    "pro": 2.00,  # $2.00 max per session for pro tier
+    "enterprise": 10.00,  # $10.00 max per session for enterprise tier
 }
 
 

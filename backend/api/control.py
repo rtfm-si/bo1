@@ -36,6 +36,7 @@ from bo1.state.database import db_session
 from bo1.state.redis_lock import LockTimeout, session_lock
 from bo1.state.redis_manager import RedisManager
 from bo1.state.repositories import session_repository
+from bo1.utils.async_context import create_task_with_context
 
 logger = logging.getLogger(__name__)
 
@@ -588,23 +589,28 @@ async def start_deliberation(
 
         personas = [PersonaProfile(**p) for p in all_personas[:3]]
 
-        # Load user preference for skip_clarification
+        # Load user preferences (skip_clarification, subscription_tier)
         skip_clarification = False
+        subscription_tier = "free"
         try:
             from bo1.state.database import db_session
 
             with db_session() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT skip_clarification FROM users WHERE id = %s",
+                        "SELECT skip_clarification, subscription_tier FROM users WHERE id = %s",
                         (user_id,),
                     )
                     row = cur.fetchone()
-                    if row and row.get("skip_clarification"):
-                        skip_clarification = True
-                        logger.info(f"User {user_id} has skip_clarification=True")
+                    if row:
+                        if row.get("skip_clarification"):
+                            skip_clarification = True
+                            logger.info(f"User {user_id} has skip_clarification=True")
+                        if row.get("subscription_tier"):
+                            subscription_tier = row["subscription_tier"]
+                            logger.info(f"User {user_id} tier={subscription_tier}")
         except Exception as e:
-            logger.debug(f"Could not load skip_clarification preference: {e}")
+            logger.debug(f"Could not load user preferences: {e}")
 
         # Load context_ids from metadata (user-selected meetings/actions/datasets)
         context_ids = metadata.get("context_ids")
@@ -617,6 +623,7 @@ async def start_deliberation(
             max_rounds=6,  # Hard cap for parallel architecture
             skip_clarification=skip_clarification,
             context_ids=context_ids,
+            subscription_tier=subscription_tier,
         )
 
         # Create graph
@@ -648,12 +655,10 @@ async def start_deliberation(
         # Start background task
         await session_manager.start_session(session_id, user_id, coro)
 
-        # Send ntfy notification (fire and forget)
-        import asyncio
-
+        # Send ntfy notification (fire and forget with context)
         from backend.api.ntfy import notify_meeting_started
 
-        asyncio.create_task(notify_meeting_started(session_id, problem_statement))
+        create_task_with_context(notify_meeting_started(session_id, problem_statement))
 
         # Update session status to 'running' in PostgreSQL (with distributed lock)
         try:
@@ -951,6 +956,8 @@ async def resume_deliberation(
                 full_state["clarification_answers"] = clarification_answers
                 full_state["should_stop"] = False  # Reset stop flag so router continues
                 full_state["stop_reason"] = None  # Clear stop reason
+                # ATOMICITY FIX: Clear pending_clarification to prevent stale pause state on resume
+                full_state["pending_clarification"] = None
 
                 # BUG FIX: Inject clarification answers directly into problem.context
                 # When graph resumes, identify_gaps_node is NOT re-run (as_node="identify_gaps"
@@ -1000,6 +1007,8 @@ async def resume_deliberation(
                     reconstructed["clarification_answers"] = clarification_answers
                     reconstructed["should_stop"] = False
                     reconstructed["stop_reason"] = None
+                    # ATOMICITY FIX: Clear pending_clarification in fallback path too
+                    reconstructed["pending_clarification"] = None
 
                     # BUG FIX: Also inject answers into problem.context for fallback path
                     problem = reconstructed.get("problem")
@@ -1592,8 +1601,21 @@ async def _submit_clarification_impl(
             existing_context = user_repository.get_context(user_id) or {}
 
             # Add/update clarifications section with structured parsing
+            # Filter out null/empty responses before storage
+            from backend.services.insight_parser import is_valid_insight_response, parse_insight
+
             clarifications = existing_context.get("clarifications", {})
+            valid_answers: dict[str, str] = {}  # Track valid answers for context extraction
             for question, answer in answers_to_process.items():
+                # Skip invalid/empty responses
+                if not is_valid_insight_response(answer):
+                    logger.debug(
+                        f"Skipping invalid insight response for '{question[:30]}...': "
+                        f"'{answer[:30] if answer else 'None'}...'"
+                    )
+                    continue
+
+                valid_answers[question] = answer
                 clarification_entry = {
                     "answer": answer,
                     "answered_at": datetime.now(UTC).isoformat(),
@@ -1602,8 +1624,6 @@ async def _submit_clarification_impl(
 
                 # Parse insight with Haiku for structured categorization
                 try:
-                    from backend.services.insight_parser import parse_insight
-
                     structured = await parse_insight(answer)
                     clarification_entry["category"] = structured.category.value
                     clarification_entry["confidence_score"] = structured.confidence_score
@@ -1626,7 +1646,10 @@ async def _submit_clarification_impl(
                     clarification_entry["category"] = "uncategorized"
                     clarification_entry["confidence_score"] = 0.0
 
-                clarifications[question] = clarification_entry
+                # Validate entry before storage
+                from backend.api.context.services import normalize_clarification_for_storage
+
+                clarifications[question] = normalize_clarification_for_storage(clarification_entry)
             existing_context["clarifications"] = clarifications
 
             # Context Auto-Update: Extract business context updates from clarification answers
@@ -1637,8 +1660,8 @@ async def _submit_clarification_impl(
                     filter_high_confidence_updates,
                 )
 
-                # Concatenate all answers for extraction
-                all_answers = " ".join(answers_to_process.values())
+                # Concatenate only valid answers for extraction
+                all_answers = " ".join(valid_answers.values())
                 updates = await extract_context_updates(
                     all_answers, existing_context, ContextUpdateSource.CLARIFICATION
                 )

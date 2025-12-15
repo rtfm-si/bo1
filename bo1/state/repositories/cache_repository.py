@@ -11,6 +11,7 @@ from typing import Any
 
 from psycopg2.extras import Json, RealDictCursor
 
+from bo1.constants import SimilarityCacheThresholds
 from bo1.state.database import db_session
 from bo1.state.repositories.base import BaseRepository
 
@@ -23,7 +24,7 @@ class CacheRepository(BaseRepository):
     def find_by_embedding(
         self,
         question_embedding: list[float],
-        similarity_threshold: float = 0.85,
+        similarity_threshold: float = SimilarityCacheThresholds.RESEARCH_CACHE,
         category: str | None = None,
         industry: str | None = None,
         max_age_days: int | None = None,
@@ -67,7 +68,7 @@ class CacheRepository(BaseRepository):
     def find_similar(
         self,
         question_embedding: list[float],
-        similarity_threshold: float = 0.85,
+        similarity_threshold: float = SimilarityCacheThresholds.RESEARCH_CACHE,
         limit: int = 5,
         max_age_days: int | None = None,
     ) -> list[dict[str, Any]]:
@@ -89,8 +90,10 @@ class CacheRepository(BaseRepository):
                 query = """
                     SELECT
                         id, question, answer_summary, confidence, sources,
-                        source_count, category, industry, research_date,
-                        access_count, last_accessed_at, freshness_days,
+                        COALESCE(jsonb_array_length(sources), 0) AS source_count,
+                        category, industry, research_date,
+                        access_count, last_accessed_at,
+                        90 AS freshness_days,
                         tokens_used, research_cost_usd,
                         1 - (question_embedding <=> %s::vector) AS similarity
                     FROM research_cache
@@ -122,7 +125,6 @@ class CacheRepository(BaseRepository):
         confidence: str = "medium",
         category: str | None = None,
         industry: str | None = None,
-        freshness_days: int = 90,
         tokens_used: int | None = None,
         research_cost_usd: float | None = None,
     ) -> dict[str, Any]:
@@ -136,7 +138,6 @@ class CacheRepository(BaseRepository):
             confidence: high, medium, or low
             category: Category (e.g., 'saas_metrics')
             industry: Industry (e.g., 'saas')
-            freshness_days: How long result stays fresh
             tokens_used: Number of tokens used
             research_cost_usd: Cost of research in USD
 
@@ -149,13 +150,15 @@ class CacheRepository(BaseRepository):
                     """
                     INSERT INTO research_cache (
                         question, question_embedding, answer_summary, confidence,
-                        sources, source_count, category, industry, freshness_days,
+                        sources, category, industry,
                         tokens_used, research_cost_usd
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id, question, answer_summary, confidence, sources,
-                              source_count, category, industry, research_date,
-                              access_count, last_accessed_at, freshness_days,
+                              COALESCE(jsonb_array_length(sources), 0) AS source_count,
+                              category, industry, research_date,
+                              access_count, last_accessed_at,
+                              90 AS freshness_days,
                               tokens_used, research_cost_usd
                     """,
                     (
@@ -164,10 +167,8 @@ class CacheRepository(BaseRepository):
                         summary,
                         confidence,
                         Json(sources) if sources else None,
-                        len(sources) if sources else 0,
                         category,
                         industry,
-                        freshness_days,
                         tokens_used,
                         research_cost_usd,
                     ),
@@ -196,13 +197,15 @@ class CacheRepository(BaseRepository):
                         """
                         INSERT INTO research_cache (
                             question, question_embedding, answer_summary, confidence,
-                            sources, source_count, category, industry, freshness_days,
+                            sources, category, industry,
                             tokens_used, research_cost_usd
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id, question, answer_summary, confidence, sources,
-                                  source_count, category, industry, research_date,
-                                  access_count, last_accessed_at, freshness_days,
+                                  COALESCE(jsonb_array_length(sources), 0) AS source_count,
+                                  category, industry, research_date,
+                                  access_count, last_accessed_at,
+                                  90 AS freshness_days,
                                   tokens_used, research_cost_usd
                         """,
                         (
@@ -211,10 +214,8 @@ class CacheRepository(BaseRepository):
                             result.get("summary"),
                             result.get("confidence", "medium"),
                             Json(sources) if sources else None,
-                            len(sources) if sources else 0,
                             result.get("category"),
                             result.get("industry"),
-                            result.get("freshness_days", 90),
                             result.get("tokens_used"),
                             result.get("research_cost_usd"),
                         ),
@@ -317,6 +318,57 @@ class CacheRepository(BaseRepository):
             > 0
         )
 
+    def delete_stale(
+        self,
+        max_age_days: int = 90,
+        access_grace_days: int = 7,
+        batch_size: int = 1000,
+    ) -> int:
+        """Delete research cache entries older than max_age_days.
+
+        Preserves entries that have been accessed within access_grace_days,
+        even if they're older than max_age_days.
+
+        Args:
+            max_age_days: Delete entries older than this (default: 90)
+            access_grace_days: Don't delete if accessed within this many days (default: 7)
+            batch_size: Maximum entries to delete per call (prevents long locks)
+
+        Returns:
+            Number of entries deleted
+        """
+        self._validate_positive_int(max_age_days, "max_age_days")
+        self._validate_positive_int(access_grace_days, "access_grace_days")
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Delete old entries that haven't been accessed recently
+                # Uses batch_size LIMIT to prevent long table locks
+                cur.execute(
+                    """
+                    DELETE FROM research_cache
+                    WHERE id IN (
+                        SELECT id FROM research_cache
+                        WHERE research_date < NOW() - INTERVAL '%s days'
+                          AND (
+                            last_accessed_at IS NULL
+                            OR last_accessed_at < NOW() - INTERVAL '%s days'
+                          )
+                        LIMIT %s
+                    )
+                    """,
+                    (max_age_days, access_grace_days, batch_size),
+                )
+                deleted_count: int = cur.rowcount or 0
+
+                if deleted_count > 0:
+                    logger.info(
+                        f"Deleted {deleted_count} stale research cache entries "
+                        f"(older than {max_age_days} days, not accessed in {access_grace_days} days)"
+                    )
+
+                return deleted_count
+
     def get_stale(self, days_old: int = 90) -> list[dict[str, Any]]:
         """Get research cache entries older than specified days.
 
@@ -340,7 +392,7 @@ class CacheRepository(BaseRepository):
                         category,
                         industry,
                         research_date,
-                        freshness_days
+                        90 AS freshness_days
                     FROM research_cache
                     WHERE 1=1
                     """

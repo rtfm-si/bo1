@@ -19,6 +19,75 @@ from bo1.llm.client import ClaudeClient
 
 logger = logging.getLogger(__name__)
 
+# Responses that indicate "no answer" rather than meaningful content
+# Note: These must appear as the ENTIRE response (after normalization), not as substrings
+_INVALID_RESPONSE_PATTERNS = frozenset(
+    {
+        "none",
+        "n/a",
+        "na",
+        "no",
+        "not applicable",
+        "not available",
+        "nothing",
+        "null",
+        "unknown",
+        "skip",
+        "skipped",
+        "-",
+        "—",
+        "...",
+        ".",
+    }
+)
+
+# Minimum length for a valid insight response (characters, after strip)
+_MIN_INSIGHT_LENGTH = 5
+
+
+def is_valid_insight_response(text: str | None) -> bool:
+    """Check if an insight response contains meaningful content.
+
+    Rejects null/empty responses and common "no answer" patterns.
+    Allows "none" in context (e.g., "none of the above apply because...").
+
+    Args:
+        text: The insight response text to validate
+
+    Returns:
+        True if the response is valid and should be stored, False otherwise
+    """
+    if text is None:
+        return False
+
+    # Strip and normalize
+    normalized = text.strip().lower()
+
+    # Reject empty or whitespace-only
+    if not normalized:
+        return False
+
+    # Reject if too short (single word non-answers)
+    if len(normalized) < _MIN_INSIGHT_LENGTH:
+        # Check if it's a known invalid pattern
+        if normalized in _INVALID_RESPONSE_PATTERNS:
+            return False
+
+    # Check for exact match with invalid patterns
+    if normalized in _INVALID_RESPONSE_PATTERNS:
+        return False
+
+    # Check if it's JUST the invalid pattern (with possible punctuation)
+    # e.g., "none.", "n/a!", "not applicable."
+    normalized_no_punct = normalized.rstrip(".,!?;:")
+    if normalized_no_punct in _INVALID_RESPONSE_PATTERNS:
+        return False
+
+    # Valid: longer responses that contain "none" in context
+    # e.g., "none of the above apply because..." is valid
+    # e.g., "we have none at the moment but planning to add" is valid
+    return True
+
 
 class InsightCategory(str, Enum):
     """Business insight categories."""

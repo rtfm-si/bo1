@@ -574,3 +574,65 @@ class TestFormatCompetitorsForDisplay:
         result = format_competitors_for_display(competitors)
         assert "Asana" in result
         assert "Slack" in result
+
+
+class TestActionMetricCorrelation:
+    """Test action-metric correlation functionality."""
+
+    def test_get_affected_metrics_sales(self):
+        """Test that sales actions affect revenue/customer metrics."""
+        from backend.services.context_extractor import get_affected_metrics_for_action
+
+        affected = get_affected_metrics_for_action("Close sales deals with new clients")
+        assert "revenue" in affected
+        assert "customers" in affected
+
+    def test_get_affected_metrics_hiring(self):
+        """Test that hiring actions affect team_size."""
+        from backend.services.context_extractor import get_affected_metrics_for_action
+
+        affected = get_affected_metrics_for_action("Hire two new engineers")
+        assert "team_size" in affected
+
+    def test_get_affected_metrics_growth(self):
+        """Test that growth actions affect growth_rate."""
+        from backend.services.context_extractor import get_affected_metrics_for_action
+
+        affected = get_affected_metrics_for_action("Expand into new market segment")
+        assert "growth_rate" in affected or "customers" in affected
+
+    def test_get_affected_metrics_competitor(self):
+        """Test that competitor actions affect competitors field."""
+        from backend.services.context_extractor import get_affected_metrics_for_action
+
+        affected = get_affected_metrics_for_action("Analyze competitive landscape")
+        assert "competitors" in affected
+
+    def test_get_affected_metrics_no_match(self):
+        """Test actions that don't match any keywords."""
+        from backend.services.context_extractor import get_affected_metrics_for_action
+
+        affected = get_affected_metrics_for_action("Update documentation")
+        assert len(affected) == 0
+
+    def test_get_affected_metrics_with_description(self):
+        """Test that description is also searched."""
+        from backend.services.context_extractor import get_affected_metrics_for_action
+
+        # Title doesn't match, but description does
+        affected = get_affected_metrics_for_action(
+            "Complete Q4 initiative",
+            action_description="Focus on customer acquisition and retention efforts",
+        )
+        assert "customers" in affected or "growth_rate" in affected
+
+    def test_get_affected_metrics_multiple_keywords(self):
+        """Test action matching multiple keyword categories."""
+        from backend.services.context_extractor import get_affected_metrics_for_action
+
+        affected = get_affected_metrics_for_action(
+            "Sales push to acquire new customers and grow revenue"
+        )
+        assert "revenue" in affected
+        assert "customers" in affected
+        assert "growth_rate" in affected

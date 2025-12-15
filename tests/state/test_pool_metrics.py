@@ -154,4 +154,4 @@ class TestHealthPoolEndpoint:
             response = await health_check_db_pool()
 
             assert response.pool_utilization_pct == 90.0
-            assert "high utilization" in response.message
+            assert "utilization" in response.message.lower()

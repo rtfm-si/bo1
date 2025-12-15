@@ -38,9 +38,17 @@ from backend.api.context.models import (
     InsightsResponse,
     PendingUpdatesResponse,
     RefreshCheckResponse,
+    StaleMetricResponse,
+    StaleMetricsResponse,
     TrendsRefreshRequest,
     TrendsRefreshResponse,
     UpdateInsightRequest,
+)
+from backend.api.context.models import (
+    StalenessReason as ModelStalenessReason,
+)
+from backend.api.context.models import (
+    VolatilityLevel as ModelVolatilityLevel,
 )
 from backend.api.context.services import (
     context_data_to_model,
@@ -48,6 +56,7 @@ from backend.api.context.services import (
     enriched_data_to_dict,
     enriched_to_context_model,
     merge_context,
+    sanitize_context_values,
 )
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
@@ -177,6 +186,9 @@ async def update_context(
 
     # Convert to dict for save function
     context_dict = context_model_to_dict(context)
+
+    # Sanitize user-provided text values to prevent prompt injection
+    context_dict = sanitize_context_values(context_dict)
 
     # Save to database
     user_repository.save_context(user_id, context_dict)
@@ -638,6 +650,15 @@ async def update_insight(
     if question not in clarifications:
         raise HTTPException(status_code=404, detail="Clarification not found")
 
+    # Validate the new value before storing
+    from backend.services.insight_parser import is_valid_insight_response
+
+    if not is_valid_insight_response(request.value):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid insight response: please provide a meaningful answer",
+        )
+
     # Get existing clarification data
     existing = clarifications[question]
     if isinstance(existing, str):
@@ -681,7 +702,10 @@ async def update_insight(
         existing["category"] = "uncategorized"
         existing["confidence_score"] = 0.0
 
-    clarifications[question] = existing
+    # Validate entry before storage
+    from backend.api.context.services import normalize_clarification_for_storage
+
+    clarifications[question] = normalize_clarification_for_storage(existing)
     context_data["clarifications"] = clarifications
 
     # Save updated context
@@ -1075,4 +1099,73 @@ async def get_context_with_trends(
         context=context_model,
         trends=trends,
         updated_at=context_data.get("updated_at"),
+    )
+
+
+@router.get(
+    "/v1/context/stale-metrics",
+    response_model=StaleMetricsResponse,
+    summary="Get stale business context metrics",
+    description="""
+    Check which business context metrics are stale and need refreshing.
+
+    Staleness is determined by:
+    - **Age-based**: Metric hasn't been updated within its volatility threshold
+      - VOLATILE metrics (revenue, customers): stale after 30 days
+      - MODERATE metrics (team_size, competitors): stale after 90 days
+      - STABLE metrics (industry, business_stage): stale after 180 days
+    - **Action-affected**: Related action was recently completed
+
+    Returns max 3 stale metrics, prioritized by:
+    1. Action-affected metrics (most urgent)
+    2. Days since last update (longer = higher priority)
+
+    **Use Cases:**
+    - Check before starting a meeting to prompt user to update context
+    - Show stale metric warnings in context settings page
+    """,
+)
+@handle_api_errors("get stale metrics")
+async def get_stale_metrics(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> StaleMetricsResponse:
+    """Get list of stale metrics that need refreshing."""
+    from backend.services.insight_staleness import get_stale_metrics_for_session
+
+    user_id = extract_user_id(user)
+
+    # Get action-affected fields from pending updates
+    context_data = user_repository.get_context(user_id)
+    action_affected_fields: list[str] = []
+
+    if context_data:
+        pending = context_data.get("pending_updates", [])
+        for p in pending:
+            if p.get("refresh_reason") == "action_affected" and p.get("field_name"):
+                action_affected_fields.append(p["field_name"])
+
+    result = get_stale_metrics_for_session(
+        user_id=user_id,
+        action_affected_fields=action_affected_fields if action_affected_fields else None,
+    )
+
+    # Convert to response model
+    stale_metrics_response = [
+        StaleMetricResponse(
+            field_name=m.field_name,
+            current_value=m.current_value,
+            updated_at=m.updated_at,
+            days_since_update=m.days_since_update,
+            reason=ModelStalenessReason(m.reason.value),
+            volatility=ModelVolatilityLevel(m.volatility.value),
+            threshold_days=m.threshold_days,
+            action_id=m.action_id,
+        )
+        for m in result.stale_metrics
+    ]
+
+    return StaleMetricsResponse(
+        has_stale_metrics=result.has_stale_metrics,
+        stale_metrics=stale_metrics_response,
+        total_metrics_checked=result.total_metrics_checked,
     )

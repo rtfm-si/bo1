@@ -403,6 +403,7 @@ class SessionKillResponse(BaseModel):
         reason: Reason for the kill
         cost_at_kill: Session cost at time of kill (USD)
         created_at: When the kill occurred
+        updated_at: When the record was last updated
     """
 
     id: int = Field(..., description="Record ID")
@@ -411,6 +412,7 @@ class SessionKillResponse(BaseModel):
     reason: str = Field(..., description="Reason for the kill")
     cost_at_kill: float | None = Field(None, description="Session cost at kill (USD)")
     created_at: str = Field(..., description="When the kill occurred (ISO 8601)")
+    updated_at: str | None = Field(None, description="When record was last updated (ISO 8601)")
 
 
 class SessionKillsResponse(BaseModel):
@@ -593,6 +595,7 @@ class AlertHistoryItem(BaseModel):
         metadata: Additional context (session_id, user_id, IP, etc.)
         delivered: Whether ntfy delivery succeeded
         created_at: When alert was created
+        updated_at: When the record was last updated
     """
 
     id: int = Field(..., description="Alert ID")
@@ -603,6 +606,7 @@ class AlertHistoryItem(BaseModel):
     metadata: dict[str, Any] | None = Field(None, description="Additional context")
     delivered: bool = Field(..., description="Whether ntfy delivery succeeded")
     created_at: str = Field(..., description="When alert was created (ISO 8601)")
+    updated_at: str | None = Field(None, description="When record was last updated (ISO 8601)")
 
 
 class AlertHistoryResponse(BaseModel):

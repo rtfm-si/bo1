@@ -254,16 +254,18 @@ class SessionRepository(BaseRepository):
         status_filter: str | None = None,
         include_deleted: bool = False,
         workspace_id: str | None = None,
+        include_task_count: bool = True,
     ) -> list[dict[str, Any]]:
         """List sessions for a user with pagination and summary counts.
 
         Uses denormalized counts from sessions table (expert_count, contribution_count,
-        focus_area_count) for fast reads. Only task_count requires JOIN to session_tasks.
+        focus_area_count) for fast reads. task_count requires JOIN to session_tasks.
 
         Performance Notes:
             - Query is optimized with denormalized counts - most reads avoid JOINs
             - LIMIT pagination keeps response time O(1) per page
             - Indexed on (user_id, created_at) for efficient ordering
+            - Use include_task_count=False for high-volume callers that don't display tasks
 
         Scaling Guidance (Read Replicas):
             Current optimization is sufficient for <1000 concurrent users or <100 QPS.
@@ -279,25 +281,40 @@ class SessionRepository(BaseRepository):
             status_filter: Filter by status (optional)
             include_deleted: Include deleted sessions
             workspace_id: Filter by workspace UUID (optional)
+            include_task_count: Include task_count via JOIN (default True). Set False for
+                high-volume callers that don't need task counts (mentor, admin bulk ops).
 
         Returns:
-            List of session records with expert_count, contribution_count, task_count, focus_area_count
+            List of session records with expert_count, contribution_count, task_count, focus_area_count.
+            When include_task_count=False, task_count is always 0.
         """
         with db_session() as conn:
             with conn.cursor() as cur:
                 # Read denormalized counts directly from sessions table
-                # Only task_count requires JOIN (less frequent, acceptable overhead)
-                query = """
-                    SELECT s.id, s.user_id, s.problem_statement, s.problem_context, s.status,
-                           s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
-                           s.synthesis_text, s.final_recommendation,
-                           s.expert_count, s.contribution_count, s.focus_area_count,
-                           s.workspace_id,
-                           COALESCE(st.total_tasks, 0)::int as task_count
-                    FROM sessions s
-                    LEFT JOIN session_tasks st ON st.session_id = s.id
-                    WHERE s.user_id = %s
-                """
+                # task_count requires JOIN - skip it when not needed
+                if include_task_count:
+                    query = """
+                        SELECT s.id, s.user_id, s.problem_statement, s.problem_context, s.status,
+                               s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
+                               s.synthesis_text, s.final_recommendation,
+                               s.expert_count, s.contribution_count, s.focus_area_count,
+                               s.workspace_id,
+                               COALESCE(st.total_tasks, 0)::int as task_count
+                        FROM sessions s
+                        LEFT JOIN session_tasks st ON st.session_id = s.id
+                        WHERE s.user_id = %s
+                    """
+                else:
+                    query = """
+                        SELECT s.id, s.user_id, s.problem_statement, s.problem_context, s.status,
+                               s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
+                               s.synthesis_text, s.final_recommendation,
+                               s.expert_count, s.contribution_count, s.focus_area_count,
+                               s.workspace_id,
+                               0 as task_count
+                        FROM sessions s
+                        WHERE s.user_id = %s
+                    """
                 params: list[Any] = [user_id]
 
                 if not include_deleted:
@@ -418,6 +435,7 @@ class SessionRepository(BaseRepository):
         event_type: str,
         sequence: int,
         data: dict[str, Any],
+        user_id: str | None = None,
     ) -> dict[str, Any]:
         """Save a session event to PostgreSQL.
 
@@ -426,25 +444,41 @@ class SessionRepository(BaseRepository):
             event_type: Event type (e.g., 'contribution', 'synthesis_complete')
             sequence: Event sequence number
             data: Event payload
+            user_id: Pre-fetched user_id (avoids SELECT if provided)
 
         Returns:
             Saved event record
         """
         with db_session() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO session_events (
-                        session_id, event_type, sequence, data, user_id
+                if user_id:
+                    # Use provided user_id (cached) - avoids subquery
+                    cur.execute(
+                        """
+                        INSERT INTO session_events (
+                            session_id, event_type, sequence, data, user_id
+                        )
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (session_id, sequence, created_at) DO NOTHING
+                        RETURNING id, session_id, event_type, sequence, created_at
+                        """,
+                        (session_id, event_type, sequence, Json(data), user_id),
                     )
-                    VALUES (%s, %s, %s, %s, (
-                        SELECT user_id FROM sessions WHERE id = %s
-                    ))
-                    ON CONFLICT (session_id, sequence, created_at) DO NOTHING
-                    RETURNING id, session_id, event_type, sequence, created_at
-                    """,
-                    (session_id, event_type, sequence, Json(data), session_id),
-                )
+                else:
+                    # Fallback: fetch user_id via subquery
+                    cur.execute(
+                        """
+                        INSERT INTO session_events (
+                            session_id, event_type, sequence, data, user_id
+                        )
+                        VALUES (%s, %s, %s, %s, (
+                            SELECT user_id FROM sessions WHERE id = %s
+                        ))
+                        ON CONFLICT (session_id, sequence, created_at) DO NOTHING
+                        RETURNING id, session_id, event_type, sequence, created_at
+                        """,
+                        (session_id, event_type, sequence, Json(data), session_id),
+                    )
                 result = cur.fetchone()
 
                 # Increment denormalized counts for trackable event types
@@ -457,6 +491,7 @@ class SessionRepository(BaseRepository):
     def save_events_batch(
         self,
         events: list[tuple[str, str, int, dict[str, Any]]],
+        user_ids: dict[str, str] | None = None,
     ) -> int:
         """Save multiple session events to PostgreSQL in a single batch.
 
@@ -465,6 +500,7 @@ class SessionRepository(BaseRepository):
 
         Args:
             events: List of (session_id, event_type, sequence, data) tuples
+            user_ids: Optional dict mapping session_id to user_id (cached)
 
         Returns:
             Number of events successfully inserted
@@ -474,20 +510,45 @@ class SessionRepository(BaseRepository):
 
         with db_session() as conn:
             with conn.cursor() as cur:
-                # Prepare data with Json wrapper for each event
-                prepared = [(sid, etype, seq, Json(data), sid) for sid, etype, seq, data in events]
-                cur.executemany(
-                    """
-                    INSERT INTO session_events (
-                        session_id, event_type, sequence, data, user_id
+                user_ids = user_ids or {}
+
+                # Split events by whether we have cached user_id
+                cached_events = []
+                uncached_events = []
+
+                for sid, etype, seq, data in events:
+                    if sid in user_ids:
+                        cached_events.append((sid, etype, seq, Json(data), user_ids[sid]))
+                    else:
+                        uncached_events.append((sid, etype, seq, Json(data), sid))
+
+                # Insert events with cached user_id (no subquery)
+                if cached_events:
+                    cur.executemany(
+                        """
+                        INSERT INTO session_events (
+                            session_id, event_type, sequence, data, user_id
+                        )
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (session_id, sequence, created_at) DO NOTHING
+                        """,
+                        cached_events,
                     )
-                    VALUES (%s, %s, %s, %s, (
-                        SELECT user_id FROM sessions WHERE id = %s
-                    ))
-                    ON CONFLICT (session_id, sequence, created_at) DO NOTHING
-                    """,
-                    prepared,
-                )
+
+                # Insert events requiring subquery (fallback)
+                if uncached_events:
+                    cur.executemany(
+                        """
+                        INSERT INTO session_events (
+                            session_id, event_type, sequence, data, user_id
+                        )
+                        VALUES (%s, %s, %s, %s, (
+                            SELECT user_id FROM sessions WHERE id = %s
+                        ))
+                        ON CONFLICT (session_id, sequence, created_at) DO NOTHING
+                        """,
+                        uncached_events,
+                    )
 
                 # Increment denormalized counts grouped by session_id
                 from collections import defaultdict
@@ -852,39 +913,42 @@ class SessionRepository(BaseRepository):
         Returns:
             Share record
         """
+        from uuid import uuid4
+
+        share_id = str(uuid4())
         with db_session() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO session_shares (session_id, token, expires_at)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO session_shares (id, session_id, token, expires_at)
+                    VALUES (%s, %s, %s, %s)
                     ON CONFLICT (token) DO UPDATE
                     SET session_id = EXCLUDED.session_id,
                         expires_at = EXCLUDED.expires_at,
-                        updated_at = NOW()
-                    RETURNING id, session_id, token, expires_at, created_at, updated_at
+                        deleted_at = NULL
+                    RETURNING id, session_id, token, expires_at, created_at, updated_at, deleted_at
                     """,
-                    (session_id, token, expires_at),
+                    (share_id, session_id, token, expires_at),
                 )
                 result = cur.fetchone()
                 return dict(result) if result else {}
 
     def list_shares(self, session_id: str) -> list[dict[str, Any]]:
-        """List all shares for a session.
+        """List all active shares for a session.
 
         Args:
             session_id: Session identifier
 
         Returns:
-            List of share records
+            List of share records (excludes revoked)
         """
         with db_session() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT id, session_id, token, expires_at, created_at, updated_at
+                    SELECT id, session_id, token, expires_at, created_at, updated_at, deleted_at
                     FROM session_shares
-                    WHERE session_id = %s
+                    WHERE session_id = %s AND deleted_at IS NULL
                     ORDER BY created_at DESC
                     """,
                     (session_id,),
@@ -892,7 +956,7 @@ class SessionRepository(BaseRepository):
                 return [dict(row) for row in cur.fetchall()]
 
     def revoke_share(self, session_id: str, token: str) -> bool:
-        """Revoke/delete a share link.
+        """Revoke a share link (soft-delete).
 
         Args:
             session_id: Session identifier
@@ -904,8 +968,9 @@ class SessionRepository(BaseRepository):
         return (
             self._execute_count(
                 """
-                DELETE FROM session_shares
-                WHERE session_id = %s AND token = %s
+                UPDATE session_shares
+                SET deleted_at = NOW()
+                WHERE session_id = %s AND token = %s AND deleted_at IS NULL
                 """,
                 (session_id, token),
             )
@@ -913,19 +978,19 @@ class SessionRepository(BaseRepository):
         )
 
     def get_share_by_token(self, token: str) -> dict[str, Any] | None:
-        """Get a share by token.
+        """Get an active share by token.
 
         Args:
             token: Share token
 
         Returns:
-            Share record or None if not found
+            Share record or None if not found/revoked
         """
         result = self._execute_one(
             """
-            SELECT id, session_id, token, expires_at, created_at, updated_at
+            SELECT id, session_id, token, expires_at, created_at, updated_at, deleted_at
             FROM session_shares
-            WHERE token = %s
+            WHERE token = %s AND deleted_at IS NULL
             """,
             (token,),
         )

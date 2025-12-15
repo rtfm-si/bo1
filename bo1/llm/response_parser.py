@@ -23,10 +23,167 @@ logger = logging.getLogger(__name__)
 
 # Valid facilitator actions (duplicated here to avoid circular import)
 # Canonical definition is in bo1.agents.facilitator.VALID_FACILITATOR_ACTIONS
-VALID_FACILITATOR_ACTIONS: set[str] = {"continue", "vote", "research", "moderator", "clarify"}
+VALID_FACILITATOR_ACTIONS: set[str] = {
+    "continue",
+    "vote",
+    "research",
+    "moderator",
+    "clarify",
+    "analyze_data",
+}
 
 # Metrics tracking for facilitator action parsing
-_facilitator_parse_stats = {"success": 0, "fallback": 0}
+_facilitator_parse_stats = {"success": 0, "fallback": 0, "invalid_action": 0}
+
+
+class XMLValidationError(Exception):
+    """Raised when XML structure is malformed."""
+
+    def __init__(  # noqa: D107
+        self, message: str, tag: str | None = None, details: str | None = None
+    ) -> None:
+        self.tag = tag
+        self.details = details
+        super().__init__(message)
+
+
+class XMLValidator:
+    """Validates XML structure in LLM responses.
+
+    Detects:
+    - Unclosed tags: <thinking>content without </thinking>
+    - Invalid nesting: <a><b></a></b>
+    - Missing required elements
+    """
+
+    # Common XML tags used in responses
+    KNOWN_TAGS = {
+        "thinking",
+        "contribution",
+        "recommendation",
+        "reasoning",
+        "confidence",
+        "conditions",
+        "action",
+        "decision",
+        "summary",
+        "question",
+        "reason",
+        "next_speaker",
+    }
+
+    @staticmethod
+    def find_unclosed_tags(text: str) -> list[str]:
+        """Find XML tags that are opened but not closed.
+
+        Args:
+            text: Content to validate
+
+        Returns:
+            List of unclosed tag names
+        """
+        unclosed = []
+        # Find all opening tags
+        open_pattern = r"<(\w+)(?:\s[^>]*)?>(?!.*</\1>)"
+        for match in re.finditer(open_pattern, text, re.DOTALL | re.IGNORECASE):
+            tag = match.group(1).lower()
+            if tag in XMLValidator.KNOWN_TAGS:
+                # Verify it's actually unclosed (not just regex limitation)
+                close_pattern = rf"</{tag}>"
+                if not re.search(close_pattern, text, re.IGNORECASE):
+                    unclosed.append(tag)
+        return unclosed
+
+    @staticmethod
+    def find_invalid_nesting(text: str) -> list[tuple[str, str]]:
+        """Find XML tags with invalid nesting order.
+
+        Args:
+            text: Content to validate
+
+        Returns:
+            List of (outer_tag, inner_tag) pairs that are incorrectly nested
+        """
+        invalid_pairs = []
+        # Track tag positions
+        tag_stack: list[tuple[str, int]] = []
+
+        # Find all tags (opening and closing)
+        tag_pattern = r"<(/?)(\w+)(?:\s[^>]*)?>"
+        for match in re.finditer(tag_pattern, text, re.IGNORECASE):
+            is_close = match.group(1) == "/"
+            tag = match.group(2).lower()
+
+            if tag not in XMLValidator.KNOWN_TAGS:
+                continue
+
+            if is_close:
+                # Find matching open tag
+                found = False
+                for i in range(len(tag_stack) - 1, -1, -1):
+                    if tag_stack[i][0] == tag:
+                        # Check if there are unclosed tags between
+                        if i < len(tag_stack) - 1:
+                            for j in range(i + 1, len(tag_stack)):
+                                invalid_pairs.append((tag_stack[j][0], tag))
+                        tag_stack = tag_stack[:i]
+                        found = True
+                        break
+                if not found and tag_stack:
+                    # Closing tag without matching open
+                    pass  # Handled by find_unclosed_tags
+            else:
+                tag_stack.append((tag, match.start()))
+
+        return invalid_pairs
+
+    @staticmethod
+    def validate(text: str, required_tags: list[str] | None = None) -> tuple[bool, list[str]]:
+        """Validate XML structure in text.
+
+        Args:
+            text: Content to validate
+            required_tags: Optional list of tags that must be present
+
+        Returns:
+            Tuple of (is_valid, list of error messages)
+        """
+        errors = []
+
+        # Check for unclosed tags
+        unclosed = XMLValidator.find_unclosed_tags(text)
+        if unclosed:
+            errors.append(f"Unclosed tags: {', '.join(unclosed)}")
+
+        # Check for invalid nesting
+        invalid_nesting = XMLValidator.find_invalid_nesting(text)
+        if invalid_nesting:
+            pairs = [f"<{outer}>...<{inner}>" for outer, inner in invalid_nesting]
+            errors.append(f"Invalid tag nesting: {', '.join(pairs)}")
+
+        # Check required tags
+        if required_tags:
+            for tag in required_tags:
+                if not extract_xml_tag(text, tag):
+                    errors.append(f"Missing required tag: <{tag}>")
+
+        return len(errors) == 0, errors
+
+    @staticmethod
+    def get_validation_feedback(errors: list[str]) -> str:
+        """Generate feedback message for re-response request.
+
+        Args:
+            errors: List of validation errors
+
+        Returns:
+            Formatted feedback for LLM
+        """
+        return (
+            "Your response had XML formatting issues:\n"
+            + "\n".join(f"- {e}" for e in errors)
+            + "\n\nPlease provide your response again with properly closed and nested XML tags."
+        )
 
 
 class ResponseParser:
@@ -298,19 +455,26 @@ class ResponseParser:
                 action = "clarify"
 
         # Step 3: Validate and default if still no valid action
+        session_id = state.get("session_id", "unknown")
         if action is None or action not in VALID_FACILITATOR_ACTIONS:
-            _facilitator_parse_stats["fallback"] += 1
-            session_id = state.get("session_id", "unknown")
+            _facilitator_parse_stats["invalid_action"] += 1
+            invalid_value = action if action else "[none extracted]"
             logger.warning(
-                f"Facilitator action parse failed. "
+                f"[LLM_RELIABILITY] Facilitator invalid action. "
                 f"session_id={session_id}, "
+                f"invalid_value={invalid_value!r}, "
+                f"valid_actions={sorted(VALID_FACILITATOR_ACTIONS)}, "
                 f"content_preview={content[:150]!r}..., "
-                f"defaulting to 'continue'"
+                f"forcing action='continue'"
             )
             action = "continue"
         else:
             if used_fallback:
                 _facilitator_parse_stats["fallback"] += 1
+                logger.info(
+                    f"[LLM_RELIABILITY] Facilitator action via keyword fallback. "
+                    f"session_id={session_id}, action={action}"
+                )
             else:
                 _facilitator_parse_stats["success"] += 1
 
@@ -600,3 +764,96 @@ def extract_json_from_response(text: str) -> dict[str, Any]:
     # Last resort: try parsing as-is
     result = json.loads(text)
     return result
+
+
+# Citation validation results
+class CitationValidationResult:
+    """Result of citation validation."""
+
+    def __init__(  # noqa: D107
+        self,
+        citation_count: int,
+        min_required: int,
+        is_valid: bool,
+        warning: str | None = None,
+    ) -> None:
+        self.citation_count = citation_count
+        self.min_required = min_required
+        self.is_valid = is_valid
+        self.warning = warning
+
+
+def validate_citations(
+    content: str,
+    min_citations: int = 3,
+    persona_type: str = "researcher",
+) -> CitationValidationResult:
+    """Validate citation presence in masked persona responses.
+
+    Detects <source> blocks or URL patterns in response content.
+    Returns warning (not hard fail) if citation count below threshold.
+
+    Args:
+        content: Response content to validate
+        min_citations: Minimum required citations (default 3 for researcher)
+        persona_type: Type of persona ("researcher" or "moderator")
+
+    Returns:
+        CitationValidationResult with validation status and warning if applicable
+
+    Example:
+        >>> content = '''<sources><source><url>https://example.com</url></source></sources>'''
+        >>> result = validate_citations(content, min_citations=3)
+        >>> result.is_valid
+        False
+        >>> result.warning
+        'researcher response has 1 citation(s), minimum 3 required'
+    """
+    citation_count = 0
+
+    # Pattern 1: Count <source> blocks (preferred structured format)
+    source_pattern = r"<source>.*?</source>"
+    source_matches = re.findall(source_pattern, content, re.DOTALL | re.IGNORECASE)
+    citation_count += len(source_matches)
+
+    # Pattern 2: Count standalone URLs with https:// (fallback for unstructured citations)
+    # Only count if no structured sources found
+    if citation_count == 0:
+        url_pattern = r"https?://[^\s<>\"'\)]+(?:\.[^\s<>\"'\)]+)+"
+        url_matches = re.findall(url_pattern, content)
+        # Deduplicate URLs
+        unique_urls = set(url_matches)
+        citation_count = len(unique_urls)
+
+    # Determine validation result
+    is_valid = citation_count >= min_citations
+    warning = None
+
+    if not is_valid:
+        warning = f"{persona_type} response has {citation_count} citation(s), minimum {min_citations} required"
+        logger.warning(f"[CITATION_COMPLIANCE] {warning}")
+
+    return CitationValidationResult(
+        citation_count=citation_count,
+        min_required=min_citations,
+        is_valid=is_valid,
+        warning=warning,
+    )
+
+
+def get_facilitator_parse_stats() -> dict[str, int]:
+    """Get current facilitator action parse statistics.
+
+    Returns:
+        Dictionary with keys: success, fallback, invalid_action
+        - success: Actions extracted from XML tags
+        - fallback: Actions extracted via keyword matching
+        - invalid_action: Actions forced to 'continue' due to invalid value
+    """
+    return _facilitator_parse_stats.copy()
+
+
+def reset_facilitator_parse_stats() -> None:
+    """Reset facilitator parse statistics (for testing)."""
+    global _facilitator_parse_stats
+    _facilitator_parse_stats = {"success": 0, "fallback": 0, "invalid_action": 0}

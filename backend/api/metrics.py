@@ -246,11 +246,12 @@ class PrometheusMetrics:
     def __init__(self) -> None:
         """Initialize Prometheus metrics."""
         # LLM request duration histogram (in seconds)
+        # Buckets aligned with plan: [0.5, 1, 2, 5, 10, 30, 60] for SLO alerting (>5s threshold)
         self.llm_request_duration = Histogram(
-            "llm_request_duration_seconds",
+            "bo1_llm_request_duration_seconds",
             "LLM request latency in seconds",
-            ["provider", "model", "operation", "node"],
-            buckets=[0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0],
+            ["provider", "model", "operation"],
+            buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0],
         )
 
         # Token usage counter
@@ -341,6 +342,61 @@ class PrometheusMetrics:
             "Number of events in the retry queue",
         )
 
+        # Redis reconnection metrics
+        self.redis_reconnect_total = Counter(
+            "bo1_redis_reconnect_attempts_total",
+            "Total Redis reconnection attempts",
+        )
+
+        self.redis_buffer_depth = Gauge(
+            "bo1_redis_buffer_depth",
+            "Number of events buffered during Redis disconnection",
+        )
+
+        # Redis metadata fallback to PostgreSQL
+        self.redis_metadata_fallback_total = Counter(
+            "bo1_redis_metadata_fallback_total",
+            "Redis metadata cache misses that fell back to PostgreSQL",
+            ["result"],  # success, failure
+        )
+
+        # Database pool degradation metrics
+        self.db_pool_degraded = Gauge(
+            "bo1_db_pool_degraded",
+            "Whether database pool is in degradation mode (0/1)",
+        )
+
+        self.db_pool_queue_depth = Gauge(
+            "bo1_db_pool_queue_depth",
+            "Number of requests waiting in degradation queue",
+        )
+
+        self.db_requests_queued_total = Counter(
+            "bo1_db_requests_queued_total",
+            "Total requests queued due to pool exhaustion",
+        )
+
+        self.db_requests_shed_total = Counter(
+            "bo1_db_requests_shed_total",
+            "Total requests rejected due to pool exhaustion (load shedding)",
+        )
+
+        # API startup duration gauge (in milliseconds)
+        self.api_startup_duration_ms = Gauge(
+            "bo1_api_startup_duration_ms",
+            "API startup duration in milliseconds",
+            ["phase"],  # module_init, lifespan, total
+        )
+
+    def record_startup_time(self, phase: str, duration_ms: float) -> None:
+        """Record startup time for a specific phase.
+
+        Args:
+            phase: Startup phase (module_init, lifespan, total)
+            duration_ms: Duration in milliseconds
+        """
+        self.api_startup_duration_ms.labels(phase=phase).set(duration_ms)
+
     def _normalize_model(self, model: str | None) -> str:
         """Normalize model name to low-cardinality label.
 
@@ -379,14 +435,13 @@ class PrometheusMetrics:
             model: Model name
             operation: Operation type (completion, embedding, search)
             duration_seconds: Request duration in seconds
-            node: Graph node name (optional)
+            node: Graph node name (optional, ignored - kept for API compat)
         """
         normalized_model = self._normalize_model(model)
         self.llm_request_duration.labels(
             provider=provider,
             model=normalized_model,
             operation=operation,
-            node=node or "unknown",
         ).observe(duration_seconds)
 
     def record_tokens(
@@ -528,6 +583,28 @@ class PrometheusMetrics:
         """
         self.event_dlq_depth.set(dlq_depth)
         self.event_retry_queue_depth.set(retry_queue_depth)
+
+    def update_degradation_metrics(
+        self,
+        is_degraded: bool,
+        queue_depth: int,
+    ) -> None:
+        """Update database pool degradation metrics.
+
+        Args:
+            is_degraded: Whether pool is in degradation mode
+            queue_depth: Number of requests in degradation queue
+        """
+        self.db_pool_degraded.set(1 if is_degraded else 0)
+        self.db_pool_queue_depth.set(queue_depth)
+
+    def record_request_queued(self) -> None:
+        """Record a request queued due to pool exhaustion."""
+        self.db_requests_queued_total.inc()
+
+    def record_request_shed(self) -> None:
+        """Record a request rejected due to load shedding."""
+        self.db_requests_shed_total.inc()
 
 
 # Global Prometheus metrics instance

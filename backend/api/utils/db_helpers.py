@@ -252,3 +252,23 @@ def count_rows(
         sql = f"SELECT COUNT(*) as count FROM {table}"  # noqa: S608
 
     return get_single_value(sql, params, column="count", default=0)
+
+
+def get_user_tier(user_id: str) -> str:
+    """Get user's subscription tier from database.
+
+    Args:
+        user_id: User ID to look up
+
+    Returns:
+        Subscription tier string, defaults to "free" if not found or on error
+    """
+    try:
+        return get_single_value(
+            "SELECT subscription_tier FROM users WHERE id = %s",
+            (user_id,),
+            column="subscription_tier",
+            default="free",
+        )
+    except Exception:
+        return "free"

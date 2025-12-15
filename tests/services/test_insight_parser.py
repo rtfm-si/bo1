@@ -13,8 +13,89 @@ from backend.services.insight_parser import (
     InsightParser,
     StructuredInsight,
     get_insight_parser,
+    is_valid_insight_response,
     parse_insight,
 )
+
+
+class TestIsValidInsightResponse:
+    """Test is_valid_insight_response validation function."""
+
+    def test_empty_string_returns_false(self):
+        """Empty string is invalid."""
+        assert is_valid_insight_response("") is False
+
+    def test_whitespace_only_returns_false(self):
+        """Whitespace-only is invalid."""
+        assert is_valid_insight_response("   ") is False
+        assert is_valid_insight_response("\t\n  ") is False
+
+    def test_none_returns_false(self):
+        """None is invalid."""
+        assert is_valid_insight_response(None) is False
+
+    def test_none_literal_returns_false(self):
+        """'none' by itself is invalid."""
+        assert is_valid_insight_response("none") is False
+        assert is_valid_insight_response("None") is False
+        assert is_valid_insight_response("NONE") is False
+        assert is_valid_insight_response("none.") is False
+
+    def test_na_returns_false(self):
+        """'n/a' and 'na' are invalid."""
+        assert is_valid_insight_response("n/a") is False
+        assert is_valid_insight_response("N/A") is False
+        assert is_valid_insight_response("na") is False
+        assert is_valid_insight_response("NA") is False
+
+    def test_not_applicable_returns_false(self):
+        """'not applicable' is invalid."""
+        assert is_valid_insight_response("not applicable") is False
+        assert is_valid_insight_response("Not Applicable") is False
+        assert is_valid_insight_response("not applicable.") is False
+
+    def test_no_returns_false(self):
+        """Single 'no' is invalid."""
+        assert is_valid_insight_response("no") is False
+        assert is_valid_insight_response("No") is False
+
+    def test_other_invalid_patterns(self):
+        """Other common invalid patterns."""
+        assert is_valid_insight_response("nothing") is False
+        assert is_valid_insight_response("null") is False
+        assert is_valid_insight_response("unknown") is False
+        assert is_valid_insight_response("skip") is False
+        assert is_valid_insight_response("skipped") is False
+        assert is_valid_insight_response("-") is False
+        assert is_valid_insight_response("—") is False
+        assert is_valid_insight_response("...") is False
+        assert is_valid_insight_response(".") is False
+
+    def test_none_in_context_returns_true(self):
+        """'none' in a longer response is valid (context matters)."""
+        assert is_valid_insight_response("none of the above apply because we're B2B") is True
+        assert is_valid_insight_response("We have none at the moment but planning to add") is True
+        assert is_valid_insight_response("None of the competitors offer this feature") is True
+
+    def test_valid_insight_text_returns_true(self):
+        """Valid insight text is accepted."""
+        assert is_valid_insight_response("Our MRR is $25,000") is True
+        assert is_valid_insight_response("We have 5 employees") is True
+        assert is_valid_insight_response("B2B SaaS targeting small businesses") is True
+        assert is_valid_insight_response("We compete with Asana and Monday.com") is True
+        assert is_valid_insight_response("Growth rate is 15% month over month") is True
+
+    def test_short_but_valid_returns_true(self):
+        """Short but meaningful responses are valid."""
+        assert is_valid_insight_response("$50K MRR") is True
+        assert is_valid_insight_response("5 people") is True
+        assert is_valid_insight_response("15% growth") is True
+
+    def test_punctuation_variants(self):
+        """Invalid patterns with punctuation are still invalid."""
+        assert is_valid_insight_response("none!") is False
+        assert is_valid_insight_response("n/a?") is False
+        assert is_valid_insight_response("not applicable;") is False
 
 
 class TestInsightCategory:

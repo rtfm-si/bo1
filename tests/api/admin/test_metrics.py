@@ -120,6 +120,13 @@ class TestUsageMetricsEndpoint:
             mock_usage.actions_created_7d = 100
             mock_usage.daily_meetings = [(date(2025, 1, 1), 5)]
             mock_usage.daily_actions = [(date(2025, 1, 1), 20)]
+            # Extended KPIs
+            mock_usage.mentor_sessions_count = 25
+            mock_usage.data_analyses_count = 15
+            mock_usage.projects_count = 8
+            mock_usage.actions_started_count = 30
+            mock_usage.actions_completed_count = 100
+            mock_usage.actions_cancelled_count = 5
             mock_analytics.get_usage_stats.return_value = mock_usage
 
             response = client.get("/api/admin/metrics/usage", headers=admin_headers)
@@ -130,6 +137,13 @@ class TestUsageMetricsEndpoint:
             assert data["meetings_today"] == 10
             assert data["total_actions"] == 1200
             assert len(data["daily_meetings"]) == 1
+            # Extended KPIs
+            assert data["mentor_sessions_count"] == 25
+            assert data["data_analyses_count"] == 15
+            assert data["projects_count"] == 8
+            assert data["actions_started_count"] == 30
+            assert data["actions_completed_count"] == 100
+            assert data["actions_cancelled_count"] == 5
 
 
 class TestOnboardingMetricsEndpoint:

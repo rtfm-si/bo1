@@ -6,8 +6,6 @@
 	import { page } from '$app/stores';
 	import Button from '$lib/components/ui/Button.svelte';
 	import NavDropdown from '$lib/components/ui/NavDropdown.svelte';
-	import WorkspaceSwitcher from '$lib/components/workspace/WorkspaceSwitcher.svelte';
-	import CreateWorkspaceModal from '$lib/components/workspace/CreateWorkspaceModal.svelte';
 	import FeedbackModal from '$lib/components/feedback/FeedbackModal.svelte';
 	import { isAuthenticated, user, signOut } from '$lib/stores/auth';
 	import { Menu, X, ChevronDown, ChevronRight, HelpCircle, MessageSquarePlus } from 'lucide-svelte';
@@ -41,6 +39,7 @@
 
 	// Reports navigation (intelligence features)
 	const reportsLinks = [
+		{ href: '/meeting', label: 'Meetings' },
 		{ href: '/reports/competitors', label: 'Competitors' },
 		{ href: '/reports/benchmarks', label: 'Benchmarks' },
 	];
@@ -59,9 +58,6 @@
 	let mobileBoardExpanded = $state(false);
 	let mobileContextExpanded = $state(false);
 	let mobileReportsExpanded = $state(false);
-
-	// Workspace modal state
-	let showCreateWorkspaceModal = $state(false);
 
 	// Feedback modal state
 	let showFeedbackModal = $state(false);
@@ -98,10 +94,6 @@
 
 	function handleGetStarted() {
 		goto('/waitlist');
-	}
-
-	function handleNewMeeting() {
-		goto('/meeting/new');
 	}
 
 	async function handleSignOut() {
@@ -153,21 +145,14 @@
 				</span>
 			</a>
 
-			<!-- Workspace Switcher (authenticated only, desktop) -->
-			{#if $isAuthenticated}
-				<div class="hidden md:block ml-4">
-					<WorkspaceSwitcher onCreateWorkspace={() => (showCreateWorkspaceModal = true)} />
-				</div>
-			{/if}
-
 			<!-- Desktop Navigation -->
-			<div class="hidden md:flex items-center gap-5">
+			<div class="hidden md:flex items-center gap-3 lg:gap-4">
 				{#if $isAuthenticated}
 					<a
 						href="/dashboard"
-						class={isActive('/dashboard')
+						class="text-sm {isActive('/dashboard')
 							? 'text-brand-600 dark:text-brand-400 font-medium'
-							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}
+							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}"
 					>
 						Dashboard
 					</a>
@@ -176,9 +161,9 @@
 					<NavDropdown label="Reports" links={reportsLinks} isGroupActive={() => isGroupActive(reportsLinks)} />
 					<a
 						href="/settings"
-						class={isActive('/settings')
+						class="text-sm {isActive('/settings')
 							? 'text-brand-600 dark:text-brand-400 font-medium'
-							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}
+							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}"
 					>
 						Settings
 					</a>
@@ -189,7 +174,7 @@
 							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}
 						title="Help Center"
 					>
-						<HelpCircle class="w-5 h-5" />
+						<HelpCircle class="w-4 h-4" />
 					</a>
 					<button
 						type="button"
@@ -197,14 +182,14 @@
 						title="Send Feedback"
 						onclick={() => (showFeedbackModal = true)}
 					>
-						<MessageSquarePlus class="w-5 h-5" />
+						<MessageSquarePlus class="w-4 h-4" />
 					</button>
 					{#if $user?.is_admin}
 						<a
 							href="/admin"
-							class={isActive('/admin')
+							class="text-sm {isActive('/admin')
 								? 'text-amber-700 dark:text-amber-300 font-bold'
-								: 'text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors font-medium'}
+								: 'text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors font-medium'}"
 						>
 							Admin
 						</a>
@@ -227,7 +212,7 @@
 
 			<!-- CTA Buttons -->
 			{#if showCTA}
-				<div class="flex items-center gap-3">
+				<div class="flex items-center gap-2">
 					{#if $isAuthenticated}
 						{#if $user?.email && !$user.email.endsWith('@placeholder.local')}
 							<span class="text-sm text-neutral-600 dark:text-neutral-400 mr-2">
@@ -236,9 +221,6 @@
 						{/if}
 						<Button variant="ghost" size="sm" onclick={handleSignOut}>
 							Sign Out
-						</Button>
-						<Button variant="brand" size="sm" onclick={handleNewMeeting}>
-							New Meeting
 						</Button>
 					{:else}
 						<Button variant="ghost" size="sm" onclick={handleSignIn}> Sign In </Button>
@@ -254,12 +236,6 @@
 		<div class="md:hidden border-t border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
 			<div class="px-4 py-4 space-y-1">
 				{#if $isAuthenticated}
-					<!-- Mobile Workspace Switcher -->
-					<div class="pb-3 mb-1 border-b border-neutral-200 dark:border-neutral-700">
-						<span class="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2 block">Workspace</span>
-						<WorkspaceSwitcher onCreateWorkspace={() => { closeMobileMenu(); showCreateWorkspaceModal = true; }} />
-					</div>
-
 					<a
 						href="/dashboard"
 						class={isActive('/dashboard')
@@ -423,9 +399,6 @@
 							</p>
 						{/if}
 						<div class="flex flex-col gap-2 pt-2">
-							<Button variant="brand" size="sm" onclick={() => { closeMobileMenu(); handleNewMeeting(); }}>
-								New Meeting
-							</Button>
 							<Button variant="ghost" size="sm" onclick={() => { closeMobileMenu(); handleSignOut(); }}>
 								Sign Out
 							</Button>
@@ -461,9 +434,6 @@
 		</div>
 	{/if}
 </header>
-
-<!-- Create Workspace Modal -->
-<CreateWorkspaceModal bind:open={showCreateWorkspaceModal} />
 
 <!-- Feedback Modal -->
 {#if $isAuthenticated}

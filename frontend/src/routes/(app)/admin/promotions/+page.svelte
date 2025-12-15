@@ -24,12 +24,12 @@
 		return promotions.filter((p) => {
 			if (filter === 'all') return true;
 			if (filter === 'active') {
-				if (!p.is_active) return false;
+				if (p.deleted_at) return false;
 				if (p.expires_at && new Date(p.expires_at) < now) return false;
 				return true;
 			}
 			if (filter === 'expired') {
-				if (!p.is_active) return true;
+				if (p.deleted_at) return true;
 				if (p.expires_at && new Date(p.expires_at) < now) return true;
 				return false;
 			}
@@ -67,7 +67,7 @@
 		try {
 			await adminApi.deletePromotion(deleteConfirm.id);
 			promotions = promotions.map((p) =>
-				p.id === deleteConfirm!.id ? { ...p, is_active: false } : p
+				p.id === deleteConfirm!.id ? { ...p, deleted_at: new Date().toISOString() } : p
 			);
 			deleteConfirm = null;
 		} catch (err) {

@@ -32,7 +32,7 @@ class PromotionRepository(BaseRepository):
         code = code.strip().upper()
         query = """
             SELECT id, code, type, value, max_uses, uses_count,
-                   expires_at, created_at, is_active
+                   expires_at, created_at, deleted_at
             FROM promotions
             WHERE UPPER(code) = %s
         """
@@ -50,7 +50,7 @@ class PromotionRepository(BaseRepository):
         self._validate_id(promotion_id, "promotion_id")
         query = """
             SELECT id, code, type, value, max_uses, uses_count,
-                   expires_at, created_at, is_active
+                   expires_at, created_at, deleted_at
             FROM promotions
             WHERE id = %s
         """
@@ -64,9 +64,9 @@ class PromotionRepository(BaseRepository):
         """
         query = """
             SELECT id, code, type, value, max_uses, uses_count,
-                   expires_at, created_at, is_active
+                   expires_at, created_at, deleted_at
             FROM promotions
-            WHERE is_active = true
+            WHERE deleted_at IS NULL
               AND (expires_at IS NULL OR expires_at > NOW())
               AND (max_uses IS NULL OR uses_count < max_uses)
             ORDER BY created_at DESC
@@ -81,7 +81,7 @@ class PromotionRepository(BaseRepository):
         """
         query = """
             SELECT id, code, type, value, max_uses, uses_count,
-                   expires_at, created_at, is_active
+                   expires_at, created_at, deleted_at
             FROM promotions
             ORDER BY created_at DESC
         """
@@ -117,7 +117,7 @@ class PromotionRepository(BaseRepository):
             INSERT INTO promotions (id, code, type, value, max_uses, expires_at)
             VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id, code, type, value, max_uses, uses_count,
-                      expires_at, created_at, is_active
+                      expires_at, created_at, deleted_at
         """
         return self._execute_returning(
             query,
@@ -125,7 +125,7 @@ class PromotionRepository(BaseRepository):
         )
 
     def deactivate_promotion(self, promotion_id: str) -> bool:
-        """Deactivate a promotion.
+        """Deactivate (soft-delete) a promotion.
 
         Args:
             promotion_id: The promotion UUID
@@ -136,8 +136,26 @@ class PromotionRepository(BaseRepository):
         self._validate_id(promotion_id, "promotion_id")
         query = """
             UPDATE promotions
-            SET is_active = false
-            WHERE id = %s
+            SET deleted_at = NOW()
+            WHERE id = %s AND deleted_at IS NULL
+        """
+        count = self._execute_count(query, (promotion_id,))
+        return count > 0
+
+    def restore_promotion(self, promotion_id: str) -> bool:
+        """Restore a soft-deleted promotion.
+
+        Args:
+            promotion_id: The promotion UUID
+
+        Returns:
+            True if promotion was restored, False if not found/not deleted
+        """
+        self._validate_id(promotion_id, "promotion_id")
+        query = """
+            UPDATE promotions
+            SET deleted_at = NULL
+            WHERE id = %s AND deleted_at IS NOT NULL
         """
         count = self._execute_count(query, (promotion_id,))
         return count > 0
@@ -191,7 +209,7 @@ class PromotionRepository(BaseRepository):
                 p.uses_count AS promotion_uses_count,
                 p.expires_at AS promotion_expires_at,
                 p.created_at AS promotion_created_at,
-                p.is_active AS promotion_is_active
+                p.deleted_at AS promotion_deleted_at
             FROM user_promotions up
             JOIN promotions p ON up.promotion_id = p.id
             WHERE up.user_id = %s
@@ -226,7 +244,7 @@ class PromotionRepository(BaseRepository):
                 p.uses_count AS promotion_uses_count,
                 p.expires_at AS promotion_expires_at,
                 p.created_at AS promotion_created_at,
-                p.is_active AS promotion_is_active
+                p.deleted_at AS promotion_deleted_at
             FROM user_promotions up
             JOIN promotions p ON up.promotion_id = p.id
             WHERE up.user_id = %s
@@ -264,7 +282,7 @@ class PromotionRepository(BaseRepository):
                 p.uses_count AS promotion_uses_count,
                 p.expires_at AS promotion_expires_at,
                 p.created_at AS promotion_created_at,
-                p.is_active AS promotion_is_active
+                p.deleted_at AS promotion_deleted_at
             FROM user_promotions up
             JOIN promotions p ON up.promotion_id = p.id
             WHERE up.user_id = %s AND up.promotion_id = %s
@@ -417,13 +435,13 @@ class PromotionRepository(BaseRepository):
                 p.uses_count AS promotion_uses_count,
                 p.expires_at AS promotion_expires_at,
                 p.created_at AS promotion_created_at,
-                p.is_active AS promotion_is_active
+                p.deleted_at AS promotion_deleted_at
             FROM user_promotions up
             JOIN promotions p ON up.promotion_id = p.id
             WHERE up.user_id = %s
               AND up.status = 'active'
               AND p.type IN ('percentage_discount', 'flat_discount')
-              AND p.is_active = true
+              AND p.deleted_at IS NULL
             ORDER BY
                 CASE p.type
                     WHEN 'percentage_discount' THEN 1
@@ -541,7 +559,7 @@ class PromotionRepository(BaseRepository):
                 "uses_count": row["promotion_uses_count"],
                 "expires_at": row["promotion_expires_at"],
                 "created_at": row["promotion_created_at"],
-                "is_active": row["promotion_is_active"],
+                "deleted_at": row["promotion_deleted_at"],
             },
         }
 

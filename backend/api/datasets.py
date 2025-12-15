@@ -61,6 +61,7 @@ from bo1.prompts.data_analyst import (
     format_conversation_history,
     format_dataset_context,
 )
+from bo1.security import sanitize_for_prompt
 from bo1.state.repositories.dataset_repository import DatasetRepository
 from bo1.state.repositories.user_repository import UserRepository
 
@@ -874,9 +875,12 @@ async def _stream_ask_response(
         except Exception as e:
             logger.warning(f"Failed to load business context for {user_id}: {e}")
 
+        # Sanitize user question to prevent prompt injection
+        safe_question = sanitize_for_prompt(question)
+
         # Build prompt
         user_prompt = build_analyst_prompt(
-            question, dataset_context, conv_history, clarifications_ctx, business_ctx
+            safe_question, dataset_context, conv_history, clarifications_ctx, business_ctx
         )
 
         yield f"event: thinking\ndata: {json.dumps({'status': 'calling_llm'})}\n\n"

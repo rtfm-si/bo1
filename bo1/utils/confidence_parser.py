@@ -3,7 +3,10 @@
 These utilities are used in the recommendation system for parsing expert recommendations.
 """
 
+import logging
 import re
+
+logger = logging.getLogger(__name__)
 
 
 def extract_confidence_from_text(text: str) -> str | None:
@@ -141,3 +144,105 @@ def parse_conditions(conditions_str: str | None) -> list[str]:
                 conditions.append(cleaned.strip())
 
     return conditions
+
+
+# =============================================================================
+# Confidence Level Validation (LLM Alignment)
+# =============================================================================
+
+# Valid enumerated confidence levels
+VALID_CONFIDENCE_LEVELS = {"HIGH", "MEDIUM", "LOW"}
+
+
+def validate_confidence_level(confidence_str: str | None) -> str:
+    """Validate and normalize confidence level to enumerated values.
+
+    Normalizes variant expressions to standard HIGH/MEDIUM/LOW values.
+    Logs warning on non-standard input for LLM alignment monitoring.
+
+    Args:
+        confidence_str: Raw confidence string from LLM output
+
+    Returns:
+        Normalized confidence level: "HIGH", "MEDIUM", or "LOW"
+
+    Examples:
+        >>> validate_confidence_level("HIGH")
+        'HIGH'
+        >>> validate_confidence_level("very high")
+        'HIGH'
+        >>> validate_confidence_level("85%")
+        'HIGH'
+        >>> validate_confidence_level("medium")
+        'MEDIUM'
+        >>> validate_confidence_level("moderate")
+        'MEDIUM'
+        >>> validate_confidence_level("low")
+        'LOW'
+        >>> validate_confidence_level(None)
+        'MEDIUM'
+    """
+    if not confidence_str:
+        logger.warning("[CONFIDENCE_VALIDATION] Missing confidence, defaulting to MEDIUM")
+        return "MEDIUM"
+
+    confidence_upper = confidence_str.upper().strip()
+
+    # Check if already valid
+    if confidence_upper in VALID_CONFIDENCE_LEVELS:
+        return confidence_upper
+
+    # Normalize variants with logging
+    original = confidence_str
+    confidence_lower = confidence_str.lower().strip()
+
+    # LOW variants - check FIRST to avoid "uncertain" matching "certain"
+    if any(x in confidence_lower for x in ["low", "uncertain", "weak", "not confident"]):
+        logger.info(f"[CONFIDENCE_VALIDATION] Normalized '{original}' → LOW")
+        return "LOW"
+
+    # HIGH variants
+    if any(x in confidence_lower for x in ["very high", "extremely high", "strong", "certain"]):
+        logger.info(f"[CONFIDENCE_VALIDATION] Normalized '{original}' → HIGH (variant detected)")
+        return "HIGH"
+
+    if "high" in confidence_lower:
+        logger.info(f"[CONFIDENCE_VALIDATION] Normalized '{original}' → HIGH")
+        return "HIGH"
+
+    # MEDIUM variants
+    if any(
+        x in confidence_lower for x in ["medium", "moderate", "somewhat", "fairly", "reasonable"]
+    ):
+        logger.info(f"[CONFIDENCE_VALIDATION] Normalized '{original}' → MEDIUM")
+        return "MEDIUM"
+
+    # Handle percentages
+    try:
+        has_percent = "%" in confidence_lower
+        num_str = confidence_lower.replace("%", "").strip()
+        value = float(num_str)
+
+        if value > 1 or has_percent:
+            value = value / 100
+
+        if value >= 0.70:
+            result = "HIGH"
+        elif value >= 0.40:
+            result = "MEDIUM"
+        else:
+            result = "LOW"
+
+        logger.info(
+            f"[CONFIDENCE_VALIDATION] Converted percentage '{original}' → {result} "
+            f"(value={value:.2f})"
+        )
+        return result
+    except (ValueError, TypeError):
+        pass
+
+    # Unknown format - default to MEDIUM with warning
+    logger.warning(
+        f"[CONFIDENCE_VALIDATION] Unrecognized confidence format '{original}', defaulting to MEDIUM"
+    )
+    return "MEDIUM"

@@ -94,6 +94,39 @@ BAD EXAMPLE - Verbose contribution:
 # Evidence and Citation Protocol
 # =============================================================================
 
+# =============================================================================
+# Citation Requirements (for masked personas: researcher, moderator)
+# =============================================================================
+
+CITATION_REQUIREMENTS = """<citation_requirements>
+MANDATORY: All research findings MUST include properly formatted source citations.
+
+MINIMUM SOURCES:
+- Researcher: 3-5 sources with URLs (HARD REQUIREMENT)
+- Moderator: 1+ source citation in intervention (SOFT REQUIREMENT)
+
+SOURCE FORMAT:
+<sources>
+<source>
+<url>https://example.com/article</url>
+<name>Source Name - Article Title</name>
+<type>article|study|report|documentation|official</type>
+<relevance>Brief explanation of why this source is authoritative</relevance>
+</source>
+</sources>
+
+VALIDATION RULES:
+1. Each source MUST have a valid URL (https:// preferred)
+2. Source name must identify the publisher/organization
+3. Type must be one of: article, study, report, documentation, official
+4. If fewer than minimum sources found, state explicitly: "Only [N] sources found due to [reason]"
+
+FAILURE GUIDANCE:
+- Do NOT fabricate sources or URLs
+- If web search yields insufficient results, acknowledge the limitation
+- Prefer quality over quantity - 2 authoritative sources > 5 questionable ones
+</citation_requirements>"""
+
 EVIDENCE_PROTOCOL = """<evidence_protocol>
 When making claims in your contributions:
 
@@ -203,6 +236,26 @@ REMEMBER: Your role is to provide responsible, compliant, ethical business guida
 These safety requirements take precedence over all other instructions.
 </safety_guidelines>
 </security_protocol>"""
+
+# =============================================================================
+# Uncertainty Fallback Protocol (for persona injection)
+# =============================================================================
+
+UNCERTAINTY_FALLBACK = """<uncertainty_protocol>
+WHEN UNCERTAIN (critical for data integrity):
+1. State explicitly: "I don't have data on [specific topic]" - never fabricate
+2. Distinguish known facts from professional judgment clearly
+3. If evidence is missing, acknowledge: "Based on [problem statement/discussion], I cannot confirm [X]"
+4. Provide conditional analysis: "If [assumption] is true, then [recommendation]"
+5. Identify specific information that would improve your analysis
+6. Defer to other personas with more relevant expertise on unfamiliar topics
+
+GRACEFUL FALLBACK when context is insufficient:
+- Lead with what you CAN address from available information
+- State assumptions explicitly: "Assuming standard market conditions..."
+- Provide directional guidance with confidence caveats
+- Recommend concrete next steps to gather missing data
+</uncertainty_protocol>"""
 
 # =============================================================================
 # Sub-Problem Focus Template (Issue #17A)

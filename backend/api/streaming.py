@@ -132,7 +132,7 @@ async def get_event_history(
         HTTPException: If session not found or retrieval fails
     """
     user_is_admin = is_admin(current_user)
-    from bo1.state.repositories import session_repository
+    from backend.api.event_publisher import get_event_history_with_fallback
 
     try:
         # Unpack verified session data
@@ -144,31 +144,14 @@ async def get_event_history(
         # Get Redis manager (metadata already verified by VerifiedSession dependency)
         redis_manager = get_redis_manager()
 
-        # Try Redis first (transient storage for active sessions)
-        history_key = f"events_history:{session_id}"
-        historical_events = redis_manager.redis.lrange(history_key, 0, -1)
-
-        # Parse events from Redis
-        events = []
-        for event_data in historical_events:
-            try:
-                payload = json.loads(event_data)
-                events.append(payload)
-            except json.JSONDecodeError:
-                logger.error(f"Failed to parse historical event for {session_id}")
-                continue
-
-        # If Redis is empty, fall back to PostgreSQL (permanent storage)
-        if not events:
-            logger.info(f"Redis empty for {session_id}, falling back to PostgreSQL")
-            pg_events = session_repository.get_events(session_id)
-            for pg_event in pg_events:
-                # PostgreSQL stores the full payload in 'data' column
-                event_data = pg_event.get("data", {})
-                if event_data:
-                    events.append(event_data)
-            if events:
-                logger.info(f"Loaded {len(events)} events from PostgreSQL fallback")
+        # Get events with automatic Redis/PostgreSQL fallback
+        # This handles Redis connection errors gracefully
+        redis_client = redis_manager.redis if redis_manager.is_available else None
+        events = await get_event_history_with_fallback(
+            redis_client=redis_client,
+            session_id=session_id,
+            last_event_id=None,  # No filtering for full history
+        )
 
         logger.info(f"Retrieved {len(events)} historical events for session {session_id}")
 
@@ -408,8 +391,6 @@ async def stream_session_events(
         >>> async for event in stream_session_events("bo1_abc123", "bo1_abc123:5"):
         ...     print(event)  # Events with sequence > 5
     """
-    import json
-
     from backend.api.events import make_event_id, parse_event_id
 
     redis_manager = get_redis_manager()
@@ -418,7 +399,7 @@ async def stream_session_events(
     # Create pubsub connection
     pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
     channel = f"events:{session_id}"
-    history_key = f"events_history:{session_id}"
+    _history_key = f"events_history:{session_id}"  # noqa: F841 - reserved for gap detection
 
     # SSE lifecycle tracking (P1: observability)
     connect_time = time.time()
@@ -455,40 +436,43 @@ async def stream_session_events(
             f"last_event_id={last_event_id}, timestamp={connect_time:.3f}"
         )
 
-        # REPLAY: If resuming, fetch missed events from history
+        # REPLAY: If resuming, fetch missed events from history (with Redis/PostgreSQL fallback)
         if resume_from_sequence > 0:
             try:
-                historical_events = redis_client.lrange(history_key, 0, -1)
+                from backend.api.event_publisher import get_event_history_with_fallback
+
+                # Use fallback function that handles Redis connection errors
+                missed_events = await get_event_history_with_fallback(
+                    redis_client=redis_client if redis_manager.is_available else None,
+                    session_id=session_id,
+                    last_event_id=last_event_id,
+                )
+
                 replay_count = 0
-
-                for event_data in historical_events:
+                for payload in missed_events:
                     try:
-                        payload = json.loads(event_data)
                         seq = payload.get("sequence", 0)
+                        event_type = payload.get("event_type")
+                        data = payload.get("data", {})
 
-                        # Only replay events AFTER the last seen sequence
-                        if seq > resume_from_sequence:
-                            event_type = payload.get("event_type")
-                            data = payload.get("data", {})
+                        # Security: Filter cost data for non-admin users
+                        if strip_cost_data:
+                            if event_type in COST_EVENT_TYPES:
+                                continue  # Skip cost-only events entirely
+                            data = strip_cost_data_from_event(data) or data
 
-                            # Security: Filter cost data for non-admin users
-                            if strip_cost_data:
-                                if event_type in COST_EVENT_TYPES:
-                                    continue  # Skip cost-only events entirely
-                                data = strip_cost_data_from_event(data) or data
+                        event_id = make_event_id(session_id, seq)
 
-                            event_id = make_event_id(session_id, seq)
+                        # Track as seen to dedupe later
+                        seen_sequences.add(seq)
 
-                            # Track as seen to dedupe later
-                            seen_sequences.add(seq)
-
-                            # Format and yield with event ID
-                            sse_event = format_sse_for_type(event_type, data)
-                            # Inject event ID into SSE output
-                            sse_event = f"id: {event_id}\n{sse_event}"
-                            yield sse_event
-                            events_sent += 1
-                            replay_count += 1
+                        # Format and yield with event ID
+                        sse_event = format_sse_for_type(event_type, data)
+                        # Inject event ID into SSE output
+                        sse_event = f"id: {event_id}\n{sse_event}"
+                        yield sse_event
+                        events_sent += 1
+                        replay_count += 1
                     except (json.JSONDecodeError, KeyError):
                         continue
 

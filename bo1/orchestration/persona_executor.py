@@ -12,8 +12,8 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from bo1.config import MODEL_BY_ROLE, resolve_model_alias
-from bo1.constants import TokenLimits
+from bo1.config import MODEL_BY_ROLE, get_settings, resolve_model_alias
+from bo1.constants import LLMConfig, TokenLimits
 from bo1.graph.state import DeliberationGraphState
 from bo1.llm.broker import PromptBroker, PromptRequest, get_model_for_phase
 from bo1.llm.client import ClaudeClient
@@ -92,15 +92,34 @@ class PersonaExecutor:
         # Select model based on phase and round
         selected_model = get_model_for_phase("contribution", round_number=round_number + 1)
 
+        # Apply phase-adaptive temperature adjustment
+        base_temperature = round_config["temperature"]
+        phase = round_config.get("phase", "early")
+        temp_adjustment = LLMConfig.TEMPERATURE_ADJUSTMENTS.get(phase, 0.0)
+        adjusted_temperature = base_temperature + temp_adjustment
+        # Clamp to valid range
+        adjusted_temperature = max(
+            LLMConfig.TEMPERATURE_MIN, min(LLMConfig.TEMPERATURE_MAX, adjusted_temperature)
+        )
+        if temp_adjustment != 0.0:
+            logger.debug(
+                f"Phase-adaptive temperature: base={base_temperature}, "
+                f"phase={phase}, adjustment={temp_adjustment:+.2f}, final={adjusted_temperature}"
+            )
+
         # Create prompt request with retry protection
+        # Use prompt caching if enabled (default: True for ~90% input token cost reduction)
+        settings = get_settings()
+        cache_system = settings.enable_prompt_cache
+
         broker = PromptBroker(client=self.client)
         request = PromptRequest(
             system=system_prompt,
             user_message=user_message,
             prefill=f"[{persona_profile.display_name}]\n\n<thinking>",  # Force character consistency
             model=selected_model,
-            cache_system=True,  # Enable prompt caching for cost optimization
-            temperature=round_config["temperature"],
+            cache_system=cache_system,  # Anthropic prompt caching for cost optimization
+            temperature=adjusted_temperature,
             max_tokens=round_config["max_tokens"],
             phase="deliberation",
             agent_type=f"persona_{persona_profile.code}",
@@ -191,8 +210,11 @@ class PersonaExecutor:
             f"({contrib_msg.token_count} tokens, ${contrib_msg.cost:.4f})"
         )
 
-        # Save to database
-        await self._save_contribution_to_db(contrib_msg, persona_profile)
+        # Save to database as in_flight (will be committed after LangGraph checkpoint)
+        contribution_id = await self._save_contribution_to_db(
+            contrib_msg, persona_profile, status="in_flight"
+        )
+        contrib_msg.metadata = {"contribution_id": contribution_id}
 
         return contrib_msg, llm_response
 
@@ -229,11 +251,15 @@ class PersonaExecutor:
             "Engage directly with the problem statement above. Provide your expert analysis NOW."
         )
 
+        # Use prompt caching based on settings
+        settings = get_settings()
+        cache_system = settings.enable_prompt_cache
+
         request_retry = PromptRequest(
             system=system_prompt,
             user_message=clarification_msg,
             model=selected_model,
-            cache_system=True,
+            cache_system=cache_system,
             temperature=round_config["temperature"] + 0.1,  # Slightly higher temp
             max_tokens=round_config["max_tokens"],
             phase="deliberation",
@@ -255,20 +281,24 @@ class PersonaExecutor:
         return contribution, thinking, original_token_usage, duration_ms
 
     async def _save_contribution_to_db(
-        self, contrib_msg: ContributionMessage, persona_profile: Any
-    ) -> None:
+        self, contrib_msg: ContributionMessage, persona_profile: Any, status: str = "committed"
+    ) -> int | None:
         """Save contribution to database for analytics and recovery.
 
         Args:
             contrib_msg: Contribution message to save
             persona_profile: Persona profile
+            status: Contribution status (in_flight, committed, rolled_back)
+
+        Returns:
+            Contribution ID if saved successfully, None otherwise
 
         Note:
             Errors are logged but don't block deliberation.
         """
         if not self.state:
             logger.debug("No state provided, skipping database save")
-            return
+            return None
 
         try:
             from bo1.state.repositories import contribution_repository
@@ -280,7 +310,7 @@ class PersonaExecutor:
             if hasattr(phase_name, "value"):
                 phase_name = phase_name.value
 
-            contribution_repository.save_contribution(
+            result = contribution_repository.save_contribution(
                 session_id=session_id,
                 persona_code=persona_profile.code,
                 content=contrib_msg.content,
@@ -289,9 +319,15 @@ class PersonaExecutor:
                 cost=contrib_msg.cost or 0.0,
                 tokens=contrib_msg.token_count or 0,
                 model=self.model_id,
+                status=status,
             )
 
-            logger.debug(f"Saved contribution from {persona_profile.display_name} to database")
+            contribution_id = result.get("id") if result else None
+            logger.debug(
+                f"Saved contribution from {persona_profile.display_name} "
+                f"to database (id={contribution_id}, status={status})"
+            )
+            return contribution_id
 
         except Exception as e:
             # Enhanced logging for debugging database save failures
@@ -302,3 +338,23 @@ class PersonaExecutor:
                 f"persona_code={persona_profile.code}, "
                 f"round_number={contrib_msg.round_number}"
             )
+            return None
+
+    @staticmethod
+    def commit_contributions(session_id: str) -> int:
+        """Commit all in-flight contributions after LangGraph checkpoint.
+
+        Should be called after state is successfully checkpointed.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Number of contributions committed
+        """
+        from bo1.state.repositories import contribution_repository
+
+        count = contribution_repository.commit_in_flight_contributions(session_id)
+        if count > 0:
+            logger.info(f"Committed {count} in-flight contributions for session {session_id}")
+        return count

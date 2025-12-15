@@ -90,10 +90,10 @@ async def test_clarification_node_answer_immediately(mock_console_class, mock_is
     assert "business_context" in result
     assert "clarifications" in result["business_context"]
     clarification = result["business_context"]["clarifications"]["What is your current ARR?"]
-    # New format: dict with answer, timestamp, and round_number
+    # New format: dict with answer, answered_at, source, session_id
     assert clarification["answer"] == "We have $2M ARR"
-    assert "timestamp" in clarification
-    assert "round_number" in clarification
+    assert "answered_at" in clarification
+    assert "source" in clarification
 
     # Verify pending_clarification cleared
     assert result.get("pending_clarification") is None
@@ -238,10 +238,10 @@ async def test_clarification_node_preserves_existing_context(mock_console_class,
     # Verify existing clarifications preserved (old format still supported)
     assert result["business_context"]["clarifications"]["Previous question"] == "Previous answer"
 
-    # Verify new clarification added with new format (dict with timestamp)
+    # Verify new clarification added with new format (dict with answered_at)
     new_clarification = result["business_context"]["clarifications"]["What is your growth rate?"]
     assert new_clarification["answer"] == "15% monthly"
-    assert "timestamp" in new_clarification
+    assert "answered_at" in new_clarification
 
 
 @pytest.mark.unit
@@ -284,4 +284,4 @@ async def test_clarification_node_handles_non_dict_context(mock_console_class, m
     assert isinstance(result["business_context"], dict)
     clarification = result["business_context"]["clarifications"]["What is your business model?"]
     assert clarification["answer"] == "B2B SaaS"
-    assert "timestamp" in clarification
+    assert "answered_at" in clarification

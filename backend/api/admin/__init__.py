@@ -25,12 +25,14 @@ from backend.api.admin import (
     beta_whitelist,
     blog,
     cost_analytics,
+    embeddings,
     feature_flags,
     feedback,
     impersonation,
     metrics,
     observability,
     ops,
+    partitions,
     promotions,
     research_cache,
     session_control,
@@ -59,6 +61,8 @@ router.include_router(promotions.router)
 router.include_router(feedback.router)
 router.include_router(ops.router)
 router.include_router(blog.router)
+router.include_router(partitions.router)
+router.include_router(embeddings.router)
 
 # Re-export models for backward compatibility
 from backend.api.admin.models import (  # noqa: E402, F401

@@ -6,6 +6,7 @@ expert personas contributing to board deliberations.
 
 from bo1.prompts.protocols import (
     DELIBERATION_CONTEXT_TEMPLATE,
+    UNCERTAINTY_FALLBACK,
     _build_prompt_protocols,
     _get_security_task,
 )
@@ -170,6 +171,8 @@ NEVER do any of the following:
 - Analyzing the discussion framework instead of the problem itself
 - Breaking character to discuss the conversation structure
 </forbidden_patterns>
+
+{UNCERTAINTY_FALLBACK}
 
 <critical_instruction>
 IMPORTANT: You ARE the expert named above. You are already in character. Do NOT:

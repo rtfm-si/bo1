@@ -1,14 +1,20 @@
 """Insight staleness detection service.
 
-Provides utilities for detecting stale insights and formatting
-insight context for meeting injection.
+Provides utilities for detecting stale insights and metrics, and formatting
+insight context for meeting injection. Supports volatility-aware staleness.
 """
 
 from datetime import UTC, datetime, timedelta
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel
 
+from backend.services.trend_calculator import (
+    VolatilityLevel,
+    classify_volatility,
+    get_staleness_threshold,
+)
 from bo1.state.repositories import user_repository
 from bo1.utils.logging import get_logger
 
@@ -16,6 +22,17 @@ logger = get_logger(__name__)
 
 # Default threshold for stale insights (30 days)
 DEFAULT_STALENESS_DAYS = 30
+
+# Max stale metrics to return (avoid overwhelming user)
+MAX_STALE_METRICS = 3
+
+
+class StalenessReason(str, Enum):
+    """Reason why a metric is considered stale."""
+
+    AGE = "age"  # Metric is older than threshold
+    ACTION_AFFECTED = "action_affected"  # Related action was completed
+    VOLATILITY = "volatility"  # High volatility metric needs refresh
 
 
 class StaleInsight(BaseModel):
@@ -26,6 +43,19 @@ class StaleInsight(BaseModel):
     updated_at: datetime | None
     days_stale: int
     session_id: str | None = None
+
+
+class StaleMetric(BaseModel):
+    """A stale business context metric requiring user refresh."""
+
+    field_name: str
+    current_value: str | float | int | None
+    updated_at: datetime | None
+    days_since_update: int
+    reason: StalenessReason
+    volatility: VolatilityLevel
+    threshold_days: int
+    action_id: str | None = None  # If stale due to action completion
 
 
 class InsightStalenessResult(BaseModel):
@@ -216,3 +246,157 @@ def _get_updated_at(data: Any) -> datetime | None:
         return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         return None
+
+
+# =============================================================================
+# Stale Metric Detection (Volatility-Aware)
+# =============================================================================
+
+
+class StaleMetricsResult(BaseModel):
+    """Result of stale metrics check."""
+
+    has_stale_metrics: bool
+    stale_metrics: list[StaleMetric]
+    total_metrics_checked: int
+
+
+# Metrics that can be refreshed by user
+REFRESHABLE_METRICS = {
+    "revenue",
+    "customers",
+    "growth_rate",
+    "team_size",
+    "mau_bucket",
+    "competitors",
+    "business_stage",
+    "primary_objective",
+}
+
+
+def get_stale_metrics_for_session(
+    user_id: str,
+    action_affected_fields: list[str] | None = None,
+    max_results: int = MAX_STALE_METRICS,
+) -> StaleMetricsResult:
+    """Get metrics that are stale and need refreshing before a meeting.
+
+    Considers:
+    1. Age-based staleness (per volatility level threshold)
+    2. Action-affected metrics (fields related to completed actions)
+    3. Volatility classification (higher volatility = shorter threshold)
+
+    Args:
+        user_id: User ID to check metrics for
+        action_affected_fields: Fields affected by recent actions (flag for refresh)
+        max_results: Maximum number of stale metrics to return
+
+    Returns:
+        StaleMetricsResult with prioritized list of stale metrics
+    """
+    context_data = user_repository.get_context(user_id)
+
+    if not context_data:
+        logger.debug(f"No context found for user {user_id}")
+        return StaleMetricsResult(
+            has_stale_metrics=False,
+            stale_metrics=[],
+            total_metrics_checked=0,
+        )
+
+    metric_history = context_data.get("context_metric_history", {})
+    now = datetime.now(UTC)
+    stale_metrics: list[StaleMetric] = []
+    metrics_checked = 0
+
+    # Check each refreshable metric
+    for field_name in REFRESHABLE_METRICS:
+        current_value = context_data.get(field_name)
+
+        # Skip if no value exists
+        if current_value is None:
+            continue
+
+        metrics_checked += 1
+        history = metric_history.get(field_name, [])
+
+        # Classify volatility
+        volatility = classify_volatility(field_name, history)
+        threshold_days = get_staleness_threshold(volatility)
+
+        # Get last update time
+        updated_at: datetime | None = None
+        if history:
+            try:
+                updated_at = datetime.fromisoformat(
+                    history[0].get("recorded_at", "").replace("Z", "+00:00")
+                )
+            except (ValueError, AttributeError, IndexError):
+                pass
+
+        # Check for action-affected staleness first (highest priority)
+        if action_affected_fields and field_name in action_affected_fields:
+            stale_metrics.append(
+                StaleMetric(
+                    field_name=field_name,
+                    current_value=current_value,
+                    updated_at=updated_at,
+                    days_since_update=(now - updated_at).days if updated_at else 999,
+                    reason=StalenessReason.ACTION_AFFECTED,
+                    volatility=volatility,
+                    threshold_days=threshold_days,
+                )
+            )
+            continue
+
+        # Check age-based staleness
+        if updated_at is None:
+            # No history - use default threshold and mark as stale
+            stale_metrics.append(
+                StaleMetric(
+                    field_name=field_name,
+                    current_value=current_value,
+                    updated_at=None,
+                    days_since_update=999,
+                    reason=StalenessReason.AGE,
+                    volatility=volatility,
+                    threshold_days=threshold_days,
+                )
+            )
+        else:
+            days_since_update = (now - updated_at).days
+            if days_since_update > threshold_days:
+                stale_metrics.append(
+                    StaleMetric(
+                        field_name=field_name,
+                        current_value=current_value,
+                        updated_at=updated_at,
+                        days_since_update=days_since_update,
+                        reason=StalenessReason.AGE,
+                        volatility=volatility,
+                        threshold_days=threshold_days,
+                    )
+                )
+
+    # Sort by priority: action_affected first, then by days_since_update
+    stale_metrics.sort(
+        key=lambda m: (
+            0 if m.reason == StalenessReason.ACTION_AFFECTED else 1,
+            -m.days_since_update,  # More stale = higher priority
+        )
+    )
+
+    # Limit to max results
+    stale_metrics = stale_metrics[:max_results]
+
+    has_stale = len(stale_metrics) > 0
+
+    logger.info(
+        f"Stale metrics check for user {user_id}: {len(stale_metrics)}/{metrics_checked} stale"
+    )
+
+    return StaleMetricsResult(
+        has_stale_metrics=has_stale,
+        stale_metrics=stale_metrics,
+        total_metrics_checked=metrics_checked,
+    )

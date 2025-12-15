@@ -146,6 +146,7 @@ class ReadinessResponse(BaseModel):
         checks: Individual component check results
         services: Service health summaries
         vendor_status: Overall LLM provider status
+        redis_state: Redis connection state (connected/disconnected/reconnecting)
         timestamp: ISO 8601 timestamp
     """
 
@@ -156,13 +157,14 @@ class ReadinessResponse(BaseModel):
         None, description="Service health summaries"
     )
     vendor_status: str | None = Field(None, description="Overall LLM provider status")
+    redis_state: str | None = Field(None, description="Redis connection state")
     timestamp: str = Field(..., description="ISO 8601 timestamp")
 
 
 @router.get(
     "/ready",
     response_model=ReadinessResponse,
-    summary="Readiness probe (k8s)",
+    summary="Readiness probe (public, no auth required)",
     description="""
     Kubernetes readiness probe - checks if the service is ready to accept traffic.
 
@@ -249,15 +251,27 @@ async def readiness_check() -> ReadinessResponse:
     except Exception:
         checks["postgres"] = False
 
-    # Check Redis
+    # Check Redis and get connection state
+    redis_state = None
     try:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        client = redis.from_url(redis_url, socket_timeout=5)
-        client.ping()
-        client.close()
-        checks["redis"] = True
+        # Try to get state from RedisManager if available
+        try:
+            from backend.api.dependencies import get_redis_manager
+
+            redis_manager = get_redis_manager()
+            redis_state = redis_manager.connection_state.value
+            checks["redis"] = redis_manager.is_available
+        except Exception:
+            # Fallback to direct ping if RedisManager not available
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            client = redis.from_url(redis_url, socket_timeout=5)
+            client.ping()
+            client.close()
+            checks["redis"] = True
+            redis_state = "connected"
     except Exception:
         checks["redis"] = False
+        redis_state = "disconnected"
 
     # Get service health summaries
     try:
@@ -301,6 +315,7 @@ async def readiness_check() -> ReadinessResponse:
         checks=checks,
         services=services,
         vendor_status=vendor_status,
+        redis_state=redis_state,
         timestamp=timestamp,
     )
 
@@ -313,7 +328,7 @@ async def readiness_check() -> ReadinessResponse:
 @router.get(
     "/health",
     response_model=HealthResponse,
-    summary="Liveness probe (k8s)",
+    summary="Liveness probe (public, no auth required)",
     description="""
     Kubernetes liveness probe - checks if the API process is alive and responding.
 
@@ -363,7 +378,7 @@ async def health_check() -> HealthResponse:
 @router.get(
     "/health/db",
     response_model=ComponentHealthResponse,
-    summary="PostgreSQL database health check",
+    summary="PostgreSQL health (public, no auth required)",
     description="""
     Check if PostgreSQL database is online and accepting connections.
 
@@ -463,6 +478,8 @@ class PoolHealthResponse(BaseModel):
         used_connections: Connections currently in use
         free_connections: Connections available in pool
         pool_utilization_pct: Pool utilization percentage (0-100)
+        pool_degraded: Whether pool is in degradation mode (queuing requests)
+        queue_depth: Number of requests waiting in degradation queue
         test_query_success: Whether test query succeeded
         message: Status message
         error: Error message if unhealthy
@@ -478,6 +495,8 @@ class PoolHealthResponse(BaseModel):
     used_connections: int = Field(0, description="Connections currently in use")
     free_connections: int = Field(0, description="Connections available in pool")
     pool_utilization_pct: float = Field(0.0, description="Pool utilization percentage (0-100)")
+    pool_degraded: bool = Field(False, description="Whether pool is in degradation mode")
+    queue_depth: int = Field(0, description="Requests waiting in degradation queue")
     test_query_success: bool = Field(..., description="Whether test query succeeded")
     message: str | None = Field(None, description="Status message")
     error: str | None = Field(None, description="Error message if unhealthy")
@@ -487,7 +506,7 @@ class PoolHealthResponse(BaseModel):
 @router.get(
     "/health/db/pool",
     response_model=PoolHealthResponse,
-    summary="PostgreSQL connection pool health check",
+    summary="PostgreSQL pool health (public, no auth required)",
     description="""
     Check health of the PostgreSQL connection pool.
 
@@ -551,14 +570,30 @@ async def health_check_db_pool() -> PoolHealthResponse:
     """
     from backend.api.metrics import prom_metrics
     from bo1.state.database import get_pool_health
+    from bo1.state.pool_degradation import get_degradation_manager
 
     health = get_pool_health()
     status = "healthy" if health["healthy"] else "unhealthy"
 
-    # Build message with utilization info
+    # Get degradation status
+    degradation_manager = get_degradation_manager()
+    degradation_manager.update_pool_state(
+        used_connections=health.get("used_connections", 0),
+        free_connections=health.get("free_connections", 0),
+        max_connections=health.get("max_connections", 20),
+    )
+    degradation_stats = degradation_manager.get_stats()
+
+    # Build message with utilization and degradation info
     utilization_pct = health.get("pool_utilization_pct", 0.0)
     if health["healthy"]:
-        if utilization_pct >= 80:
+        if degradation_stats.should_shed_load:
+            status = "degraded"
+            message = f"Pool shedding load ({utilization_pct}% utilization, queue: {degradation_stats.queue_depth})"
+        elif degradation_stats.is_degraded:
+            status = "degraded"
+            message = f"Pool in degradation mode ({utilization_pct}% utilization)"
+        elif utilization_pct >= 80:
             message = f"Pool healthy but high utilization ({utilization_pct}%)"
         else:
             message = f"Pool functioning correctly ({utilization_pct}% utilization)"
@@ -571,6 +606,10 @@ async def health_check_db_pool() -> PoolHealthResponse:
         free_connections=health.get("free_connections", 0),
         utilization_pct=utilization_pct,
     )
+    prom_metrics.update_degradation_metrics(
+        is_degraded=degradation_stats.is_degraded,
+        queue_depth=degradation_stats.queue_depth,
+    )
 
     return PoolHealthResponse(
         status=status,
@@ -582,6 +621,8 @@ async def health_check_db_pool() -> PoolHealthResponse:
         used_connections=health.get("used_connections", 0),
         free_connections=health.get("free_connections", 0),
         pool_utilization_pct=utilization_pct,
+        pool_degraded=degradation_stats.is_degraded,
+        queue_depth=degradation_stats.queue_depth,
         test_query_success=health["test_query_success"],
         message=message,
         error=health.get("error"),
@@ -592,7 +633,7 @@ async def health_check_db_pool() -> PoolHealthResponse:
 @router.get(
     "/health/redis",
     response_model=ComponentHealthResponse,
-    summary="Redis health check",
+    summary="Redis health (public, no auth required)",
     description="""
     Check if Redis is online and accepting connections.
 
@@ -674,7 +715,7 @@ async def health_check_redis() -> ComponentHealthResponse:
 @router.get(
     "/health/anthropic",
     response_model=ComponentHealthResponse,
-    summary="Anthropic API health check",
+    summary="Anthropic API health (public, no auth required)",
     description="""
     Check if Anthropic API key is configured.
 
@@ -811,7 +852,7 @@ class PersistenceHealthResponse(BaseModel):
 @router.get(
     "/health/persistence",
     response_model=PersistenceHealthResponse,
-    summary="Event persistence health check",
+    summary="Persistence health (public, no auth required)",
     description="""
     Check if events are being correctly persisted from Redis to PostgreSQL.
 
@@ -1114,7 +1155,7 @@ class CircuitBreakersHealthResponse(BaseModel):
 @router.get(
     "/health/circuit-breakers",
     response_model=CircuitBreakersHealthResponse,
-    summary="Circuit breakers health check",
+    summary="Circuit breakers health (public, no auth required)",
     description="""
     Check status of all circuit breakers for external APIs.
 
@@ -1230,7 +1271,7 @@ class CheckpointHealthResponse(BaseModel):
 @router.get(
     "/health/checkpoint",
     response_model=CheckpointHealthResponse,
-    summary="LangGraph checkpoint backend health check",
+    summary="Checkpoint health (public, no auth required)",
     description="""
     Check health of the LangGraph checkpoint backend (Redis or PostgreSQL).
 
@@ -1315,6 +1356,196 @@ async def health_check_checkpoint() -> CheckpointHealthResponse:
     return response
 
 
+class EventQueueHealth(BaseModel):
+    """Event queue health details."""
+
+    depth: int = Field(..., description="Current number of pending events")
+    threshold_warning: int = Field(..., description="Warning threshold")
+    threshold_critical: int = Field(..., description="Critical threshold")
+    healthy: bool = Field(..., description="True if depth below critical threshold")
+    status: str = Field(..., description="ok, warning, or critical")
+
+
+class CircuitBreakerHealth(BaseModel):
+    """Circuit breaker health summary."""
+
+    healthy: bool = Field(..., description="True if all circuits closed/half_open")
+    open_circuits: list[str] = Field(..., description="List of open circuit names")
+    total_circuits: int = Field(..., description="Total number of circuits")
+    state_summary: dict[str, int] = Field(..., description="Count of circuits in each state")
+
+
+class DetailedHealthResponse(BaseModel):
+    """Detailed operational health response.
+
+    Combines event queue depth and circuit breaker status for operational health.
+    """
+
+    status: str = Field(..., description="Overall status: ok, warning, critical")
+    healthy: bool = Field(..., description="True if all components healthy")
+    event_queue: EventQueueHealth = Field(..., description="Event queue health")
+    circuit_breakers: CircuitBreakerHealth = Field(..., description="Circuit breaker health")
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+
+
+@router.get(
+    "/health/detailed",
+    response_model=DetailedHealthResponse,
+    summary="Detailed health (public, no auth required)",
+    description="""
+    Comprehensive operational health check combining:
+    - Event queue depth (pending events in batcher)
+    - LLM provider circuit breaker states
+
+    **Thresholds:**
+    - Event queue warning: 50 pending events
+    - Event queue critical: 100 pending events
+    - Circuit breaker: open state is unhealthy
+
+    **Use Cases:**
+    - Operational dashboards
+    - Pre-traffic verification
+    - Alerting integration
+    """,
+    responses={
+        200: {
+            "description": "Detailed health status (may include warnings)",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "ok",
+                        "healthy": True,
+                        "event_queue": {
+                            "depth": 5,
+                            "threshold_warning": 50,
+                            "threshold_critical": 100,
+                            "healthy": True,
+                            "status": "ok",
+                        },
+                        "circuit_breakers": {
+                            "healthy": True,
+                            "open_circuits": [],
+                            "total_circuits": 3,
+                            "state_summary": {"closed": 3},
+                        },
+                        "timestamp": "2025-01-15T12:00:00.000000",
+                    }
+                }
+            },
+        },
+        503: {
+            "description": "Critical health issues",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "critical",
+                        "healthy": False,
+                        "event_queue": {
+                            "depth": 150,
+                            "threshold_warning": 50,
+                            "threshold_critical": 100,
+                            "healthy": False,
+                            "status": "critical",
+                        },
+                        "circuit_breakers": {
+                            "healthy": False,
+                            "open_circuits": ["anthropic"],
+                            "total_circuits": 3,
+                            "state_summary": {"closed": 2, "open": 1},
+                        },
+                        "timestamp": "2025-01-15T12:00:00.000000",
+                    }
+                }
+            },
+        },
+    },
+)
+async def health_check_detailed() -> DetailedHealthResponse:
+    """Detailed operational health check.
+
+    Combines event queue depth and circuit breaker status for comprehensive
+    operational health monitoring.
+
+    Returns:
+        DetailedHealthResponse with event queue and circuit breaker status
+
+    Raises:
+        HTTPException: 503 if critical health issues detected
+    """
+    from backend.services.event_batcher import get_batcher
+    from bo1.constants import HealthThresholds
+    from bo1.llm.circuit_breaker import get_all_circuit_breaker_status
+
+    timestamp = datetime.now(UTC).isoformat()
+
+    # Get event queue health
+    batcher = get_batcher()
+    queue_depth = batcher.get_queue_depth()
+
+    if queue_depth >= HealthThresholds.EVENT_QUEUE_CRITICAL:
+        queue_status = "critical"
+        queue_healthy = False
+    elif queue_depth >= HealthThresholds.EVENT_QUEUE_WARNING:
+        queue_status = "warning"
+        queue_healthy = True
+    else:
+        queue_status = "ok"
+        queue_healthy = True
+
+    event_queue = EventQueueHealth(
+        depth=queue_depth,
+        threshold_warning=HealthThresholds.EVENT_QUEUE_WARNING,
+        threshold_critical=HealthThresholds.EVENT_QUEUE_CRITICAL,
+        healthy=queue_healthy,
+        status=queue_status,
+    )
+
+    # Get circuit breaker health
+    cb_statuses = get_all_circuit_breaker_status()
+    open_circuits = [
+        name
+        for name, status in cb_statuses.items()
+        if status.get("state") not in HealthThresholds.CIRCUIT_BREAKER_HEALTHY_STATES
+    ]
+    state_counts: dict[str, int] = {}
+    for status in cb_statuses.values():
+        state = status.get("state", "unknown")
+        state_counts[state] = state_counts.get(state, 0) + 1
+
+    cb_healthy = len(open_circuits) == 0
+
+    circuit_breakers = CircuitBreakerHealth(
+        healthy=cb_healthy,
+        open_circuits=open_circuits,
+        total_circuits=len(cb_statuses),
+        state_summary=state_counts,
+    )
+
+    # Determine overall status
+    if not queue_healthy or not cb_healthy:
+        overall_status = "critical"
+        overall_healthy = False
+    elif queue_status == "warning":
+        overall_status = "warning"
+        overall_healthy = True
+    else:
+        overall_status = "ok"
+        overall_healthy = True
+
+    response = DetailedHealthResponse(
+        status=overall_status,
+        healthy=overall_healthy,
+        event_queue=event_queue,
+        circuit_breakers=circuit_breakers,
+        timestamp=timestamp,
+    )
+
+    if not overall_healthy:
+        raise HTTPException(status_code=503, detail=response.model_dump())
+
+    return response
+
+
 # HSTS preload requirements
 HSTS_MIN_MAX_AGE = 31536000  # 1 year in seconds
 HSTS_SUBMISSION_URL = "https://hstspreload.org"
@@ -1323,7 +1554,7 @@ HSTS_SUBMISSION_URL = "https://hstspreload.org"
 @router.get(
     "/health/hsts",
     response_model=HSTSCheckResponse,
-    summary="HSTS preload compliance check",
+    summary="HSTS compliance (public, no auth required)",
     description="""
     Check if HSTS configuration meets browser preload list requirements.
 

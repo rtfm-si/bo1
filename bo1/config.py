@@ -60,11 +60,11 @@ class CacheConfig:
 
     # Persona Selection Cache
     persona_cache_enabled: bool = True
-    persona_cache_similarity_threshold: float = 0.90  # Higher threshold for accuracy
+    persona_cache_similarity_threshold: float = 0.90  # SimilarityCacheThresholds.PERSONA_CACHE
     persona_cache_ttl_seconds: int = 7 * 24 * 60 * 60  # 7 days
 
     # Research Cache
-    research_cache_similarity_threshold: float = 0.85  # Lower threshold for flexibility
+    research_cache_similarity_threshold: float = 0.85  # SimilarityCacheThresholds.RESEARCH_CACHE
     research_cache_freshness_map: dict[str, int] = field(
         default_factory=lambda: {
             "saas_metrics": 90,  # SaaS metrics updated quarterly
@@ -369,10 +369,22 @@ class Settings(BaseSettings):
         description="Enable LLM response caching with Redis backend (60-80% cost reduction)",
     )
 
+    # Anthropic Prompt Caching (system prompt caching for ~90% input token cost reduction)
+    enable_prompt_cache: bool = Field(
+        default=True,
+        description="Enable Anthropic prompt caching for system prompts (90% input token savings on cache hits)",
+    )
+
     # Prompt Injection Audit (uses Claude Haiku to detect injection attempts)
     enable_prompt_injection_audit: bool = Field(
         default=True,
         description="Enable LLM-based prompt injection detection for user inputs",
+    )
+
+    # Synthesis Model Optimization (use Haiku for synthesis to reduce cost ~3x)
+    use_haiku_for_synthesis: bool = Field(
+        default=True,
+        description="Use Haiku instead of Sonnet for synthesis nodes (3x cost reduction, structured output tasks)",
     )
     llm_response_cache_ttl_seconds: int = Field(
         default=86400,  # 24 hours
@@ -505,7 +517,8 @@ MODEL_BY_ROLE = {
     "facilitator": "sonnet",  # Complex orchestration decisions
     "summarizer": "haiku",  # Simple compression task
     "decomposer": "sonnet",  # Complex problem analysis
-    "selector": "sonnet",  # Complex persona matching analysis
+    "selector": "sonnet",  # Complex persona matching analysis (default)
+    "selector_haiku": "haiku",  # Selector for simple problems (complexity 1-6)
     "moderator": "haiku",  # Simple interventions
     "researcher": "haiku",  # Future feature - simple web searches
 }

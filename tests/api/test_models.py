@@ -1,9 +1,16 @@
 """Unit tests for API request/response models (P1: injection validation)."""
 
+from datetime import UTC, datetime
+
 import pytest
 from pydantic import ValidationError
 
-from backend.api.models import CreateSessionRequest
+from backend.api.models import (
+    CreateSessionRequest,
+    MessageResponse,
+    TerminationResponse,
+    WhitelistCheckResponse,
+)
 
 
 class TestCreateSessionRequestValidation:
@@ -106,3 +113,96 @@ class TestCreateSessionRequestValidation:
         """Test that empty (whitespace-only) problem statements are rejected."""
         with pytest.raises(ValidationError):
             CreateSessionRequest(problem_statement="          ")
+
+
+class TestMessageResponseSerialization:
+    """Test MessageResponse model serialization."""
+
+    def test_message_response_serialization(self):
+        """Test that MessageResponse serializes correctly."""
+        response = MessageResponse(status="success", message="Operation completed")
+        data = response.model_dump()
+        assert data == {"status": "success", "message": "Operation completed"}
+
+    def test_message_response_json(self):
+        """Test that MessageResponse generates valid JSON."""
+        response = MessageResponse(status="error", message="Something went wrong")
+        json_str = response.model_dump_json()
+        assert '"status":"error"' in json_str
+        assert '"message":"Something went wrong"' in json_str
+
+    def test_message_response_required_fields(self):
+        """Test that MessageResponse requires both fields."""
+        with pytest.raises(ValidationError):
+            MessageResponse(status="success")  # missing message
+        with pytest.raises(ValidationError):
+            MessageResponse(message="test")  # missing status
+
+
+class TestWhitelistCheckResponseSerialization:
+    """Test WhitelistCheckResponse model serialization."""
+
+    def test_whitelist_check_response_true(self):
+        """Test WhitelistCheckResponse with is_whitelisted=True."""
+        response = WhitelistCheckResponse(is_whitelisted=True)
+        assert response.model_dump() == {"is_whitelisted": True}
+
+    def test_whitelist_check_response_false(self):
+        """Test WhitelistCheckResponse with is_whitelisted=False."""
+        response = WhitelistCheckResponse(is_whitelisted=False)
+        assert response.model_dump() == {"is_whitelisted": False}
+
+    def test_whitelist_check_required_field(self):
+        """Test that is_whitelisted is required."""
+        with pytest.raises(ValidationError):
+            WhitelistCheckResponse()
+
+
+class TestTerminationResponseSerialization:
+    """Test TerminationResponse model serialization."""
+
+    def test_termination_response_serialization(self):
+        """Test that TerminationResponse serializes correctly."""
+        now = datetime.now(UTC)
+        response = TerminationResponse(
+            session_id="bo1_test123",
+            status="terminated",
+            terminated_at=now,
+            termination_type="user_cancelled",
+            billable_portion=0.5,
+            completed_sub_problems=2,
+            total_sub_problems=4,
+            synthesis_available=False,
+        )
+        data = response.model_dump()
+        assert data["session_id"] == "bo1_test123"
+        assert data["status"] == "terminated"
+        assert data["termination_type"] == "user_cancelled"
+        assert data["billable_portion"] == 0.5
+        assert data["completed_sub_problems"] == 2
+        assert data["total_sub_problems"] == 4
+        assert data["synthesis_available"] is False
+
+    def test_termination_response_billable_portion_bounds(self):
+        """Test that billable_portion must be between 0 and 1."""
+        now = datetime.now(UTC)
+        base_args = {
+            "session_id": "bo1_test",
+            "status": "terminated",
+            "terminated_at": now,
+            "termination_type": "user_cancelled",
+            "completed_sub_problems": 0,
+            "total_sub_problems": 1,
+            "synthesis_available": False,
+        }
+
+        # Valid bounds
+        TerminationResponse(billable_portion=0.0, **base_args)
+        TerminationResponse(billable_portion=1.0, **base_args)
+        TerminationResponse(billable_portion=0.5, **base_args)
+
+        # Invalid bounds
+        with pytest.raises(ValidationError):
+            TerminationResponse(billable_portion=-0.1, **base_args)
+        with pytest.raises(ValidationError):
+            TerminationResponse(billable_portion=1.1, **base_args)

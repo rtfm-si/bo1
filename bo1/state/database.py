@@ -5,6 +5,7 @@ Provides:
 - db_session context manager with RLS support
 - Pool health monitoring
 - Connection timeout handling
+- Graceful degradation under pool exhaustion
 
 This module provides the core database infrastructure
 to enable the Repository Pattern implementation.
@@ -28,6 +29,9 @@ class ConnectionTimeoutError(Exception):
 
     pass
 
+
+# Re-export PoolExhaustionError for convenience
+from bo1.state.pool_degradation import PoolExhaustionError  # noqa: E402, F401
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +238,7 @@ DEFAULT_CONNECTION_TIMEOUT = 5.0
 def db_session(
     user_id: str | None = None,
     timeout: float = DEFAULT_CONNECTION_TIMEOUT,
+    allow_degraded: bool = False,
 ) -> Generator[Any, None, None]:
     """Context manager for database transactions with RLS support.
 
@@ -245,15 +250,41 @@ def db_session(
                  app.current_user_id session variable for RLS enforcement.
         timeout: Maximum time to wait for a connection from the pool (default: 5s).
                  Raises ConnectionTimeoutError if exceeded.
+        allow_degraded: If True, allows request to queue when pool is exhausted.
+                       When False (default), raises PoolExhaustionError immediately
+                       if degradation manager indicates load shedding.
 
     Yields:
         psycopg2.extensions.connection: PostgreSQL connection from pool
 
     Raises:
         ConnectionTimeoutError: If pool is exhausted and timeout exceeded
+        PoolExhaustionError: If pool is severely exhausted and allow_degraded=False
     """
+    from bo1.state.pool_degradation import (
+        get_degradation_manager,
+    )
+
+    manager = get_degradation_manager()
+
+    # Check load shedding for non-degradable requests
+    if not allow_degraded and manager.should_shed_load():
+        manager.record_shed_load()
+        stats = manager.get_stats()
+        raise PoolExhaustionError(
+            message="Database pool exhausted, request rejected",
+            queue_depth=stats.queue_depth,
+            wait_estimate=manager.get_retry_after(),
+        )
+
     pool_instance = get_connection_pool()
-    conn = _getconn_with_timeout(pool_instance, timeout)
+
+    # If degraded mode and allowed, track as queued request
+    if allow_degraded and manager.is_degraded():
+        with manager.queued_request():
+            conn = _getconn_with_timeout(pool_instance, timeout)
+    else:
+        conn = _getconn_with_timeout(pool_instance, timeout)
 
     try:
         if user_id:

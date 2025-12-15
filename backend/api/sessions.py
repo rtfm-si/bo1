@@ -29,6 +29,7 @@ from backend.api.middleware.workspace_auth import require_workspace_access
 from backend.api.models import (
     CreateSessionRequest,
     ErrorResponse,
+    MessageResponse,
     PhaseCosts,
     ProviderCosts,
     SessionActionsResponse,
@@ -40,8 +41,10 @@ from backend.api.models import (
     TaskStatusUpdate,
     TaskWithStatus,
     TerminationRequest,
+    TerminationResponse,
 )
 from backend.api.utils.auth_helpers import extract_user_id, is_admin
+from backend.api.utils.degradation import check_pool_health
 from backend.api.utils.errors import handle_api_errors, raise_api_error
 from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
@@ -103,6 +106,10 @@ router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
             "description": "Internal server error",
             "model": ErrorResponse,
         },
+        503: {
+            "description": "Service unavailable - database pool exhausted",
+            "model": ErrorResponse,
+        },
     },
 )
 @limiter.limit(SESSION_RATE_LIMIT)
@@ -112,6 +119,7 @@ async def create_session(
     session_request: CreateSessionRequest,
     user: dict[str, Any] = Depends(get_current_user),
     tier_usage: MeetingLimitResult = Depends(require_meeting_limit),
+    _pool_check: None = Depends(check_pool_health),
 ) -> SessionResponse:
     """Create a new deliberation session.
 
@@ -488,6 +496,43 @@ async def create_session(
             # Non-blocking - log and continue
             logger.debug(f"Staleness check failed (non-blocking): {e}")
 
+        # Check for stale metrics (volatility-aware)
+        stale_metrics_list: list[dict[str, Any]] | None = None
+        try:
+            from backend.services.insight_staleness import get_stale_metrics_for_session
+
+            # Get action-affected fields from pending updates
+            context_data = user_repository.get_context(user_id)
+            action_affected_fields: list[str] = []
+            if context_data:
+                pending = context_data.get("pending_updates", [])
+                for p in pending:
+                    if p.get("refresh_reason") == "action_affected" and p.get("field_name"):
+                        action_affected_fields.append(p["field_name"])
+
+            metrics_result = get_stale_metrics_for_session(
+                user_id=user_id,
+                action_affected_fields=action_affected_fields if action_affected_fields else None,
+            )
+            if metrics_result.has_stale_metrics:
+                stale_metrics_list = [
+                    {
+                        "field_name": m.field_name,
+                        "current_value": m.current_value,
+                        "days_since_update": m.days_since_update,
+                        "reason": m.reason.value,
+                        "volatility": m.volatility.value,
+                    }
+                    for m in metrics_result.stale_metrics
+                ]
+                logger.info(
+                    f"Session {session_id}: {len(metrics_result.stale_metrics)} stale metrics "
+                    f"detected for user {user_id}"
+                )
+        except Exception as e:
+            # Non-blocking - log and continue
+            logger.debug(f"Stale metrics check failed (non-blocking): {e}")
+
         # Record meeting usage for tier tracking (only if NOT using promo)
         if not tier_usage.uses_promo_credit:
             try:
@@ -506,6 +551,7 @@ async def create_session(
             problem_statement=truncate_text(sanitized_problem),
             cost=None,
             stale_insights=stale_insights_list,
+            stale_metrics=stale_metrics_list,
             promo_credits_remaining=(
                 tier_usage.promo_credits_remaining if tier_usage.uses_promo_credit else None
             ),
@@ -994,7 +1040,7 @@ async def delete_session(
 
 @router.post(
     "/{session_id}/terminate",
-    response_model=dict,
+    response_model=TerminationResponse,
     summary="Terminate session early",
     description="Terminate a session early with optional synthesis. Calculates partial billing.",
     responses={
@@ -1008,11 +1054,11 @@ async def delete_session(
 @handle_api_errors("terminate session")
 async def terminate_session(
     session_id: str,
-    termination_request: "TerminationRequest",
+    termination_request: TerminationRequest,
     session_data: VerifiedSession,
     redis_manager: RedisManager = Depends(get_redis_manager),
     session_manager: SessionManager = Depends(get_session_manager),
-) -> dict[str, Any]:
+) -> TerminationResponse:
     """Terminate a session early with partial billing.
 
     This endpoint:
@@ -1149,16 +1195,16 @@ async def terminate_session(
             termination_request.termination_type == "continue_best_effort" and completed_count > 0
         )
 
-        return {
-            "session_id": session_id,
-            "status": "terminated",
-            "terminated_at": now.isoformat(),
-            "termination_type": termination_request.termination_type,
-            "billable_portion": billable_portion,
-            "completed_sub_problems": completed_count,
-            "total_sub_problems": total_sub_problems,
-            "synthesis_available": synthesis_available,
-        }
+        return TerminationResponse(
+            session_id=session_id,
+            status="terminated",
+            terminated_at=now,
+            termination_type=termination_request.termination_type,
+            billable_portion=billable_portion,
+            completed_sub_problems=completed_count,
+            total_sub_problems=total_sub_problems,
+            synthesis_available=synthesis_available,
+        )
 
 
 @router.post(
@@ -1555,7 +1601,7 @@ async def get_session_actions(
 
 @router.patch(
     "/{session_id}/actions/{task_id}",
-    response_model=dict[str, str],
+    response_model=MessageResponse,
     summary="Update task status",
     description="Update the Kanban status of a specific task.",
     responses={
@@ -1569,7 +1615,7 @@ async def update_task_status(
     task_id: str,
     status_update: TaskStatusUpdate,
     session_data: VerifiedSession,
-) -> dict[str, str]:
+) -> MessageResponse:
     """Update the status of a task in a session.
 
     Args:
@@ -1579,7 +1625,7 @@ async def update_task_status(
         session_data: Verified session (user_id, metadata) from dependency
 
     Returns:
-        Success message
+        MessageResponse with status and message
     """
     with track_api_call("sessions.update_task_status", "PATCH"):
         # Validate session ID format
@@ -1610,10 +1656,10 @@ async def update_task_status(
                 f"Updated task {task_id} status to {status_update.status} for session {session_id}"
             )
 
-            return {
-                "status": "success",
-                "message": f"Task {task_id} status updated to {status_update.status}",
-            }
+            return MessageResponse(
+                status="success",
+                message=f"Task {task_id} status updated to {status_update.status}",
+            )
 
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e

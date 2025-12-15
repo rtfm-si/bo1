@@ -57,6 +57,7 @@ class DeliberationGraphState(TypedDict, total=False):
     # Human-in-the-loop
     user_input: str | None
     user_id: str | None  # For context persistence
+    subscription_tier: str | None  # For cost limit enforcement
 
     # Visualization
     current_node: str
@@ -145,6 +146,7 @@ def create_initial_state(
     collect_context: bool = True,
     skip_clarification: bool = False,
     context_ids: dict[str, list[str]] | None = None,
+    subscription_tier: str | None = None,
 ) -> DeliberationGraphState:
     """Create initial graph state from a problem.
 
@@ -157,6 +159,7 @@ def create_initial_state(
         collect_context: Whether to collect business context (default: True)
         skip_clarification: Whether to skip pre-meeting clarifying questions (default: False)
         context_ids: Optional user-selected context {meetings: [...], actions: [...], datasets: [...]}
+        subscription_tier: User's subscription tier for cost limit enforcement (default: "free")
 
     Returns:
         Initial DeliberationGraphState ready for graph execution
@@ -184,6 +187,7 @@ def create_initial_state(
         comparison_options=[],
         comparison_type="",
         user_id=user_id,
+        subscription_tier=subscription_tier or "free",  # Default to free tier
         current_node="start",
         votes=[],
         synthesis=None,

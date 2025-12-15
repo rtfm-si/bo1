@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database } from 'lucide-svelte';
 
 	interface AdminStats {
 		totalUsers: number;
@@ -247,6 +247,23 @@
 					</div>
 				</div>
 				<span class="text-sm text-brand-600 dark:text-brand-400">View analytics →</span>
+			</a>
+
+			<!-- Embeddings Visualization Card -->
+			<a
+				href="/admin/embeddings"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-info-300 dark:hover:border-info-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-info-100 dark:bg-info-900/30 rounded-lg">
+						<Database class="w-6 h-6 text-info-600 dark:text-info-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Embeddings</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Visualize stored embeddings</p>
+					</div>
+				</div>
+				<span class="text-sm text-info-600 dark:text-info-400">View embeddings →</span>
 			</a>
 		</div>
 

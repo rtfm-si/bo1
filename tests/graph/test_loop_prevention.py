@@ -547,6 +547,7 @@ def test_cost_guard_at_exact_limit(sample_problem: Problem):
     state = create_initial_state(
         session_id="test-cost-exact",
         problem=sample_problem,
+        subscription_tier="starter",  # $1.00 limit
     )
     state["metrics"] = DeliberationMetrics(total_cost=1.00)  # Exactly $1.00
 

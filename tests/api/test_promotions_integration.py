@@ -50,7 +50,7 @@ class TestPromotionsMigration:
         assert "uses_count" in columns
         assert "expires_at" in columns
         assert "created_at" in columns
-        assert "is_active" in columns
+        assert "deleted_at" in columns
 
     def test_user_promotions_table_exists(self):
         """User_promotions table should exist with correct columns."""
@@ -107,7 +107,7 @@ class TestSeedPromotions:
         assert promo["type"] == "percentage_discount"
         assert float(promo["value"]) == 10.0
         assert promo["max_uses"] == 1000
-        assert promo["is_active"] is True
+        assert promo["deleted_at"] is None
 
     def test_goodwill5_exists(self):
         """GOODWILL5 promotion should exist."""
@@ -154,7 +154,7 @@ class TestPromotionRepository:
         assert len(promos) >= 2  # At least WELCOME10 and GOODWILL5
 
         for promo in promos:
-            assert promo["is_active"] is True
+            assert promo["deleted_at"] is None
             # Either no expiry or not expired
             if promo["expires_at"]:
                 assert promo["expires_at"] > datetime.now(UTC)
@@ -180,7 +180,7 @@ class TestPromotionRepository:
         assert float(promo["value"]) == 50.0
         assert promo["max_uses"] == 100
         assert promo["uses_count"] == 0
-        assert promo["is_active"] is True
+        assert promo["deleted_at"] is None
 
     def test_create_promotion_normalizes_code(self, cleanup_test_promotions):
         """Code should be normalized to uppercase."""
@@ -210,7 +210,7 @@ class TestPromotionRepository:
         assert result is True
 
         updated = promotion_repository.get_promotion_by_id(promo["id"])
-        assert updated["is_active"] is False
+        assert updated["deleted_at"] is not None
 
     def test_increment_promotion_uses(self, cleanup_test_promotions):
         """Should increment uses_count."""

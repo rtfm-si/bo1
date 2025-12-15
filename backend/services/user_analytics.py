@@ -49,6 +49,14 @@ class UsageStats:
     daily_meetings: list[tuple[date, int]]  # (date, count) pairs
     daily_actions: list[tuple[date, int]]  # (date, created count) pairs
 
+    # Extended KPIs
+    mentor_sessions_count: int = 0
+    data_analyses_count: int = 0
+    projects_count: int = 0
+    actions_started_count: int = 0
+    actions_completed_count: int = 0
+    actions_cancelled_count: int = 0
+
 
 def get_signup_stats(days: int = 30) -> SignupStats:
     """Get signup statistics for the specified period.
@@ -273,6 +281,35 @@ def get_usage_stats(days: int = 30) -> UsageStats:
             )
             daily_actions = [(row["day"], row["count"]) for row in cur.fetchall()]
 
+            # Extended KPIs: mentor sessions (from user_usage table)
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(count), 0) as total
+                FROM user_usage WHERE metric = 'mentor_chats'
+                """
+            )
+            mentor_sessions = cur.fetchone()["total"]
+
+            # Data analyses count
+            cur.execute("SELECT COUNT(*) as total FROM dataset_analyses")
+            data_analyses = cur.fetchone()["total"]
+
+            # Projects count
+            cur.execute("SELECT COUNT(*) as total FROM projects WHERE deleted_at IS NULL")
+            projects_count = cur.fetchone()["total"]
+
+            # Actions by status
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) FILTER (WHERE status = 'in_progress') as started,
+                    COUNT(*) FILTER (WHERE status = 'done') as completed,
+                    COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled
+                FROM actions WHERE deleted_at IS NULL
+                """
+            )
+            action_stats = cur.fetchone()
+
     return UsageStats(
         total_meetings=total_meetings,
         total_actions=total_actions,
@@ -282,4 +319,10 @@ def get_usage_stats(days: int = 30) -> UsageStats:
         actions_created_7d=actions_7d,
         daily_meetings=daily_meetings,
         daily_actions=daily_actions,
+        mentor_sessions_count=mentor_sessions,
+        data_analyses_count=data_analyses,
+        projects_count=projects_count,
+        actions_started_count=action_stats["started"],
+        actions_completed_count=action_stats["completed"],
+        actions_cancelled_count=action_stats["cancelled"],
     )

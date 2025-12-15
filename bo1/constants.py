@@ -71,6 +71,10 @@ class ComplexityScores:
 
     # Complex problems: 7-10 (by exclusion)
 
+    # Persona selector model threshold
+    HAIKU_SELECTOR_THRESHOLD = 6
+    """Use Haiku for persona selection when complexity <= 6 (simple/moderate problems)"""
+
 
 class Lengths:
     """Maximum counts for various deliberation components."""
@@ -216,6 +220,22 @@ class LLMConfig:
     HAIKU_ROUNDS_THRESHOLD = 2
     """Use Haiku for early rounds (1-2)"""
 
+    # Phase-adaptive temperature adjustments (delta applied to base temperature)
+    # Maps to phases from get_round_phase_config(): initial, early, middle, late
+    TEMPERATURE_ADJUSTMENTS: dict[str, float] = {
+        "initial": 0.0,  # Round 1: baseline exploration
+        "early": 0.15,  # Rounds 2-4 (~40%): +0.15 for divergent challenge
+        "middle": 0.0,  # Rounds 5-7 (~70%): analytical, no adjustment
+        "late": -0.10,  # Rounds 8+: -0.10 for convergent synthesis
+    }
+    """Temperature adjustments by deliberation phase"""
+
+    TEMPERATURE_MIN = 0.0
+    """Minimum clamped temperature"""
+
+    TEMPERATURE_MAX = 2.0
+    """Maximum clamped temperature"""
+
 
 # =============================================================================
 # EMBEDDINGS CONFIGURATION (Voyage AI)
@@ -247,7 +267,19 @@ class EmbeddingsConfig:
     """Number of texts to batch before API call"""
 
     BATCH_TIMEOUT_SECONDS = 60.0
-    """Max wait time before flushing partial batch"""
+    """Max wait time before flushing partial batch (high-traffic default)"""
+
+    BATCH_TIMEOUT_HIGH_TRAFFIC = 60.0
+    """Timeout during high traffic (>=0.5 RPS)"""
+
+    BATCH_TIMEOUT_LOW_TRAFFIC = 10.0
+    """Timeout during low traffic (<0.5 RPS) for faster response"""
+
+    TRAFFIC_THRESHOLD_RPS = 0.5
+    """Requests per second threshold for timeout selection"""
+
+    TRAFFIC_WINDOW_SECONDS = 60.0
+    """Window size for measuring traffic rate"""
 
 
 # =============================================================================
@@ -349,11 +381,35 @@ class DatabaseConfig:
     """1 hour grace period before cleanup (for reconnections)"""
 
 
+class SimilarityCacheThresholds:
+    """Centralized similarity thresholds for all cache types.
+
+    These values control cache hit detection:
+    - Higher thresholds = stricter matching, fewer false positives
+    - Lower thresholds = more permissive matching, higher hit rates
+    """
+
+    RESEARCH_CACHE = 0.85
+    """Research cache hit threshold (flexibility for research variations)"""
+
+    PERSONA_CACHE = 0.90
+    """Persona selection cache (higher accuracy required)"""
+
+    CONTRIBUTION_DEDUP = 0.80
+    """Contribution deduplication (theme-level similarity)"""
+
+    RESEARCH_DEDUP = 0.85
+    """In-session research deduplication (match research cache)"""
+
+    CONSOLIDATION = 0.75
+    """Question consolidation/batching (broader grouping)"""
+
+
 class ResearchCacheConfig:
     """Research cache configuration."""
 
-    SIMILARITY_THRESHOLD = 0.85
-    """Similarity for cache hit"""
+    SIMILARITY_THRESHOLD = SimilarityCacheThresholds.RESEARCH_CACHE
+    """Similarity for cache hit (references centralized threshold)"""
 
     QUERY_LIMIT = 10
     """Max results per cache query"""
@@ -366,6 +422,12 @@ class ResearchCacheConfig:
 
     HIT_SAVINGS_USD = 0.07
     """Estimated USD savings per hit"""
+
+    CLEANUP_TTL_DAYS = 90
+    """Days before cache entry eligible for cleanup (matches freshness)"""
+
+    CLEANUP_ACCESS_GRACE_DAYS = 7
+    """Don't delete if accessed within this many days"""
 
 
 # =============================================================================
@@ -528,6 +590,26 @@ class RateLimiterHealth:
 
     ALERT_DEDUP_KEY = "rate_limiter_alert_sent"
     """Redis key for alert deduplication"""
+
+
+# =============================================================================
+# HEALTH CHECK THRESHOLDS
+# =============================================================================
+
+
+class HealthThresholds:
+    """Health check thresholds for operational monitoring."""
+
+    # Event queue depth thresholds
+    EVENT_QUEUE_WARNING = 50
+    """Warning threshold for event queue depth"""
+
+    EVENT_QUEUE_CRITICAL = 100
+    """Critical threshold for event queue depth"""
+
+    # Circuit breaker health
+    CIRCUIT_BREAKER_HEALTHY_STATES = ["closed", "half_open"]
+    """States considered healthy for circuit breakers"""
 
 
 # =============================================================================
@@ -891,6 +973,94 @@ class TierFeatureFlags:
         return TierFeatureFlags.FEATURES.get(tier.lower(), TierFeatureFlags.FEATURES["free"]).copy()
 
 
+class SessionManagerConfig:
+    """Session manager capacity and eviction configuration."""
+
+    MAX_CONCURRENT_SESSIONS = 50
+    """Maximum number of concurrent active sessions"""
+
+    EVICTION_GRACE_PERIOD_SECONDS = 30
+    """Seconds to wait before hard-kill on eviction"""
+
+
+# =============================================================================
+# PARTITION RETENTION CONFIGURATION
+# =============================================================================
+
+
+class PartitionRetention:
+    """Per-table retention periods for partitioned tables (in days)."""
+
+    API_COSTS = 90
+    """90 days retention for api_costs (high-volume cost tracking)"""
+
+    SESSION_EVENTS = 180
+    """180 days retention for session_events (event replay/debugging)"""
+
+    CONTRIBUTIONS = 365
+    """365 days retention for contributions (deliberation history)"""
+
+    TABLE_RETENTION = {
+        "api_costs": API_COSTS,
+        "session_events": SESSION_EVENTS,
+        "contributions": CONTRIBUTIONS,
+    }
+
+    @staticmethod
+    def get_retention_days(table: str) -> int:
+        """Get retention period in days for a partitioned table.
+
+        Args:
+            table: Table name (api_costs, session_events, contributions)
+
+        Returns:
+            Retention period in days (defaults to 365 if table unknown)
+        """
+        return PartitionRetention.TABLE_RETENTION.get(table, 365)
+
+
+class MetricLabelConfig:
+    """Prometheus metric label configuration for cardinality control."""
+
+    LABEL_TRUNCATE_LENGTH = 8
+    """Default truncation length for high-cardinality labels (session_id, user_id)."""
+
+
+class RedisReconnection:
+    """Redis reconnection strategy configuration."""
+
+    INITIAL_DELAY_MS = 1000
+    """Initial retry delay in milliseconds (1 second)"""
+
+    MAX_DELAY_MS = 30000
+    """Maximum retry delay in milliseconds (30 seconds)"""
+
+    MAX_ATTEMPTS = 10
+    """Maximum reconnection attempts before giving up"""
+
+    BUFFER_MAX_EVENTS = 100
+    """Maximum events to buffer during disconnection"""
+
+    BACKOFF_FACTOR = 2.0
+    """Exponential backoff multiplier"""
+
+
+class RetryConfig:
+    """Database retry configuration."""
+
+    MAX_ATTEMPTS = 3
+    """Maximum retry attempts"""
+
+    BASE_DELAY = 0.5
+    """Initial delay in seconds"""
+
+    MAX_DELAY = 10.0
+    """Maximum delay between retries in seconds"""
+
+    TOTAL_TIMEOUT = 30.0
+    """Total timeout across all retries (max_attempts * max_delay worst case)"""
+
+
 class UsageMetrics:
     """Usage metric names and Redis key configuration."""
 
@@ -911,3 +1081,25 @@ class UsageMetrics:
     # TTL values (seconds)
     DAILY_TTL = 86400 * 2  # 2 days (buffer for timezone edge cases)
     MONTHLY_TTL = 86400 * 35  # 35 days (buffer for month rollover)
+
+
+class PoolDegradationConfig:
+    """Database pool graceful degradation configuration."""
+
+    DEGRADATION_THRESHOLD_PCT = 90
+    """Pool utilization % to enter degradation mode (start queuing)"""
+
+    QUEUE_MAX_SIZE = 50
+    """Maximum pending requests in degradation queue"""
+
+    QUEUE_TIMEOUT_SECONDS = 10.0
+    """Maximum time to wait in queue before 503"""
+
+    SHED_LOAD_THRESHOLD_PCT = 95
+    """Pool utilization % to start rejecting writes"""
+
+    RETRY_AFTER_BASE_SECONDS = 5
+    """Base Retry-After header value in seconds"""
+
+    RETRY_AFTER_JITTER_SECONDS = 3
+    """Random jitter to add to Retry-After (prevents thundering herd)"""

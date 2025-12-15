@@ -58,6 +58,9 @@ CMD ["uv", "run", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--por
 # =============================================================================
 FROM base AS production
 
+# Security: Run as non-root user
+RUN useradd -m -u 1000 appuser
+
 # Build metadata - set via docker build --build-arg
 ARG BUILD_TIMESTAMP=""
 ARG GIT_COMMIT=""
@@ -76,6 +79,9 @@ COPY migrations/ /app/migrations/
 
 # Expose port
 EXPOSE 8000
+
+# Switch to non-root user
+USER appuser
 
 # Run without hot reload
 CMD ["uv", "run", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

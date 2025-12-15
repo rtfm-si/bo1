@@ -12,8 +12,10 @@ import signal
 import time
 from typing import Any
 
+from bo1.constants import SessionManagerConfig
 from bo1.state.redis_manager import RedisManager
 from bo1.state.repositories import session_repository
+from bo1.utils.async_context import create_task_with_context
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +37,29 @@ class SessionManager:
     - Graceful shutdown on SIGTERM/SIGINT
     """
 
-    def __init__(self, redis_manager: RedisManager, admin_user_ids: set[str] | None = None) -> None:
+    def __init__(
+        self,
+        redis_manager: RedisManager,
+        admin_user_ids: set[str] | None = None,
+        max_concurrent_sessions: int | None = None,
+    ) -> None:
         """Initialize session manager.
 
         Args:
             redis_manager: Redis state manager for metadata persistence
             admin_user_ids: Set of user IDs with admin privileges (optional)
+            max_concurrent_sessions: Max concurrent sessions (default from config)
         """
         self.redis_manager = redis_manager
         self.admin_user_ids = admin_user_ids or set()
         self.active_executions: dict[str, asyncio.Task[Any]] = {}
+        self._session_start_times: dict[str, float] = {}
+        self._capacity_lock = asyncio.Lock()
+        self.max_concurrent_sessions = (
+            max_concurrent_sessions
+            if max_concurrent_sessions is not None
+            else SessionManagerConfig.MAX_CONCURRENT_SESSIONS
+        )
         self._shutdown_event = asyncio.Event()
         self._setup_signal_handlers()
 
@@ -59,8 +74,123 @@ class SessionManager:
         """
         return user_id in self.admin_user_ids
 
+    def get_oldest_session(self) -> str | None:
+        """Get the oldest active session by start time.
+
+        Returns:
+            Session ID of oldest session or None if no active sessions
+        """
+        if not self._session_start_times:
+            return None
+        return min(self._session_start_times, key=self._session_start_times.get)  # type: ignore[arg-type]
+
+    def is_at_capacity(self) -> bool:
+        """Check if session manager is at capacity.
+
+        Returns:
+            True if at or above max_concurrent_sessions
+        """
+        return len(self.active_executions) >= self.max_concurrent_sessions
+
+    def get_capacity_info(self) -> dict[str, Any]:
+        """Get capacity utilization statistics.
+
+        Returns:
+            Dict with current_sessions, max_sessions, utilization_pct, at_capacity
+        """
+        current = len(self.active_executions)
+        max_sessions = self.max_concurrent_sessions
+        utilization = (current / max_sessions * 100) if max_sessions > 0 else 0
+        return {
+            "current_sessions": current,
+            "max_sessions": max_sessions,
+            "utilization_pct": round(utilization, 1),
+            "at_capacity": current >= max_sessions,
+        }
+
+    async def _evict_oldest_session(self, reason: str = "capacity_eviction") -> str | None:
+        """Evict the oldest session to make room for a new one.
+
+        Sends eviction_warning event before hard-kill after grace period.
+
+        Args:
+            reason: Reason for eviction
+
+        Returns:
+            Evicted session_id or None if no sessions to evict
+        """
+        oldest_session_id = self.get_oldest_session()
+        if not oldest_session_id:
+            return None
+
+        task = self.active_executions.get(oldest_session_id)
+        if not task:
+            # Session in start_times but not in active_executions - clean up
+            self._session_start_times.pop(oldest_session_id, None)
+            return None
+
+        # Get user_id for the evicted session
+        metadata = self._load_session_metadata(oldest_session_id)
+        evicted_user_id = metadata.get("user_id") if metadata else None
+
+        # Emit eviction_warning event
+        try:
+            if self.redis_manager.redis:
+                import json
+
+                warning_event = json.dumps(
+                    {
+                        "event_type": "eviction_warning",
+                        "data": {
+                            "reason": reason,
+                            "grace_period_seconds": SessionManagerConfig.EVICTION_GRACE_PERIOD_SECONDS,
+                            "timestamp": time.time(),
+                        },
+                    }
+                )
+                self.redis_manager.redis.publish(
+                    f"events:{oldest_session_id}", f"data: {warning_event}\n\n"
+                )
+        except Exception as e:
+            logger.warning(f"Failed to publish eviction_warning (non-critical): {e}")
+
+        # Mark session as evicting
+        self._update_session_status(oldest_session_id, "evicting", eviction_reason=reason)
+
+        # Wait grace period
+        await asyncio.sleep(SessionManagerConfig.EVICTION_GRACE_PERIOD_SECONDS)
+
+        # Now kill the session
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            logger.info(f"[{oldest_session_id}] Evicted session task canceled")
+        except Exception as e:
+            logger.error(f"[{oldest_session_id}] Error during eviction cancellation: {e}")
+
+        # Clean up
+        self.active_executions.pop(oldest_session_id, None)
+        self._session_start_times.pop(oldest_session_id, None)
+
+        # Update final status
+        self._update_session_status(
+            oldest_session_id,
+            "evicted",
+            eviction_reason=reason,
+            evicted_by="system",
+        )
+
+        logger.warning(
+            f"[{oldest_session_id}] Session evicted (user={evicted_user_id}). Reason: {reason}"
+        )
+
+        return oldest_session_id
+
     async def start_session(self, session_id: str, user_id: str, coro: Any) -> asyncio.Task[Any]:
         """Start a new deliberation session as background task.
+
+        If at capacity, evicts the oldest session (FIFO) before starting.
 
         Args:
             session_id: Unique session identifier
@@ -70,6 +200,28 @@ class SessionManager:
         Returns:
             Background asyncio.Task
         """
+        async with self._capacity_lock:
+            # Check capacity and evict if needed
+            if self.is_at_capacity():
+                capacity_info = self.get_capacity_info()
+                logger.warning(
+                    f"[{session_id}] At capacity ({capacity_info['current_sessions']}/{capacity_info['max_sessions']}), "
+                    "evicting oldest session"
+                )
+                evicted_id = await self._evict_oldest_session(reason="capacity_eviction")
+                if evicted_id:
+                    logger.info(f"[{session_id}] Evicted session {evicted_id} to make room")
+
+            # Track start time for FIFO ordering
+            self._session_start_times[session_id] = time.time()
+
+            # Log capacity metrics
+            capacity_info = self.get_capacity_info()
+            logger.info(
+                f"[{session_id}] Starting session. Capacity: {capacity_info['current_sessions'] + 1}/"
+                f"{capacity_info['max_sessions']} ({capacity_info['utilization_pct']}%)"
+            )
+
         # Store ownership metadata with running status
         self._update_session_status(session_id, "running", user_id=user_id)
 
@@ -129,12 +281,13 @@ class SessionManager:
                 self._update_session_status(session_id, "failed", error=error_msg)
                 raise
             finally:
-                # Remove from active executions
+                # Remove from active executions and start times
                 self.active_executions.pop(session_id, None)
+                self._session_start_times.pop(session_id, None)
                 logger.info(f"[{session_id}] Removed from active executions")
 
-        # Create background task
-        task = asyncio.create_task(wrapped_execution())
+        # Create background task with context (preserves correlation_id)
+        task = create_task_with_context(wrapped_execution())
         self.active_executions[session_id] = task
 
         logger.info(f"Started session {session_id} for user {user_id}")

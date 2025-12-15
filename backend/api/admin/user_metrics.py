@@ -71,6 +71,14 @@ class UsageMetricsResponse(BaseModel):
     daily_meetings: list[DailyCount]
     daily_actions: list[DailyCount]
 
+    # Extended KPIs
+    mentor_sessions_count: int = 0
+    data_analyses_count: int = 0
+    projects_count: int = 0
+    actions_started_count: int = 0
+    actions_completed_count: int = 0
+    actions_cancelled_count: int = 0
+
 
 class FunnelStageResponse(BaseModel):
     """Single funnel stage."""
@@ -196,6 +204,12 @@ async def get_usage_metrics(
         actions_created_7d=usage_stats.actions_created_7d,
         daily_meetings=[DailyCount(date=d, count=c) for d, c in usage_stats.daily_meetings],
         daily_actions=[DailyCount(date=d, count=c) for d, c in usage_stats.daily_actions],
+        mentor_sessions_count=usage_stats.mentor_sessions_count,
+        data_analyses_count=usage_stats.data_analyses_count,
+        projects_count=usage_stats.projects_count,
+        actions_started_count=usage_stats.actions_started_count,
+        actions_completed_count=usage_stats.actions_completed_count,
+        actions_cancelled_count=usage_stats.actions_cancelled_count,
     )
 
 

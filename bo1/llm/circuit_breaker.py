@@ -39,6 +39,90 @@ class CircuitState(str, Enum):
     HALF_OPEN = "half_open"  # Testing: limited requests allowed
 
 
+class FaultType(str, Enum):
+    """Fault classification for circuit breaker behavior.
+
+    TRANSIENT: Temporary failures that may recover (retry-worthy)
+    PERMANENT: Deterministic failures that won't recover (fail-fast)
+    UNKNOWN: Unclassified errors (treated as transient for safety)
+    """
+
+    TRANSIENT = "transient"  # Rate limits, timeouts, 5xx - retry-worthy
+    PERMANENT = "permanent"  # 400, 401, 403, 404 - fail-fast
+    UNKNOWN = "unknown"  # Unclassified - treat as transient
+
+
+def classify_fault(error: Exception) -> FaultType:
+    """Classify an exception as transient or permanent.
+
+    Args:
+        error: The exception to classify
+
+    Returns:
+        FaultType indicating whether error is transient (retry-worthy) or permanent
+    """
+    # Anthropic SDK exceptions
+    try:
+        from anthropic import (
+            APIConnectionError,
+            APIStatusError,
+            APITimeoutError,
+            RateLimitError,
+        )
+
+        # Rate limits are transient
+        if isinstance(error, RateLimitError):
+            return FaultType.TRANSIENT
+
+        # Timeouts and connection errors are transient
+        if isinstance(error, (APITimeoutError, APIConnectionError)):
+            return FaultType.TRANSIENT
+
+        # API status errors - check HTTP status code
+        if isinstance(error, APIStatusError):
+            status = getattr(error, "status_code", None)
+            if status is None:
+                return FaultType.UNKNOWN
+            # 5xx errors are transient (server issues)
+            if 500 <= status < 600:
+                return FaultType.TRANSIENT
+            # 429 is rate limit (transient)
+            if status == 429:
+                return FaultType.TRANSIENT
+            # 4xx errors (except 429) are permanent (client errors)
+            if 400 <= status < 500:
+                return FaultType.PERMANENT
+            return FaultType.UNKNOWN
+    except ImportError:
+        pass
+
+    # httpx exceptions (used by Anthropic SDK internally)
+    try:
+        from httpx import ConnectError, TimeoutException
+
+        if isinstance(error, (TimeoutException, ConnectError)):
+            return FaultType.TRANSIENT
+    except ImportError:
+        pass
+
+    # Generic HTTP status code extraction
+    status = getattr(error, "status_code", None) or getattr(error, "status", None)
+    if status is not None:
+        if 500 <= status < 600 or status == 429:
+            return FaultType.TRANSIENT
+        if 400 <= status < 500:
+            return FaultType.PERMANENT
+
+    # Connection/timeout patterns in error message
+    error_str = str(error).lower()
+    transient_patterns = ["timeout", "connection", "rate limit", "503", "502", "504"]
+    if any(p in error_str for p in transient_patterns):
+        return FaultType.TRANSIENT
+
+    # Default to unknown (treated as transient for safety)
+    return FaultType.UNKNOWN
+
+
 class CircuitBreakerConfig:
     """Configuration for circuit breaker behavior."""
 
@@ -48,20 +132,35 @@ class CircuitBreakerConfig:
         recovery_timeout: int = CBConstants.RECOVERY_TIMEOUT,
         success_threshold: int = CBConstants.SUCCESS_THRESHOLD,
         excluded_exceptions: tuple[type[Exception], ...] | None = None,
+        # Per-fault-type settings (REL-P2)
+        transient_failure_threshold: int | None = None,
+        permanent_failure_threshold: int | None = None,
+        transient_recovery_timeout: int | None = None,
+        permanent_recovery_timeout: int | None = None,
     ) -> None:
         """Initialize circuit breaker config.
 
         Args:
-            failure_threshold: Number of failures before circuit opens
-            recovery_timeout: Seconds to wait before transitioning to half-open
+            failure_threshold: Number of failures before circuit opens (legacy)
+            recovery_timeout: Seconds to wait before transitioning to half-open (legacy)
             success_threshold: Number of successes in half-open to close circuit
             excluded_exceptions: Exception types that don't count as failures
-                (e.g., validation errors shouldn't trigger circuit)
+            transient_failure_threshold: Failures before opening for transient faults (default: 5)
+            permanent_failure_threshold: Failures before opening for permanent faults (default: 3)
+            transient_recovery_timeout: Recovery timeout for transient faults in seconds (default: 60)
+            permanent_recovery_timeout: Recovery timeout for permanent faults in seconds (default: 300)
         """
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.success_threshold = success_threshold
         self.excluded_exceptions = excluded_exceptions or ()
+        # Per-fault-type thresholds (use legacy values as fallback)
+        self.transient_failure_threshold = transient_failure_threshold or failure_threshold
+        self.permanent_failure_threshold = permanent_failure_threshold or max(
+            3, failure_threshold - 2
+        )
+        self.transient_recovery_timeout = transient_recovery_timeout or recovery_timeout
+        self.permanent_recovery_timeout = permanent_recovery_timeout or recovery_timeout * 5
 
 
 class CircuitBreaker:
@@ -93,19 +192,29 @@ class CircuitBreaker:
         ... )
     """
 
-    def __init__(self, config: CircuitBreakerConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: CircuitBreakerConfig | None = None,
+        service_name: str = "unknown",
+    ) -> None:
         """Initialize circuit breaker.
 
         Args:
             config: CircuitBreakerConfig (uses defaults if None)
+            service_name: Name of the service (for metrics/logging)
         """
         self.config = config or CircuitBreakerConfig()
+        self.service_name = service_name
         self.state = CircuitState.CLOSED
         self.failure_count = 0
         self.success_count = 0
         self.last_failure_time = 0.0
         self.last_state_change = time.time()
         self._lock = asyncio.Lock()
+        # Fault classification tracking (REL-P2)
+        self.transient_failure_count = 0
+        self.permanent_failure_count = 0
+        self.last_fault_type: FaultType | None = None
 
     async def call(
         self,
@@ -187,7 +296,7 @@ class CircuitBreaker:
             logger.debug("Circuit breaker: Success in CLOSED state")
 
     async def _record_failure(self, error: Exception) -> None:
-        """Record a failed call.
+        """Record a failed call with fault classification.
 
         Args:
             error: The exception that occurred
@@ -209,30 +318,70 @@ class CircuitBreaker:
             # If anthropic not available, count all exceptions
             pass
 
-        self.failure_count += 1
+        # Classify the fault (REL-P2)
+        fault_type = classify_fault(error)
+        self.last_fault_type = fault_type
         self.last_failure_time = time.time()
 
+        # Track per-fault-type counters
+        if fault_type == FaultType.PERMANENT:
+            self.permanent_failure_count += 1
+            # Permanent faults don't trigger circuit open (deterministic failures)
+            logger.warning(
+                f"Circuit breaker: Permanent fault {self.permanent_failure_count} - "
+                f"{type(error).__name__}: {str(error)[:100]} (not triggering circuit)"
+            )
+            self._emit_fault_metric(fault_type)
+            return
+        else:
+            # Transient or unknown faults trigger circuit breaker
+            self.transient_failure_count += 1
+            self.failure_count += 1
+
         logger.warning(
-            f"Circuit breaker: Failure {self.failure_count}/{self.config.failure_threshold} - "
+            f"Circuit breaker: {fault_type.value} fault {self.failure_count}/"
+            f"{self.config.transient_failure_threshold} - "
             f"{type(error).__name__}: {str(error)[:100]}"
         )
 
-        # If enough failures, open circuit
-        if self.failure_count >= self.config.failure_threshold:
+        self._emit_fault_metric(fault_type)
+
+        # Only transient faults open circuit
+        if self.failure_count >= self.config.transient_failure_threshold:
             await self._set_state(CircuitState.OPEN)
+
+    def _emit_fault_metric(self, fault_type: FaultType) -> None:
+        """Emit Prometheus metric for fault classification."""
+        try:
+            from backend.api.middleware.metrics import record_circuit_breaker_fault
+
+            record_circuit_breaker_fault(self.service_name, fault_type.value)
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"Failed to emit fault metric: {e}")
 
     async def _check_recovery(self) -> None:
         """Check if we should transition from OPEN to HALF_OPEN.
 
         This is called before each request when in OPEN state.
         If recovery timeout has elapsed, transition to HALF_OPEN.
+        Recovery timeout varies by last fault type (REL-P2).
         """
         if self.state != CircuitState.OPEN:
             return
 
         elapsed = time.time() - self.last_failure_time
-        if elapsed >= self.config.recovery_timeout:
+        # Use fault-type-specific recovery timeout
+        recovery_timeout = self._get_recovery_timeout()
+        if elapsed >= recovery_timeout:
             await self._set_state(CircuitState.HALF_OPEN)
+
+    def _get_recovery_timeout(self) -> int:
+        """Get recovery timeout based on last fault type."""
+        if self.last_fault_type == FaultType.PERMANENT:
+            return self.config.permanent_recovery_timeout
+        return self.config.transient_recovery_timeout
 
     async def _set_state(self, new_state: CircuitState) -> None:
         """Transition to a new state.
@@ -248,6 +397,9 @@ class CircuitBreaker:
         if new_state == CircuitState.CLOSED:
             self.failure_count = 0
             self.success_count = 0
+            self.transient_failure_count = 0
+            self.permanent_failure_count = 0
+            self.last_fault_type = None
         elif new_state == CircuitState.HALF_OPEN:
             self.success_count = 0
         elif new_state == CircuitState.OPEN:
@@ -255,8 +407,12 @@ class CircuitBreaker:
 
         logger.warning(
             f"Circuit breaker: {old_state.value.upper()} -> {new_state.value.upper()} "
-            f"(failures={self.failure_count}, successes={self.success_count})"
+            f"(failures={self.failure_count}, transient={self.transient_failure_count}, "
+            f"permanent={self.permanent_failure_count}, successes={self.success_count})"
         )
+
+        # Emit Prometheus metrics
+        self._emit_state_metrics(new_state, old_state)
 
     def call_sync(
         self,
@@ -342,13 +498,20 @@ class CircuitBreaker:
         if new_state == CircuitState.CLOSED:
             self.failure_count = 0
             self.success_count = 0
+            self.transient_failure_count = 0
+            self.permanent_failure_count = 0
+            self.last_fault_type = None
         elif new_state == CircuitState.HALF_OPEN:
             self.success_count = 0
 
         logger.warning(
             f"Circuit breaker: {old_state.value.upper()} -> {new_state.value.upper()} "
-            f"(failures={self.failure_count}, successes={self.success_count})"
+            f"(failures={self.failure_count}, transient={self.transient_failure_count}, "
+            f"permanent={self.permanent_failure_count}, successes={self.success_count})"
         )
+
+        # Emit Prometheus metrics
+        self._emit_state_metrics(new_state, old_state)
 
     def get_status(self) -> dict[str, Any]:
         """Get current circuit breaker status.
@@ -364,7 +527,36 @@ class CircuitBreaker:
             "uptime_seconds": uptime,
             "is_open": self.state == CircuitState.OPEN,
             "is_half_open": self.state == CircuitState.HALF_OPEN,
+            # Fault classification stats (REL-P2)
+            "transient_failure_count": self.transient_failure_count,
+            "permanent_failure_count": self.permanent_failure_count,
+            "last_fault_type": self.last_fault_type.value if self.last_fault_type else None,
         }
+
+    def _emit_state_metrics(self, new_state: CircuitState, old_state: CircuitState) -> None:
+        """Emit Prometheus metrics for state changes.
+
+        Args:
+            new_state: The new circuit state
+            old_state: The previous circuit state
+        """
+        try:
+            from backend.api.middleware.metrics import (
+                record_circuit_breaker_state,
+                record_circuit_breaker_trip,
+            )
+
+            # Record current state
+            record_circuit_breaker_state(self.service_name, new_state.value)
+
+            # Record trip if transitioning to OPEN
+            if new_state == CircuitState.OPEN and old_state != CircuitState.OPEN:
+                record_circuit_breaker_trip(self.service_name)
+        except ImportError:
+            # Metrics module not available (e.g., during tests)
+            pass
+        except Exception as e:
+            logger.debug(f"Failed to emit circuit breaker metrics: {e}")
 
 
 class CircuitBreakerOpenError(Exception):
@@ -377,32 +569,57 @@ class CircuitBreakerOpenError(Exception):
 _circuit_breakers: dict[str, CircuitBreaker] = {}
 
 
-# Service-specific configurations
+# Service-specific configurations with fault-type settings (REL-P2)
 SERVICE_CONFIGS: dict[str, dict[str, int]] = {
     "anthropic": {
         "failure_threshold": 5,
         "recovery_timeout": 60,
         "success_threshold": 2,
+        # Transient-focused (API reliability)
+        "transient_failure_threshold": 5,
+        "permanent_failure_threshold": 3,
+        "transient_recovery_timeout": 60,
+        "permanent_recovery_timeout": 300,
     },
     "openai": {
         "failure_threshold": 5,
         "recovery_timeout": 60,
         "success_threshold": 2,
+        # Transient-focused (API reliability)
+        "transient_failure_threshold": 5,
+        "permanent_failure_threshold": 3,
+        "transient_recovery_timeout": 60,
+        "permanent_recovery_timeout": 300,
     },
     "voyage": {
         "failure_threshold": 8,  # Higher threshold - embeddings have retries
         "recovery_timeout": 30,  # Shorter recovery - embeddings are fast
         "success_threshold": 2,
+        # Transient-focused (embeddings)
+        "transient_failure_threshold": 8,
+        "permanent_failure_threshold": 5,
+        "transient_recovery_timeout": 30,
+        "permanent_recovery_timeout": 120,
     },
     "brave": {
         "failure_threshold": 5,
         "recovery_timeout": 45,  # Rate limit sensitive
         "success_threshold": 2,
+        # Rate-limit-focused (search API)
+        "transient_failure_threshold": 5,
+        "permanent_failure_threshold": 3,
+        "transient_recovery_timeout": 45,
+        "permanent_recovery_timeout": 180,
     },
     "tavily": {
         "failure_threshold": 5,
         "recovery_timeout": 45,  # Similar to Brave - rate limit sensitive
         "success_threshold": 2,
+        # Rate-limit-focused (search API)
+        "transient_failure_threshold": 5,
+        "permanent_failure_threshold": 3,
+        "transient_recovery_timeout": 45,
+        "permanent_recovery_timeout": 180,
     },
 }
 
@@ -426,8 +643,12 @@ def get_service_circuit_breaker(service: str) -> CircuitBreaker:
             failure_threshold=config_params["failure_threshold"],
             recovery_timeout=config_params["recovery_timeout"],
             success_threshold=config_params["success_threshold"],
+            transient_failure_threshold=config_params.get("transient_failure_threshold"),
+            permanent_failure_threshold=config_params.get("permanent_failure_threshold"),
+            transient_recovery_timeout=config_params.get("transient_recovery_timeout"),
+            permanent_recovery_timeout=config_params.get("permanent_recovery_timeout"),
         )
-        _circuit_breakers[service] = CircuitBreaker(config)
+        _circuit_breakers[service] = CircuitBreaker(config, service_name=service)
         logger.debug(f"Created circuit breaker for service: {service}")
     return _circuit_breakers[service]
 

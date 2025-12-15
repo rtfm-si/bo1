@@ -84,7 +84,7 @@ async def create_promotion(
 @router.delete(
     "/{promotion_id}",
     summary="Deactivate promotion",
-    description="Soft-delete a promotion by setting is_active=false.",
+    description="Soft-delete a promotion by setting deleted_at timestamp.",
     responses={
         200: {"description": "Promotion deactivated successfully"},
         404: {"description": "Promotion not found", "model": ErrorResponse},
@@ -105,7 +105,32 @@ async def deactivate_promotion(
 
     result = promotion_repository.deactivate_promotion(promotion_id)
     if not result:
-        raise HTTPException(status_code=404, detail="Promotion not found")
+        raise HTTPException(status_code=404, detail="Promotion not found or already deactivated")
 
     logger.info(f"Admin: Deactivated promotion {promotion_id} ({promo['code']})")
     return {"status": "deactivated", "promotion_id": promotion_id}
+
+
+@router.post(
+    "/{promotion_id}/restore",
+    summary="Restore promotion",
+    description="Restore a soft-deleted promotion by clearing deleted_at.",
+    responses={
+        200: {"description": "Promotion restored successfully"},
+        404: {"description": "Promotion not found or not deleted", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("restore promotion")
+async def restore_promotion(
+    promotion_id: str,
+    _admin: str = Depends(require_admin_any),
+) -> dict:
+    """Restore a soft-deleted promotion."""
+    result = promotion_repository.restore_promotion(promotion_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Promotion not found or not deleted")
+
+    logger.info(f"Admin: Restored promotion {promotion_id}")
+    return {"status": "restored", "promotion_id": promotion_id}

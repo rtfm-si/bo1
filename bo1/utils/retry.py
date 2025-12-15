@@ -14,15 +14,18 @@ from typing import Any, TypeVar
 from psycopg2 import InterfaceError, OperationalError
 from psycopg2.pool import PoolError
 
+from bo1.constants import RetryConfig
+
 logger = logging.getLogger(__name__)
 
 # Type variable for decorated functions
 F = TypeVar("F", bound=Callable[..., Any])
 
-# Default retry configuration
-DEFAULT_MAX_ATTEMPTS = 3
-DEFAULT_BASE_DELAY = 0.5  # seconds
-DEFAULT_MAX_DELAY = 10.0  # seconds
+# Default retry configuration (aliased from RetryConfig for backward compat)
+DEFAULT_MAX_ATTEMPTS = RetryConfig.MAX_ATTEMPTS
+DEFAULT_BASE_DELAY = RetryConfig.BASE_DELAY
+DEFAULT_MAX_DELAY = RetryConfig.MAX_DELAY
+DEFAULT_TOTAL_TIMEOUT = RetryConfig.TOTAL_TIMEOUT
 
 # Exceptions that trigger retry (transient DB errors)
 RETRYABLE_EXCEPTIONS = (OperationalError, InterfaceError, PoolError)
@@ -33,6 +36,7 @@ def retry_db(
     base_delay: float = DEFAULT_BASE_DELAY,
     max_delay: float = DEFAULT_MAX_DELAY,
     exceptions: tuple[type[Exception], ...] = RETRYABLE_EXCEPTIONS,
+    total_timeout: float | None = DEFAULT_TOTAL_TIMEOUT,
 ) -> Callable[[F], F]:
     """Decorator for retrying database operations with exponential backoff.
 
@@ -41,9 +45,14 @@ def retry_db(
         base_delay: Initial delay between retries in seconds (default: 0.5)
         max_delay: Maximum delay between retries in seconds (default: 10)
         exceptions: Tuple of exception types to catch and retry
+        total_timeout: Total timeout across all retries in seconds (default: 30).
+            None disables total timeout (backward compat).
 
     Returns:
         Decorated function with retry logic
+
+    Raises:
+        TimeoutError: If total elapsed time exceeds total_timeout
 
     Example:
         @retry_db(max_attempts=3)
@@ -61,8 +70,20 @@ def retry_db(
             last_exception = None
             request_id = get_request_id() or "unknown"
             func_name = getattr(func, "__name__", str(func))
+            start_time = time.monotonic()
 
             for attempt in range(1, max_attempts + 1):
+                # Check total timeout before attempt
+                if total_timeout is not None:
+                    elapsed = time.monotonic() - start_time
+                    if elapsed > total_timeout:
+                        msg = (
+                            f"[{request_id}] {func_name} total timeout exceeded: "
+                            f"{elapsed:.2f}s > {total_timeout}s after {attempt - 1} attempts"
+                        )
+                        logger.error(msg)
+                        raise TimeoutError(msg)
+
                 try:
                     return func(*args, **kwargs)
                 except exceptions as e:
@@ -99,10 +120,22 @@ def retry_db_async(
     base_delay: float = DEFAULT_BASE_DELAY,
     max_delay: float = DEFAULT_MAX_DELAY,
     exceptions: tuple[type[Exception], ...] = RETRYABLE_EXCEPTIONS,
+    total_timeout: float | None = DEFAULT_TOTAL_TIMEOUT,
 ) -> Callable[[F], F]:
     """Async version of retry_db decorator.
 
     Same behavior as retry_db but uses asyncio.sleep for async functions.
+
+    Args:
+        max_attempts: Maximum number of retry attempts (default: 3)
+        base_delay: Initial delay between retries in seconds (default: 0.5)
+        max_delay: Maximum delay between retries in seconds (default: 10)
+        exceptions: Tuple of exception types to catch and retry
+        total_timeout: Total timeout across all retries in seconds (default: 30).
+            None disables total timeout (backward compat).
+
+    Raises:
+        asyncio.TimeoutError: If total elapsed time exceeds total_timeout
     """
     import asyncio
 
@@ -115,8 +148,20 @@ def retry_db_async(
             last_exception = None
             request_id = get_request_id() or "unknown"
             func_name = getattr(func, "__name__", str(func))
+            start_time = time.monotonic()
 
             for attempt in range(1, max_attempts + 1):
+                # Check total timeout before attempt
+                if total_timeout is not None:
+                    elapsed = time.monotonic() - start_time
+                    if elapsed > total_timeout:
+                        msg = (
+                            f"[{request_id}] {func_name} total timeout exceeded: "
+                            f"{elapsed:.2f}s > {total_timeout}s after {attempt - 1} attempts"
+                        )
+                        logger.error(msg)
+                        raise TimeoutError(msg)
+
                 try:
                     return await func(*args, **kwargs)
                 except exceptions as e:

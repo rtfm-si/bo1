@@ -67,7 +67,8 @@ async def get_alert_history(
             if alert_type:
                 cur.execute(
                     """
-                    SELECT id, alert_type, severity, title, message, metadata, delivered, created_at
+                    SELECT id, alert_type, severity, title, message, metadata, delivered,
+                           created_at, updated_at
                     FROM alert_history
                     WHERE alert_type = %s
                     ORDER BY created_at DESC
@@ -78,7 +79,8 @@ async def get_alert_history(
             else:
                 cur.execute(
                     """
-                    SELECT id, alert_type, severity, title, message, metadata, delivered, created_at
+                    SELECT id, alert_type, severity, title, message, metadata, delivered,
+                           created_at, updated_at
                     FROM alert_history
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
@@ -97,6 +99,7 @@ async def get_alert_history(
             metadata=row["metadata"],
             delivered=row["delivered"],
             created_at=row["created_at"].isoformat() if row["created_at"] else "",
+            updated_at=row["updated_at"].isoformat() if row["updated_at"] else None,
         )
         for row in rows
     ]

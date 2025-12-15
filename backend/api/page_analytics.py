@@ -118,8 +118,8 @@ def get_client_ip(request: Request) -> str | None:
 @router.post(
     "/page-view",
     response_model=PageViewResponse,
-    summary="Record page view",
-    description="Record a page view event. Rate limited to 10/minute per IP.",
+    summary="Record page view (public, no auth required)",
+    description="Record a page view event. Rate limited to 10/minute per IP. No authentication required.",
 )
 @limiter.limit(PAGE_VIEW_RATE_LIMIT)
 @handle_api_errors("record page view")
@@ -150,11 +150,12 @@ async def record_page_view(
     )
 
 
-@router.patch(
+@router.api_route(
     "/page-view/{view_id}",
+    methods=["PATCH", "POST"],
     response_model=PageViewResponse | None,
-    summary="Update page view",
-    description="Update page view with duration/scroll data (call on page unload).",
+    summary="Update page view (public, no auth required)",
+    description="Update page view with duration/scroll data (call on page unload). Supports POST for sendBeacon. No authentication required.",
 )
 @limiter.limit(PAGE_VIEW_RATE_LIMIT)
 @handle_api_errors("update page view")
@@ -184,8 +185,8 @@ async def update_page_view(
 @router.post(
     "/conversion",
     response_model=ConversionResponse,
-    summary="Record conversion event",
-    description="Record a conversion event (signup click, etc.). Rate limited to 5/minute per IP.",
+    summary="Record conversion event (public, no auth required)",
+    description="Record a conversion event (signup click, etc.). Rate limited to 5/minute per IP. No authentication required.",
 )
 @limiter.limit(CONVERSION_RATE_LIMIT)
 @handle_api_errors("record conversion")

@@ -249,6 +249,8 @@ export function trackCTAClick(elementId?: string, elementText?: string): void {
  * Call this on component destroy if needed
  */
 export function cleanupPageTracking(): void {
+	if (typeof window === 'undefined') return;
+
 	window.removeEventListener('scroll', updateScrollDepth);
 	window.removeEventListener('visibilitychange', handleVisibilityChange);
 	window.removeEventListener('pagehide', handlePageHide);

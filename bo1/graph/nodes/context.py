@@ -663,17 +663,30 @@ async def clarification_node(state: DeliberationGraphState) -> dict[str, Any]:
         logger.info(f"Clarification answered: {question[:50]}...")
 
         # Update business_context with clarification (with timestamp per TODO.md)
-        business_context = state.get("business_context") or {}
-        if not isinstance(business_context, dict):
-            business_context = {}
-        clarifications = business_context.get("clarifications", {})
-        # Store with timestamp and round number
-        clarifications[question] = {
-            "answer": answer,
-            "timestamp": datetime.now(UTC).isoformat(),
-            "round_number": state.get("round_number", 0),
-        }
-        business_context["clarifications"] = clarifications
+        # Only store if the response contains meaningful content
+        from backend.services.insight_parser import is_valid_insight_response
+
+        if is_valid_insight_response(answer):
+            business_context = state.get("business_context") or {}
+            if not isinstance(business_context, dict):
+                business_context = {}
+            clarifications = business_context.get("clarifications", {})
+            # Store with validated structure
+            from backend.api.context.services import normalize_clarification_for_storage
+
+            clarification_entry = {
+                "answer": answer,
+                "answered_at": datetime.now(UTC).isoformat(),
+                "session_id": state.get("session_id"),
+                "source": "meeting",
+            }
+            clarifications[question] = normalize_clarification_for_storage(clarification_entry)
+            business_context["clarifications"] = clarifications
+        else:
+            logger.debug(
+                f"Skipping storage of invalid insight response: {answer[:50] if answer else 'None'}..."
+            )
+            business_context = state.get("business_context") or {}
 
         return {
             "business_context": business_context,

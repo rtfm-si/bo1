@@ -26,14 +26,18 @@ test.describe('Authentication', () => {
 			// Check heading
 			await expect(page.getByRole('heading', { name: 'Sign in to continue' })).toBeVisible();
 
-			// Check Google sign-in button
+			// Check GDPR consent checkbox exists
+			const gdprCheckbox = page.getByRole('checkbox');
+			await expect(gdprCheckbox).toBeVisible();
+
+			// Check Google sign-in button (disabled until GDPR consent)
 			const googleButton = page.getByRole('button', { name: /Sign in with Google/i });
 			await expect(googleButton).toBeVisible();
-			await expect(googleButton).toBeEnabled();
+			await expect(googleButton).toBeDisabled();
 
-			// Check disabled OAuth buttons (coming soon)
-			await expect(page.getByRole('button', { name: /LinkedIn.*Coming Soon/i })).toBeVisible();
-			await expect(page.getByRole('button', { name: /GitHub.*Coming Soon/i })).toBeVisible();
+			// Check GDPR consent and verify button becomes enabled
+			await gdprCheckbox.check();
+			await expect(googleButton).toBeEnabled();
 		});
 
 		test('shows closed beta notice', async ({ page }) => {

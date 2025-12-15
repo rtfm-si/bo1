@@ -9,7 +9,7 @@
  * Note: Full OAuth flow testing requires mock OAuth provider.
  * These tests verify the UI behavior, not the OAuth integration.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test.describe('Authentication', () => {
 	// In E2E mode, login page redirects to dashboard (user is auto-authenticated)

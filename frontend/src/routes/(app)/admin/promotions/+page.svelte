@@ -126,22 +126,25 @@
 	<!-- Main Content -->
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Filter Tabs -->
-		<div class="mb-6 flex gap-2">
+		<div class="mb-6 flex gap-2" data-testid="filter-tabs">
 			<button
 				class="px-4 py-2 rounded-md text-sm font-medium transition-colors {filter === 'all' ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
 				onclick={() => filter = 'all'}
+				data-testid="filter-all"
 			>
 				All ({promotions.length})
 			</button>
 			<button
 				class="px-4 py-2 rounded-md text-sm font-medium transition-colors {filter === 'active' ? 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
 				onclick={() => filter = 'active'}
+				data-testid="filter-active"
 			>
 				Active
 			</button>
 			<button
 				class="px-4 py-2 rounded-md text-sm font-medium transition-colors {filter === 'expired' ? 'bg-error-100 text-error-700 dark:bg-error-900/30 dark:text-error-300' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
 				onclick={() => filter = 'expired'}
+				data-testid="filter-expired"
 			>
 				Expired/Inactive
 			</button>

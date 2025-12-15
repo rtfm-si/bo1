@@ -11,7 +11,7 @@
  * Note: Full deliberation is not tested here due to SSE complexity.
  * See meeting-complete.spec.ts for completed meeting tests.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 // Skip tests that require authentication in OAuth-enabled environments
 const authSkip = process.env.E2E_SKIP_AUTH === 'true';

@@ -11,7 +11,7 @@
  * Note: These tests use mocked API responses to simulate completed meetings.
  * Full SSE streaming is not tested here.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 // Mock completed session data - matches SessionResponse structure
 const mockCompletedSession = {

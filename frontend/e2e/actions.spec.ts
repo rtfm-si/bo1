@@ -10,7 +10,7 @@
  *
  * Note: Uses mocked API responses for consistent test data.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 // Mock actions data - matches AllActionsResponse structure
 const mockActions = {

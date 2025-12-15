@@ -9,7 +9,7 @@
  *
  * Note: Uses mocked API responses for consistent test data.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 // Mock promotions data - matches Promotion interface
 const mockPromotions = [
@@ -212,10 +212,10 @@ test.describe('Admin Promotions Page', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Check filter tabs exist
-			await expect(page.getByRole('button', { name: /All/i })).toBeVisible();
-			await expect(page.getByRole('button', { name: /Active/i })).toBeVisible();
-			await expect(page.getByRole('button', { name: /Expired/i })).toBeVisible();
+			// Check filter tabs exist (use data-testid to avoid GDPR banner conflicts)
+			await expect(page.getByTestId('filter-all')).toBeVisible();
+			await expect(page.getByTestId('filter-active')).toBeVisible();
+			await expect(page.getByTestId('filter-expired')).toBeVisible();
 		});
 
 		test('clicking Active tab filters to active promotions only', async ({ page }) => {
@@ -228,8 +228,8 @@ test.describe('Admin Promotions Page', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// Click Active filter
-			await page.getByRole('button', { name: /Active/i }).click();
+			// Click Active filter (use data-testid to avoid GDPR banner conflicts)
+			await page.getByTestId('filter-active').click();
 			await page.waitForTimeout(300);
 
 			// WELCOME10 and UNLIMITED should be visible (active, not expired)
@@ -272,12 +272,12 @@ test.describe('Admin Promotions Page', () => {
 
 			await page.waitForLoadState('networkidle');
 
-			// First filter to Active
-			await page.getByRole('button', { name: /Active/i }).click();
+			// First filter to Active (use data-testid to avoid GDPR banner conflicts)
+			await page.getByTestId('filter-active').click();
 			await page.waitForTimeout(300);
 
 			// Then click All
-			await page.getByRole('button', { name: /All/i }).click();
+			await page.getByTestId('filter-all').click();
 			await page.waitForTimeout(300);
 
 			// All promotions should be visible

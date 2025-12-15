@@ -309,12 +309,19 @@ jobs:
       - name: Start API server
         run: |
           uv run uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 &
-          sleep 5
+          # Wait for backend to be ready (app init takes ~6s)
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+              echo "Backend ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/boardofone_test
           REDIS_URL: redis://localhost:6379
           ANTHROPIC_API_KEY: test-key-not-used
-          ADMIN_API_KEY: test-admin-key
+          ADMIN_API_KEY: test-admin-key-for-ci-testing-purposes
           DEBUG: "true"
           ENABLE_SUPERTOKENS_AUTH: "false"
 

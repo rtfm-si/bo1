@@ -11,7 +11,7 @@
  */
 import { test, expect } from './fixtures';
 
-// Mock promotions data - matches Promotion interface
+// Mock promotions data - matches Promotion interface (uses deleted_at, not is_active)
 const mockPromotions = [
 	{
 		id: 'promo-1',
@@ -22,7 +22,7 @@ const mockPromotions = [
 		uses_count: 25,
 		expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
 		created_at: new Date().toISOString(),
-		is_active: true
+		deleted_at: null
 	},
 	{
 		id: 'promo-2',
@@ -33,7 +33,7 @@ const mockPromotions = [
 		uses_count: 50,
 		expires_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days ago (expired)
 		created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-		is_active: true
+		deleted_at: null
 	},
 	{
 		id: 'promo-3',
@@ -44,7 +44,7 @@ const mockPromotions = [
 		uses_count: 10,
 		expires_at: null,
 		created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-		is_active: false
+		deleted_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() // Deactivated 30 days ago
 	},
 	{
 		id: 'promo-4',
@@ -55,7 +55,7 @@ const mockPromotions = [
 		uses_count: 15,
 		expires_at: null,
 		created_at: new Date().toISOString(),
-		is_active: true
+		deleted_at: null
 	}
 ];
 
@@ -69,7 +69,7 @@ const newPromotion = {
 	uses_count: 0,
 	expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
 	created_at: new Date().toISOString(),
-	is_active: true
+	deleted_at: null
 };
 
 test.describe('Admin Promotions Page', () => {
@@ -317,6 +317,7 @@ test.describe('Admin Promotions Page', () => {
 
 			await page.waitForLoadState('networkidle');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
+			await expect(page.getByRole('dialog')).toBeVisible();
 
 			// Check form fields
 			await expect(page.getByLabel(/Promo Code/i)).toBeVisible();
@@ -340,6 +341,7 @@ test.describe('Admin Promotions Page', () => {
 
 			await page.waitForLoadState('networkidle');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
+			await expect(page.getByRole('dialog')).toBeVisible();
 
 			// Fill form
 			await page.getByLabel(/Promo Code/i).fill('TESTPROMO');
@@ -365,6 +367,7 @@ test.describe('Admin Promotions Page', () => {
 
 			await page.waitForLoadState('networkidle');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
+			await expect(page.getByRole('dialog')).toBeVisible();
 
 			// Fill some data
 			await page.getByLabel(/Promo Code/i).fill('TEST');
@@ -386,6 +389,7 @@ test.describe('Admin Promotions Page', () => {
 
 			await page.waitForLoadState('networkidle');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
+			await expect(page.getByRole('dialog')).toBeVisible();
 
 			// Click backdrop (outside modal content)
 			await page.locator('[role="presentation"]').click({ position: { x: 10, y: 10 } });
@@ -406,13 +410,14 @@ test.describe('Admin Promotions Page', () => {
 
 			await page.waitForLoadState('networkidle');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
+			await expect(page.getByRole('dialog')).toBeVisible();
 
 			// Clear code field and submit
 			await page.getByLabel(/Promo Code/i).fill('');
 			await page.getByLabel(/Value/i).fill('5');
 			await page.getByRole('button', { name: /Create Promotion/i }).click();
 
-			// Error should show
+			// Error should show in Alert component
 			await expect(page.getByText(/Code is required/i)).toBeVisible();
 		});
 
@@ -426,14 +431,15 @@ test.describe('Admin Promotions Page', () => {
 
 			await page.waitForLoadState('networkidle');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
+			await expect(page.getByRole('dialog')).toBeVisible();
 
-			// Enter invalid code with spaces/lowercase
+			// Enter invalid code with spaces (gets uppercased but space is invalid)
 			await page.getByLabel(/Promo Code/i).fill('test code');
 			await page.getByLabel(/Value/i).fill('5');
 			await page.getByRole('button', { name: /Create Promotion/i }).click();
 
-			// Error should show (code gets uppercased but spaces are invalid)
-			await expect(page.getByText(/must be uppercase letters/i)).toBeVisible();
+			// Error should show (validation message contains this phrase)
+			await expect(page.getByText(/uppercase letters.*numbers.*underscores/i)).toBeVisible();
 		});
 
 		test('shows error for zero or negative value', async ({ page }) => {
@@ -446,6 +452,7 @@ test.describe('Admin Promotions Page', () => {
 
 			await page.waitForLoadState('networkidle');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
+			await expect(page.getByRole('dialog')).toBeVisible();
 
 			await page.getByLabel(/Promo Code/i).fill('TESTCODE');
 			await page.getByLabel(/Value/i).fill('0');
@@ -465,6 +472,7 @@ test.describe('Admin Promotions Page', () => {
 
 			await page.waitForLoadState('networkidle');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
+			await expect(page.getByRole('dialog')).toBeVisible();
 
 			await page.getByLabel(/Promo Code/i).fill('TESTCODE');
 			await page.getByLabel(/Type/i).selectOption('percentage_discount');

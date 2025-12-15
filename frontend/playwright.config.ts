@@ -8,21 +8,23 @@ export default defineConfig({
 	testDir: './e2e',
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
-	retries: process.env.CI ? 2 : 0,
-	workers: process.env.CI ? 2 : undefined,
-	timeout: 45000, // 45s per test max (increased for CI)
+	retries: process.env.CI ? 1 : 0, // 1 retry to reduce CI time
+	workers: process.env.CI ? 4 : undefined, // More workers for parallelism
+	timeout: 30000, // 30s per test max
 	expect: {
-		timeout: 10000 // 10s for expect assertions
+		timeout: 8000 // 8s for expect assertions
 	},
-	reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'html',
+	reporter: process.env.CI
+		? [['html', { open: 'never' }], ['github'], ['json', { outputFile: 'playwright-results.json' }]]
+		: 'html',
 
 	use: {
 		baseURL: process.env.E2E_BASE_URL || 'http://localhost:5173',
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure',
-		video: 'on-first-retry',
-		navigationTimeout: 30000,
-		actionTimeout: 15000
+		video: process.env.CI ? 'off' : 'on-first-retry', // Disable video in CI for speed
+		navigationTimeout: 15000,
+		actionTimeout: 10000
 	},
 
 	projects: [

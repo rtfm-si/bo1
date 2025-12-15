@@ -156,7 +156,7 @@ test.describe('Completed Meeting View', () => {
 			}
 
 			// Wait for page to load
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Check header shows complete status
 			await expect(page.getByText(/Meeting Complete|Completed/i).first()).toBeVisible({
@@ -172,7 +172,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Check problem statement displayed
 			await expect(page.getByText(/European markets/i)).toBeVisible();
@@ -188,7 +188,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Look for conclusion/synthesis tab
 			const conclusionTab = page.getByRole('button', { name: /Conclusion|Synthesis|Summary/i });
@@ -203,7 +203,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Find focus area tabs (may be labeled "Focus Area 1" or sub-problem goals)
 			const tabs = page.getByRole('button').filter({ hasText: /Focus Area|Market|Resource/i });
@@ -228,7 +228,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Check for executive summary content
 			await expect(page.getByText(/phased approach/i)).toBeVisible({ timeout: 5000 });
@@ -242,7 +242,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Check for action items
 			await expect(page.getByText(/market research|partnerships/i).first()).toBeVisible({
@@ -260,7 +260,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Look for export/download button
 			const exportButton = page.getByRole('button', { name: /Export|Download|PDF/i });
@@ -275,7 +275,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Set up download listener
 			const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
@@ -303,7 +303,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Check for metrics section (Rounds, Contributions, etc.)
 			// Implementation may vary - look for common metric labels
@@ -325,7 +325,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Click back/home link
 			const backLink = page.getByRole('link', { name: /Back|Dashboard|Home/i });
@@ -343,7 +343,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Check for AI disclaimer - use specific text to avoid matching multiple elements
 			await expect(page.getByText('AI-generated content')).toBeVisible({ timeout: 5000 });
@@ -360,7 +360,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// For completed meetings, "Connected" indicator should be hidden
 			// Check that the live connection indicator is not visible
@@ -386,7 +386,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Check that raw JSON syntax is not displayed
 			// Look for common JSON patterns that shouldn't appear in rendered content
@@ -405,7 +405,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Verify synthesis content is properly formatted/rendered
 			// Check for key action items from our mock data
@@ -422,7 +422,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// With multiple sub-problems, tabs should show goal text (truncated if long)
 			// Look for our mock sub-problem goals in the tabs
@@ -452,7 +452,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Look for the Deliberation Progress section with rounds counter
 			const roundsSection = page.locator('text=Rounds').first();
@@ -474,7 +474,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Look for contributions counter
 			const contributionsSection = page.locator('text=Contributions').first();
@@ -499,7 +499,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Breadcrumb should show problem statement excerpt, not raw UUID
 			// Look for breadcrumb nav containing problem text
@@ -539,7 +539,7 @@ test.describe('Completed Meeting View', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 			await page.waitForTimeout(1000); // Allow time for async rendering
 
 			// Filter out known acceptable errors (network, external resources)
@@ -589,7 +589,7 @@ test.describe('Meeting in progress', () => {
 			return;
 		}
 
-		await page.waitForLoadState('networkidle');
+		await page.waitForLoadState('load');
 
 		// Check header shows in progress status
 		await expect(page.getByText(/In Progress|Working|Deliberating/i).first()).toBeVisible({
@@ -605,7 +605,7 @@ test.describe('Meeting in progress', () => {
 			return;
 		}
 
-		await page.waitForLoadState('networkidle');
+		await page.waitForLoadState('load');
 
 		// Check for activity/working indicator
 		const workingIndicator = page.locator('[data-testid="working-status"], .working-status');

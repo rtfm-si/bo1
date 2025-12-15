@@ -218,7 +218,7 @@ jobs:
   e2e-tests:
     name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     needs: [lint-and-typecheck, test-frontend]
 
     services:
@@ -346,14 +346,14 @@ jobs:
       - name: Run Playwright tests
         id: e2e
         run: |
-          cd frontend && npx playwright test --project=chromium --reporter=json,html 2>&1 | tee playwright-output.json
-          TEST_EXIT_CODE=${PIPESTATUS[0]}
+          cd frontend && npx playwright test --project=chromium
+          TEST_EXIT_CODE=$?
           echo "e2e_exit_code=$TEST_EXIT_CODE" >> $GITHUB_OUTPUT
           exit $TEST_EXIT_CODE
         env:
           E2E_BASE_URL: http://localhost:5173
           E2E_API_URL: http://localhost:8000
-          PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-results.json
+          CI: true
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4

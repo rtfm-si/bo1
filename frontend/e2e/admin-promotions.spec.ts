@@ -130,7 +130,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Check page title
 			await expect(page.getByRole('heading', { name: /Promotions/i }).first()).toBeVisible();
@@ -152,7 +152,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Check WELCOME10 card details
 			await expect(page.getByText('WELCOME10')).toBeVisible();
@@ -171,7 +171,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// WELCOME10 has max_uses=100, uses_count=25 (25%)
 			// Check that usage text shows
@@ -186,7 +186,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Find and click refresh button
 			const refreshButton = page.getByRole('button', { name: /Refresh/i });
@@ -194,7 +194,7 @@ test.describe('Admin Promotions Page', () => {
 			await refreshButton.click();
 
 			// Wait for reload
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Data should still be visible
 			await expect(page.getByText('WELCOME10')).toBeVisible();
@@ -210,7 +210,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Check filter tabs exist
 			await expect(page.getByRole('button', { name: /All/i })).toBeVisible();
@@ -226,7 +226,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Click Active filter
 			await page.getByRole('button', { name: /Active/i }).click();
@@ -248,7 +248,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Click Expired filter
 			await page.getByRole('button', { name: /Expired/i }).click();
@@ -270,7 +270,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// First filter to Active
 			await page.getByRole('button', { name: /Active/i }).click();
@@ -297,7 +297,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Click Add Promotion
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
@@ -315,7 +315,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
 
 			// Check form fields
@@ -338,7 +338,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
 
 			// Fill form
@@ -363,7 +363,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
 
 			// Fill some data
@@ -384,7 +384,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
 
 			// Click backdrop (outside modal content)
@@ -404,7 +404,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
 
 			// Clear code field and submit
@@ -424,7 +424,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
 
 			// Enter invalid code with spaces/lowercase
@@ -444,7 +444,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
 
 			await page.getByLabel(/Promo Code/i).fill('TESTCODE');
@@ -463,7 +463,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 			await page.getByRole('button', { name: /Add Promotion/i }).click();
 
 			await page.getByLabel(/Promo Code/i).fill('TESTCODE');
@@ -485,7 +485,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Find deactivate button on WELCOME10 card
 			const promoCard = page.locator('div').filter({ hasText: 'WELCOME10' }).first();
@@ -508,7 +508,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Click deactivate on first active promo
 			const deactivateBtn = page.getByRole('button', { name: /Deactivate/i }).first();
@@ -530,7 +530,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Click deactivate
 			const deactivateBtn = page.getByRole('button', { name: /Deactivate/i }).first();
@@ -565,7 +565,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Empty state message
 			await expect(page.getByText(/No promotions yet/i)).toBeVisible();
@@ -583,7 +583,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// All promotions are either active or expired, so we need to mock differently
 			// For this test, we'll just verify the filter changes empty state text
@@ -603,7 +603,7 @@ test.describe('Admin Promotions Page', () => {
 
 			// Reload page
 			await page.reload();
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Click Expired filter (should show empty since we only have active promos)
 			await page.getByRole('button', { name: /Expired/i }).click();
@@ -635,7 +635,7 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Error message should be visible
 			await expect(page.getByText(/Failed to load|Internal server error/i)).toBeVisible();
@@ -674,14 +674,14 @@ test.describe('Admin Promotions Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Error should be visible
 			await expect(page.getByText(/Failed to load|Temporary error/i)).toBeVisible();
 
 			// Click retry
 			await page.getByRole('button', { name: /Retry/i }).click();
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('load');
 
 			// Data should now be visible
 			await expect(page.getByText('WELCOME10')).toBeVisible();

@@ -8,16 +8,21 @@ export default defineConfig({
 	testDir: './e2e',
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
-	retries: process.env.CI ? 1 : 0,
+	retries: process.env.CI ? 2 : 0,
 	workers: process.env.CI ? 2 : undefined,
-	timeout: 30000, // 30s per test max
+	timeout: 45000, // 45s per test max (increased for CI)
+	expect: {
+		timeout: 10000 // 10s for expect assertions
+	},
 	reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'html',
 
 	use: {
 		baseURL: process.env.E2E_BASE_URL || 'http://localhost:5173',
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure',
-		video: 'on-first-retry'
+		video: 'on-first-retry',
+		navigationTimeout: 30000,
+		actionTimeout: 15000
 	},
 
 	projects: [

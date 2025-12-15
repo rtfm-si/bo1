@@ -328,7 +328,14 @@ jobs:
       - name: Start frontend dev server
         run: |
           cd frontend && npm run dev &
-          sleep 10
+          # Wait for frontend to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:5173 > /dev/null 2>&1; then
+              echo "Frontend ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
         env:
           PUBLIC_API_URL: http://localhost:8000
           PUBLIC_E2E_MODE: "true"

@@ -12,7 +12,7 @@ export default defineConfig({
 	workers: process.env.CI ? 4 : undefined, // More workers for parallelism
 	timeout: 30000, // 30s per test max
 	expect: {
-		timeout: 8000 // 8s for expect assertions
+		timeout: 10000 // 10s for expect assertions
 	},
 	reporter: process.env.CI
 		? [['html', { open: 'never' }], ['github'], ['json', { outputFile: 'playwright-results.json' }]]

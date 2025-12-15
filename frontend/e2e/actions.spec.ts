@@ -176,7 +176,7 @@ test.describe('Actions List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check page title
 			await expect(page.getByRole('heading', { name: /Actions/i }).first()).toBeVisible();
@@ -194,7 +194,7 @@ test.describe('Actions List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for overdue indicator (red text/badge)
 			const overdueIndicator = page.locator('.text-red-500, .text-red-600, .bg-red-100');
@@ -211,7 +211,7 @@ test.describe('Actions List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check filter controls
 			const statusFilter = page.locator('select, [role="combobox"]').filter({ hasText: /Status/i });
@@ -228,7 +228,7 @@ test.describe('Actions List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Initial: all actions visible
 			await expect(page.getByText('Conduct market research')).toBeVisible();
@@ -257,7 +257,7 @@ test.describe('Actions List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Look for due date filter
 			const dueDateFilter = page.locator('select, button').filter({ hasText: /Due|Date/i });
@@ -276,7 +276,7 @@ test.describe('Actions List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for checkboxes
 			const checkboxes = page.locator('input[type="checkbox"]');
@@ -292,7 +292,7 @@ test.describe('Actions List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Find select all checkbox (usually in header)
 			const selectAll = page.locator('input[type="checkbox"]').first();
@@ -315,7 +315,7 @@ test.describe('Actions List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Select first checkbox
 			const firstCheckbox = page.locator('input[type="checkbox"]').first();
@@ -340,7 +340,7 @@ test.describe('Actions List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Look for view toggle
 			const ganttToggle = page.getByRole('button', { name: /Gantt/i });
@@ -364,7 +364,7 @@ test.describe('Actions List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Switch to Gantt view
 			const ganttToggle = page.getByRole('button', { name: /Gantt/i });
@@ -400,7 +400,7 @@ test.describe('Actions List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Click on action title/link
 			const actionLink = page.getByText('Conduct market research');
@@ -471,7 +471,7 @@ test.describe('Action Detail Page', () => {
 			return;
 		}
 
-		await page.waitForLoadState('load');
+		await page.waitForLoadState('networkidle');
 
 		// Check action title displayed
 		await expect(page.getByText('Conduct market research')).toBeVisible();
@@ -485,7 +485,7 @@ test.describe('Action Detail Page', () => {
 			return;
 		}
 
-		await page.waitForLoadState('load');
+		await page.waitForLoadState('networkidle');
 
 		// Check status badge
 		await expect(page.getByText(/todo|To Do/i)).toBeVisible();
@@ -499,7 +499,7 @@ test.describe('Action Detail Page', () => {
 			return;
 		}
 
-		await page.waitForLoadState('load');
+		await page.waitForLoadState('networkidle');
 
 		// Check priority indicator
 		await expect(page.getByText(/high/i)).toBeVisible();
@@ -513,7 +513,7 @@ test.describe('Action Detail Page', () => {
 			return;
 		}
 
-		await page.waitForLoadState('load');
+		await page.waitForLoadState('networkidle');
 
 		// Find and click back link
 		const backLink = page.getByRole('link', { name: /Back|Actions/i });
@@ -531,7 +531,7 @@ test.describe('Action Detail Page', () => {
 			return;
 		}
 
-		await page.waitForLoadState('load');
+		await page.waitForLoadState('networkidle');
 
 		// Check link to related meeting
 		const meetingLink = page.getByRole('link', { name: /meeting|European expansion/i });
@@ -563,7 +563,7 @@ test.describe('Action Detail Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Look for status dropdown or buttons
 			const statusControl = page.locator('select, button').filter({ hasText: /status|todo/i });

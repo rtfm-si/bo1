@@ -164,7 +164,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for settings navigation items
 			await expect(page.getByRole('link', { name: /Account/i })).toBeVisible();
@@ -180,7 +180,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for settings heading
 			await expect(page.getByRole('heading', { name: /Settings/i })).toBeVisible();
@@ -196,7 +196,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check user email is displayed
 			await expect(page.getByText('test@example.com')).toBeVisible();
@@ -210,7 +210,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check tier is displayed
 			await expect(page.getByText(/starter/i).first()).toBeVisible();
@@ -226,7 +226,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for email preferences section
 			await expect(page.getByText(/Email preferences|Notifications/i).first()).toBeVisible();
@@ -240,7 +240,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for data retention section
 			await expect(page.getByText(/Data retention|Retention/i).first()).toBeVisible();
@@ -254,7 +254,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for export button
 			await expect(page.getByRole('button', { name: /Export|Download/i })).toBeVisible();
@@ -268,7 +268,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for delete account button
 			await expect(page.getByRole('button', { name: /Delete Account|Delete/i }).first()).toBeVisible();
@@ -284,7 +284,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for plan display
 			await expect(page.getByText(/Current Plan|Starter/i).first()).toBeVisible();
@@ -298,7 +298,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for usage meters
 			await expect(page.getByText(/Usage|Meetings|5.*10/i).first()).toBeVisible();
@@ -312,7 +312,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for manage subscription link/button
 			const manageBtn = page.getByRole('button', { name: /Manage|Portal|Upgrade/i });
@@ -329,7 +329,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for Google Sheets section
 			await expect(page.getByText(/Google Sheets/i)).toBeVisible();
@@ -343,7 +343,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for Google Calendar section
 			await expect(page.getByText(/Google Calendar/i)).toBeVisible();
@@ -357,7 +357,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for connect buttons
 			const connectBtns = page.getByRole('button', { name: /Connect/i });
@@ -375,7 +375,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			await page.getByRole('link', { name: /Account/i }).click();
 			await expect(page).toHaveURL(/\/settings\/account/);
@@ -389,7 +389,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			await page.getByRole('link', { name: /Privacy/i }).click();
 			await expect(page).toHaveURL(/\/settings\/privacy/);
@@ -403,7 +403,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			await page.getByRole('link', { name: /Billing/i }).click();
 			await expect(page).toHaveURL(/\/settings\/billing/);
@@ -417,7 +417,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			await page.getByRole('link', { name: /Integrations/i }).click();
 			await expect(page).toHaveURL(/\/settings\/integrations/);
@@ -442,7 +442,7 @@ test.describe('Settings Pages', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for error handling (graceful degradation)
 			// The page should still load, potentially with an error message

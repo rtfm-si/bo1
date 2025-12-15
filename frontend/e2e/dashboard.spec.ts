@@ -198,7 +198,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for dashboard heading or welcome
 			await expect(page.getByText(/Dashboard|Welcome/i).first()).toBeVisible();
@@ -212,7 +212,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for New Meeting button/link
 			const newMeetingBtn = page.getByRole('link', { name: /New Meeting|New Decision/i });
@@ -227,7 +227,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for recent meetings content (from mock data)
 			await expect(page.getByText(/European markets/i)).toBeVisible({ timeout: 5000 });
@@ -241,7 +241,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for outstanding actions heading
 			await expect(page.getByText(/Outstanding|Actions/i).first()).toBeVisible();
@@ -258,7 +258,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for heatmap container (it renders a grid of cells)
 			const heatmapContainer = page.locator('[data-testid="activity-heatmap"], .activity-heatmap');
@@ -277,7 +277,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Find and click new meeting button
 			const newMeetingBtn = page.getByRole('link', { name: /New Meeting|New Decision/i });
@@ -295,7 +295,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Find and click view all actions link
 			const actionsLink = page.getByRole('link', { name: /View all|All Actions/i });
@@ -315,7 +315,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for overdue indicator (red badge/text)
 			const overdueIndicator = page.locator('.text-red-500, .text-red-600, .bg-red-100');
@@ -330,7 +330,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Click on an action
 			const actionLink = page.getByText(/market research/i).first();
@@ -350,7 +350,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Click on a meeting
 			const meetingLink = page.getByText(/European markets/i);
@@ -368,7 +368,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for status badge
 			const statusBadge = page.locator('span').filter({ hasText: /completed|active|in progress/i });
@@ -402,7 +402,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for onboarding or empty state message
 			await expect(page.getByText(/Get started|first meeting|No meetings/i).first()).toBeVisible({
@@ -429,7 +429,7 @@ test.describe('Dashboard Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Error should be visible or gracefully handled
 			const errorOrFallback = page.locator('.text-red-500, .bg-red-50, [role="alert"]');

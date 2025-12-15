@@ -128,7 +128,7 @@ test.describe('Datasets List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check page heading
 			await expect(page.getByRole('heading', { name: /Datasets|Data/i }).first()).toBeVisible();
@@ -146,7 +146,7 @@ test.describe('Datasets List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check row count displayed
 			await expect(page.getByText(/1,500 rows|1500 rows/i)).toBeVisible();
@@ -171,7 +171,7 @@ test.describe('Datasets List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check empty state message
 			await expect(page.getByText(/No datasets|Upload|Get started/i)).toBeVisible();
@@ -187,7 +187,7 @@ test.describe('Datasets List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check upload zone
 			await expect(page.getByText(/drag.*drop|upload.*csv/i).first()).toBeVisible();
@@ -201,7 +201,7 @@ test.describe('Datasets List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Find file input
 			const fileInput = page.locator('input[type="file"]');
@@ -216,7 +216,7 @@ test.describe('Datasets List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Create a test CSV file
 			const csvContent = 'name,value\nTest,123\n';
@@ -269,7 +269,7 @@ test.describe('Datasets List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Trigger file upload
 			const fileChooserPromise = page.waitForEvent('filechooser');
@@ -298,7 +298,7 @@ test.describe('Datasets List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for Sheets connection option
 			const sheetsButton = page.getByRole('button', { name: /Google Sheets|Connect.*Sheets/i });
@@ -323,7 +323,7 @@ test.describe('Datasets List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for connected indicator
 			await expect(page.getByText(/connected|linked/i)).toBeVisible({ timeout: 3000 });
@@ -339,7 +339,7 @@ test.describe('Datasets List Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Click on dataset
 			await page.getByText('sales_2024.csv').click();
@@ -387,7 +387,7 @@ test.describe('Dataset Detail Page', () => {
 			return;
 		}
 
-		await page.waitForLoadState('load');
+		await page.waitForLoadState('networkidle');
 
 		// Check dataset name displayed
 		await expect(page.getByText('sales_2024.csv')).toBeVisible();
@@ -404,7 +404,7 @@ test.describe('Dataset Detail Page', () => {
 			return;
 		}
 
-		await page.waitForLoadState('load');
+		await page.waitForLoadState('networkidle');
 
 		// Check column info displayed
 		await expect(page.getByText(/date|revenue|units|segment/i).first()).toBeVisible();
@@ -418,7 +418,7 @@ test.describe('Dataset Detail Page', () => {
 			return;
 		}
 
-		await page.waitForLoadState('load');
+		await page.waitForLoadState('networkidle');
 
 		// Check counts
 		await expect(page.getByText(/1,500|1500/)).toBeVisible();
@@ -434,7 +434,7 @@ test.describe('Dataset Detail Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for chat input
 			const chatInput = page.locator(
@@ -460,7 +460,7 @@ test.describe('Dataset Detail Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Find and fill chat input
 			const chatInput = page.locator(
@@ -487,7 +487,7 @@ test.describe('Dataset Detail Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Check for history section
 			await expect(page.getByText(/top selling products/i)).toBeVisible({ timeout: 5000 });
@@ -503,7 +503,7 @@ test.describe('Dataset Detail Page', () => {
 				return;
 			}
 
-			await page.waitForLoadState('load');
+			await page.waitForLoadState('networkidle');
 
 			// Click back link
 			const backLink = page.getByRole('link', { name: /Back|Datasets/i });

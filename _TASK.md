@@ -78,7 +78,7 @@
 ### App Stability [QA]
 
 - [ ] [QA][P0] Audit broken buttons/actions across app (identify fragile operations)
-- [ ] [QA][P1] Make E2E Playwright tests blocking in CI (write failure report to root)
+- [ ] [QA][P1] Fix 51 E2E tests marked as fixme - see [frontend/e2e/FIXME_TESTS.md](frontend/e2e/FIXME_TESTS.md)
 - [ ] [QA][P1] Increase overall app stability - remove fragile operations
 
 ### Admin Observability [ADMIN]

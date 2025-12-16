@@ -1,20 +1,25 @@
 <script lang="ts">
 	/**
 	 * Cookie Consent Banner - Uses design system components
+	 * Auto-hides during active meetings to reduce distraction
 	 */
 
 	import { onMount } from 'svelte';
 	import Cookies from 'js-cookie';
 	import { Button } from '$lib/components/ui';
+	import { activeMeeting } from '$lib/stores/meeting';
 
-	let showBanner = $state(false);
+	let needsConsent = $state(false);
 	const CONSENT_COOKIE = 'bo1_cookie_consent';
+
+	// Derived: show banner only if consent needed AND no active meeting
+	let shouldShow = $derived(needsConsent && !$activeMeeting.isActive);
 
 	onMount(() => {
 		// Check if user has already given consent
 		const existingConsent = Cookies.get(CONSENT_COOKIE);
 		if (!existingConsent) {
-			showBanner = true;
+			needsConsent = true;
 		}
 	});
 
@@ -32,7 +37,7 @@
 			{ expires: 365, sameSite: 'Lax', secure: true }
 		);
 
-		showBanner = false;
+		needsConsent = false;
 
 		// TODO: Enable analytics tracking here (e.g., Plausible Analytics)
 		// Note: We use privacy-friendly analytics (Plausible/Fathom), not Google Analytics
@@ -55,12 +60,12 @@
 			{ expires: 365, sameSite: 'Lax', secure: true }
 		);
 
-		showBanner = false;
+		needsConsent = false;
 		console.log('Only essential cookies accepted');
 	}
 </script>
 
-{#if showBanner}
+{#if shouldShow}
 	<div
 		class="fixed bottom-0 left-0 right-0 bg-neutral-900 dark:bg-neutral-950 text-white p-6 shadow-2xl z-50 border-t border-neutral-700"
 	>

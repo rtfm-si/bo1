@@ -24,6 +24,12 @@ export interface SessionData {
 	research_results_by_subproblem?: Record<number, any[]>;
 }
 
+export interface SessionError {
+	type: string;
+	message: string;
+	timestamp: string;
+}
+
 /**
  * Create session store with reactive state
  */
@@ -34,6 +40,7 @@ export function createSessionStore() {
 	let events = $state.raw<SSEEvent[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
+	let sessionError = $state<SessionError | null>(null);
 	let autoScroll = $state(true);
 	let retryCount = $state(0);
 	let connectionStatus = $state<'connecting' | 'connected' | 'error' | 'retrying'>('connecting');
@@ -52,6 +59,7 @@ export function createSessionStore() {
 		get events() { return events; },
 		get isLoading() { return isLoading; },
 		get error() { return error; },
+		get sessionError() { return sessionError; },
 		get autoScroll() { return autoScroll; },
 		get retryCount() { return retryCount; },
 		get connectionStatus() { return connectionStatus; },
@@ -70,6 +78,12 @@ export function createSessionStore() {
 		},
 		setError(value: string | null) {
 			error = value;
+		},
+		setSessionError(value: SessionError | null) {
+			sessionError = value;
+		},
+		clearSessionError() {
+			sessionError = null;
 		},
 		setAutoScroll(value: boolean) {
 			autoScroll = value;
@@ -227,6 +241,7 @@ export function createSessionStore() {
 			events = [];  // $state.raw allows direct assignment
 			isLoading = true;
 			error = null;
+			sessionError = null;
 			autoScroll = true;
 			retryCount = 0;
 			connectionStatus = 'connecting';

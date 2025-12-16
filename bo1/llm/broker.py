@@ -15,7 +15,7 @@ import uuid
 from typing import Any
 
 from anthropic import APIError, RateLimitError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from bo1.config import get_settings, resolve_tier_to_model
 from bo1.constants import LLMConfig
@@ -129,6 +129,23 @@ class PromptRequest(BaseModel):
     request_id: str = Field(
         default_factory=lambda: str(uuid.uuid4()), description="Unique request ID"
     )
+
+    @field_validator("temperature", mode="before")
+    @classmethod
+    def clamp_temperature(cls, v: float) -> float:
+        """Clamp temperature to valid 0-1 range (Anthropic API limit).
+
+        Logs a warning if clamping occurs for graceful degradation.
+        """
+        if v is None:
+            return LLMConfig.DEFAULT_TEMPERATURE
+        clamped = max(LLMConfig.TEMPERATURE_MIN, min(v, LLMConfig.TEMPERATURE_MAX))
+        if clamped != v:
+            logger.warning(
+                f"Temperature {v} clamped to {clamped} (valid range: "
+                f"{LLMConfig.TEMPERATURE_MIN}-{LLMConfig.TEMPERATURE_MAX})"
+            )
+        return clamped
 
 
 class PromptBroker:

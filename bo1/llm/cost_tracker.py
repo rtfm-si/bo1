@@ -163,6 +163,9 @@ class CostRecord:
         status: Status (success, error, timeout)
         error_message: Error message if failed
 
+        # Timestamp
+        created_at: When the API call was made (for partitioned table conflict resolution)
+
         # Flexible metadata
         metadata: Additional metadata as dict
     """
@@ -201,6 +204,9 @@ class CostRecord:
     latency_ms: int | None = None
     status: str = "success"
     error_message: str | None = None
+
+    # Timestamp (set at record creation for idempotent retries)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     # Metadata
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -538,6 +544,7 @@ class CostTracker:
                         insert_data.append(
                             (
                                 request_id,
+                                record.created_at,  # Include created_at for conflict resolution
                                 record.session_id,
                                 record.user_id,
                                 record.provider,
@@ -568,12 +575,13 @@ class CostTracker:
                         )
 
                     # IDEMPOTENCY FIX: Use ON CONFLICT DO NOTHING to prevent double-tracking
-                    # on graph retries. request_id is unique per API call, so duplicates
-                    # from retries will be silently ignored (idempotent insert pattern).
+                    # on graph retries. The api_costs table is partitioned by created_at, so the
+                    # unique index is (request_id, created_at). We include created_at in the insert
+                    # and conflict target to match the composite unique constraint.
                     cur.executemany(
                         """
                         INSERT INTO api_costs (
-                            request_id, session_id, user_id,
+                            request_id, created_at, session_id, user_id,
                             provider, model_name, operation_type,
                             node_name, phase, persona_name, round_number, sub_problem_index,
                             input_tokens, output_tokens,
@@ -583,7 +591,7 @@ class CostTracker:
                             latency_ms, status, error_message,
                             metadata
                         ) VALUES (
-                            %s, %s, %s,
+                            %s, %s, %s, %s,
                             %s, %s, %s,
                             %s, %s, %s, %s, %s,
                             %s, %s,
@@ -593,7 +601,7 @@ class CostTracker:
                             %s, %s, %s,
                             %s
                         )
-                        ON CONFLICT (request_id) DO NOTHING
+                        ON CONFLICT (request_id, created_at) DO NOTHING
                         """,
                         insert_data,
                     )
@@ -690,6 +698,7 @@ class CostTracker:
             for record in records:
                 retry_data = {
                     "request_id": record.metadata.get("request_id", str(uuid.uuid4())),
+                    "created_at": record.created_at.isoformat(),  # Preserve for conflict resolution
                     "session_id": record.session_id,
                     "user_id": record.user_id,
                     "provider": record.provider,

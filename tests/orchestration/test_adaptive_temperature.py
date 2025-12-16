@@ -47,9 +47,9 @@ class TestTemperatureClamping:
         assert LLMConfig.TEMPERATURE_MIN == 0.0
 
     def test_temperature_max_exists(self) -> None:
-        """TEMPERATURE_MAX should be defined."""
+        """TEMPERATURE_MAX should be defined (1.0 for Anthropic API)."""
         assert hasattr(LLMConfig, "TEMPERATURE_MAX")
-        assert LLMConfig.TEMPERATURE_MAX == 2.0
+        assert LLMConfig.TEMPERATURE_MAX == 1.0
 
     def test_clamping_logic(self) -> None:
         """Test temperature clamping at boundaries."""
@@ -60,19 +60,19 @@ class TestTemperatureClamping:
         clamped = max(LLMConfig.TEMPERATURE_MIN, min(LLMConfig.TEMPERATURE_MAX, result))
         assert clamped == 0.0, "Should clamp to minimum"
 
-        # Test upper bound clamping
-        base_temp = 1.95
+        # Test upper bound clamping (now 1.0 for Anthropic API)
+        base_temp = 0.95
         adjustment = 0.15  # early phase
         result = base_temp + adjustment
         clamped = max(LLMConfig.TEMPERATURE_MIN, min(LLMConfig.TEMPERATURE_MAX, result))
-        assert clamped == 2.0, "Should clamp to maximum"
+        assert clamped == 1.0, "Should clamp to maximum"
 
         # Test no clamping needed
-        base_temp = 1.0
+        base_temp = 0.7
         adjustment = 0.15
         result = base_temp + adjustment
         clamped = max(LLMConfig.TEMPERATURE_MIN, min(LLMConfig.TEMPERATURE_MAX, result))
-        assert clamped == 1.15, "Should not clamp when in range"
+        assert clamped == 0.85, "Should not clamp when in range"
 
 
 class TestPhaseToTemperatureMapping:

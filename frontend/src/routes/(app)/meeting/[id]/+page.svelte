@@ -32,7 +32,9 @@
 		ResearchPanel,
 		ShareModal,
 		MeetingSocialShare,
+		MeetingError,
 	} from '$lib/components/meeting';
+	import { activeMeeting } from '$lib/stores/meeting';
 	import type { MeetingSummaryData } from '$lib/utils/canvas-export';
 	import type { ContextInsufficientEvent } from '$lib/api/sse-events';
 
@@ -113,6 +115,7 @@
 	let events = $derived(store.events);
 	let isLoading = $derived(store.isLoading);
 	let error = $derived(store.error);
+	let sessionError = $derived(store.sessionError);
 	let autoScroll = $state(true);
 	let retryCount = $derived(store.retryCount);
 	let connectionStatus = $derived(store.connectionStatus);
@@ -161,6 +164,14 @@
 	// ============================================================================
 	// EFFECTS
 	// ============================================================================
+
+	// Update active meeting state for cookie consent auto-hide
+	$effect(() => {
+		if (session?.status) {
+			activeMeeting.updateFromStatus(sessionId, session.status);
+		}
+		return () => activeMeeting.setInactive();
+	});
 
 	// Timer management
 	$effect(() => {
@@ -316,9 +327,23 @@
 			};
 			store.setSession(mappedSession);
 			store.setIsLoading(false);
+			// Check if session was already in failed state
+			if (sessionData.status === 'failed') {
+				store.setSessionError({
+					type: 'SessionFailed',
+					message: 'This meeting encountered an error and could not be completed.',
+					timestamp: new Date().toISOString(),
+				});
+			}
 		} catch (err) {
 			console.error('Failed to load session:', err);
-			store.setError(err instanceof Error ? err.message : 'Failed to load session');
+			const errorMessage = err instanceof Error ? err.message : 'Failed to load session';
+			store.setError(errorMessage);
+			store.setSessionError({
+				type: 'HTTPError',
+				message: errorMessage,
+				timestamp: new Date().toISOString(),
+			});
 			store.setIsLoading(false);
 		}
 	}
@@ -358,6 +383,13 @@
 				maxRetries,
 				onEvent: addEvent,
 				onWorkingStatus: (phase, duration) => timing.setWorkingStatus(phase, duration),
+				onSessionError: (errorType, errorMessage) => {
+					store.setSessionError({
+						type: errorType,
+						message: errorMessage,
+						timestamp: new Date().toISOString(),
+					});
+				},
 			});
 		}
 		await sseConnection.connect();
@@ -389,6 +421,21 @@
 		await loadSession();
 		// Restart event stream to continue receiving events
 		await startEventStream();
+	}
+
+	async function handleRetryAfterError() {
+		// Clear the error state
+		store.clearSessionError();
+		// Close existing connection
+		sseConnection?.close();
+		sseConnection = null;
+		// Reset retry count and reconnect
+		store.setRetryCount(0);
+		await loadSession();
+		// Only reconnect if session isn't in a terminal state
+		if (session?.status !== 'completed' && session?.status !== 'failed') {
+			await startEventStream();
+		}
 	}
 
 	// ============================================================================
@@ -548,6 +595,19 @@
 				eventData={(eventState.contextInsufficientEvent as ContextInsufficientEvent).data}
 				onChoiceMade={handleContextChoiceMade}
 			/>
+		{/if}
+
+		<!-- Meeting Error State -->
+		{#if sessionError}
+			<div class="mb-6">
+				<MeetingError
+					errorType={sessionError.type}
+					errorMessage={sessionError.message}
+					{sessionId}
+					onRetry={handleRetryAfterError}
+					canRetry={session?.status !== 'failed'}
+				/>
+			</div>
 		{/if}
 
 		<!-- ARIA Live Region -->

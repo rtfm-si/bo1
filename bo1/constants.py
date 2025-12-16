@@ -233,8 +233,8 @@ class LLMConfig:
     TEMPERATURE_MIN = 0.0
     """Minimum clamped temperature"""
 
-    TEMPERATURE_MAX = 2.0
-    """Maximum clamped temperature"""
+    TEMPERATURE_MAX = 1.0
+    """Maximum clamped temperature (Anthropic API limit)"""
 
 
 # =============================================================================

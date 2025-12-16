@@ -22,5 +22,6 @@ export { default as ExpertSummariesPanel } from './ExpertSummariesPanel.svelte';
 export { default as ResearchPanel } from './ResearchPanel.svelte';
 export { default as ShareModal } from './ShareModal.svelte';
 export { default as TerminationModal } from './TerminationModal.svelte';
+export { default as MeetingError } from './MeetingError.svelte';
 export { default as MeetingSummaryCard } from './MeetingSummaryCard.svelte';
 export { default as MeetingSocialShare } from './MeetingSocialShare.svelte';

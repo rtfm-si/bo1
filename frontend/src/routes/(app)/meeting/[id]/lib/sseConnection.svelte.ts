@@ -13,6 +13,7 @@ export interface SSEConnectionConfig {
 	maxRetries?: number;
 	onEvent: (event: SSEEvent) => void;
 	onWorkingStatus?: (phase: string | null, estimatedDuration?: string) => void;
+	onSessionError?: (errorType: string, errorMessage: string) => void;
 }
 
 // Event types to listen for
@@ -67,7 +68,7 @@ const CLEAR_WORKING_STATUS_EVENTS = [
  * Creates an SSE connection manager for a meeting session
  */
 export function createSSEConnection(config: SSEConnectionConfig) {
-	const { sessionId, store, maxRetries = 3, onEvent, onWorkingStatus } = config;
+	const { sessionId, store, maxRetries = 3, onEvent, onWorkingStatus, onSessionError } = config;
 
 	let sseClient: SSEClient | null = null;
 	let lastEventId: string | null = null;
@@ -83,6 +84,23 @@ export function createSSEConnection(config: SSEConnectionConfig) {
 			if (eventType === 'working_status') {
 				onWorkingStatus?.(payload.phase || null, payload.estimated_duration);
 				console.log('[WORKING STATUS]', payload.phase, payload.estimated_duration);
+				return;
+			}
+
+			// Handle error events - propagate to session error state
+			if (eventType === 'error') {
+				const errorType = payload.error_type || 'UnknownError';
+				const errorMessage = payload.error || 'An unknown error occurred';
+				console.error('[SSE] Session error event received:', { errorType, errorMessage });
+				onSessionError?.(errorType, errorMessage);
+				// Still dispatch as event for timeline
+				const sseEvent: SSEEvent = {
+					event_type: eventType,
+					session_id: payload.session_id || sessionId,
+					timestamp: payload.timestamp || new Date().toISOString(),
+					data: payload,
+				};
+				onEvent(sseEvent);
 				return;
 			}
 
@@ -172,6 +190,8 @@ export function createSSEConnection(config: SSEConnectionConfig) {
 					console.error('[SSE] Max retries reached');
 					store.setConnectionStatus('error');
 					store.setError('Failed to connect to session stream. Please refresh the page.');
+					// Notify via session error callback for UI display
+					onSessionError?.('ConnectionError', 'Lost connection to the meeting. Maximum reconnection attempts exceeded.');
 				}
 			},
 			eventHandlers,

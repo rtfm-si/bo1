@@ -11,6 +11,8 @@ import json
 import logging
 from datetime import UTC, datetime
 
+from dateutil.parser import parse as parse_datetime
+
 from bo1.llm.cost_tracker import (
     COST_RETRY_ALERT_THRESHOLD,
     CostTracker,
@@ -67,9 +69,17 @@ def process_retry_queue(batch_size: int = DEFAULT_BATCH_SIZE) -> dict[str, int]:
             with conn.cursor() as cur:
                 insert_data = []
                 for record in records:
+                    # Parse created_at from retry record, or use current time as fallback
+                    created_at_str = record.get("created_at")
+                    if created_at_str:
+                        created_at = parse_datetime(created_at_str)
+                    else:
+                        created_at = datetime.now(UTC)
+
                     insert_data.append(
                         (
                             record.get("request_id"),
+                            created_at,  # Include for conflict resolution
                             record.get("session_id"),
                             record.get("user_id"),
                             record.get("provider"),
@@ -103,10 +113,12 @@ def process_retry_queue(batch_size: int = DEFAULT_BATCH_SIZE) -> dict[str, int]:
                     if record.get("session_id"):
                         sessions_with_costs.add(record["session_id"])
 
+                # Use ON CONFLICT with composite key (request_id, created_at)
+                # to handle idempotent retries on partitioned api_costs table
                 cur.executemany(
                     """
                     INSERT INTO api_costs (
-                        request_id, session_id, user_id,
+                        request_id, created_at, session_id, user_id,
                         provider, model_name, operation_type,
                         node_name, phase, persona_name, round_number, sub_problem_index,
                         input_tokens, output_tokens,
@@ -116,7 +128,7 @@ def process_retry_queue(batch_size: int = DEFAULT_BATCH_SIZE) -> dict[str, int]:
                         latency_ms, status, error_message,
                         metadata
                     ) VALUES (
-                        %s, %s, %s,
+                        %s, %s, %s, %s,
                         %s, %s, %s,
                         %s, %s, %s, %s, %s,
                         %s, %s,
@@ -126,6 +138,7 @@ def process_retry_queue(batch_size: int = DEFAULT_BATCH_SIZE) -> dict[str, int]:
                         %s, %s, %s,
                         %s
                     )
+                    ON CONFLICT (request_id, created_at) DO NOTHING
                     """,
                     insert_data,
                 )

@@ -93,7 +93,7 @@ class OpenAIClient:
             messages: List of message dicts with 'role' and 'content'
             system: Optional system prompt
             cache_system: Ignored (OpenAI handles caching automatically)
-            temperature: Sampling temperature (0-2 for OpenAI)
+            temperature: Sampling temperature (0-1 for consistency with Anthropic)
             max_tokens: Maximum tokens to generate
             prefill: Optional assistant message prefill (simulated via system prompt)
 

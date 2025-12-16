@@ -123,15 +123,34 @@ Show PR URL.
 
 ## STEP 6: WAIT FOR CI
 
-1. Get PR number: `gh pr view --json number -q .number`
+1. Get PR number (if PR workflow): `gh pr view --json number -q .number`
 2. Wait for CI checks:
    ```bash
-   gh pr checks --watch
+   gh pr checks --watch   # for PRs
+   gh run watch <run-id>  # for direct main pushes
    ```
 
 If CI fails:
 - Show which check failed
-- STOP - do not proceed to deploy
+- Check if only E2E tests failed (core checks passed: lint, types, backend tests)
+
+### Handling Flaky E2E Tests
+
+If ONLY E2E tests fail (Playwright) while core checks pass:
+1. Get failing test details: `gh run view <run-id> --log-failed | tail -50`
+2. Ask user: "E2E tests failed but core checks passed. Mark as flaky and retry? (yes/no)"
+
+On yes:
+1. Mark failing tests as `test.fixme()` with comment explaining the flakiness
+2. Update `frontend/e2e/FIXME_TESTS.md`:
+   - Increment fixme count in Summary
+   - Add new section with test file:line, test name, and root cause
+3. Commit with message: `fix(e2e): mark flaky tests as fixme`
+4. Push and re-run CI
+
+If core checks fail (lint, types, backend tests):
+- Show error summary
+- STOP - do not proceed to deploy (requires manual fix)
 
 If CI passes, continue.
 

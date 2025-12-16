@@ -1,7 +1,7 @@
 # E2E Test Fixme Tracker
 
 ## Summary
-~~51 tests~~ ~~33 tests~~ ~~25 tests~~ ~~15 tests~~ ~~7 tests~~ ~~2 tests~~ **0 tests** marked as `test.fixme()` for CI stability. This document tracks issues and fixes.
+~~51 tests~~ ~~33 tests~~ ~~25 tests~~ ~~15 tests~~ ~~7 tests~~ ~~2 tests~~ ~~0 tests~~ **2 tests** marked as `test.fixme()` for CI stability. This document tracks issues and fixes.
 
 **Fixed**:
 - Settings Page (18 tests → 19 tests now passing)
@@ -154,7 +154,22 @@ npx playwright test
 - [x] Dashboard (all tests) - FIXED
 - [x] Actions Gantt (17 tests) - FIXED
 
-**All E2E tests now passing!**
+---
+
+### Flaky CI Tests - PENDING FIX (2025-12-16)
+**2 tests marked as fixme**
+
+1. `actions.spec.ts:193` - "shows overdue warning for past due actions"
+   - **Issue**: Depends on seeded data having overdue actions with error styling
+   - **Selector**: `.bg-error-100, .text-error-700, [class*="error"]`
+
+2. `dashboard.spec.ts:272` - "new meeting button navigates to meeting creation"
+   - **Issue**: Button click doesn't navigate reliably in CI
+   - **Pattern**: `getByRole('link', { name: /New Meeting|New Decision/i })`
+
+**Root cause**: Both tests depend on specific data state and timing that varies in CI.
+
+---
 
 ## Notes
 

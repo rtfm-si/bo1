@@ -625,3 +625,71 @@ _Last updated: 2025-12-16 (Relationship Diagram for Help Center)_
   - Admin passes `is_admin=True` which bypasses this filter and sees all sessions
   - Filter location: `action_repository.py:204-205` - `AND (s.status = 'completed' OR s.id IS NULL)`
   - Tests added: `tests/state/test_action_visibility.py` (8 tests)
+
+---
+
+## Task backlog (from _TODO.md, 2025-12-16)
+
+### API Bugs [API]
+
+- [x] [API][P1] Fix `/api/v1/projects/unassigned-count` returning 500 error
+  - Already fixed via error handling in `project_autogen.py:get_unassigned_action_count()` (returns 0 on error)
+- [x] [API][P1] Fix `/api/v1/projects/autogenerate-suggestions` returning 500 error
+  - Already fixed via error handling in `project_autogen.py:_get_unassigned_actions()` and `get_autogen_suggestions()` (return [] on error)
+
+### LLM & Meeting Reliability [LLM]
+
+- [x] [LLM][P0] Fix Temperature type constraint in `bo1/models/types.py:32` (allows 0-2 but Anthropic API only accepts 0-1)
+  - Changed `Temperature` type from `le=2.0` to `le=1.0`
+  - Updated `LLMConfig.TEMPERATURE_MAX` from 2.0 to 1.0
+  - 16 tests in `tests/llm/test_temperature_validation.py`
+- [x] [LLM][P1] Add runtime temperature validation in `bo1/llm/broker.py` to clamp/reject invalid values before LLM calls
+  - Added `@field_validator` on `PromptRequest.temperature` with clamping and warning log
+  - Updated OpenAI client docstring for 0-1 range consistency
+
+### Meeting UI [UX]
+
+- [x] [UX][P0] Show error state in meeting UI when session fails (heading "Meeting Failed", error message, retry/restart option)
+  - Created `MeetingError.svelte` component with error type mapping (LLMError, RateLimitError, TimeoutError, etc.)
+  - Added `sessionError` state to sessionStore with type, message, timestamp
+  - SSE connection handles `error` events and propagates to UI
+  - HTTP failures on session load also trigger error state
+  - Max SSE retries exceeded shows connection error
+  - Retry button clears error and reconnects; "Start New Meeting" navigates to /meeting/new
+  - 18 unit tests in `MeetingError.test.ts`
+- [x] [UX][P2] Add loading indicator during `initial_round` phase of deliberation
+  - Already implemented: `sessionStore.svelte.ts` tracks phase, `waitingState.svelte.ts` detects waiting state
+  - UI: `ActivityStatus` shows "Experts are familiarising themselves with the problem..." during initial_round
+  - Indicator disappears automatically when first contribution event arrives
+- [x] [UX][P2] Auto-hide or dismiss cookie consent banner during active meetings
+  - Store: `frontend/src/lib/stores/meeting.ts` - tracks active meeting state globally
+  - CookieConsent: reads `activeMeeting.isActive` to conditionally hide banner
+  - Meeting page: `$effect` updates store on session status change, cleanup on unmount
+  - Active statuses (banner hidden): active, created, running, paused
+  - Inactive statuses (banner visible): completed, failed
+  - 13 unit tests in `meeting.test.ts`
+
+### Data & Cost Tracking [DATA]
+
+- [x] [DATA][P1] Fix cost tracker ON CONFLICT DB constraint mismatch causing cost records to fail
+  - Root cause: api_costs table partitioned by `created_at` requires composite unique index `(request_id, created_at)`
+  - Fixed `cost_tracker.py:_flush_batch()` to use `ON CONFLICT (request_id, created_at) DO NOTHING`
+  - Fixed `cost_retry_job.py:process_retry_queue()` to include `created_at` and use composite conflict target
+  - Added `created_at` field to `CostRecord` dataclass (set at record creation for consistent retries)
+  - 5 new tests in `test_cost_tracker.py` (TestDuplicateHandling class)
+  - 4 new tests in `tests/jobs/test_cost_retry_job.py`
+
+---
+
+## Task backlog (from _TODO.md, 2025-12-16)
+
+### Beta Usage Caps [BILLING]
+
+- [ ] [BILLING][P1] Enforce beta meeting cap: max 4 meetings per rolling 24 hours
+- [ ] [BILLING][P1] Check meeting cap on meeting start (block if exceeded, show friendly warning)
+- [ ] [BILLING][P1] Check meeting cap on meeting resume (block if exceeded, show friendly warning)
+
+### Failed Meeting UX [UX]
+
+- [ ] [UX][P2] Show dismissible dashboard alert when user has recent failed meetings ("Meeting failed - try again, contact support if persists, not counted toward usage")
+- [ ] [UX][P3] Send email notification when meeting fails (optional, only if user has email notifications enabled)

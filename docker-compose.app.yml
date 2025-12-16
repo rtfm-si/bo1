@@ -48,6 +48,7 @@ services:
       - VOYAGE_API_KEY=${VOYAGE_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - BRAVE_API_KEY=${BRAVE_API_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
 
       # API Configuration
       - API_HOST=0.0.0.0

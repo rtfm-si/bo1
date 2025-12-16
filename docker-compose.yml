@@ -88,6 +88,7 @@ services:
       # API Keys (loaded from .env)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - VOYAGE_API_KEY=${VOYAGE_API_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
 
       # Application Configuration
       - DEBUG=${DEBUG:-true}

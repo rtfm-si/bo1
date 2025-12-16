@@ -5,8 +5,14 @@
 	 * AI-powered business mentor for strategic guidance,
 	 * action coaching, and data insights.
 	 */
+	import { page } from '$app/stores';
 	import MentorChat from '$lib/components/mentor/MentorChat.svelte';
 	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
+	import type { MentorPersonaId } from '$lib/api/types';
+
+	// Read query params for pre-filling
+	const initialMessage = $page.url.searchParams.get('message') || undefined;
+	const initialPersona = $page.url.searchParams.get('persona') as MentorPersonaId | undefined;
 </script>
 
 <svelte:head>
@@ -39,7 +45,7 @@
 	</div>
 
 	<!-- Chat Interface -->
-	<MentorChat />
+	<MentorChat {initialMessage} {initialPersona} />
 
 	<!-- Tips -->
 	<div class="mt-6 p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg">

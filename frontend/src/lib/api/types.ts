@@ -406,9 +406,14 @@ export interface ExtractedTask {
 }
 
 /**
- * Action status enum (6 states)
+ * Action status enum (9 states)
+ * - todo, in_progress, blocked, in_review, done: standard workflow
+ * - cancelled: general cancellation
+ * - failed: closed because task could not be completed
+ * - abandoned: closed because task is no longer relevant
+ * - replanned: closed because task was cloned to a new action with different approach
  */
-export type ActionStatus = 'todo' | 'in_progress' | 'blocked' | 'in_review' | 'done' | 'cancelled';
+export type ActionStatus = 'todo' | 'in_progress' | 'blocked' | 'in_review' | 'done' | 'cancelled' | 'failed' | 'abandoned' | 'replanned';
 
 /**
  * Task with Kanban status
@@ -522,6 +527,11 @@ export interface ActionDetailResponse {
 	// Cancellation fields
 	cancellation_reason: string | null;
 	cancelled_at: string | null;
+	// Closure fields (failed/abandoned)
+	closure_reason: string | null;
+	// Replan lineage
+	replanned_from_id: string | null;
+	replanned_to_id: string | null;
 	// Project assignment
 	project_id: string | null;
 }
@@ -585,6 +595,31 @@ export interface ActionStatusUpdateRequest {
 	status: ActionStatus;
 	blocking_reason?: string | null;
 	auto_unblock?: boolean;
+}
+
+/**
+ * Action close request - for marking as failed/abandoned
+ */
+export interface ActionCloseRequest {
+	status: 'failed' | 'abandoned';
+	reason: string;
+}
+
+/**
+ * Action replan request - clone action with modifications
+ */
+export interface ActionReplanRequest {
+	new_steps?: string[] | null;
+	new_target_date?: string | null;
+}
+
+/**
+ * Action replan response - new action created from replan
+ */
+export interface ActionReplanResponse {
+	new_action_id: string;
+	original_action_id: string;
+	message: string;
 }
 
 /**
@@ -2161,4 +2196,31 @@ export interface ExtendedKPIsResponse {
 	data_analyses: DataAnalysisStats;
 	projects: ProjectStats;
 	actions: ActionKPIStats;
+}
+
+// ============================================================================
+// Kanban Column Preferences
+// ============================================================================
+
+/**
+ * Single kanban column configuration
+ */
+export interface KanbanColumn {
+	id: ActionStatus;
+	title: string;
+	color?: string | null;
+}
+
+/**
+ * Kanban columns response
+ */
+export interface KanbanColumnsResponse {
+	columns: KanbanColumn[];
+}
+
+/**
+ * Kanban columns update request
+ */
+export interface KanbanColumnsUpdate {
+	columns: KanbanColumn[];
 }

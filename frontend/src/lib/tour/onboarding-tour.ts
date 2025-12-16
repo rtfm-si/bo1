@@ -9,10 +9,33 @@
  * 4. Projects overview
  */
 
-import { driver, type DriveStep, type Config } from 'driver.js';
+import { driver, type DriveStep, type Config, type Driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
-import { goto } from '$app/navigation';
 import { apiClient } from '$lib/api/client';
+
+/**
+ * Check if an element exists and is visible in the DOM
+ */
+export function isElementVisible(selector: string): boolean {
+	const el = document.querySelector(selector);
+	if (!el) return false;
+
+	// Check if element or parent has display: none
+	const style = window.getComputedStyle(el);
+	if (style.display === 'none' || style.visibility === 'hidden') return false;
+
+	// Check dimensions
+	const rect = el.getBoundingClientRect();
+	if (rect.width === 0 && rect.height === 0) return false;
+
+	return true;
+}
+
+// Track navigation unsubscribe function
+let unsubscribeNavigation: (() => void) | null = null;
+
+// Reference to current tour driver instance
+let currentTourDriver: Driver | null = null;
 
 // Tour step IDs matching backend OnboardingStep enum
 export type TourStepId = 'business_context' | 'first_meeting' | 'expert_panel' | 'results';
@@ -24,7 +47,7 @@ const driverConfig: Config = {
 	animate: true,
 	showProgress: true,
 	showButtons: ['next', 'previous', 'close'],
-	allowClose: true,
+	allowClose: false, // Prevent clicking overlay from dismissing tour
 	overlayColor: 'rgba(0, 0, 0, 0.7)',
 	stagePadding: 8,
 	stageRadius: 8,
@@ -34,6 +57,22 @@ const driverConfig: Config = {
 	prevBtnText: 'Back',
 	doneBtnText: 'Done',
 };
+
+/** Callbacks for tour navigation actions */
+export interface TourNavigationCallbacks {
+	onNavigateToActions?: () => void;
+	onNavigateToProjects?: () => void;
+}
+
+// Store navigation callbacks
+let navigationCallbacks: TourNavigationCallbacks = {};
+
+/**
+ * Set navigation callbacks for tour
+ */
+export function setTourNavigationCallbacks(callbacks: TourNavigationCallbacks): void {
+	navigationCallbacks = callbacks;
+}
 
 /**
  * Tour steps for the onboarding flow
@@ -56,9 +95,25 @@ export function getOnboardingSteps(): DriveStep[] {
 			popover: {
 				title: 'Track Your Actions',
 				description:
-					'After each meeting, actions are extracted and organized here. Use Kanban or Gantt views to manage progress.',
+					'After each meeting, actions are extracted and organized here. Use Kanban or Gantt views to manage progress.<br><br><strong>Want to explore?</strong> Click "Visit Actions" to see the Kanban board.',
 				side: 'bottom',
 				align: 'start',
+				onNextClick: () => {
+					// Continue to next step
+				},
+				onPopoverRender: (popover) => {
+					// Add custom button to visit Actions page
+					const footer = popover.footerButtons;
+					const visitBtn = document.createElement('button');
+					visitBtn.innerText = 'Visit Actions →';
+					visitBtn.className = 'driver-popover-btn bo1-visit-btn';
+					visitBtn.onclick = () => {
+						if (navigationCallbacks.onNavigateToActions) {
+							navigationCallbacks.onNavigateToActions();
+						}
+					};
+					footer.appendChild(visitBtn);
+				},
 			},
 		},
 		{
@@ -76,24 +131,166 @@ export function getOnboardingSteps(): DriveStep[] {
 			popover: {
 				title: 'Organize with Projects',
 				description:
-					'Group related meetings and actions into projects. Track progress across multiple decisions and initiatives.',
+					'Group related meetings and actions into projects. Track progress across multiple decisions and initiatives.<br><br><strong>Want to explore?</strong> Click "Visit Projects" to see project management.',
 				side: 'bottom',
 				align: 'center',
+				onPopoverRender: (popover) => {
+					// Add custom button to visit Projects page
+					const footer = popover.footerButtons;
+					const visitBtn = document.createElement('button');
+					visitBtn.innerText = 'Visit Projects →';
+					visitBtn.className = 'driver-popover-btn bo1-visit-btn';
+					visitBtn.onclick = () => {
+						if (navigationCallbacks.onNavigateToProjects) {
+							navigationCallbacks.onNavigateToProjects();
+						}
+					};
+					footer.appendChild(visitBtn);
+				},
+			},
+		},
+		{
+			element: '[data-tour="help-nav"]',
+			popover: {
+				title: 'Learn How It Connects',
+				description:
+					'Visit the Help Center to see an interactive diagram showing how Meetings, Actions, and Projects work together.',
+				side: 'bottom',
+				align: 'end',
 			},
 		},
 	];
 }
 
 /**
+ * Tour steps for the Actions page
+ * Highlights Kanban board, view toggle, filters, and bulk actions
+ */
+export function getActionsPageSteps(): DriveStep[] {
+	return [
+		{
+			element: '[data-tour="view-toggle"]',
+			popover: {
+				title: 'Switch Views',
+				description:
+					'Toggle between Kanban board for quick status updates and Gantt chart for timeline planning.',
+				side: 'bottom',
+				align: 'center',
+			},
+		},
+		{
+			element: '[data-tour="actions-filters"]',
+			popover: {
+				title: 'Filter Your Actions',
+				description:
+					'Filter by meeting, status, due date, project, or tags to focus on what matters most.',
+				side: 'bottom',
+				align: 'start',
+			},
+		},
+		{
+			element: '[data-tour="kanban-column"]',
+			popover: {
+				title: 'Drag and Drop',
+				description:
+					'Drag tasks between columns to update their status. Move from To Do → In Progress → Done as you complete work.',
+				side: 'right',
+				align: 'start',
+			},
+		},
+	];
+}
+
+/**
+ * Tour steps for the Projects page
+ * Highlights project creation, idea generation, and project cards
+ */
+export function getProjectsPageSteps(): DriveStep[] {
+	return [
+		{
+			element: '[data-tour="create-project"]',
+			popover: {
+				title: 'Create a Project',
+				description:
+					'Start a new project to group related meetings and actions together.',
+				side: 'bottom',
+				align: 'end',
+			},
+		},
+		{
+			element: '[data-tour="generate-ideas"]',
+			popover: {
+				title: 'Generate Project Ideas',
+				description:
+					'Let AI suggest projects based on your unassigned actions or business context.',
+				side: 'bottom',
+				align: 'end',
+			},
+		},
+		{
+			element: '[data-tour="project-card"]',
+			popover: {
+				title: 'Track Progress',
+				description:
+					'Each project card shows completion progress, action counts, and estimated dates. Click to view details.',
+				side: 'top',
+				align: 'start',
+			},
+		},
+	];
+}
+
+/**
+ * Filter steps to only include those with visible elements
+ */
+function getVisibleSteps(steps: DriveStep[]): DriveStep[] {
+	return steps.filter((step) => {
+		if (!step.element) return true; // Non-element steps always included
+		return isElementVisible(step.element as string);
+	});
+}
+
+/**
+ * Cleanup tour resources (navigation lock, driver reference)
+ */
+export function cleanupTour(): void {
+	if (unsubscribeNavigation) {
+		unsubscribeNavigation();
+		unsubscribeNavigation = null;
+	}
+	currentTourDriver = null;
+}
+
+/**
  * Start the onboarding tour
  */
 export async function startOnboardingTour(onComplete?: () => void): Promise<void> {
-	const steps = getOnboardingSteps();
+	// Get only steps with visible elements
+	const steps = getVisibleSteps(getOnboardingSteps());
+
+	// If no valid steps, skip tour entirely
+	if (steps.length === 0) {
+		console.warn('No visible tour elements found, skipping tour');
+		onComplete?.();
+		return;
+	}
 
 	const tourDriver = driver({
 		...driverConfig,
 		steps,
+		onHighlightStarted: (element, step) => {
+			// Validate element still exists before highlighting
+			const selector = step.element as string | undefined;
+			if (selector && !isElementVisible(selector)) {
+				// Element not found - skip to next step
+				console.warn(`Tour element not found: ${selector}, skipping step`);
+				setTimeout(() => tourDriver.moveNext(), 100);
+			}
+		},
 		onDestroyStarted: async () => {
+			// Cleanup navigation lock
+			cleanupTour();
+
 			// Mark tour as complete when user finishes or closes
 			try {
 				await apiClient.completeTour();
@@ -114,6 +311,75 @@ export async function startOnboardingTour(onComplete?: () => void): Promise<void
 		},
 	});
 
+	// Store reference for external access
+	currentTourDriver = tourDriver;
+
+	tourDriver.drive();
+}
+
+/**
+ * Start the Actions page tour
+ */
+export async function startActionsPageTour(onComplete?: () => void): Promise<void> {
+	const steps = getVisibleSteps(getActionsPageSteps());
+
+	if (steps.length === 0) {
+		console.warn('No visible Actions page tour elements, skipping');
+		onComplete?.();
+		return;
+	}
+
+	const tourDriver = driver({
+		...driverConfig,
+		steps,
+		onHighlightStarted: (element, step) => {
+			const selector = step.element as string | undefined;
+			if (selector && !isElementVisible(selector)) {
+				console.warn(`Tour element not found: ${selector}, skipping step`);
+				setTimeout(() => tourDriver.moveNext(), 100);
+			}
+		},
+		onDestroyStarted: () => {
+			cleanupTour();
+			onComplete?.();
+			tourDriver.destroy();
+		},
+	});
+
+	currentTourDriver = tourDriver;
+	tourDriver.drive();
+}
+
+/**
+ * Start the Projects page tour
+ */
+export async function startProjectsPageTour(onComplete?: () => void): Promise<void> {
+	const steps = getVisibleSteps(getProjectsPageSteps());
+
+	if (steps.length === 0) {
+		console.warn('No visible Projects page tour elements, skipping');
+		onComplete?.();
+		return;
+	}
+
+	const tourDriver = driver({
+		...driverConfig,
+		steps,
+		onHighlightStarted: (element, step) => {
+			const selector = step.element as string | undefined;
+			if (selector && !isElementVisible(selector)) {
+				console.warn(`Tour element not found: ${selector}, skipping step`);
+				setTimeout(() => tourDriver.moveNext(), 100);
+			}
+		},
+		onDestroyStarted: () => {
+			cleanupTour();
+			onComplete?.();
+			tourDriver.destroy();
+		},
+	});
+
+	currentTourDriver = tourDriver;
 	tourDriver.drive();
 }
 
@@ -207,6 +473,25 @@ export function injectTourStyles(): void {
 			border-color: white !important;
 		}
 
+		/* Custom visit button styling */
+		.bo1-visit-btn {
+			background: transparent !important;
+			color: #00C8B3 !important;
+			border: 1px solid #00C8B3 !important;
+			margin-left: 8px;
+			padding: 0.5rem 1rem;
+			border-radius: 6px;
+			font-size: 0.875rem;
+			font-weight: 500;
+			cursor: pointer;
+			transition: all 0.15s;
+		}
+
+		.bo1-visit-btn:hover {
+			background: #00C8B3 !important;
+			color: white !important;
+		}
+
 		/* Dark mode */
 		@media (prefers-color-scheme: dark) {
 			.driver-popover {
@@ -241,6 +526,16 @@ export function injectTourStyles(): void {
 			.driver-popover-arrow-side-top,
 			.driver-popover-arrow-side-bottom {
 				border-color: #1e293b !important;
+			}
+
+			.bo1-visit-btn {
+				color: #00C8B3 !important;
+				border-color: #00C8B3 !important;
+			}
+
+			.bo1-visit-btn:hover {
+				background: #00C8B3 !important;
+				color: #1e293b !important;
 			}
 		}
 	`;

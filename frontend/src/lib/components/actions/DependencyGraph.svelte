@@ -51,6 +51,24 @@
 			bgColor: 'bg-neutral-50 dark:bg-neutral-800',
 			textColor: 'text-neutral-500 dark:text-neutral-400',
 			borderColor: 'border-neutral-300 dark:border-neutral-600'
+		},
+		failed: {
+			label: 'Failed',
+			bgColor: 'bg-error-50 dark:bg-error-900/20',
+			textColor: 'text-error-700 dark:text-error-300',
+			borderColor: 'border-error-300 dark:border-error-700'
+		},
+		abandoned: {
+			label: 'Abandoned',
+			bgColor: 'bg-neutral-50 dark:bg-neutral-800',
+			textColor: 'text-neutral-500 dark:text-neutral-400',
+			borderColor: 'border-neutral-300 dark:border-neutral-600'
+		},
+		replanned: {
+			label: 'Replanned',
+			bgColor: 'bg-amber-50 dark:bg-amber-900/20',
+			textColor: 'text-amber-700 dark:text-amber-300',
+			borderColor: 'border-amber-300 dark:border-amber-700'
 		}
 	};
 

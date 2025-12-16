@@ -2,6 +2,7 @@
 	/**
 	 * MentorChat - Main chat interface for mentor conversations
 	 */
+	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { MentorMessage as MessageType, MentorPersonaId, ResolvedMentions } from '$lib/api/types';
 	import { Button } from '$lib/components/ui';
@@ -10,6 +11,13 @@
 	import ContextSourcesBadge from './ContextSourcesBadge.svelte';
 	import MentionAutocomplete from './MentionAutocomplete.svelte';
 	import { Send, Square, Loader2 } from 'lucide-svelte';
+
+	// Props for pre-filling from URL query params
+	interface Props {
+		initialMessage?: string;
+		initialPersona?: MentorPersonaId;
+	}
+	let { initialMessage, initialPersona }: Props = $props();
 
 	// Chat state
 	let messages = $state<MessageType[]>([]);
@@ -272,6 +280,16 @@
 		}
 		selectedPersona = persona;
 	}
+
+	// Initialize with props on mount
+	onMount(() => {
+		if (initialMessage) {
+			inputValue = initialMessage;
+		}
+		if (initialPersona) {
+			selectedPersona = initialPersona;
+		}
+	});
 </script>
 
 <div

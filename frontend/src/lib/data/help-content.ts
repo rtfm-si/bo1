@@ -19,6 +19,7 @@ export interface HelpCategory {
 
 export const helpCategories: HelpCategory[] = [
 	{ id: 'getting-started', label: 'Getting Started', icon: 'rocket' },
+	{ id: 'concepts', label: 'Concepts', icon: 'lightbulb' },
 	{ id: 'meetings', label: 'Meetings', icon: 'users' },
 	{ id: 'actions', label: 'Actions', icon: 'check-circle' },
 	{ id: 'datasets', label: 'Datasets', icon: 'database' },
@@ -27,6 +28,54 @@ export const helpCategories: HelpCategory[] = [
 ];
 
 export const helpArticles: HelpArticle[] = [
+	// Concepts
+	{
+		category: 'concepts',
+		title: 'How It All Connects',
+		slug: 'relationships',
+		content: `## How It All Connects
+
+Board of One organizes your work into three main entities: **Meetings**, **Actions**, and **Projects**. Understanding how they connect helps you get the most out of the platform.
+
+### The Core Entities
+
+**Meetings** are where decisions happen. Each meeting assembles AI experts to deliberate on a question or challenge, producing insights and recommendations.
+
+**Actions** are tasks that emerge from meetings. When experts recommend specific steps, those become trackable actions with statuses, due dates, and priorities.
+
+**Projects** group related work together. They can contain multiple meetings and actions, helping you organize complex initiatives.
+
+### Interactive Diagram
+
+::relationship-diagram::
+
+### Key Relationships
+
+#### Meeting → Actions (generates)
+Every meeting can produce multiple actions. When experts recommend specific steps to take, those recommendations become actions you can track.
+
+**Example**: A meeting about "improving customer retention" might generate actions like "Survey churned customers" and "Review cancellation flow UX."
+
+#### Meeting → Projects (linked to)
+Meetings can be associated with projects for better organization. Link meetings to projects when they address topics related to an ongoing initiative.
+
+**Example**: A "Q1 Product Launch" project might include meetings about pricing strategy, feature prioritization, and go-to-market planning.
+
+#### Projects → Actions (contains)
+Projects contain actions from their linked meetings, plus any actions you assign directly. This gives you a unified view of all work for an initiative.
+
+**Example**: Your "Q1 Product Launch" project shows all actions across all related meetings in one place.
+
+### Best Practices
+
+1. **Start with a meeting** for any significant decision
+2. **Let actions emerge naturally** from meeting recommendations
+3. **Create projects** for multi-meeting initiatives
+4. **Link meetings to projects** as you go
+5. **Use the Kanban view** to track actions across projects`,
+		keywords: ['relationships', 'diagram', 'meetings', 'actions', 'projects', 'how', 'connect', 'structure'],
+	},
+
 	// Getting Started
 	{
 		category: 'getting-started',

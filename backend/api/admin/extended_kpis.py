@@ -32,9 +32,9 @@ def get_mentor_session_stats() -> MentorSessionStats:
                 """
                 SELECT
                     COALESCE(SUM(count), 0) AS total_sessions,
-                    COALESCE(SUM(CASE WHEN date = CURRENT_DATE THEN count ELSE 0 END), 0) AS today,
-                    COALESCE(SUM(CASE WHEN date >= CURRENT_DATE - INTERVAL '7 days' THEN count ELSE 0 END), 0) AS week,
-                    COALESCE(SUM(CASE WHEN date >= CURRENT_DATE - INTERVAL '30 days' THEN count ELSE 0 END), 0) AS month
+                    COALESCE(SUM(CASE WHEN created_at::date = CURRENT_DATE THEN count ELSE 0 END), 0) AS today,
+                    COALESCE(SUM(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN count ELSE 0 END), 0) AS week,
+                    COALESCE(SUM(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '30 days' THEN count ELSE 0 END), 0) AS month
                 FROM user_usage
                 WHERE metric = 'mentor_chats'
                 """

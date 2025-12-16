@@ -167,12 +167,75 @@
 				return 'Basic';
 		}
 	}
+
+	// Calculate data completeness percentage for a competitor
+	function getDataCompleteness(competitor: CompetitorProfile): { percentage: number; populated: number; total: number } {
+		const allFields = [
+			'tagline', 'product_description', 'pricing_model', 'target_market',
+			'business_model', 'value_proposition', 'tech_stack', 'funding_info',
+			'employee_count', 'recent_news', 'industry'
+		];
+
+		// Fields available per tier
+		const tierFields: Record<string, string[]> = {
+			basic: ['tagline', 'product_description', 'industry'],
+			standard: ['tagline', 'product_description', 'industry', 'pricing_model', 'target_market', 'business_model'],
+			deep: allFields
+		};
+
+		const availableFields = tierFields[dataDepth] || tierFields.basic;
+		let populated = 0;
+
+		for (const field of availableFields) {
+			const value = competitor[field as keyof CompetitorProfile];
+			if (value !== null && value !== undefined && value !== '' &&
+			    !(Array.isArray(value) && value.length === 0)) {
+				populated++;
+			}
+		}
+
+		return {
+			percentage: Math.round((populated / availableFields.length) * 100),
+			populated,
+			total: availableFields.length
+		};
+	}
+
+	// Get completeness color
+	function getCompletenessColor(percentage: number): string {
+		if (percentage >= 75) return 'bg-green-500';
+		if (percentage >= 50) return 'bg-amber-500';
+		return 'bg-red-400';
+	}
+
+	// Collapsible sections state
+	let expandedSections = $state<Record<string, Set<string>>>({});
+
+	function toggleSection(competitorId: string, section: string) {
+		if (!expandedSections[competitorId]) {
+			expandedSections[competitorId] = new Set();
+		}
+		if (expandedSections[competitorId].has(section)) {
+			expandedSections[competitorId].delete(section);
+		} else {
+			expandedSections[competitorId].add(section);
+		}
+		expandedSections = { ...expandedSections };
+	}
+
+	function isSectionExpanded(competitorId: string, section: string): boolean {
+		return expandedSections[competitorId]?.has(section) ?? false;
+	}
+
+	// Comparison table state
+	let showComparison = $state(true);
 </script>
 
 <svelte:head>
 	<title>Competitor Watch - Board of One</title>
 </svelte:head>
 
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 {#if isLoading}
 	<div class="flex items-center justify-center py-12">
 		<div
@@ -308,10 +371,86 @@
 					</Button>
 				</div>
 
+				<!-- Quick Comparison Table (Standard/Deep tier, >1 competitor) -->
+				{#if dataDepth !== 'basic' && competitors.length > 1}
+					<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+						<button
+							type="button"
+							class="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+							onclick={() => showComparison = !showComparison}
+						>
+							<div class="flex items-center gap-2">
+								<span class="text-lg">📊</span>
+								<span class="font-semibold text-slate-900 dark:text-white">Quick Comparison</span>
+							</div>
+							<svg
+								class="w-5 h-5 text-slate-400 transition-transform {showComparison ? 'rotate-180' : ''}"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+							</svg>
+						</button>
+						{#if showComparison}
+							<div class="border-t border-slate-200 dark:border-slate-700 overflow-x-auto">
+								<table class="w-full text-sm">
+									<thead class="bg-slate-50 dark:bg-slate-700/50">
+										<tr>
+											<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Competitor</th>
+											<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Industry</th>
+											<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Pricing</th>
+											<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Target Market</th>
+											{#if dataDepth === 'deep'}
+												<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Team Size</th>
+											{/if}
+											<th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">Data</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+										{#each competitors as competitor (competitor.id)}
+											{@const completeness = getDataCompleteness(competitor)}
+											<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+												<td class="px-4 py-3 font-medium text-slate-900 dark:text-white">
+													{competitor.name}
+												</td>
+												<td class="px-4 py-3 text-slate-600 dark:text-slate-400">
+													{competitor.industry || '—'}
+												</td>
+												<td class="px-4 py-3 text-slate-600 dark:text-slate-400">
+													{competitor.pricing_model || '—'}
+												</td>
+												<td class="px-4 py-3 text-slate-600 dark:text-slate-400">
+													{competitor.target_market || '—'}
+												</td>
+												{#if dataDepth === 'deep'}
+													<td class="px-4 py-3 text-slate-600 dark:text-slate-400">
+														{competitor.employee_count || '—'}
+													</td>
+												{/if}
+												<td class="px-4 py-3">
+													<div class="flex items-center gap-2">
+														<div class="w-16 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+															<div class="h-full {getCompletenessColor(completeness.percentage)}" style="width: {completeness.percentage}%"></div>
+														</div>
+														<span class="text-xs text-slate-500 dark:text-slate-400">{completeness.percentage}%</span>
+													</div>
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{/if}
+					</div>
+				{/if}
+
 				{#each competitors as competitor (competitor.id)}
+					{@const completeness = getDataCompleteness(competitor)}
 					<div
 						class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
 					>
+						<!-- Header with name, industry badge, and actions -->
 						<div class="flex items-start justify-between mb-4">
 							<div class="flex items-center gap-3">
 								<div
@@ -320,7 +459,14 @@
 									{competitor.name.charAt(0).toUpperCase()}
 								</div>
 								<div>
-									<h4 class="font-semibold text-slate-900 dark:text-white">{competitor.name}</h4>
+									<div class="flex items-center gap-2">
+										<h4 class="font-semibold text-slate-900 dark:text-white">{competitor.name}</h4>
+										{#if competitor.industry}
+											<span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+												{competitor.industry}
+											</span>
+										{/if}
+									</div>
 									{#if competitor.website}
 										<a
 											href={competitor.website.startsWith('http')
@@ -336,6 +482,13 @@
 								</div>
 							</div>
 							<div class="flex items-center gap-2">
+								<!-- Data completeness indicator -->
+								<div class="flex items-center gap-1.5 mr-2" title="{completeness.populated}/{completeness.total} fields populated">
+									<div class="w-12 h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+										<div class="h-full {getCompletenessColor(completeness.percentage)}" style="width: {completeness.percentage}%"></div>
+									</div>
+									<span class="text-xs text-slate-500 dark:text-slate-400">{completeness.percentage}%</span>
+								</div>
 								<Button
 									variant="ghost"
 									size="sm"
@@ -363,9 +516,9 @@
 							</div>
 						</div>
 
-						<!-- Competitor data -->
+						<!-- Section: Overview (tagline, description) -->
 						{#if competitor.tagline || competitor.product_description}
-							<div class="space-y-3 mb-4">
+							<div class="space-y-2 mb-4">
 								{#if competitor.tagline}
 									<p class="text-sm text-slate-600 dark:text-slate-400 italic">
 										"{competitor.tagline}"
@@ -379,60 +532,176 @@
 							</div>
 						{/if}
 
-						<!-- Standard tier data -->
-						{#if dataDepth !== 'basic' && (competitor.pricing_model || competitor.target_market)}
-							<div class="grid grid-cols-2 gap-4 mb-4">
-								{#if competitor.pricing_model}
-									<div>
-										<span class="text-xs text-slate-500 dark:text-slate-400">Pricing</span>
-										<p class="text-sm text-slate-900 dark:text-white">{competitor.pricing_model}</p>
+						<!-- Section: Market & Business (Standard+ tier) -->
+						{#if dataDepth !== 'basic' && (competitor.pricing_model || competitor.target_market || competitor.business_model)}
+							<div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+								<button
+									type="button"
+									class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+									onclick={() => toggleSection(competitor.id!, 'market')}
+								>
+									<svg class="w-3 h-3 transition-transform {isSectionExpanded(competitor.id!, 'market') ? 'rotate-90' : ''}" fill="currentColor" viewBox="0 0 20 20">
+										<path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+									</svg>
+									Market & Business
+								</button>
+								{#if isSectionExpanded(competitor.id!, 'market')}
+									<div class="grid grid-cols-2 gap-4 pl-5">
+										{#if competitor.pricing_model}
+											<div>
+												<span class="text-xs text-slate-500 dark:text-slate-400">Pricing</span>
+												<p class="text-sm text-slate-900 dark:text-white">{competitor.pricing_model}</p>
+											</div>
+										{/if}
+										{#if competitor.target_market}
+											<div>
+												<span class="text-xs text-slate-500 dark:text-slate-400">Target Market</span>
+												<p class="text-sm text-slate-900 dark:text-white">{competitor.target_market}</p>
+											</div>
+										{/if}
+										{#if competitor.business_model}
+											<div class="col-span-2">
+												<span class="text-xs text-slate-500 dark:text-slate-400">Business Model</span>
+												<p class="text-sm text-slate-900 dark:text-white">{competitor.business_model}</p>
+											</div>
+										{/if}
 									</div>
-								{/if}
-								{#if competitor.target_market}
-									<div>
-										<span class="text-xs text-slate-500 dark:text-slate-400">Target Market</span>
-										<p class="text-sm text-slate-900 dark:text-white">{competitor.target_market}</p>
+								{:else}
+									<!-- Collapsed preview -->
+									<div class="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400 pl-5">
+										{#if competitor.pricing_model}<span>{competitor.pricing_model}</span>{/if}
+										{#if competitor.target_market}<span>• {competitor.target_market}</span>{/if}
 									</div>
 								{/if}
 							</div>
 						{/if}
 
-						<!-- Deep tier data -->
-						{#if dataDepth === 'deep' && (competitor.funding_info || competitor.employee_count || competitor.recent_news?.length)}
+						<!-- Section: Company & Funding (Deep tier) -->
+						{#if dataDepth === 'deep' && (competitor.funding_info || competitor.employee_count)}
 							<div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
-								<div class="grid grid-cols-2 gap-4">
-									{#if competitor.employee_count}
-										<div>
-											<span class="text-xs text-slate-500 dark:text-slate-400">Team Size</span>
-											<p class="text-sm text-slate-900 dark:text-white">
-												{competitor.employee_count} employees
-											</p>
-										</div>
-									{/if}
-									{#if competitor.funding_info}
-										<div>
-											<span class="text-xs text-slate-500 dark:text-slate-400">Funding</span>
-											<p class="text-sm text-slate-900 dark:text-white">{competitor.funding_info}</p>
-										</div>
-									{/if}
-								</div>
-								{#if competitor.recent_news?.length}
-									<div class="mt-3">
-										<span class="text-xs text-slate-500 dark:text-slate-400">Recent News</span>
-										<ul class="mt-1 space-y-1">
-											{#each competitor.recent_news.slice(0, 3) as news}
-												<li>
-													<a
-														href={news.url}
-														target="_blank"
-														rel="noopener noreferrer"
-														class="text-sm text-brand-600 dark:text-brand-400 hover:underline"
-													>
-														{news.title}
-													</a>
-												</li>
+								<button
+									type="button"
+									class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+									onclick={() => toggleSection(competitor.id!, 'company')}
+								>
+									<svg class="w-3 h-3 transition-transform {isSectionExpanded(competitor.id!, 'company') ? 'rotate-90' : ''}" fill="currentColor" viewBox="0 0 20 20">
+										<path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+									</svg>
+									Company & Funding
+								</button>
+								{#if isSectionExpanded(competitor.id!, 'company')}
+									<div class="grid grid-cols-2 gap-4 pl-5">
+										{#if competitor.employee_count}
+											<div>
+												<span class="text-xs text-slate-500 dark:text-slate-400">Team Size</span>
+												<p class="text-sm text-slate-900 dark:text-white">{competitor.employee_count} employees</p>
+											</div>
+										{/if}
+										{#if competitor.funding_info}
+											<div>
+												<span class="text-xs text-slate-500 dark:text-slate-400">Funding</span>
+												<p class="text-sm text-slate-900 dark:text-white">{competitor.funding_info}</p>
+											</div>
+										{/if}
+									</div>
+								{:else}
+									<div class="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400 pl-5">
+										{#if competitor.employee_count}<span>{competitor.employee_count} employees</span>{/if}
+										{#if competitor.funding_info}<span>• {competitor.funding_info}</span>{/if}
+									</div>
+								{/if}
+							</div>
+						{/if}
+
+						<!-- Section: Product & Tech (Deep tier) -->
+						{#if dataDepth === 'deep' && (competitor.value_proposition || competitor.tech_stack?.length)}
+							<div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+								<button
+									type="button"
+									class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+									onclick={() => toggleSection(competitor.id!, 'tech')}
+								>
+									<svg class="w-3 h-3 transition-transform {isSectionExpanded(competitor.id!, 'tech') ? 'rotate-90' : ''}" fill="currentColor" viewBox="0 0 20 20">
+										<path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+									</svg>
+									Product & Tech
+								</button>
+								{#if isSectionExpanded(competitor.id!, 'tech')}
+									<div class="space-y-3 pl-5">
+										{#if competitor.value_proposition}
+											<div>
+												<span class="text-xs text-slate-500 dark:text-slate-400">Value Proposition</span>
+												<p class="text-sm text-slate-900 dark:text-white">{competitor.value_proposition}</p>
+											</div>
+										{/if}
+										{#if competitor.tech_stack?.length}
+											<div>
+												<span class="text-xs text-slate-500 dark:text-slate-400">Tech Stack</span>
+												<div class="flex flex-wrap gap-1.5 mt-1">
+													{#each competitor.tech_stack as tech}
+														<span class="text-xs px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
+															{tech}
+														</span>
+													{/each}
+												</div>
+											</div>
+										{/if}
+									</div>
+								{:else}
+									<div class="flex flex-wrap gap-1.5 pl-5">
+										{#if competitor.tech_stack?.length}
+											{#each competitor.tech_stack.slice(0, 4) as tech}
+												<span class="text-xs px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
+													{tech}
+												</span>
 											{/each}
-										</ul>
+											{#if competitor.tech_stack.length > 4}
+												<span class="text-xs text-slate-500">+{competitor.tech_stack.length - 4} more</span>
+											{/if}
+										{:else if competitor.value_proposition}
+											<span class="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs">
+												{competitor.value_proposition}
+											</span>
+										{/if}
+									</div>
+								{/if}
+							</div>
+						{/if}
+
+						<!-- Section: Recent News (Deep tier) -->
+						{#if dataDepth === 'deep' && competitor.recent_news?.length}
+							<div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+								<button
+									type="button"
+									class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+									onclick={() => toggleSection(competitor.id!, 'news')}
+								>
+									<svg class="w-3 h-3 transition-transform {isSectionExpanded(competitor.id!, 'news') ? 'rotate-90' : ''}" fill="currentColor" viewBox="0 0 20 20">
+										<path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+									</svg>
+									Recent News ({competitor.recent_news.length})
+								</button>
+								{#if isSectionExpanded(competitor.id!, 'news')}
+									<ul class="space-y-2 pl-5">
+										{#each competitor.recent_news as news}
+											<li class="flex items-start gap-2">
+												<span class="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap mt-0.5">
+													{news.date ? new Date(news.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+												</span>
+												<a
+													href={news.url}
+													target="_blank"
+													rel="noopener noreferrer"
+													class="text-sm text-brand-600 dark:text-brand-400 hover:underline"
+												>
+													{news.title}
+												</a>
+											</li>
+										{/each}
+									</ul>
+								{:else}
+									<div class="text-xs text-slate-500 dark:text-slate-400 pl-5">
+										{competitor.recent_news[0]?.title || 'View recent news'}
 									</div>
 								{/if}
 							</div>
@@ -498,3 +767,4 @@
 		</div>
 	</div>
 {/if}
+</div>

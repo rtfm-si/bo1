@@ -89,7 +89,10 @@
 		blocked: { label: 'Blocked', color: 'bg-error-500' },
 		in_review: { label: 'In Review', color: 'bg-purple-500' },
 		done: { label: 'Done', color: 'bg-success-500' },
-		cancelled: { label: 'Cancelled', color: 'bg-neutral-400' }
+		cancelled: { label: 'Cancelled', color: 'bg-neutral-400' },
+		failed: { label: 'Failed', color: 'bg-error-500' },
+		abandoned: { label: 'Abandoned', color: 'bg-neutral-400' },
+		replanned: { label: 'Replanned', color: 'bg-amber-500' }
 	};
 
 	// Priority configuration

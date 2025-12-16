@@ -331,10 +331,50 @@ def get_context_completeness(user_id: str) -> dict:
     Returns:
         Dictionary with completeness score and missing fields
     """
-    user_repo = UserRepository()
-    context = user_repo.get_context(user_id)
+    try:
+        user_repo = UserRepository()
+        context = user_repo.get_context(user_id)
 
-    if not context:
+        if not context:
+            return {
+                "completeness": 0.0,
+                "has_minimum": False,
+                "missing_required": REQUIRED_CONTEXT_FIELDS.copy(),
+                "missing_recommended": [
+                    "main_value_proposition",
+                    "industry",
+                    "business_model",
+                ],
+            }
+
+        # Check required fields
+        missing_required = [f for f in REQUIRED_CONTEXT_FIELDS if not context.get(f)]
+
+        # Recommended fields for better suggestions
+        recommended = [
+            "main_value_proposition",
+            "industry",
+            "business_model",
+            "target_market",
+            "competitors",
+        ]
+        missing_recommended = [f for f in recommended if not context.get(f)]
+
+        # Calculate completeness score
+        total_fields = len(REQUIRED_CONTEXT_FIELDS) + len(recommended)
+        filled_fields = (len(REQUIRED_CONTEXT_FIELDS) - len(missing_required)) + (
+            len(recommended) - len(missing_recommended)
+        )
+        completeness = filled_fields / total_fields if total_fields > 0 else 0.0
+
+        return {
+            "completeness": completeness,
+            "has_minimum": len(missing_required) == 0,
+            "missing_required": missing_required,
+            "missing_recommended": missing_recommended,
+        }
+    except Exception as e:
+        logger.error(f"Failed to get context completeness: {e}")
         return {
             "completeness": 0.0,
             "has_minimum": False,
@@ -345,30 +385,3 @@ def get_context_completeness(user_id: str) -> dict:
                 "business_model",
             ],
         }
-
-    # Check required fields
-    missing_required = [f for f in REQUIRED_CONTEXT_FIELDS if not context.get(f)]
-
-    # Recommended fields for better suggestions
-    recommended = [
-        "main_value_proposition",
-        "industry",
-        "business_model",
-        "target_market",
-        "competitors",
-    ]
-    missing_recommended = [f for f in recommended if not context.get(f)]
-
-    # Calculate completeness score
-    total_fields = len(REQUIRED_CONTEXT_FIELDS) + len(recommended)
-    filled_fields = (len(REQUIRED_CONTEXT_FIELDS) - len(missing_required)) + (
-        len(recommended) - len(missing_recommended)
-    )
-    completeness = filled_fields / total_fields if total_fields > 0 else 0.0
-
-    return {
-        "completeness": completeness,
-        "has_minimum": len(missing_required) == 0,
-        "missing_required": missing_required,
-        "missing_recommended": missing_recommended,
-    }

@@ -339,6 +339,9 @@ class ActionStatus(str):
     IN_REVIEW = "in_review"
     DONE = "done"
     CANCELLED = "cancelled"
+    FAILED = "failed"
+    ABANDONED = "abandoned"
+    REPLANNED = "replanned"
 
 
 class TaskStatusUpdate(BaseModel):
@@ -615,7 +618,7 @@ class ActionStatusUpdate(BaseModel):
 
     status: str = Field(
         ...,
-        pattern="^(todo|in_progress|blocked|in_review|done|cancelled)$",
+        pattern="^(todo|in_progress|blocked|in_review|done|cancelled|failed|abandoned|replanned)$",
         description="New status",
     )
     blocking_reason: str | None = Field(None, description="Reason for blocked status")
@@ -888,6 +891,77 @@ class ReplanResponse(BaseModel):
     is_existing: bool = Field(
         default=False, description="Whether this is an existing replanning session"
     )
+
+
+class ActionCloseRequest(BaseModel):
+    """Request model for closing an action as failed or abandoned.
+
+    Attributes:
+        status: Target status - must be 'failed' or 'abandoned'
+        reason: Reason for closing the action
+    """
+
+    status: str = Field(
+        ...,
+        pattern="^(failed|abandoned)$",
+        description="Target status: 'failed' or 'abandoned'",
+    )
+    reason: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="Reason for closing the action",
+    )
+
+
+class ActionCloseResponse(BaseModel):
+    """Response model for closing an action.
+
+    Attributes:
+        action_id: Closed action ID
+        status: New status (failed or abandoned)
+        message: Success message
+    """
+
+    action_id: str = Field(..., description="Closed action ID")
+    status: str = Field(..., description="New status")
+    message: str = Field(..., description="Success message")
+
+
+class ActionCloneReplanRequest(BaseModel):
+    """Request model for replanning an action by cloning it.
+
+    This creates a new action based on the original failed/abandoned action,
+    with optional modifications. The original action is marked as 'replanned'.
+
+    Attributes:
+        new_steps: Optional new what_and_how steps (defaults to original)
+        new_target_date: Optional new target end date (YYYY-MM-DD)
+    """
+
+    new_steps: list[str] | None = Field(
+        None,
+        description="New what_and_how steps (defaults to original if not provided)",
+    )
+    new_target_date: str | None = Field(
+        None,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="New target end date (YYYY-MM-DD)",
+    )
+
+
+class ActionCloneReplanResponse(BaseModel):
+    """Response model for clone-replan operation.
+
+    Attributes:
+        new_action_id: ID of the newly created action
+        original_action_id: ID of the original action (now marked as 'replanned')
+        message: Success message
+    """
+
+    new_action_id: str = Field(..., description="New action ID")
+    original_action_id: str = Field(..., description="Original action ID")
+    message: str = Field(..., description="Success message")
 
 
 # =============================================================================
@@ -1787,6 +1861,59 @@ class UserReminderPreferencesUpdate(BaseModel):
         ge=1,
         le=14,
         description="Default reminder frequency in days (1-14)",
+    )
+
+
+# =============================================================================
+# Kanban Column Preferences
+# =============================================================================
+
+# Valid statuses for kanban columns
+VALID_KANBAN_STATUSES = {
+    ActionStatus.TODO,
+    ActionStatus.IN_PROGRESS,
+    ActionStatus.BLOCKED,
+    ActionStatus.IN_REVIEW,
+    ActionStatus.DONE,
+    ActionStatus.CANCELLED,
+    ActionStatus.FAILED,
+    ActionStatus.ABANDONED,
+    ActionStatus.REPLANNED,
+}
+
+
+class KanbanColumn(BaseModel):
+    """Single kanban column configuration.
+
+    Attributes:
+        id: Column identifier (must be a valid ActionStatus)
+        title: Display title for the column
+        color: Optional hex color code for the column
+    """
+
+    id: str = Field(..., description="Column ID (ActionStatus value)")
+    title: str = Field(..., min_length=1, max_length=50, description="Display title")
+    color: str | None = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$", description="Hex color")
+
+
+class KanbanColumnsResponse(BaseModel):
+    """Response for kanban columns preference endpoint."""
+
+    columns: list[KanbanColumn] = Field(..., description="User's kanban columns")
+
+
+class KanbanColumnsUpdate(BaseModel):
+    """Request model for updating kanban columns.
+
+    Attributes:
+        columns: List of column configurations (1-8 columns, unique IDs)
+    """
+
+    columns: list[KanbanColumn] = Field(
+        ...,
+        min_length=1,
+        max_length=8,
+        description="Kanban columns (1-8, unique IDs)",
     )
 
 

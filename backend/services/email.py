@@ -39,6 +39,9 @@ def _get_resend_client() -> bool:
     if not settings.resend_api_key:
         logger.warning("RESEND_API_KEY not configured, emails will not be sent")
         return False
+    # Log key prefix for debugging (first 8 chars only, safe to log)
+    key_prefix = settings.resend_api_key[:8] if len(settings.resend_api_key) >= 8 else "***"
+    logger.debug(f"Resend API key configured: {key_prefix}...")
     resend.api_key = settings.resend_api_key
     return True
 
@@ -113,7 +116,12 @@ def send_email(
             last_error = e
             logger.warning(
                 f"Email send attempt {attempt}/{MAX_RETRIES} failed: {e}",
-                extra={"to": recipients, "subject": subject},
+                extra={
+                    "to": recipients,
+                    "subject": subject,
+                    "error_type": type(e).__name__,
+                    "error_detail": str(e),
+                },
             )
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_DELAY_SECONDS * attempt)  # Exponential backoff

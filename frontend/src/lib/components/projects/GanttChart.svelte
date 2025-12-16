@@ -35,7 +35,10 @@
 		blocked: '#EF4444', // error-500
 		in_review: '#A855F7', // purple-500
 		done: '#22C55E', // success-500
-		cancelled: '#6B7280' // neutral-500
+		cancelled: '#6B7280', // neutral-500
+		failed: '#EF4444', // error-500
+		abandoned: '#6B7280', // neutral-500
+		replanned: '#F59E0B' // amber-500
 	};
 
 	// Convert our action data to frappe-gantt task format
@@ -253,7 +256,10 @@
 						blocked: 'Blocked',
 						in_review: 'In Review',
 						done: 'Done',
-						cancelled: 'Cancelled'
+						cancelled: 'Cancelled',
+						failed: 'Failed',
+						abandoned: 'Abandoned',
+						replanned: 'Replanned'
 					}[action.status];
 
 					return `

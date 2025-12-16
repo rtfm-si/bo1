@@ -145,3 +145,65 @@ class TestCancellationBusinessLogic:
         for status in valid_statuses:
             update = ActionStatusUpdate(status=status)
             assert update.status == status
+
+
+class TestStatusTransitions:
+    """Test VALID_TRANSITIONS map in ActionRepository."""
+
+    def test_in_progress_to_todo_allowed(self):
+        """Test that in_progress → todo is a valid transition.
+
+        This allows users to move actions back to todo if they started
+        prematurely or need to reprioritize.
+        """
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        repo = ActionRepository()
+        is_valid, error = repo.validate_status_transition("in_progress", "todo")
+        assert is_valid, f"in_progress → todo should be allowed, got error: {error}"
+
+    def test_done_to_todo_not_allowed(self):
+        """Test that done → todo is NOT allowed (terminal state)."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        repo = ActionRepository()
+        is_valid, error = repo.validate_status_transition("done", "todo")
+        assert not is_valid, "done → todo should NOT be allowed"
+        assert "done" in error.lower()
+
+    def test_cancelled_to_todo_not_allowed(self):
+        """Test that cancelled → todo is NOT allowed (terminal state)."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        repo = ActionRepository()
+        is_valid, error = repo.validate_status_transition("cancelled", "todo")
+        assert not is_valid, "cancelled → todo should NOT be allowed"
+        assert "cancelled" in error.lower()
+
+    def test_blocked_to_in_progress_allowed(self):
+        """Test that blocked → in_progress is allowed (unblock and start)."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        repo = ActionRepository()
+        is_valid, error = repo.validate_status_transition("blocked", "in_progress")
+        assert is_valid, f"blocked → in_progress should be allowed, got error: {error}"
+
+    def test_all_valid_transitions_from_in_progress(self):
+        """Test all valid transitions from in_progress status."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        repo = ActionRepository()
+        expected_targets = {"todo", "blocked", "in_review", "done", "cancelled"}
+
+        for target in expected_targets:
+            is_valid, error = repo.validate_status_transition("in_progress", target)
+            assert is_valid, f"in_progress → {target} should be allowed, got error: {error}"
+
+    def test_same_status_transition_allowed(self):
+        """Test that transitioning to the same status is a no-op (allowed)."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        repo = ActionRepository()
+        for status in ["todo", "in_progress", "blocked", "in_review", "done", "cancelled"]:
+            is_valid, _ = repo.validate_status_transition(status, status)
+            assert is_valid, f"{status} → {status} should be allowed (no-op)"

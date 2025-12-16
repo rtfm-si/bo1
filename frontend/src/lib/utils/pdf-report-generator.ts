@@ -187,7 +187,10 @@ function getStatusClass(status: ActionStatus): string {
 		blocked: 'status-blocked',
 		in_review: 'status-in-review',
 		done: 'status-done',
-		cancelled: 'status-cancelled'
+		cancelled: 'status-cancelled',
+		failed: 'status-failed',
+		abandoned: 'status-abandoned',
+		replanned: 'status-replanned'
 	};
 	return statusClasses[status] || 'status-todo';
 }

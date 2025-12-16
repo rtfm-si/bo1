@@ -165,6 +165,7 @@
 	<title>Industry Benchmarks - Board of One</title>
 </svelte:head>
 
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 {#if isLoading}
 	<div class="flex items-center justify-center py-12">
 		<div
@@ -486,3 +487,4 @@
 		</div>
 	</div>
 {/if}
+</div>

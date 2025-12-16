@@ -32,7 +32,8 @@
 		ExternalLink,
 		X,
 		FolderKanban,
-		Trophy
+		Trophy,
+		HelpCircle
 	} from 'lucide-svelte';
 	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, getEffectiveDueDate } from '$lib/utils/due-dates';
 	import ActionSocialShare from '$lib/components/actions/ActionSocialShare.svelte';
@@ -93,6 +94,17 @@
 	let showCancellationModal = $state(false);
 	let isCancelling = $state(false);
 	let cancellationError = $state<string | null>(null);
+
+	// Close action state (failed/abandoned)
+	let showCloseModal = $state(false);
+	let closeStatus = $state<'failed' | 'abandoned'>('failed');
+	let closeReason = $state('');
+	let isClosing = $state(false);
+	let closeError = $state<string | null>(null);
+
+	// Clone-replan state
+	let isCloneReplanning = $state(false);
+	let cloneReplanError = $state<string | null>(null);
 
 	// Replanning suggestion state
 	let showReplanningSuggestionModal = $state(false);
@@ -268,6 +280,64 @@
 		}
 	}
 
+	// Open close modal
+	function openCloseModal(status: 'failed' | 'abandoned') {
+		closeStatus = status;
+		closeReason = '';
+		closeError = null;
+		showCloseModal = true;
+	}
+
+	// Close the close modal
+	function closeCloseModal() {
+		showCloseModal = false;
+		closeReason = '';
+		closeError = null;
+	}
+
+	// Submit close action (failed/abandoned)
+	async function submitClose() {
+		if (!action || !closeReason.trim()) return;
+
+		isClosing = true;
+		closeError = null;
+
+		try {
+			await apiClient.closeAction(action.id, closeStatus, closeReason.trim());
+			action = {
+				...action,
+				status: closeStatus,
+				closure_reason: closeReason.trim(),
+				cancelled_at: new Date().toISOString()
+			};
+			showCloseModal = false;
+		} catch (e) {
+			console.error('Failed to close action:', e);
+			closeError = e instanceof Error ? e.message : 'Failed to close action';
+		} finally {
+			isClosing = false;
+		}
+	}
+
+	// Clone-replan action
+	async function handleCloneReplan() {
+		if (!action) return;
+
+		isCloneReplanning = true;
+		cloneReplanError = null;
+
+		try {
+			const result = await apiClient.cloneReplanAction(action.id);
+			// Navigate to the new action
+			goto(`/actions/${result.new_action_id}`);
+		} catch (e) {
+			console.error('Failed to replan action:', e);
+			cloneReplanError = e instanceof Error ? e.message : 'Failed to replan action';
+		} finally {
+			isCloneReplanning = false;
+		}
+	}
+
 	// Status configuration
 	const statusConfig: Record<ActionStatus, { label: string; icon: typeof Circle; bgColor: string; textColor: string; borderColor: string }> = {
 		todo: {
@@ -311,6 +381,27 @@
 			bgColor: 'bg-neutral-50 dark:bg-neutral-800',
 			textColor: 'text-neutral-500 dark:text-neutral-400',
 			borderColor: 'border-neutral-300 dark:border-neutral-600'
+		},
+		failed: {
+			label: 'Failed',
+			icon: XCircle,
+			bgColor: 'bg-error-50 dark:bg-error-900/20',
+			textColor: 'text-error-600 dark:text-error-400',
+			borderColor: 'border-error-300 dark:border-error-700'
+		},
+		abandoned: {
+			label: 'Abandoned',
+			icon: XCircle,
+			bgColor: 'bg-neutral-100 dark:bg-neutral-800',
+			textColor: 'text-neutral-500 dark:text-neutral-400',
+			borderColor: 'border-neutral-400 dark:border-neutral-600'
+		},
+		replanned: {
+			label: 'Replanned',
+			icon: Sparkles,
+			bgColor: 'bg-brand-50 dark:bg-brand-900/20',
+			textColor: 'text-brand-600 dark:text-brand-400',
+			borderColor: 'border-brand-300 dark:border-brand-700'
 		}
 	};
 
@@ -328,6 +419,16 @@
 		decision: { label: 'Decision', color: 'text-amber-600 dark:text-amber-400' },
 		communication: { label: 'Communication', color: 'text-teal-600 dark:text-teal-400' }
 	};
+
+	// Build mentor help URL for a specific step
+	function getMentorHelpUrl(stepNumber: number, stepText: string): string {
+		const message = `@action:${actionId} Help me with step ${stepNumber}: "${stepText}"`;
+		const params = new URLSearchParams({
+			message,
+			persona: 'action_coach'
+		});
+		return `/mentor?${params.toString()}`;
+	}
 
 	// Helper functions with fallbacks
 	function getPriorityConfig(priority: string) {
@@ -514,6 +615,8 @@
 									<Clock class="w-4 h-4" />
 								{:else if action.status === 'done'}
 									<CheckCircle2 class="w-4 h-4" />
+								{:else if action.status === 'replanned'}
+									<Sparkles class="w-4 h-4" />
 								{:else}
 									<XCircle class="w-4 h-4" />
 								{/if}
@@ -523,29 +626,29 @@
 
 						<!-- Status Change Buttons -->
 						<div class="flex items-center gap-2">
-							{#if action.status !== 'todo'}
-								<Button
-									variant="ghost"
-									size="sm"
-									onclick={() => updateStatus('todo')}
-									disabled={isUpdatingStatus}
-								>
-									<Circle class="w-4 h-4 mr-1" />
-									To Do
-								</Button>
-							{/if}
-							{#if action.status !== 'in_progress'}
-								<Button
-									variant="ghost"
-									size="sm"
-									onclick={() => updateStatus('in_progress')}
-									disabled={isUpdatingStatus}
-								>
-									<Clock class="w-4 h-4 mr-1" />
-									Start
-								</Button>
-							{/if}
-							{#if action.status !== 'done'}
+							{#if !['done', 'cancelled', 'failed', 'abandoned', 'replanned'].includes(action.status)}
+								{#if action.status !== 'todo'}
+									<Button
+										variant="ghost"
+										size="sm"
+										onclick={() => updateStatus('todo')}
+										disabled={isUpdatingStatus}
+									>
+										<Circle class="w-4 h-4 mr-1" />
+										To Do
+									</Button>
+								{/if}
+								{#if action.status !== 'in_progress'}
+									<Button
+										variant="ghost"
+										size="sm"
+										onclick={() => updateStatus('in_progress')}
+										disabled={isUpdatingStatus}
+									>
+										<Clock class="w-4 h-4 mr-1" />
+										Start
+									</Button>
+								{/if}
 								<Button
 									variant="brand"
 									size="sm"
@@ -555,16 +658,40 @@
 									<CheckCircle2 class="w-4 h-4 mr-1" />
 									Complete
 								</Button>
-							{/if}
-							{#if action.status !== 'cancelled' && action.status !== 'done'}
 								<Button
 									variant="ghost"
 									size="sm"
-									onclick={openCancellationModal}
+									onclick={() => openCloseModal('failed')}
+									disabled={isUpdatingStatus}
+									class="text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20"
+								>
+									<XCircle class="w-4 h-4 mr-1" />
+									Mark Failed
+								</Button>
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={() => openCloseModal('abandoned')}
 									disabled={isUpdatingStatus}
 								>
 									<XCircle class="w-4 h-4 mr-1" />
-									Cancel
+									Abandon
+								</Button>
+							{/if}
+
+							{#if ['failed', 'abandoned'].includes(action.status)}
+								<Button
+									variant="brand"
+									size="sm"
+									onclick={handleCloneReplan}
+									disabled={isCloneReplanning}
+								>
+									{#if isCloneReplanning}
+										<Loader2 class="w-4 h-4 mr-1 animate-spin" />
+									{:else}
+										<Sparkles class="w-4 h-4 mr-1" />
+									{/if}
+									Replan Action
 								</Button>
 							{/if}
 
@@ -638,117 +765,172 @@
 				{#if hasAnyDates(action)}
 					{@const effectiveDueDate = getEffectiveDueDate(action)}
 					{@const dueDateStatus = getDueDateStatus(effectiveDueDate)}
+					{@const hasTargetDates = action.target_start_date || action.target_end_date}
+					{@const hasEstimatedDates = action.estimated_start_date || action.estimated_end_date}
+					{@const hasActualDates = action.actual_start_date || action.actual_end_date}
+					{@const startVariance = action.actual_start_date && action.target_start_date
+						? Math.round((new Date(action.actual_start_date).getTime() - new Date(action.target_start_date).getTime()) / (1000 * 60 * 60 * 24))
+						: null}
+					{@const endVariance = action.actual_end_date && action.target_end_date
+						? Math.round((new Date(action.actual_end_date).getTime() - new Date(action.target_end_date).getTime()) / (1000 * 60 * 60 * 24))
+						: null}
+					{@const daysRemaining = effectiveDueDate && action.status !== 'done' && action.status !== 'cancelled'
+						? Math.ceil((new Date(effectiveDueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+						: null}
 					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
+						<!-- Header with status badge -->
 						<div class="flex items-center justify-between mb-4">
 							<h2 class="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
 								<CalendarDays class="w-4 h-4 text-brand-500" />
-								Schedule & Dates
+								Schedule
 							</h2>
-							{#if dueDateStatus === 'overdue' || dueDateStatus === 'due-soon'}
-								<span class={`inline-flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-full border ${getDueDateBadgeClasses(dueDateStatus)}`}>
-									{#if dueDateStatus === 'overdue'}
-										<AlertTriangle class="w-4 h-4" />
-									{:else}
-										<Clock class="w-4 h-4" />
-									{/if}
-									{getDueDateLabel(dueDateStatus)}
-								</span>
-							{/if}
+							<div class="flex items-center gap-2">
+								{#if daysRemaining !== null}
+									<span class={`text-sm font-medium ${daysRemaining < 0 ? 'text-error-600 dark:text-error-400' : daysRemaining <= 3 ? 'text-warning-600 dark:text-warning-400' : 'text-neutral-600 dark:text-neutral-400'}`}>
+										{#if daysRemaining < 0}
+											{Math.abs(daysRemaining)} days overdue
+										{:else if daysRemaining === 0}
+											Due today
+										{:else}
+											{daysRemaining} days left
+										{/if}
+									</span>
+								{/if}
+								{#if dueDateStatus === 'overdue' || dueDateStatus === 'due-soon'}
+									<span class={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border ${getDueDateBadgeClasses(dueDateStatus)}`}>
+										{#if dueDateStatus === 'overdue'}
+											<AlertTriangle class="w-3 h-3" />
+										{:else}
+											<Clock class="w-3 h-3" />
+										{/if}
+										{getDueDateLabel(dueDateStatus)}
+									</span>
+								{/if}
+							</div>
 						</div>
 
-						<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-							<!-- Duration -->
-							{#if action.estimated_duration_days || action.timeline}
-								<div class="flex items-start gap-3 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
-									<Timer class="w-5 h-5 text-brand-500 mt-0.5" />
-									<div>
-										<div class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Duration</div>
-										<div class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-											{#if action.timeline}
-												{action.timeline}
-											{:else if action.estimated_duration_days}
-												{action.estimated_duration_days} business days
+						<!-- Visual Timeline Progress -->
+						{#if action}
+							{@const progressSteps = [
+								{ label: 'Start', done: !!action.actual_start_date, date: action.actual_start_date || action.estimated_start_date || action.target_start_date },
+								{ label: 'In Progress', done: action.status === 'in_progress' || action.status === 'done', active: action.status === 'in_progress' },
+								{ label: 'Complete', done: action.status === 'done', date: action.actual_end_date }
+							]}
+						<div class="mb-5 px-2">
+							<div class="relative flex items-center justify-between">
+								<!-- Progress line background -->
+								<div class="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full"></div>
+								<!-- Progress line fill -->
+								<div
+									class={`absolute left-0 top-1/2 -translate-y-1/2 h-1 rounded-full transition-all ${action.status === 'done' ? 'bg-success-500' : action.status === 'cancelled' ? 'bg-neutral-400' : 'bg-brand-500'}`}
+									style="width: {action.status === 'done' ? '100%' : action.status === 'in_progress' ? '50%' : action.actual_start_date ? '25%' : '0%'}"
+								></div>
+								<!-- Steps -->
+								{#each progressSteps as step, i}
+									<div class="relative flex flex-col items-center z-10">
+										<div class={`w-4 h-4 rounded-full border-2 ${
+											step.done
+												? 'bg-success-500 border-success-500'
+												: step.active
+													? 'bg-brand-500 border-brand-500 ring-4 ring-brand-100 dark:ring-brand-900/50'
+													: 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-600'
+										}`}>
+											{#if step.done}
+												<CheckCircle2 class="w-3 h-3 text-white -mt-px -ml-px" />
 											{/if}
 										</div>
+										<span class={`mt-1.5 text-xs font-medium ${step.done || step.active ? 'text-neutral-900 dark:text-neutral-100' : 'text-neutral-400 dark:text-neutral-500'}`}>
+											{step.label}
+										</span>
+									</div>
+								{/each}
+							</div>
+						</div>
+						{/if}
+
+						<!-- Duration Summary -->
+						{#if action.estimated_duration_days}
+							<div class="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
+								<Timer class="w-4 h-4 text-brand-500" />
+								<span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+									{action.estimated_duration_days} business days
+								</span>
+							</div>
+						{/if}
+
+						<!-- Compact Date Rows -->
+						<div class="space-y-2">
+							<!-- Target Dates Row -->
+							{#if hasTargetDates}
+								<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30">
+									<Calendar class="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+									<span class="text-xs font-medium text-amber-700 dark:text-amber-300 uppercase w-16">Target</span>
+									<div class="flex-1 flex items-center gap-4 text-sm">
+										{#if action.target_start_date}
+											<span class="text-neutral-700 dark:text-neutral-300">{formatDate(action.target_start_date)}</span>
+										{/if}
+										{#if action.target_start_date && action.target_end_date}
+											<span class="text-neutral-400">→</span>
+										{/if}
+										{#if action.target_end_date}
+											<span class="text-neutral-700 dark:text-neutral-300">{formatDate(action.target_end_date)}</span>
+										{/if}
 									</div>
 								</div>
 							{/if}
 
-							<!-- Target Start Date -->
-							{#if action.target_start_date}
-								<div class="flex items-start gap-3 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
-									<Calendar class="w-5 h-5 text-amber-500 mt-0.5" />
-									<div>
-										<div class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Target Start</div>
-										<div class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-											{formatDate(action.target_start_date)}
-										</div>
+							<!-- Estimated Dates Row (only if different from target) -->
+							{#if hasEstimatedDates && (action.estimated_start_date !== action.target_start_date || action.estimated_end_date !== action.target_end_date)}
+								<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-brand-50/50 dark:bg-brand-900/10 border border-brand-200/50 dark:border-brand-800/30">
+									<CalendarDays class="w-4 h-4 text-brand-600 dark:text-brand-400 flex-shrink-0" />
+									<span class="text-xs font-medium text-brand-700 dark:text-brand-300 uppercase w-16">Est.</span>
+									<div class="flex-1 flex items-center gap-4 text-sm">
+										{#if action.estimated_start_date}
+											<span class="text-neutral-700 dark:text-neutral-300">{formatDate(action.estimated_start_date)}</span>
+										{/if}
+										{#if action.estimated_start_date && action.estimated_end_date}
+											<span class="text-neutral-400">→</span>
+										{/if}
+										{#if action.estimated_end_date}
+											<span class="text-neutral-700 dark:text-neutral-300">{formatDate(action.estimated_end_date)}</span>
+										{/if}
 									</div>
 								</div>
 							{/if}
 
-							<!-- Target End Date -->
-							{#if action.target_end_date}
-								<div class="flex items-start gap-3 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
-									<Calendar class="w-5 h-5 text-amber-500 mt-0.5" />
-									<div>
-										<div class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Target End</div>
-										<div class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-											{formatDate(action.target_end_date)}
-										</div>
+							<!-- Actual Dates Row -->
+							{#if hasActualDates}
+								<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-success-50/50 dark:bg-success-900/10 border border-success-200/50 dark:border-success-800/30">
+									<CalendarCheck class="w-4 h-4 text-success-600 dark:text-success-400 flex-shrink-0" />
+									<span class="text-xs font-medium text-success-700 dark:text-success-300 uppercase w-16">Actual</span>
+									<div class="flex-1 flex items-center gap-4 text-sm">
+										{#if action.actual_start_date}
+											<span class="text-neutral-700 dark:text-neutral-300">
+												{formatDate(action.actual_start_date)}
+												{#if startVariance !== null && Math.abs(startVariance) > 1}
+													<span class={`ml-1 text-xs font-medium ${startVariance > 0 ? 'text-error-600 dark:text-error-400' : 'text-success-600 dark:text-success-400'}`}>
+														({startVariance > 0 ? '+' : ''}{startVariance}d)
+													</span>
+												{/if}
+											</span>
+										{/if}
+										{#if action.actual_start_date && action.actual_end_date}
+											<span class="text-neutral-400">→</span>
+										{/if}
+										{#if action.actual_end_date}
+											<span class="text-neutral-700 dark:text-neutral-300">
+												{formatDate(action.actual_end_date)}
+												{#if endVariance !== null && Math.abs(endVariance) > 1}
+													<span class={`ml-1 text-xs font-medium ${endVariance > 0 ? 'text-error-600 dark:text-error-400' : 'text-success-600 dark:text-success-400'}`}>
+														({endVariance > 0 ? '+' : ''}{endVariance}d)
+													</span>
+												{/if}
+											</span>
+										{/if}
 									</div>
-								</div>
-							{/if}
-
-							<!-- Estimated Start Date (calculated) -->
-							{#if action.estimated_start_date}
-								<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-50 dark:bg-brand-900/20">
-									<CalendarDays class="w-5 h-5 text-brand-500 mt-0.5" />
-									<div>
-										<div class="text-xs font-medium text-brand-600 dark:text-brand-400 uppercase">Est. Start</div>
-										<div class="text-sm font-medium text-brand-900 dark:text-brand-100">
-											{formatDate(action.estimated_start_date)}
-										</div>
-									</div>
-								</div>
-							{/if}
-
-							<!-- Estimated End Date (calculated) -->
-							{#if action.estimated_end_date}
-								<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-50 dark:bg-brand-900/20">
-									<CalendarDays class="w-5 h-5 text-brand-500 mt-0.5" />
-									<div>
-										<div class="text-xs font-medium text-brand-600 dark:text-brand-400 uppercase">Est. End</div>
-										<div class="text-sm font-medium text-brand-900 dark:text-brand-100">
-											{formatDate(action.estimated_end_date)}
-										</div>
-									</div>
-								</div>
-							{/if}
-
-							<!-- Actual Start Date -->
-							{#if action.actual_start_date}
-								<div class="flex items-start gap-3 p-3 rounded-lg bg-success-50 dark:bg-success-900/20">
-									<CalendarCheck class="w-5 h-5 text-success-500 mt-0.5" />
-									<div>
-										<div class="text-xs font-medium text-success-600 dark:text-success-400 uppercase">Started</div>
-										<div class="text-sm font-medium text-success-900 dark:text-success-100">
-											{formatDate(action.actual_start_date)}
-										</div>
-									</div>
-								</div>
-							{/if}
-
-							<!-- Actual End Date -->
-							{#if action.actual_end_date}
-								<div class="flex items-start gap-3 p-3 rounded-lg bg-success-50 dark:bg-success-900/20">
-									<CalendarCheck class="w-5 h-5 text-success-500 mt-0.5" />
-									<div>
-										<div class="text-xs font-medium text-success-600 dark:text-success-400 uppercase">Completed</div>
-										<div class="text-sm font-medium text-success-900 dark:text-success-100">
-											{formatDate(action.actual_end_date)}
-										</div>
-									</div>
+									{#if action.status === 'done'}
+										<Trophy class="w-4 h-4 text-success-500" />
+									{/if}
 								</div>
 							{/if}
 						</div>
@@ -839,11 +1021,132 @@
 								</div>
 							</div>
 						{/if}
+
+						<!-- Failed info -->
+						{#if action.status === 'failed' && action.closure_reason}
+							<div class="mt-4 p-3 rounded-lg bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800">
+								<div class="flex items-start gap-2">
+									<XCircle class="w-4 h-4 text-error-500 mt-0.5 flex-shrink-0" />
+									<div class="flex-1">
+										<div class="text-xs font-medium text-error-600 dark:text-error-400 uppercase">Failed</div>
+										<div class="text-sm text-error-700 dark:text-error-300">{action.closure_reason}</div>
+										{#if action.cancelled_at}
+											<div class="text-xs text-error-500 dark:text-error-400 mt-1">
+												On {formatDate(action.cancelled_at)}
+											</div>
+										{/if}
+
+										<!-- Replan action -->
+										<div class="mt-3 pt-3 border-t border-error-200 dark:border-error-700">
+											<p class="text-sm text-error-600 dark:text-error-400 mb-2">
+												Create a new action with a different approach
+											</p>
+											<Button
+												size="sm"
+												variant="brand"
+												onclick={handleCloneReplan}
+												disabled={isCloneReplanning}
+												class="w-full"
+											>
+												{#if isCloneReplanning}
+													<Loader2 class="w-4 h-4 mr-2 animate-spin" />
+													Creating...
+												{:else}
+													<Sparkles class="w-4 h-4 mr-2" />
+													Replan Action
+												{/if}
+											</Button>
+										</div>
+									</div>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Abandoned info -->
+						{#if action.status === 'abandoned' && action.closure_reason}
+							<div class="mt-4 p-3 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700">
+								<div class="flex items-start gap-2">
+									<XCircle class="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
+									<div class="flex-1">
+										<div class="text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase">Abandoned</div>
+										<div class="text-sm text-neutral-700 dark:text-neutral-300">{action.closure_reason}</div>
+										{#if action.cancelled_at}
+											<div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+												On {formatDate(action.cancelled_at)}
+											</div>
+										{/if}
+
+										<!-- Replan action -->
+										<div class="mt-3 pt-3 border-t border-neutral-300 dark:border-neutral-600">
+											<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+												Create a new action based on this one
+											</p>
+											<Button
+												size="sm"
+												variant="secondary"
+												onclick={handleCloneReplan}
+												disabled={isCloneReplanning}
+												class="w-full"
+											>
+												{#if isCloneReplanning}
+													<Loader2 class="w-4 h-4 mr-2 animate-spin" />
+													Creating...
+												{:else}
+													<Sparkles class="w-4 h-4 mr-2" />
+													Replan Action
+												{/if}
+											</Button>
+										</div>
+									</div>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Replanned info -->
+						{#if action.status === 'replanned' && action.replanned_to_id}
+							<div class="mt-4 p-3 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800">
+								<div class="flex items-start gap-2">
+									<Sparkles class="w-4 h-4 text-brand-500 mt-0.5 flex-shrink-0" />
+									<div class="flex-1">
+										<div class="text-xs font-medium text-brand-600 dark:text-brand-400 uppercase">Replanned</div>
+										<div class="text-sm text-brand-700 dark:text-brand-300">
+											This action was replaced with a new approach.
+										</div>
+										<a
+											href="/actions/{action.replanned_to_id}"
+											class="inline-flex items-center gap-1.5 mt-2 text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
+										>
+											<ExternalLink class="w-3.5 h-3.5" />
+											View New Action
+										</a>
+									</div>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Replanned from info -->
+						{#if action.replanned_from_id}
+							<div class="mt-4 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700">
+								<div class="flex items-start gap-2">
+									<History class="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
+									<div class="flex-1">
+										<div class="text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase">Replanned from</div>
+										<a
+											href="/actions/{action.replanned_from_id}"
+											class="inline-flex items-center gap-1.5 mt-1 text-sm text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
+										>
+											<ExternalLink class="w-3.5 h-3.5" />
+											View Original Action
+										</a>
+									</div>
+								</div>
+							</div>
+						{/if}
 					</div>
 				{/if}
 
-				<!-- Reminder Settings (only for non-completed actions) -->
-				{#if action.status !== 'done' && action.status !== 'cancelled'}
+				<!-- Reminder Settings (only for active actions) -->
+				{#if !['done', 'cancelled', 'failed', 'abandoned', 'replanned'].includes(action.status)}
 					<ReminderSettings actionId={action.id} />
 				{/if}
 
@@ -865,11 +1168,19 @@
 						</h2>
 						<ul class="space-y-2">
 							{#each action.what_and_how as step, i (i)}
-								<li class="flex items-start gap-3">
+								<li class="flex items-start gap-3 group">
 									<span class="flex-shrink-0 w-6 h-6 rounded-full bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 text-sm font-medium flex items-center justify-center">
 										{i + 1}
 									</span>
-									<span class="text-neutral-700 dark:text-neutral-300 pt-0.5">{step}</span>
+									<span class="flex-1 text-neutral-700 dark:text-neutral-300 pt-0.5">{step}</span>
+									<a
+										href={getMentorHelpUrl(i + 1, step)}
+										class="flex-shrink-0 flex items-center gap-1 px-2 py-1 text-xs font-medium text-neutral-500 hover:text-brand-600 dark:text-neutral-400 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-md transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+										title="Get mentor help with this step"
+									>
+										<HelpCircle class="w-3.5 h-3.5" />
+										<span class="hidden sm:inline">Help</span>
+									</a>
 								</li>
 							{/each}
 						</ul>
@@ -1085,6 +1396,104 @@
 	oncancel={closeCancellationModal}
 	onsubmit={submitCancellation}
 />
+
+<!-- Close Action Modal (Failed/Abandoned) -->
+{#if showCloseModal}
+	<div class="fixed inset-0 z-50 flex items-center justify-center">
+		<!-- Backdrop -->
+		<button
+			type="button"
+			class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+			onclick={closeCloseModal}
+			aria-label="Close modal"
+		></button>
+
+		<!-- Modal Content -->
+		<div class="relative bg-white dark:bg-neutral-900 rounded-xl shadow-xl max-w-lg w-full mx-4 overflow-hidden">
+			<!-- Header -->
+			<div class="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
+				<div class="flex items-center gap-3">
+					<div class={`p-2 rounded-lg ${closeStatus === 'failed' ? 'bg-error-50 dark:bg-error-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
+						<XCircle class={`w-5 h-5 ${closeStatus === 'failed' ? 'text-error-600 dark:text-error-400' : 'text-neutral-600 dark:text-neutral-400'}`} />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+							{closeStatus === 'failed' ? 'Mark as Failed' : 'Abandon Action'}
+						</h3>
+						<p class="text-sm text-neutral-500 dark:text-neutral-400">
+							{closeStatus === 'failed' ? 'This action could not be completed' : 'This action is no longer relevant'}
+						</p>
+					</div>
+				</div>
+				<button
+					onclick={closeCloseModal}
+					class="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+					aria-label="Close"
+				>
+					<X class="w-5 h-5 text-neutral-500" />
+				</button>
+			</div>
+
+			<!-- Body -->
+			<div class="px-6 py-4">
+				{#if action}
+					<div class="mb-4 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
+						<div class="text-sm font-medium text-neutral-900 dark:text-neutral-100">{action.title}</div>
+					</div>
+				{/if}
+
+				<label class="block">
+					<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5 block">
+						{closeStatus === 'failed' ? 'What prevented completion?' : 'Why is this being abandoned?'}
+					</span>
+					<textarea
+						bind:value={closeReason}
+						placeholder={closeStatus === 'failed'
+							? 'Describe what blocked or prevented this action from being completed...'
+							: 'Explain why this action is no longer needed or relevant...'}
+						rows="4"
+						class="w-full px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent resize-none"
+					></textarea>
+					<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5">
+						After closing, you can create a new action from this one using "Replan Action".
+					</p>
+				</label>
+
+				{#if closeError}
+					<div class="mt-4 p-3 rounded-lg bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800">
+						<p class="text-sm text-error-700 dark:text-error-300">{closeError}</p>
+					</div>
+				{/if}
+
+				{#if cloneReplanError}
+					<div class="mt-4 p-3 rounded-lg bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800">
+						<p class="text-sm text-error-700 dark:text-error-300">{cloneReplanError}</p>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Footer -->
+			<div class="flex items-center justify-end gap-3 px-6 py-4 bg-neutral-50 dark:bg-neutral-800/50">
+				<Button variant="ghost" onclick={closeCloseModal} disabled={isClosing}>
+					Cancel
+				</Button>
+				<Button
+					variant={closeStatus === 'failed' ? 'danger' : 'secondary'}
+					onclick={submitClose}
+					disabled={isClosing || !closeReason.trim()}
+				>
+					{#if isClosing}
+						<Loader2 class="w-4 h-4 mr-2 animate-spin" />
+						Closing...
+					{:else}
+						<XCircle class="w-4 h-4 mr-2" />
+						{closeStatus === 'failed' ? 'Mark as Failed' : 'Abandon Action'}
+					{/if}
+				</Button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <!-- Replanning Suggestion Modal -->
 <ReplanningSuggestionModal

@@ -38,15 +38,16 @@ async def fetch_recent_errors(limit: int = MAX_ERRORS_PER_CHECK) -> list[str]:
 
     # Try Redis error buffer first
     try:
-        from bo1.state.redis_client import get_redis_client
+        from backend.api.dependencies import get_redis_manager
 
-        redis = get_redis_client()
-        # Check for error buffer key (populated by error handlers)
-        raw_errors = redis.lrange("errors:recent", 0, limit - 1)
-        errors.extend([e.decode() if isinstance(e, bytes) else e for e in raw_errors])
-        if errors:
-            logger.debug(f"Fetched {len(errors)} errors from Redis buffer")
-            return errors
+        redis_manager = get_redis_manager()
+        if redis_manager.is_available and redis_manager.redis:
+            # Check for error buffer key (populated by error handlers)
+            raw_errors = redis_manager.redis.lrange("errors:recent", 0, limit - 1)
+            errors.extend([e if isinstance(e, str) else e.decode() for e in raw_errors])
+            if errors:
+                logger.debug(f"Fetched {len(errors)} errors from Redis buffer")
+                return errors
     except Exception as e:
         logger.debug(f"Redis error buffer unavailable: {e}")
 
@@ -256,11 +257,15 @@ async def get_system_health() -> dict[str, Any]:
 
     # Check Redis
     try:
-        from bo1.state.redis_client import get_redis_client
+        from backend.api.dependencies import get_redis_manager
 
-        redis = get_redis_client()
-        redis.ping()
-        health["components"]["redis"] = {"status": "healthy"}
+        redis_manager = get_redis_manager()
+        if redis_manager.is_available and redis_manager.redis:
+            redis_manager.redis.ping()
+            health["components"]["redis"] = {"status": "healthy"}
+        else:
+            health["components"]["redis"] = {"status": "unhealthy", "error": "Redis unavailable"}
+            health["overall"] = "degraded"
     except Exception as e:
         health["components"]["redis"] = {"status": "unhealthy", "error": str(e)}
         health["overall"] = "degraded"

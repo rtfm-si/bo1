@@ -154,24 +154,28 @@ def _get_unassigned_actions(user_id: str) -> list[dict[str, Any]]:
     Returns:
         List of action records without project assignments
     """
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT a.id, a.title, a.description, a.status, a.priority, a.category,
-                       a.what_and_how, a.success_criteria, a.source_session_id,
-                       s.problem_statement as session_problem
-                FROM actions a
-                LEFT JOIN sessions s ON a.source_session_id = s.id
-                WHERE a.user_id = %s
-                  AND a.project_id IS NULL
-                  AND a.deleted_at IS NULL
-                ORDER BY a.created_at DESC
-                LIMIT %s
-                """,
-                (user_id, MAX_ACTIONS_TO_ANALYZE),
-            )
-            return [dict(row) for row in cur.fetchall()]
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT a.id, a.title, a.description, a.status, a.priority, a.category,
+                           a.what_and_how, a.success_criteria, a.source_session_id,
+                           s.problem_statement as session_problem
+                    FROM actions a
+                    LEFT JOIN sessions s ON a.source_session_id = s.id
+                    WHERE a.user_id = %s
+                      AND a.project_id IS NULL
+                      AND a.deleted_at IS NULL
+                    ORDER BY a.created_at DESC
+                    LIMIT %s
+                    """,
+                    (user_id, MAX_ACTIONS_TO_ANALYZE),
+                )
+                return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"Failed to get unassigned actions: {e}")
+        return []
 
 
 def _format_actions_for_prompt(actions: list[dict[str, Any]]) -> str:
@@ -287,20 +291,24 @@ def get_unassigned_action_count(user_id: str) -> int:
     Returns:
         Number of actions without project assignments
     """
-    with db_session() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT COUNT(*) as count
-                FROM actions
-                WHERE user_id = %s
-                  AND project_id IS NULL
-                  AND deleted_at IS NULL
-                """,
-                (user_id,),
-            )
-            result = cur.fetchone()
-            return result["count"] if result else 0
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as count
+                    FROM actions
+                    WHERE user_id = %s
+                      AND project_id IS NULL
+                      AND deleted_at IS NULL
+                    """,
+                    (user_id,),
+                )
+                result = cur.fetchone()
+                return result["count"] if result else 0
+    except Exception as e:
+        logger.error(f"Failed to get unassigned action count: {e}")
+        return 0
 
 
 async def create_projects_from_suggestions(

@@ -294,8 +294,8 @@ def get_usage_stats(days: int = 30) -> UsageStats:
             cur.execute("SELECT COUNT(*) as total FROM dataset_analyses")
             data_analyses = cur.fetchone()["total"]
 
-            # Projects count
-            cur.execute("SELECT COUNT(*) as total FROM projects WHERE deleted_at IS NULL")
+            # Projects count (projects table has no deleted_at)
+            cur.execute("SELECT COUNT(*) as total FROM projects")
             projects_count = cur.fetchone()["total"]
 
             # Actions by status

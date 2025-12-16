@@ -229,10 +229,10 @@ def get_sample_embeddings(
                         LEFT(question, 100) AS preview,
                         category,
                         industry,
-                        created_at::text AS created_at
+                        research_date::text AS created_at
                     FROM research_cache
                     WHERE question_embedding IS NOT NULL
-                    ORDER BY created_at DESC
+                    ORDER BY research_date DESC
                     LIMIT %s
                     """,
                     (per_type_limit,),

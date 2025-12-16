@@ -17,6 +17,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.models import (
+    ActionCloneReplanRequest,
+    ActionCloneReplanResponse,
+    ActionCloseRequest,
+    ActionCloseResponse,
     ActionDatesResponse,
     ActionDatesUpdate,
     ActionDetailResponse,
@@ -432,6 +436,9 @@ async def get_global_gantt(
         "in_review": 75,
         "done": 100,
         "cancelled": 100,
+        "failed": 100,
+        "abandoned": 100,
+        "replanned": 100,
     }
 
     # Get user's preferred color strategy and initialize color service
@@ -946,6 +953,139 @@ async def complete_action(
         }
 
     return response
+
+
+@router.post(
+    "/{action_id}/close",
+    response_model=ActionCloseResponse,
+    summary="Close an action",
+    description="Mark action as failed or abandoned with a reason.",
+    responses={
+        200: {"description": "Action closed successfully"},
+        400: {"description": "Invalid status transition"},
+        404: {"description": "Action not found"},
+    },
+)
+@handle_api_errors("close action")
+async def close_action(
+    action_id: str,
+    request: ActionCloseRequest,
+    user_data: dict = Depends(get_current_user),
+) -> ActionCloseResponse:
+    """Close an action as failed or abandoned.
+
+    Args:
+        action_id: Action UUID
+        request: Close request with status and reason
+        user_data: Current user from auth
+
+    Returns:
+        ActionCloseResponse with closed action details
+    """
+    user_id = user_data.get("user_id")
+    logger.info(f"Closing action {action_id} as {request.status} for user {user_id}")
+
+    # Verify ownership
+    action = action_repository.get(action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+    if action.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    # Validate transition
+    current_status = action.get("status", "todo")
+    valid, error_msg = action_repository.validate_status_transition(current_status, request.status)
+    if not valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+
+    # Close action with reason
+    success = action_repository.update_status(
+        action_id,
+        request.status,
+        user_id,
+        cancellation_reason=request.reason,  # Reused for closure reason
+    )
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to close action")
+
+    return ActionCloseResponse(
+        action_id=action_id,
+        status=request.status,
+        message=f"Action closed as {request.status}",
+    )
+
+
+@router.post(
+    "/{action_id}/clone-replan",
+    response_model=ActionCloneReplanResponse,
+    summary="Replan action by cloning",
+    description="Create a new action from a failed/abandoned action. Original is marked as 'replanned'.",
+    responses={
+        200: {"description": "Action replanned successfully"},
+        400: {"description": "Action cannot be replanned (wrong status)"},
+        404: {"description": "Action not found"},
+    },
+)
+@handle_api_errors("clone-replan action")
+async def clone_replan_action(
+    action_id: str,
+    request: ActionCloneReplanRequest,
+    user_data: dict = Depends(get_current_user),
+) -> ActionCloneReplanResponse:
+    """Create a new action by replanning a failed/abandoned one.
+
+    Args:
+        action_id: Original action UUID
+        request: Replan request with optional modifications
+        user_data: Current user from auth
+
+    Returns:
+        ActionCloneReplanResponse with new action ID
+    """
+    from datetime import date as date_type
+
+    user_id = user_data.get("user_id")
+    logger.info(f"Clone-replanning action {action_id} for user {user_id}")
+
+    # Parse target date if provided
+    new_target_date = None
+    if request.new_target_date:
+        try:
+            new_target_date = date_type.fromisoformat(request.new_target_date)
+        except ValueError as err:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid date format. Use YYYY-MM-DD",
+            ) from err
+
+    # Replan action (creates new action, marks original as 'replanned')
+    new_action = action_repository.replan_action(
+        action_id,
+        user_id,
+        new_steps=request.new_steps,
+        new_target_date=new_target_date,
+    )
+
+    if not new_action:
+        # Check if action exists and has correct status
+        action = action_repository.get(action_id)
+        if not action:
+            raise HTTPException(status_code=404, detail="Action not found")
+        if action.get("user_id") != user_id:
+            raise HTTPException(status_code=404, detail="Action not found")
+        current_status = action.get("status", "")
+        if current_status not in ("failed", "abandoned"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Only failed or abandoned actions can be replanned (current: {current_status})",
+            )
+        raise HTTPException(status_code=400, detail="Failed to replan action")
+
+    return ActionCloneReplanResponse(
+        new_action_id=str(new_action["id"]),
+        original_action_id=action_id,
+        message="Action replanned successfully",
+    )
 
 
 @router.patch(

@@ -3,7 +3,7 @@
 	 * HelpSidebar - Collapsible category navigation for help center
 	 */
 	import { SvelteSet } from 'svelte/reactivity';
-	import { ChevronDown, ChevronRight, Rocket, Users, CheckCircle, Database, Settings, HelpCircle } from 'lucide-svelte';
+	import { ChevronDown, ChevronRight, Rocket, Users, CheckCircle, Database, Settings, HelpCircle, Lightbulb } from 'lucide-svelte';
 	import type { HelpCategory, HelpArticle } from '$lib/data/help-content';
 
 	interface Props {
@@ -33,6 +33,7 @@
 	// Icon mapping
 	const iconComponents = {
 		rocket: Rocket,
+		lightbulb: Lightbulb,
 		users: Users,
 		'check-circle': CheckCircle,
 		database: Database,

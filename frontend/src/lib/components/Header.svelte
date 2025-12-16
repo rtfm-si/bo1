@@ -39,7 +39,7 @@
 
 	// Reports navigation (intelligence features)
 	const reportsLinks = [
-		{ href: '/meeting', label: 'Meetings' },
+		{ href: '/reports/meetings', label: 'Meetings' },
 		{ href: '/reports/competitors', label: 'Competitors' },
 		{ href: '/reports/benchmarks', label: 'Benchmarks' },
 	];
@@ -169,6 +169,7 @@
 					</a>
 					<a
 						href="/help"
+						data-tour="help-nav"
 						class={isActive('/help')
 							? 'text-brand-600 dark:text-brand-400 font-medium'
 							: 'text-neutral-700 dark:text-neutral-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors'}

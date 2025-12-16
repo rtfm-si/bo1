@@ -40,6 +40,9 @@ def _get_resend_client() -> bool:
     if not settings.resend_api_key:
         logger.warning("RESEND_API_KEY not configured - emails will not be sent")
         return False
+    # Log key prefix for debugging (first 8 chars only, safe to log)
+    key_prefix = settings.resend_api_key[:8] if len(settings.resend_api_key) >= 8 else "***"
+    logger.debug(f"Resend API key configured: {key_prefix}...")
     resend.api_key = settings.resend_api_key
     return True
 
@@ -195,7 +198,11 @@ def send_beta_welcome_email(email: str) -> dict | None:
         return result
 
     except resend.exceptions.ResendError as e:
-        logger.error(f"Resend API error sending email to {email}: {e}")
+        # Log full error details - common issues: invalid API key, domain not verified, rate limit
+        logger.error(
+            f"Resend API error sending email to {email}: {e}",
+            extra={"error_type": type(e).__name__, "error_detail": str(e)},
+        )
         return None
     except Exception as e:
         logger.error(f"Unexpected error sending beta welcome email to {email}: {e}", exc_info=True)

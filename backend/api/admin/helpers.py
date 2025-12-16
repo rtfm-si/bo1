@@ -380,9 +380,16 @@ class AdminApprovalService:
         else:
             message_parts.append("already on whitelist")
         if email_sent:
-            message_parts.append("welcome email sent")
+            message_parts.append(f"welcome email sent (id: {result.get('id', 'unknown')})")
         else:
-            message_parts.append("email not sent (check RESEND_API_KEY)")
+            # Check if Resend is configured at all
+            from bo1.config import get_settings
+
+            settings = get_settings()
+            if not settings.resend_api_key:
+                message_parts.append("email not sent - RESEND_API_KEY not configured")
+            else:
+                message_parts.append("email failed - check API logs for Resend error details")
 
         message = f"Approved {email}: {', '.join(message_parts)}"
 

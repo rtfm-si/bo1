@@ -8,22 +8,25 @@
 	 * - Filter by meeting, project, and tags
 	 * - Click-through to action details
 	 */
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { apiClient } from '$lib/api/client';
+	import { getPersistedTourPage, setTourActive, clearTourPage } from '$lib/stores/tour';
+	import { startActionsPageTour, injectTourStyles } from '$lib/tour/onboarding-tour';
 	import type {
 		AllActionsResponse,
 		TaskWithSessionContext,
 		ActionStatus,
 		TagResponse,
 		ProjectDetailResponse,
-		GlobalGanttResponse
+		GlobalGanttResponse,
+		KanbanColumn
 	} from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
 	import { Button } from '$lib/components/ui';
-	import Badge from '$lib/components/ui/Badge.svelte';
 	import GlobalGanttChart from '$lib/components/actions/GlobalGanttChart.svelte';
-	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses } from '$lib/utils/due-dates';
+	import KanbanBoard from '$lib/components/actions/KanbanBoard.svelte';
+	import { getDueDateStatus } from '$lib/utils/due-dates';
 	import { toast } from '$lib/stores/toast';
 
 	// Filter state
@@ -47,6 +50,7 @@
 	let ganttData = $state<GlobalGanttResponse | null>(null);
 	let projects = $state<ProjectDetailResponse[]>([]);
 	let tags = $state<TagResponse[]>([]);
+	let kanbanColumns = $state<KanbanColumn[] | undefined>(undefined);
 	let showTagDropdown = $state(false);
 
 	// Fetch all data
@@ -59,16 +63,18 @@
 			if (selectedMeetingId) params.session_id = selectedMeetingId;
 			if (selectedTagIds.length > 0) params.tag_ids = selectedTagIds.join(',');
 
-			// Fetch actions, projects, tags in parallel
-			const [actionsRes, projectsRes, tagsRes] = await Promise.all([
+			// Fetch actions, projects, tags, and kanban columns in parallel
+			const [actionsRes, projectsRes, tagsRes, columnsRes] = await Promise.all([
 				apiClient.getAllActions(params),
 				apiClient.listProjects({ status: 'active' }),
-				apiClient.getTags()
+				apiClient.getTags(),
+				apiClient.getKanbanColumns().catch(() => null) // Graceful fallback
 			]);
 
 			actionsData = actionsRes;
 			projects = projectsRes.projects;
 			tags = tagsRes.tags;
+			kanbanColumns = columnsRes?.columns;
 
 			// If gantt view is active, fetch gantt data too
 			if (viewMode === 'gantt') {
@@ -236,30 +242,36 @@
 	}
 
 	// Status update handler
-	let updatingTaskId = $state<string | null>(null);
 	let deletingTaskId = $state<string | null>(null);
-	let confirmDeleteTaskId = $state<string | null>(null);
+	let isKanbanLoading = $state(false);
 
-	async function handleStatusChange(
-		sessionId: string,
+	// Handler for KanbanBoard drag-drop status changes
+	async function handleKanbanStatusChange(
 		taskId: string,
-		newStatus: ActionStatus
+		newStatus: ActionStatus,
+		sessionId?: string
 	) {
-		updatingTaskId = taskId;
+		// Find the task to get the sessionId if not provided
+		const task = allTasks.find(t => t.id === taskId);
+		const resolvedSessionId = sessionId || task?.session_id;
+		if (!resolvedSessionId) {
+			toast.error('Could not find session for action');
+			return;
+		}
+		isKanbanLoading = true;
 		try {
-			await apiClient.updateTaskStatus(sessionId, taskId, newStatus);
+			await apiClient.updateTaskStatus(resolvedSessionId, taskId, newStatus);
 			await fetchData();
 		} catch (err) {
 			console.error('Failed to update task status:', err);
 			toast.error(err instanceof Error ? err.message : 'Failed to update action status');
 		} finally {
-			updatingTaskId = null;
+			isKanbanLoading = false;
 		}
 	}
 
 	async function handleDelete(taskId: string) {
 		deletingTaskId = taskId;
-		confirmDeleteTaskId = null;
 		try {
 			await apiClient.deleteAction(taskId);
 			await fetchData();
@@ -276,31 +288,27 @@
 		goto(`/actions/${actionId}`);
 	}
 
-	const columns: { id: ActionStatus; title: string; color: string }[] = [
-		{ id: 'todo', title: 'To Do', color: 'var(--color-neutral-500)' },
-		{ id: 'in_progress', title: 'In Progress', color: 'var(--color-warning-500)' },
-		{ id: 'done', title: 'Done', color: 'var(--color-success-500)' }
-	];
-
-	const priorityColors: Record<string, string> = {
-		high: 'error',
-		medium: 'warning',
-		low: 'success'
-	};
-
-	function truncate(text: string, maxLen: number = 60): string {
-		if (text.length <= maxLen) return text;
-		return text.substring(0, maxLen) + '...';
-	}
-
 	// Check if any filters are active
 	const hasActiveFilters = $derived(
 		selectedMeetingId !== null || selectedProjectId !== null || selectedTagIds.length > 0 ||
 		selectedStatus !== 'all' || selectedDueDate !== 'all'
 	);
 
-	onMount(() => {
-		fetchData();
+	onMount(async () => {
+		await fetchData();
+
+		// Check if we should continue the tour on this page
+		const tourPage = getPersistedTourPage();
+		if (tourPage === 'actions') {
+			// Wait for DOM to settle
+			await tick();
+			injectTourStyles();
+			setTourActive(true);
+			startActionsPageTour(() => {
+				setTourActive(false);
+				clearTourPage();
+			});
+		}
 	});
 </script>
 
@@ -322,7 +330,7 @@
 					</p>
 				</div>
 				<!-- View Toggle -->
-				<div class="flex items-center gap-4">
+				<div class="flex items-center gap-4" data-tour="view-toggle">
 					{#if viewMode === 'gantt'}
 						<select
 							bind:value={ganttViewMode}
@@ -358,7 +366,7 @@
 
 			<!-- Filters Row -->
 			{#if actionsData && !isLoading}
-				<div class="mb-4 flex flex-wrap items-center gap-3 p-4 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+				<div class="mb-4 flex flex-wrap items-center gap-3 p-4 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700" data-tour="actions-filters">
 					<!-- Meeting Filter -->
 					<div class="flex items-center gap-2">
 						<label for="meeting-filter" class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
@@ -392,7 +400,13 @@
 							<option value="all">All statuses</option>
 							<option value="todo">To Do</option>
 							<option value="in_progress">In Progress</option>
+							<option value="blocked">Blocked</option>
+							<option value="in_review">In Review</option>
 							<option value="done">Done</option>
+							<option value="cancelled">Cancelled</option>
+							<option value="failed">Failed</option>
+							<option value="abandoned">Abandoned</option>
+							<option value="replanned">Replanned</option>
 						</select>
 					</div>
 
@@ -538,7 +552,7 @@
 
 			<!-- Bulk Action Bar -->
 			{#if selectedCount > 0}
-				<div class="mb-4 flex items-center gap-4 p-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 rounded-lg">
+				<div class="mb-4 flex items-center gap-4 p-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 rounded-lg" data-tour="bulk-actions">
 					<span class="text-sm font-medium text-brand-700 dark:text-brand-300">
 						{selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
 					</span>
@@ -691,216 +705,16 @@
 				</div>
 			{/if}
 		{:else}
-			<!-- Kanban Board -->
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-				{#each columns as column (column.id)}
-					{@const columnTasks = getTasksByStatus(column.id)}
-					<div
-						class="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 flex flex-col"
-					>
-						<!-- Column Header -->
-						<div
-							class="px-4 py-3 border-b-2 flex items-center justify-between"
-							style="border-color: {column.color}"
-						>
-							<span class="font-semibold text-neutral-900 dark:text-white">{column.title}</span>
-							<span
-								class="text-xs font-medium px-2 py-1 rounded-full text-white"
-								style="background: {column.color}"
-							>
-								{columnTasks.length}
-							</span>
-						</div>
-
-						<!-- Column Content -->
-						<div class="p-3 flex-1 overflow-y-auto max-h-[600px] space-y-3">
-							{#if columnTasks.length === 0}
-								<div class="text-center py-8 text-neutral-400 dark:text-neutral-500 text-sm">
-									{#if column.id === 'todo'}
-										No pending actions
-									{:else if column.id === 'in_progress'}
-										No actions in progress
-									{:else}
-										No completed actions
-									{/if}
-								</div>
-							{:else}
-								{#each columnTasks as task (task.id + '-' + task.session_id)}
-									{@const isUpdating = updatingTaskId === task.id}
-									{@const isSelected = selectedTaskIds.has(task.id)}
-									<a
-										href="/actions/{task.id}"
-										class="relative block bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 transition-all hover:shadow-md hover:border-brand-300 dark:hover:border-brand-600 {isSelected ? 'ring-2 ring-brand-500 border-brand-400' : ''}"
-										class:opacity-50={isUpdating}
-										style="border-left: 3px solid {task.priority === 'high'
-											? 'var(--color-error-500)'
-											: task.priority === 'medium'
-												? 'var(--color-warning-500)'
-												: 'var(--color-success-500)'}"
-									>
-										<!-- Selection Checkbox -->
-										<div class="absolute top-2 right-2 z-10">
-											<input
-												type="checkbox"
-												checked={isSelected}
-												onclick={(e) => toggleTaskSelection(task.id, e)}
-												class="rounded border-neutral-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
-												aria-label="Select task: {task.title}"
-											/>
-										</div>
-
-										<!-- Task Title -->
-										<h4 class="font-medium text-neutral-900 dark:text-white text-sm mb-1 pr-6">
-											{task.title}
-										</h4>
-
-										<!-- Task Description -->
-										<p class="text-xs text-neutral-600 dark:text-neutral-400 mb-2">
-											{truncate(task.description)}
-										</p>
-
-										<!-- Meeting Context -->
-										<div class="text-xs text-brand-600 dark:text-brand-400 mb-2">
-											From: {truncate(task.problem_statement, 40)}
-										</div>
-
-										<!-- Badges -->
-										<div class="flex flex-wrap gap-1 mb-2">
-											<Badge
-												variant={priorityColors[task.priority] as
-													| 'error'
-													| 'warning'
-													| 'success'}
-											>
-												{task.priority}
-											</Badge>
-											<Badge variant="info">{task.category}</Badge>
-											{#if task.timeline}
-												<span
-													class="text-xs px-2 py-0.5 bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 rounded"
-												>
-													{task.timeline}
-												</span>
-											{/if}
-											{#if getDueDateStatus(task.suggested_completion_date) === 'overdue' || getDueDateStatus(task.suggested_completion_date) === 'due-today' || getDueDateStatus(task.suggested_completion_date) === 'due-soon'}
-												{@const dueDateStatus = getDueDateStatus(task.suggested_completion_date)}
-												<span class={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border ${getDueDateBadgeClasses(dueDateStatus)}`}>
-													{#if dueDateStatus === 'overdue'}
-														<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-														</svg>
-													{:else}
-														<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-														</svg>
-													{/if}
-													{getDueDateLabel(dueDateStatus)}
-												</span>
-											{/if}
-										</div>
-
-										<!-- Action Buttons -->
-										<div class="flex gap-2 mt-2" role="group" aria-label="Task actions" onkeydown={(e) => e.key === 'Enter' && e.preventDefault()} onclick={(e) => e.preventDefault()}>
-											{#if task.status === 'todo'}
-												<button
-													class="flex-1 text-xs px-2 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded transition-colors disabled:opacity-50"
-													onclick={(e) => {
-														e.preventDefault();
-														e.stopPropagation();
-														handleStatusChange(task.session_id, task.id, 'in_progress');
-													}}
-													disabled={isUpdating}
-												>
-													{isUpdating ? 'Starting...' : 'Start'}
-												</button>
-											{:else if task.status === 'in_progress'}
-												<button
-													class="flex-1 text-xs px-2 py-1.5 bg-success-600 hover:bg-success-700 text-white rounded transition-colors disabled:opacity-50"
-													onclick={(e) => {
-														e.preventDefault();
-														e.stopPropagation();
-														handleStatusChange(task.session_id, task.id, 'done');
-													}}
-													disabled={isUpdating}
-												>
-													{isUpdating ? 'Completing...' : 'Complete'}
-												</button>
-												<button
-													class="text-xs px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-300 rounded transition-colors disabled:opacity-50"
-													onclick={(e) => {
-														e.preventDefault();
-														e.stopPropagation();
-														handleStatusChange(task.session_id, task.id, 'todo');
-													}}
-													disabled={isUpdating}
-												>
-													Back
-												</button>
-											{:else}
-												<button
-													class="flex-1 text-xs px-2 py-1.5 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-300 rounded transition-colors disabled:opacity-50"
-													onclick={(e) => {
-														e.preventDefault();
-														e.stopPropagation();
-														handleStatusChange(task.session_id, task.id, 'in_progress');
-													}}
-													disabled={isUpdating}
-												>
-													{isUpdating ? 'Reopening...' : 'Reopen'}
-												</button>
-											{/if}
-											<!-- Delete Button -->
-											<button
-												class="text-xs px-2 py-1.5 text-neutral-400 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-900/20 rounded transition-colors disabled:opacity-50"
-												onclick={(e) => {
-													e.preventDefault();
-													e.stopPropagation();
-													confirmDeleteTaskId = task.id;
-												}}
-												disabled={deletingTaskId === task.id}
-												title="Delete action"
-											>
-												<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-												</svg>
-											</button>
-										</div>
-
-										<!-- Delete Confirmation Overlay -->
-										{#if confirmDeleteTaskId === task.id}
-											<div class="absolute inset-0 bg-white/95 dark:bg-neutral-900/95 rounded-lg flex flex-col items-center justify-center gap-3 z-10">
-												<p class="text-sm font-medium text-neutral-900 dark:text-white">Delete this action?</p>
-												<div class="flex gap-2">
-													<button
-														class="px-3 py-1.5 text-xs bg-error-600 hover:bg-error-700 text-white rounded transition-colors"
-														onclick={(e) => {
-															e.preventDefault();
-															e.stopPropagation();
-															handleDelete(task.id);
-														}}
-													>
-														Delete
-													</button>
-													<button
-														class="px-3 py-1.5 text-xs bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-300 rounded transition-colors"
-														onclick={(e) => {
-															e.preventDefault();
-															e.stopPropagation();
-															confirmDeleteTaskId = null;
-														}}
-													>
-														Cancel
-													</button>
-												</div>
-											</div>
-										{/if}
-									</a>
-								{/each}
-							{/if}
-						</div>
-					</div>
-				{/each}
-			</div>
+			<!-- Kanban Board with drag-and-drop -->
+			<KanbanBoard
+				tasks={allTasks}
+				onStatusChange={handleKanbanStatusChange}
+				onDelete={handleDelete}
+				onTaskClick={handleTaskClick}
+				loading={isKanbanLoading}
+				showMeetingContext={true}
+				columns={kanbanColumns}
+			/>
 		{/if}
 	</div>
 </div>

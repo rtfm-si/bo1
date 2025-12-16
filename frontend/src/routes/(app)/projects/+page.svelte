@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { apiClient } from '$lib/api/client';
 	import type { ProjectDetailResponse, ProjectStatus, UnassignedCountResponse } from '$lib/api/types';
 	import { ShimmerSkeleton } from '$lib/components/ui/loading';
@@ -7,6 +7,8 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import AutogenProjectsModal from '$lib/components/projects/AutogenProjectsModal.svelte';
+	import { getPersistedTourPage, setTourActive, clearTourPage } from '$lib/stores/tour';
+	import { startProjectsPageTour, injectTourStyles } from '$lib/tour/onboarding-tour';
 
 	// Use data fetch utility for projects
 	const projectsData = useDataFetch(() => apiClient.listProjects());
@@ -27,9 +29,22 @@
 	let showAutogenModal = $state(false);
 	let unassignedData = $state<UnassignedCountResponse | null>(null);
 
-	onMount(() => {
-		projectsData.fetch();
+	onMount(async () => {
+		await projectsData.fetch();
 		loadUnassignedCount();
+
+		// Check if we should continue the tour on this page
+		const tourPage = getPersistedTourPage();
+		if (tourPage === 'projects') {
+			// Wait for DOM to settle
+			await tick();
+			injectTourStyles();
+			setTourActive(true);
+			startProjectsPageTour(() => {
+				setTourActive(false);
+				clearTourPage();
+			});
+		}
 	});
 
 	async function loadUnassignedCount() {
@@ -132,27 +147,31 @@
 				</p>
 			</div>
 			<div class="flex items-center gap-3">
-				<Button variant="ghost" onclick={() => (showAutogenModal = true)}>
-					{#snippet children()}
-						<svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-						</svg>
-						Generate Ideas
-						{#if unassignedData?.can_autogenerate}
-							<span class="ml-1.5">
-								<Badge variant="info" size="sm">{unassignedData?.unassigned_count ?? 0}</Badge>
-							</span>
-						{/if}
-					{/snippet}
-				</Button>
-				<Button variant="brand" onclick={() => (showCreateModal = true)}>
-					{#snippet children()}
-						<svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-						</svg>
-						New Project
-					{/snippet}
-				</Button>
+				<span data-tour="generate-ideas">
+					<Button variant="ghost" onclick={() => (showAutogenModal = true)}>
+						{#snippet children()}
+							<svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+							</svg>
+							Generate Ideas
+							{#if unassignedData?.can_autogenerate}
+								<span class="ml-1.5">
+									<Badge variant="info" size="sm">{unassignedData?.unassigned_count ?? 0}</Badge>
+								</span>
+							{/if}
+						{/snippet}
+					</Button>
+				</span>
+				<span data-tour="create-project">
+					<Button variant="brand" onclick={() => (showCreateModal = true)}>
+						{#snippet children()}
+							<svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+							</svg>
+							New Project
+						{/snippet}
+					</Button>
+				</span>
 			</div>
 		</div>
 
@@ -230,17 +249,18 @@
 		{:else}
 			<!-- Projects Grid -->
 			<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-				{#each projects as project (project.id)}
+				{#each projects as project, idx (project.id)}
 					<a
 						href="/projects/{project.id}"
-						class="block bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6 hover:shadow-md hover:border-brand-300 dark:hover:border-brand-700 transition-all duration-200"
+						class="block bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700 p-6 hover:shadow-md hover:border-brand-300 dark:hover:border-brand-700 transition-all duration-200 overflow-hidden"
+						data-tour={idx === 0 ? 'project-card' : undefined}
 					>
 						<div class="flex items-start justify-between gap-2 mb-4">
-							<div class="flex items-center gap-2">
+							<div class="flex items-center gap-2 min-w-0 flex-1">
 								{#if project.icon}
-									<span class="text-xl">{project.icon}</span>
+									<span class="text-xl flex-shrink-0">{project.icon}</span>
 								{:else}
-									<span class="w-8 h-8 rounded flex items-center justify-center text-sm font-bold" style="background-color: {project.color || '#6366f1'}20; color: {project.color || '#6366f1'}">
+									<span class="w-8 h-8 rounded flex items-center justify-center text-sm font-bold flex-shrink-0" style="background-color: {project.color || '#6366f1'}20; color: {project.color || '#6366f1'}">
 										{project.name.charAt(0).toUpperCase()}
 									</span>
 								{/if}
@@ -248,7 +268,7 @@
 									{project.name}
 								</h3>
 							</div>
-							<span class="px-2.5 py-1 text-xs font-medium rounded-full {getStatusColor(project.status)}">
+							<span class="px-2.5 py-1 text-xs font-medium rounded-full flex-shrink-0 whitespace-nowrap {getStatusColor(project.status)}">
 								{project.status}
 							</span>
 						</div>

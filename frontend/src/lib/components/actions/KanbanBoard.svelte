@@ -1,126 +1,196 @@
 <script lang="ts">
 	/**
-	 * KanbanBoard - Three-column Kanban board for task management
+	 * KanbanBoard - Dynamic Kanban board for task management
 	 * Features drag-and-drop between columns using svelte-dnd-action
+	 * Supports user-defined columns via the columns prop
 	 */
-	import type { TaskWithStatus, ActionStatus } from '$lib/api/types';
+	import type { TaskWithStatus, TaskWithSessionContext, ActionStatus, KanbanColumn } from '$lib/api/types';
 	import TaskCard from './TaskCard.svelte';
 	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 	import { flip } from 'svelte/animate';
 
+	type TaskType = TaskWithStatus | TaskWithSessionContext;
+
+	// Default columns for fallback
+	const DEFAULT_COLUMNS: KanbanColumn[] = [
+		{ id: 'todo', title: 'To Do' },
+		{ id: 'in_progress', title: 'In Progress' },
+		{ id: 'done', title: 'Done' }
+	];
+
+	// Default colors for statuses (used when column.color is not set)
+	const DEFAULT_STATUS_COLORS: Record<string, string> = {
+		todo: 'var(--color-muted)',
+		in_progress: 'var(--color-warning)',
+		blocked: 'var(--color-error)',
+		in_review: 'var(--color-info)',
+		done: 'var(--color-success)',
+		cancelled: 'var(--color-muted)',
+		failed: 'var(--color-error)',
+		abandoned: 'var(--color-muted)',
+		replanned: 'var(--color-info)'
+	};
+
 	interface Props {
-		tasks: TaskWithStatus[];
-		onStatusChange: (taskId: string, newStatus: ActionStatus) => void;
+		tasks: TaskType[];
+		onStatusChange: (taskId: string, newStatus: ActionStatus, sessionId?: string) => void;
 		onDelete?: (taskId: string) => void;
+		onTaskClick?: (taskId: string) => void;
 		loading?: boolean;
+		showMeetingContext?: boolean;
+		columns?: KanbanColumn[];
 	}
 
-	let { tasks, onStatusChange, onDelete, loading = false }: Props = $props();
+	let {
+		tasks,
+		onStatusChange,
+		onDelete,
+		onTaskClick,
+		loading = false,
+		showMeetingContext = false,
+		columns = DEFAULT_COLUMNS
+	}: Props = $props();
+
+	// Type guard for TaskWithSessionContext
+	function hasSessionContext(task: TaskType): task is TaskWithSessionContext {
+		return 'session_id' in task && 'problem_statement' in task;
+	}
 
 	// Track tasks by column for drag-and-drop
-	// We need mutable state for dndzone to work
-	let todoTasks = $state<TaskWithStatus[]>([]);
-	let inProgressTasks = $state<TaskWithStatus[]>([]);
-	let doneTasks = $state<TaskWithStatus[]>([]);
+	// Use a Map to support dynamic column IDs
+	let columnTasks = $state<Map<string, TaskType[]>>(new Map());
 
-	// Sync from props when tasks change
+	// Get the set of column IDs for quick lookup
 	$effect(() => {
-		todoTasks = tasks.filter((t) => t.status === 'todo');
-		inProgressTasks = tasks.filter((t) => t.status === 'in_progress');
-		doneTasks = tasks.filter((t) => t.status === 'done');
+		const columnIds = new Set(columns.map(c => c.id));
+		const newMap = new Map<string, TaskType[]>();
+
+		// Initialize empty arrays for each column
+		for (const col of columns) {
+			newMap.set(col.id, []);
+		}
+
+		// Distribute tasks to columns
+		for (const task of tasks) {
+			if (columnIds.has(task.status)) {
+				// Task status matches a column
+				newMap.get(task.status)!.push(task);
+			} else {
+				// Unknown status: put in first column
+				const firstCol = columns[0]?.id;
+				if (firstCol) {
+					newMap.get(firstCol)!.push(task);
+				}
+			}
+		}
+
+		columnTasks = newMap;
 	});
 
 	// Animation duration for flip
 	const flipDurationMs = 200;
 
-	// Column configuration
-	const columns: { id: ActionStatus; title: string; color: string }[] = [
-		{ id: 'todo', title: 'To Do', color: 'var(--color-muted)' },
-		{ id: 'in_progress', title: 'In Progress', color: 'var(--color-warning)' },
-		{ id: 'done', title: 'Done', color: 'var(--color-success)' }
-	];
+	// Get color for a column (use custom color or default based on status)
+	function getColumnColor(column: KanbanColumn): string {
+		return column.color || DEFAULT_STATUS_COLORS[column.id] || 'var(--color-muted)';
+	}
 
 	// Get tasks array for a specific column
-	function getColumnTasks(status: ActionStatus): TaskWithStatus[] {
-		switch (status) {
-			case 'todo':
-				return todoTasks;
-			case 'in_progress':
-				return inProgressTasks;
-			case 'done':
-				return doneTasks;
-			default:
-				return [];
-		}
+	function getColumnTasksArray(columnId: string): TaskType[] {
+		return columnTasks.get(columnId) || [];
 	}
 
 	// Handle drag consider (while dragging)
-	function handleDndConsider(status: ActionStatus, e: CustomEvent<DndEvent<TaskWithStatus>>) {
-		switch (status) {
-			case 'todo':
-				todoTasks = e.detail.items;
-				break;
-			case 'in_progress':
-				inProgressTasks = e.detail.items;
-				break;
-			case 'done':
-				doneTasks = e.detail.items;
-				break;
-		}
+	function handleDndConsider(columnId: string, e: CustomEvent<DndEvent<TaskType>>) {
+		const newMap = new Map(columnTasks);
+		newMap.set(columnId, e.detail.items);
+		columnTasks = newMap;
 	}
 
 	// Handle drag finalize (drop completed)
-	function handleDndFinalize(status: ActionStatus, e: CustomEvent<DndEvent<TaskWithStatus>>) {
+	function handleDndFinalize(columnId: string, e: CustomEvent<DndEvent<TaskType>>) {
 		const items = e.detail.items;
-
-		// Update the column state
-		switch (status) {
-			case 'todo':
-				todoTasks = items;
-				break;
-			case 'in_progress':
-				inProgressTasks = items;
-				break;
-			case 'done':
-				doneTasks = items;
-				break;
-		}
+		const newMap = new Map(columnTasks);
+		newMap.set(columnId, items);
+		columnTasks = newMap;
 
 		// Find items that changed status and trigger onStatusChange
 		for (const item of items) {
-			if (item.status !== status) {
-				onStatusChange(item.id, status);
+			if (item.status !== columnId) {
+				const sessionId = hasSessionContext(item) ? item.session_id : undefined;
+				onStatusChange(item.id, columnId as ActionStatus, sessionId);
 			}
 		}
 	}
+
+	// Helper to truncate text
+	function truncate(text: string, maxLen: number = 40): string {
+		if (text.length <= maxLen) return text;
+		return text.substring(0, maxLen) + '...';
+	}
 </script>
 
-<div class="kanban-board" class:loading>
-	{#each columns as column (column.id)}
-		{@const columnTasks = getColumnTasks(column.id)}
-		<div class="kanban-column">
-			<div class="column-header" style="--column-color: {column.color}">
+<div class="kanban-board" class:loading style="--column-count: {columns.length}" data-tour="kanban-board">
+	{#each columns as column, idx (column.id)}
+		{@const tasksInColumn = getColumnTasksArray(column.id)}
+		<div class="kanban-column" data-tour={idx === 0 ? 'kanban-column' : undefined}>
+			<div class="column-header" style="--column-color: {getColumnColor(column)}">
 				<span class="column-title">{column.title}</span>
-				<span class="column-count">{columnTasks.length}</span>
+				<span class="column-count">{tasksInColumn.length}</span>
 			</div>
 			<div
 				class="column-content"
-				class:empty={columnTasks.length === 0}
+				class:empty={tasksInColumn.length === 0}
 				use:dndzone={{
-					items: columnTasks,
+					items: tasksInColumn,
 					flipDurationMs,
 					dropTargetStyle: { outline: '2px dashed var(--color-brand)', outlineOffset: '-2px' }
 				}}
 				onconsider={(e) => handleDndConsider(column.id, e)}
 				onfinalize={(e) => handleDndFinalize(column.id, e)}
 			>
-				{#each columnTasks as task (task.id)}
+				{#each tasksInColumn as task (task.id)}
 					<div animate:flip={{ duration: flipDurationMs }} class="task-wrapper">
-						<TaskCard {task} {onStatusChange} {onDelete} />
+						{#if onTaskClick}
+							<!-- Clickable task card with meeting context -->
+							<button
+								type="button"
+								class="task-card-btn"
+								onclick={() => onTaskClick(task.id)}
+							>
+								<TaskCard
+									{task}
+									onStatusChange={(id, status) => {
+										const sessionId = hasSessionContext(task) ? task.session_id : undefined;
+										onStatusChange(id, status, sessionId);
+									}}
+									{onDelete}
+								/>
+								{#if showMeetingContext && hasSessionContext(task)}
+									<div class="meeting-context">
+										From: {truncate(task.problem_statement)}
+									</div>
+								{/if}
+							</button>
+						{:else}
+							<TaskCard
+								{task}
+								onStatusChange={(id, status) => {
+									const sessionId = hasSessionContext(task) ? task.session_id : undefined;
+									onStatusChange(id, status, sessionId);
+								}}
+								{onDelete}
+							/>
+							{#if showMeetingContext && hasSessionContext(task)}
+								<div class="meeting-context">
+									From: {truncate(task.problem_statement)}
+								</div>
+							{/if}
+						{/if}
 					</div>
 				{/each}
 			</div>
-			{#if columnTasks.length === 0}
+			{#if tasksInColumn.length === 0}
 				<div class="empty-hint">Drop tasks here</div>
 			{/if}
 		</div>
@@ -130,7 +200,7 @@
 <style>
 	.kanban-board {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(var(--column-count, 3), 1fr);
 		gap: 16px;
 		min-height: 400px;
 	}
@@ -214,6 +284,26 @@
 
 	.task-wrapper:active {
 		cursor: grabbing;
+	}
+
+	.task-card-btn {
+		all: unset;
+		display: block;
+		width: 100%;
+		cursor: pointer;
+	}
+
+	.task-card-btn:hover {
+		transform: translateY(-1px);
+	}
+
+	.meeting-context {
+		margin-top: 6px;
+		padding: 4px 8px;
+		background: var(--color-surface-hover);
+		border-radius: 4px;
+		font-size: 0.75rem;
+		color: var(--color-brand);
 	}
 
 	/* Styles for dragged items (provided by svelte-dnd-action) */

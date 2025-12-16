@@ -6,12 +6,16 @@
 	import type { HelpArticle } from '$lib/data/help-content';
 	import { helpCategories } from '$lib/data/help-content';
 	import DOMPurify from 'isomorphic-dompurify';
+	import RelationshipDiagram from './RelationshipDiagram.svelte';
 
 	interface Props {
 		article: HelpArticle;
 	}
 
 	let { article }: Props = $props();
+
+	// Check if content includes the relationship diagram marker
+	const DIAGRAM_MARKER = '::relationship-diagram::';
 
 	// Get category label for breadcrumb
 	const categoryLabel = $derived(
@@ -95,7 +99,28 @@
 		return result;
 	}
 
-	const renderedContent = $derived(DOMPurify.sanitize(renderContent(article.content)));
+	// Split content by diagram marker and render each part
+	const contentParts = $derived(() => {
+		const content = article.content;
+		if (!content.includes(DIAGRAM_MARKER)) {
+			return [{ type: 'html' as const, content: DOMPurify.sanitize(renderContent(content)) }];
+		}
+
+		const parts: Array<{ type: 'html' | 'diagram'; content?: string }> = [];
+		const segments = content.split(DIAGRAM_MARKER);
+
+		segments.forEach((segment, index) => {
+			if (segment.trim()) {
+				parts.push({ type: 'html', content: DOMPurify.sanitize(renderContent(segment)) });
+			}
+			// Add diagram between segments (not after last)
+			if (index < segments.length - 1) {
+				parts.push({ type: 'diagram' });
+			}
+		});
+
+		return parts;
+	});
 </script>
 
 <article class="max-w-none">
@@ -113,7 +138,15 @@
 
 	<!-- Content -->
 	<div class="prose-help">
-		{@html renderedContent}
+		{#each contentParts() as part}
+			{#if part.type === 'html' && part.content}
+				{@html part.content}
+			{:else if part.type === 'diagram'}
+				<div class="my-8">
+					<RelationshipDiagram />
+				</div>
+			{/if}
+		{/each}
 	</div>
 
 	<!-- Keywords for SEO/search -->

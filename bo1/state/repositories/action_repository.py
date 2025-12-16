@@ -350,6 +350,26 @@ class ActionRepository(BaseRepository):
                             str(action_id),
                         ),
                     )
+                elif status in ("failed", "abandoned"):
+                    # Terminal closure states - use closure_reason column
+                    cur.execute(
+                        """
+                        UPDATE actions
+                        SET status = %s,
+                            closure_reason = %s,
+                            cancelled_at = NOW(),
+                            blocking_reason = NULL,
+                            blocked_at = NULL,
+                            auto_unblock = false,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (
+                            status,
+                            cancellation_reason,  # reuse cancellation_reason param for closure
+                            str(action_id),
+                        ),
+                    )
                 else:
                     # Clear blocking and cancellation fields when transitioning to other statuses
                     cur.execute(
@@ -372,7 +392,7 @@ class ActionRepository(BaseRepository):
                 # Create audit record
                 if success:
                     content = f"Status changed from {old_status} to {status}"
-                    if status == "cancelled" and cancellation_reason:
+                    if status in ("cancelled", "failed", "abandoned") and cancellation_reason:
                         content += f": {cancellation_reason}"
                     cur.execute(
                         """
@@ -557,6 +577,157 @@ class ActionRepository(BaseRepository):
 
         return success
 
+    def replan_action(
+        self,
+        action_id: str | UUID,
+        user_id: str,
+        new_steps: list[str] | None = None,
+        new_target_date: date | None = None,
+    ) -> dict[str, Any] | None:
+        """Create a new action by replanning an existing failed/abandoned one.
+
+        This method:
+        1. Verifies the original action is in failed/abandoned status
+        2. Creates a new action copying context from the original
+        3. Links the new action to the original via replanned_from_id
+        4. Marks the original action as 'replanned'
+
+        Args:
+            action_id: Original action UUID to replan
+            user_id: User creating the replan
+            new_steps: Optional new what_and_how steps (defaults to original)
+            new_target_date: Optional new target end date
+
+        Returns:
+            New action record, or None if replan failed
+        """
+        action_id_str = str(action_id)
+
+        # Get original action
+        original = self.get(action_id_str)
+        if not original:
+            logger.warning(f"Replan failed: action {action_id_str} not found")
+            return None
+
+        # Verify ownership
+        if original.get("user_id") != user_id:
+            logger.warning(f"Replan failed: user {user_id} doesn't own action {action_id_str}")
+            return None
+
+        # Verify original is in a replannable state
+        original_status = original.get("status", "")
+        if original_status not in ("failed", "abandoned"):
+            logger.warning(
+                f"Replan failed: action {action_id_str} status '{original_status}' not replannable"
+            )
+            return None
+
+        # Create new action with copied context
+        new_action = None
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Create the new action
+                cur.execute(
+                    """
+                    INSERT INTO actions (
+                        user_id, source_session_id, project_id, title, description,
+                        what_and_how, success_criteria, kill_criteria,
+                        status, priority, category,
+                        timeline, estimated_duration_days,
+                        target_start_date, target_end_date,
+                        confidence, source_section, sub_problem_index,
+                        sort_order, replanned_from_id
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id, user_id, source_session_id, project_id, title, description,
+                              what_and_how, success_criteria, kill_criteria,
+                              status, priority, category,
+                              timeline, estimated_duration_days,
+                              target_start_date, target_end_date,
+                              estimated_start_date, estimated_end_date,
+                              actual_start_date, actual_end_date,
+                              replanned_from_id,
+                              confidence, source_section, sub_problem_index,
+                              sort_order, created_at, updated_at
+                    """,
+                    (
+                        user_id,
+                        original.get("source_session_id"),
+                        original.get("project_id"),
+                        original.get("title", ""),
+                        original.get("description", ""),
+                        new_steps or original.get("what_and_how", []),
+                        original.get("success_criteria", []),
+                        original.get("kill_criteria", []),
+                        "todo",  # New action starts as todo
+                        original.get("priority", "medium"),
+                        original.get("category", "implementation"),
+                        original.get("timeline"),
+                        original.get("estimated_duration_days"),
+                        date.today(),  # Start from today
+                        new_target_date or original.get("target_end_date"),
+                        original.get("confidence", 0.0),
+                        original.get("source_section"),
+                        original.get("sub_problem_index"),
+                        original.get("sort_order", 0),
+                        action_id_str,  # Link to original
+                    ),
+                )
+                result = cur.fetchone()
+                if result:
+                    new_action = dict(result)
+
+                    # Mark original as replanned
+                    cur.execute(
+                        """
+                        UPDATE actions
+                        SET status = 'replanned',
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (action_id_str,),
+                    )
+
+                    # Create audit record for original
+                    cur.execute(
+                        """
+                        INSERT INTO action_updates (
+                            action_id, user_id, update_type,
+                            content, old_status, new_status
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            action_id_str,
+                            user_id,
+                            "status_change",
+                            f"Replanned to new action {new_action['id']}",
+                            original_status,
+                            "replanned",
+                        ),
+                    )
+
+                    # Create audit record for new action
+                    cur.execute(
+                        """
+                        INSERT INTO action_updates (
+                            action_id, user_id, update_type, content
+                        )
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (
+                            str(new_action["id"]),
+                            user_id,
+                            "note",
+                            f"Replanned from action {action_id_str}",
+                        ),
+                    )
+
+        if new_action:
+            logger.info(f"Created replanned action {new_action['id']} from {action_id_str}")
+
+        return new_action
+
     def delete(self, action_id: str | UUID) -> bool:
         """Soft delete an action by setting deleted_at timestamp.
 
@@ -709,12 +880,15 @@ class ActionRepository(BaseRepository):
 
     # Valid status transitions (from_status -> allowed_to_statuses)
     VALID_TRANSITIONS = {
-        "todo": {"in_progress", "blocked", "cancelled"},
-        "blocked": {"todo", "in_progress", "cancelled"},
-        "in_progress": {"blocked", "in_review", "done", "cancelled"},
-        "in_review": {"in_progress", "done", "cancelled"},
+        "todo": {"in_progress", "blocked", "cancelled", "abandoned"},
+        "blocked": {"todo", "in_progress", "cancelled", "failed", "abandoned"},
+        "in_progress": {"todo", "blocked", "in_review", "done", "cancelled", "failed", "abandoned"},
+        "in_review": {"in_progress", "done", "cancelled", "failed"},
         "done": set(),  # Terminal state
         "cancelled": set(),  # Terminal state
+        "failed": {"replanned"},  # Can only transition to replanned (via replan action)
+        "abandoned": {"replanned"},  # Can only transition to replanned (via replan action)
+        "replanned": set(),  # Terminal state (action was cloned to new action)
     }
 
     def validate_status_transition(self, from_status: str, to_status: str) -> tuple[bool, str]:
@@ -732,8 +906,10 @@ class ActionRepository(BaseRepository):
 
         allowed = self.VALID_TRANSITIONS.get(from_status, set())
         if to_status not in allowed:
-            if from_status in ("done", "cancelled"):
+            if from_status in ("done", "cancelled", "replanned"):
                 return False, f"Cannot change status of {from_status} actions"
+            if from_status in ("failed", "abandoned") and to_status != "replanned":
+                return False, f"Closed actions can only be replanned, not changed to '{to_status}'"
             return False, f"Invalid transition from '{from_status}' to '{to_status}'"
         return True, ""
 

@@ -1,36 +1,44 @@
-# Plan: No Actionable Development Tasks
+# Plan: Backlog Complete — No Implementable Tasks
 
 ## Summary
 
-- All remaining tasks in `_TASK.md` require external action, are blocked, or deferred
-- The [ADMIN][P3] embeddings visualization task was already implemented - marked complete
-- No development work to plan
+- 900+ development tasks complete
+- 14 remaining items all require user action, external setup, or clarification
+- No code implementation targets available for `/build`
 
-## Status of Remaining Tasks
+## Remaining Items Analysis
 
-### External/Manual Setup (User action required)
-- [BILLING][P4] Configure Stripe products/prices
-- [DEPLOY][P1] Sign DPAs with data processors
-- [DEPLOY][P1] Setup SSL/TLS with Let's Encrypt
-- [DEPLOY][P1] Setup uptime monitoring
-- [LAUNCH][P1] Configure production Alertmanager
-- [LAUNCH][P1] Switch Stripe to live mode
-- [LAUNCH][P1] Test emergency access procedures
-
-### Blocked on Dependencies
-- [EMAIL][P4] Payment receipt email - blocked on Stripe integration
-- [SOCIAL][P3] Direct posting - blocked on user decision
-
-### Deferred by Design
-- [DATA][P2] DuckDB backend (>100K rows) - defer until needed
-- [BILLING][P4] Upgrade prompts near usage limit - nice-to-have
+### External/Manual Setup (P1 — User Action Required)
+- Sign DPAs with data processors (Supabase, Resend, Anthropic, DigitalOcean)
+- Setup SSL/TLS with Let's Encrypt
+- Setup uptime monitoring (UptimeRobot)
+- Configure production Alertmanager
+- Switch Stripe to live mode
+- Test emergency access procedures
+- Configure Stripe products/prices (Free/Starter/Pro) [P4]
 
 ### Needs Clarification
-- [MONITORING][P1] Kubernetes deployment manifest - unclear if K8s is in scope
+| Tag | Item | Question |
+|-----|------|----------|
+| [MONITORING][P1] | K8s manifest | Are we using Kubernetes? |
+| [SEO][P3] | Auto SEO | Where did we get to? What's the scope? |
+| [DOCS][P3] | Help pages | Marked "Si's todo" — still needed? |
 
-## Recommendation
+### Blocked on Dependencies
+| Item | Blocker |
+|------|---------|
+| Payment receipt email [P4] | Stripe integration incomplete |
+| Social direct posting [P3] | User decision pending (Option A vs B) |
 
-To unblock development work, user should:
-1. Complete manual setup tasks (Stripe, SSL, monitoring)
-2. Make decision on [SOCIAL][P3] direct posting approach
-3. Clarify Kubernetes requirements for [MONITORING][P1]
+### Deferred by Design
+| Item | Reason |
+|------|--------|
+| DuckDB backend [P2] | Not needed until >100K rows |
+| Upgrade prompts [P4] | Nice-to-have |
+
+## Recommended Next Actions
+
+1. **Add new features** — Define new work items in `_TASK.md`
+2. **Clarify blockers** — Answer K8s/SEO/Help page questions
+3. **Complete external setup** — DPAs, SSL, monitoring, Stripe live mode
+4. **Unblock integrations** — Stripe payment receipts, social posting decision

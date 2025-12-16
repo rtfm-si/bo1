@@ -448,4 +448,151 @@ All actions tests fixed and passing. Tests updated to:
 
 ---
 
-_Last updated: 2025-12-15 (shadcn-svelte UI Component Modernization Phase 1)_
+_Last updated: 2025-12-16 (Relationship Diagram for Help Center)_
+
+---
+
+## Task backlog (from _TODO.md, 2025-12-16)
+
+### Layout & Navigation [UX]
+
+- [x] [UX][P2] Fix Context page layout: constrain to standard page width (currently fills whole screen)
+  - Added `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8` wrapper to context/+layout.svelte
+- [x] [UX][P2] Fix Reports > Competitors/Benchmarks page layout: constrain to standard page width
+  - Added same container wrapper to competitors/+page.svelte and benchmarks/+page.svelte
+
+### Reports [REPORTS]
+
+- [x] [REPORTS][P2] Reports > Meetings should show completed meeting reports only (not active sessions)
+  - Created `/reports/meetings/+page.svelte` - filters by `status: 'completed'`
+  - Removed "New Meeting" button and delete functionality (read-only reports view)
+  - Updated Header.svelte reportsLinks from `/meeting` to `/reports/meetings`
+- [x] [REPORTS][P2] Reports > Competitors needs more detail in output/display
+  - Added industry badge next to competitor name
+  - Added data completeness indicator (percentage bar, color-coded)
+  - Added quick comparison table (Standard/Deep tiers, >1 competitor)
+  - Organized data into collapsible sections: Market & Business, Company & Funding, Product & Tech, Recent News
+  - Displays all available fields: business_model, value_proposition, tech_stack as tag pills
+  - Collapsed sections show preview; expanded shows full detail
+
+### Actions Kanban [ACTIONS]
+
+- [x] [ACTIONS][P1] Fix drag-and-drop between columns on Actions Kanban board
+  - Integrated KanbanBoard.svelte with svelte-dnd-action into actions page
+  - KanbanBoard now supports TaskWithSessionContext with meeting context display
+- [x] [ACTIONS][P3] Add user-defined action states (columns) to Kanban board
+  - Migration: `z5_add_kanban_columns.py` adds `kanban_columns JSONB` to users table
+  - API: `GET/PATCH /api/v1/user/preferences/kanban-columns` (1-8 columns, valid statuses)
+  - Models: `KanbanColumn`, `KanbanColumnsResponse`, `KanbanColumnsUpdate` with validation
+  - Frontend: KanbanBoard accepts `columns` prop, dynamic grid layout (CSS var)
+  - Actions page: fetches user columns, passes to KanbanBoard (graceful fallback)
+  - Tests: 15 tests in `tests/api/test_kanban_columns.py`
+
+### Action Management [ACTIONS]
+
+- [x] [ACTIONS][P1] Fix error when changing action from in_progress to todo
+  - Backend: Added "todo" to VALID_TRANSITIONS["in_progress"] set
+  - TaskCard already had "Move back" button for in_progress → todo
+- [x] [ACTIONS][P2] Allow bidirectional action state changes (with time-based restriction ~1 day; show user message)
+  - Now supports in_progress → todo transition via drag-drop and button click
+  - Time-based restriction deferred (user can always move back)
+- [x] [ACTIONS][P2] Clean up action schedule/dates UI (currently looks scrappy)
+  - Replaced 6 large date cards with 3 compact rows (Target → Estimated → Actual)
+  - Added visual timeline progress indicator (Start → In Progress → Complete)
+  - Added "X days left" / "X days overdue" header display
+  - Added variance indicators (+Xd / -Xd) when actual differs from target by >1 day
+  - Duration consolidated to single line; estimated row hidden if same as target
+- [x] [ACTIONS][P2] Add "Help me complete this" mentor trigger button to action steps
+  - Mentor page: reads `?message=` and `?persona=` query params
+  - MentorChat: accepts `initialMessage` and `initialPersona` props
+  - Action detail: each step has a ghost "Help" button (visible on hover)
+  - Help button navigates to `/mentor?message=@action:{id} Help me with step N: "{step}"&persona=action_coach`
+- [x] [ACTIONS][P2] Allow actions to be replanned or closed as "failed/abandoned"
+  - Backend: Added `failed`, `abandoned`, `replanned` statuses to ActionStatus enum
+  - Repository: Added `replan_action()` method to clone action with new approach
+  - API: `POST /close` (mark as failed/abandoned), `POST /clone-replan` (create new action)
+  - Migration: `z4_add_action_close_replan.py` adds `closure_reason`, `replanned_from_id` columns
+  - Frontend: Close modal, replan button, status display for terminal states
+  - Tests: 27 tests in `tests/api/test_action_close_replan.py`
+
+### Projects [PROJECTS]
+
+- [x] [PROJECTS][P1] Fix project card UI: text appears outside card boundaries
+  - Added `overflow-hidden` to card container
+  - Added `min-w-0 flex-1` to title container, `flex-shrink-0` to icon/badge
+  - Title now properly truncates with long text
+- [x] [PROJECTS][P1] Fix Projects > Generate Projects (returns errors)
+  - Added error handling to `_get_unassigned_actions` and `get_unassigned_action_count` in project_autogen.py
+  - Added error handling to `get_context_completeness` in context_project_suggester.py
+  - Services now gracefully return empty results on database errors instead of propagating exceptions
+
+### Onboarding [ONBOARDING]
+
+- [x] [ONBOARDING][P2] Fix driver.js tour: clicking away from intended flow highlights wrong page areas
+  - Set `allowClose: false` to prevent overlay clicks dismissing tour
+  - Added `isElementVisible()` utility for element validation
+  - Added `onHighlightStarted` hook to skip steps with missing elements
+  - Added `getVisibleSteps()` filter to pre-validate tour steps
+  - Added navigation lock via `beforeNavigate` with confirmation dialog
+  - Dashboard: uses `tick()` before tour start for DOM readiness
+  - Tests: 15 unit tests in `onboarding-tour.test.ts` and `tour.test.ts`
+- [x] [ONBOARDING][P3] Extend onboarding tour to Actions page
+  - `data-tour` attributes on view-toggle, actions-filters, kanban-column
+  - `getActionsPageSteps()`: 3 steps (Switch Views, Filter Actions, Drag and Drop)
+  - Auto-continues tour when navigating from dashboard via "Visit Actions" button
+  - localStorage persistence for cross-page tour state
+- [x] [ONBOARDING][P3] Extend onboarding tour to Projects page
+  - `data-tour` attributes on create-project, generate-ideas, project-card
+  - `getProjectsPageSteps()`: 3 steps (Create Project, Generate Ideas, Track Progress)
+  - Auto-continues tour when navigating from dashboard via "Visit Projects" button
+  - 37 total tests (20 in onboarding-tour.test.ts, 17 in tour.test.ts)
+
+### Documentation [DOCS]
+
+- [x] [DOCS][P3] Create relationship diagram: meetings → actions, meetings → projects, projects → actions (for onboarding/help)
+  - Component: `frontend/src/lib/components/help/RelationshipDiagram.svelte` (interactive SVG with hover states)
+  - Help article: Added "Concepts" category with "How It All Connects" article
+  - Tour step: Added "Learn How It Connects" step pointing to Help icon
+  - Tests: 21 tests in onboarding-tour.test.ts (updated for new step)
+- [ ] [DOCS][P3] Help pages need content review and polish (Si's todo)
+
+### Workspaces [WORKSPACE]
+
+- [x] [WORKSPACE][P2] Auto-create workspace for every new account (no users without workspace)
+  - OAuth signup: `backend/api/supertokens_config.py` creates "Personal Workspace" on `result.created_new_user`
+  - Sets as default workspace via `user_repository.set_default_workspace()`
+  - Backfill script: `backend/scripts/backfill_workspaces.py` (dry-run + batch support)
+  - Tests: 12 tests in `tests/api/test_default_workspace.py`
+- [x] [WORKSPACE][P3] Allow adding other users to a workspace
+  - Backend: `backend/api/workspaces/invitations.py` - Full API (send/list/revoke/accept/decline)
+  - Frontend: `frontend/src/lib/components/workspace/InvitationManager.svelte` - Admin UI
+  - Integration: Settings > Workspace shows InvitationManager for workspace admins
+  - Migration: `migrations/versions/ab1_create_workspace_invitations.py`
+  - Tests: `tests/api/test_workspace_invitations.py`
+
+### Admin Pages [ADMIN] - ✅ COMPLETE
+
+- [x] [ADMIN][P1] Fix Admin > Extended KPIs (unexpected error)
+  - Fixed: SQL query used `date` column which doesn't exist in `user_usage` table (uses `created_at`)
+- [x] [ADMIN][P1] Fix Admin > Active Sessions (404)
+  - Verified: Route correctly registered, returning 403 when unauthenticated (expected behavior)
+- [x] [ADMIN][P1] Fix Admin > Usage Metrics (unknown error)
+  - Fixed: SQL query referenced `deleted_at` column which doesn't exist in `projects` table
+- [x] [ADMIN][P1] Fix Admin > AI Ops Self Healing (unknown error)
+  - Fixed: Import path `bo1.state.redis_client` doesn't exist (corrected to use `get_redis_manager`)
+- [x] [ADMIN][P1] Fix Admin > Landing Page Analytics (unknown error)
+  - Verified: Already handles empty data correctly with proper division by zero protection
+- [x] [ADMIN][P1] Fix Admin > Embeddings (unknown error)
+  - Fixed: SQL query used `created_at` which doesn't exist in `research_cache` table (uses `research_date`)
+
+### SEO [SEO]
+
+- [ ] [SEO][P3] Clarify scope of: "auto seo - where did we get to with that and where is it?" (ambiguous item from _TODO.md)
+
+### Email [EMAIL]
+
+- [x] [EMAIL][P1] Fix resend_api_key for email confirmation on waitlist accept (key verified correct in .env with full Resend access)
+  - Added debug logging for API key prefix (first 8 chars) in `_get_resend_client()`
+  - Improved error logging with error_type and error_detail in Resend exceptions
+  - Admin approval response now includes Resend email ID on success or specific error guidance
+  - Added 6 unit tests in `tests/api/test_beta_welcome_email.py`

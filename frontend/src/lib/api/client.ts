@@ -138,7 +138,10 @@ import type {
 	// Value Metrics types
 	ValueMetricsResponse,
 	// Extended KPIs types (Admin)
-	ExtendedKPIsResponse
+	ExtendedKPIsResponse,
+	// Kanban Column Preferences
+	KanbanColumn,
+	KanbanColumnsResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -913,6 +916,30 @@ export class ApiClient {
 		);
 	}
 
+	async closeAction(
+		actionId: string,
+		status: 'failed' | 'abandoned',
+		reason: string
+	): Promise<{ action_id: string; status: string; message: string }> {
+		return this.post<{ action_id: string; status: string; message: string }>(
+			`/api/v1/actions/${actionId}/close`,
+			{ status, reason }
+		);
+	}
+
+	async cloneReplanAction(
+		actionId: string,
+		options?: { newSteps?: string[]; newTargetDate?: string }
+	): Promise<{ new_action_id: string; original_action_id: string; message: string }> {
+		return this.post<{ new_action_id: string; original_action_id: string; message: string }>(
+			`/api/v1/actions/${actionId}/clone-replan`,
+			{
+				new_steps: options?.newSteps,
+				new_target_date: options?.newTargetDate
+			}
+		);
+	}
+
 	async getGlobalGantt(params?: {
 		status_filter?: ActionStatus;
 		project_id?: string;
@@ -1265,6 +1292,18 @@ export class ApiClient {
 
 	async updateCostCalculatorDefaults(defaults: CostCalculatorDefaults): Promise<CostCalculatorDefaults> {
 		return this.patch<CostCalculatorDefaults>('/api/v1/user/cost-calculator-defaults', defaults);
+	}
+
+	// ==========================================================================
+	// Kanban Column Preferences
+	// ==========================================================================
+
+	async getKanbanColumns(): Promise<KanbanColumnsResponse> {
+		return this.fetch<KanbanColumnsResponse>('/api/v1/user/preferences/kanban-columns');
+	}
+
+	async updateKanbanColumns(columns: KanbanColumn[]): Promise<KanbanColumnsResponse> {
+		return this.patch<KanbanColumnsResponse>('/api/v1/user/preferences/kanban-columns', { columns });
 	}
 
 	// ==========================================================================

@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { browser } from '$app/environment';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import { user } from '$lib/stores/auth';
 	import { apiClient } from '$lib/api/client';
 	import type { SessionResponse, AllActionsResponse, TaskWithSessionContext, ActionStatsResponse, UserContextResponse } from '$lib/api/types';
@@ -17,9 +18,16 @@
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
 	import { createLogger } from '$lib/utils/debug';
 	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, needsAttention, getDueDateRelativeText } from '$lib/utils/due-dates';
-	import { startOnboardingTour, injectTourStyles } from '$lib/tour/onboarding-tour';
-	import tourStore, { checkOnboardingStatus, setTourActive, completeTour } from '$lib/stores/tour';
+	import { startOnboardingTour, injectTourStyles, cleanupTour, setTourNavigationCallbacks } from '$lib/tour/onboarding-tour';
+	import tourStore, { checkOnboardingStatus, setTourActive, completeTour, handleNavigationDuringTour, setTourPage, allowTourNavigation } from '$lib/stores/tour';
 	import { toast } from '$lib/stores/toast';
+
+	// Navigation lock during tour
+	beforeNavigate(({ cancel }) => {
+		if (handleNavigationDuringTour()) {
+			cancel();
+		}
+	});
 
 	const log = createLogger('Dashboard');
 
@@ -126,15 +134,39 @@
 		if (browser) {
 			const needsTour = await checkOnboardingStatus();
 			if (needsTour) {
-				// Inject tour styles and start after a short delay
+				// Wait for DOM to be fully rendered
+				await tick();
+
+				// Set up navigation callbacks for tour
+				setTourNavigationCallbacks({
+					onNavigateToActions: () => {
+						// Set tour page for continuation
+						setTourPage('actions');
+						// Allow navigation without confirmation
+						allowTourNavigation();
+						cleanupTour();
+						goto('/actions');
+					},
+					onNavigateToProjects: () => {
+						// Set tour page for continuation
+						setTourPage('projects');
+						// Allow navigation without confirmation
+						allowTourNavigation();
+						cleanupTour();
+						goto('/projects');
+					},
+				});
+
+				// Inject tour styles and start after a short delay for animations
 				injectTourStyles();
 				setTimeout(() => {
 					setTourActive(true);
 					startOnboardingTour(() => {
 						setTourActive(false);
+						cleanupTour();
 						completeTour();
 					});
-				}, 500);
+				}, 300);
 			}
 		}
 	});

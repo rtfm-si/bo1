@@ -16,7 +16,15 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
-from backend.api.models import ApplyPromoCodeRequest, ErrorResponse, UserPromotion
+from backend.api.models import (
+    VALID_KANBAN_STATUSES,
+    ApplyPromoCodeRequest,
+    ErrorResponse,
+    KanbanColumn,
+    KanbanColumnsResponse,
+    KanbanColumnsUpdate,
+    UserPromotion,
+)
 from backend.services.audit import (
     get_recent_deletion_request,
     get_recent_export_request,
@@ -658,6 +666,140 @@ async def update_gantt_color_preference(
         raise
     except Exception as e:
         logger.error(f"Failed to update Gantt color preference for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update preference") from e
+
+
+# =============================================================================
+# Kanban Column Preferences
+# =============================================================================
+
+# Default columns for new users
+DEFAULT_KANBAN_COLUMNS = [
+    KanbanColumn(id="todo", title="To Do"),
+    KanbanColumn(id="in_progress", title="In Progress"),
+    KanbanColumn(id="done", title="Done"),
+]
+
+
+def _validate_kanban_columns(columns: list[KanbanColumn]) -> None:
+    """Validate kanban column configuration.
+
+    Raises HTTPException if validation fails.
+    """
+    # Check for unique IDs
+    ids = [col.id for col in columns]
+    if len(ids) != len(set(ids)):
+        raise HTTPException(status_code=400, detail="Column IDs must be unique")
+
+    # Check all IDs are valid ActionStatus values
+    for col_id in ids:
+        if col_id not in VALID_KANBAN_STATUSES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid column ID '{col_id}'. Must be a valid action status.",
+            )
+
+
+@router.get(
+    "/preferences/kanban-columns",
+    summary="Get kanban columns preference",
+    description="Get the user's kanban column configuration.",
+    response_model=KanbanColumnsResponse,
+    responses={
+        200: {"description": "Current kanban columns"},
+        500: {"description": "Failed to get preference", "model": ErrorResponse},
+    },
+)
+async def get_kanban_columns(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> KanbanColumnsResponse:
+    """Get user's kanban column configuration."""
+    user_id = user["user_id"]
+
+    try:
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT kanban_columns FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                # Return stored columns or defaults
+                stored = row.get("kanban_columns")
+                if stored:
+                    columns = [KanbanColumn(**col) for col in stored]
+                else:
+                    columns = DEFAULT_KANBAN_COLUMNS
+
+                return KanbanColumnsResponse(columns=columns)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get kanban columns for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get preference") from e
+
+
+@router.patch(
+    "/preferences/kanban-columns",
+    summary="Update kanban columns preference",
+    description="""
+    Update user's kanban column configuration.
+
+    Rules:
+    - 1-8 columns allowed
+    - Column IDs must be valid action statuses (todo, in_progress, blocked, in_review, done, cancelled, failed, abandoned, replanned)
+    - Column IDs must be unique
+    - Titles must be 1-50 characters
+    - Optional hex color (e.g., #FF5733)
+    """,
+    response_model=KanbanColumnsResponse,
+    responses={
+        200: {"description": "Columns updated"},
+        400: {"description": "Invalid configuration", "model": ErrorResponse},
+        500: {"description": "Failed to update preference", "model": ErrorResponse},
+    },
+)
+async def update_kanban_columns(
+    body: KanbanColumnsUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> KanbanColumnsResponse:
+    """Update user's kanban column configuration."""
+    user_id = user["user_id"]
+
+    # Validate columns
+    _validate_kanban_columns(body.columns)
+
+    try:
+        import json
+
+        columns_json = json.dumps([col.model_dump() for col in body.columns])
+
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET kanban_columns = %s, updated_at = NOW()
+                    WHERE id = %s
+                    RETURNING kanban_columns
+                    """,
+                    (columns_json, user_id),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                logger.info(f"Updated kanban columns for {user_id}: {len(body.columns)} columns")
+                return KanbanColumnsResponse(columns=body.columns)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update kanban columns for {user_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update preference") from e
 
 

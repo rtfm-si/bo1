@@ -214,8 +214,8 @@ class LLMConfig:
     DEFAULT_MAX_TOKENS = 4096
     """Default max output tokens"""
 
-    DEFAULT_TEMPERATURE = 1.0
-    """Default sampling temperature"""
+    DEFAULT_TEMPERATURE = 0.85
+    """Default sampling temperature (leaves headroom for phase adjustments)"""
 
     HAIKU_ROUNDS_THRESHOLD = 2
     """Use Haiku for early rounds (1-2)"""

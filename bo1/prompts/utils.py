@@ -62,36 +62,40 @@ def get_round_phase_config(round_number: int, max_rounds: int) -> dict[str, Any]
 
     if round_number <= 1:
         # Initial round: Full exploration
+        # Base 0.85 + adjustment 0.0 = 0.85 (exploratory)
         return {
             "phase": "initial",
-            "temperature": 1.0,
+            "temperature": 0.85,
             "max_tokens": 2000,
             "directive": "Provide your complete perspective on this problem. Consider all angles and share your full analysis.",
             "tone": "exploratory",
         }
     elif progress <= 0.4:  # Early rounds (2-4 of 10)
         # Divergent thinking: Explore alternatives
+        # Base 0.85 + adjustment +0.15 = 1.0 (maximum creativity)
         return {
             "phase": "early",
-            "temperature": 1.0,
+            "temperature": 0.85,
             "max_tokens": 1500,
             "directive": "Explore different angles and perspectives. What concerns, risks, or alternatives haven't been discussed yet?",
             "tone": "divergent",
         }
     elif progress <= 0.7:  # Middle rounds (5-7 of 10)
         # Analysis phase: Evidence and reasoning
+        # Base 0.75 + adjustment 0.0 = 0.75 (analytical)
         return {
             "phase": "middle",
-            "temperature": 0.85,
+            "temperature": 0.75,
             "max_tokens": 1200,
             "directive": "Build on the discussion with evidence and analysis. Address gaps, uncertainties, or claims that need verification.",
             "tone": "analytical",
         }
     else:  # Late rounds (8+ of 10)
         # Convergent thinking: Move toward consensus
+        # Base 0.65 + adjustment -0.10 = 0.55 (focused convergence)
         return {
             "phase": "late",
-            "temperature": 0.7,
+            "temperature": 0.65,
             "max_tokens": 800,
             "directive": "Work toward consensus. Acknowledge tradeoffs, find common ground, and help the group move toward a decision.",
             "tone": "convergent",

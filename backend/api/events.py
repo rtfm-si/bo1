@@ -1086,17 +1086,18 @@ def quality_metrics_update_event(
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
-    # Add scores (only if not None)
-    if exploration_score is not None:
-        data["exploration_score"] = round(exploration_score, 2)
-    if convergence_score is not None:
-        data["convergence_score"] = round(convergence_score, 2)
-    if focus_score is not None:
-        data["focus_score"] = round(focus_score, 2)
-    if novelty_score is not None:
-        data["novelty_score"] = round(novelty_score, 2)
-    if meeting_completeness_index is not None:
-        data["meeting_completeness_index"] = round(meeting_completeness_index, 2)
+    # Add scores (always include with 0.0 default to prevent undefined in frontend)
+    data["exploration_score"] = (
+        round(exploration_score, 2) if exploration_score is not None else 0.0
+    )
+    data["convergence_score"] = (
+        round(convergence_score, 2) if convergence_score is not None else 0.0
+    )
+    data["focus_score"] = round(focus_score, 2) if focus_score is not None else 0.0
+    data["novelty_score"] = round(novelty_score, 2) if novelty_score is not None else 0.0
+    data["meeting_completeness_index"] = (
+        round(meeting_completeness_index, 2) if meeting_completeness_index is not None else 0.0
+    )
 
     # Add missing aspects and guidance
     if missing_aspects:

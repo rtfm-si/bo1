@@ -338,14 +338,46 @@ async def next_subproblem_node(state: DeliberationGraphState) -> dict[str, Any]:
     sub_problem_index = state.get("sub_problem_index", 0)
     previous_results = state.get("sub_problem_results", [])
 
+    # Debug logging to trace state corruption after checkpoint restore
+    session_id = state.get("session_id")
+    log_with_session(
+        logger,
+        logging.DEBUG,
+        session_id,
+        f"next_subproblem_node: current_sub_problem type={type(current_sp).__name__}, "
+        f"value={current_sp if isinstance(current_sp, dict) else repr(current_sp)[:200]}",
+    )
+
     # GUARD: Check if result already exists for current index (prevents double-processing)
     # This can happen on graph retry or checkpoint edge cases
     current_sp_id = _get_subproblem_attr(current_sp, "id", None) if current_sp else None
+
+    # Guard: Ensure current_sp_id is hashable (string expected)
+    # State corruption after checkpoint restore can cause id to be a list
+    if current_sp_id and not isinstance(current_sp_id, str):
+        session_id = state.get("session_id")
+        log_with_session(
+            logger,
+            logging.ERROR,
+            session_id,
+            f"next_subproblem_node: current_sub_problem.id is not a string! "
+            f"Got type={type(current_sp_id).__name__}, value={current_sp_id}. "
+            f"This indicates state corruption. Skipping guard check.",
+        )
+        current_sp_id = None  # Skip guard check, proceed with normal flow
+
     if current_sp_id:
-        existing_result_ids = {
-            r.sub_problem_id if hasattr(r, "sub_problem_id") else r.get("sub_problem_id")  # type: ignore[attr-defined]
-            for r in previous_results
-        }
+        # Build set of existing result IDs, handling both object and dict forms
+        existing_result_ids: set[str] = set()
+        for r in previous_results:
+            sp_id = (
+                r.get("sub_problem_id")
+                if isinstance(r, dict)
+                else getattr(r, "sub_problem_id", None)
+            )
+            if isinstance(sp_id, str):
+                existing_result_ids.add(sp_id)
+
         if current_sp_id in existing_result_ids:
             session_id = state.get("session_id")
             log_with_session(

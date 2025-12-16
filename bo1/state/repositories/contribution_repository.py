@@ -23,6 +23,50 @@ class ContributionRepository(BaseRepository):
     """Repository for contributions, recommendations, and facilitator decisions."""
 
     # =========================================================================
+    # Persona Operations (for dynamic persona support)
+    # =========================================================================
+
+    def _ensure_persona_exists(self, persona_code: str, conn: Any) -> bool:
+        """Ensure a persona exists in the personas table.
+
+        For dynamic personas (auto-generated during meetings), this creates
+        a minimal record to satisfy FK constraints.
+
+        Args:
+            persona_code: Persona code to check/create
+            conn: Database connection to use
+
+        Returns:
+            True if persona exists or was created, False on error
+        """
+        with conn.cursor() as cur:
+            # Check if persona already exists
+            cur.execute("SELECT code FROM personas WHERE code = %s", (persona_code,))
+            if cur.fetchone():
+                return True
+
+            # Insert dynamic persona with minimal data
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO personas (code, name, expertise, system_prompt, is_dynamic)
+                    VALUES (%s, %s, %s, %s, true)
+                    ON CONFLICT (code) DO NOTHING
+                    """,
+                    (
+                        persona_code,
+                        persona_code.replace("_", " ").title(),  # Convert code to display name
+                        "Dynamic expert generated for this meeting",
+                        "You are a dynamically assigned expert.",
+                    ),
+                )
+                logger.info(f"Created dynamic persona: {persona_code}")
+                return True
+            except Exception as e:
+                logger.warning(f"Failed to create dynamic persona {persona_code}: {e}")
+                return False
+
+    # =========================================================================
     # Contribution Operations
     # =========================================================================
 
@@ -78,6 +122,9 @@ class ContributionRepository(BaseRepository):
                         user_id = "unknown"
 
         with db_session() as conn:
+            # Ensure dynamic persona exists to satisfy FK constraint
+            self._ensure_persona_exists(persona_code, conn)
+
             with conn.cursor() as cur:
                 cur.execute(
                     """

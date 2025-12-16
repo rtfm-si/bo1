@@ -22,6 +22,7 @@
 
 	const isComplete = $derived(sessionStatus === 'completed');
 	const isTerminated = $derived(sessionStatus === 'terminated');
+	const isPaused = $derived(sessionStatus === 'paused');
 	const isActive = $derived(sessionStatus === 'active' || sessionStatus === 'paused');
 
 	// Export dropdown state
@@ -91,6 +92,8 @@
 							Meeting Complete
 						{:else if isTerminated}
 							Meeting Ended Early
+						{:else if isPaused}
+							Action Required
 						{:else}
 							Meeting in Progress
 						{/if}
@@ -98,6 +101,8 @@
 					{#if isComplete}
 						<CheckCircle class="w-6 h-6 text-success-600 dark:text-success-400" />
 					{:else if isTerminated}
+						<AlertTriangle class="w-6 h-6 text-warning-600 dark:text-warning-400" />
+					{:else if isPaused}
 						<AlertTriangle class="w-6 h-6 text-warning-600 dark:text-warning-400" />
 					{/if}
 				</div>

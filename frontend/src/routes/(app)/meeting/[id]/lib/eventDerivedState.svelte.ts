@@ -92,9 +92,24 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		// Status can be 'active' (legacy) or 'paused' (new behavior)
 		const isPausedForClarification =
 			session?.status === 'paused' && session?.phase === 'clarification_needed';
+
+		// Primary: phase-based detection
+		if (isPausedForClarification) {
+			return (
+				clarificationRequiredEvent !== undefined && clarificationQuestions !== undefined
+			);
+		}
+
+		// Fallback: event-based detection when phase not available (e.g., Redis TTL expired)
+		// If session is paused and we have clarification event, show the form
+		if (session?.status === 'paused' && clarificationRequiredEvent !== undefined) {
+			return clarificationQuestions !== undefined;
+		}
+
+		// Legacy: active session with clarification event
 		return (
 			clarificationRequiredEvent !== undefined &&
-			(session?.status === 'active' || isPausedForClarification) &&
+			session?.status === 'active' &&
 			clarificationQuestions !== undefined
 		);
 	});

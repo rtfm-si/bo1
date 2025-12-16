@@ -105,7 +105,7 @@
 {#if open}
 	<!-- Backdrop -->
 	<div
-		class="fixed inset-0 z-modalBackdrop bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+		class="fixed inset-0 z-modal-backdrop bg-black/50 backdrop-blur-sm transition-opacity duration-300"
 		onclick={closable ? close : undefined}
 		aria-hidden="true"
 	></div>

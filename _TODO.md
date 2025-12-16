@@ -1,18 +1,13 @@
-# TODO - Pending Items
+# TODO
 
-## User Action Required
+No outstanding developer tasks. All items from previous session resolved:
 
-- Help pages need content review and polish (Si's responsibility)
-- Clarify: "auto seo - where did we get to with that and where is it?" (what's the scope/current state?)
+1. ✅ Admin landing analytics - rate limiting fixed (ADMIN_RATE_LIMIT)
+2. ✅ Feedback modal z-index - fixed (z-modal-backdrop)
+3. ✅ Missing user meetings - NOT A BUG (intentional design, tests added)
+4. ✅ Admin 429 errors - rate limiting fixed
 
-## External/Blocked (see _TASK.md for full list)
-
-- Sign DPAs with data processors
-- Setup SSL/TLS, uptime monitoring
-- Configure production Alertmanager
-- Switch Stripe to live mode
-- Test emergency access procedures
-
----
-
-_All development tasks from previous TODO items have been completed. See _TASK.md for details._
+See `_TASK.md` for:
+- External/manual setup tasks (user action required)
+- Blocked/deferred items
+- Items needing clarification

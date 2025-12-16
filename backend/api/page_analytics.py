@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import require_admin
-from backend.api.middleware.rate_limit import limiter
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.utils.errors import handle_api_errors
 from backend.services import page_analytics
 from bo1.utils.logging import get_logger
@@ -224,7 +224,7 @@ async def record_conversion(
     description="Get aggregated landing page analytics (admin only).",
     dependencies=[Depends(require_admin)],
 )
-@limiter.limit("60/minute")  # Admin rate limit
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get landing page metrics")
 async def get_landing_page_metrics(
     request: Request,
@@ -242,7 +242,7 @@ async def get_landing_page_metrics(
     description="Get daily page view statistics (admin only).",
     dependencies=[Depends(require_admin)],
 )
-@limiter.limit("60/minute")
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get daily stats")
 async def get_daily_stats(
     request: Request,
@@ -260,7 +260,7 @@ async def get_daily_stats(
     description="Get visitor breakdown by country (admin only).",
     dependencies=[Depends(require_admin)],
 )
-@limiter.limit("60/minute")
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get geo breakdown")
 async def get_geo_breakdown(
     request: Request,
@@ -278,7 +278,7 @@ async def get_geo_breakdown(
     description="Get conversion funnel statistics (admin only).",
     dependencies=[Depends(require_admin)],
 )
-@limiter.limit("60/minute")
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get funnel stats")
 async def get_funnel_stats(
     request: Request,
@@ -295,7 +295,7 @@ async def get_funnel_stats(
     description="Get bounce rate for a specific page (admin only).",
     dependencies=[Depends(require_admin)],
 )
-@limiter.limit("60/minute")
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get bounce rate")
 async def get_bounce_rate(
     request: Request,

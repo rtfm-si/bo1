@@ -1,44 +1,43 @@
-# Plan: Backlog Complete — No Implementable Tasks
+# Plan: No Actionable Tasks Remaining
 
 ## Summary
 
-- 900+ development tasks complete
-- 14 remaining items all require user action, external setup, or clarification
-- No code implementation targets available for `/build`
+- All developer-implementable tasks in `_TASK.md` are complete
+- Remaining items require user action, clarification, or are intentionally deferred
 
-## Remaining Items Analysis
+## Remaining Items (Not Actionable by Developer)
 
-### External/Manual Setup (P1 — User Action Required)
-- Sign DPAs with data processors (Supabase, Resend, Anthropic, DigitalOcean)
-- Setup SSL/TLS with Let's Encrypt
-- Setup uptime monitoring (UptimeRobot)
-- Configure production Alertmanager
-- Switch Stripe to live mode
-- Test emergency access procedures
-- Configure Stripe products/prices (Free/Starter/Pro) [P4]
-
-### Needs Clarification
-| Tag | Item | Question |
-|-----|------|----------|
-| [MONITORING][P1] | K8s manifest | Are we using Kubernetes? |
-| [SEO][P3] | Auto SEO | Where did we get to? What's the scope? |
-| [DOCS][P3] | Help pages | Marked "Si's todo" — still needed? |
+### External/Manual Setup (User action required)
+- `[BILLING][P4]` Configure Stripe products/prices
+- `[DEPLOY][P1]` Sign DPAs with data processors
+- `[DEPLOY][P1]` Setup SSL/TLS with Let's Encrypt
+- `[DEPLOY][P1]` Setup uptime monitoring
+- `[LAUNCH][P1]` Configure production Alertmanager
+- `[LAUNCH][P1]` Switch Stripe to live mode
+- `[LAUNCH][P1]` Test emergency access procedures
 
 ### Blocked on Dependencies
-| Item | Blocker |
-|------|---------|
-| Payment receipt email [P4] | Stripe integration incomplete |
-| Social direct posting [P3] | User decision pending (Option A vs B) |
+- `[EMAIL][P4]` Payment receipt email - blocked on Stripe integration
+- `[SOCIAL][P3]` Direct posting to social - blocked on user decision
 
 ### Deferred by Design
-| Item | Reason |
-|------|--------|
-| DuckDB backend [P2] | Not needed until >100K rows |
-| Upgrade prompts [P4] | Nice-to-have |
+- `[DATA][P2]` DuckDB backend - defer until needed
+- `[BILLING][P4]` Upgrade prompts - nice-to-have
 
-## Recommended Next Actions
+### Needs Clarification
+- `[MONITORING][P1]` Kubernetes deployment manifest - awaiting answer: are we using kubernetes?
 
-1. **Add new features** — Define new work items in `_TASK.md`
-2. **Clarify blockers** — Answer K8s/SEO/Help page questions
-3. **Complete external setup** — DPAs, SSL, monitoring, Stripe live mode
-4. **Unblock integrations** — Stripe payment receipts, social posting decision
+### User Tasks
+- `[DOCS][P3]` Help pages content review - Si's todo
+- `[SEO][P3]` Auto SEO scope - needs clarification
+
+## Recommended Next Steps
+
+1. **Answer clarification question**: Are we using Kubernetes? If yes, I can create deployment manifests
+2. **Complete external setup tasks**: SSL, DPAs, monitoring, Stripe config
+3. **Make decision on social posting**: Choose Option A or B for direct social posting
+4. **Add new tasks**: If there are new features or bugs to address, add them to `_TASK.md`
+
+## No Implementation Steps Required
+
+The backlog is clear of developer tasks.

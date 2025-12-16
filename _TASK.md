@@ -596,3 +596,32 @@ _Last updated: 2025-12-16 (Relationship Diagram for Help Center)_
   - Improved error logging with error_type and error_detail in Resend exceptions
   - Admin approval response now includes Resend email ID on success or specific error guidance
   - Added 6 unit tests in `tests/api/test_beta_welcome_email.py`
+
+---
+
+## Task backlog (from _TODO.md, 2025-12-16)
+
+### Admin Pages [ADMIN]
+
+- [x] [ADMIN][P1] Fix Admin > Landing Analytics page error (unknown error on load)
+  - **Finding**: Landing Analytics service works correctly - tested via direct service call
+  - Root cause was rate limiting - admin analytics endpoints used `60/minute` instead of `300/minute`
+- [x] [ADMIN][P1] Investigate admin API 429 rate limiting issue (landing-page, feedback endpoints returning 429)
+  - Fixed: Updated all 5 admin analytics endpoints to use `ADMIN_RATE_LIMIT` (300/minute)
+  - Affected file: `backend/api/page_analytics.py`
+
+### UX Bugs [UX]
+
+- [x] [UX][P2] Fix feedback modal z-index: dropdowns on context page appear above modal overlay
+  - Root cause: Modal.svelte used `z-modalBackdrop` (camelCase) instead of `z-modal-backdrop` (kebab-case)
+  - Theme defines `--z-modal-backdrop: 1040` but Tailwind v4 generates `z-modal-backdrop` class
+  - Fix: Changed class to `z-modal-backdrop` in Modal.svelte:108
+
+### Data Integrity [DATA]
+
+- [x] [DATA][P0] Investigate missing user meetings/actions in production (admin shows 4 meetings total, but user views empty)
+  - **Finding**: NOT A BUG - This is intentional design (P1-007)
+  - Actions are only visible to users from sessions with `status = 'completed'`
+  - Admin passes `is_admin=True` which bypasses this filter and sees all sessions
+  - Filter location: `action_repository.py:204-205` - `AND (s.status = 'completed' OR s.id IS NULL)`
+  - Tests added: `tests/state/test_action_visibility.py` (8 tests)

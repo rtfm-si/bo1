@@ -34,6 +34,7 @@
 </script>
 
 <section
+	id="samples"
 	class="py-24 bg-neutral-50 dark:bg-neutral-800 border-y border-neutral-200 dark:border-neutral-800"
 >
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

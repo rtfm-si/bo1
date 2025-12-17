@@ -343,6 +343,27 @@ services:
       - monitoring
 
   # ---------------------------------------------------------------------------
+  # Umami: Privacy-focused web analytics
+  # ---------------------------------------------------------------------------
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: bo1-umami
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/umami
+      - DATABASE_TYPE=postgresql
+      - APP_SECRET=${UMAMI_APP_SECRET:-change-me-in-production}
+    ports:
+      - "3002:3000"
+    networks:
+      - bo1-network
+    restart: unless-stopped
+    profiles:
+      - analytics
+
+  # ---------------------------------------------------------------------------
   # Grafana: Visualization and dashboards
   # ---------------------------------------------------------------------------
   grafana:

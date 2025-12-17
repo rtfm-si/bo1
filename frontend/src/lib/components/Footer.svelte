@@ -10,6 +10,22 @@
 			links: [
 				{ label: 'How It Works', href: '/#how-it-works' },
 				{ label: 'Features', href: '/#features' },
+				{ label: 'Examples', href: '/examples' },
+			],
+		},
+		{
+			title: 'Company',
+			links: [
+				{ label: 'About', href: '/about' },
+				{ label: 'Blog', href: '/blog' },
+				{ label: 'Contact', href: 'mailto:hello@boardofone.com' },
+			],
+		},
+		{
+			title: 'Support',
+			links: [
+				{ label: 'Help Center', href: '/help' },
+				{ label: 'Status', href: '/status' },
 			],
 		},
 		{
@@ -19,10 +35,6 @@
 				{ label: 'Privacy Policy', href: '/legal/privacy' },
 				{ label: 'Cookie Policy', href: '/legal/cookies' },
 			],
-		},
-		{
-			title: 'Support',
-			links: [{ label: 'Help Center', href: '/help' }],
 		},
 	];
 
@@ -36,7 +48,7 @@
 <footer class="bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800">
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 		<!-- Main Footer Content -->
-		<div class="grid grid-cols-2 md:grid-cols-3 gap-8 mb-8">
+		<div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
 			{#each footerSections as section}
 				<div>
 					<h3

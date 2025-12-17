@@ -274,6 +274,53 @@ services:
   #         memory: 128M
 
   # ---------------------------------------------------------------------------
+  # Umami: Privacy-focused web analytics
+  # ---------------------------------------------------------------------------
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/umami
+      - DATABASE_TYPE=postgresql
+      - APP_SECRET=${UMAMI_APP_SECRET}
+    ports:
+      - "127.0.0.1:3002:3000"
+    networks:
+      - bo1-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # ---------------------------------------------------------------------------
+  # Uptime Kuma: Status page and uptime monitoring
+  # ---------------------------------------------------------------------------
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    volumes:
+      - uptime-kuma-data:/app/data
+    ports:
+      - "127.0.0.1:3003:3001"
+    networks:
+      - bo1-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # ---------------------------------------------------------------------------
   # Bo1 App: Main application container (production mode)
   # ---------------------------------------------------------------------------
   bo1:
@@ -349,6 +396,8 @@ volumes:
   nginx-logs:
     driver: local
   nginx-cache:
+    driver: local
+  uptime-kuma-data:
     driver: local
 
 networks:

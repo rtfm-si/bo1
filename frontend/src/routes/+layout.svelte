@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import '../app.css';
 	import CookieConsent from '$lib/components/CookieConsent.svelte';
+	import UmamiAnalytics from '$lib/components/UmamiAnalytics.svelte';
 	import { initAuth } from '$lib/stores/auth';
 	import { initSuperTokens } from '$lib/supertokens';
 	import { themeStore } from '$lib/stores/theme';
@@ -57,3 +58,4 @@
 {@render children()}
 
 <CookieConsent />
+<UmamiAnalytics />

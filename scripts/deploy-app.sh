@@ -90,6 +90,69 @@ echo ""
 echo "⏳ Waiting for services to start..."
 sleep 10
 
+# ---------------------------------------------------------------------------
+# Copy static files from frontend container to host for nginx
+# ---------------------------------------------------------------------------
+echo ""
+echo "📦 Syncing static files for nginx..."
+
+# Determine static directory based on environment
+if [ "$TARGET_PROJECT" = "boardofone-green" ]; then
+    STATIC_DIR="/var/www/boardofone/static-green"
+    CONTAINER_NAME="${TARGET_PROJECT}-frontend-1"
+else
+    STATIC_DIR="/var/www/boardofone/static-blue"
+    CONTAINER_NAME="${TARGET_PROJECT}-frontend-1"
+fi
+
+TEMP_STATIC_DIR="${STATIC_DIR}.tmp"
+OLD_STATIC_DIR="${STATIC_DIR}.old"
+
+# Wait for frontend container to be healthy
+echo "   Waiting for frontend container to be ready..."
+for i in {1..12}; do
+    if docker inspect --format='{{.State.Health.Status}}' "$CONTAINER_NAME" 2>/dev/null | grep -q "healthy"; then
+        echo "   ✅ Frontend container healthy"
+        break
+    fi
+    if [ $i -eq 12 ]; then
+        echo "   ⚠️  Frontend not healthy after 60s, attempting static copy anyway..."
+    fi
+    sleep 5
+done
+
+# Create base directory if needed
+sudo mkdir -p /var/www/boardofone
+
+# Remove any stale temp/old directories
+sudo rm -rf "$TEMP_STATIC_DIR" "$OLD_STATIC_DIR"
+
+# Copy static files to temp directory (atomic preparation)
+echo "   Copying static files from container..."
+sudo mkdir -p "$TEMP_STATIC_DIR"
+if docker cp "${CONTAINER_NAME}:/app/build/client/." "$TEMP_STATIC_DIR/"; then
+    # Set ownership
+    sudo chown -R www-data:www-data "$TEMP_STATIC_DIR"
+
+    # Atomic swap: move current to old, temp to current
+    if [ -d "$STATIC_DIR" ]; then
+        sudo mv "$STATIC_DIR" "$OLD_STATIC_DIR"
+    fi
+    sudo mv "$TEMP_STATIC_DIR" "$STATIC_DIR"
+
+    # Clean up old directory
+    sudo rm -rf "$OLD_STATIC_DIR"
+
+    echo "   ✅ Static files synced to $STATIC_DIR"
+
+    # Show what was copied
+    FILE_COUNT=$(find "$STATIC_DIR" -type f | wc -l)
+    echo "   📊 Copied $FILE_COUNT files"
+else
+    echo "   ❌ Failed to copy static files from container"
+    sudo rm -rf "$TEMP_STATIC_DIR"
+fi
+
 # Health checks
 echo ""
 echo "🏥 Running health checks..."

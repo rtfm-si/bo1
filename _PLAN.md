@@ -1,51 +1,58 @@
-# Plan: [ADMIN][P3] User promotion management (add/remove/view)
+# Plan: [ANALYTICS][P3] Umami Self-Hosted Analytics Integration
 
 ## Summary
 
-- Add admin endpoints to apply/remove promotions from user accounts
-- Add endpoint to list users with active promotions
-- Add UI controls on Admin > Users and Admin > Promotions pages
+- Add Umami container to docker-compose (uses existing `umami` database from init script)
+- Create Umami tracking script component for landing page
+- Configure via env vars (`PUBLIC_UMAMI_HOST`, `PUBLIC_UMAMI_WEBSITE_ID`)
+- Complement existing custom analytics (page-tracker.ts) with richer visitor insights
 
 ## Implementation Steps
 
-1. **Add repository methods** (`bo1/state/repositories/promotion_repository.py`)
-   - `remove_user_promotion(user_promotion_id, user_id)` - hard delete user_promotion row
-   - `get_users_with_promotions()` - list users with active promos (join users/user_promotions/promotions)
+1. **Add Umami service to docker-compose.yml**
+   - Image: `ghcr.io/umami-software/umami:postgresql-latest`
+   - Database: use existing `umami` database (init script already creates it)
+   - Port: 3002 (avoid conflict with Grafana on 3001)
+   - Profile: `analytics` (optional start)
 
-2. **Add admin API endpoints** (`backend/api/admin/promotions.py`)
-   - `POST /api/admin/promotions/apply` - apply promo code to user by user_id
-   - `DELETE /api/admin/promotions/user/{user_promotion_id}` - remove promo from user
-   - `GET /api/admin/promotions/users` - list users with promotions applied
+2. **Add env vars to `.env.example` and frontend config**
+   - `UMAMI_APP_SECRET` (random 32+ char string)
+   - `PUBLIC_UMAMI_HOST` (e.g., `http://localhost:3002`)
+   - `PUBLIC_UMAMI_WEBSITE_ID` (set after first login)
+   - Frontend: read from `$env/dynamic/public`
 
-3. **Add Pydantic models** (`backend/api/models.py`)
-   - `ApplyPromoToUserRequest(user_id: str, code: str)`
-   - `UserWithPromotionsResponse(user_id, email, promotions: list)`
+3. **Create Umami script component**
+   - File: `frontend/src/lib/components/UmamiAnalytics.svelte`
+   - Conditionally loads Umami tracking script when `PUBLIC_UMAMI_WEBSITE_ID` is set
+   - SSR-safe (only runs in browser)
 
-4. **Update Admin > Users page** (`frontend/src/routes/(app)/admin/users/+page.svelte`)
-   - Add "Apply Promo" button per user row (opens modal with code input)
-   - Show active promo badges in user row (if any)
+4. **Add component to root layout**
+   - Add `<UmamiAnalytics />` to `frontend/src/routes/+layout.svelte`
+   - Loads on all pages (Umami auto-tracks page views)
 
-5. **Update Admin > Promotions page** (`frontend/src/routes/(app)/admin/promotions/+page.svelte`)
-   - Add "Users" tab showing accounts with promotions
-   - Add "Remove" button per user-promotion row
-
-6. **Add frontend API functions** (`frontend/src/lib/api/admin.ts`)
-   - `applyPromoToUser(userId, code)`
-   - `removeUserPromotion(userPromotionId)`
-   - `getUsersWithPromotions()`
+5. **Update landing page to track custom events**
+   - Optional: Use `umami.track()` for specific conversion events
+   - Complements existing `trackSignupClick`, `trackWaitlistSubmit`
 
 ## Tests
 
 - Unit tests:
-  - `tests/api/admin/test_promotion_user_management.py`: apply, remove, list endpoints
+  - `UmamiAnalytics.test.ts`: renders nothing when no website ID, renders script when configured
+
 - Manual validation:
-  - [ ] Apply promo to user from Admin > Users
-  - [ ] Remove promo from user via Admin > Promotions
-  - [ ] List users with promotions shows correct data
+  - Start Umami: `docker compose --profile analytics up -d umami`
+  - Access Umami UI at `http://localhost:3002`
+  - Create website, get website ID
+  - Set `PUBLIC_UMAMI_WEBSITE_ID` in frontend `.env`
+  - Visit landing page, verify page view tracked in Umami dashboard
 
 ## Dependencies & Risks
 
-- Dependencies: Existing promotion_repository, promotion_service
-- Risks:
-  - Removing promo mid-cycle may confuse users (acceptable for admin action)
-  - Should not remove promo that's already been partially consumed (warn in UI)
+- Dependencies:
+  - Postgres container running (already required)
+  - `umami` database created by init script (already exists)
+
+- Risks/edge cases:
+  - First-time setup requires manual website creation in Umami UI
+  - Website ID must be set after Umami first boot
+  - CORS: Umami should allow requests from frontend origin

@@ -66,14 +66,36 @@ Projects contain actions from their linked meetings, plus any actions you assign
 
 **Example**: Your "Q1 Product Launch" project shows all actions across all related meetings in one place.
 
+#### Mentor → Actions (advice)
+The AI Mentor can provide guidance on any action. Ask questions about how to approach a task, break it down into steps, or get strategic advice on execution.
+
+**Example**: For an action "Redesign onboarding flow," ask the Mentor "What are the key metrics I should track?" or "How should I prioritize the changes?"
+
+### Context & Data
+
+Your **Context & Data** is the foundation that powers everything else. It includes your business information, goals, challenges, and any datasets you upload.
+
+#### Context & Data → Meeting (informs)
+When you run a meeting, experts have access to your context and data. This helps them provide tailored advice rather than generic recommendations.
+
+**Example**: If your context includes "bootstrapped startup, $50K MRR, 2-person team," experts will factor in resource constraints when recommending strategies.
+
+#### Context & Data → Mentor (Q&A)
+Ask the Mentor questions about your business context and uploaded data. The Mentor can analyze trends, identify patterns, and answer specific questions.
+
+**Example**: Upload your sales data and ask "Which product category grew fastest last quarter?" or "What's driving customer churn?"
+
 ### Best Practices
 
 1. **Start with a meeting** for any significant decision
 2. **Let actions emerge naturally** from meeting recommendations
 3. **Create projects** for multi-meeting initiatives
 4. **Link meetings to projects** as you go
-5. **Use the Kanban view** to track actions across projects`,
-		keywords: ['relationships', 'diagram', 'meetings', 'actions', 'projects', 'how', 'connect', 'structure'],
+5. **Use the Kanban view** to track actions across projects
+6. **Keep business context updated** for better meeting insights
+7. **Upload relevant data** before meetings that need it
+8. **Ask the Mentor** when stuck on an action`,
+		keywords: ['relationships', 'diagram', 'meetings', 'actions', 'projects', 'how', 'connect', 'structure', 'mentor', 'context', 'data'],
 	},
 
 	// Getting Started

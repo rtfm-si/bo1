@@ -491,6 +491,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="staleness-warning-title"
+		tabindex="-1"
 		onkeydown={(e) => e.key === 'Escape' && dismissStalenessWarning()}
 	>
 		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full p-6">

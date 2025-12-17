@@ -11,14 +11,14 @@ import { buildSubProblemTabs, calculateSubProblemProgress, type SubProblemTab } 
 export interface MemoizedStateConfig {
 	getEvents: () => SSEEvent[];
 	getSession: () => { status: string } | null;
-	debugMode: boolean;
+	getDebugMode: () => boolean;
 }
 
 /**
  * Creates memoized state manager for expensive calculations
  */
 export function createMemoizedState(config: MemoizedStateConfig) {
-	const { getEvents, getSession, debugMode } = config;
+	const { getEvents, getSession, getDebugMode } = config;
 
 	// ============================================================================
 	// SUB-PROBLEM PROGRESS CACHE
@@ -47,7 +47,7 @@ export function createMemoizedState(config: MemoizedStateConfig) {
 		if (groupingDebounceTimeout) clearTimeout(groupingDebounceTimeout);
 		groupingDebounceTimeout = setTimeout(() => {
 			const events = getEvents();
-			groupedEventsCache = groupEvents(events, debugMode);
+			groupedEventsCache = groupEvents(events, getDebugMode());
 			lastEventCountForGrouping = events.length;
 		}, delay);
 	}
@@ -61,7 +61,7 @@ export function createMemoizedState(config: MemoizedStateConfig) {
 
 			if (isCompleted) {
 				// Immediate calculation for completed sessions
-				groupedEventsCache = groupEvents(events, debugMode);
+				groupedEventsCache = groupEvents(events, getDebugMode());
 				lastEventCountForGrouping = events.length;
 			} else {
 				// Debounced calculation for active sessions
@@ -78,7 +78,7 @@ export function createMemoizedState(config: MemoizedStateConfig) {
 	function forceGroupedEventsUpdate() {
 		const events = getEvents();
 		if (groupingDebounceTimeout) clearTimeout(groupingDebounceTimeout);
-		groupedEventsCache = groupEvents(events, debugMode);
+		groupedEventsCache = groupEvents(events, getDebugMode());
 		lastEventCountForGrouping = events.length;
 	}
 

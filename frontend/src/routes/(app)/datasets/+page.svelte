@@ -29,7 +29,7 @@
 	let uploadError = $state<string | null>(null);
 	let uploadProgress = $state(0);
 	let isDragging = $state(false);
-	let fileInput: HTMLInputElement;
+	let fileInput = $state<HTMLInputElement | null>(null);
 
 	// Delete operation state
 	let deletingDatasetId = $state<string | null>(null);
@@ -269,7 +269,7 @@
 					class="hidden"
 					onchange={handleFileSelect}
 				/>
-				<Button variant="outline" onclick={() => fileInput.click()}>
+				<Button variant="outline" onclick={() => fileInput?.click()}>
 					{#snippet children()}
 						Browse Files
 					{/snippet}

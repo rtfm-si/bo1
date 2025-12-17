@@ -883,7 +883,11 @@ _Last updated: 2025-12-17 (Admin Promotion Management)_
 
 ### Analytics [ANALYTICS]
 
-- [ ] [ANALYTICS][P3] Add Umami self-hosted analytics integration for landing page
+- [x] [ANALYTICS][P3] Add Umami self-hosted analytics integration for landing page
+  - Docker: `umami` service in docker-compose.yml (profile: `analytics`, port 3002)
+  - Component: `UmamiAnalytics.svelte` dynamically injects tracking script
+  - Config: `PUBLIC_UMAMI_HOST`, `PUBLIC_UMAMI_WEBSITE_ID` env vars
+  - Tests: 10 unit tests in `UmamiAnalytics.test.ts`
 
 ### Integrations [INTEGRATIONS]
 

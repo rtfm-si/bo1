@@ -79,7 +79,7 @@
 	const memoized = createMemoizedState({
 		getEvents: () => store.events,
 		getSession: () => store.session,
-		debugMode,
+		getDebugMode: () => debugMode,
 	});
 
 	// View state (tabs, view modes)

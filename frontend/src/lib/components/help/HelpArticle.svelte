@@ -23,7 +23,7 @@
 	);
 
 	// Simple markdown-ish rendering for our structured content
-	// Handles: ## headers, ### subheaders, **bold**, - lists, numbered lists
+	// Handles: ## h2, ### h3, #### h4, **bold**, `code`, - lists, numbered lists
 	function renderContent(content: string): string {
 		const lines = content.split('\n');
 		let html = '';
@@ -43,8 +43,10 @@
 				inOrderedList = false;
 			}
 
-			// Headers
-			if (trimmed.startsWith('### ')) {
+			// Headers (check longer prefixes first)
+			if (trimmed.startsWith('#### ')) {
+				html += `<h4 class="text-base font-semibold text-neutral-900 dark:text-neutral-100 mt-5 mb-2">${escapeHtml(trimmed.slice(5))}</h4>`;
+			} else if (trimmed.startsWith('### ')) {
 				html += `<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mt-6 mb-3">${escapeHtml(trimmed.slice(4))}</h3>`;
 			} else if (trimmed.startsWith('## ')) {
 				html += `<h2 class="text-xl font-bold text-neutral-900 dark:text-neutral-100 mt-8 mb-4 first:mt-0">${escapeHtml(trimmed.slice(3))}</h2>`;

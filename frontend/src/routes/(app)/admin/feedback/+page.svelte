@@ -407,6 +407,7 @@
 							</div>
 
 							<!-- Quick Actions -->
+							<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 							<div class="flex items-center gap-2" onclick={(e) => e.stopPropagation()}>
 								{#if item.status === 'new'}
 									<Button variant="secondary" size="sm" onclick={() => updateStatus(item.id, 'reviewing')} disabled={isUpdating}>
@@ -474,7 +475,7 @@
 			<div class="px-6 py-4 space-y-6">
 				<!-- Status -->
 				<div>
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Status</label>
+					<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Status</span>
 					<div class="flex gap-2">
 						{#each (['new', 'reviewing', 'resolved', 'closed'] as const) as status}
 							<button
@@ -495,7 +496,7 @@
 
 				<!-- Description -->
 				<div>
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Description</label>
+					<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Description</span>
 					<p class="text-neutral-600 dark:text-neutral-400 whitespace-pre-wrap">
 						{selectedFeedback.description}
 					</p>
@@ -506,7 +507,7 @@
 					{@const style = sentimentStyles[selectedFeedback.analysis.sentiment]}
 					{@const SentimentIcon = style.icon}
 					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">AI Analysis</label>
+						<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">AI Analysis</span>
 						<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-4 space-y-3 text-sm">
 							<div class="flex items-center justify-between">
 								<span class="text-neutral-500 dark:text-neutral-400">Sentiment</span>
@@ -536,7 +537,7 @@
 				<!-- Context (if available) -->
 				{#if selectedFeedback.context}
 					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Context</label>
+						<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Context</span>
 						<div class="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-4 space-y-2 text-sm">
 							{#if selectedFeedback.context.user_tier}
 								<div class="flex justify-between">
@@ -569,19 +570,19 @@
 				<!-- Metadata -->
 				<div class="grid grid-cols-2 gap-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
 					<div>
-						<label class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">User ID</label>
+						<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">User ID</span>
 						<span class="text-sm text-neutral-900 dark:text-white font-mono">{selectedFeedback.user_id}</span>
 					</div>
 					<div>
-						<label class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Feedback ID</label>
+						<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Feedback ID</span>
 						<span class="text-sm text-neutral-900 dark:text-white font-mono">{selectedFeedback.id}</span>
 					</div>
 					<div>
-						<label class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Created</label>
+						<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Created</span>
 						<span class="text-sm text-neutral-900 dark:text-white">{formatDate(selectedFeedback.created_at)}</span>
 					</div>
 					<div>
-						<label class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Updated</label>
+						<span class="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Updated</span>
 						<span class="text-sm text-neutral-900 dark:text-white">{formatDate(selectedFeedback.updated_at)}</span>
 					</div>
 				</div>

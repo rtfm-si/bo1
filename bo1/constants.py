@@ -1090,6 +1090,23 @@ class UsageMetrics:
     MONTHLY_TTL = 86400 * 35  # 35 days (buffer for month rollover)
 
 
+class BetaMeetingCap:
+    """Beta meeting cap configuration (rolling window rate limiting)."""
+
+    MAX_MEETINGS = 4
+    """Maximum meetings allowed per rolling window"""
+
+    WINDOW_HOURS = 24
+    """Rolling window in hours"""
+
+    @staticmethod
+    def is_enabled() -> bool:
+        """Check if beta meeting cap is enabled via env."""
+        import os
+
+        return os.getenv("BETA_MEETING_CAP_ENABLED", "true").lower() == "true"
+
+
 class PoolDegradationConfig:
     """Database pool graceful degradation configuration."""
 

@@ -17,6 +17,7 @@
 	let websiteUrl = $state('');
 	let businessStage = $state<BusinessStage | undefined>(undefined);
 	let primaryObjective = $state<PrimaryObjective | undefined>(undefined);
+	let northStarGoal = $state('');
 	let businessModel = $state('');
 	let targetMarket = $state('');
 	let productDescription = $state('');
@@ -67,6 +68,7 @@
 				websiteUrl = ctx.website || '';
 				businessStage = ctx.business_stage;
 				primaryObjective = ctx.primary_objective;
+				northStarGoal = ctx.north_star_goal || '';
 				businessModel = ctx.business_model || '';
 				targetMarket = ctx.target_market || '';
 				productDescription = ctx.product_description || '';
@@ -183,6 +185,7 @@
 				website: websiteUrl.trim() || undefined,
 				business_stage: businessStage,
 				primary_objective: primaryObjective,
+				north_star_goal: northStarGoal.trim() || undefined,
 				business_model: businessModel.trim() || undefined,
 				target_market: targetMarket.trim() || undefined,
 				product_description: productDescription.trim() || undefined,
@@ -221,6 +224,7 @@
 			websiteUrl = '';
 			businessStage = undefined;
 			primaryObjective = undefined;
+			northStarGoal = '';
 			businessModel = '';
 			targetMarket = '';
 			productDescription = '';
@@ -358,6 +362,16 @@
 						items={primaryObjectiveOptions}
 						bind:value={primaryObjective}
 						placeholder="Select your focus"
+					/>
+				</div>
+
+				<div class="md:col-span-2">
+					<Input
+						label="North Star Goal"
+						placeholder="e.g., 10K MRR by Q2, 100 paying customers by March"
+						bind:value={northStarGoal}
+						helperText="Your primary objective for the next 3-6 months"
+						maxlength={200}
 					/>
 				</div>
 

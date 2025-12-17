@@ -334,6 +334,50 @@ class SessionRepository(BaseRepository):
                 cur.execute(query, params)
                 return [dict(row) for row in cur.fetchall()]
 
+    def list_recent_failures(
+        self,
+        user_id: str,
+        hours: int = 24,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """List recent failed sessions for a user.
+
+        Args:
+            user_id: User identifier
+            hours: Look back window in hours (default: 24)
+            limit: Maximum sessions to return (default: 10)
+
+        Returns:
+            List of failed session records with id, problem_statement preview, created_at
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, problem_statement, created_at, updated_at
+                    FROM sessions
+                    WHERE user_id = %s
+                      AND status = 'failed'
+                      AND created_at > NOW() - INTERVAL '%s hours'
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (user_id, hours, limit),
+                )
+                rows = cur.fetchall()
+                return [
+                    {
+                        "session_id": row["id"],
+                        "problem_statement_preview": (
+                            row["problem_statement"][:100] + "..."
+                            if len(row["problem_statement"]) > 100
+                            else row["problem_statement"]
+                        ),
+                        "created_at": row["created_at"].isoformat(),
+                    }
+                    for row in rows
+                ]
+
     def get_metadata(self, session_id: str) -> dict[str, Any] | None:
         """Get session metadata in Redis-compatible format.
 

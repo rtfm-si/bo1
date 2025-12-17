@@ -1,6 +1,8 @@
 <script lang="ts">
-	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail } from 'lucide-svelte';
 	import ExtendedKPIsPanel from '$lib/components/admin/ExtendedKPIsPanel.svelte';
+	import { adminApi, type EmailStatsResponse } from '$lib/api/admin';
+	import { onMount } from 'svelte';
 
 	interface AdminStats {
 		totalUsers: number;
@@ -21,10 +23,23 @@
 	let { data } = $props<{ data: { stats?: AdminStats } }>();
 
 	let stats = $state<AdminStats>(data?.stats ?? defaultStats);
+	let emailStats = $state<EmailStatsResponse | null>(null);
+	let emailStatsLoading = $state(true);
 
 	// Update local state when data changes
 	$effect(() => {
 		stats = data?.stats ?? defaultStats;
+	});
+
+	// Fetch email stats
+	onMount(async () => {
+		try {
+			emailStats = await adminApi.getEmailStats(30);
+		} catch (e) {
+			console.error('Failed to load email stats:', e);
+		} finally {
+			emailStatsLoading = false;
+		}
 	});
 </script>
 
@@ -127,6 +142,66 @@
 					</div>
 				</div>
 			</div>
+
+		<!-- Email Stats Card -->
+		<div class="mb-8">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Email Activity</h2>
+			<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
+				{#if emailStatsLoading}
+					<div class="flex items-center justify-center h-32">
+						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+					</div>
+				{:else if emailStats}
+					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+						<!-- Total Sent -->
+						<div class="flex items-center gap-4">
+							<div class="p-3 bg-brand-100 dark:bg-brand-900/30 rounded-lg">
+								<Mail class="w-6 h-6 text-brand-600 dark:text-brand-400" />
+							</div>
+							<div>
+								<p class="text-sm text-neutral-600 dark:text-neutral-400">Total (30d)</p>
+								<p class="text-2xl font-semibold text-neutral-900 dark:text-white">{emailStats.total}</p>
+							</div>
+						</div>
+
+						<!-- Today -->
+						<div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Today</p>
+							<p class="text-xl font-semibold text-neutral-900 dark:text-white">{emailStats.by_period.today}</p>
+						</div>
+
+						<!-- This Week -->
+						<div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">This Week</p>
+							<p class="text-xl font-semibold text-neutral-900 dark:text-white">{emailStats.by_period.week}</p>
+						</div>
+
+						<!-- This Month -->
+						<div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">This Month</p>
+							<p class="text-xl font-semibold text-neutral-900 dark:text-white">{emailStats.by_period.month}</p>
+						</div>
+					</div>
+
+					<!-- By Type Breakdown -->
+					{#if Object.keys(emailStats.by_type).length > 0}
+						<div class="mt-6 pt-6 border-t border-neutral-200 dark:border-neutral-700">
+							<p class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">By Type</p>
+							<div class="flex flex-wrap gap-3">
+								{#each Object.entries(emailStats.by_type).sort((a, b) => b[1] - a[1]) as [type, count]}
+									<div class="px-3 py-1.5 bg-neutral-100 dark:bg-neutral-700 rounded-full text-sm">
+										<span class="text-neutral-600 dark:text-neutral-400">{type.replace(/_/g, ' ')}:</span>
+										<span class="font-medium text-neutral-900 dark:text-white ml-1">{count}</span>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
+				{:else}
+					<p class="text-neutral-500 dark:text-neutral-400 text-center py-8">No email data available</p>
+				{/if}
+			</div>
+		</div>
 
 		<!-- Extended KPIs Panel -->
 		<ExtendedKPIsPanel />

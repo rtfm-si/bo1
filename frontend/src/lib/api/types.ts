@@ -25,6 +25,35 @@ export interface StaleInsight {
 	days_stale: number;
 }
 
+/**
+ * Meeting cap status for beta rate limiting
+ */
+export interface MeetingCapStatus {
+	allowed: boolean;
+	remaining: number;
+	limit: number;
+	reset_time: string | null;
+	exceeded: boolean;
+	recent_count: number;
+}
+
+/**
+ * Failed meeting info for dashboard alert
+ */
+export interface FailedMeeting {
+	session_id: string;
+	problem_statement_preview: string;
+	created_at: string;
+}
+
+/**
+ * Recent failures response for dashboard alert
+ */
+export interface RecentFailuresResponse {
+	count: number;
+	failures: FailedMeeting[];
+}
+
 export interface SessionResponse {
 	id: string;
 	status: 'active' | 'paused' | 'completed' | 'failed' | 'killed' | 'deleted' | 'created';
@@ -159,6 +188,9 @@ export interface UserContext {
 	enrichment_source?: EnrichmentSource;
 	enrichment_date?: string;
 	onboarding_completed?: boolean;
+
+	// Goals
+	north_star_goal?: string;
 }
 
 export interface UserContextResponse {
@@ -1866,6 +1898,14 @@ export interface IndustryInsightsResponse {
 }
 
 /**
+ * Historical benchmark value entry
+ */
+export interface BenchmarkHistoryEntry {
+	value: number;
+	date: string; // YYYY-MM-DD
+}
+
+/**
  * Benchmark comparison result
  */
 export interface BenchmarkComparison {
@@ -1873,6 +1913,8 @@ export interface BenchmarkComparison {
 	metric_unit: string;
 	category: BenchmarkCategory;
 	user_value?: number;
+	user_value_updated_at?: string; // ISO timestamp when user value was last set
+	history?: BenchmarkHistoryEntry[]; // Up to 6 historical values, newest first
 	p25?: number;
 	p50?: number;
 	p75?: number;
@@ -1891,6 +1933,25 @@ export interface BenchmarkComparisonResponse {
 	compared_count: number;
 	locked_count: number;
 	upgrade_prompt?: string;
+}
+
+/**
+ * A stale benchmark needing user check-in
+ */
+export interface StaleBenchmark {
+	field_name: string;
+	display_name: string;
+	current_value: number | string | null;
+	days_since_update: number;
+}
+
+/**
+ * Response for stale benchmarks check
+ */
+export interface StaleBenchmarksResponse {
+	has_stale_benchmarks: boolean;
+	stale_benchmarks: StaleBenchmark[];
+	threshold_days: number;
 }
 
 // =============================================================================

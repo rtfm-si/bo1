@@ -4,13 +4,24 @@ Provides:
 - GET /api/admin/promotions - List all promotions with stats
 - POST /api/admin/promotions - Create new promotion
 - DELETE /api/admin/promotions/{id} - Deactivate promotion (soft delete)
+- POST /api/admin/promotions/apply - Apply promo code to user
+- DELETE /api/admin/promotions/user/{user_promotion_id} - Remove promo from user
+- GET /api/admin/promotions/users - List users with active promotions
 """
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.api.middleware.admin import require_admin_any
-from backend.api.models import AddPromotionRequest, ErrorResponse, Promotion
+from backend.api.models import (
+    AddPromotionRequest,
+    ApplyPromoToUserRequest,
+    ErrorResponse,
+    Promotion,
+    UserPromotionBrief,
+    UserWithPromotionsResponse,
+)
 from backend.api.utils.errors import handle_api_errors
+from backend.services.promotion_service import PromoValidationError, validate_and_apply_code
 from bo1.state.repositories.promotion_repository import promotion_repository
 from bo1.utils.logging import get_logger
 
@@ -134,3 +145,108 @@ async def restore_promotion(
 
     logger.info(f"Admin: Restored promotion {promotion_id}")
     return {"status": "restored", "promotion_id": promotion_id}
+
+
+@router.post(
+    "/apply",
+    summary="Apply promotion to user",
+    description="Apply a promo code to a specific user account.",
+    responses={
+        200: {"description": "Promotion applied successfully"},
+        400: {"description": "Invalid code or already applied", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("apply promotion to user")
+async def apply_promotion_to_user(
+    body: ApplyPromoToUserRequest,
+    _admin: str = Depends(require_admin_any),
+) -> dict:
+    """Apply a promo code to a user account."""
+    try:
+        user_promo = validate_and_apply_code(body.user_id, body.code)
+        logger.info(f"Admin: Applied promo {body.code} to user {body.user_id}")
+        return {
+            "status": "applied",
+            "user_id": body.user_id,
+            "user_promotion_id": user_promo["id"],
+            "promotion_code": body.code,
+        }
+    except PromoValidationError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": e.code, "message": e.message},
+        ) from None
+
+
+@router.delete(
+    "/user/{user_promotion_id}",
+    summary="Remove promotion from user",
+    description="Remove a promotion from a user account (hard delete).",
+    responses={
+        200: {"description": "Promotion removed successfully"},
+        404: {"description": "User promotion not found", "model": ErrorResponse},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("remove user promotion")
+async def remove_user_promotion(
+    user_promotion_id: str,
+    _admin: str = Depends(require_admin_any),
+) -> dict:
+    """Remove a promotion from a user account."""
+    result = promotion_repository.remove_user_promotion(user_promotion_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="User promotion not found")
+
+    logger.info(f"Admin: Removed user promotion {user_promotion_id}")
+    return {"status": "removed", "user_promotion_id": user_promotion_id}
+
+
+@router.get(
+    "/users",
+    response_model=list[UserWithPromotionsResponse],
+    summary="List users with promotions",
+    description="List all users who have active promotions applied.",
+    responses={
+        200: {"description": "Users retrieved successfully"},
+        401: {"description": "Admin authentication required", "model": ErrorResponse},
+        403: {"description": "Insufficient permissions", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("list users with promotions")
+async def list_users_with_promotions(
+    _admin: str = Depends(require_admin_any),
+) -> list[UserWithPromotionsResponse]:
+    """List all users with active promotions."""
+    rows = promotion_repository.get_users_with_promotions()
+    logger.info(f"Admin: Listed {len(rows)} users with promotions")
+
+    result = []
+    for row in rows:
+        promos = row.get("promotions") or []
+        result.append(
+            UserWithPromotionsResponse(
+                user_id=row["user_id"],
+                email=row.get("email"),
+                promotions=[
+                    UserPromotionBrief(
+                        id=p["id"],
+                        promotion_id=p["promotion_id"],
+                        promotion_code=p["promotion_code"],
+                        promotion_type=p["promotion_type"],
+                        promotion_value=float(p["promotion_value"]),
+                        status=p["status"],
+                        applied_at=p["applied_at"],
+                        deliberations_remaining=p.get("deliberations_remaining"),
+                        discount_applied=(
+                            float(p["discount_applied"]) if p.get("discount_applied") else None
+                        ),
+                    )
+                    for p in promos
+                ],
+            )
+        )
+    return result

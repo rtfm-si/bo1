@@ -1,43 +1,51 @@
-# Plan: No Actionable Tasks Remaining
+# Plan: [ADMIN][P3] User promotion management (add/remove/view)
 
 ## Summary
 
-- All developer-implementable tasks in `_TASK.md` are complete
-- Remaining items require user action, clarification, or are intentionally deferred
+- Add admin endpoints to apply/remove promotions from user accounts
+- Add endpoint to list users with active promotions
+- Add UI controls on Admin > Users and Admin > Promotions pages
 
-## Remaining Items (Not Actionable by Developer)
+## Implementation Steps
 
-### External/Manual Setup (User action required)
-- `[BILLING][P4]` Configure Stripe products/prices
-- `[DEPLOY][P1]` Sign DPAs with data processors
-- `[DEPLOY][P1]` Setup SSL/TLS with Let's Encrypt
-- `[DEPLOY][P1]` Setup uptime monitoring
-- `[LAUNCH][P1]` Configure production Alertmanager
-- `[LAUNCH][P1]` Switch Stripe to live mode
-- `[LAUNCH][P1]` Test emergency access procedures
+1. **Add repository methods** (`bo1/state/repositories/promotion_repository.py`)
+   - `remove_user_promotion(user_promotion_id, user_id)` - hard delete user_promotion row
+   - `get_users_with_promotions()` - list users with active promos (join users/user_promotions/promotions)
 
-### Blocked on Dependencies
-- `[EMAIL][P4]` Payment receipt email - blocked on Stripe integration
-- `[SOCIAL][P3]` Direct posting to social - blocked on user decision
+2. **Add admin API endpoints** (`backend/api/admin/promotions.py`)
+   - `POST /api/admin/promotions/apply` - apply promo code to user by user_id
+   - `DELETE /api/admin/promotions/user/{user_promotion_id}` - remove promo from user
+   - `GET /api/admin/promotions/users` - list users with promotions applied
 
-### Deferred by Design
-- `[DATA][P2]` DuckDB backend - defer until needed
-- `[BILLING][P4]` Upgrade prompts - nice-to-have
+3. **Add Pydantic models** (`backend/api/models.py`)
+   - `ApplyPromoToUserRequest(user_id: str, code: str)`
+   - `UserWithPromotionsResponse(user_id, email, promotions: list)`
 
-### Needs Clarification
-- `[MONITORING][P1]` Kubernetes deployment manifest - awaiting answer: are we using kubernetes?
+4. **Update Admin > Users page** (`frontend/src/routes/(app)/admin/users/+page.svelte`)
+   - Add "Apply Promo" button per user row (opens modal with code input)
+   - Show active promo badges in user row (if any)
 
-### User Tasks
-- `[DOCS][P3]` Help pages content review - Si's todo
-- `[SEO][P3]` Auto SEO scope - needs clarification
+5. **Update Admin > Promotions page** (`frontend/src/routes/(app)/admin/promotions/+page.svelte`)
+   - Add "Users" tab showing accounts with promotions
+   - Add "Remove" button per user-promotion row
 
-## Recommended Next Steps
+6. **Add frontend API functions** (`frontend/src/lib/api/admin.ts`)
+   - `applyPromoToUser(userId, code)`
+   - `removeUserPromotion(userPromotionId)`
+   - `getUsersWithPromotions()`
 
-1. **Answer clarification question**: Are we using Kubernetes? If yes, I can create deployment manifests
-2. **Complete external setup tasks**: SSL, DPAs, monitoring, Stripe config
-3. **Make decision on social posting**: Choose Option A or B for direct social posting
-4. **Add new tasks**: If there are new features or bugs to address, add them to `_TASK.md`
+## Tests
 
-## No Implementation Steps Required
+- Unit tests:
+  - `tests/api/admin/test_promotion_user_management.py`: apply, remove, list endpoints
+- Manual validation:
+  - [ ] Apply promo to user from Admin > Users
+  - [ ] Remove promo from user via Admin > Promotions
+  - [ ] List users with promotions shows correct data
 
-The backlog is clear of developer tasks.
+## Dependencies & Risks
+
+- Dependencies: Existing promotion_repository, promotion_service
+- Risks:
+  - Removing promo mid-cycle may confuse users (acceptable for admin action)
+  - Should not remove promo that's already been partially consumed (warn in UI)

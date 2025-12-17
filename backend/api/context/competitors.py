@@ -1,9 +1,12 @@
 """Competitor detection logic using Tavily and Brave Search APIs.
 
 Contains functions for detecting competitors based on business context.
+Uses LLM-based extraction to improve quality of detected competitors.
 """
 
+import json
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -16,9 +19,165 @@ from backend.api.context.models import (
 )
 from backend.api.context.services import auto_save_competitors
 from bo1.config import get_settings
+from bo1.llm.client import ClaudeClient
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
+
+# Generic terms that indicate non-company names
+INVALID_NAME_PATTERNS = [
+    "best",
+    "top",
+    "review",
+    "compare",
+    "comparison",
+    "list",
+    "guide",
+    "2024",
+    "2025",
+    "alternative",
+    "software",
+    "tools",
+    "platform",
+    "solution",
+    "ranking",
+    "rated",
+]
+
+
+def _is_valid_competitor_name(name: str) -> bool:
+    """Validate that a string is likely a real company name.
+
+    Rejects generic terms, sentences, and invalid patterns.
+
+    Args:
+        name: Candidate company name
+
+    Returns:
+        True if name appears to be a valid company name
+    """
+    if not name or len(name) < 2:
+        return False
+
+    # Too long - likely a sentence, not a company name
+    if len(name) > 40:
+        return False
+
+    name_lower = name.lower()
+
+    # Reject if starts with generic terms
+    if name_lower.startswith(("the best", "top ", "best ", "how to")):
+        return False
+
+    # Reject if starts with a number (e.g., "10 Best Tools")
+    if name[0].isdigit():
+        return False
+
+    # Reject if contains invalid patterns
+    for pattern in INVALID_NAME_PATTERNS:
+        if pattern in name_lower:
+            return False
+
+    # Accept if matches known valid patterns
+    # CamelCase (e.g., "HubSpot", "ClickUp")
+    if re.match(r"^[A-Z][a-z]+[A-Z][a-z]+", name):
+        return True
+
+    # Ends with common domain-style suffixes
+    if any(name_lower.endswith(suffix) for suffix in [".io", ".ai", ".com", ".co"]):
+        return True
+
+    # Single or two-word proper noun (e.g., "Notion", "Monday", "Linear")
+    words = name.split()
+    if 1 <= len(words) <= 3 and all(w[0].isupper() for w in words if w):
+        return True
+
+    # If none of the above, accept cautiously if it looks proper-nouny
+    return name[0].isupper() and len(words) <= 4
+
+
+async def _extract_competitors_with_llm(
+    results: list[dict[str, Any]],
+    company_name: str | None,
+) -> list[dict[str, Any]]:
+    """Use LLM to extract actual company names from search results.
+
+    Args:
+        results: Tavily search results with titles, URLs, content
+        company_name: User's company name to exclude
+
+    Returns:
+        List of dicts with name, url, description, confidence
+    """
+    if not results:
+        return []
+
+    # Build context from search results
+    context_parts = []
+    for i, result in enumerate(results, 1):
+        title = result.get("title", "")
+        url = result.get("url", "")
+        content = result.get("content", "")[:300]
+        context_parts.append(f"{i}. Title: {title}\n   URL: {url}\n   Content: {content}")
+
+    context = "\n\n".join(context_parts)
+
+    prompt = f"""Extract ONLY real company names from these search results.
+I need actual software/SaaS company names, NOT generic terms like "Top 10 Tools" or "Best Software".
+
+SEARCH RESULTS:
+{context}
+
+RULES:
+1. Return ONLY actual company names (e.g., "Notion", "Asana", "Monday.com", "HubSpot")
+2. DO NOT include generic terms like "Top Productivity Tools", "Best CRM Software", "2024 Guide"
+3. DO NOT include the user's own company{f': "{company_name}"' if company_name else ""}
+4. Each name should be a real company you're confident exists
+5. Include URL if available from the results
+
+Return a JSON array of objects with this format:
+[
+  {{"name": "CompanyName", "url": "https://...", "confidence": "high/medium/low"}},
+  ...
+]
+
+Return ONLY the JSON array, no other text. If no valid companies found, return [].
+"""
+
+    try:
+        client = ClaudeClient()
+        response, _ = await client.call(
+            model="haiku",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=1000,
+            prefill="[",
+        )
+
+        # Parse JSON response
+        try:
+            extracted = json.loads(response)
+        except json.JSONDecodeError:
+            # Try to extract JSON array from response
+            json_match = re.search(r"\[[\s\S]*\]", response)
+            if json_match:
+                extracted = json.loads(json_match.group())
+            else:
+                logger.warning(f"Failed to parse LLM response: {response[:200]}")
+                return []
+
+        # Filter through validation
+        validated = []
+        for item in extracted:
+            name = item.get("name", "")
+            if _is_valid_competitor_name(name):
+                validated.append(item)
+
+        return validated
+
+    except Exception as e:
+        logger.error(f"LLM competitor extraction failed: {e}")
+        return []
 
 
 async def detect_competitors_for_user(
@@ -150,7 +309,10 @@ async def _search_competitors_tavily(
     search_query: str,
     company_name: str | None,
 ) -> list[DetectedCompetitor]:
-    """Search for competitors using Tavily API.
+    """Search for competitors using Tavily API with LLM extraction.
+
+    Uses LLM-based extraction to identify real company names from results.
+    Falls back to direct search if initial results are insufficient.
 
     Args:
         api_key: Tavily API key
@@ -181,68 +343,71 @@ async def _search_competitors_tavily(
         response.raise_for_status()
         data = response.json()
 
-    return _extract_competitors_from_results(data.get("results", []), company_name)
+    results = data.get("results", [])
 
+    # Use LLM to extract real company names
+    extracted = await _extract_competitors_with_llm(results, company_name)
 
-def _extract_competitors_from_results(
-    results: list[dict[str, Any]],
-    company_name: str | None,
-) -> list[DetectedCompetitor]:
-    """Extract competitor names from search results.
+    # If we got <3 valid names, try fallback search
+    if len(extracted) < 3 and company_name:
+        logger.info(f"Only {len(extracted)} competitors found, trying fallback search")
+        fallback_results = await _fallback_competitor_search(api_key, company_name)
+        if fallback_results:
+            # Merge and dedupe
+            seen_names = {e.get("name", "").lower() for e in extracted}
+            for item in fallback_results:
+                if item.get("name", "").lower() not in seen_names:
+                    extracted.append(item)
+                    seen_names.add(item.get("name", "").lower())
 
-    Args:
-        results: Tavily search results
-        company_name: Company name to exclude
-
-    Returns:
-        List of detected competitors
-    """
+    # Convert to DetectedCompetitor objects
     competitors = []
-    seen_names: set[str] = set()
-
-    # Skip words that indicate generic content, not company names
-    skip_words = [
-        "best",
-        "top",
-        "review",
-        "compare",
-        "alternative",
-        "software",
-        "2024",
-        "2025",
-        "guide",
-        "list",
-    ]
-
-    for result in results:
-        title = result.get("title", "")
-        url = result.get("url", "")
-        content = result.get("content", "")
-
-        # Extract company name from title
-        # G2/Capterra titles often like "Company Name Reviews 2025"
-        name = title.split(" Reviews")[0].split(" vs ")[0].split(" -")[0].split(" |")[0].strip()
-
-        # Validate name
-        if not name or len(name) < 2 or len(name) > 50:
-            continue
-        if company_name and name.lower() == company_name.lower():
-            continue
-        if name.lower() in seen_names:
-            continue
-        if any(skip in name.lower() for skip in skip_words):
-            continue
-
-        seen_names.add(name.lower())
+    for item in extracted:
         competitors.append(
             DetectedCompetitor(
-                name=name,
-                url=url,
-                description=content[:200] if content else None,
+                name=item.get("name", ""),
+                url=item.get("url"),
+                description=item.get("description"),
             )
         )
 
     return competitors
+
+
+async def _fallback_competitor_search(
+    api_key: str,
+    company_name: str,
+) -> list[dict[str, Any]]:
+    """Run fallback search with more targeted query.
+
+    Args:
+        api_key: Tavily API key
+        company_name: Company name for targeted search
+
+    Returns:
+        List of extracted competitor dicts
+    """
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # More targeted query
+            response = await client.post(
+                "https://api.tavily.com/search",
+                json={
+                    "api_key": api_key,
+                    "query": f'"{company_name}" vs alternatives competitors',
+                    "search_depth": "advanced",
+                    "max_results": 8,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        results = data.get("results", [])
+        return await _extract_competitors_with_llm(results, company_name)
+
+    except Exception as e:
+        logger.warning(f"Fallback competitor search failed: {e}")
+        return []
 
 
 async def refresh_market_trends(

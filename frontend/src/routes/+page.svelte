@@ -595,8 +595,8 @@
 				</div>
 			</div>
 
-			<!-- Value Blocks -->
-			<div id="value-blocks" class="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto mt-16">
+			<!-- Value Blocks / Features -->
+			<div id="features" class="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto mt-16">
 				{#each valueBlocks as block, i}
 					<div
 						class="bg-white dark:bg-neutral-900 rounded-lg p-8 border border-neutral-200 dark:border-neutral-700 card-hover border-glow group"
@@ -640,6 +640,147 @@
 		</div>
 	</section>
 
+	<!-- Who is it for -->
+	<section
+		id="who-its-for"
+		class="py-24 bg-neutral-50 dark:bg-neutral-800 border-y border-neutral-200 dark:border-neutral-800"
+	>
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="text-center mb-16">
+				<h2
+					class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-neutral-100 mb-4 leading-tight"
+				>
+					<span class="text-neutral-700 dark:text-neutral-300 font-normal">Built for people who</span
+					><br />
+					<span class="text-brand-600 dark:text-brand-400 emphasis-word"
+						>decide <span class="italic font-extrabold">alone</span></span
+					>
+				</h2>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+				<!-- Solopreneurs -->
+				<div
+					class="bg-white dark:bg-neutral-900 rounded-lg p-8 border border-neutral-200 dark:border-neutral-700 card-hover border-glow"
+				>
+					<div class="card-icon mb-6">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="40"
+							height="40"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="text-brand-600 dark:text-brand-400"
+						>
+							<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+							<circle cx="12" cy="7" r="4" />
+						</svg>
+					</div>
+					<h3 class="font-bold text-xl text-neutral-900 dark:text-neutral-100 mb-3">
+						Solopreneurs
+					</h3>
+					<ul class="space-y-2 text-neutral-600 dark:text-neutral-400">
+						<li class="flex items-start gap-2">
+							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
+							<span>No co-founder to bounce ideas off</span>
+						</li>
+						<li class="flex items-start gap-2">
+							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
+							<span>Wearing every hat means deciding everything</span>
+						</li>
+						<li class="flex items-start gap-2">
+							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
+							<span>Need structure, not just more research</span>
+						</li>
+					</ul>
+				</div>
+
+				<!-- Small Business Founders -->
+				<div
+					class="bg-white dark:bg-neutral-900 rounded-lg p-8 border border-neutral-200 dark:border-neutral-700 card-hover border-glow"
+				>
+					<div class="card-icon mb-6">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="40"
+							height="40"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="text-brand-600 dark:text-brand-400"
+						>
+							<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+							<polyline points="9 22 9 12 15 12 15 22" />
+						</svg>
+					</div>
+					<h3 class="font-bold text-xl text-neutral-900 dark:text-neutral-100 mb-3">
+						Small Business Founders
+					</h3>
+					<ul class="space-y-2 text-neutral-600 dark:text-neutral-400">
+						<li class="flex items-start gap-2">
+							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
+							<span>Team looks to you for direction</span>
+						</li>
+						<li class="flex items-start gap-2">
+							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
+							<span>Can't afford to hire consultants for every call</span>
+						</li>
+						<li class="flex items-start gap-2">
+							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
+							<span>Strategic decisions stack up fast</span>
+						</li>
+					</ul>
+				</div>
+
+				<!-- Decision Makers -->
+				<div
+					class="bg-white dark:bg-neutral-900 rounded-lg p-8 border border-neutral-200 dark:border-neutral-700 card-hover border-glow"
+				>
+					<div class="card-icon mb-6">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="40"
+							height="40"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="text-brand-600 dark:text-brand-400"
+						>
+							<circle cx="12" cy="12" r="10" />
+							<polyline points="12 6 12 12 16 14" />
+						</svg>
+					</div>
+					<h3 class="font-bold text-xl text-neutral-900 dark:text-neutral-100 mb-3">
+						Meeting Prep Power Users
+					</h3>
+					<ul class="space-y-2 text-neutral-600 dark:text-neutral-400">
+						<li class="flex items-start gap-2">
+							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
+							<span>Walk into board meetings with clarity</span>
+						</li>
+						<li class="flex items-start gap-2">
+							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
+							<span>Prepare for tough stakeholder questions</span>
+						</li>
+						<li class="flex items-start gap-2">
+							<span class="text-brand-600 dark:text-brand-400 mt-1">→</span>
+							<span>Turn 3-hour prep into 15 minutes</span>
+						</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</section>
 
 	<!-- Before/After Snippet -->
 	<section

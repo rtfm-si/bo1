@@ -238,7 +238,7 @@
 	.column-title {
 		font-weight: 600;
 		font-size: 0.95rem;
-		color: var(--color-text);
+		color: var(--foreground);
 	}
 
 	.column-count {

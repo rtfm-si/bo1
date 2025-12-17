@@ -2993,6 +2993,85 @@ class ApplyPromoCodeRequest(BaseModel):
         return v
 
 
+class ApplyPromoToUserRequest(BaseModel):
+    """Admin request to apply a promo code to a user.
+
+    Attributes:
+        user_id: Target user ID
+        code: Promo code to apply
+    """
+
+    user_id: str = Field(..., description="Target user ID (UUID)")
+    code: str = Field(
+        ...,
+        min_length=3,
+        max_length=50,
+        description="Promo code to apply",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {"user_id": "550e8400-e29b-41d4-a716-446655440000", "code": "WELCOME10"},
+            ]
+        }
+    }
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, v: str) -> str:
+        """Normalize promo code."""
+        return v.strip().upper()
+
+
+class UserPromotionBrief(BaseModel):
+    """Brief promotion info for user lists."""
+
+    id: str = Field(..., description="User promotion ID")
+    promotion_id: str = Field(..., description="Promotion ID")
+    promotion_code: str = Field(..., description="Promo code")
+    promotion_type: str = Field(..., description="Promotion type")
+    promotion_value: float = Field(..., description="Promotion value")
+    status: str = Field(..., description="Status: active, exhausted, expired")
+    applied_at: datetime = Field(..., description="When applied")
+    deliberations_remaining: int | None = Field(None, description="Remaining credits")
+    discount_applied: float | None = Field(None, description="Discount amount")
+
+
+class UserWithPromotionsResponse(BaseModel):
+    """User with their active promotions."""
+
+    user_id: str = Field(..., description="User ID")
+    email: str | None = Field(None, description="User email")
+    promotions: list[UserPromotionBrief] = Field(
+        default_factory=list, description="Active promotions"
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "email": "user@example.com",
+                    "promotions": [
+                        {
+                            "id": "660e8400-e29b-41d4-a716-446655440001",
+                            "promotion_id": "770e8400-e29b-41d4-a716-446655440002",
+                            "promotion_code": "WELCOME10",
+                            "promotion_type": "percentage_discount",
+                            "promotion_value": 10.0,
+                            "status": "active",
+                            "applied_at": "2025-01-15T10:30:00Z",
+                            "deliberations_remaining": None,
+                            "discount_applied": 10.0,
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+
+
 # =============================================================================
 # Feedback Models
 # =============================================================================

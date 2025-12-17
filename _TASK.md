@@ -250,7 +250,7 @@ All actions tests fixed and passing. Tests updated to:
   - shadcn-svelte v1.1.0 installed and configured
   - 5 core components replaced: Button, Input, Badge, Alert, Card
   - Backward-compatible wrappers maintain existing API (variant, size, loading, etc.)
-  - Legacy components preserved as *Legacy.svelte for gradual migration
+  - Legacy components preserved as \*Legacy.svelte for gradual migration
   - Brand colors integrated via CSS custom properties
   - Build and type-check validated
 
@@ -448,11 +448,11 @@ All actions tests fixed and passing. Tests updated to:
 
 ---
 
-_Last updated: 2025-12-16 (Relationship Diagram for Help Center)_
+_Last updated: 2025-12-17 (Admin Promotion Management)_
 
 ---
 
-## Task backlog (from _TODO.md, 2025-12-16)
+## Task backlog (from \_TODO.md, 2025-12-16)
 
 ### Layout & Navigation [UX]
 
@@ -587,7 +587,7 @@ _Last updated: 2025-12-16 (Relationship Diagram for Help Center)_
 
 ### SEO [SEO]
 
-- [ ] [SEO][P3] Clarify scope of: "auto seo - where did we get to with that and where is it?" (ambiguous item from _TODO.md)
+- [ ] [SEO][P3] Clarify scope of: "auto seo - where did we get to with that and where is it?" (ambiguous item from \_TODO.md)
 
 ### Email [EMAIL]
 
@@ -599,7 +599,7 @@ _Last updated: 2025-12-16 (Relationship Diagram for Help Center)_
 
 ---
 
-## Task backlog (from _TODO.md, 2025-12-16)
+## Task backlog (from \_TODO.md, 2025-12-16)
 
 ### Admin Pages [ADMIN]
 
@@ -628,7 +628,7 @@ _Last updated: 2025-12-16 (Relationship Diagram for Help Center)_
 
 ---
 
-## Task backlog (from _TODO.md, 2025-12-16)
+## Task backlog (from \_TODO.md, 2025-12-16)
 
 ### API Bugs [API]
 
@@ -681,15 +681,240 @@ _Last updated: 2025-12-16 (Relationship Diagram for Help Center)_
 
 ---
 
-## Task backlog (from _TODO.md, 2025-12-16)
+## Task backlog (from \_TODO.md, 2025-12-16)
 
-### Beta Usage Caps [BILLING]
+### Beta Usage Caps [BILLING] - ✅ COMPLETE
 
-- [ ] [BILLING][P1] Enforce beta meeting cap: max 4 meetings per rolling 24 hours
-- [ ] [BILLING][P1] Check meeting cap on meeting start (block if exceeded, show friendly warning)
-- [ ] [BILLING][P1] Check meeting cap on meeting resume (block if exceeded, show friendly warning)
+- [x] [BILLING][P1] Enforce beta meeting cap: max 4 meetings per rolling 24 hours
+  - Config: `BetaMeetingCap` class in `bo1/constants.py` (MAX_MEETINGS=4, WINDOW_HOURS=24)
+  - Service: `backend/services/meeting_cap.py` with rolling window check
+  - Env: `BETA_MEETING_CAP_ENABLED` (default: true) to toggle feature
+- [x] [BILLING][P1] Check meeting cap on meeting start (block if exceeded, show friendly warning)
+  - Backend: Cap check in `backend/api/control.py:start_deliberation` (only for status='created')
+  - API: `GET /api/v1/sessions/cap-status` returns cap status for UI
+  - Frontend: Warning banner on `/meeting/new` when cap exceeded/near limit
+  - Button disabled with "Limit Reached" text when exceeded
+- [x] [BILLING][P1] Check meeting cap on meeting resume (block if exceeded, show friendly warning)
+  - Not needed: Cap only applies to new meetings (status='created'), not resumes (status='paused')
+  - Tests: 17 unit tests in `tests/services/test_meeting_cap.py`, 7 API tests in `tests/api/test_meeting_cap.py`
 
 ### Failed Meeting UX [UX]
 
-- [ ] [UX][P2] Show dismissible dashboard alert when user has recent failed meetings ("Meeting failed - try again, contact support if persists, not counted toward usage")
-- [ ] [UX][P3] Send email notification when meeting fails (optional, only if user has email notifications enabled)
+- [x] [UX][P2] Show dismissible dashboard alert when user has recent failed meetings ("Meeting failed - try again, contact support if persists, not counted toward usage")
+  - Backend: `GET /api/v1/sessions/recent-failures` endpoint (24h lookback, returns count + previews)
+  - Repository: `session_repository.list_recent_failures()` method
+  - Frontend: `FailedMeetingAlert.svelte` component with localStorage dismiss (24h expiry)
+  - Dashboard: Alert shown at top after ContextRefreshBanner
+  - Tests: 6 unit tests in `tests/api/test_session_failures.py`
+- [x] [UX][P3] Send email notification when meeting fails (optional, only if user has email notifications enabled)
+  - Template: `render_meeting_failed_email()` in `backend/services/email_templates.py`
+  - Service: `send_meeting_failed_email()` in `backend/services/email.py`
+  - Integration: `EventCollector._mark_session_failed()` triggers email on failure
+  - Respects: `email_preferences.meeting_emails` setting (default: enabled)
+  - Content: User-friendly error message, problem excerpt, "try again" guidance, usage reassurance
+  - Tests: 16 unit tests in `tests/services/test_meeting_failed_email.py`
+
+---
+
+## Task backlog (from \_TODO.md, 2025-12-16)
+
+### Admin Verification [ADMIN]
+
+- [x] [ADMIN][P1] Verify all admin pages load without error using Playwright MCP (manual test sweep)
+  - **Result: 15/15 pages pass (2025-12-16, 2 fixed this pass)**
+  - ✅ `/admin` - Dashboard with KPIs, monitoring links
+  - ✅ `/admin/sessions` - Active sessions monitor
+  - ✅ `/admin/costs` - Cost analytics with charts
+  - ✅ `/admin/metrics` - User & usage metrics, onboarding funnel
+  - ✅ `/admin/kill-history` - Session termination audit
+  - ✅ `/admin/alerts/history` - 923 alerts with filtering
+  - ✅ `/admin/ops` - AI Ops self-healing dashboard
+  - ✅ `/admin/embeddings` - 2D embedding visualization
+  - ✅ `/admin/waitlist` - Waitlist management
+  - ✅ `/admin/users` - User management table
+  - ✅ `/admin/whitelist` - Beta whitelist
+  - ✅ `/admin/promotions` - Promo code management
+  - ✅ `/admin/feedback` - User feedback dashboard
+  - ✅ `/admin/landing-analytics` - Fixed (was 401, auth changed to require_admin_any)
+  - ✅ `/admin/alerts/settings` - Fixed (was 500, auth changed to require_admin_any)
+- [x] [ADMIN][P2] Fix `/admin/landing-analytics` 401 auth error
+  - Changed from `require_admin` to `require_admin_any` (supports session + API key)
+- [x] [ADMIN][P2] Fix `/admin/alerts/settings` 500 server error
+  - Changed from `get_current_user` + `require_admin_role()` to `require_admin_any` dependency
+
+### Reports [REPORTS]
+
+- [x] [REPORTS][P2] Simplify Reports > Benchmarks language: less stats jargon, more human-friendly phrasing
+  - P25/P50/P75 → "Bottom 25%", "Typical", "Top 25%"
+  - Status labels: top_performer → "Excellent", above_average → "Good", average → "Typical", below_average → "Needs Attention"
+  - Info box rewritten with plain language explanations
+- [x] [REPORTS][P2] Add visual benchmark comparison (range bar/scale showing "you vs industry range")
+  - `BenchmarkRangeBar.svelte`: visual bar with P25-P75 range and user marker
+  - Color-coded marker by status (green/emerald/yellow/red)
+  - 28 unit tests in `BenchmarkRangeBar.test.ts`
+- [x] [REPORTS][P3] Add link from benchmarks to context settings page for user to update their values
+  - "Set my value" link appears when user_value is null
+  - Links to `/context/metrics#{category}`
+- [x] [REPORTS][P2] Fix view mismatch: Reports > Benchmarks shows limited view but Context > Industry Benchmarks shows all
+  - Decision: Keep tier limits on Reports (feature), Context shows all (reference)
+  - Added note in Context > Metrics: "See Reports > Benchmarks for personalized comparison"
+- [x] [REPORTS][P2] Track date when benchmark values are set (for historical tracking)
+  - Backend: `benchmark_timestamps` field added to `BusinessContext` model and `ContextResponse`
+  - Service: `update_benchmark_timestamps()` in `context/services.py` detects changed metric values
+  - Repository: `benchmark_timestamps` JSONB field added to `user_repository.py` CONTEXT_FIELDS
+  - API: `BenchmarkComparison` includes `user_value_updated_at` field in `/api/v1/benchmarks/compare`
+  - Frontend: "Updated X days ago" shown next to benchmark values in Reports > Benchmarks
+  - Tests: 13 tests in `tests/api/context/test_benchmark_timestamps.py`
+- [x] [REPORTS][P2] Show industry benchmarks side-by-side with business benchmarks in 2-column layout
+  - Layout: Grid layout with `grid-cols-1 md:grid-cols-2` for responsive stacking
+  - Left column: "Industry" header with range bar (BenchmarkRangeBar component)
+  - Right column: "You" header with large value display, status badge, and timestamp
+  - Empty state: "—" with "Not Set" label and prominent "Set My Value" button
+  - Visual separator: Border-left divider on desktop
+  - Info box: Updated to explain the 2-column comparison view
+- [x] [REPORTS][P3] Show last 6 monthly values for business benchmarks via checkins ("are these still accurate?")
+  - Migration: `z8_add_benchmark_history.py` adds `benchmark_history JSONB` to user_context
+  - Service: `append_benchmark_history()` in context/services.py records values on change (max 6 per metric)
+  - API: `BenchmarkComparison.history` field returns up to 6 historical entries with date/value
+  - API: `GET /api/v1/benchmarks/stale` endpoint for staleness check (30-day threshold)
+  - Frontend: `BenchmarkHistory.svelte` - sparkline for 3+ entries, list for 1-2
+  - Frontend: `BenchmarkRefreshBanner.svelte` - prompts user when benchmarks >30 days stale
+  - Tests: 15 tests in `tests/api/context/test_benchmark_history.py`
+
+### Context [CONTEXT]
+
+- [x] [CONTEXT][P2] Add "North Star Goal" field to business context
+  - Migration: `z6_add_north_star_goal.py` adds `north_star_goal VARCHAR(200)` to `user_context`
+  - Backend: Added to `BusinessContext` model, `CONTEXT_FIELDS`, sanitization
+  - Frontend: Input field on Context > Overview page (after Business Stage/Primary Objective)
+  - Meeting context: Auto-included via XMLContextFormatter when set
+  - Tests: 10 tests in `tests/api/context/test_north_star_goal.py`
+
+### Competitors [COMPETITORS]
+
+- [x] [COMPETITORS][P2] Improve auto-detect: return actual competitors not generic groups
+  - LLM-based extraction: `_extract_competitors_with_llm()` uses Claude Haiku to identify real company names
+  - Validation heuristics: `_is_valid_competitor_name()` rejects generic terms, sentences, invalid patterns
+  - Fallback search: Triggers targeted `"{company}" vs alternatives` query when <3 valid names found
+  - Enrichment prompt: Updated to explicitly request specific company names, not generic groups
+  - Tests: 39 tests in `tests/api/context/test_competitor_detection.py`
+
+### Insights [INSIGHTS]
+
+- [x] [INSIGHTS][P2] Verify deleted insights are excluded from future meeting context
+  - **Finding**: Insights use HARD DELETE (not soft-delete) - entries removed from JSONB dict
+  - Verified: `DELETE /api/v1/context/insights/{hash}` removes from `user_context.clarifications`
+  - Verified: `context_collection_node` only reads existing entries
+  - Tests: 9 tests in `tests/api/context/test_deleted_insights.py`
+
+### Actions [ACTIONS]
+
+- [x] [ACTIONS][P3] Fix Actions Kanban: card text color too light (low contrast)
+  - Fixed undefined CSS vars in TaskCard.svelte: `--color-text` → `--foreground`, `--color-muted` → `--muted-foreground`
+  - Fixed KanbanBoard.svelte column-title: `--color-text` → `--foreground`
+  - Fixed ActionsPanel.svelte headers: `--color-text` → `--foreground`
+- [x] [ACTIONS][P1] Fix Actions Gantt page not loading
+  - Root cause: `get_dependencies_batch()` in action_repository.py used text array for UUID comparison
+  - Fix: Added `::uuid[]` cast to SQL queries on lines 1108 and 1151
+
+### Admin Email [EMAIL]
+
+- [x] [EMAIL][P3] Add sent email counts to admin dashboard
+  - Migration: `z9_add_email_log.py` creates `email_log` table with `(email_type, recipient, status, resend_id, created_at)`
+  - Service: `_log_email_send()` and `_extract_email_type()` in `backend/services/email.py`
+  - API: `GET /api/admin/email-stats` returns counts by type and period (today/week/month)
+  - Frontend: "Email Activity" card on admin dashboard with breakdown by type
+  - Tests: 14 tests in `tests/api/admin/test_email_stats.py`
+
+### Admin Features [ADMIN]
+
+- [ ] [ADMIN][P3] Add ability to send branded email (from template) to end user from within admin
+- [x] [ADMIN][P3] Add ability to add a promotion to a user account
+  - API: `POST /api/admin/promotions/apply` with ApplyPromoToUserRequest body
+  - Frontend: "Promo" button on Admin > Users page opens modal to apply promo code
+  - Validates code existence, expiry, max uses, duplicate application
+- [x] [ADMIN][P3] Add ability to remove a promotion from a user account
+  - API: `DELETE /api/admin/promotions/user/{user_promotion_id}`
+  - Frontend: Admin > Promotions > "Users with Promos" tab has remove button per promo
+  - Confirmation modal before deletion (hard delete)
+- [x] [ADMIN][P3] Add ability to view which accounts have promotions applied
+  - API: `GET /api/admin/promotions/users` returns users with active promos
+  - Frontend: Admin > Promotions page has "Users with Promos" tab
+  - Shows user email, promo badges with type/value, remaining credits
+  - Tests: 9 tests in `tests/api/admin/test_promotions.py`
+- [x] [ADMIN][P2] Add admin "impersonate user" feature: read-only view of any user's account (dashboard, context, meetings, actions, projects)
+  - Middleware: `backend/api/middleware/impersonation.py` - ImpersonationMiddleware + helper functions
+  - Service: `backend/services/admin_impersonation.py` - Redis + DB session management
+  - API: `backend/api/admin/impersonation.py` - start/end/status/history endpoints
+  - Frontend: `ImpersonationBanner.svelte` - dismissible banner with user info + End button
+  - Admin UI: "Impersonate" button on Admin > Users page
+  - Layout: Banner auto-shown in app layout during impersonation
+  - Security: Read-only by default, optional write_mode with reason + time limit
+  - Tests: 24 unit tests in `tests/api/admin/test_impersonation.py`
+
+### SEO [SEO]
+
+- [ ] [SEO][P3] Implement auto-SEO content pages: AI-generated topic pages linking to landing, managed via admin (approval workflow, public when live)
+
+---
+
+## Task backlog (from _TODO.md, 2025-12-16)
+
+### Cost Tracking [BILLING] - ✅ COMPLETE
+
+- [x] [BILLING][P2] Add infrastructure cost tracking: split by provider (OpenAI, Anthropic, Voyage, DigitalOcean, Resend, etc.)
+  - API: `GET /api/admin/costs/by-provider` returns breakdown with amounts, counts, percentages
+  - Frontend: "By Provider" tab with visual bar chart and detailed table
+- [x] [BILLING][P2] Add meeting cost tracking: attribute LLM costs to individual meetings
+  - API: `GET /api/admin/costs/by-meeting/{session_id}` returns per-meeting cost breakdown
+  - Index: `idx_api_costs_session_created` for efficient session cost queries
+- [x] [BILLING][P2] Create daily cost summary table in Postgres (variable costs from API usage)
+  - Migration: `z7_add_cost_tracking.py` creates `daily_cost_summary` table
+  - Job: `backend/jobs/daily_cost_summary.py` aggregates api_costs by provider/date
+  - API: `GET /api/admin/costs/daily-summary` with backfill support
+- [x] [BILLING][P2] Add fixed cost tracking with configurable values (DO droplet, Spaces, etc.)
+  - Migration: `z7_add_cost_tracking.py` creates `fixed_costs` table
+  - Service: `backend/services/fixed_costs.py` with CRUD and seed defaults
+  - API: `GET/POST/PATCH/DELETE /api/admin/costs/fixed` with seed endpoint
+  - Frontend: "Fixed Costs" tab with table and Fixed vs Variable comparison
+- [x] [BILLING][P3] Add average cost per user calculation to admin dashboard
+  - API: `GET /api/admin/costs/per-user` returns users with avg cost per meeting
+  - Frontend: "Average Cost Per User" card on overview tab
+
+### Analytics [ANALYTICS]
+
+- [ ] [ANALYTICS][P3] Add Umami self-hosted analytics integration for landing page
+
+### Integrations [INTEGRATIONS]
+
+- [x] [INTEGRATIONS][P2] Verify Google Calendar integration: check actions start/end dates sync
+  - **Status: FULLY IMPLEMENTED AND WORKING**
+  - Backend service: `backend/services/google_calendar.py` (OAuth, token refresh, CRUD events)
+  - Action sync: `backend/services/action_calendar_sync.py` (auto-sync due dates to calendar)
+  - API endpoints: `backend/api/integrations/calendar.py`
+    - `GET /api/v1/integrations/calendar/status` - check connection status
+    - `GET /api/v1/integrations/calendar/connect` - initiate OAuth flow
+    - `GET /api/v1/integrations/calendar/callback` - OAuth callback
+    - `DELETE /api/v1/integrations/calendar/disconnect` - revoke access
+  - Frontend UI: `frontend/src/routes/(app)/settings/integrations/+page.svelte`
+    - Connect/disconnect buttons
+    - Connection status display with timestamp
+    - Error handling for OAuth flow
+  - Migration: `al1_add_calendar_integration.py` (calendar tokens, event_id on actions)
+  - Config: `GOOGLE_CALENDAR_ENABLED`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`
+  - Auto-sync: Actions API calls `sync_action_to_calendar()` when due dates are set/updated
+  - Tests: 27 tests (15 google_calendar + 12 action_calendar_sync) - ALL PASSING
+
+### Landing Page [LANDING]
+
+- [x] [LANDING][P2] Fix landing page footer broken links (7 links)
+  - Added `id="features"` anchor to landing page value-blocks section
+  - Removed broken links: Examples, About, Blog, Contact, Docs, Status
+  - Kept working links: How It Works, Features (anchor), Legal pages, Help Center
+  - Simplified footer to 3 columns (Product, Legal, Support)
+- [x] [LANDING][P3] Add "Who is it for" section to landing page (solopreneurs, small businesses, meeting prep)
+  - Section added after "How It Works" with 3 persona cards: Solopreneurs, Small Business Founders, Meeting Prep Power Users
+  - Each card: icon, title, 3 bullet points of value props
+  - Grid layout: `grid-cols-1 md:grid-cols-3`, matches existing design patterns
+  - Anchor `id="who-its-for"` for footer link support
+  - Reuses existing animations (card-hover, border-glow, emphasis-word)

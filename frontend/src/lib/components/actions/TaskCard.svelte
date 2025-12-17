@@ -179,7 +179,7 @@
 	.task-title {
 		font-weight: 600;
 		font-size: 0.95rem;
-		color: var(--color-text);
+		color: var(--foreground);
 		flex: 1;
 	}
 
@@ -190,7 +190,7 @@
 		width: 24px;
 		height: 24px;
 		cursor: pointer;
-		color: var(--color-muted);
+		color: var(--muted-foreground);
 		font-size: 14px;
 		display: flex;
 		align-items: center;
@@ -203,7 +203,7 @@
 
 	.task-description {
 		font-size: 0.85rem;
-		color: var(--color-muted);
+		color: var(--muted-foreground);
 		margin-bottom: 8px;
 		line-height: 1.4;
 	}
@@ -245,7 +245,7 @@
 		margin: 0;
 		padding-left: 16px;
 		font-size: 0.85rem;
-		color: var(--color-text);
+		color: var(--foreground);
 	}
 
 	.detail-section li {
@@ -278,7 +278,7 @@
 
 	.action-btn.secondary {
 		background: var(--color-surface-hover);
-		color: var(--color-text);
+		color: var(--foreground);
 		border: 1px solid var(--color-border);
 	}
 
@@ -329,7 +329,7 @@
 	.delete-confirm-overlay p {
 		font-size: 0.9rem;
 		font-weight: 500;
-		color: var(--color-text);
+		color: var(--foreground);
 		margin: 0;
 	}
 

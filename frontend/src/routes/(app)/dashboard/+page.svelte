@@ -13,6 +13,7 @@
 	import ActivityHeatmap from '$lib/components/dashboard/ActivityHeatmap.svelte';
 	import PendingReminders from '$lib/components/dashboard/PendingReminders.svelte';
 	import ValueMetricsPanel from '$lib/components/dashboard/ValueMetricsPanel.svelte';
+	import FailedMeetingAlert from '$lib/components/dashboard/FailedMeetingAlert.svelte';
 	import { useDataFetch } from '$lib/utils/useDataFetch.svelte';
 	import { getSessionStatusColor } from '$lib/utils/colors';
 	import { formatCompactRelativeTime } from '$lib/utils/time-formatting';
@@ -253,6 +254,9 @@
 
 		<!-- Context refresh reminder -->
 		<ContextRefreshBanner />
+
+		<!-- Failed meeting alert -->
+		<FailedMeetingAlert class="mb-6" />
 
 		<!-- Quick Actions Panel -->
 		<div class="mb-8">

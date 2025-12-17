@@ -753,6 +753,96 @@ You can snooze or disable reminders from the action detail page.
     return html, plain_text
 
 
+# =============================================================================
+# Meeting Failed Email
+# =============================================================================
+
+
+def render_meeting_failed_email(
+    user_id: str,
+    problem_statement: str,
+    error_type: str,
+    timestamp: str,
+    dashboard_url: str,
+) -> tuple[str, str]:
+    """Render email notification for a failed meeting.
+
+    Args:
+        user_id: User ID for unsubscribe link
+        problem_statement: The original question/problem
+        error_type: Type of error (e.g., LLMError, TimeoutError)
+        timestamp: When the failure occurred
+        dashboard_url: URL to the dashboard to start a new meeting
+
+    Returns:
+        Tuple of (html_content, plain_text)
+    """
+    # Truncate problem statement for display
+    problem_preview = (
+        problem_statement[:150] + "..." if len(problem_statement) > 150 else problem_statement
+    )
+
+    # Map error types to user-friendly messages
+    error_guidance = {
+        "LLMError": "Our AI service encountered a temporary issue.",
+        "RateLimitError": "We're experiencing high demand right now.",
+        "TimeoutError": "The meeting took longer than expected to process.",
+        "ValidationError": "There was an issue processing your request.",
+    }
+    friendly_error = error_guidance.get(error_type, "Something unexpected happened.")
+
+    content = f"""
+<h2>Your meeting didn't complete</h2>
+
+<p>{friendly_error}</p>
+
+<div class="summary-box">
+<p class="summary-title">Your Question</p>
+<p>{problem_preview}</p>
+</div>
+
+<p><strong>Good news:</strong> This meeting doesn't count toward your usage limits.</p>
+
+<h3>What to do next</h3>
+<ul>
+<li><strong>Try again</strong> - Most issues are temporary and resolve quickly</li>
+<li><strong>Simplify your question</strong> - Shorter, focused questions work best</li>
+<li><strong>Contact support</strong> - If the problem persists, reply to this email</li>
+</ul>
+
+<p>
+<a href="{dashboard_url}" class="button">Start a New Meeting</a>
+</p>
+
+<p style="font-size: 14px; color: #666;">
+Technical details: {error_type} at {timestamp}
+</p>
+"""
+
+    html = _wrap_email(content, user_id, "all")
+
+    plain_text = f"""Your meeting didn't complete
+
+{friendly_error}
+
+Your Question:
+{problem_preview}
+
+Good news: This meeting doesn't count toward your usage limits.
+
+What to do next:
+- Try again - Most issues are temporary and resolve quickly
+- Simplify your question - Shorter, focused questions work best
+- Contact support - If the problem persists, reply to this email
+
+Start a New Meeting: {dashboard_url}
+
+Technical details: {error_type} at {timestamp}
+"""
+
+    return html, plain_text
+
+
 def render_action_deadline_reminder_email(
     user_id: str,
     action_title: str,

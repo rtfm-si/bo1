@@ -140,7 +140,7 @@ class EventCollector:
         """Mark session as failed with error handling.
 
         Consolidates duplicate error handling pattern for session failures.
-        Publishes error event and updates session status in PostgreSQL.
+        Publishes error event, updates session status, and sends notification email.
 
         Args:
             session_id: Session identifier
@@ -152,13 +152,15 @@ class EventCollector:
         except Exception as flush_error:
             logger.warning(f"Failed to flush cost buffer on session failure: {flush_error}")
 
+        error_type = type(error).__name__
+
         # Publish error event to SSE stream
         self.publisher.publish_event(
             session_id,
             "error",
             {
                 "error": str(error),
-                "error_type": type(error).__name__,
+                "error_type": error_type,
             },
         )
 
@@ -167,6 +169,21 @@ class EventCollector:
             self.session_repo.update_status(session_id=session_id, status="failed")
         except Exception as db_error:
             logger.error(f"Failed to update session {session_id} status to failed: {db_error}")
+
+        # Send failure notification email (non-blocking)
+        try:
+            session_data = self.session_repo.get(session_id)
+            if session_data:
+                from backend.services.email import send_meeting_failed_email
+
+                send_meeting_failed_email(
+                    user_id=session_data.get("user_id", ""),
+                    session_id=session_id,
+                    problem_statement=session_data.get("problem_statement", ""),
+                    error_type=error_type,
+                )
+        except Exception as email_error:
+            logger.warning(f"Failed to send meeting failed email: {email_error}")
 
     async def _publish_node_event(
         self,

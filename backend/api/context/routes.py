@@ -53,12 +53,14 @@ from backend.api.context.models import (
     VolatilityLevel as ModelVolatilityLevel,
 )
 from backend.api.context.services import (
+    append_benchmark_history,
     context_data_to_model,
     context_model_to_dict,
     enriched_data_to_dict,
     enriched_to_context_model,
     merge_context,
     sanitize_context_values,
+    update_benchmark_timestamps,
 )
 from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
@@ -146,10 +148,14 @@ async def get_context(user: dict[str, Any] = Depends(get_current_user)) -> Conte
     # Parse into BusinessContext
     context = context_data_to_model(context_data)
 
+    # Parse benchmark timestamps from raw data
+    benchmark_timestamps = context_data.get("benchmark_timestamps")
+
     return ContextResponse(
         exists=True,
         context=context,
         updated_at=context_data.get("updated_at"),
+        benchmark_timestamps=benchmark_timestamps,
     )
 
 
@@ -186,11 +192,22 @@ async def update_context(
     """Update user's business context."""
     user_id = extract_user_id(user)
 
+    # Get existing context to detect changed metrics
+    existing_context = user_repository.get_context(user_id)
+
     # Convert to dict for save function
     context_dict = context_model_to_dict(context)
 
     # Sanitize user-provided text values to prevent prompt injection
     context_dict = sanitize_context_values(context_dict)
+
+    # Update benchmark timestamps for changed metrics
+    context_dict["benchmark_timestamps"] = update_benchmark_timestamps(
+        context_dict, existing_context
+    )
+
+    # Append to benchmark history for trend tracking
+    context_dict["benchmark_history"] = append_benchmark_history(context_dict, existing_context)
 
     # Save to database
     user_repository.save_context(user_id, context_dict)

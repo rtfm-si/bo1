@@ -38,6 +38,7 @@ _TEXT_FIELDS_TO_SANITIZE = frozenset(
         "budget_constraints",
         "time_constraints",
         "regulatory_constraints",
+        "north_star_goal",
     }
 )
 
@@ -116,6 +117,8 @@ def context_data_to_model(context_data: dict[str, Any]) -> BusinessContext:
         regulatory_constraints=context_data.get("regulatory_constraints"),
         enrichment_source=context_data.get("enrichment_source"),
         enrichment_date=context_data.get("enrichment_date"),
+        north_star_goal=context_data.get("north_star_goal"),
+        benchmark_timestamps=context_data.get("benchmark_timestamps"),
     )
 
 
@@ -164,6 +167,8 @@ def context_model_to_dict(context: BusinessContext) -> dict[str, Any]:
         "regulatory_constraints": context.regulatory_constraints,
         "enrichment_source": context.enrichment_source.value if context.enrichment_source else None,
         "enrichment_date": context.enrichment_date,
+        "north_star_goal": context.north_star_goal,
+        "benchmark_timestamps": context.benchmark_timestamps,
     }
 
 
@@ -418,3 +423,116 @@ def normalize_clarification_for_storage(entry: dict[str, Any]) -> dict[str, Any]
     """
     validated = ClarificationStorageEntry.model_validate(entry)
     return validated.model_dump(mode="json", exclude_none=True)
+
+
+# =============================================================================
+# Benchmark Timestamp Tracking
+# =============================================================================
+
+# Fields that are considered "benchmark metrics" for timestamp tracking
+BENCHMARK_METRIC_FIELDS = frozenset(
+    {
+        "revenue",
+        "customers",
+        "growth_rate",
+        "team_size",
+        "mau_bucket",
+        "revenue_stage",
+        "traffic_range",
+    }
+)
+
+
+def update_benchmark_timestamps(
+    new_context: dict[str, Any],
+    existing_context: dict[str, Any] | None,
+) -> dict[str, str]:
+    """Update timestamps for benchmark metrics that have changed.
+
+    Only updates timestamp if:
+    - The field is a benchmark metric (in BENCHMARK_METRIC_FIELDS)
+    - The new value is non-empty
+    - The value has actually changed from existing
+
+    Args:
+        new_context: New context data being saved
+        existing_context: Existing context data from database (or None)
+
+    Returns:
+        Updated benchmark_timestamps dict with ISO format strings
+    """
+    from datetime import UTC, datetime
+
+    # Get existing timestamps or start fresh
+    if existing_context and existing_context.get("benchmark_timestamps"):
+        timestamps = dict(existing_context["benchmark_timestamps"])
+    else:
+        timestamps = {}
+
+    now = datetime.now(UTC).isoformat()
+
+    for field in BENCHMARK_METRIC_FIELDS:
+        new_value = new_context.get(field)
+        old_value = existing_context.get(field) if existing_context else None
+
+        # Only update timestamp if:
+        # 1. New value exists and is non-empty
+        # 2. Value is different from old value
+        if new_value is not None and new_value != "":
+            if old_value != new_value:
+                timestamps[field] = now
+
+    return timestamps
+
+
+# Maximum historical entries per metric
+MAX_BENCHMARK_HISTORY_ENTRIES = 6
+
+
+def append_benchmark_history(
+    new_context: dict[str, Any],
+    existing_context: dict[str, Any] | None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Append changed benchmark values to history, keeping max 6 per metric.
+
+    Records historical values when benchmark metrics change, enabling
+    trend visualization and monthly check-in tracking.
+
+    Args:
+        new_context: New context data being saved
+        existing_context: Existing context data from database (or None)
+
+    Returns:
+        Updated benchmark_history dict: {metric_key: [{value, date}, ...]}
+    """
+    from datetime import UTC, datetime
+
+    # Get existing history or start fresh
+    if existing_context and existing_context.get("benchmark_history"):
+        history = {k: list(v) for k, v in existing_context["benchmark_history"].items()}
+    else:
+        history = {}
+
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+
+    for field in BENCHMARK_METRIC_FIELDS:
+        new_value = new_context.get(field)
+        old_value = existing_context.get(field) if existing_context else None
+
+        # Only record if value changed and is non-empty
+        if new_value is not None and new_value != "" and old_value != new_value:
+            if field not in history:
+                history[field] = []
+
+            # Don't duplicate if already recorded today
+            if history[field] and history[field][0].get("date") == today:
+                # Update today's entry instead
+                history[field][0]["value"] = new_value
+            else:
+                # Prepend new entry
+                history[field].insert(0, {"value": new_value, "date": today})
+
+            # Trim to max entries
+            history[field] = history[field][:MAX_BENCHMARK_HISTORY_ENTRIES]
+
+    return history

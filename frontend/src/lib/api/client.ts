@@ -111,6 +111,7 @@ import type {
 	IndustryInsight,
 	IndustryInsightsResponse,
 	BenchmarkComparisonResponse,
+	StaleBenchmarksResponse,
 	// Usage & Tier types
 	UsageResponse,
 	TierLimitsResponse,
@@ -694,6 +695,15 @@ export class ApiClient {
 
 	async createSession(request: CreateSessionRequest): Promise<SessionResponse> {
 		return this.post<SessionResponse>('/api/v1/sessions', request);
+	}
+
+	async getMeetingCapStatus(): Promise<import('./types').MeetingCapStatus> {
+		return this.fetch<import('./types').MeetingCapStatus>('/api/v1/sessions/cap-status');
+	}
+
+	async getRecentFailures(hours?: number): Promise<import('./types').RecentFailuresResponse> {
+		const endpoint = hours ? `/api/v1/sessions/recent-failures?hours=${hours}` : '/api/v1/sessions/recent-failures';
+		return this.fetch<import('./types').RecentFailuresResponse>(endpoint);
 	}
 
 	async listSessions(params?: { status?: string; limit?: number; offset?: number }): Promise<SessionListResponse> {
@@ -2432,6 +2442,14 @@ export class ApiClient {
 	 */
 	async compareBenchmarks(): Promise<BenchmarkComparisonResponse> {
 		return this.fetch<BenchmarkComparisonResponse>('/api/v1/industry-insights/compare');
+	}
+
+	/**
+	 * Check for stale benchmark values needing monthly check-in
+	 * Returns benchmarks not updated in 30+ days
+	 */
+	async getStaleBenchmarks(): Promise<StaleBenchmarksResponse> {
+		return this.fetch<StaleBenchmarksResponse>('/api/v1/benchmarks/stale');
 	}
 
 	// ============================================================================

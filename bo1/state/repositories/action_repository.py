@@ -1105,7 +1105,7 @@ class ActionRepository(BaseRepository):
                         d.created_at,
                         1 as depth
                     FROM action_dependencies d
-                    WHERE d.action_id = ANY(%s)
+                    WHERE d.action_id = ANY(%s::uuid[])
 
                     UNION ALL
 
@@ -1148,7 +1148,7 @@ class ActionRepository(BaseRepository):
                     a.status as depends_on_status
                 FROM action_dependencies d
                 JOIN actions a ON a.id = d.depends_on_action_id
-                WHERE d.action_id = ANY(%s)
+                WHERE d.action_id = ANY(%s::uuid[])
                 ORDER BY d.action_id, d.created_at ASC
             """
             results = self._execute_query(query, (action_id_strs,))

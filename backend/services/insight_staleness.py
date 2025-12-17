@@ -400,3 +400,139 @@ def get_stale_metrics_for_session(
         stale_metrics=stale_metrics,
         total_metrics_checked=metrics_checked,
     )
+
+
+# =============================================================================
+# Benchmark Staleness (for Monthly Check-ins)
+# =============================================================================
+
+# Benchmark-specific threshold: 30 days for monthly check-ins
+BENCHMARK_STALENESS_DAYS = 30
+
+
+class StaleBenchmark(BaseModel):
+    """A stale benchmark value requiring user check-in."""
+
+    field_name: str
+    display_name: str
+    current_value: float | int | str | None
+    updated_at: datetime | None
+    days_since_update: int
+
+
+class StaleBenchmarksResult(BaseModel):
+    """Result of stale benchmarks check."""
+
+    has_stale_benchmarks: bool
+    stale_benchmarks: list[StaleBenchmark]
+    total_benchmarks_checked: int
+
+
+# Benchmark metric fields (matches BENCHMARK_METRIC_FIELDS in services.py)
+BENCHMARK_FIELDS = {
+    "revenue",
+    "customers",
+    "growth_rate",
+    "team_size",
+    "mau_bucket",
+    "revenue_stage",
+    "traffic_range",
+}
+
+# Human-friendly display names
+BENCHMARK_DISPLAY_NAMES = {
+    "revenue": "Revenue",
+    "customers": "Customer count",
+    "growth_rate": "Growth rate",
+    "team_size": "Team size",
+    "mau_bucket": "Monthly active users",
+    "revenue_stage": "Revenue stage",
+    "traffic_range": "Traffic range",
+}
+
+
+def get_stale_benchmarks(
+    user_id: str,
+    threshold_days: int = BENCHMARK_STALENESS_DAYS,
+) -> StaleBenchmarksResult:
+    """Get benchmark metrics that are stale and need user check-in.
+
+    Uses benchmark_timestamps to determine when each benchmark was last set.
+    A benchmark is stale if:
+    1. It has a value but no timestamp (never confirmed)
+    2. It was last updated more than threshold_days ago
+
+    Args:
+        user_id: User ID to check benchmarks for
+        threshold_days: Number of days after which benchmark is stale (default 30)
+
+    Returns:
+        StaleBenchmarksResult with list of stale benchmarks
+    """
+    context_data = user_repository.get_context(user_id)
+
+    if not context_data:
+        logger.debug(f"No context found for user {user_id}")
+        return StaleBenchmarksResult(
+            has_stale_benchmarks=False,
+            stale_benchmarks=[],
+            total_benchmarks_checked=0,
+        )
+
+    benchmark_timestamps = context_data.get("benchmark_timestamps", {})
+    now = datetime.now(UTC)
+    stale_benchmarks: list[StaleBenchmark] = []
+    benchmarks_checked = 0
+
+    for field_name in BENCHMARK_FIELDS:
+        current_value = context_data.get(field_name)
+
+        # Skip if no value exists
+        if current_value is None:
+            continue
+
+        benchmarks_checked += 1
+
+        # Get last update timestamp
+        timestamp_str = benchmark_timestamps.get(field_name)
+        updated_at: datetime | None = None
+        if timestamp_str:
+            try:
+                updated_at = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                pass
+
+        # Calculate days since update
+        if updated_at:
+            days_since_update = (now - updated_at).days
+            is_stale = days_since_update > threshold_days
+        else:
+            # No timestamp = never confirmed = stale
+            days_since_update = 999
+            is_stale = True
+
+        if is_stale:
+            stale_benchmarks.append(
+                StaleBenchmark(
+                    field_name=field_name,
+                    display_name=BENCHMARK_DISPLAY_NAMES.get(field_name, field_name),
+                    current_value=current_value,
+                    updated_at=updated_at,
+                    days_since_update=days_since_update,
+                )
+            )
+
+    # Sort by days_since_update (most stale first)
+    stale_benchmarks.sort(key=lambda b: -b.days_since_update)
+
+    has_stale = len(stale_benchmarks) > 0
+
+    logger.info(
+        f"Stale benchmarks check for user {user_id}: {len(stale_benchmarks)}/{benchmarks_checked} stale"
+    )
+
+    return StaleBenchmarksResult(
+        has_stale_benchmarks=has_stale,
+        stale_benchmarks=stale_benchmarks,
+        total_benchmarks_checked=benchmarks_checked,
+    )

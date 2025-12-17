@@ -546,6 +546,32 @@ async def start_deliberation(
         # Unpack verified session data
         user_id, metadata = session_data
 
+        # Beta meeting cap check (only for new starts, not resumes)
+        status = metadata.get("status")
+        if status == "created":
+            from backend.services.meeting_cap import MeetingCapExceededError, require_meeting_cap
+
+            try:
+                cap_status = require_meeting_cap(user_id)
+                logger.info(
+                    f"Meeting cap check passed for user {user_id}: "
+                    f"{cap_status.remaining}/{cap_status.limit} remaining"
+                )
+            except MeetingCapExceededError as e:
+                logger.warning(f"Meeting cap exceeded for user {user_id}: {e}")
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "error": "meeting_cap_exceeded",
+                        "message": str(e),
+                        "reset_time": (
+                            e.status.reset_time.isoformat() if e.status.reset_time else None
+                        ),
+                        "limit": e.status.limit,
+                        "remaining": 0,
+                    },
+                ) from e
+
         # Check if already running
         if session_id in session_manager.active_executions:
             raise HTTPException(
@@ -553,8 +579,7 @@ async def start_deliberation(
                 detail=f"Session {session_id} is already running",
             )
 
-        # Validate session status
-        status = metadata.get("status")
+        # Validate session status (status already loaded above for cap check)
         if status not in ["created", "paused"]:
             raise HTTPException(
                 status_code=400,

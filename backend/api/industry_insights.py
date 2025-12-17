@@ -26,6 +26,7 @@ from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import get_user_tier
 from backend.api.utils.errors import handle_api_errors
+from backend.services.insight_staleness import get_stale_benchmarks
 from bo1.constants import IndustryBenchmarkLimits
 from bo1.state.repositories import user_repository
 
@@ -94,6 +95,13 @@ class IndustryInsightsResponse(BaseModel):
     user_tier: str = Field("free", description="User's current subscription tier")
 
 
+class BenchmarkHistoryEntry(BaseModel):
+    """A single historical benchmark value."""
+
+    value: float = Field(..., description="Historical metric value")
+    date: str = Field(..., description="Date value was recorded (YYYY-MM-DD)")
+
+
 class BenchmarkComparison(BaseModel):
     """User's metrics compared to industry benchmarks."""
 
@@ -101,6 +109,12 @@ class BenchmarkComparison(BaseModel):
     metric_unit: str = Field(..., description="Unit of measurement")
     category: BenchmarkCategory = Field(..., description="Benchmark category")
     user_value: float | None = Field(None, description="User's metric value")
+    user_value_updated_at: str | None = Field(
+        None, description="When user's value was last set (ISO timestamp)"
+    )
+    history: list[BenchmarkHistoryEntry] = Field(
+        default_factory=list, description="Historical values (max 6, newest first)"
+    )
     p25: float | None = Field(None, description="25th percentile")
     p50: float | None = Field(None, description="Median (50th percentile)")
     p75: float | None = Field(None, description="75th percentile")
@@ -695,6 +709,10 @@ async def compare_benchmarks(
         compared_count = 0
         locked_count = 0
 
+        # Get benchmark timestamps and history for user value dates
+        benchmark_timestamps = context_data.get("benchmark_timestamps", {}) if context_data else {}
+        benchmark_history = context_data.get("benchmark_history", {}) if context_data else {}
+
         for i, bm in enumerate(benchmarks):
             is_locked = limit != -1 and i >= limit
             if is_locked:
@@ -705,11 +723,25 @@ async def compare_benchmarks(
 
             # Try to get user's value for this metric
             user_value = None
+            user_value_updated_at = None
+            history_entries: list[BenchmarkHistoryEntry] = []
             if context_field and context_data:
                 user_value = context_data.get(context_field)
                 # Also try nested fields
                 if user_value is None and "metrics" in context_data:
                     user_value = context_data["metrics"].get(context_field)
+                # Get timestamp for this field
+                user_value_updated_at = benchmark_timestamps.get(context_field)
+                # Get history for this field
+                field_history = benchmark_history.get(context_field, [])
+                for h in field_history[:6]:  # Max 6 entries
+                    if "value" in h and "date" in h:
+                        try:
+                            history_entries.append(
+                                BenchmarkHistoryEntry(value=float(h["value"]), date=h["date"])
+                            )
+                        except (ValueError, TypeError):
+                            continue
 
             # Calculate percentile if we have user data
             percentile = None
@@ -734,6 +766,10 @@ async def compare_benchmarks(
                     user_value=float(user_value)
                     if user_value is not None and not is_locked
                     else None,
+                    user_value_updated_at=user_value_updated_at
+                    if user_value is not None and not is_locked
+                    else None,
+                    history=history_entries if not is_locked else [],
                     p25=bm["p25"] if not is_locked else None,
                     p50=bm["p50"] if not is_locked else None,
                     p75=bm["p75"] if not is_locked else None,
@@ -826,3 +862,66 @@ async def get_insights_by_industry(
             status_code=500,
             detail=f"Failed to get insights: {str(e)}",
         ) from e
+
+
+# =============================================================================
+# Stale Benchmarks Endpoint (Monthly Check-ins)
+# =============================================================================
+
+
+class StaleBenchmarkResponse(BaseModel):
+    """A stale benchmark in API response."""
+
+    field_name: str = Field(..., description="Metric field name")
+    display_name: str = Field(..., description="Human-readable name")
+    current_value: float | int | str | None = Field(None, description="Current value")
+    days_since_update: int = Field(..., description="Days since last update")
+
+
+class StaleBenchmarksResponse(BaseModel):
+    """Response for stale benchmarks check."""
+
+    has_stale_benchmarks: bool = Field(..., description="Whether any benchmarks are stale")
+    stale_benchmarks: list[StaleBenchmarkResponse] = Field(
+        default_factory=list, description="List of stale benchmarks"
+    )
+    threshold_days: int = Field(30, description="Staleness threshold in days")
+
+
+@router.get(
+    "/v1/benchmarks/stale",
+    response_model=StaleBenchmarksResponse,
+    summary="Check for stale benchmark values",
+    description="""
+    Check which benchmark values need refreshing (monthly check-in).
+
+    Returns benchmarks that haven't been updated in 30+ days.
+    Use this to prompt users to confirm their values are still accurate.
+
+    **Use Cases:**
+    - Show refresh banner on Reports > Benchmarks page
+    - Prompt user during monthly check-in flow
+    """,
+)
+@handle_api_errors("check stale benchmarks")
+async def check_stale_benchmarks(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> StaleBenchmarksResponse:
+    """Check for stale benchmark values needing user confirmation."""
+    user_id = extract_user_id(user)
+
+    result = get_stale_benchmarks(user_id)
+
+    return StaleBenchmarksResponse(
+        has_stale_benchmarks=result.has_stale_benchmarks,
+        stale_benchmarks=[
+            StaleBenchmarkResponse(
+                field_name=b.field_name,
+                display_name=b.display_name,
+                current_value=b.current_value,
+                days_since_update=b.days_since_update,
+            )
+            for b in result.stale_benchmarks
+        ],
+        threshold_days=30,
+    )

@@ -10,15 +10,6 @@
 			links: [
 				{ label: 'How It Works', href: '/#how-it-works' },
 				{ label: 'Features', href: '/#features' },
-				{ label: 'Examples', href: '/examples' },
-			],
-		},
-		{
-			title: 'Company',
-			links: [
-				{ label: 'About', href: '/about' },
-				{ label: 'Blog', href: '/blog' },
-				{ label: 'Contact', href: '/contact' },
 			],
 		},
 		{
@@ -31,11 +22,7 @@
 		},
 		{
 			title: 'Support',
-			links: [
-				{ label: 'Documentation', href: '/docs' },
-				{ label: 'Help Center', href: '/help' },
-				{ label: 'Status', href: 'https://status.boardof.one', external: true },
-			],
+			links: [{ label: 'Help Center', href: '/help' }],
 		},
 	];
 
@@ -49,7 +36,7 @@
 <footer class="bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800">
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 		<!-- Main Footer Content -->
-		<div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+		<div class="grid grid-cols-2 md:grid-cols-3 gap-8 mb-8">
 			{#each footerSections as section}
 				<div>
 					<h3
@@ -62,26 +49,9 @@
 							<li>
 								<a
 									href={link.href}
-									target={link.external ? '_blank' : undefined}
-									rel={link.external ? 'noopener noreferrer' : undefined}
 									class="text-neutral-600 dark:text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors text-sm"
 								>
 									{link.label}
-									{#if link.external}
-										<svg
-											class="inline-block w-3 h-3 ml-1"
-											fill="none"
-											stroke="currentColor"
-											viewBox="0 0 24 24"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-											/>
-										</svg>
-									{/if}
 								</a>
 							</li>
 						{/each}

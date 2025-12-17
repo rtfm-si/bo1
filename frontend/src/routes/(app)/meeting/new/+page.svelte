@@ -7,8 +7,8 @@
 	import Spinner from '$lib/components/ui/Spinner.svelte';
 	import MeetingContextSelector from '$lib/components/meeting/MeetingContextSelector.svelte';
 	import MeetingProjectSelector from '$lib/components/meeting/MeetingProjectSelector.svelte';
-	import { AlertTriangle, X } from 'lucide-svelte';
-	import type { Dataset, StaleInsight, SessionContextIds } from '$lib/api/types';
+	import { AlertTriangle, X, Clock } from 'lucide-svelte';
+	import type { Dataset, StaleInsight, SessionContextIds, MeetingCapStatus } from '$lib/api/types';
 	import { toast } from '$lib/stores/toast';
 
 	let problemStatement = $state('');
@@ -28,6 +28,9 @@
 	// Project link warning state
 	let projectLinkWarning = $state<string | null>(null);
 	let projectLinkWarningTimeout: ReturnType<typeof setTimeout> | null = null;
+	// Meeting cap state
+	let capStatus = $state<MeetingCapStatus | null>(null);
+	let loadingCapStatus = $state(false);
 
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
@@ -51,8 +54,37 @@
 		// Load user's datasets for the selector
 		loadDatasets();
 
+		// Check meeting cap status
+		loadCapStatus();
+
 		return unsubscribe;
 	});
+
+	async function loadCapStatus() {
+		try {
+			loadingCapStatus = true;
+			capStatus = await apiClient.getMeetingCapStatus();
+		} catch (err) {
+			console.warn('Failed to load meeting cap status:', err);
+			// Non-blocking - allow meeting creation even if cap check fails
+		} finally {
+			loadingCapStatus = false;
+		}
+	}
+
+	function formatResetTime(resetTime: string | null): string {
+		if (!resetTime) return '';
+		const reset = new Date(resetTime);
+		const now = new Date();
+		const diffMs = reset.getTime() - now.getTime();
+		const diffMins = Math.ceil(diffMs / 60000);
+		const diffHours = Math.floor(diffMins / 60);
+		const remainingMins = diffMins % 60;
+		if (diffHours > 0) {
+			return `${diffHours}h ${remainingMins}m`;
+		}
+		return `${diffMins} minutes`;
+	}
 
 	async function loadDatasets() {
 		try {
@@ -222,6 +254,38 @@
 
 	<!-- Main Content -->
 	<main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Meeting Cap Warning Banner -->
+		{#if capStatus?.exceeded}
+			<div class="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+				<div class="flex items-start gap-3">
+					<Clock class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+					<div class="flex-1">
+						<h3 class="text-sm font-semibold text-amber-900 dark:text-amber-200">
+							Meeting limit reached
+						</h3>
+						<p class="text-sm text-amber-800 dark:text-amber-300 mt-1">
+							You've used all {capStatus.limit} meetings in the last 24 hours.
+							{#if capStatus.reset_time}
+								You can start a new meeting in <strong>{formatResetTime(capStatus.reset_time)}</strong>.
+							{/if}
+						</p>
+						<p class="text-xs text-amber-700 dark:text-amber-400 mt-2">
+							During beta, meetings are limited to {capStatus.limit} per 24-hour rolling window to ensure quality for all users.
+						</p>
+					</div>
+				</div>
+			</div>
+		{:else if capStatus && capStatus.remaining <= 1 && capStatus.limit > 0}
+			<div class="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+				<div class="flex items-center gap-2">
+					<Clock class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+					<p class="text-sm text-blue-800 dark:text-blue-300">
+						{capStatus.remaining} meeting{capStatus.remaining === 1 ? '' : 's'} remaining in this 24-hour period.
+					</p>
+				</div>
+			</div>
+		{/if}
+
 		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-8">
 			<form onsubmit={handleSubmit} class="space-y-6">
 				<!-- Problem Statement Input -->
@@ -370,12 +434,15 @@
 				<div class="flex items-center gap-4">
 					<button
 						type="submit"
-						disabled={isSubmitting || problemStatement.trim().length < 20}
+						disabled={isSubmitting || problemStatement.trim().length < 20 || capStatus?.exceeded}
 						class="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:cursor-not-allowed flex items-center justify-center gap-2"
 					>
 						{#if isSubmitting}
 							<Spinner size="sm" variant="neutral" ariaLabel="Starting meeting" />
 							Starting meeting...
+						{:else if capStatus?.exceeded}
+							<Clock class="w-5 h-5" />
+							Limit Reached
 						{:else}
 							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />

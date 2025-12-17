@@ -272,11 +272,17 @@ Based on this information, extract and return a JSON object with the following f
     "brand_positioning": "brand positioning statement",
     "brand_tone": "brand tone (e.g., Professional, Friendly, Technical, Casual)",
     "brand_maturity": "brand maturity (startup, emerging, established, mature)",
-    "detected_competitors": ["competitor1", "competitor2"],
+    "detected_competitors": ["Competitor1", "Competitor2"],
     "ideal_customer_profile": "description of ideal customer",
     "keywords": ["keyword1", "keyword2", "keyword3"],
     "confidence": "low/medium/high based on data quality"
 }}
+
+IMPORTANT for detected_competitors:
+- List 3-5 SPECIFIC competitor company names (e.g., "Notion", "Asana", "Monday.com")
+- Do NOT include generic terms like "Top 10 Tools", "Best Software", or "Productivity Apps"
+- Only include actual company names you are confident exist
+- If unsure about competitors, leave the array empty rather than guessing
 
 Return ONLY valid JSON, no other text."""
 

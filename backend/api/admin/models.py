@@ -858,3 +858,110 @@ class ExtendedKPIsResponse(BaseModel):
     data_analyses: DataAnalysisStats = Field(..., description="Dataset analysis stats")
     projects: ProjectStats = Field(..., description="Project stats by status")
     actions: ActionStats = Field(..., description="Action stats by status")
+
+
+# ==============================================================================
+# Cost Tracking Models
+# ==============================================================================
+
+
+class FixedCostItem(BaseModel):
+    """Fixed infrastructure cost entry."""
+
+    id: int
+    provider: str
+    description: str
+    monthly_amount_usd: float
+    category: str
+    active: bool
+    notes: str | None = None
+
+
+class FixedCostsResponse(BaseModel):
+    """Response with list of fixed costs."""
+
+    costs: list[FixedCostItem]
+    monthly_total: float
+
+
+class CreateFixedCostRequest(BaseModel):
+    """Request to create a fixed cost entry."""
+
+    provider: str = Field(..., min_length=1, max_length=50)
+    description: str = Field(..., min_length=1, max_length=200)
+    monthly_amount_usd: float = Field(..., ge=0)
+    category: str = Field(default="compute", max_length=50)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class UpdateFixedCostRequest(BaseModel):
+    """Request to update a fixed cost entry."""
+
+    monthly_amount_usd: float | None = Field(default=None, ge=0)
+    active: bool | None = None
+    notes: str | None = None
+
+
+class ProviderCostItem(BaseModel):
+    """Cost breakdown for a single provider."""
+
+    provider: str
+    amount_usd: float
+    request_count: int
+    percentage: float
+
+
+class CostsByProviderResponse(BaseModel):
+    """Response with costs grouped by provider."""
+
+    providers: list[ProviderCostItem]
+    total_usd: float
+    period_start: str
+    period_end: str
+
+
+class MeetingCostResponse(BaseModel):
+    """Cost breakdown for a single meeting/session."""
+
+    session_id: str
+    total_cost: float
+    api_calls: int
+    by_provider: dict[str, float]
+    by_phase: dict[str, float]
+
+
+class PerUserCostItem(BaseModel):
+    """Per-user cost metrics."""
+
+    user_id: str
+    email: str | None
+    total_cost: float
+    session_count: int
+    avg_cost_per_session: float
+
+
+class PerUserCostResponse(BaseModel):
+    """Response with average cost per user."""
+
+    users: list[PerUserCostItem]
+    overall_avg: float
+    total_users: int
+    period_start: str
+    period_end: str
+
+
+class DailySummaryItem(BaseModel):
+    """Single day cost summary."""
+
+    date: str
+    total_usd: float
+    by_provider: dict[str, float]
+    request_count: int
+
+
+class DailySummaryResponse(BaseModel):
+    """Response with daily cost summaries."""
+
+    days: list[DailySummaryItem]
+    period_start: str
+    period_end: str

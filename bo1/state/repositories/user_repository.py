@@ -175,11 +175,17 @@ class UserRepository(BaseRepository):
         "last_refresh_prompt",
         "onboarding_completed",
         "onboarding_completed_at",
+        # Goals
+        "north_star_goal",
         # Clarification answers from meetings
         "clarifications",
         # Context auto-update tracking
         "context_metric_history",
         "pending_updates",
+        # Benchmark value timestamps
+        "benchmark_timestamps",
+        # Benchmark historical values (max 6 per metric)
+        "benchmark_history",
     ]
 
     @classmethod
@@ -268,6 +274,7 @@ class UserRepository(BaseRepository):
             "clarifications",
             "context_metric_history",
             "pending_updates",
+            "benchmark_timestamps",
         }
 
         values = []

@@ -17,6 +17,9 @@
 		BenchmarkCategory
 	} from '$lib/api/types';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import BenchmarkRangeBar from '$lib/components/benchmarks/BenchmarkRangeBar.svelte';
+	import BenchmarkHistory from '$lib/components/benchmarks/BenchmarkHistory.svelte';
+	import BenchmarkRefreshBanner from '$lib/components/benchmarks/BenchmarkRefreshBanner.svelte';
 
 	// State
 	let isLoading = $state(true);
@@ -107,17 +110,17 @@
 		}
 	}
 
-	// Get status label
+	// Get status label (human-friendly)
 	function getStatusLabel(status: string): string {
 		switch (status) {
 			case 'top_performer':
-				return 'Top Performer';
+				return 'Excellent';
 			case 'above_average':
-				return 'Above Average';
+				return 'Good';
 			case 'average':
-				return 'Average';
+				return 'Typical';
 			case 'below_average':
-				return 'Below Average';
+				return 'Needs Attention';
 			case 'locked':
 				return 'Upgrade to View';
 			default:
@@ -159,6 +162,28 @@
 		if (percentile === undefined) return '0%';
 		return `${Math.min(100, Math.max(0, percentile))}%`;
 	}
+
+	// Format relative time (e.g., "3 days ago", "2 months ago")
+	function formatRelativeTime(isoTimestamp: string | undefined): string | null {
+		if (!isoTimestamp) return null;
+		try {
+			const date = new Date(isoTimestamp);
+			const now = new Date();
+			const diffMs = now.getTime() - date.getTime();
+			const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+			if (diffDays < 1) return 'today';
+			if (diffDays === 1) return '1 day ago';
+			if (diffDays < 7) return `${diffDays} days ago`;
+			if (diffDays < 14) return '1 week ago';
+			if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+			if (diffDays < 60) return '1 month ago';
+			if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+			return `${Math.floor(diffDays / 365)} year${Math.floor(diffDays / 365) > 1 ? 's' : ''} ago`;
+		} catch {
+			return null;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -174,6 +199,9 @@
 	</div>
 {:else}
 	<div class="space-y-6">
+		<!-- Monthly Check-in Banner -->
+		<BenchmarkRefreshBanner />
+
 		<!-- Header -->
 		<div
 			class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
@@ -326,96 +354,83 @@
 								</span>
 							</div>
 						{:else}
-							<!-- Percentile visualization -->
-							<div class="space-y-3">
-								<!-- Benchmark values -->
-								<div class="flex items-center justify-between text-sm">
-									<div class="flex gap-4">
-										<div>
-											<span class="text-slate-500 dark:text-slate-400">P25:</span>
-											<span class="font-medium text-slate-700 dark:text-slate-200">
-												{content.p25}{content.metric_unit === '%' ? '%' : ` ${content.metric_unit}`}
-											</span>
-										</div>
-										<div>
-											<span class="text-slate-500 dark:text-slate-400">Median:</span>
-											<span class="font-medium text-slate-700 dark:text-slate-200">
-												{content.p50}{content.metric_unit === '%' ? '%' : ` ${content.metric_unit}`}
-											</span>
-										</div>
-										<div>
-											<span class="text-slate-500 dark:text-slate-400">P75:</span>
-											<span class="font-medium text-slate-700 dark:text-slate-200">
-												{content.p75}{content.metric_unit === '%' ? '%' : ` ${content.metric_unit}`}
-											</span>
-										</div>
-									</div>
-									{#if content.sample_size}
-										<span class="text-xs text-slate-400">n={content.sample_size}</span>
-									{/if}
-								</div>
-
-								<!-- User comparison -->
-								{#if showComparison && comparison}
-									<div
-										class="border-t border-slate-100 dark:border-slate-700 pt-3 mt-3 space-y-2"
-									>
-										<div class="flex items-center justify-between">
-											<div class="flex items-center gap-2">
-												<span class="text-sm text-slate-600 dark:text-slate-300">Your value:</span>
-												{#if comparison.user_value !== undefined && comparison.user_value !== null}
-													<span class="font-semibold text-slate-900 dark:text-white">
-														{comparison.user_value}{content.metric_unit === '%'
-															? '%'
-															: ` ${content.metric_unit}`}
-													</span>
-												{:else}
-													<span class="text-sm text-slate-400 italic">Not set</span>
-												{/if}
-											</div>
-											<span
-												class={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(comparison.status)}`}
-											>
-												{getStatusLabel(comparison.status)}
-											</span>
-										</div>
-
-										{#if comparison.percentile !== undefined && comparison.percentile !== null}
-											<!-- Percentile bar -->
-											<div class="space-y-1">
-												<div class="flex items-center justify-between text-xs">
-													<span class="text-slate-500 dark:text-slate-400">Your percentile</span>
-													<span class="font-medium text-slate-700 dark:text-slate-200">
-														{formatPercentile(comparison.percentile)} percentile
-													</span>
-												</div>
-												<div
-													class="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"
-												>
-													<div
-														class="h-full rounded-full transition-all duration-500 {comparison.percentile >=
-														75
-															? 'bg-green-500'
-															: comparison.percentile >= 50
-																? 'bg-emerald-500'
-																: comparison.percentile >= 25
-																	? 'bg-yellow-500'
-																	: 'bg-red-500'}"
-														style="width: {getPercentileBarWidth(comparison.percentile)}"
-													></div>
-												</div>
-												<!-- Percentile markers -->
-												<div class="flex justify-between text-xs text-slate-400">
-													<span>0</span>
-													<span>25</span>
-													<span>50</span>
-													<span>75</span>
-													<span>100</span>
-												</div>
-											</div>
+							<!-- 2-column layout: Industry vs You -->
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+								<!-- Left column: Industry Range -->
+								<div class="space-y-2">
+									<div class="flex items-center gap-2 mb-3">
+										<span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Industry</span>
+										{#if content.sample_size}
+											<span class="text-xs text-slate-400">(n={content.sample_size})</span>
 										{/if}
 									</div>
-								{/if}
+									<BenchmarkRangeBar
+										rangeMin={content.p25 ?? 0}
+										rangeMedian={content.p50 ?? 0}
+										rangeMax={content.p75 ?? 0}
+										unit={content.metric_unit}
+									/>
+								</div>
+
+								<!-- Right column: Your Value -->
+								<div class="space-y-2 md:border-l md:border-slate-200 md:dark:border-slate-700 md:pl-6">
+									<div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-3">You</div>
+									{#if showComparison && comparison}
+										{#if comparison.user_value !== null && comparison.user_value !== undefined}
+											<!-- User has a value set -->
+											<div class="flex flex-col items-center justify-center py-2">
+												<div class="text-3xl font-bold text-slate-900 dark:text-white">
+													{comparison.user_value}{content.metric_unit === '%' ? '%' : ''}{content.metric_unit && content.metric_unit !== '%' ? ` ${content.metric_unit}` : ''}
+												</div>
+												<div class="mt-2 flex items-center gap-2">
+													<span
+														class={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(comparison.status)}`}
+													>
+														{getStatusLabel(comparison.status)}
+													</span>
+												</div>
+												{#if comparison.user_value_updated_at}
+													{@const relativeTime = formatRelativeTime(comparison.user_value_updated_at)}
+													{#if relativeTime}
+														<span class="text-xs text-slate-400 mt-2" title="When you last updated this value">
+															Updated {relativeTime}
+														</span>
+													{/if}
+												{/if}
+												<!-- Historical values -->
+												{#if comparison.history && comparison.history.length > 0}
+													<div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+														<div class="text-xs text-slate-400 dark:text-slate-500 mb-1">History</div>
+														<BenchmarkHistory
+															history={comparison.history}
+															unit={content.metric_unit}
+														/>
+													</div>
+												{/if}
+											</div>
+										{:else}
+											<!-- User hasn't set a value - prominent empty state -->
+											<div class="flex flex-col items-center justify-center py-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+												<div class="text-3xl font-bold text-slate-300 dark:text-slate-600 mb-2">—</div>
+												<span class="text-sm text-slate-500 dark:text-slate-400 mb-3">Not Set</span>
+												<a
+													href="/context/metrics#{content.category || 'metrics'}"
+													class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-md transition-colors"
+												>
+													<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+													</svg>
+													Set My Value
+												</a>
+											</div>
+										{/if}
+									{:else}
+										<!-- Comparison toggle is off -->
+										<div class="flex flex-col items-center justify-center py-4 text-slate-400 dark:text-slate-500">
+											<span class="text-sm">Enable comparison above</span>
+										</div>
+									{/if}
+								</div>
 							</div>
 						{/if}
 					</div>
@@ -466,10 +481,11 @@
 					/>
 				</svg>
 				<div class="text-sm text-blue-900 dark:text-blue-200">
-					<p class="font-semibold mb-1">About Industry Benchmarks</p>
+					<p class="font-semibold mb-1">How to Read This</p>
 					<ul class="text-blue-800 dark:text-blue-300 space-y-1 list-disc list-inside">
-						<li>Benchmarks show P25, median (P50), and P75 for key metrics in your industry</li>
-						<li>Your metrics are compared to show your percentile ranking</li>
+						<li><strong>Industry</strong> shows the range of values across businesses in your sector</li>
+						<li><strong>You</strong> shows your current value and how you compare</li>
+						<li><strong>Bottom 25%</strong> &mdash; lowest performers &bull; <strong>Typical</strong> &mdash; industry midpoint &bull; <strong>Top 25%</strong> &mdash; best performers</li>
 						<li>
 							Add your metrics in
 							<a
@@ -478,9 +494,8 @@
 							>
 								Context &rarr; Metrics
 							</a>
-							to see comparisons
+							to see where you stand
 						</li>
-						<li>Benchmarks help our AI experts calibrate advice to industry standards</li>
 					</ul>
 				</div>
 			</div>

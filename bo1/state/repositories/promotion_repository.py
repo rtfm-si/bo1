@@ -532,6 +532,59 @@ class PromotionRepository(BaseRepository):
         count = self._execute_count(query, (user_promotion_id,), user_id=user_id)
         return count > 0
 
+    def remove_user_promotion(self, user_promotion_id: str) -> bool:
+        """Remove a user promotion (hard delete).
+
+        Args:
+            user_promotion_id: The user_promotion UUID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        self._validate_id(user_promotion_id, "user_promotion_id")
+        query = """
+            DELETE FROM user_promotions
+            WHERE id = %s
+        """
+        count = self._execute_count(query, (user_promotion_id,))
+        return count > 0
+
+    def get_users_with_promotions(self) -> list[dict[str, Any]]:
+        """Get all users with active promotions.
+
+        Returns:
+            List of dicts with user info and their active promotions
+        """
+        query = """
+            SELECT DISTINCT ON (u.id)
+                u.id AS user_id,
+                u.email,
+                (
+                    SELECT json_agg(json_build_object(
+                        'id', up.id,
+                        'promotion_id', up.promotion_id,
+                        'applied_at', up.applied_at,
+                        'deliberations_remaining', up.deliberations_remaining,
+                        'discount_applied', up.discount_applied,
+                        'status', up.status,
+                        'promotion_code', p.code,
+                        'promotion_type', p.type,
+                        'promotion_value', p.value
+                    ) ORDER BY up.applied_at DESC)
+                    FROM user_promotions up
+                    JOIN promotions p ON up.promotion_id = p.id
+                    WHERE up.user_id = u.id
+                      AND up.status = 'active'
+                ) AS promotions
+            FROM users u
+            WHERE EXISTS (
+                SELECT 1 FROM user_promotions up2
+                WHERE up2.user_id = u.id AND up2.status = 'active'
+            )
+            ORDER BY u.id, u.created_at DESC
+        """
+        return self._execute_query(query)
+
     @staticmethod
     def _format_user_promotion(row: dict[str, Any]) -> dict[str, Any]:
         """Format raw row into nested user_promotion structure.

@@ -204,10 +204,25 @@ class BusinessContext(BaseModel):
         description="When enrichment was performed",
     )
 
+    # Goals
+    north_star_goal: str | None = Field(
+        None,
+        max_length=200,
+        description="Primary objective for next 3-6 months (e.g., '10K MRR by Q2')",
+        examples=["10K MRR by Q2", "100 paying customers by March"],
+    )
+
     # Onboarding
     onboarding_completed: bool | None = Field(
         None,
         description="Whether user has completed onboarding checklist",
+    )
+
+    # Benchmark timestamps - tracks when each metric was last set/updated
+    benchmark_timestamps: dict[str, datetime] | None = Field(
+        None,
+        description="Timestamps for when each benchmark metric was last set",
+        examples=[{"revenue": "2025-01-15T12:00:00Z", "customers": "2025-01-10T09:30:00Z"}],
     )
 
 
@@ -238,11 +253,15 @@ class ContextResponse(BaseModel):
         exists: Whether user has saved context
         context: Business context data (if exists)
         updated_at: Last update timestamp (if exists)
+        benchmark_timestamps: When each benchmark metric was last set
     """
 
     exists: bool = Field(..., description="Whether user has saved context")
     context: BusinessContext | None = Field(None, description="Business context data")
     updated_at: datetime | None = Field(None, description="Last update timestamp")
+    benchmark_timestamps: dict[str, datetime] | None = Field(
+        None, description="Timestamps for when each benchmark metric was last set"
+    )
 
     model_config = {
         "json_schema_extra": {

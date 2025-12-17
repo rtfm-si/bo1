@@ -17,6 +17,7 @@
 		required = false,
 		id,
 		ariaLabel,
+		maxlength,
 		oninput,
 		onchange,
 		onblur,
@@ -33,6 +34,7 @@
 		required?: boolean;
 		id?: string;
 		ariaLabel?: string;
+		maxlength?: number;
 		oninput?: (event: Event) => void;
 		onchange?: (event: Event) => void;
 		onblur?: (event: FocusEvent) => void;
@@ -62,6 +64,7 @@
 		{placeholder}
 		{disabled}
 		{required}
+		{maxlength}
 		id={inputId}
 		bind:value
 		aria-label={ariaLabel}

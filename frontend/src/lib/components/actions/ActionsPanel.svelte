@@ -215,7 +215,7 @@
 	.extract-content h3 {
 		margin: 0 0 8px 0;
 		font-size: 1.1rem;
-		color: var(--color-text);
+		color: var(--foreground);
 	}
 
 	.extract-content p {
@@ -248,7 +248,7 @@
 	.kanban-header h3 {
 		margin: 0;
 		font-size: 1.1rem;
-		color: var(--color-text);
+		color: var(--foreground);
 	}
 
 	.status-summary {

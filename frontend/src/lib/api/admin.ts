@@ -335,6 +335,41 @@ export interface DeactivatePromotionResponse {
 	promotion_id: string;
 }
 
+export interface ApplyPromoToUserRequest {
+	user_id: string;
+	code: string;
+}
+
+export interface ApplyPromoToUserResponse {
+	status: string;
+	user_id: string;
+	user_promotion_id: string;
+	promotion_code: string;
+}
+
+export interface RemoveUserPromotionResponse {
+	status: string;
+	user_promotion_id: string;
+}
+
+export interface UserPromotionBrief {
+	id: string;
+	promotion_id: string;
+	promotion_code: string;
+	promotion_type: string;
+	promotion_value: number;
+	status: string;
+	applied_at: string;
+	deliberations_remaining: number | null;
+	discount_applied: number | null;
+}
+
+export interface UserWithPromotions {
+	user_id: string;
+	email: string | null;
+	promotions: UserPromotionBrief[];
+}
+
 // =============================================================================
 // Feedback Types
 // =============================================================================
@@ -758,6 +793,23 @@ class AdminApiClient {
 		});
 	}
 
+	async applyPromoToUser(userId: string, code: string): Promise<ApplyPromoToUserResponse> {
+		return this.fetch<ApplyPromoToUserResponse>('/api/admin/promotions/apply', {
+			method: 'POST',
+			body: JSON.stringify({ user_id: userId, code })
+		});
+	}
+
+	async removeUserPromotion(userPromotionId: string): Promise<RemoveUserPromotionResponse> {
+		return this.fetch<RemoveUserPromotionResponse>(`/api/admin/promotions/user/${userPromotionId}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async getUsersWithPromotions(): Promise<UserWithPromotions[]> {
+		return this.fetch<UserWithPromotions[]>('/api/admin/promotions/users');
+	}
+
 	// =========================================================================
 	// Feedback
 	// =========================================================================
@@ -1043,6 +1095,84 @@ class AdminApiClient {
 			`/api/admin/embeddings/sample${query ? `?${query}` : ''}`
 		);
 	}
+
+	// =========================================================================
+	// Enhanced Cost Tracking
+	// =========================================================================
+
+	async getFixedCosts(includeInactive: boolean = false): Promise<FixedCostsResponse> {
+		return this.fetch<FixedCostsResponse>(
+			`/api/admin/costs/fixed?include_inactive=${includeInactive}`
+		);
+	}
+
+	async createFixedCost(data: {
+		provider: string;
+		description: string;
+		monthly_amount_usd: number;
+		category?: string;
+		notes?: string;
+	}): Promise<FixedCostItem> {
+		return this.fetch<FixedCostItem>('/api/admin/costs/fixed', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async updateFixedCost(
+		costId: number,
+		data: { monthly_amount_usd?: number; active?: boolean; notes?: string }
+	): Promise<FixedCostItem> {
+		return this.fetch<FixedCostItem>(`/api/admin/costs/fixed/${costId}`, {
+			method: 'PATCH',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async deleteFixedCost(costId: number): Promise<{ deleted: boolean; cost_id: number }> {
+		return this.fetch<{ deleted: boolean; cost_id: number }>(
+			`/api/admin/costs/fixed/${costId}`,
+			{ method: 'DELETE' }
+		);
+	}
+
+	async seedFixedCosts(): Promise<FixedCostsResponse> {
+		return this.fetch<FixedCostsResponse>('/api/admin/costs/fixed/seed', { method: 'POST' });
+	}
+
+	async getCostsByProvider(days: number = 30): Promise<CostsByProviderResponse> {
+		return this.fetch<CostsByProviderResponse>(`/api/admin/costs/by-provider?days=${days}`);
+	}
+
+	async getMeetingCosts(sessionId: string): Promise<MeetingCostResponse> {
+		return this.fetch<MeetingCostResponse>(`/api/admin/costs/by-meeting/${sessionId}`);
+	}
+
+	async getPerUserCosts(params?: {
+		days?: number;
+		limit?: number;
+	}): Promise<PerUserCostResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.days) searchParams.set('days', String(params.days));
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+
+		const query = searchParams.toString();
+		return this.fetch<PerUserCostResponse>(
+			`/api/admin/costs/per-user${query ? `?${query}` : ''}`
+		);
+	}
+
+	async getDailyCostSummary(days: number = 30): Promise<DailySummaryResponse> {
+		return this.fetch<DailySummaryResponse>(`/api/admin/costs/daily-summary?days=${days}`);
+	}
+
+	// =========================================================================
+	// Email Stats
+	// =========================================================================
+
+	async getEmailStats(days: number = 30): Promise<EmailStatsResponse> {
+		return this.fetch<EmailStatsResponse>(`/api/admin/email-stats?days=${days}`);
+	}
 }
 
 // Blog Post Types
@@ -1114,6 +1244,92 @@ export interface Topic {
 
 export interface TopicsResponse {
 	topics: Topic[];
+}
+
+// =============================================================================
+// Enhanced Cost Tracking Types
+// =============================================================================
+
+export interface FixedCostItem {
+	id: number;
+	provider: string;
+	description: string;
+	monthly_amount_usd: number;
+	category: string;
+	active: boolean;
+	notes: string | null;
+}
+
+export interface FixedCostsResponse {
+	costs: FixedCostItem[];
+	monthly_total: number;
+}
+
+export interface ProviderCostItem {
+	provider: string;
+	amount_usd: number;
+	request_count: number;
+	percentage: number;
+}
+
+export interface CostsByProviderResponse {
+	providers: ProviderCostItem[];
+	total_usd: number;
+	period_start: string;
+	period_end: string;
+}
+
+export interface MeetingCostResponse {
+	session_id: string;
+	total_cost: number;
+	api_calls: number;
+	by_provider: Record<string, number>;
+	by_phase: Record<string, number>;
+}
+
+export interface PerUserCostItem {
+	user_id: string;
+	email: string | null;
+	total_cost: number;
+	session_count: number;
+	avg_cost_per_session: number;
+}
+
+export interface PerUserCostResponse {
+	users: PerUserCostItem[];
+	overall_avg: number;
+	total_users: number;
+	period_start: string;
+	period_end: string;
+}
+
+export interface DailySummaryItem {
+	date: string;
+	total_usd: number;
+	by_provider: Record<string, number>;
+	request_count: number;
+}
+
+export interface DailySummaryResponse {
+	days: DailySummaryItem[];
+	period_start: string;
+	period_end: string;
+}
+
+// =============================================================================
+// Email Stats Types
+// =============================================================================
+
+export interface EmailPeriodCounts {
+	today: number;
+	week: number;
+	month: number;
+}
+
+export interface EmailStatsResponse {
+	total: number;
+	by_type: Record<string, number>;
+	by_period: EmailPeriodCounts;
 }
 
 export const adminApi = new AdminApiClient();

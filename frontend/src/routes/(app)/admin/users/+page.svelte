@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
-	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2, Eye } from 'lucide-svelte';
+	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2, Eye, Gift } from 'lucide-svelte';
 	import { getTierColor } from '$lib/utils/colors';
 	import { adminApi, type StartImpersonationRequest } from '$lib/api/admin';
 
@@ -20,15 +20,18 @@
 	let editForm = $state<{ subscription_tier?: string; is_admin?: boolean }>({});
 	let isSubmitting = $state(false);
 
-	// Modal state for lock/delete/impersonate actions
+	// Modal state for lock/delete/impersonate/promo actions
 	let lockModalUser = $state<{ user_id: string; email: string } | null>(null);
 	let deleteModalUser = $state<{ user_id: string; email: string } | null>(null);
 	let impersonateModalUser = $state<{ user_id: string; email: string; is_admin: boolean } | null>(null);
+	let promoModalUser = $state<{ user_id: string; email: string } | null>(null);
 	let lockReason = $state('');
 	let hardDelete = $state(false);
 	let impersonateReason = $state('');
 	let impersonateWriteMode = $state(false);
 	let impersonateDuration = $state(30);
+	let promoCode = $state('');
+	let promoError = $state('');
 
 	// Update local state when data changes
 	$effect(() => {
@@ -116,6 +119,38 @@
 		impersonateReason = '';
 		impersonateWriteMode = false;
 		impersonateDuration = 30;
+	}
+
+	function openPromoModal(user: { user_id: string; email: string }) {
+		promoModalUser = user;
+		promoCode = '';
+		promoError = '';
+	}
+
+	function closePromoModal() {
+		promoModalUser = null;
+		promoCode = '';
+		promoError = '';
+	}
+
+	async function handleApplyPromo() {
+		if (!promoModalUser || !promoCode.trim()) return;
+
+		isSubmitting = true;
+		promoError = '';
+		try {
+			await adminApi.applyPromoToUser(promoModalUser.user_id, promoCode.trim());
+			closePromoModal();
+			await invalidateAll();
+		} catch (error: unknown) {
+			if (error instanceof Error) {
+				promoError = error.message;
+			} else {
+				promoError = 'Failed to apply promotion';
+			}
+		} finally {
+			isSubmitting = false;
+		}
 	}
 
 	async function handleImpersonate() {
@@ -383,6 +418,16 @@
 														Impersonate
 													</button>
 												{/if}
+
+												{#if !user.deleted_at}
+													<button
+														onclick={() => openPromoModal(user)}
+														class="text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
+													>
+														<Gift class="w-3 h-3" />
+														Promo
+													</button>
+												{/if}
 											</div>
 										{/if}
 									</td>
@@ -627,6 +672,64 @@
 						{:else}
 							<Eye class="w-4 h-4" />
 							View As User
+						{/if}
+					{/snippet}
+				</Button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Apply Promo Modal -->
+{#if promoModalUser}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={closePromoModal} role="presentation">
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
+				<Gift class="w-5 h-5 text-purple-500" />
+				Apply Promotion
+			</h2>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+				Apply a promo code to <strong>{promoModalUser.email}</strong>
+			</p>
+
+			{#if promoError}
+				<div class="mb-4 p-3 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-md">
+					<p class="text-sm text-error-800 dark:text-error-200">{promoError}</p>
+				</div>
+			{/if}
+
+			<div class="mb-4">
+				<label for="promoCode" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					Promo Code <span class="text-error-500">*</span>
+				</label>
+				<input
+					type="text"
+					id="promoCode"
+					bind:value={promoCode}
+					placeholder="e.g., WELCOME10"
+					class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500 uppercase"
+					onkeydown={(e) => e.key === 'Enter' && handleApplyPromo()}
+				/>
+			</div>
+
+			<div class="flex justify-end gap-3">
+				<Button variant="secondary" size="md" onclick={closePromoModal} disabled={isSubmitting}>
+					{#snippet children()}Cancel{/snippet}
+				</Button>
+				<Button
+					variant="brand"
+					size="md"
+					onclick={handleApplyPromo}
+					disabled={isSubmitting || !promoCode.trim()}
+				>
+					{#snippet children()}
+						{#if isSubmitting}
+							Applying...
+						{:else}
+							<Gift class="w-4 h-4" />
+							Apply Promo
 						{/if}
 					{/snippet}
 				</Button>

@@ -408,7 +408,7 @@
 				</div>
 
 				<p class="text-xs text-slate-400 dark:text-slate-500 mt-4">
-					Compare your metrics above with these industry benchmarks to understand your competitive position.
+					See <a href="/reports/benchmarks" class="text-brand-600 dark:text-brand-400 hover:underline">Reports &rarr; Benchmarks</a> for a personalized comparison showing where you stand versus your industry.
 				</p>
 			</div>
 		{:else if isLoadingBenchmarks}

@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, Query, Request
 from pydantic import BaseModel, Field
 
-from backend.api.middleware.auth import require_admin
+from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.utils.errors import handle_api_errors
 from backend.services import page_analytics
@@ -222,7 +222,7 @@ async def record_conversion(
     response_model=LandingPageMetricsResponse,
     summary="Get landing page metrics",
     description="Get aggregated landing page analytics (admin only).",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get landing page metrics")
@@ -240,7 +240,7 @@ async def get_landing_page_metrics(
     "/daily-stats",
     summary="Get daily page view stats",
     description="Get daily page view statistics (admin only).",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get daily stats")
@@ -258,7 +258,7 @@ async def get_daily_stats(
     "/geo-breakdown",
     summary="Get visitor geo breakdown",
     description="Get visitor breakdown by country (admin only).",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get geo breakdown")
@@ -276,7 +276,7 @@ async def get_geo_breakdown(
     "/funnel",
     summary="Get conversion funnel stats",
     description="Get conversion funnel statistics (admin only).",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get funnel stats")
@@ -293,7 +293,7 @@ async def get_funnel_stats(
     "/bounce-rate",
     summary="Get bounce rate",
     description="Get bounce rate for a specific page (admin only).",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_any)],
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get bounce rate")

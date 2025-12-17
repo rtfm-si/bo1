@@ -108,14 +108,14 @@ services:
   # Umami: Self-hosted privacy-focused analytics
   # ---------------------------------------------------------------------------
   umami:
-    image: ghcr.io/umami-software/umami:postgresql-v2.15.0
+    image: ghcr.io/umami-software/umami:v3.0.3
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://bo1:${POSTGRES_PASSWORD}@postgres:5432/umami
       - DATABASE_TYPE=postgresql
-      - APP_SECRET=${UMAMI_APP_SECRET:-$(openssl rand -base64 32)}
+      - APP_SECRET=${UMAMI_APP_SECRET}
       - DISABLE_TELEMETRY=1
     ports:
       - "127.0.0.1:3100:3000"

@@ -293,6 +293,67 @@ jobs:
             echo "✅ .env file exists"
 
             # =================================================================
+            # STEP 0: Pre-deployment health checks (prevent resource exhaustion)
+            # =================================================================
+            echo "🔍 Running pre-deployment health checks..."
+
+            # Check memory availability (require at least 500MB free)
+            FREE_MEM=$(free -m | awk '/^Mem:/{print $7}')
+            echo "   Available memory: ${FREE_MEM}MB"
+            if [ "$FREE_MEM" -lt 500 ]; then
+              echo "⚠️  Low memory warning: ${FREE_MEM}MB available (minimum 500MB recommended)"
+              echo "   Running emergency cleanup..."
+              docker system prune -f
+              FREE_MEM=$(free -m | awk '/^Mem:/{print $7}')
+              echo "   Available memory after cleanup: ${FREE_MEM}MB"
+              if [ "$FREE_MEM" -lt 300 ]; then
+                echo "❌ Critical: Insufficient memory (${FREE_MEM}MB). Cannot proceed safely."
+                exit 1
+              fi
+            fi
+            echo "✅ Memory check passed"
+
+            # Check for stale containers from deprecated docker-compose.prod.yml
+            echo "   Checking for stale containers from old compose files..."
+            STALE_CONTAINERS=$(docker ps -a --format '{{.Names}}' | grep -E '^boardofone-(postgres|redis|supertokens|umami|uptime-kuma|bo1)-1$' || true)
+            if [ -n "$STALE_CONTAINERS" ]; then
+              echo "⚠️  Found stale containers from deprecated docker-compose.prod.yml:"
+              echo "$STALE_CONTAINERS" | sed 's/^/      - /'
+              echo "   Removing stale containers to prevent port conflicts..."
+              echo "$STALE_CONTAINERS" | xargs -r docker rm -f 2>/dev/null || true
+              echo "✅ Stale containers removed"
+            fi
+
+            # Check if both blue AND green API are running (shouldn't happen)
+            BLUE_RUNNING=$(docker ps --format '{{.Names}}' | grep -c '^boardofone-api-1$' || echo "0")
+            GREEN_RUNNING=$(docker ps --format '{{.Names}}' | grep -c '^boardofone-green-api-1$' || echo "0")
+            if [ "$BLUE_RUNNING" -gt 0 ] && [ "$GREEN_RUNNING" -gt 0 ]; then
+              echo "⚠️  Both blue AND green environments running simultaneously!"
+              echo "   This wastes ~1GB RAM. Will stop inactive environment after deployment."
+            fi
+
+            # Check disk space (require at least 5GB free)
+            FREE_DISK=$(df -BG /var/lib/docker | tail -1 | awk '{print $4}' | tr -d 'G')
+            echo "   Available disk space: ${FREE_DISK}GB"
+            if [ "$FREE_DISK" -lt 5 ]; then
+              echo "⚠️  Low disk space warning: ${FREE_DISK}GB available"
+              echo "   Running docker prune to free space..."
+              docker system prune -af --volumes --filter "until=168h"
+              FREE_DISK=$(df -BG /var/lib/docker | tail -1 | awk '{print $4}' | tr -d 'G')
+              echo "   Available disk space after cleanup: ${FREE_DISK}GB"
+            fi
+            echo "✅ Disk space check passed"
+
+            # Check for zombie processes
+            ZOMBIES=$(ps aux | grep -c ' Z ' || echo "0")
+            if [ "$ZOMBIES" -gt 5 ]; then
+              echo "⚠️  Found $ZOMBIES zombie processes - may indicate resource issues"
+            fi
+
+            echo "✅ Pre-deployment health checks complete"
+            echo ""
+
+            # =================================================================
             # STEP 1: Clean up old networks and prepare for deployment
             # =================================================================
             echo "Checking for existing networks..."

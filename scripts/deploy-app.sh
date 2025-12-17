@@ -36,6 +36,79 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
+# =============================================================================
+# Pre-deployment health checks (prevent resource exhaustion)
+# =============================================================================
+echo "🔍 Running pre-deployment health checks..."
+
+# Check memory availability (require at least 500MB free)
+FREE_MEM=$(free -m | awk '/^Mem:/{print $7}')
+echo "   Available memory: ${FREE_MEM}MB"
+if [ "$FREE_MEM" -lt 500 ]; then
+    echo "⚠️  Low memory warning: ${FREE_MEM}MB available (minimum 500MB recommended)"
+    read -p "   Run docker prune to free memory? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        docker system prune -f
+        FREE_MEM=$(free -m | awk '/^Mem:/{print $7}')
+        echo "   Available memory after cleanup: ${FREE_MEM}MB"
+    fi
+    if [ "$FREE_MEM" -lt 300 ]; then
+        echo "❌ Critical: Insufficient memory (${FREE_MEM}MB). Cannot proceed safely."
+        exit 1
+    fi
+fi
+
+# Check for stale containers from deprecated docker-compose.prod.yml
+STALE_CONTAINERS=$(docker ps -a --format '{{.Names}}' | grep -E '^boardofone-(postgres|redis|supertokens|umami|uptime-kuma|bo1)-1$' || true)
+if [ -n "$STALE_CONTAINERS" ]; then
+    echo "⚠️  Found stale containers from deprecated docker-compose.prod.yml:"
+    echo "$STALE_CONTAINERS" | sed 's/^/      - /'
+    read -p "   Remove stale containers to prevent port conflicts? [Y/n] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        echo "$STALE_CONTAINERS" | xargs -r docker rm -f 2>/dev/null || true
+        echo "✅ Stale containers removed"
+    fi
+fi
+
+# Check if both blue AND green API are running (shouldn't happen)
+BLUE_RUNNING=$(docker ps --format '{{.Names}}' | grep -c '^boardofone-api-1$' || echo "0")
+GREEN_RUNNING=$(docker ps --format '{{.Names}}' | grep -c '^boardofone-green-api-1$' || echo "0")
+if [ "$BLUE_RUNNING" -gt 0 ] && [ "$GREEN_RUNNING" -gt 0 ]; then
+    echo "⚠️  Both blue AND green environments running simultaneously!"
+    echo "   This wastes ~1GB RAM per environment."
+    read -p "   Stop the inactive environment now? [Y/n] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        # Determine which is serving traffic by checking nginx config
+        if grep -q "8001" /etc/nginx/sites-enabled/boardofone 2>/dev/null; then
+            echo "   nginx pointing to green (8001), stopping blue..."
+            docker-compose -f docker-compose.app.yml -p boardofone stop
+        else
+            echo "   nginx pointing to blue (8000), stopping green..."
+            docker-compose -f docker-compose.app.yml -p boardofone-green stop
+        fi
+        echo "✅ Inactive environment stopped"
+    fi
+fi
+
+# Check disk space (require at least 5GB free)
+FREE_DISK=$(df -BG /var/lib/docker 2>/dev/null | tail -1 | awk '{print $4}' | tr -d 'G' || echo "999")
+if [ "$FREE_DISK" != "999" ] && [ "$FREE_DISK" -lt 5 ]; then
+    echo "⚠️  Low disk space warning: ${FREE_DISK}GB available"
+    read -p "   Run docker prune to free space? [Y/n] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        docker system prune -af --filter "until=168h"
+        FREE_DISK=$(df -BG /var/lib/docker | tail -1 | awk '{print $4}' | tr -d 'G')
+        echo "   Available disk space after cleanup: ${FREE_DISK}GB"
+    fi
+fi
+
+echo "✅ Pre-deployment health checks complete"
+echo ""
+
 # Detect current environment
 CURRENT_ENV="none"
 TARGET_PROJECT="boardofone"

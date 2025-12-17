@@ -180,6 +180,7 @@ services:
     networks:
       - bo1-network
     restart: unless-stopped
+    init: true  # Proper zombie reaping
     deploy:
       resources:
         limits:
@@ -221,11 +222,14 @@ services:
       - PUBLIC_API_URL=https://boardof.one
       - INTERNAL_API_URL=http://api:8000
       - ADMIN_API_KEY=${ADMIN_API_KEY:-}
+      - PUBLIC_UMAMI_HOST=https://analytics.boardof.one
+      - PUBLIC_UMAMI_WEBSITE_ID=${UMAMI_WEBSITE_ID:-d996d0e6-74d8-4cac-bbde-215437f7c703}
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"  # Blue: 3000, Green: 3001
     networks:
       - bo1-network
     restart: unless-stopped
+    init: true  # Proper zombie reaping
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
       interval: 30s

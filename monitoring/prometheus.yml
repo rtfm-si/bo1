@@ -3,11 +3,22 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Alerting rules
+rule_files:
+  - "alert_rules.yml"
+
 scrape_configs:
-  # Backend API metrics
-  - job_name: 'bo1-backend'
+  # Backend API metrics (blue deployment: boardofone project)
+  - job_name: 'bo1-backend-blue'
     static_configs:
-      - targets: ['backend:8000']
+      - targets: ['boardofone-api-1.bo1-network:8000']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # Backend API metrics (green deployment: boardofone-green project)
+  - job_name: 'bo1-backend-green'
+    static_configs:
+      - targets: ['boardofone-green-api-1.bo1-network:8000']
     metrics_path: /metrics
     scrape_interval: 10s
 

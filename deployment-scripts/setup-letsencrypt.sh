@@ -47,9 +47,25 @@ echo "   - Obtain certificate from Let's Encrypt"
 echo "   - Auto-renew every 60 days"
 echo ""
 
+# All subdomains that need SSL coverage
+DOMAINS=(
+  "boardof.one"
+  "www.boardof.one"
+  "staging.boardof.one"
+  "analytics.boardof.one"
+  "status.boardof.one"
+  "monitoring.boardof.one"
+)
+
+# Build domain arguments
+DOMAIN_ARGS=""
+for domain in "${DOMAINS[@]}"; do
+  DOMAIN_ARGS="$DOMAIN_ARGS -d $domain"
+done
+
 # Run certbot with nginx plugin
 certbot --nginx \
-  -d boardof.one \
+  $DOMAIN_ARGS \
   --non-interactive \
   --agree-tos \
   --email siperiea@gmail.com \

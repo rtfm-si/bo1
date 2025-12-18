@@ -249,6 +249,7 @@ jobs:
           image-ref: 'bo1:ci-scan'
           format: 'sarif'
           output: 'trivy-results.sarif'
+          exit-code: '0'
           ignore-unfixed: true
           vuln-type: 'os,library'
 

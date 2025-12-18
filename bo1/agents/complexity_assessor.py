@@ -8,6 +8,7 @@ Analyzes problem complexity across 5 dimensions to determine optimal:
 import logging
 from typing import Any
 
+from bo1.config import get_model_for_role
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
 from bo1.prompts.complexity_prompts import (
@@ -92,11 +93,11 @@ class ComplexityAssessor:
             sub_problems=sub_problems,
         )
 
-        # Create request
+        # Create request (centralized model selection)
         request = PromptRequest(
             system=COMPLEXITY_ASSESSMENT_SYSTEM_PROMPT,
             user_message=user_message,
-            model="haiku",  # Use Haiku for fast, cheap complexity assessment
+            model=get_model_for_role("complexity_assessment"),
             max_tokens=500,
             phase="complexity_assessment",
             agent_type="ComplexityAssessor",

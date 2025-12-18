@@ -47,7 +47,7 @@ services:
       --maxmemory-policy allkeys-lru
       --save 60 1000
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$${REDIS_PASSWORD} redis-cli ping"]
       interval: 5s
       timeout: 3s
       retries: 5

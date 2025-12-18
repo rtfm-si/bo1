@@ -123,6 +123,102 @@ def classify_fault(error: Exception) -> FaultType:
     return FaultType.UNKNOWN
 
 
+def classify_fault_db(error: Exception) -> FaultType:
+    """Classify a database exception as transient or permanent.
+
+    Args:
+        error: The database exception to classify
+
+    Returns:
+        FaultType indicating whether error is transient (retry-worthy) or permanent
+    """
+    try:
+        import psycopg2
+        from psycopg2 import pool as psycopg2_pool
+
+        # Pool exhaustion is transient - will recover
+        if isinstance(error, psycopg2_pool.PoolError):
+            return FaultType.TRANSIENT
+
+        # Connection errors are transient
+        if isinstance(error, psycopg2.OperationalError):
+            return FaultType.TRANSIENT
+
+        # Interface errors (bad cursor state) are permanent
+        if isinstance(error, psycopg2.InterfaceError):
+            return FaultType.PERMANENT
+
+        # Programming errors (SQL syntax) are permanent
+        if isinstance(error, psycopg2.ProgrammingError):
+            return FaultType.PERMANENT
+
+        # Integrity errors (constraints) are permanent
+        if isinstance(error, psycopg2.IntegrityError):
+            return FaultType.PERMANENT
+
+        # Data errors (type mismatches) are permanent
+        if isinstance(error, psycopg2.DataError):
+            return FaultType.PERMANENT
+
+    except ImportError:
+        pass
+
+    # Check error message patterns
+    error_str = str(error).lower()
+    transient_patterns = [
+        "connection",
+        "timeout",
+        "pool exhausted",
+        "too many connections",
+        "server closed",
+        "connection reset",
+    ]
+    if any(p in error_str for p in transient_patterns):
+        return FaultType.TRANSIENT
+
+    return FaultType.UNKNOWN
+
+
+def classify_fault_redis(error: Exception) -> FaultType:
+    """Classify a Redis exception as transient or permanent.
+
+    Args:
+        error: The Redis exception to classify
+
+    Returns:
+        FaultType indicating whether error is transient (retry-worthy) or permanent
+    """
+    try:
+        import redis as redis_lib
+
+        # Auth errors are permanent (check before ConnectionError - it inherits from it)
+        if isinstance(error, redis_lib.AuthenticationError):
+            return FaultType.PERMANENT
+
+        # Response errors (WRONGTYPE, etc.) are permanent
+        if isinstance(error, redis_lib.ResponseError):
+            return FaultType.PERMANENT
+
+        # Connection errors are transient
+        if isinstance(error, redis_lib.ConnectionError):
+            return FaultType.TRANSIENT
+
+        # Timeout errors are transient
+        if isinstance(error, redis_lib.TimeoutError):
+            return FaultType.TRANSIENT
+
+    except ImportError:
+        pass
+
+    # Check error message patterns
+    error_str = str(error).lower()
+    transient_patterns = ["connection", "timeout", "refused", "reset", "closed"]
+    if any(p in error_str for p in transient_patterns):
+        return FaultType.TRANSIENT
+
+    return FaultType.UNKNOWN
+
+
 class CircuitBreakerConfig:
     """Configuration for circuit breaker behavior."""
 
@@ -620,6 +716,24 @@ SERVICE_CONFIGS: dict[str, dict[str, int]] = {
         "permanent_failure_threshold": 3,
         "transient_recovery_timeout": 45,
         "permanent_recovery_timeout": 180,
+    },
+    "postgres": {
+        "failure_threshold": 8,  # Higher threshold - transient failures rare
+        "recovery_timeout": 30,  # Shorter recovery - Postgres recovers fast
+        "success_threshold": 2,
+        "transient_failure_threshold": 8,
+        "permanent_failure_threshold": 5,
+        "transient_recovery_timeout": 30,
+        "permanent_recovery_timeout": 120,
+    },
+    "redis": {
+        "failure_threshold": 5,  # Moderate threshold
+        "recovery_timeout": 15,  # Short recovery - Redis is fast
+        "success_threshold": 2,
+        "transient_failure_threshold": 5,
+        "permanent_failure_threshold": 3,
+        "transient_recovery_timeout": 15,
+        "permanent_recovery_timeout": 60,
     },
 }
 

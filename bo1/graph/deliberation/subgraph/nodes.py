@@ -18,6 +18,7 @@ from langgraph.config import get_stream_writer
 
 from bo1.agents.selector import PersonaSelectorAgent
 from bo1.agents.summarizer import SummarizerAgent
+from bo1.config import get_model_for_role
 from bo1.data import get_persona_by_code
 from bo1.graph.deliberation.subgraph.state import SubProblemGraphState
 from bo1.graph.safety.loop_prevention import check_convergence_node as _check_convergence
@@ -284,11 +285,12 @@ Use <thinking> tags for internal reasoning, then provide your contribution."""
                 system=system_prompt,
                 user_message=full_context,
                 prefill="<thinking>",
-                model="sonnet",
+                model=get_model_for_role("persona"),
                 temperature=0.7,
                 max_tokens=1500,
                 phase="deliberation",
                 agent_type="expert",
+                cache_system=True,
             )
 
             response = await broker.call(request)
@@ -612,11 +614,12 @@ async def synthesize_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
         system=synthesis_prompt,
         user_message="Generate the synthesis report now.",
         prefill="<thinking>",
-        model="sonnet",
+        model=get_model_for_role("synthesis"),
         temperature=0.7,
         max_tokens=4000,  # Increased from 3000 to avoid truncation
         phase="synthesis",
         agent_type="synthesizer",
+        cache_system=True,
     )
 
     response = await broker.call(request)

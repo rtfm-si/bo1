@@ -10,13 +10,6 @@ export { default as Input } from './Input.svelte';
 export { default as Badge } from './Badge.svelte';
 export { default as Alert } from './Alert.svelte';
 
-// Legacy components (for gradual migration - prefer shadcn wrappers above)
-export { default as ButtonLegacy } from './ButtonLegacy.svelte';
-export { default as CardLegacy } from './CardLegacy.svelte';
-export { default as InputLegacy } from './InputLegacy.svelte';
-export { default as BadgeLegacy } from './BadgeLegacy.svelte';
-export { default as AlertLegacy } from './AlertLegacy.svelte';
-
 // Bo* canonical wrappers
 export { default as BoButton } from './BoButton.svelte';
 export { default as BoCard } from './BoCard.svelte';

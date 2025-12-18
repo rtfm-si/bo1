@@ -351,8 +351,12 @@ class TestFailClosedBehavior:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_parse_error_fails_open(self, auditor):
-        """Test: JSON parse error results in is_safe=True (fail open) with error logged."""
+    async def test_parse_error_fails_closed(self, auditor):
+        """Test: JSON parse error results in is_safe=False (fail closed) with error logged.
+
+        Security: Parse errors fail closed to prevent attackers from bypassing
+        detection by triggering malformed responses.
+        """
         mock_client = AsyncMock()
         # Return invalid JSON
         mock_client.call.return_value = ("This is not valid JSON at all", {"usage": {}})
@@ -360,10 +364,11 @@ class TestFailClosedBehavior:
 
         result = await auditor.check("Test content for parse error")
 
-        # Parse errors fail open (safe)
-        assert result.is_safe is True
+        # Parse errors fail closed (blocked) for security
+        assert result.is_safe is False
+        assert "parse_failure" in result.flagged_categories
         assert result.error is not None
-        assert "parse" in result.error.lower() or "JSON" in result.error
+        assert "parse" in result.error.lower() or "strategies" in result.error.lower()
 
 
 # =============================================================================

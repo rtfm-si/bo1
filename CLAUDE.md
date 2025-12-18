@@ -46,7 +46,7 @@ make up / shell / test / pre-commit
 uv run alembic upgrade head
 ```
 Flow: Problem → Decompose → Personas (3-5) → Rounds → Synthesis
-Patterns: state_to_v1() / v1_to_state(); db_session(); SSE via event_collector
+Patterns: serialize_state_for_checkpoint() / deserialize_state_from_checkpoint(); db_session(); SSE via event_collector
 </workflows>
 
 <file_map>

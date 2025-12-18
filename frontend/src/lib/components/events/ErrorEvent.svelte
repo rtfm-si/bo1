@@ -52,7 +52,7 @@
 
 	// Select a consistent message based on session_id (same session = same message)
 	const messageIndex =
-		event.data.session_id?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) %
+		(event.session_id?.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) ?? 0) %
 			friendlyMessages.length || 0;
 	const friendlyError = friendlyMessages[messageIndex];
 </script>
@@ -118,10 +118,10 @@
 									{event.data.error}
 								</div>
 							</div>
-							{#if event.data.node}
+							{#if (event.data as { event_type_attempted?: string }).event_type_attempted}
 								<div>
-									<span class="text-neutral-600 dark:text-neutral-400">Node:</span>
-									<span class="text-neutral-900 dark:text-neutral-100 ml-2">{event.data.node}</span
+									<span class="text-neutral-600 dark:text-neutral-400">Event Type:</span>
+									<span class="text-neutral-900 dark:text-neutral-100 ml-2">{(event.data as { event_type_attempted?: string }).event_type_attempted}</span
 									>
 								</div>
 							{/if}

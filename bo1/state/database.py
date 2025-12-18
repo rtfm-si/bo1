@@ -199,6 +199,9 @@ def _getconn_with_timeout(
     Uses polling with short sleeps to implement timeout since psycopg2's
     ThreadedConnectionPool.getconn() blocks indefinitely.
 
+    Records failures in the postgres circuit breaker for transient errors
+    (pool exhaustion, connection timeout).
+
     Args:
         pool_instance: The connection pool
         timeout: Maximum time to wait in seconds
@@ -208,7 +211,20 @@ def _getconn_with_timeout(
 
     Raises:
         ConnectionTimeoutError: If timeout exceeded waiting for connection
+        CircuitBreakerOpenError: If postgres circuit is open
     """
+    from bo1.state.circuit_breaker_wrappers import (
+        is_db_circuit_open,
+        record_db_failure,
+        record_db_success,
+    )
+
+    # Check circuit breaker before attempting connection
+    if is_db_circuit_open():
+        from bo1.llm.circuit_breaker import CircuitBreakerOpenError
+
+        raise CircuitBreakerOpenError("Database circuit breaker is OPEN. Service unavailable.")
+
     start = time.monotonic()
     poll_interval = 0.1  # 100ms between attempts
 
@@ -216,13 +232,17 @@ def _getconn_with_timeout(
         try:
             # Try non-blocking getconn
             conn = pool_instance.getconn()
+            record_db_success()
             return conn
         except pool.PoolError as e:
             elapsed = time.monotonic() - start
             if elapsed >= timeout:
-                raise ConnectionTimeoutError(
+                # Record failure in circuit breaker
+                timeout_error = ConnectionTimeoutError(
                     f"Connection pool exhausted after {timeout}s: {e}"
-                ) from e
+                )
+                record_db_failure(timeout_error)
+                raise timeout_error from e
 
             # Wait and retry
             remaining = timeout - elapsed

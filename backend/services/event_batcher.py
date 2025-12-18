@@ -20,6 +20,7 @@ from backend.api.middleware.metrics import (
     bo1_events_batched_total,
     bo1_pending_events,
 )
+from bo1.logging import ErrorCode, log_error
 from bo1.state.repositories import session_repository
 
 logger = logging.getLogger(__name__)
@@ -193,7 +194,9 @@ class EventBatcher:
                         user_id=user_id,
                     )
                 except Exception as e:
-                    logger.error(f"Failed to persist critical event: {e}")
+                    log_error(
+                        logger, ErrorCode.DB_WRITE_ERROR, f"Failed to persist critical event: {e}"
+                    )
                     # Re-raise so caller knows persistence failed
                     raise
 
@@ -303,8 +306,10 @@ class EventBatcher:
                         user_id=user_ids.get(session_id),
                     )
                 except Exception as retry_error:
-                    logger.error(
-                        f"Failed to persist event {event_type} for session {session_id}: {retry_error}"
+                    log_error(
+                        logger,
+                        ErrorCode.DB_WRITE_ERROR,
+                        f"Failed to persist event {event_type} for session {session_id}: {retry_error}",
                     )
         finally:
             # Mark flush complete (even on error - events attempted)

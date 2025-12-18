@@ -41,7 +41,7 @@ services:
     environment:
       - REDIS_ARGS=--appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru --save 300 10 --requirepass ${REDIS_PASSWORD}
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$${REDIS_PASSWORD} redis-cli ping"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -152,18 +152,18 @@ services:
 
   # ---------------------------------------------------------------------------
   # Promtail: Log collector agent
-  # NOTE: Uses file-based scraping instead of Docker socket for security
-  # Docker socket mount provides root-equivalent access - avoid in production
+  # NOTE: Docker socket is read-only for service discovery (container names/labels)
   # ---------------------------------------------------------------------------
   promtail:
-    image: grafana/promtail:2.9.0
+    image: grafana/promtail:3.0.0
     depends_on:
       loki:
         condition: service_healthy
     volumes:
       - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
-      # File-based log scraping - no Docker socket exposure
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Docker socket (read-only) for service discovery - provides meaningful labels
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - promtail-positions:/tmp
     command: -config.file=/etc/promtail/config.yml
     networks:
@@ -177,6 +177,7 @@ services:
     image: prom/prometheus:v2.54.0
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -188,6 +189,29 @@ services:
       - "127.0.0.1:9090:9090"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - bo1-network
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Alertmanager: Alert routing and notification
+  # ---------------------------------------------------------------------------
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    volumes:
+      - ./infra/alertmanager/config.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "127.0.0.1:9093:9093"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9093/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -237,6 +261,8 @@ volumes:
   loki-data:
     driver: local
   prometheus-data:
+    driver: local
+  alertmanager-data:
     driver: local
   grafana-data:
     driver: local

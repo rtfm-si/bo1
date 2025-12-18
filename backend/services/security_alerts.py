@@ -18,6 +18,7 @@ from typing import Any
 
 from bo1.config import get_settings
 from bo1.constants import SecurityAlerts
+from bo1.logging import ErrorCode, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,11 @@ class SecurityAlertingService:
             return count
 
         except Exception as e:
-            logger.error(f"SecurityAlertingService: Failed to record {event_type}: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"SecurityAlertingService: Failed to record {event_type}: {e}",
+            )
             return 0
 
     def _should_alert(self, event_type: str, ip: str) -> bool:
@@ -123,7 +128,11 @@ class SecurityAlertingService:
                 return False
             return True
         except Exception as e:
-            logger.error(f"SecurityAlertingService: Dedup check failed: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_READ_ERROR,
+                f"SecurityAlertingService: Dedup check failed: {e}",
+            )
             return True  # Fail open - send alert
 
     def _mark_alerted(self, event_type: str, ip: str) -> None:
@@ -136,7 +145,11 @@ class SecurityAlertingService:
             key = self._get_alert_dedup_key(event_type, ip)
             redis_client.setex(key, SecurityAlerts.ALERT_COOLDOWN_SECONDS, "1")
         except Exception as e:
-            logger.error(f"SecurityAlertingService: Failed to mark alerted: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"SecurityAlertingService: Failed to mark alerted: {e}",
+            )
 
     async def _send_alert_async(
         self,
@@ -165,7 +178,7 @@ class SecurityAlertingService:
             logger.info(f"Security alert sent: {event_type} from {ip} ({count} events)")
 
         except Exception as e:
-            logger.error(f"Failed to send security alert: {e}")
+            log_error(logger, ErrorCode.SECURITY_ALERT_ERROR, f"Failed to send security alert: {e}")
 
     def record_auth_failure(self, ip: str, reason: str = "unknown") -> int:
         """Record an authentication failure and check threshold.
@@ -270,7 +283,11 @@ class SecurityAlertingService:
             return int(redis_client.zcard(key))
 
         except Exception as e:
-            logger.error(f"SecurityAlertingService: Failed to get count: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_READ_ERROR,
+                f"SecurityAlertingService: Failed to get count: {e}",
+            )
             return 0
 
 

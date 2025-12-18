@@ -3,7 +3,8 @@
 	import { page } from '$app/stores';
 	import { apiClient } from '$lib/api/client';
 	import { setBreadcrumbLabel, clearBreadcrumbLabel, truncateLabel } from '$lib/stores/breadcrumbLabels';
-	import type { SSEEvent, ExpertInfo } from '$lib/api/sse-events';
+	import type { SSEEvent, ExpertInfo, ContributionPayload, ConvergencePayload, SynthesisCompletePayload } from '$lib/api/sse-events';
+	import { isContributionEvent, isConvergenceEvent, isSynthesisCompleteEvent, isPersonaSelectedEvent, getSubProblemIndex } from '$lib/api/sse-events';
 	import { fade } from 'svelte/transition';
 	import { CheckCircle, AlertCircle, Download } from 'lucide-svelte';
 	import { user } from '$lib/stores/auth';
@@ -614,10 +615,10 @@
 		<div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
 			{#if events.length > 0}
 				{@const latestEvent = events[events.length - 1]}
-				{#if latestEvent.event_type === 'contribution'}
+				{#if isContributionEvent(latestEvent)}
 					New contribution from {latestEvent.data.persona_name || 'expert'}
-				{:else if latestEvent.event_type === 'convergence'}
-					Convergence check: {Math.round((Number(latestEvent.data.score) / Number(latestEvent.data.threshold ?? 0.85)) * 100)}% of threshold
+				{:else if isConvergenceEvent(latestEvent)}
+					Convergence check: {Math.round((latestEvent.data.score / (latestEvent.data.threshold ?? 0.85)) * 100)}% of threshold
 				{:else if latestEvent.event_type === 'synthesis_complete'}
 					Synthesis complete
 				{:else if latestEvent.event_type === 'complete'}
@@ -766,11 +767,11 @@
 									{@const subGroupedEvents = memoized.groupedEvents.filter((group) => {
 										if (group.type === 'single' && group.event) {
 											if (group.event.event_type === 'decomposition_complete') return false;
-											const eventSubIndex = group.event.data.sub_problem_index;
+											const eventSubIndex = getSubProblemIndex(group.event);
 											return eventSubIndex === tabIndex;
 										} else if (group.type === 'round' || group.type === 'expert_panel') {
 											if (group.events && group.events.length > 0) {
-												const eventSubIndex = group.events[0].data.sub_problem_index;
+												const eventSubIndex = getSubProblemIndex(group.events[0]);
 												return eventSubIndex === tabIndex;
 											}
 										}
@@ -801,19 +802,13 @@
 														eventType="expert_panel"
 														skeletonProps={{ hasAvatar: false }}
 														componentProps={{
-															experts: group.events.map(
-																(e): ExpertInfo => ({
-																	persona: e.data.persona as {
-																		code: string;
-																		name: string;
-																		display_name: string;
-																		archetype: string;
-																		domain_expertise: string[];
-																	},
-																	rationale: e.data.rationale as string,
-																	order: e.data.order as number,
-																})
-															),
+															experts: group.events
+																.filter(isPersonaSelectedEvent)
+																.map((e): ExpertInfo => ({
+																	persona: e.data.persona,
+																	rationale: e.data.rationale,
+																	order: e.data.order,
+																})),
 															subProblemGoal: group.subProblemGoal,
 														}}
 													/>
@@ -847,7 +842,7 @@
 														{/if}
 														<div class="flex-1 min-w-0">
 															<div class="flex items-center justify-between mb-3">
-																<RelativeTimestamp timestamp={event.timestamp} />
+																<RelativeTimestamp timestamp={event.timestamp ?? ''} />
 															</div>
 															<DynamicEventComponent
 																{event}
@@ -959,7 +954,7 @@
 
 												<!-- P2-004: Expert Summaries Panel for single sub-problem -->
 												{#if eventState.synthesisCompleteEvent}
-													{@const subProblemIndex = (eventState.synthesisCompleteEvent.data.sub_problem_index as number | undefined) ?? 0}
+													{@const subProblemIndex = getSubProblemIndex(eventState.synthesisCompleteEvent) ?? 0}
 													{#if session?.expert_summaries_by_subproblem?.[subProblemIndex] && eventState.personasBySubProblem[subProblemIndex]}
 														<ExpertSummariesPanel
 															expertSummaries={session.expert_summaries_by_subproblem[subProblemIndex]}

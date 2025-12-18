@@ -190,6 +190,19 @@ bo1_event_queue_depth = Gauge(
     "Current event queue depth for health monitoring",
 )
 
+# XML validation metrics (LLM output format validation)
+bo1_llm_xml_validation_failures_total = Counter(
+    "bo1_llm_xml_validation_failures_total",
+    "Total XML validation failures in LLM responses",
+    ["agent_type", "tag"],
+)
+
+bo1_llm_xml_retry_success_total = Counter(
+    "bo1_llm_xml_retry_success_total",
+    "Total successful retries after XML validation failure",
+    ["agent_type"],
+)
+
 
 def create_instrumentator() -> PrometheusFastApiInstrumentator:
     """Create and configure the Prometheus instrumentator."""
@@ -376,3 +389,22 @@ def record_event_queue_depth(depth: int) -> None:
         depth: Number of pending events in queue
     """
     bo1_event_queue_depth.set(depth)
+
+
+def record_xml_validation_failure(agent_type: str, tag: str) -> None:
+    """Record XML validation failure in LLM response.
+
+    Args:
+        agent_type: Type of agent that produced the response
+        tag: Missing or malformed XML tag
+    """
+    bo1_llm_xml_validation_failures_total.labels(agent_type=agent_type, tag=tag).inc()
+
+
+def record_xml_retry_success(agent_type: str) -> None:
+    """Record successful retry after XML validation failure.
+
+    Args:
+        agent_type: Type of agent that succeeded on retry
+    """
+    bo1_llm_xml_retry_success_total.labels(agent_type=agent_type).inc()

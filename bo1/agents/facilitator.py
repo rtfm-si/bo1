@@ -15,7 +15,7 @@ from bo1.agents.base import BaseAgent
 from bo1.graph.state import DeliberationGraphState
 from bo1.llm.broker import PromptBroker
 from bo1.llm.response import LLMResponse
-from bo1.llm.response_parser import ResponseParser
+from bo1.llm.response_parser import ResponseParser, ValidationConfig
 from bo1.prompts import compose_facilitator_prompt
 from bo1.state.discussion_formatter import format_discussion_history
 from bo1.utils.deliberation_analysis import DeliberationAnalyzer
@@ -87,20 +87,20 @@ class FacilitatorDecision:
 class FacilitatorAgent(BaseAgent):
     """Orchestrates multi-round deliberation by deciding next actions."""
 
-    def __init__(self, broker: PromptBroker | None = None, use_haiku: bool = True) -> None:
+    def __init__(self, broker: PromptBroker | None = None, use_fast_tier: bool = True) -> None:
         """Initialize facilitator agent.
 
         Args:
             broker: LLM broker for making calls (creates default if not provided)
-            use_haiku: Use Haiku for fast, cheap decisions (default: True)
+            use_fast_tier: Use fast tier (Haiku/GPT-mini) for decisions (default: True)
         """
-        # Facilitator allows model override via use_haiku parameter
-        model = "haiku" if use_haiku else "sonnet"
+        # Facilitator allows tier override via use_fast_tier parameter
+        model = "fast" if use_fast_tier else "core"
         super().__init__(broker=broker, model=model)
 
     def get_default_model(self) -> str:
-        """Return default model for facilitator (Haiku for speed/cost)."""
-        return "haiku"
+        """Return default model for facilitator (fast tier for speed/cost)."""
+        return "fast"
 
     def _should_trigger_moderator(
         self, state: DeliberationGraphState, round_number: int
@@ -488,17 +488,26 @@ Personas participating: {", ".join([p.code for p in personas])}
 
 Analyze the discussion and decide the next action."""
 
-        # Use new helper method instead of manual PromptRequest creation
-        response = await self._create_and_call_prompt(
+        # Validation config for facilitator action (auto-retry on missing action tag)
+        # non-strict: keyword fallback in parse_facilitator_decision still works
+        validation = ValidationConfig(
+            required_tags=["action"],
+            max_retries=1,
+            strict=False,  # Allow keyword fallback if retry also fails
+        )
+
+        # Use validation-aware helper to auto-retry on XML issues
+        response = await self._create_and_call_prompt_with_validation(
             system=system_prompt,
             user_message=user_message,
             phase="facilitator_decision",
+            validation=validation,
             prefill="<thinking>",  # Force character consistency and proper XML structure
             temperature=1.0,
             max_tokens=800,
         )
 
-        # Parse decision from response
+        # Parse decision from response (includes keyword fallback)
         parsed = ResponseParser.parse_facilitator_decision(response.content, state)
         decision = FacilitatorDecision(**parsed)
 
@@ -611,16 +620,24 @@ Consider:
             all_contributions_and_votes=all_contributions_and_votes,
         )
 
-        # Use new helper method instead of manual PromptRequest creation
-        response = await self._create_and_call_prompt(
+        # Validation config for synthesis (require report tag)
+        validation = ValidationConfig(
+            required_tags=["synthesis_report"],
+            max_retries=1,
+            strict=False,  # Allow fallback to full content if retry fails
+        )
+
+        # Use validation-aware helper to auto-retry on XML issues
+        response = await self._create_and_call_prompt_with_validation(
             system=synthesis_prompt,
             user_message="Generate the comprehensive synthesis report.",
             phase="synthesis",
+            validation=validation,
             temperature=0.7,
             max_tokens=4096,
         )
 
-        # Use new extract_xml_tag_with_fallback utility
+        # Use new extract_xml_tag_with_fallback utility (fallback if validation passed but tag still missing)
         synthesis_report = extract_xml_tag_with_fallback(
             response.content,
             "synthesis_report",

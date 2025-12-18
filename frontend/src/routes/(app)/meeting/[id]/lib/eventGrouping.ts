@@ -4,6 +4,7 @@
  */
 
 import type { SSEEvent } from '$lib/api/sse-events';
+import { isSubproblemStartedEvent, isContributionEvent, getSubProblemIndex } from '$lib/api/sse-events';
 import { createLogger } from '$lib/utils/debug';
 
 const log = createLogger('ExpertPanel');
@@ -87,20 +88,21 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 
 		// Track round_started events to get round numbers
 		if (event.event_type === 'round_started' || event.event_type === 'initial_round_started') {
-			if (event.data.round_number) {
-				currentRoundNumber = event.data.round_number as number;
+			const data = event.data as { round_number?: number };
+			if (data.round_number) {
+				currentRoundNumber = data.round_number;
 			}
 		}
 
 		// Track subproblem_started for context
-		if (event.event_type === 'subproblem_started') {
-			currentSubProblemGoal = event.data.goal as string;
+		if (isSubproblemStartedEvent(event)) {
+			currentSubProblemGoal = event.data.goal;
 		}
 
 		// Group persona_selected events
 		if (event.event_type === 'persona_selected') {
 			currentExpertPanel.push(event);
-		} else if (event.event_type === 'contribution') {
+		} else if (isContributionEvent(event)) {
 			// Flush expert panel if any
 			if (currentExpertPanel.length > 0) {
 				groups.push({
@@ -112,7 +114,7 @@ export function groupEvents(events: SSEEvent[], debugMode: boolean = false): Eve
 			}
 
 			// Get round number from contribution event itself
-			const contributionRound = event.data.round as number | undefined;
+			const contributionRound = event.data.round;
 
 			// If round number changed, flush previous round
 			if (contributionRound && contributionRound !== currentRoundNumber && currentRound.length > 0) {
@@ -187,7 +189,7 @@ export function indexEventsBySubProblem(events: SSEEvent[]): Map<number, SSEEven
 	const index = new Map<number, SSEEvent[]>();
 
 	for (const event of events) {
-		const subIndex = event.data.sub_problem_index as number | undefined;
+		const subIndex = getSubProblemIndex(event);
 		if (subIndex !== undefined) {
 			const existing = index.get(subIndex) || [];
 			existing.push(event);

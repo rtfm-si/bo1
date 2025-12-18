@@ -4,12 +4,13 @@ This module contains templates for synthesizing expert deliberations into
 actionable recommendations and comprehensive reports.
 """
 
+from bo1.config import TokenBudgets
 from bo1.prompts.protocols import PLAIN_LANGUAGE_STYLE
 from bo1.prompts.sanitizer import sanitize_user_input
 
-# Token budget constants for synthesis LLM calls
-SYNTHESIS_MAX_TOKENS = 4000
-META_SYNTHESIS_MAX_TOKENS = 2000
+# Token budget constants for synthesis LLM calls (centralized in TokenBudgets)
+SYNTHESIS_MAX_TOKENS = TokenBudgets.SYNTHESIS
+META_SYNTHESIS_MAX_TOKENS = TokenBudgets.META_SYNTHESIS
 SYNTHESIS_TOKEN_WARNING_THRESHOLD = 0.9  # Warn at 90% usage
 
 # =============================================================================

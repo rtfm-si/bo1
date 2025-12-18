@@ -7,6 +7,7 @@ import logging
 from typing import Any, Literal
 
 from bo1.graph.state import DeliberationGraphState
+from bo1.logging import ErrorCode, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,11 @@ def route_facilitator_decision(
     decision = state.get("facilitator_decision")
 
     if not decision:
-        logger.error("route_facilitator_decision: No facilitator decision in state!")
+        log_error(
+            logger,
+            ErrorCode.GRAPH_STATE_ERROR,
+            "route_facilitator_decision: No facilitator decision in state!",
+        )
         return "END"
 
     # decision is now a dict (converted from dataclass using asdict())
@@ -127,8 +132,10 @@ def route_facilitator_decision(
         return "data_analysis"
     else:
         # Fallback: continue deliberation instead of terminating
-        logger.error(
-            f"route_facilitator_decision: Unknown action {action}, falling back to persona_contribute"
+        log_error(
+            logger,
+            ErrorCode.GRAPH_STATE_ERROR,
+            f"route_facilitator_decision: Unknown action {action}, falling back to persona_contribute",
         )
         return "persona_contribute"
 
@@ -191,7 +198,9 @@ def route_after_synthesis(
     sub_problem_results = state.get("sub_problem_results", [])
 
     if not problem:
-        logger.error("route_after_synthesis: No problem in state!")
+        log_error(
+            logger, ErrorCode.GRAPH_STATE_ERROR, "route_after_synthesis: No problem in state!"
+        )
         return "END"
 
     sub_problems = _get_problem_attr(problem, "sub_problems", [])
@@ -223,11 +232,13 @@ def route_after_synthesis(
         expected_ids = [_get_subproblem_attr(sp, "id") for sp in sub_problems]
         failed_ids = [sp_id for sp_id in expected_ids if sp_id not in completed_ids]
 
-        logger.error(
+        log_error(
+            logger,
+            ErrorCode.GRAPH_EXECUTION_ERROR,
             f"route_after_synthesis: Cannot proceed to meta-synthesis - "
             f"{failed_count} sub-problem(s) failed. "
             f"Failed sub-problem IDs: {failed_ids}. "
-            f"Expected {total_sub_problems} results, got {len(sub_problem_results)}."
+            f"Expected {total_sub_problems} results, got {len(sub_problem_results)}.",
         )
 
         # Emit error event to UI so user knows what happened
@@ -259,7 +270,11 @@ def route_after_synthesis(
                 )
                 logger.info(f"Published meeting_failed event for session {session_id}")
         except Exception as e:
-            logger.error(f"Failed to publish meeting_failed event: {e}")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Failed to publish meeting_failed event: {e}",
+            )
 
         # Stop the graph - don't proceed with incomplete data
         return "END"
@@ -332,3 +347,45 @@ def route_subproblem_execution(
     else:
         logger.info("route_subproblem_execution: Routing to select_personas (sequential)")
         return "select_personas"
+
+
+def route_after_identify_gaps(state: DeliberationGraphState) -> Literal["END", "continue"]:
+    """Route based on whether critical information gaps require user input.
+
+    After clarification answers are submitted, the checkpoint is updated with:
+    - clarification_answers: dict of question->answer pairs
+    - should_stop: False (reset to continue)
+    - stop_reason: None (cleared)
+
+    The router then sees should_stop=False and routes to "continue".
+
+    Args:
+        state: Current graph state
+
+    Returns:
+        - "END" if clarification needed (pause for Q&A)
+        - "continue" if ready to proceed with deliberation
+    """
+    clarification_answers = state.get("clarification_answers")
+    should_stop = state.get("should_stop")
+    stop_reason = state.get("stop_reason")
+    pending = state.get("pending_clarification")
+
+    logger.info(
+        f"route_after_identify_gaps: should_stop={should_stop}, "
+        f"stop_reason={stop_reason}, has_answers={clarification_answers is not None}, "
+        f"has_pending={pending is not None}"
+    )
+
+    if should_stop and stop_reason == "clarification_needed":
+        logger.info("route_after_identify_gaps: Pausing for clarification")
+        return "END"
+
+    if clarification_answers:
+        logger.info(
+            f"route_after_identify_gaps: Resuming with {len(clarification_answers)} "
+            f"clarification answer(s) - continuing to deliberation"
+        )
+
+    logger.info("route_after_identify_gaps: Continuing to deliberation")
+    return "continue"

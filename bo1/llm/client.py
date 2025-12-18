@@ -11,7 +11,7 @@ from anthropic import RateLimitError
 from anthropic.types import MessageParam, TextBlockParam
 from pydantic import BaseModel, Field
 
-from bo1.config import calculate_cost, get_model_for_role, resolve_model_alias
+from bo1.config import TokenBudgets, calculate_cost, get_model_for_role, resolve_model_alias
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ class ClaudeClient:
         system: str | None = None,
         cache_system: bool = False,
         temperature: float = 1.0,
-        max_tokens: int = 4096,
+        max_tokens: int = TokenBudgets.DEFAULT,
         prefill: str | None = None,
     ) -> tuple[str, TokenUsage]:
         """Make a Claude API call with optional prompt caching.
@@ -113,7 +113,7 @@ class ClaudeClient:
             system: Optional system prompt
             cache_system: If True, mark system prompt for caching
             temperature: Sampling temperature (0-1)
-            max_tokens: Maximum tokens to generate
+            max_tokens: Maximum tokens to generate (default: TokenBudgets.DEFAULT)
             prefill: Optional assistant message prefill (e.g., "{" for JSON)
 
         Returns:
@@ -250,7 +250,7 @@ class ClaudeClient:
         system: str | None = None,
         cache_system: bool = False,
         temperature: float = 1.0,
-        max_tokens: int = 4096,
+        max_tokens: int = TokenBudgets.DEFAULT,
     ) -> tuple[str, TokenUsage]:
         """Make a Claude API call using role-based model selection.
 
@@ -263,7 +263,7 @@ class ClaudeClient:
             system: Optional system prompt
             cache_system: If True, mark system prompt for caching
             temperature: Sampling temperature (0-1)
-            max_tokens: Maximum tokens to generate
+            max_tokens: Maximum tokens to generate (default: TokenBudgets.DEFAULT)
 
         Returns:
             Tuple of (response_text, token_usage)

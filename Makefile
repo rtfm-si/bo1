@@ -272,7 +272,7 @@ generate-backup-key: ## Generate age encryption keypair for backups
 .PHONY: backup-redis
 backup-redis: ## Backup Redis data
 	@mkdir -p backups/redis
-	docker-compose exec redis redis-cli -a "$${REDIS_PASSWORD}" SAVE
+	REDISCLI_AUTH="$${REDIS_PASSWORD}" docker-compose exec redis redis-cli SAVE
 	docker cp $$(docker-compose ps -q redis):/data/dump.rdb ./backups/redis/redis-$$(date +%Y%m%d-%H%M%S).rdb
 	@echo "Redis backup saved to ./backups/redis/"
 

@@ -1,0 +1,93 @@
+# Prometheus alerting rules for Board of One
+groups:
+  - name: graph_node_alerts
+    rules:
+      # Alert when any graph node p95 latency exceeds 30 seconds
+      - alert: GraphNodeSlowExecution
+        expr: histogram_quantile(0.95, sum(rate(bo1_graph_node_duration_seconds_bucket[5m])) by (le, node_name)) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Graph node {{ $labels.node_name }} has high latency"
+          description: "Node {{ $labels.node_name }} p95 latency is {{ $value | printf \"%.1f\" }}s (threshold: 30s)"
+
+      # Alert when any graph node error rate exceeds 5%
+      - alert: GraphNodeHighErrorRate
+        expr: |
+          sum(rate(bo1_graph_node_total{status="error"}[5m])) by (node_name)
+          /
+          sum(rate(bo1_graph_node_total[5m])) by (node_name)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Graph node {{ $labels.node_name }} has high error rate"
+          description: "Node {{ $labels.node_name }} error rate is {{ $value | printf \"%.1f%%\" }} (threshold: 5%)"
+
+      # Critical alert when node p95 exceeds 60 seconds
+      - alert: GraphNodeCriticalLatency
+        expr: histogram_quantile(0.95, sum(rate(bo1_graph_node_duration_seconds_bucket[5m])) by (le, node_name)) > 60
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRITICAL: Graph node {{ $labels.node_name }} latency exceeds 60s"
+          description: "Node {{ $labels.node_name }} p95 latency is {{ $value | printf \"%.1f\" }}s - investigate immediately"
+
+      # Critical alert when error rate exceeds 20%
+      - alert: GraphNodeCriticalErrorRate
+        expr: |
+          sum(rate(bo1_graph_node_total{status="error"}[5m])) by (node_name)
+          /
+          sum(rate(bo1_graph_node_total[5m])) by (node_name)
+          > 0.20
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRITICAL: Graph node {{ $labels.node_name }} error rate exceeds 20%"
+          description: "Node {{ $labels.node_name }} error rate is {{ $value | printf \"%.1f%%\" }} - investigate immediately"
+
+  - name: db_pool_alerts
+    rules:
+      # Warning when DB pool utilization exceeds 80% for 5 minutes
+      - alert: DBPoolHighUtilization
+        expr: db_pool_utilization_percent > 0.80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool utilization is high"
+          description: "DB pool utilization is {{ $value | printf \"%.1f%%\" }} (threshold: 80%)"
+
+      # Critical when DB pool utilization exceeds 95% for 2 minutes
+      - alert: DBPoolCritical
+        expr: db_pool_utilization_percent > 0.95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRITICAL: Database connection pool near exhaustion"
+          description: "DB pool utilization is {{ $value | printf \"%.1f%%\" }} (threshold: 95%) - investigate immediately"
+
+      # Alert when pool degradation mode is active
+      - alert: DBPoolDegraded
+        expr: bo1_db_pool_degraded == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool in degraded mode"
+          description: "DB pool has entered degraded mode due to exhaustion - falling back to reduced capacity"
+
+      # Alert when connection queue depth is high
+      - alert: DBPoolQueueBacklog
+        expr: bo1_db_pool_queue_depth > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool queue backlog"
+          description: "DB pool queue depth is {{ $value }} connections waiting (threshold: 10)"

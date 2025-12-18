@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail } from 'lucide-svelte';
 	import ExtendedKPIsPanel from '$lib/components/admin/ExtendedKPIsPanel.svelte';
+	import UptimeStatusBadge from '$lib/components/admin/UptimeStatusBadge.svelte';
+	import EmergencyToggles from '$lib/components/admin/EmergencyToggles.svelte';
 	import { adminApi, type EmailStatsResponse } from '$lib/api/admin';
 	import { onMount } from 'svelte';
 
@@ -205,6 +207,15 @@
 
 		<!-- Extended KPIs Panel -->
 		<ExtendedKPIsPanel />
+
+		<!-- External Monitoring Status -->
+		<div class="mb-8">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">System Status</h2>
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+				<UptimeStatusBadge statusPageUrl="https://stats.uptimerobot.com/boardofone" />
+				<EmergencyToggles />
+			</div>
+		</div>
 
 		<!-- Quick Links - Monitoring -->
 		<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Monitoring</h2>

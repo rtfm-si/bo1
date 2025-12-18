@@ -6,7 +6,7 @@ Would prevent issues where tests are modified to disable Redis just to pass.
 
 import pytest
 
-from bo1.graph.state import create_initial_state, state_to_dict
+from bo1.graph.state import create_initial_state, serialize_state_for_checkpoint
 from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem
 from bo1.models.state import ContributionMessage, ContributionType, DeliberationMetrics
@@ -139,7 +139,7 @@ def test_state_persistence_round_trip(redis_manager):
 
     # Save state
     session_key = "deliberation:test-persist-123"
-    serialized = state_to_dict(original_state)
+    serialized = serialize_state_for_checkpoint(original_state)
     manager.save_state(session_key, serialized)
 
     # Load state
@@ -221,7 +221,7 @@ def test_state_with_nested_objects_persists_correctly(redis_manager):
 
     # Save and load
     session_key = "deliberation:test-nested-123"
-    serialized = state_to_dict(state)
+    serialized = serialize_state_for_checkpoint(state)
     manager.save_state(session_key, serialized)
     loaded = manager.load_state(session_key)
 
@@ -257,7 +257,7 @@ def test_state_with_none_optional_fields_persists(redis_manager):
 
     # Save and load
     session_key = "deliberation:test-none-123"
-    serialized = state_to_dict(state)
+    serialized = serialize_state_for_checkpoint(state)
     manager.save_state(session_key, serialized)
     loaded = manager.load_state(session_key)
 
@@ -294,7 +294,7 @@ def test_concurrent_sessions_isolated(redis_manager):
         state["round_number"] = i
 
         session_key = f"deliberation:{session_id}"
-        serialized = state_to_dict(state)
+        serialized = serialize_state_for_checkpoint(state)
         manager.save_state(session_key, serialized)
         sessions.append((session_key, session_id, i))
 
@@ -322,16 +322,16 @@ def test_session_updates_dont_affect_other_sessions(redis_manager):
     # Create session 1
     state1 = create_initial_state("test-update-1", problem, max_rounds=5)
     key1 = "deliberation:test-update-1"
-    manager.save_state(key1, state_to_dict(state1))
+    manager.save_state(key1, serialize_state_for_checkpoint(state1))
 
     # Create session 2
     state2 = create_initial_state("test-update-2", problem, max_rounds=7)
     key2 = "deliberation:test-update-2"
-    manager.save_state(key2, state_to_dict(state2))
+    manager.save_state(key2, serialize_state_for_checkpoint(state2))
 
     # Update session 1
     state1["round_number"] = 3
-    manager.save_state(key1, state_to_dict(state1))
+    manager.save_state(key1, serialize_state_for_checkpoint(state1))
 
     # Verify session 2 unchanged
     loaded2 = manager.load_state(key2)
@@ -361,7 +361,7 @@ def test_session_ttl_is_set(redis_manager):
     session_key = "deliberation:test-ttl-123"
 
     # Save state with TTL (default 24h = 86400 seconds)
-    serialized = state_to_dict(state)
+    serialized = serialize_state_for_checkpoint(state)
     manager.save_state(session_key, serialized, ttl=3600)  # 1 hour for test
 
     # Verify TTL is set
@@ -446,7 +446,7 @@ def test_metrics_persist_correctly(redis_manager):
 
     # Save and load
     session_key = "deliberation:test-metrics-123"
-    serialized = state_to_dict(state)
+    serialized = serialize_state_for_checkpoint(state)
     manager.save_state(session_key, serialized)
     loaded = manager.load_state(session_key)
 

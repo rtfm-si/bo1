@@ -4,6 +4,7 @@ Handles:
 - Email capture for waitlist
 - Whitelist checking for closed beta access
 - Duplicate prevention
+- IP-based rate limiting (CSRF-exempt endpoint)
 """
 
 import logging
@@ -11,12 +12,14 @@ import re
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 
+from backend.api.middleware.rate_limit import limiter
 from backend.api.models import ErrorResponse, WhitelistCheckResponse
 from backend.api.utils.db_helpers import execute_query, exists
 from backend.api.utils.errors import handle_api_errors
+from bo1.constants import RateLimits
 
 logger = logging.getLogger(__name__)
 
@@ -76,15 +79,18 @@ def is_whitelisted(email: str) -> bool:
     responses={
         200: {"description": "Email added to waitlist or status returned"},
         400: {"description": "Invalid email format", "model": ErrorResponse},
+        429: {"description": "Rate limit exceeded", "model": ErrorResponse},
     },
 )
+@limiter.limit(RateLimits.WAITLIST)
 @handle_api_errors("add to waitlist")
 async def add_to_waitlist(
-    request: WaitlistRequest, background_tasks: BackgroundTasks
+    http_request: Request, request: WaitlistRequest, background_tasks: BackgroundTasks
 ) -> WaitlistResponse:
     """Add email to waitlist.
 
     Args:
+        http_request: FastAPI request object (used for rate limiting)
         request: Waitlist signup request with email
         background_tasks: FastAPI background tasks for async notifications
 
@@ -148,12 +154,19 @@ async def add_to_waitlist(
     response_model=WhitelistCheckResponse,
     summary="Check whitelist status (public, no auth required)",
     description="Check if email is whitelisted for closed beta. No authentication required.",
+    responses={
+        429: {"description": "Rate limit exceeded", "model": ErrorResponse},
+    },
 )
+@limiter.limit(RateLimits.WAITLIST)
 @handle_api_errors("check whitelist")
-async def check_whitelist(request: WaitlistRequest) -> WhitelistCheckResponse:
+async def check_whitelist(
+    http_request: Request, request: WaitlistRequest
+) -> WhitelistCheckResponse:
     """Check if email is whitelisted for closed beta.
 
     Args:
+        http_request: FastAPI request object (used for rate limiting)
         request: Request with email to check
 
     Returns:

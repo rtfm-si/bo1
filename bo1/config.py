@@ -18,6 +18,7 @@ __all__ = [
     "get_settings",
     "reset_settings",
     "CacheConfig",
+    "TokenBudgets",
     "MODEL_ALIASES",
     "MODEL_BY_ROLE",
     "TIER_ALIASES",
@@ -75,6 +76,121 @@ class CacheConfig:
         }
     )
     research_cache_default_freshness_days: int = 90  # Default 90-day freshness
+
+
+# =============================================================================
+# Token Budgets (Centralized MAX_TOKENS Configuration)
+# =============================================================================
+
+
+class TokenBudgets:
+    """Centralized token budget configuration for all LLM calls.
+
+    Consolidates scattered max_tokens values into semantic constants,
+    making them easier to tune and maintain. Supports env var override
+    for production tuning.
+
+    Categories:
+        DEFAULT: Standard default for most LLM calls (4096)
+        SYNTHESIS: Final synthesis reports (4000)
+        META_SYNTHESIS: Sub-problem meta-synthesis (2000)
+        FACILITATOR: Facilitator/moderator interventions (1000)
+        AGENT_BASE: Base agent default (2048)
+        DECOMPOSER_LARGE: Complex decomposition with full output (4096)
+        CONTRIBUTION: Per-round persona contributions (phase-adaptive)
+        SMALL_TASK: Quick checks, validation, classification (500)
+        MEDIUM_TASK: Moderate complexity tasks (1500)
+        LARGE_TASK: Complex tasks needing full output (4000)
+
+    Example:
+        >>> from bo1.config import TokenBudgets
+        >>> TokenBudgets.SYNTHESIS
+        4000
+        >>> TokenBudgets.get_default()  # respects env override
+        4096
+    """
+
+    # Core defaults (matches LLMConfig.DEFAULT_MAX_TOKENS)
+    DEFAULT = 4096
+    """Default max tokens for most LLM calls"""
+
+    # Synthesis budgets
+    SYNTHESIS = 4000
+    """Final synthesis reports - lean template ~800-1000 tokens output"""
+
+    META_SYNTHESIS = 2000
+    """Sub-problem meta-synthesis - intermediate summaries"""
+
+    # Facilitator/moderator budgets
+    FACILITATOR = 1000
+    """Facilitator/moderator interventions - concise guidance"""
+
+    # Agent budgets
+    AGENT_BASE = 2048
+    """Base agent default (used by base.py)"""
+
+    DECOMPOSER_LARGE = 4096
+    """Complex decomposition - BUG FIX: prevents truncation"""
+
+    # Task-sized budgets (for backend services)
+    SMALL_TASK = 500
+    """Quick checks, validation, classification, complexity assessment"""
+
+    MEDIUM_TASK = 1500
+    """Moderate complexity: project suggestions, improvement plans"""
+
+    LARGE_TASK = 4000
+    """Complex tasks: content generation, task extraction"""
+
+    # Voting/consensus budgets
+    VOTING = 2000
+    """Voting analysis and consensus detection"""
+
+    VOTING_DETAILED = 1500
+    """Detailed vote reasoning"""
+
+    # Phase-adaptive budgets for deliberation rounds
+    # These are used by get_round_phase_config() in prompts/utils.py
+    PHASE_BUDGETS: dict[str, int] = {
+        "initial": 2000,  # Round 1: full exploration
+        "early": 1500,  # Rounds 2-4: divergent thinking
+        "middle": 1200,  # Rounds 5-7: analytical focus
+        "late": 800,  # Rounds 8+: convergent synthesis
+    }
+    """Phase-specific token budgets for deliberation rounds"""
+
+    @classmethod
+    def get_default(cls) -> int:
+        """Get default max_tokens, respecting env var override.
+
+        Environment variable: LLM_DEFAULT_MAX_TOKENS
+
+        Returns:
+            Default max_tokens value (from env or DEFAULT)
+        """
+        import os
+
+        env_val = os.getenv("LLM_DEFAULT_MAX_TOKENS")
+        if env_val:
+            try:
+                return int(env_val)
+            except ValueError:
+                logger.warning(
+                    f"Invalid LLM_DEFAULT_MAX_TOKENS value '{env_val}', using default {cls.DEFAULT}"
+                )
+        return cls.DEFAULT
+
+    @classmethod
+    def for_phase(cls, phase: str) -> int:
+        """Get token budget for a deliberation phase.
+
+        Args:
+            phase: Phase name ("initial", "early", "middle", "late")
+
+        Returns:
+            Token budget for the phase (defaults to DEFAULT if unknown)
+        """
+        return cls.PHASE_BUDGETS.get(phase, cls.DEFAULT)
 
 
 class Settings(BaseSettings):
@@ -238,10 +354,18 @@ class Settings(BaseSettings):
         default="", description="ntfy topic for critical database alerts (high priority)"
     )
 
-    # Observability Links (Grafana, Prometheus, Sentry URLs)
-    grafana_url: str = Field(default="", description="Grafana dashboard URL")
+    # Observability Links (Grafana, Prometheus, Sentry, Status, Analytics URLs)
+    grafana_url: str = Field(
+        default="https://monitoring.boardof.one", description="Grafana dashboard URL"
+    )
     prometheus_url: str = Field(default="", description="Prometheus dashboard URL")
     sentry_url: str = Field(default="", description="Sentry error tracking dashboard URL")
+    status_url: str = Field(
+        default="https://status.boardof.one", description="Uptime Kuma status page URL"
+    )
+    analytics_url: str = Field(
+        default="https://analytics.boardof.one", description="Umami analytics URL"
+    )
 
     # Internal Cost Limits (admin monitoring, cents/month)
     # These are internal thresholds for abuse detection - not exposed to users
@@ -334,6 +458,16 @@ class Settings(BaseSettings):
     # A/B Testing
     ab_testing_enabled: bool = Field(default=True, description="Enable A/B testing")
 
+    # Model Experiment Config (for A/B testing model selection)
+    model_experiment_enabled: bool = Field(
+        default=False,
+        description="Enable model experiment mode to override task→model mappings",
+    )
+    model_experiment_mapping: str = Field(
+        default="",
+        description='JSON string of task→model overrides. Example: \'{"synthesis":"haiku","voting":"sonnet"}\'',
+    )
+
     # AI Model Override (for testing to avoid expensive model costs)
     ai_override: bool = Field(
         default=False,
@@ -388,10 +522,17 @@ class Settings(BaseSettings):
         description="Enable LLM-based prompt injection detection for user inputs",
     )
 
-    # Synthesis Model Optimization (use Haiku for synthesis to reduce cost ~3x)
-    use_haiku_for_synthesis: bool = Field(
+    # Prompt Injection Blocking (pattern-based detection)
+    prompt_injection_block_suspicious: bool = Field(
         default=True,
-        description="Use Haiku instead of Sonnet for synthesis nodes (3x cost reduction, structured output tasks)",
+        description="Block requests with suspicious prompt injection patterns (pattern-based). "
+        "Set to False to log-only mode in case of false positives.",
+    )
+
+    # Synthesis Model Optimization (use fast tier for synthesis to reduce cost ~3x)
+    use_fast_for_synthesis: bool = Field(
+        default=True,
+        description="Use fast tier (Haiku/GPT-mini) instead of core tier for synthesis nodes (3x cost reduction)",
     )
     llm_response_cache_ttl_seconds: int = Field(
         default=86400,  # 24 hours
@@ -509,14 +650,28 @@ TIER_ALIASES: dict[str, dict[str, str]] = {
 # Maps task types to tier aliases. Code uses these, not model names directly.
 
 TASK_MODEL_DEFAULTS: dict[str, str] = {
+    # Core agents (complex reasoning)
     "persona": "core",  # Needs reasoning, benefits from caching
     "facilitator": "core",  # Complex orchestration decisions
-    "summarizer": "fast",  # Simple compression task
     "decomposer": "core",  # Complex problem analysis
     "selector": "core",  # Complex persona matching analysis
+    # Fast agents (simple tasks)
+    "summarizer": "fast",  # Simple compression task
     "moderator": "fast",  # Simple interventions
     "researcher": "fast",  # Simple web searches
     "judge": "fast",  # Quality assessment
+    # Synthesis and voting
+    "synthesis": "fast",  # Controlled by use_fast_for_synthesis flag
+    "meta_synthesis": "fast",  # Controlled by use_fast_for_synthesis flag
+    "voting": "core",  # Recommendation collection (Sonnet for quality)
+    "recommendation": "fast",  # Recommendation aggregation
+    # Quality and security
+    "quality_check": "fast",  # Simple quality assessment
+    "prompt_injection_check": "fast",  # Security audit
+    # Auxiliary tasks
+    "complexity_assessment": "fast",  # Quick complexity scoring
+    "enrichment": "fast",  # Context enrichment
+    "research_detection": "fast",  # Detect research needs
 }
 
 # =============================================================================
@@ -810,12 +965,16 @@ def resolve_tier_to_model(
 def get_model_for_role(role: str, provider: str | None = None) -> str:
     """Get the full model ID for a given role.
 
+    Supports A/B testing via MODEL_EXPERIMENT_ENABLED and MODEL_EXPERIMENT_MAPPING
+    environment variables. When experiment mode is enabled, the mapping overrides
+    default task→model assignments.
+
     Args:
-        role: Role name (e.g., 'persona', 'facilitator')
+        role: Role name (e.g., 'persona', 'facilitator', 'synthesis')
         provider: Provider name ('anthropic', 'openai'). If None, uses primary provider.
 
     Returns:
-        Full model ID string (resolved from tier alias)
+        Full model ID string (resolved from tier alias or experiment override)
 
     Raises:
         ValueError: If role is not recognized
@@ -825,11 +984,28 @@ def get_model_for_role(role: str, provider: str | None = None) -> str:
         "claude-sonnet-4-5-20250929"
         >>> get_model_for_role("persona", provider="openai")
         "gpt-5.1-2025-04-14"
+        >>> # With MODEL_EXPERIMENT_ENABLED=true and mapping {"persona": "haiku"}
+        >>> get_model_for_role("persona")
+        "claude-haiku-4-5-20251001"
     """
+    import json
+
     # Normalize role to lowercase for case-insensitive lookup
     role_lower = role.lower()
+    settings = get_settings()
 
-    # First check new TASK_MODEL_DEFAULTS (tier-based)
+    # Check experiment override first (if enabled)
+    if settings.model_experiment_enabled and settings.model_experiment_mapping:
+        try:
+            experiment_mapping = json.loads(settings.model_experiment_mapping)
+            if role_lower in experiment_mapping:
+                override_model = experiment_mapping[role_lower]
+                logger.debug(f"🧪 Model experiment override: {role_lower} → {override_model}")
+                return resolve_tier_to_model(override_model, provider=provider)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Invalid MODEL_EXPERIMENT_MAPPING JSON: {e}")
+
+    # Check TASK_MODEL_DEFAULTS (tier-based)
     if role_lower in TASK_MODEL_DEFAULTS:
         tier = TASK_MODEL_DEFAULTS[role_lower]
         return resolve_tier_to_model(tier, provider=provider)

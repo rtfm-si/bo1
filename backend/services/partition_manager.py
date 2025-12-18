@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from bo1.constants import PartitionRetention
+from bo1.logging import ErrorCode, log_error
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -101,7 +102,11 @@ def create_partition(table: str, start_date: datetime, end_date: datetime) -> Pa
         )
 
     except Exception as e:
-        logger.error(f"Failed to create partition {partition_name}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_PARTITION_ERROR,
+            f"Failed to create partition {partition_name}: {e}",
+        )
         return PartitionResult(
             table=table,
             partition_name=partition_name,
@@ -182,7 +187,9 @@ def drop_old_partitions(table: str, retention_days: int | None = None) -> list[P
         return results
 
     except Exception as e:
-        logger.error(f"Failed to drop old partitions for {table}: {e}")
+        log_error(
+            logger, ErrorCode.DB_PARTITION_ERROR, f"Failed to drop old partitions for {table}: {e}"
+        )
         return [
             PartitionResult(
                 table=table,
@@ -304,7 +311,9 @@ def get_partition_stats(table: str) -> list[PartitionInfo]:
         return partitions
 
     except Exception as e:
-        logger.error(f"Failed to get partition stats for {table}: {e}")
+        log_error(
+            logger, ErrorCode.DB_QUERY_ERROR, f"Failed to get partition stats for {table}: {e}"
+        )
         return []
 
 

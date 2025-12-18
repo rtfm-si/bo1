@@ -5,6 +5,8 @@ This module contains helper functions used across different prompt modules.
 
 from typing import Any
 
+from bo1.config import TokenBudgets
+
 # =============================================================================
 # Response Prefilling Support
 # =============================================================================
@@ -66,7 +68,7 @@ def get_round_phase_config(round_number: int, max_rounds: int) -> dict[str, Any]
         return {
             "phase": "initial",
             "temperature": 0.85,
-            "max_tokens": 2000,
+            "max_tokens": TokenBudgets.for_phase("initial"),
             "directive": "Provide your complete perspective on this problem. Consider all angles and share your full analysis.",
             "tone": "exploratory",
         }
@@ -76,7 +78,7 @@ def get_round_phase_config(round_number: int, max_rounds: int) -> dict[str, Any]
         return {
             "phase": "early",
             "temperature": 0.85,
-            "max_tokens": 1500,
+            "max_tokens": TokenBudgets.for_phase("early"),
             "directive": "Explore different angles and perspectives. What concerns, risks, or alternatives haven't been discussed yet?",
             "tone": "divergent",
         }
@@ -86,7 +88,7 @@ def get_round_phase_config(round_number: int, max_rounds: int) -> dict[str, Any]
         return {
             "phase": "middle",
             "temperature": 0.75,
-            "max_tokens": 1200,
+            "max_tokens": TokenBudgets.for_phase("middle"),
             "directive": "Build on the discussion with evidence and analysis. Address gaps, uncertainties, or claims that need verification.",
             "tone": "analytical",
         }
@@ -96,7 +98,7 @@ def get_round_phase_config(round_number: int, max_rounds: int) -> dict[str, Any]
         return {
             "phase": "late",
             "temperature": 0.65,
-            "max_tokens": 800,
+            "max_tokens": TokenBudgets.for_phase("late"),
             "directive": "Work toward consensus. Acknowledge tradeoffs, find common ground, and help the group move toward a decision.",
             "tone": "convergent",
         }

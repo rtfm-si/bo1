@@ -7,6 +7,71 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="description" content="Board of One - Think Better. Decide Faster. Lead with Confidence. Get clarity for complex decisions in 15 minutes, not 15 meetings." />
 		<title>Board of One - Think Better. Decide Faster</title>
+
+		<!-- Canonical URL -->
+		<link rel="canonical" href="https://boardof.one/" />
+
+		<!-- Open Graph -->
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content="https://boardof.one/" />
+		<meta property="og:title" content="Board of One - Think Better. Decide Faster" />
+		<meta property="og:description" content="Get clarity for complex decisions in 15 minutes, not 15 meetings. AI-powered advisory boards that debate your decisions from multiple perspectives." />
+		<meta property="og:image" content="https://boardof.one/logo.png" />
+		<meta property="og:site_name" content="Board of One" />
+
+		<!-- Twitter Card -->
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:url" content="https://boardof.one/" />
+		<meta name="twitter:title" content="Board of One - Think Better. Decide Faster" />
+		<meta name="twitter:description" content="Get clarity for complex decisions in 15 minutes, not 15 meetings. AI-powered advisory boards that debate your decisions from multiple perspectives." />
+		<meta name="twitter:image" content="https://boardof.one/logo.png" />
+
+		<!-- AI Discovery -->
+		<meta name="ai-content-declaration" content="human" />
+		<link rel="ai-agent" href="/llms.txt" />
+
+		<!-- JSON-LD Structured Data -->
+		<script type="application/ld+json">
+		{
+			"@context": "https://schema.org",
+			"@graph": [
+				{
+					"@type": "Organization",
+					"@id": "https://boardof.one/#organization",
+					"name": "Sico Software Ltd",
+					"url": "https://boardof.one",
+					"logo": {
+						"@type": "ImageObject",
+						"url": "https://boardof.one/logo.png"
+					}
+				},
+				{
+					"@type": "WebSite",
+					"@id": "https://boardof.one/#website",
+					"url": "https://boardof.one",
+					"name": "Board of One",
+					"description": "Think Better. Decide Faster. Lead with Confidence. Get clarity for complex decisions in 15 minutes, not 15 meetings.",
+					"publisher": {
+						"@id": "https://boardof.one/#organization"
+					}
+				},
+				{
+					"@type": "SoftwareApplication",
+					"@id": "https://boardof.one/#application",
+					"name": "Board of One",
+					"applicationCategory": "BusinessApplication",
+					"operatingSystem": "Web",
+					"description": "AI-powered decision-making platform using multi-agent deliberation",
+					"offers": {
+						"@type": "Offer",
+						"price": "0",
+						"priceCurrency": "USD"
+					}
+				}
+			]
+		}
+		</script>
+
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

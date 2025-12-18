@@ -127,13 +127,13 @@
 										{#each result.sources as source}
 											<li>
 												<a
-													href={source.url}
+													href={source}
 													target="_blank"
 													rel="noopener noreferrer"
 													class="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
 												>
 													<ExternalLink class="w-3 h-3" />
-													{source.title || source.url}
+													{source}
 												</a>
 											</li>
 										{/each}

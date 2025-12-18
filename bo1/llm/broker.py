@@ -17,7 +17,7 @@ from typing import Any
 from anthropic import APIError, RateLimitError
 from pydantic import BaseModel, Field, field_validator
 
-from bo1.config import get_settings, resolve_tier_to_model
+from bo1.config import TokenBudgets, get_settings, resolve_tier_to_model
 from bo1.constants import LLMConfig
 from bo1.llm.circuit_breaker import (
     CircuitBreaker,
@@ -29,6 +29,8 @@ from bo1.llm.client import ClaudeClient, TokenUsage
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
 from bo1.llm.response import LLMResponse
+from bo1.llm.response_parser import ValidationConfig, XMLValidator
+from bo1.logging import ErrorCode, log_error
 from bo1.utils.logging import get_logger, log_llm_call
 
 # Import metrics for tracking LLM calls
@@ -36,6 +38,8 @@ try:
     from backend.api.middleware.metrics import (
         record_llm_cost,
         record_llm_request,
+        record_xml_retry_success,
+        record_xml_validation_failure,
     )
 
     _metrics_available = True
@@ -47,6 +51,12 @@ except ImportError:
         """No-op when metrics unavailable."""
 
     def record_llm_request(model: str, provider: str, success: bool = True) -> None:  # noqa: D103
+        """No-op when metrics unavailable."""
+
+    def record_xml_validation_failure(agent_type: str, tag: str) -> None:  # noqa: D103
+        """No-op when metrics unavailable."""
+
+    def record_xml_retry_success(agent_type: str) -> None:  # noqa: D103
         """No-op when metrics unavailable."""
 
 
@@ -119,9 +129,7 @@ class PromptRequest(BaseModel):
     temperature: float = Field(
         default=LLMConfig.DEFAULT_TEMPERATURE, description="Sampling temperature"
     )
-    max_tokens: int = Field(
-        default=LLMConfig.DEFAULT_MAX_TOKENS, description="Maximum output tokens"
-    )
+    max_tokens: int = Field(default=TokenBudgets.DEFAULT, description="Maximum output tokens")
 
     # Metadata for tracking
     phase: str | None = Field(default=None, description="Deliberation phase")
@@ -357,8 +365,11 @@ class PromptBroker:
 
                 # Check if we have retries left
                 if attempt >= self.retry_policy.max_retries:
-                    logger.error(
-                        f"[{request.request_id}] Rate limit exceeded, all retries exhausted: {e}"
+                    log_error(
+                        logger,
+                        ErrorCode.LLM_RATE_LIMIT,
+                        f"[{request.request_id}] Rate limit exceeded, all retries exhausted: {e}",
+                        request_id=request.request_id,
                     )
                     record_llm_request(model=model_id, provider=provider, success=False)
                     raise
@@ -397,15 +408,22 @@ class PromptBroker:
                     await asyncio.sleep(delay)
                 else:
                     # Non-retryable error or exhausted retries
-                    logger.error(f"[{request.request_id}] API error (non-retryable): {e}")
+                    log_error(
+                        logger,
+                        ErrorCode.LLM_API_ERROR,
+                        f"[{request.request_id}] API error (non-retryable): {e}",
+                        request_id=request.request_id,
+                    )
                     record_llm_request(model=model_id, provider=provider, success=False)
                     raise
 
             except CircuitBreakerOpenError as e:
                 # Circuit breaker is open - API is experiencing issues
-                logger.error(
-                    f"[{request.request_id}] Circuit breaker OPEN - "
-                    f"API unavailable, skipping retry: {e}"
+                log_error(
+                    logger,
+                    ErrorCode.LLM_CIRCUIT_OPEN,
+                    f"[{request.request_id}] Circuit breaker OPEN - API unavailable, skipping retry: {e}",
+                    request_id=request.request_id,
                 )
                 record_llm_request(model=model_id, provider=provider, success=False)
                 # Re-raise as RuntimeError to avoid retry loop
@@ -415,12 +433,22 @@ class PromptBroker:
 
             except Exception as e:
                 # Unexpected error, don't retry
-                logger.error(f"[{request.request_id}] Unexpected error: {e}")
+                log_error(
+                    logger,
+                    ErrorCode.LLM_API_ERROR,
+                    f"[{request.request_id}] Unexpected error: {e}",
+                    request_id=request.request_id,
+                )
                 record_llm_request(model=model_id, provider=provider, success=False)
                 raise
 
         # Should never reach here, but just in case
-        logger.error(f"[{request.request_id}] All retries exhausted")
+        log_error(
+            logger,
+            ErrorCode.LLM_RETRIES_EXHAUSTED,
+            f"[{request.request_id}] All retries exhausted",
+            request_id=request.request_id,
+        )
         record_llm_request(model=model_id, provider=provider, success=False)
         raise last_error or RuntimeError("All retries exhausted with no error captured")
 
@@ -461,6 +489,141 @@ class PromptBroker:
 
         # If we can't determine status code, don't retry
         return False
+
+    async def call_with_validation(
+        self,
+        request: PromptRequest,
+        validation: ValidationConfig,
+    ) -> LLMResponse:
+        """Execute LLM call with XML validation and automatic retry on failure.
+
+        Validates response against required XML tags. On failure, appends
+        feedback message and retries up to `validation.max_retries` times.
+        Tracks validation failures and retry success in Prometheus metrics.
+
+        Args:
+            request: Structured prompt request
+            validation: Validation config with required_tags, max_retries, strict
+
+        Returns:
+            LLMResponse with accumulated tokens from all attempts
+
+        Raises:
+            XMLValidationError: If strict=True and validation fails after retries
+
+        Example:
+            >>> broker = PromptBroker()
+            >>> request = PromptRequest(system="...", user_message="...", prefill="<thinking>")
+            >>> validation = ValidationConfig(required_tags=["recommendation", "reasoning"])
+            >>> response = await broker.call_with_validation(request, validation)
+        """
+        from bo1.llm.response_parser import XMLValidationError
+
+        # Track total tokens across attempts for accurate cost accounting
+        total_input_tokens = 0
+        total_output_tokens = 0
+        total_cache_creation = 0
+        total_cache_read = 0
+        validation_retries = 0
+
+        # Store original user message for retry modification
+        original_user_message = request.user_message
+        agent_type = request.agent_type or "unknown"
+
+        for attempt in range(validation.max_retries + 1):
+            # Make the LLM call
+            response = await self.call(request)
+
+            # Accumulate tokens
+            total_input_tokens += response.token_usage.input_tokens
+            total_output_tokens += response.token_usage.output_tokens
+            total_cache_creation += response.token_usage.cache_creation_tokens
+            total_cache_read += response.token_usage.cache_read_tokens
+
+            # Reconstruct full content if prefill was used
+            content = response.content
+            if request.prefill:
+                content = request.prefill + content
+
+            # Validate XML structure
+            is_valid, errors = XMLValidator.validate(content, validation.required_tags)
+
+            if is_valid:
+                # Success! Log if this was a retry success
+                if validation_retries > 0:
+                    logger.info(
+                        f"[{request.request_id}] XML validation succeeded on retry "
+                        f"(attempt {attempt + 1}), agent={agent_type}"
+                    )
+                    record_xml_retry_success(agent_type)
+
+                # Return response with accumulated token counts
+                response.token_usage.input_tokens = total_input_tokens
+                response.token_usage.output_tokens = total_output_tokens
+                response.token_usage.cache_creation_tokens = total_cache_creation
+                response.token_usage.cache_read_tokens = total_cache_read
+                return response
+
+            # Validation failed
+            validation_retries += 1
+
+            # Record metrics for each missing/malformed tag
+            for error in errors:
+                # Extract tag from error message (format: "Missing required tag: <tagname>")
+                if "Missing required tag:" in error:
+                    tag = error.split("<")[1].split(">")[0] if "<" in error else "unknown"
+                else:
+                    tag = "structure"
+                record_xml_validation_failure(agent_type, tag)
+
+            logger.warning(
+                f"[{request.request_id}] XML validation failed (attempt {attempt + 1}/"
+                f"{validation.max_retries + 1}): {errors}"
+            )
+
+            # Check if we have retries left
+            if attempt >= validation.max_retries:
+                # Exhausted retries
+                if validation.strict:
+                    raise XMLValidationError(
+                        f"XML validation failed after {validation.max_retries + 1} attempts: {errors}",
+                        tag=validation.required_tags[0] if validation.required_tags else None,
+                        details=str(errors),
+                    )
+                # Non-strict: return last response with warning
+                logger.warning(
+                    f"[{request.request_id}] Returning response despite validation failure "
+                    f"(non-strict mode), errors={errors}"
+                )
+                response.token_usage.input_tokens = total_input_tokens
+                response.token_usage.output_tokens = total_output_tokens
+                response.token_usage.cache_creation_tokens = total_cache_creation
+                response.token_usage.cache_read_tokens = total_cache_read
+                return response
+
+            # Build feedback message for retry
+            feedback = XMLValidator.get_validation_feedback(errors)
+
+            # Modify request with feedback appended to user message
+            request = PromptRequest(
+                system=request.system,
+                user_message=f"{original_user_message}\n\n---\n\n{feedback}",
+                model=request.model,
+                prefill=request.prefill,
+                cache_system=request.cache_system,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+                phase=request.phase,
+                agent_type=request.agent_type,
+            )
+
+            logger.info(
+                f"[{request.request_id}] Retrying with validation feedback, "
+                f"attempt {attempt + 2}/{validation.max_retries + 1}"
+            )
+
+        # Should not reach here
+        raise RuntimeError("Validation loop exited unexpectedly")
 
 
 def get_model_for_phase(phase: str, round_number: int = 0) -> str:

@@ -55,6 +55,7 @@ from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
 from bo1.llm.cost_tracker import CostTracker
 from bo1.security import check_for_injection, sanitize_for_prompt
+from bo1.security.prompt_validation import PromptInjectionError, validate_problem_statement
 from bo1.state.redis_manager import RedisManager
 from bo1.state.repositories.dataset_repository import DatasetRepository
 from bo1.state.repositories.session_repository import session_repository
@@ -180,8 +181,25 @@ async def create_session(
             # Don't block on budget check failures - log and continue
             logger.debug("Budget check failed (non-blocking): %s", e)
 
-        # Prompt injection audit (LLM-based detection)
-        # Checks problem statement for injection attempts before processing
+        # LAYER 1: Pattern-based prompt injection detection (fast, cheap)
+        # Checks for obvious injection patterns before expensive LLM call
+        # Blocks if PROMPT_INJECTION_BLOCK_SUSPICIOUS=True (default)
+        try:
+            validate_problem_statement(session_request.problem_statement)
+        except PromptInjectionError as e:
+            # Return structured 400 error matching LLM-based detection format
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "prompt_injection_detected",
+                    "message": str(e),
+                    "source": "problem_statement",
+                    "detection_layer": "pattern",
+                },
+            ) from e
+
+        # LAYER 2: LLM-based prompt injection audit (sophisticated, catches subtle attacks)
+        # Runs after pattern-based check passes
         await check_for_injection(
             content=session_request.problem_statement,
             source="problem_statement",
@@ -962,10 +980,7 @@ async def delete_session(
 
             # Check if already deleted
             if metadata.get("deleted_at"):
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Session already deleted: {session_id}",
-                )
+                raise_api_error("gone", f"Session already deleted: {session_id}")
 
             # Kill any active execution
             if session_id in session_manager.active_executions:
@@ -1087,17 +1102,11 @@ async def terminate_session(
 
         # Check if already terminated
         if metadata.get("status") == "terminated":
-            raise HTTPException(
-                status_code=400,
-                detail="Session already terminated",
-            )
+            raise_api_error("conflict", "Session already terminated")
 
         # Check if already completed - no need to terminate
         if metadata.get("status") == "completed":
-            raise HTTPException(
-                status_code=400,
-                detail="Session already completed - cannot terminate",
-            )
+            raise_api_error("conflict", "Session already completed - cannot terminate")
 
         # Load state to calculate billable portion
         state = redis_manager.load_state(session_id)
@@ -1579,9 +1588,9 @@ async def get_session_actions(
         task_record = session_repository.get_tasks(session_id)
 
         if not task_record:
-            raise HTTPException(
-                status_code=404,
-                detail="No tasks found for this session. Extract tasks first using POST /sessions/{id}/extract-tasks",
+            raise_api_error(
+                "not_found",
+                "No tasks found for this session. Extract tasks first using POST /sessions/{id}/extract-tasks",
             )
 
         # Merge tasks with statuses
@@ -1633,10 +1642,7 @@ async def update_task_status(
 
         # Validate task_id format (should be "task_N")
         if not task_id or not task_id.startswith("task_"):
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid task ID format. Expected 'task_N' format.",
-            )
+            raise_api_error("invalid_input", "Invalid task ID format. Expected 'task_N' format.")
 
         # Update task status in database
         try:
@@ -1647,9 +1653,8 @@ async def update_task_status(
             )
 
             if not success:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Session {session_id} not found or no tasks extracted",
+                raise_api_error(
+                    "not_found", f"Session {session_id} not found or no tasks extracted"
                 )
 
             logger.info(

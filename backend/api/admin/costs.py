@@ -260,6 +260,8 @@ async def get_meeting_costs(
     """Get cost breakdown for a meeting."""
     with db_session() as conn:
         with conn.cursor() as cur:
+            # partition: api_costs - Include created_at filter for partition pruning
+            # Sessions typically complete within 7 days; use 30 days for safety margin
             # Total and API calls
             cur.execute(
                 """
@@ -268,6 +270,7 @@ async def get_meeting_costs(
                     COUNT(*) as api_calls
                 FROM api_costs
                 WHERE session_id = %s
+                  AND created_at >= NOW() - INTERVAL '30 days'
                 """,
                 (session_id,),
             )
@@ -279,6 +282,7 @@ async def get_meeting_costs(
                 SELECT provider, COALESCE(SUM(total_cost), 0) as amount
                 FROM api_costs
                 WHERE session_id = %s
+                  AND created_at >= NOW() - INTERVAL '30 days'
                 GROUP BY provider
                 """,
                 (session_id,),
@@ -291,6 +295,7 @@ async def get_meeting_costs(
                 SELECT COALESCE(phase, 'other') as phase, COALESCE(SUM(total_cost), 0) as amount
                 FROM api_costs
                 WHERE session_id = %s
+                  AND created_at >= NOW() - INTERVAL '30 days'
                 GROUP BY phase
                 """,
                 (session_id,),

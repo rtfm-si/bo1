@@ -173,8 +173,8 @@ export function extractSynthesis(events: SSEEvent[]): string {
  */
 export function calculateDuration(sessionCreatedAt: string, events: SSEEvent[]): number {
 	const startTime = new Date(sessionCreatedAt).getTime();
-	const endTime =
-		events.length > 0 ? new Date(events[events.length - 1].timestamp).getTime() : Date.now();
+	const lastTimestamp = events.length > 0 ? events[events.length - 1].timestamp : undefined;
+	const endTime = lastTimestamp ? new Date(lastTimestamp).getTime() : Date.now();
 
 	return Math.round((endTime - startTime) / 60000);
 }

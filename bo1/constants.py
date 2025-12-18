@@ -200,7 +200,12 @@ class SemanticSimilarity:
 
 
 class LLMConfig:
-    """LLM retry and default parameter settings."""
+    """LLM retry and default parameter settings.
+
+    Note: For token budgets, prefer using bo1.config.TokenBudgets which provides
+    semantic constants (SYNTHESIS, FACILITATOR, etc.) and env var override support.
+    DEFAULT_MAX_TOKENS is kept here for backward compatibility.
+    """
 
     MAX_RETRIES = 3
     """Maximum retry attempts for LLM calls"""
@@ -212,7 +217,7 @@ class LLMConfig:
     """Maximum delay in seconds"""
 
     DEFAULT_MAX_TOKENS = 4096
-    """Default max output tokens"""
+    """Default max output tokens. Prefer TokenBudgets.DEFAULT for new code."""
 
     DEFAULT_TEMPERATURE = 0.85
     """Default sampling temperature (leaves headroom for phase adjustments)"""
@@ -349,6 +354,10 @@ class RateLimits:
     # Admin tier limits (much higher to allow dashboard page loads)
     ADMIN = "300/minute"
     """Admin endpoints (dashboards fire multiple requests on page load)"""
+
+    # Public unauthenticated endpoints (CSRF-exempt, need extra protection)
+    WAITLIST = "5/minute"
+    """Waitlist signup endpoint (IP-based, prevents spam signups)"""
 
 
 # =============================================================================
@@ -1053,7 +1062,15 @@ class RedisReconnection:
 
 
 class RetryConfig:
-    """Database retry configuration."""
+    """Database retry configuration.
+
+    Timeout Guidance:
+        Always specify `total_timeout` explicitly on @retry_db decorators.
+        Recommended values by operation type:
+        - User-facing writes: 30.0 (default) - interactive response times
+        - Background batch: 60.0 - more tolerance for transient failures
+        - Health checks: 5.0 - fast failure for monitoring
+    """
 
     MAX_ATTEMPTS = 3
     """Maximum retry attempts"""
@@ -1066,6 +1083,16 @@ class RetryConfig:
 
     TOTAL_TIMEOUT = 30.0
     """Total timeout across all retries (max_attempts * max_delay worst case)"""
+
+    # Named constants for common timeout scenarios
+    TIMEOUT_USER_FACING = 30.0
+    """User-facing operations (default)"""
+
+    TIMEOUT_BATCH = 60.0
+    """Background batch operations"""
+
+    TIMEOUT_HEALTH = 5.0
+    """Health checks and monitoring"""
 
 
 class UsageMetrics:
@@ -1105,6 +1132,23 @@ class BetaMeetingCap:
         import os
 
         return os.getenv("BETA_MEETING_CAP_ENABLED", "true").lower() == "true"
+
+
+class UserContextCache:
+    """User context Redis cache configuration."""
+
+    TTL_SECONDS = 300
+    """Cache TTL in seconds (5 minutes)"""
+
+    KEY_PREFIX = "user_context:"
+    """Redis key prefix for user context"""
+
+    @staticmethod
+    def is_enabled() -> bool:
+        """Check if user context caching is enabled via env."""
+        import os
+
+        return os.getenv("USER_CONTEXT_CACHE_ENABLED", "true").lower() == "true"
 
 
 class PoolDegradationConfig:

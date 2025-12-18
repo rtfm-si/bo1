@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { fade } from 'svelte/transition';
 	import { CheckCircle, AlertCircle } from 'lucide-svelte';
-	import type { SSEEvent, ExpertInfo, ContributionEvent } from '$lib/api/sse-events';
+	import type { SSEEvent, ExpertInfo, ContributionEvent, PersonaSelectedPayload } from '$lib/api/sse-events';
+	import { isPersonaSelectedEvent } from '$lib/api/sse-events';
 	import type { EventGroup } from '../../../routes/(app)/meeting/[id]/lib/eventGrouping';
 	import type { SessionData } from '../../../routes/(app)/meeting/[id]/lib/sessionStore.svelte';
 	import { getEventPriority, type EventPriority } from '$lib/utils/event-humanization';
@@ -215,16 +216,10 @@
 								eventType="expert_panel"
 								skeletonProps={{ hasAvatar: false }}
 								componentProps={{
-									experts: group.events.map((e): ExpertInfo => ({
-										persona: e.data.persona as {
-											code: string;
-											name: string;
-											display_name: string;
-											archetype: string;
-											domain_expertise: string[];
-										},
-										rationale: e.data.rationale as string,
-										order: e.data.order as number,
+									experts: group.events.filter(isPersonaSelectedEvent).map((e): ExpertInfo => ({
+										persona: e.data.persona,
+										rationale: e.data.rationale,
+										order: e.data.order,
 									})),
 									subProblemGoal: group.subProblemGoal
 								}}
@@ -265,7 +260,7 @@
 								{/if}
 								<div class="flex-1 min-w-0">
 									<div class="flex items-center justify-between mb-3">
-										<RelativeTimestamp timestamp={event.timestamp} />
+										<RelativeTimestamp timestamp={event.timestamp ?? ''} />
 									</div>
 
 									<!-- Render appropriate component based on event type with dynamic loading -->

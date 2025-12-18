@@ -12,7 +12,7 @@
 
 	let { event }: Props = $props();
 
-	const actionLabels = {
+	const actionLabels: Record<string, string> = {
 		continue: 'Continue Discussion',
 		vote: 'Proceed to Voting',
 		research: 'Research Needed',
@@ -20,12 +20,12 @@
 		moderator: 'Moderator Intervention',
 	};
 
-	const actionVariants = {
-		continue: 'info' as const,
-		vote: 'success' as const,
-		research: 'warning' as const,
-		clarify: 'warning' as const,
-		moderator: 'error' as const,
+	const actionVariants: Record<string, 'info' | 'success' | 'warning' | 'error'> = {
+		continue: 'info',
+		vote: 'success',
+		research: 'warning',
+		clarify: 'warning',
+		moderator: 'error',
 	};
 </script>
 

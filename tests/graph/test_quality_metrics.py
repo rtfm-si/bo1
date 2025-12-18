@@ -2,7 +2,7 @@
 
 import pytest
 
-from bo1.graph.quality_metrics import (
+from bo1.graph.quality.metrics import (
     calculate_conflict_score,
     calculate_exploration_score_heuristic,
     calculate_focus_score_heuristic,

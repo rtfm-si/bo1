@@ -10,6 +10,8 @@ Calculates:
 - Exploration score (coverage of 8 critical aspects)
 - Focus score (on-topic ratio)
 - Meeting completeness index (composite metric)
+
+CLEANUP: Consolidated from quality_metrics.py - all functions now in single module.
 """
 
 import asyncio
@@ -17,9 +19,440 @@ import logging
 from typing import Any
 
 from bo1.graph.state import DeliberationGraphState
+from bo1.llm.embeddings import cosine_similarity, generate_embedding
 from bo1.models.state import AspectCoverage, DeliberationMetrics
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Exploration Score (LLM-based)
+# ============================================================================
+
+
+async def calculate_exploration_score_llm(
+    contributions: list[Any],
+    problem_statement: str,
+    round_number: int = 1,
+) -> tuple[float, list[Any], list[str], list[str]]:
+    """Calculate exploration score using LLM-based Judge Agent.
+
+    This is the PREFERRED method for exploration scoring as it uses LLM to
+    understand the depth of discussion, not just keyword matching.
+
+    Args:
+        contributions: List of ContributionMessage objects
+        problem_statement: Problem being deliberated
+        round_number: Current round number
+
+    Returns:
+        Tuple of (exploration_score, aspect_coverage_list, focus_prompts, missing_aspects)
+    """
+    try:
+        from bo1.agents.judge import judge_round
+
+        judge_output = await judge_round(
+            contributions=contributions,
+            problem_statement=problem_statement,
+            round_number=round_number,
+        )
+
+        exploration_score = judge_output.exploration_score
+        aspect_coverage = judge_output.aspect_coverage
+        focus_prompts = judge_output.next_round_focus_prompts
+        missing_aspects = judge_output.missing_critical_aspects
+
+        logger.info(
+            f"LLM exploration score: {exploration_score:.2f} "
+            f"(deep: {sum(1 for a in aspect_coverage if a.level == 'deep')}/8, "
+            f"shallow: {sum(1 for a in aspect_coverage if a.level == 'shallow')}/8, "
+            f"missing: {missing_aspects}, focus_prompts: {len(focus_prompts)})"
+        )
+
+        return exploration_score, aspect_coverage, focus_prompts, missing_aspects
+
+    except Exception as e:
+        logger.warning(f"LLM exploration calculation failed: {e}, falling back to heuristic")
+        score, coverage = calculate_exploration_score_heuristic(contributions, problem_statement)
+        missing = [a.name for a in coverage if a.level in ("none", "shallow")]
+        return score, coverage, [], missing
+
+
+def calculate_exploration_score_heuristic(
+    contributions: list[Any],
+    problem_statement: str,
+) -> tuple[float, list[Any]]:
+    """Calculate exploration score using keyword heuristic (FALLBACK)."""
+    from bo1.graph.meeting_config import CRITICAL_ASPECTS
+
+    logger.info("Using heuristic exploration score (fallback)")
+
+    all_text = " ".join([getattr(c, "content", str(c)).lower() for c in contributions])
+
+    aspect_keywords = {
+        "problem_clarity": ["problem is", "we need to", "goal is", "objective is", "trying to"],
+        "objectives": ["success", "target", "metric", "achieve", "goal", "outcome"],
+        "options_alternatives": [
+            "option",
+            "alternative",
+            "could also",
+            "instead",
+            "or we could",
+            "another approach",
+        ],
+        "key_assumptions": ["assume", "assumption", "if", "provided that", "given that", "presume"],
+        "risks_failure_modes": [
+            "risk",
+            "fail",
+            "could go wrong",
+            "danger",
+            "threat",
+            "concern",
+            "downside",
+        ],
+        "constraints": ["budget", "time", "resource", "limitation", "can't", "cannot", "limited"],
+        "stakeholders_impact": [
+            "stakeholder",
+            "customer",
+            "team",
+            "user",
+            "affect",
+            "impact",
+            "people",
+        ],
+        "dependencies_unknowns": [
+            "depend",
+            "unknown",
+            "unclear",
+            "need to know",
+            "blocker",
+            "requires",
+        ],
+    }
+
+    aspect_coverage = []
+    scores = []
+
+    for aspect in CRITICAL_ASPECTS:
+        keywords = aspect_keywords.get(aspect, [])
+        matches = sum(1 for keyword in keywords if keyword in all_text)
+
+        if matches >= 3:
+            level, score, notes = "deep", 1.0, f"Found {matches} keyword matches (heuristic)"
+        elif matches >= 1:
+            level, score, notes = "shallow", 0.5, f"Found {matches} keyword matches (heuristic)"
+        else:
+            level, score, notes = "none", 0.0, "Not mentioned (heuristic)"
+
+        aspect_coverage.append(AspectCoverage(name=aspect, level=level, notes=notes))
+        scores.append(score)
+
+    exploration_score = sum(scores) / len(scores) if scores else 0.0
+    logger.info(f"Heuristic exploration score: {exploration_score:.2f}")
+
+    return exploration_score, aspect_coverage
+
+
+# ============================================================================
+# Focus Score
+# ============================================================================
+
+
+async def calculate_focus_score(
+    contributions: list[Any],
+    problem_statement: str,
+) -> float:
+    """Calculate focus score using semantic similarity.
+
+    Returns:
+        Focus score 0.0-1.0 (>0.80 = excellent, 0.60-0.80 = moderate, <0.60 = poor)
+    """
+    if not contributions:
+        return 1.0
+
+    try:
+        problem_embedding = generate_embedding(problem_statement, input_type="document")
+
+        core_count = context_count = off_topic_count = 0
+
+        for contrib in contributions:
+            content = getattr(contrib, "content", str(contrib))
+            contrib_embedding = generate_embedding(content, input_type="document")
+            similarity = cosine_similarity(problem_embedding, contrib_embedding)
+
+            if similarity > 0.80:
+                core_count += 1
+            elif similarity > 0.60:
+                context_count += 1
+            else:
+                off_topic_count += 1
+
+        total = core_count + context_count + off_topic_count
+        if total == 0:
+            return 1.0
+
+        focus_score = (core_count + 0.5 * context_count) / total
+
+        logger.info(
+            f"Focus score: {focus_score:.2f} "
+            f"(core: {core_count}, context: {context_count}, off_topic: {off_topic_count})"
+        )
+
+        return focus_score
+
+    except Exception as e:
+        logger.warning(f"Semantic focus calculation failed: {e}, falling back to heuristic")
+        return calculate_focus_score_heuristic(contributions, problem_statement)
+
+
+def calculate_focus_score_heuristic(
+    contributions: list[Any],
+    problem_statement: str,
+) -> float:
+    """Calculate focus score using keyword matching (FALLBACK)."""
+    if not contributions:
+        return 1.0
+
+    problem_terms = set(problem_statement.lower().split())
+    problem_terms = {t for t in problem_terms if len(t) > 4}
+
+    if not problem_terms:
+        return 0.8
+
+    on_topic_count = 0
+    for contrib in contributions:
+        content = getattr(contrib, "content", str(contrib)).lower()
+        content_terms = set(content.split())
+        overlap = len(problem_terms & content_terms) / len(problem_terms)
+        if overlap > 0.2:
+            on_topic_count += 1
+
+    focus_score = on_topic_count / len(contributions) if contributions else 1.0
+    logger.info(f"Heuristic focus score: {focus_score:.2f}")
+
+    return focus_score
+
+
+# ============================================================================
+# Meeting Completeness Index
+# ============================================================================
+
+
+def calculate_meeting_completeness_index(
+    exploration_score: float,
+    convergence_score: float,
+    focus_score: float,
+    novelty_score_recent: float,
+    weights: dict[str, float] | None = None,
+) -> float:
+    """Calculate Meeting Completeness Index (composite quality metric).
+
+    meeting_index = wE * exploration + wC * convergence + wF * focus + wN * (1 - novelty_recent)
+    """
+    if weights is None:
+        weights = {"exploration": 0.35, "convergence": 0.35, "focus": 0.20, "low_novelty": 0.10}
+
+    total_weight = sum(weights.values())
+    if not (0.99 <= total_weight <= 1.01):
+        logger.warning(f"Weights sum to {total_weight}, normalizing...")
+        weights = {k: v / total_weight for k, v in weights.items()}
+
+    meeting_index = (
+        weights["exploration"] * exploration_score
+        + weights["convergence"] * convergence_score
+        + weights["focus"] * focus_score
+        + weights["low_novelty"] * (1.0 - novelty_score_recent)
+    )
+
+    meeting_index = max(0.0, min(1.0, meeting_index))
+
+    logger.info(
+        f"Meeting Completeness Index: {meeting_index:.2f} "
+        f"(E={exploration_score:.2f}, C={convergence_score:.2f}, "
+        f"F={focus_score:.2f}, N={novelty_score_recent:.2f})"
+    )
+
+    return meeting_index
+
+
+# ============================================================================
+# Novelty Score
+# ============================================================================
+
+
+def calculate_novelty_score_semantic(contributions: list[dict[str, Any]]) -> float:
+    """Calculate novelty score using semantic embeddings.
+
+    High similarity to past = low novelty; Low similarity to past = high novelty.
+
+    Returns:
+        Float between 0.0-1.0 representing novelty score
+    """
+    if len(contributions) < 2:
+        return 0.0
+
+    try:
+        texts = [c.get("content", "") for c in contributions]
+        embeddings = []
+
+        for text in texts:
+            if not text:
+                continue
+            try:
+                embedding = generate_embedding(text, input_type="document")
+                embeddings.append(embedding)
+            except Exception as e:
+                logger.warning(f"Failed to generate embedding: {e}")
+                continue
+
+        if len(embeddings) < 2:
+            logger.warning("Not enough embeddings generated for novelty calculation")
+            return 0.0
+
+        novelty_scores = []
+        recent_count = min(6, len(contributions))
+
+        for i in range(len(embeddings) - recent_count, len(embeddings)):
+            current_embedding = embeddings[i]
+            max_similarity = 0.0
+            for j in range(i):
+                similarity = cosine_similarity(current_embedding, embeddings[j])
+                max_similarity = max(max_similarity, similarity)
+
+            novelty = 1.0 - max_similarity if max_similarity > 0 else 1.0
+            novelty_scores.append(novelty)
+
+        if novelty_scores:
+            avg_novelty = sum(novelty_scores) / len(novelty_scores)
+            logger.info(f"Calculated novelty score: {avg_novelty:.3f}")
+            return avg_novelty
+
+        return 0.0
+
+    except Exception as e:
+        logger.error(f"Error calculating novelty score: {e}")
+        return 0.0
+
+
+# ============================================================================
+# Conflict Score
+# ============================================================================
+
+
+def calculate_conflict_score(contributions: list[dict[str, Any]]) -> float:
+    """Calculate conflict score based on disagreement vs agreement keywords.
+
+    High conflict = healthy debate; Low conflict = consensus or lack of engagement.
+
+    Returns:
+        Float between 0.0-1.0 representing conflict score
+    """
+    if not contributions:
+        return 0.0
+
+    disagreement_keywords = {
+        "disagree",
+        "however",
+        "but",
+        "wrong",
+        "incorrect",
+        "alternative",
+        "unfortunately",
+        "concern",
+        "issue",
+        "problem",
+        "challenge",
+        "risk",
+        "different",
+        "oppose",
+        "contrary",
+        "doubt",
+        "question",
+    }
+
+    agreement_keywords = {
+        "agree",
+        "exactly",
+        "correct",
+        "yes",
+        "support",
+        "absolutely",
+        "indeed",
+        "definitely",
+        "certainly",
+        "perfect",
+        "right",
+        "good",
+    }
+
+    disagreement_count = agreement_count = total_words = 0
+
+    recent = contributions[-6:] if len(contributions) > 6 else contributions
+
+    for contribution in recent:
+        content = contribution.get("content", "").lower()
+        words = content.split()
+        total_words += len(words)
+
+        for word in words:
+            clean_word = word.strip(".,!?;:")
+            if clean_word in disagreement_keywords:
+                disagreement_count += 1
+            elif clean_word in agreement_keywords:
+                agreement_count += 1
+
+    if total_words == 0:
+        return 0.0
+
+    raw_score = (disagreement_count - agreement_count) / total_words
+    normalized = (raw_score + 0.02) / 0.04
+    conflict_score = max(0.0, min(1.0, normalized))
+
+    logger.info(
+        f"Calculated conflict score: {conflict_score:.3f} "
+        f"(disagreement: {disagreement_count}, agreement: {agreement_count}, "
+        f"total_words: {total_words})"
+    )
+
+    return conflict_score
+
+
+# ============================================================================
+# Drift Detection
+# ============================================================================
+
+
+def detect_contribution_drift(contribution: str, problem_statement: str) -> bool:
+    """Detect if a contribution has drifted off-topic from the problem.
+
+    Returns:
+        True if drift detected (off-topic), False otherwise
+    """
+    if not contribution or not problem_statement:
+        return False
+
+    try:
+        contribution_embedding = generate_embedding(contribution, input_type="document")
+        problem_embedding = generate_embedding(problem_statement, input_type="document")
+
+        similarity = cosine_similarity(contribution_embedding, problem_embedding)
+        drift_detected = similarity < 0.60
+
+        if drift_detected:
+            logger.warning(f"Drift detected: similarity {similarity:.3f} below threshold 0.60")
+        else:
+            logger.debug(f"No drift: similarity {similarity:.3f}")
+
+        return drift_detected
+
+    except Exception as e:
+        logger.error(f"Error detecting drift: {e}")
+        return False
+
+
+# ============================================================================
+# QualityMetricsCalculator Class
+# ============================================================================
 
 
 class QualityMetricsCalculator:
@@ -71,7 +504,7 @@ class QualityMetricsCalculator:
                 problem_statement=problem_statement,
                 round_number=round_number,
             )
-            focus_task = self.calculate_focus_score(
+            focus_task = self.calculate_focus_score_async(
                 contributions=recent_contributions,
                 problem_statement=problem_statement,
             )
@@ -185,7 +618,7 @@ class QualityMetricsCalculator:
             config = get_meeting_config(dict(state))
 
             try:
-                meeting_completeness = self.calculate_meeting_completeness_index(
+                meeting_completeness = self.calculate_meeting_completeness_index_method(
                     exploration_score=metrics.exploration_score or 0.0,
                     convergence_score=metrics.convergence_score or 0.0,
                     focus_score=metrics.focus_score or 0.0,
@@ -230,8 +663,6 @@ class QualityMetricsCalculator:
         Returns:
             Novelty score (0.0 to 1.0)
         """
-        from bo1.graph.quality_metrics import calculate_novelty_score_semantic
-
         # Convert contributions to dict format
         contrib_dicts = []
         for contrib in contributions:
@@ -251,8 +682,6 @@ class QualityMetricsCalculator:
         Returns:
             Conflict score (0.0 to 1.0)
         """
-        from bo1.graph.quality_metrics import calculate_conflict_score
-
         # Convert contributions to dict format
         contrib_dicts = []
         for contrib in contributions:
@@ -281,15 +710,13 @@ class QualityMetricsCalculator:
         Returns:
             Tuple of (exploration_score, aspect_coverage, focus_prompts, missing_aspects)
         """
-        from bo1.graph.quality_metrics import calculate_exploration_score_llm
-
         return await calculate_exploration_score_llm(
             contributions=contributions,
             problem_statement=problem_statement,
             round_number=round_number,
         )
 
-    async def calculate_focus_score(
+    async def calculate_focus_score_async(
         self,
         contributions: list[Any],
         problem_statement: str,
@@ -303,14 +730,12 @@ class QualityMetricsCalculator:
         Returns:
             Focus score (0.0 to 1.0)
         """
-        from bo1.graph.quality_metrics import calculate_focus_score
-
         return await calculate_focus_score(
             contributions=contributions,
             problem_statement=problem_statement,
         )
 
-    def calculate_meeting_completeness_index(
+    def calculate_meeting_completeness_index_method(
         self,
         exploration_score: float,
         convergence_score: float,
@@ -330,8 +755,6 @@ class QualityMetricsCalculator:
         Returns:
             Meeting completeness index (0.0 to 1.0)
         """
-        from bo1.graph.quality_metrics import calculate_meeting_completeness_index
-
         return calculate_meeting_completeness_index(
             exploration_score=exploration_score,
             convergence_score=convergence_score,

@@ -110,7 +110,7 @@
 				</div>
 
 				<p class="text-sm text-neutral-700 dark:text-neutral-300 mb-3">
-					{event.data.goal}
+					{event.data.sub_problem_goal}
 				</p>
 
 				<!-- Synthesis/Conclusion -->

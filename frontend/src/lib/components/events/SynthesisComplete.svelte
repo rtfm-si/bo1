@@ -73,7 +73,7 @@
 				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
 					{#if isMeta}
 						Decision Complete
-					{:else if event.data.sub_problem_index !== undefined}
+					{:else if event.event_type === 'synthesis_complete' && event.data.sub_problem_index !== undefined}
 						Sub-Problem Complete
 					{:else}
 						Meeting Complete
@@ -364,6 +364,6 @@
 		</div>
 	{:else}
 		<!-- Fallback: Use API-based ActionableTasks for non-JSON synthesis -->
-		<ActionableTasks sessionId={event.session_id} subProblemIndex={event.data.sub_problem_index} />
+		<ActionableTasks sessionId={event.session_id ?? ''} subProblemIndex={event.event_type === 'synthesis_complete' ? event.data.sub_problem_index : undefined} />
 	{/if}
 </div>

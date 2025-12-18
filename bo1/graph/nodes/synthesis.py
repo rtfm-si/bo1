@@ -13,7 +13,7 @@ import logging
 import time
 from typing import Any
 
-from bo1.config import get_settings
+from bo1.config import get_model_for_role
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_aggregated_cost, track_phase_cost
@@ -228,14 +228,13 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Create broker and request
     broker = PromptBroker()
 
-    # Select model based on feature flag (Haiku for cost optimization, Sonnet for quality)
-    settings = get_settings()
-    synthesis_model = "haiku" if settings.use_haiku_for_synthesis else "sonnet"
+    # Centralized model selection (respects experiment overrides and TASK_MODEL_DEFAULTS)
+    synthesis_model = get_model_for_role("synthesis")
     log_with_session(
         logger,
         logging.INFO,
         session_id,
-        f"synthesize_node: Using model={synthesis_model} (use_haiku_for_synthesis={settings.use_haiku_for_synthesis})",
+        f"synthesize_node: Using model={synthesis_model}",
     )
 
     request = PromptRequest(
@@ -673,14 +672,13 @@ async def meta_synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     # Create broker and request
     broker = PromptBroker()
 
-    # Select model based on feature flag (Haiku for cost optimization, Sonnet for quality)
-    settings = get_settings()
-    meta_synthesis_model = "haiku" if settings.use_haiku_for_synthesis else "sonnet"
+    # Centralized model selection (respects experiment overrides and TASK_MODEL_DEFAULTS)
+    meta_synthesis_model = get_model_for_role("meta_synthesis")
     log_with_session(
         logger,
         logging.INFO,
         session_id,
-        f"meta_synthesize_node: Using model={meta_synthesis_model} (use_haiku_for_synthesis={settings.use_haiku_for_synthesis})",
+        f"meta_synthesize_node: Using model={meta_synthesis_model}",
     )
 
     request = PromptRequest(

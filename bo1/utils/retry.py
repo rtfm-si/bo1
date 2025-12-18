@@ -54,8 +54,15 @@ def retry_db(
     Raises:
         TimeoutError: If total elapsed time exceeds total_timeout
 
+    Note:
+        Always specify `total_timeout` explicitly for production callsites.
+        Recommended values by operation type:
+        - User-facing writes: 30.0 (default)
+        - Background batch operations: 60.0
+        - Health checks: 5.0
+
     Example:
-        @retry_db(max_attempts=3)
+        @retry_db(max_attempts=3, base_delay=0.5, total_timeout=30.0)
         def save_data(self, data):
             with db_session() as conn:
                 ...

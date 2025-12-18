@@ -96,7 +96,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (service) (count_over_time({compose_project=~\"bo1.*\"} |= \"ERROR\" [$__interval]))",
+          "expr": "sum by (service) (count_over_time({compose_project=~\"boardofone.*\"} |= \"ERROR\" [$__interval]))",
           "legendFormat": "{{service}}",
           "queryType": "range",
           "refId": "A"
@@ -249,7 +249,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (level) (count_over_time({compose_project=~\"bo1.*\"} | json | level != \"\" [$__interval]))",
+          "expr": "sum by (level) (count_over_time({compose_project=~\"boardofone.*\"} | json | level != \"\" [$__interval]))",
           "legendFormat": "{{level}}",
           "queryType": "range",
           "refId": "A"
@@ -313,13 +313,22 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (service) (count_over_time({compose_project=~\"bo1.*\"} [$__range]))",
+          "expr": "sum by (service) (count_over_time({compose_project=~\"boardofone.*\"} [$__range]))",
           "legendFormat": "{{service}}",
           "queryType": "instant",
           "refId": "A"
         }
       ],
       "title": "Log Distribution by Service",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns",
+            "valueLabel": "service"
+          }
+        }
+      ],
       "type": "piechart"
     },
     {
@@ -352,7 +361,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_project=~\"bo1.*\", service=~\"$service\"} | json | level=~\"$level\" | line_format \"{{.level}} [{{.logger}}] {{.message}}\"",
+          "expr": "{compose_project=~\"boardofone.*\", service=~\"$service\"} | json | level=~\"$level\" | line_format \"{{.level}} [{{.logger}}] {{.message}}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -390,7 +399,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{compose_project=~\"bo1.*\"} |= `$trace_id` | json",
+          "expr": "{compose_project=~\"boardofone.*\"} |= `$trace_id` | json",
           "queryType": "range",
           "refId": "A"
         }
@@ -420,7 +429,7 @@
         "multi": true,
         "name": "service",
         "options": [],
-        "query": "label_values({compose_project=~\"bo1.*\"}, service)",
+        "query": "label_values({compose_project=~\"boardofone.*\"}, service)",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

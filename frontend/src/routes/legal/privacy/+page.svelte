@@ -27,7 +27,7 @@
 			<div class="prose prose-neutral dark:prose-invert max-w-none">
 				<h2>1. Introduction</h2>
 				<p>
-					Board of One ("we", "our", or "us") is committed to protecting your privacy. This Privacy
+					Sico Software Ltd, trading as Board of One ("we", "our", or "us"), is committed to protecting your privacy. This Privacy
 					Policy explains how we collect, use, disclose, and safeguard your information when you use
 					our Service.
 				</p>

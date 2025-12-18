@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from bo1.config import get_settings
+from bo1.config import get_model_for_role, get_settings
 from bo1.llm.client import ClaudeClient
 from bo1.utils.json_parsing import parse_json_with_fallback
 
@@ -318,7 +318,7 @@ class PromptInjectionAuditor:
 </content>"""
 
             response, _ = await client.call(
-                model="haiku",  # Fast and cheap
+                model=get_model_for_role("prompt_injection_check"),  # Centralized model selection
                 messages=[{"role": "user", "content": user_message}],
                 system=PROMPT_INJECTION_AUDIT_PROMPT,
                 temperature=0.0,  # Deterministic
@@ -358,11 +358,12 @@ class PromptInjectionAuditor:
 
         if data is None:
             logger.error(f"Failed to parse audit response. Errors: {parse_errors}")
-            # Return safe on parse error (fail open)
+            # SECURITY: Fail closed - block content if we can't verify it's safe
+            # This prevents bypass via malformed LLM responses
             return AuditResult(
-                is_safe=True,
+                is_safe=False,
                 categories=[],
-                flagged_categories=[],
+                flagged_categories=["parse_failure"],
                 error=f"JSON parse error: {parse_errors}",
                 raw_response=response,
             )

@@ -22,7 +22,7 @@ from bo1.state.database import db_session
 logger = logging.getLogger(__name__)
 
 # Job configuration
-DEFAULT_BATCH_SIZE = 50
+DEFAULT_BATCH_SIZE = 100
 DEFAULT_POLL_INTERVAL_SECONDS = 30
 
 

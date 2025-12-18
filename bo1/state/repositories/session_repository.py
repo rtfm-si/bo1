@@ -161,7 +161,7 @@ class SessionRepository(BaseRepository):
             return None
         return Session.from_db_row(row)
 
-    @retry_db(max_attempts=3, base_delay=0.5)
+    @retry_db(max_attempts=3, base_delay=0.5, total_timeout=30.0)
     def update_status(
         self,
         session_id: str,
@@ -472,7 +472,7 @@ class SessionRepository(BaseRepository):
             (*increments.values(), session_id),
         )
 
-    @retry_db(max_attempts=3, base_delay=0.5)
+    @retry_db(max_attempts=3, base_delay=0.5, total_timeout=30.0)
     def save_event(
         self,
         session_id: str,
@@ -531,7 +531,7 @@ class SessionRepository(BaseRepository):
 
                 return dict(result) if result else {}
 
-    @retry_db(max_attempts=3, base_delay=0.5)
+    @retry_db(max_attempts=3, base_delay=0.5, total_timeout=30.0)
     def save_events_batch(
         self,
         events: list[tuple[str, str, int, dict[str, Any]]],
@@ -616,11 +616,14 @@ class SessionRepository(BaseRepository):
         Returns:
             List of event records ordered by sequence
         """
+        # partition: session_events - Include created_at filter for partition pruning
+        # Sessions typically complete within 7 days; use 30 days for safety margin
         return self._execute_query(
             """
             SELECT id, session_id, event_type, sequence, data, created_at
             FROM session_events
             WHERE session_id = %s
+              AND created_at >= NOW() - INTERVAL '30 days'
             ORDER BY sequence ASC
             """,
             (session_id,),
@@ -945,7 +948,7 @@ class SessionRepository(BaseRepository):
     # Session Sharing
     # =========================================================================
 
-    @retry_db(max_attempts=3, base_delay=0.5)
+    @retry_db(max_attempts=3, base_delay=0.5, total_timeout=30.0)
     def create_share(self, session_id: str, token: str, expires_at: Any) -> dict[str, Any]:
         """Create a new session share.
 
@@ -1206,7 +1209,7 @@ class SessionRepository(BaseRepository):
     # Session Synthesis
     # =========================================================================
 
-    @retry_db(max_attempts=3, base_delay=0.5)
+    @retry_db(max_attempts=3, base_delay=0.5, total_timeout=30.0)
     def save_synthesis(self, session_id: str, synthesis_text: str) -> bool:
         """Save synthesis text to sessions table.
 
@@ -1252,7 +1255,7 @@ class SessionRepository(BaseRepository):
     # Session Termination
     # =========================================================================
 
-    @retry_db(max_attempts=3, base_delay=0.5)
+    @retry_db(max_attempts=3, base_delay=0.5, total_timeout=30.0)
     def terminate_session(
         self,
         session_id: str,

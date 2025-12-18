@@ -19,8 +19,9 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel, Field
 
-from bo1.config import get_settings
+from bo1.config import get_model_for_role, get_settings
 from bo1.llm.client import ClaudeClient
+from bo1.logging import ErrorCode, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -288,7 +289,7 @@ Return ONLY valid JSON, no other text."""
 
         try:
             response, _ = await self.claude_client.call(
-                model="haiku",
+                model=get_model_for_role("enrichment"),
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=2000,
@@ -306,7 +307,11 @@ Return ONLY valid JSON, no other text."""
                 if json_match:
                     data = json.loads(json_match.group())
                 else:
-                    logger.error(f"Failed to parse Claude response as JSON: {response[:200]}")
+                    log_error(
+                        logger,
+                        ErrorCode.PARSE_JSON_ERROR,
+                        f"Failed to parse Claude response: {response[:200]}",
+                    )
                     data = {}
 
             # Build EnrichedContext from parsed data
@@ -339,7 +344,7 @@ Return ONLY valid JSON, no other text."""
             )
 
         except Exception as e:
-            logger.error(f"Claude extraction failed: {e}")
+            log_error(logger, ErrorCode.LLM_API_ERROR, f"Claude extraction failed: {e}")
             # Return basic context from metadata only
             return EnrichedContext(
                 company_name=website_data.get("title"),

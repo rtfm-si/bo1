@@ -805,6 +805,218 @@ async def health_check_anthropic() -> ComponentHealthResponse:
         ) from e
 
 
+def _validate_voyage_api_key(api_key: str) -> bool:
+    """Validate Voyage API key format.
+
+    Voyage API keys typically start with 'pa-' prefix.
+    """
+    if not api_key:
+        return False
+    # Voyage keys: pa-<base64-like string>
+    return api_key.startswith("pa-") and len(api_key) >= 20
+
+
+def _validate_brave_api_key(api_key: str) -> bool:
+    """Validate Brave API key format.
+
+    Brave API keys are typically 32+ character alphanumeric strings.
+    """
+    if not api_key:
+        return False
+    # Brave keys: alphanumeric, typically 32+ chars
+    return len(api_key) >= 20 and api_key.replace("-", "").replace("_", "").isalnum()
+
+
+@router.get(
+    "/health/voyage",
+    response_model=ComponentHealthResponse,
+    summary="Voyage AI API health (public, no auth required)",
+    description="""
+    Check if Voyage AI API key is configured.
+
+    Tests:
+    - VOYAGE_API_KEY environment variable is set
+    - API key format validation (starts with 'pa-')
+
+    **Note:** This endpoint does NOT make actual API calls to avoid embedding costs.
+    It only verifies the API key is configured and has valid format.
+
+    **Use Cases:**
+    - Verify API key configuration before using embeddings
+    - Troubleshoot authentication issues
+    - Pre-deployment configuration checks
+    """,
+    responses={
+        200: {
+            "description": "Voyage API key is configured",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "healthy",
+                        "component": "voyage",
+                        "healthy": True,
+                        "message": "Voyage API key configured",
+                        "timestamp": "2025-01-15T12:00:00.000000",
+                    }
+                }
+            },
+        },
+        503: {
+            "description": "Voyage API key is not configured or invalid format",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "unhealthy",
+                        "component": "voyage",
+                        "healthy": False,
+                        "message": "VOYAGE_API_KEY environment variable not set",
+                        "timestamp": "2025-01-15T12:00:00.000000",
+                    }
+                }
+            },
+        },
+    },
+)
+async def health_check_voyage() -> ComponentHealthResponse:
+    """Voyage AI API health check.
+
+    Returns:
+        Voyage API health status (key configuration only, no actual API calls)
+
+    Raises:
+        HTTPException: If API key is not configured or invalid format
+    """
+    api_key = os.getenv("VOYAGE_API_KEY")
+    timestamp = datetime.now(UTC).isoformat()
+
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "unhealthy",
+                "component": "voyage",
+                "healthy": False,
+                "message": "VOYAGE_API_KEY environment variable not set",
+                "timestamp": timestamp,
+            },
+        )
+
+    if not _validate_voyage_api_key(api_key):
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "unhealthy",
+                "component": "voyage",
+                "healthy": False,
+                "message": "VOYAGE_API_KEY has invalid format (expected 'pa-' prefix)",
+                "timestamp": timestamp,
+            },
+        )
+
+    return ComponentHealthResponse(
+        status="healthy",
+        component="voyage",
+        healthy=True,
+        message="Voyage API key configured",
+        timestamp=timestamp,
+    )
+
+
+@router.get(
+    "/health/brave",
+    response_model=ComponentHealthResponse,
+    summary="Brave Search API health (public, no auth required)",
+    description="""
+    Check if Brave Search API key is configured.
+
+    Tests:
+    - BRAVE_API_KEY environment variable is set
+    - API key format validation (alphanumeric, 20+ chars)
+
+    **Note:** This endpoint does NOT make actual API calls to avoid search costs.
+    It only verifies the API key is configured and has valid format.
+
+    **Use Cases:**
+    - Verify API key configuration before using search
+    - Troubleshoot authentication issues
+    - Pre-deployment configuration checks
+    """,
+    responses={
+        200: {
+            "description": "Brave API key is configured",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "healthy",
+                        "component": "brave",
+                        "healthy": True,
+                        "message": "Brave API key configured",
+                        "timestamp": "2025-01-15T12:00:00.000000",
+                    }
+                }
+            },
+        },
+        503: {
+            "description": "Brave API key is not configured or invalid format",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "unhealthy",
+                        "component": "brave",
+                        "healthy": False,
+                        "message": "BRAVE_API_KEY environment variable not set",
+                        "timestamp": "2025-01-15T12:00:00.000000",
+                    }
+                }
+            },
+        },
+    },
+)
+async def health_check_brave() -> ComponentHealthResponse:
+    """Brave Search API health check.
+
+    Returns:
+        Brave API health status (key configuration only, no actual API calls)
+
+    Raises:
+        HTTPException: If API key is not configured or invalid format
+    """
+    api_key = os.getenv("BRAVE_API_KEY")
+    timestamp = datetime.now(UTC).isoformat()
+
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "unhealthy",
+                "component": "brave",
+                "healthy": False,
+                "message": "BRAVE_API_KEY environment variable not set",
+                "timestamp": timestamp,
+            },
+        )
+
+    if not _validate_brave_api_key(api_key):
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "unhealthy",
+                "component": "brave",
+                "healthy": False,
+                "message": "BRAVE_API_KEY has invalid format",
+                "timestamp": timestamp,
+            },
+        )
+
+    return ComponentHealthResponse(
+        status="healthy",
+        component="brave",
+        healthy=True,
+        message="Brave API key configured",
+        timestamp=timestamp,
+    )
+
+
 class SessionPersistenceDetail(BaseModel):
     """Detail about a single session's persistence status."""
 
@@ -1157,12 +1369,16 @@ class CircuitBreakersHealthResponse(BaseModel):
     response_model=CircuitBreakersHealthResponse,
     summary="Circuit breakers health (public, no auth required)",
     description="""
-    Check status of all circuit breakers for external APIs.
+    Check status of all circuit breakers for external APIs and infrastructure.
 
     **Services monitored:**
     - anthropic: Claude API
+    - openai: OpenAI API (fallback)
     - voyage: Voyage AI embeddings
     - brave: Brave Search API
+    - tavily: Tavily Search API
+    - postgres: PostgreSQL database
+    - redis: Redis cache
 
     **States:**
     - closed: Normal operation
@@ -1171,6 +1387,7 @@ class CircuitBreakersHealthResponse(BaseModel):
 
     **Use Cases:**
     - Monitor external API health
+    - Monitor infrastructure health
     - Diagnose service outages
     - Verify recovery after incidents
     """,
@@ -1395,7 +1612,7 @@ class DetailedHealthResponse(BaseModel):
     description="""
     Comprehensive operational health check combining:
     - Event queue depth (pending events in batcher)
-    - LLM provider circuit breaker states
+    - Circuit breaker states (LLM providers, database, Redis)
 
     **Thresholds:**
     - Event queue warning: 50 pending events

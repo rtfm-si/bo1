@@ -1,0 +1,35 @@
+# Board of One - AI Agent Information
+# https://boardof.one/llms.txt
+
+> Board of One is a decision-making platform that helps professionals make better decisions faster using multi-agent AI deliberation.
+
+## What is Board of One?
+
+Board of One creates virtual advisory boards powered by AI personas who debate and analyze your decisions from multiple perspectives. Instead of 15 meetings to reach clarity, get structured analysis in 15 minutes.
+
+## Key Features
+
+- Multi-agent deliberation: AI personas debate decisions from different viewpoints
+- Expert perspectives: Personas with distinct backgrounds (strategist, skeptic, pragmatist, etc.)
+- Structured analysis: Clear recommendations with supporting reasoning
+- Action planning: Convert decisions into actionable items with timelines
+
+## Primary Use Cases
+
+- Strategic business decisions
+- Product direction choices
+- Investment analysis
+- Team and organizational decisions
+- Complex problem-solving requiring multiple viewpoints
+
+## Public Pages
+
+- / - Landing page with product overview
+- /help - Help center with guides and FAQs
+- /legal/privacy - Privacy policy
+- /legal/terms - Terms of service
+
+## Contact
+
+- Website: https://boardof.one
+- Company: Sico Software Ltd

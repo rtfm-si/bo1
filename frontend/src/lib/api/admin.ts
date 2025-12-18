@@ -254,6 +254,8 @@ export interface ObservabilityLinksResponse {
 	grafana_url: string | null;
 	prometheus_url: string | null;
 	sentry_url: string | null;
+	status_url: string | null;
+	analytics_url: string | null;
 }
 
 // =============================================================================
@@ -1173,6 +1175,27 @@ class AdminApiClient {
 	async getEmailStats(days: number = 30): Promise<EmailStatsResponse> {
 		return this.fetch<EmailStatsResponse>(`/api/admin/email-stats?days=${days}`);
 	}
+
+	// =========================================================================
+	// Runtime Config (Emergency Toggles)
+	// =========================================================================
+
+	async getRuntimeConfig(): Promise<RuntimeConfigResponse> {
+		return this.fetch<RuntimeConfigResponse>('/api/admin/runtime-config');
+	}
+
+	async setRuntimeConfig(key: string, value: boolean): Promise<RuntimeConfigItem> {
+		return this.fetch<RuntimeConfigItem>(`/api/admin/runtime-config/${encodeURIComponent(key)}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ value })
+		});
+	}
+
+	async clearRuntimeConfig(key: string): Promise<RuntimeConfigItem> {
+		return this.fetch<RuntimeConfigItem>(`/api/admin/runtime-config/${encodeURIComponent(key)}`, {
+			method: 'DELETE'
+		});
+	}
 }
 
 // Blog Post Types
@@ -1330,6 +1353,27 @@ export interface EmailStatsResponse {
 	total: number;
 	by_type: Record<string, number>;
 	by_period: EmailPeriodCounts;
+}
+
+// =============================================================================
+// Runtime Config Types
+// =============================================================================
+
+export interface RuntimeConfigItem {
+	key: string;
+	override_value: boolean | null;
+	default_value: boolean | null;
+	effective_value: boolean | null;
+	is_overridden: boolean;
+}
+
+export interface RuntimeConfigResponse {
+	items: RuntimeConfigItem[];
+	count: number;
+}
+
+export interface UpdateRuntimeConfigRequest {
+	value: boolean;
 }
 
 export const adminApi = new AdminApiClient();

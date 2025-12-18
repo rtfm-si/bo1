@@ -25,7 +25,7 @@ from collections.abc import AsyncGenerator  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
 from typing import Any  # noqa: E402
 
-from fastapi import Depends, FastAPI, Request  # noqa: E402
+from fastapi import Depends, FastAPI, HTTPException, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html  # noqa: E402
@@ -621,11 +621,54 @@ async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded)
     return JSONResponse(
         status_code=429,
         content={
-            "error": "Rate limit exceeded",
-            "message": "Too many requests. Please try again later.",
-            "type": "RateLimitExceeded",
+            "detail": "Too many requests. Please try again later.",
+            "error_code": "rate_limited",
         },
         headers={"Retry-After": "60"},  # Suggest retry after 60 seconds
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """Handle HTTPException with consistent JSON shape.
+
+    Ensures all HTTP errors have both 'detail' and 'error_code' fields.
+    If error_code is not provided, defaults to 'unknown_error'.
+
+    Args:
+        request: FastAPI request object
+        exc: HTTPException that was raised
+
+    Returns:
+        JSON error response with consistent shape
+    """
+    # Check if detail is already structured (dict with error_code)
+    if isinstance(exc.detail, dict) and "error_code" in exc.detail:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=exc.detail,
+            headers=exc.headers,
+        )
+
+    # If detail is a dict without error_code (e.g., health check responses),
+    # add error_code to the dict
+    if isinstance(exc.detail, dict):
+        content = exc.detail.copy()
+        content["error_code"] = "unknown_error"
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=content,
+            headers=exc.headers,
+        )
+
+    # If detail is a string, wrap it in structured format
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.detail,
+            "error_code": "unknown_error",
+        },
+        headers=exc.headers,
     )
 
 

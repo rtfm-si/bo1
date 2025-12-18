@@ -35,6 +35,11 @@ from supertokens_python.recipe.thirdparty.provider import (
 )
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
 
+from backend.api.middleware.csrf import (
+    clear_csrf_cookie_on_response,
+    generate_csrf_token,
+    set_csrf_cookie_on_response,
+)
 from backend.api.utils.db_helpers import execute_query, exists
 from backend.api.utils.oauth_errors import sanitize_supertokens_message
 from backend.services.auth_lockout import auth_lockout_service
@@ -562,6 +567,23 @@ def override_thirdparty_apis(original_implementation: APIInterface) -> APIInterf
             # On success, optionally clear lockout (comment out if prefer accumulating)
             # auth_lockout_service.clear_attempts(client_ip)
 
+            # Rotate CSRF token on successful sign-in (session fixation mitigation)
+            # Generate new token to prevent attackers from planting CSRF token before auth
+            if api_options.response:
+                cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+                cookie_domain = os.getenv("COOKIE_DOMAIN", None)
+                # Don't set domain for localhost (browser won't accept it)
+                if cookie_domain == "localhost":
+                    cookie_domain = None
+                new_csrf_token = generate_csrf_token()
+                set_csrf_cookie_on_response(
+                    api_options.response,
+                    new_csrf_token,
+                    secure=cookie_secure,
+                    domain=cookie_domain,
+                )
+                logger.info(f"CSRF token rotated on sign-in for IP {client_ip}")
+
             return result
         except Exception as e:
             # Record failure for lockout tracking
@@ -576,6 +598,41 @@ def override_thirdparty_apis(original_implementation: APIInterface) -> APIInterf
             raise
 
     original_implementation.sign_in_up_post = sign_in_up_post
+    return original_implementation
+
+
+def override_session_apis(
+    original_implementation: session.interfaces.APIInterface,
+) -> session.interfaces.APIInterface:
+    """Override Session APIs to clear CSRF token on sign-out."""
+    original_signout_post = original_implementation.signout_post
+
+    async def signout_post(
+        session_container: SessionContainer,
+        api_options: session.interfaces.APIOptions,
+        user_context: dict[str, Any],
+    ) -> session.interfaces.SignOutOkayResponse:
+        """Override signout_post to clear CSRF token on sign-out."""
+        # Call original sign-out first
+        result = await original_signout_post(session_container, api_options, user_context)
+
+        # Clear CSRF token cookie after successful sign-out
+        if api_options.response:
+            cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+            cookie_domain = os.getenv("COOKIE_DOMAIN", None)
+            # Don't set domain for localhost (browser won't accept it)
+            if cookie_domain == "localhost":
+                cookie_domain = None
+            clear_csrf_cookie_on_response(
+                api_options.response,
+                secure=cookie_secure,
+                domain=cookie_domain,
+            )
+            logger.info("CSRF token cleared on sign-out")
+
+        return result
+
+    original_implementation.signout_post = signout_post
     return original_implementation
 
 
@@ -632,6 +689,9 @@ def init_supertokens() -> None:
                 cookie_secure=cookie_secure,  # HTTPS only in production
                 cookie_domain=cookie_domain,  # .boardof.one in production
                 cookie_same_site="lax",  # CSRF protection
+                override=session.InputOverrideConfig(
+                    apis=override_session_apis,
+                ),
             ),
         ],
         mode="asgi",  # FastAPI uses ASGI

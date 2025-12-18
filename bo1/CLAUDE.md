@@ -3,7 +3,7 @@ Overrides root for core library. GOVERNANCE LOCK applies.
 
 Rules:
 - recommendations NOT votes
-- state_to_v1() / v1_to_state() for conversions
+- serialize_state_for_checkpoint() / deserialize_state_from_checkpoint() for conversions
 - db_session() always
 - XML tags in prompts
 - Limits: 6 rounds, 20 recursion

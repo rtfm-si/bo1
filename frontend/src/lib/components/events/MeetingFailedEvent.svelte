@@ -99,7 +99,7 @@
 									>{failed_count} / {total_count}</span
 								>
 							</div>
-							{#if event.data.failed_ids?.length > 0}
+							{#if event.data.failed_ids && event.data.failed_ids.length > 0}
 								<div>
 									<span class="text-neutral-600 dark:text-neutral-400">Failed IDs:</span>
 									<div class="text-neutral-900 dark:text-neutral-100 mt-1">

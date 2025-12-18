@@ -3,6 +3,7 @@
 	 * SubProblemWaiting - Displays user-friendly waiting message for sub-problem dependencies
 	 */
 	import type { SSEEvent } from '$lib/api/sse-events';
+	import { getSubProblemIndex } from '$lib/api/sse-events';
 	import { Clock } from 'lucide-svelte';
 
 	interface Props {
@@ -11,8 +12,8 @@
 
 	let { event }: Props = $props();
 
-	const waitingFor = $derived((event.data.waiting_for as number[]) ?? []);
-	const subProblemIndex = $derived((event.data.sub_problem_index as number) ?? 0);
+	const waitingFor = $derived(((event.data as { waiting_for?: number[] }).waiting_for) ?? []);
+	const subProblemIndex = $derived(getSubProblemIndex(event) ?? 0);
 
 	// Format waiting list as "Focus Areas 1, 2, 3"
 	const waitingForText = $derived.by(() => {

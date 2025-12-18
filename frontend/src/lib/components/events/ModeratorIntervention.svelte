@@ -14,7 +14,7 @@
 
 	let { event }: Props = $props();
 
-	const moderatorLabels = {
+	const moderatorLabels: Record<string, string> = {
 		contrarian: 'Contrarian Perspective',
 		balance: 'Balance Discussion',
 		focus: 'Refocus Discussion',

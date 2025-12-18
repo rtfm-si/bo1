@@ -360,6 +360,13 @@ class PrometheusMetrics:
             ["result"],  # success, failure
         )
 
+        # User context cache metrics
+        self.user_context_cache_total = Counter(
+            "bo1_user_context_cache_total",
+            "User context cache lookups",
+            ["result"],  # hit, miss
+        )
+
         # Database pool degradation metrics
         self.db_pool_degraded = Gauge(
             "bo1_db_pool_degraded",
@@ -386,6 +393,20 @@ class PrometheusMetrics:
             "bo1_api_startup_duration_ms",
             "API startup duration in milliseconds",
             ["phase"],  # module_init, lifespan, total
+        )
+
+        # Graph node execution metrics
+        self.graph_node_duration = Histogram(
+            "bo1_graph_node_duration_seconds",
+            "Graph node execution duration in seconds",
+            ["node_name"],
+            buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0],
+        )
+
+        self.graph_node_total = Counter(
+            "bo1_graph_node_total",
+            "Total graph node executions by status",
+            ["node_name", "status"],  # status: success, error
         )
 
     def record_startup_time(self, phase: str, duration_ms: float) -> None:
@@ -605,6 +626,21 @@ class PrometheusMetrics:
     def record_request_shed(self) -> None:
         """Record a request rejected due to load shedding."""
         self.db_requests_shed_total.inc()
+
+    def record_graph_node_execution(
+        self, node_name: str, duration_seconds: float, success: bool
+    ) -> None:
+        """Record graph node execution metrics.
+
+        Args:
+            node_name: Name of the graph node (e.g., "decompose", "select_personas")
+            duration_seconds: Execution duration in seconds
+            success: Whether execution succeeded
+        """
+        self.graph_node_duration.labels(node_name=node_name).observe(duration_seconds)
+        self.graph_node_total.labels(
+            node_name=node_name, status="success" if success else "error"
+        ).inc()
 
 
 # Global Prometheus metrics instance

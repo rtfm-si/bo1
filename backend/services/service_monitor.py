@@ -81,6 +81,8 @@ class ServiceMonitor:
     SERVICES = {
         "anthropic": {"critical": True, "baseline_error_rate": 0.02},
         "openai": {"critical": True, "baseline_error_rate": 0.02},
+        "voyage": {"critical": False, "baseline_error_rate": 0.02},
+        "brave": {"critical": False, "baseline_error_rate": 0.05},
         "postgres": {"critical": True, "baseline_error_rate": 0.001},
         "redis": {"critical": True, "baseline_error_rate": 0.001},
         "spaces": {"critical": False, "baseline_error_rate": 0.01},

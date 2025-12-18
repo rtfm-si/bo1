@@ -10,7 +10,7 @@ from bo1.agents.facilitator import FacilitatorDecision
 from bo1.graph.state import (
     DeliberationGraphState,
     create_initial_state,
-    state_to_dict,
+    serialize_state_for_checkpoint,
     validate_state,
 )
 from bo1.llm.client import ClaudeClient, TokenUsage
@@ -232,7 +232,7 @@ def test_state_validation_catches_invalid_rounds():
 
 @pytest.mark.unit
 def test_state_serialization_preserves_types(sample_problem, sample_personas):
-    """Test: state_to_dict serialization preserves all data."""
+    """Test: serialize_state_for_checkpoint preserves all data."""
     problem = sample_problem
     personas = sample_personas
 
@@ -252,7 +252,7 @@ def test_state_serialization_preserves_types(sample_problem, sample_personas):
     state["round_summaries"] = ["Round 0 summary"]
 
     # Serialize to dict
-    serialized = state_to_dict(state)
+    serialized = serialize_state_for_checkpoint(state)
 
     # Verify it's a dict
     assert isinstance(serialized, dict)

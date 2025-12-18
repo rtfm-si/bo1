@@ -6,8 +6,10 @@ to eliminate duplication across agent implementations.
 
 from abc import ABC, abstractmethod
 
+from bo1.config import TokenBudgets
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
+from bo1.llm.response_parser import ValidationConfig
 from bo1.utils.error_logger import ErrorLogger
 from bo1.utils.logging import get_logger
 
@@ -97,7 +99,7 @@ class BaseAgent(ABC):
         *,
         prefill: str = "",
         temperature: float = 0.7,
-        max_tokens: int = 2048,
+        max_tokens: int = TokenBudgets.AGENT_BASE,
         cache_system: bool = True,
     ) -> LLMResponse:
         """Create PromptRequest and call LLM with standard pattern.
@@ -111,7 +113,7 @@ class BaseAgent(ABC):
             phase: Phase name for cost tracking (e.g., "decomposition", "selection")
             prefill: Optional prefill text (e.g., "{" for JSON responses)
             temperature: LLM temperature (0.0-2.0, default 0.7)
-            max_tokens: Maximum tokens in response (default 2048)
+            max_tokens: Maximum tokens in response (default TokenBudgets.AGENT_BASE)
             cache_system: Whether to cache system prompt (default True)
 
         Returns:
@@ -173,3 +175,78 @@ class BaseAgent(ABC):
         """
         self.total_cost = 0.0
         self.call_count = 0
+
+    async def _create_and_call_prompt_with_validation(
+        self,
+        system: str,
+        user_message: str,
+        phase: str,
+        validation: ValidationConfig,
+        *,
+        prefill: str = "",
+        temperature: float = 0.7,
+        max_tokens: int = TokenBudgets.AGENT_BASE,
+        cache_system: bool = True,
+    ) -> LLMResponse:
+        """Create PromptRequest and call LLM with XML validation and retry.
+
+        Same as _create_and_call_prompt but validates response against required
+        XML tags and retries if validation fails.
+
+        Args:
+            system: System prompt for the LLM
+            user_message: User message/prompt
+            phase: Phase name for cost tracking
+            validation: ValidationConfig with required_tags, max_retries, strict
+            prefill: Optional prefill text
+            temperature: LLM temperature (0.0-2.0, default 0.7)
+            max_tokens: Maximum tokens in response
+            cache_system: Whether to cache system prompt (default True)
+
+        Returns:
+            LLMResponse from the model (with accumulated tokens if retry occurred)
+
+        Raises:
+            XMLValidationError: If strict=True and validation fails after retries
+
+        Examples:
+            >>> validation = ValidationConfig(required_tags=["action"], max_retries=1)
+            >>> response = await self._create_and_call_prompt_with_validation(
+            ...     system=SYSTEM_PROMPT,
+            ...     user_message=user_input,
+            ...     phase="facilitator_decision",
+            ...     validation=validation,
+            ...     prefill="<thinking>",
+            ... )
+        """
+        request = PromptRequest(
+            system=system,
+            user_message=user_message,
+            model=self.model,
+            prefill=prefill,
+            cache_system=cache_system,
+            phase=phase,
+            agent_type=self.__class__.__name__,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        try:
+            response = await self.broker.call_with_validation(request, validation)
+            # Track costs and call count
+            self.total_cost += response.cost_total
+            self.call_count += 1
+            return response
+        except Exception as e:
+            # Log error with structured context
+            ErrorLogger.log_error_with_context(
+                logger,
+                e,
+                "LLM call with validation failed in agent",
+                agent=self.__class__.__name__,
+                model=self.model,
+                phase=phase,
+                request_id=request.request_id,
+                required_tags=validation.required_tags,
+            )
+            raise

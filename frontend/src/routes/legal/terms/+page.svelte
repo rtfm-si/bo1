@@ -74,7 +74,7 @@
 				<h3>5.1 Our IP</h3>
 				<p>
 					The Service, including all content, features, algorithms, and functionality, is owned by
-					Board of One and is protected by copyright, trademark, and other intellectual property
+					Sico Software Ltd and is protected by copyright, trademark, and other intellectual property
 					laws.
 				</p>
 				<h3>5.2 Your Content</h3>

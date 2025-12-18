@@ -30,8 +30,9 @@ receivers:
 
   - name: 'critical'
     webhook_configs:
-      # ntfy.sh for critical alerts
-      - url: 'https://ntfy.sh/${NTFY_TOPIC:-bo1-alerts}'
+      # ntfy for critical alerts (self-hosted)
+      # Topic: bo1-prod-alerts - subscribe at https://ntfy.boardof.one/bo1-prod-alerts
+      - url: 'https://ntfy.boardof.one/bo1-prod-alerts'
         send_resolved: true
         http_config:
           headers:
@@ -41,7 +42,8 @@ receivers:
 
   - name: 'warning'
     webhook_configs:
-      - url: 'https://ntfy.sh/${NTFY_TOPIC:-bo1-alerts}'
+      # ntfy for warning alerts (self-hosted)
+      - url: 'https://ntfy.boardof.one/bo1-prod-alerts'
         send_resolved: true
         http_config:
           headers:

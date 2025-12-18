@@ -1,18 +1,16 @@
 """Unit tests for synthesis model selection.
 
-Tests feature flag use_haiku_for_synthesis:
-1. Default (True) uses Haiku
-2. False uses Sonnet
-3. synthesize_node respects flag
-4. meta_synthesize_node respects flag
+Tests tier-based model selection for synthesis:
+1. synthesize_node uses 'fast' tier (Haiku/GPT-mini)
+2. meta_synthesize_node uses 'fast' tier (Haiku/GPT-mini)
+3. Model resolves to correct provider-specific ID
 """
 
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from bo1.config import reset_settings
+from bo1.config import TASK_MODEL_DEFAULTS, get_model_for_role, reset_settings
 from bo1.graph.state import DeliberationGraphState
 from bo1.llm.client import TokenUsage
 from bo1.llm.response import LLMResponse
@@ -133,41 +131,37 @@ def basic_meta_synthesis_state() -> DeliberationGraphState:
     )
 
 
-class TestFeatureFlagDefault:
-    """Test feature flag defaults."""
+class TestTierConfiguration:
+    """Test tier-based model configuration."""
 
-    def test_default_uses_haiku(self):
-        """Feature flag defaults to True (use Haiku)."""
-        from bo1.config import get_settings
+    def test_synthesis_uses_fast_tier(self):
+        """synthesis role is configured to use fast tier."""
+        assert TASK_MODEL_DEFAULTS["synthesis"] == "fast"
 
-        settings = get_settings()
-        assert settings.use_haiku_for_synthesis is True
+    def test_meta_synthesis_uses_fast_tier(self):
+        """meta_synthesis role is configured to use fast tier."""
+        assert TASK_MODEL_DEFAULTS["meta_synthesis"] == "fast"
+
+    def test_get_model_for_role_resolves_synthesis(self):
+        """get_model_for_role resolves synthesis to a valid model ID."""
+        model = get_model_for_role("synthesis")
+        # Should resolve to a fast tier model (Haiku for Anthropic, GPT-mini for OpenAI)
+        assert model is not None
+        assert len(model) > 0
+
+    def test_get_model_for_role_resolves_meta_synthesis(self):
+        """get_model_for_role resolves meta_synthesis to a valid model ID."""
+        model = get_model_for_role("meta_synthesis")
+        assert model is not None
+        assert len(model) > 0
 
 
 class TestSynthesizeNodeModel:
-    """Test synthesize_node model selection."""
+    """Test synthesize_node uses configured model."""
 
     @pytest.mark.asyncio
-    async def test_uses_haiku_when_flag_true(self, mock_broker, basic_synthesis_state):
-        """synthesize_node uses Haiku when flag is True (default)."""
-        os.environ["USE_HAIKU_FOR_SYNTHESIS"] = "true"
-        reset_settings()
-
-        from bo1.graph.nodes.synthesis import synthesize_node
-
-        await synthesize_node(basic_synthesis_state)
-
-        # Check the model passed to broker.call()
-        call_args = mock_broker.call.call_args
-        request = call_args[0][0]  # First positional arg
-        assert request.model == "haiku"
-
-    @pytest.mark.asyncio
-    async def test_uses_sonnet_when_flag_false(self, mock_broker, basic_synthesis_state):
-        """synthesize_node uses Sonnet when flag is False."""
-        os.environ["USE_HAIKU_FOR_SYNTHESIS"] = "false"
-        reset_settings()
-
+    async def test_uses_configured_model(self, mock_broker, basic_synthesis_state):
+        """synthesize_node uses model from get_model_for_role."""
         from bo1.graph.nodes.synthesis import synthesize_node
 
         await synthesize_node(basic_synthesis_state)
@@ -175,18 +169,17 @@ class TestSynthesizeNodeModel:
         # Check the model passed to broker.call()
         call_args = mock_broker.call.call_args
         request = call_args[0][0]
-        assert request.model == "sonnet"
+        # Model should be the resolved fast tier model
+        expected_model = get_model_for_role("synthesis")
+        assert request.model == expected_model
 
 
 class TestMetaSynthesizeNodeModel:
-    """Test meta_synthesize_node model selection."""
+    """Test meta_synthesize_node uses configured model."""
 
     @pytest.mark.asyncio
-    async def test_uses_haiku_when_flag_true(self, mock_meta_broker, basic_meta_synthesis_state):
-        """meta_synthesize_node uses Haiku when flag is True (default)."""
-        os.environ["USE_HAIKU_FOR_SYNTHESIS"] = "true"
-        reset_settings()
-
+    async def test_uses_configured_model(self, mock_meta_broker, basic_meta_synthesis_state):
+        """meta_synthesize_node uses model from get_model_for_role."""
         from bo1.graph.nodes.synthesis import meta_synthesize_node
 
         await meta_synthesize_node(basic_meta_synthesis_state)
@@ -194,19 +187,6 @@ class TestMetaSynthesizeNodeModel:
         # Check the model passed to broker.call()
         call_args = mock_meta_broker.call.call_args
         request = call_args[0][0]
-        assert request.model == "haiku"
-
-    @pytest.mark.asyncio
-    async def test_uses_sonnet_when_flag_false(self, mock_meta_broker, basic_meta_synthesis_state):
-        """meta_synthesize_node uses Sonnet when flag is False."""
-        os.environ["USE_HAIKU_FOR_SYNTHESIS"] = "false"
-        reset_settings()
-
-        from bo1.graph.nodes.synthesis import meta_synthesize_node
-
-        await meta_synthesize_node(basic_meta_synthesis_state)
-
-        # Check the model passed to broker.call()
-        call_args = mock_meta_broker.call.call_args
-        request = call_args[0][0]
-        assert request.model == "sonnet"
+        # Model should be the resolved fast tier model
+        expected_model = get_model_for_role("meta_synthesis")
+        assert request.model == expected_model

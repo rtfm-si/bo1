@@ -212,7 +212,10 @@ class UserRepository(BaseRepository):
                 )
 
     def get_context(self, user_id: str) -> dict[str, Any] | None:
-        """Load user's business context from database.
+        """Load user's business context with Redis cache.
+
+        Tries Redis cache first, falls back to PostgreSQL on miss.
+        Caches result on miss for subsequent requests.
 
         Args:
             user_id: User ID (from Supabase auth)
@@ -220,9 +223,38 @@ class UserRepository(BaseRepository):
         Returns:
             Dictionary with all context fields or None if not found
         """
+        # Try Redis cache first
+        try:
+            from backend.api.dependencies import get_redis_manager
+
+            redis_manager = get_redis_manager()
+            cached = redis_manager.get_cached_context(user_id)
+
+            if cached is not None:
+                # Cache hit - emit metric
+                try:
+                    from backend.api.metrics import prom_metrics
+
+                    prom_metrics.user_context_cache_total.labels(result="hit").inc()
+                except ImportError:
+                    pass
+                return cached
+
+            # Cache miss - emit metric
+            try:
+                from backend.api.metrics import prom_metrics
+
+                prom_metrics.user_context_cache_total.labels(result="miss").inc()
+            except ImportError:
+                pass
+
+        except Exception as e:
+            # Redis error - fall back to DB (don't fail request)
+            logger.warning(f"[CONTEXT_CACHE] Redis error for {user_id}, falling back to DB: {e}")
+
         # Build SELECT with all fields
         fields = ", ".join(self.CONTEXT_FIELDS + ["created_at", "updated_at"])
-        return self._execute_one(
+        context = self._execute_one(
             f"""
             SELECT {fields}
             FROM user_context
@@ -231,8 +263,22 @@ class UserRepository(BaseRepository):
             (user_id,),
         )
 
+        # Cache result on miss (if we got data)
+        if context is not None:
+            try:
+                from backend.api.dependencies import get_redis_manager
+
+                redis_manager = get_redis_manager()
+                redis_manager.cache_context(user_id, context)
+            except Exception as e:
+                logger.debug(f"[CONTEXT_CACHE] Failed to cache context for {user_id}: {e}")
+
+        return context
+
     def save_context(self, user_id: str, context: dict[str, Any]) -> dict[str, Any]:
         """Save or update user's business context.
+
+        Invalidates Redis cache after successful DB write.
 
         Args:
             user_id: User ID (from Supabase auth)
@@ -249,7 +295,7 @@ class UserRepository(BaseRepository):
         # Handle empty context - insert/update minimal record with just user_id
         if not valid_fields:
             return_fields = ", ".join(self.CONTEXT_FIELDS + ["created_at", "updated_at"])
-            return self._execute_returning(
+            result = self._execute_returning(
                 f"""
                 INSERT INTO user_context (user_id)
                 VALUES (%s)
@@ -258,6 +304,8 @@ class UserRepository(BaseRepository):
                 """,
                 (user_id,),
             )
+            self._invalidate_context_cache(user_id)
+            return result
 
         # Build dynamic INSERT statement
         field_list = ", ".join(valid_fields)
@@ -296,7 +344,27 @@ class UserRepository(BaseRepository):
             RETURNING {return_fields}
         """
 
-        return self._execute_returning(sql, (user_id, *values))
+        result = self._execute_returning(sql, (user_id, *values))
+
+        # Invalidate cache after successful write
+        self._invalidate_context_cache(user_id)
+
+        return result
+
+    def _invalidate_context_cache(self, user_id: str) -> None:
+        """Invalidate user context cache in Redis.
+
+        Args:
+            user_id: User identifier
+        """
+        try:
+            from backend.api.dependencies import get_redis_manager
+
+            redis_manager = get_redis_manager()
+            redis_manager.invalidate_context(user_id)
+        except Exception as e:
+            # Don't fail save_context if cache invalidation fails
+            logger.warning(f"[CONTEXT_CACHE] Failed to invalidate cache for {user_id}: {e}")
 
     def mark_onboarding_complete(self, user_id: str) -> bool:
         """Mark user's onboarding as complete.

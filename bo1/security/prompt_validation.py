@@ -167,11 +167,16 @@ def sanitize_user_input(
 
     if is_suspicious:
         # Always log suspicious inputs for monitoring
+        # SECURITY: Limit preview to 50 chars to reduce log exposure
+        import hashlib
+
+        input_hash = hashlib.sha256(text.encode()).hexdigest()[:16]
         logger.warning(
             f"Potential prompt injection detected: {reason}",
             extra={
                 "input_length": len(text),
-                "input_preview": text[:100],  # Log first 100 chars only
+                "input_preview": text[:50] + "..." if len(text) > 50 else text,
+                "input_hash": input_hash,  # For correlation without full content
                 "detection_reason": reason,
                 "strict_mode": strict,
             },
@@ -191,6 +196,9 @@ def validate_problem_statement(problem: str) -> str:
     """Validate and sanitize problem statement input.
 
     Specialized validator for problem statements with appropriate limits.
+    Uses config setting to determine whether to block suspicious patterns.
+
+    Priority: Runtime override (Redis) > env var > default
 
     Args:
         problem: Problem statement from user
@@ -200,22 +208,32 @@ def validate_problem_statement(problem: str) -> str:
 
     Raises:
         ValueError: If problem is too long or empty
-        PromptInjectionError: If obvious injection attempt detected
+        PromptInjectionError: If blocking enabled and injection pattern detected
 
     Example:
         >>> validate_problem_statement("Should we invest in marketing?")
         "Should we invest in marketing?"
     """
+    from backend.services.runtime_config import get_effective_value
+    from bo1.config import get_settings
+
     if not problem or not problem.strip():
         raise ValueError("Problem statement cannot be empty")
 
-    # Problem statements: More lenient, but still validate
-    # Don't block by default (false positives would be frustrating)
-    # But do log for monitoring
+    # Get blocking setting: runtime override > env var > default
+    # This allows emergency disable via admin UI without restart
+    block_suspicious = get_effective_value("prompt_injection_block_suspicious")
+    if block_suspicious is None:
+        # Fallback if runtime config service unavailable
+        settings = get_settings()
+        block_suspicious = settings.prompt_injection_block_suspicious
+
+    # Problem statements: Validate with configurable blocking
+    # Pattern-based detection is fast and catches obvious attacks
     return sanitize_user_input(
         problem,
         max_length=5000,  # Reasonable limit for problem statements
-        block_suspicious=False,  # Don't block - just log
+        block_suspicious=block_suspicious,  # Configurable via PROMPT_INJECTION_BLOCK_SUSPICIOUS
         strict=False,  # Normal detection mode
     )
 

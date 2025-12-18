@@ -5,12 +5,14 @@
 		grafana_url?: string | null;
 		prometheus_url?: string | null;
 		sentry_url?: string | null;
+		status_url?: string | null;
+		analytics_url?: string | null;
 	}
 
-	let { grafana_url, prometheus_url, sentry_url }: Props = $props();
+	let { grafana_url, prometheus_url, sentry_url, status_url, analytics_url }: Props = $props();
 
 	// Only show card if at least one URL is configured
-	const hasAnyLinks = grafana_url || prometheus_url || sentry_url;
+	const hasAnyLinks = grafana_url || prometheus_url || sentry_url || status_url || analytics_url;
 </script>
 
 {#if hasAnyLinks}
@@ -95,6 +97,62 @@
 						<div>
 							<p class="font-medium text-neutral-900 dark:text-white">Sentry</p>
 							<p class="text-xs text-neutral-500">Error Tracking</p>
+						</div>
+					</div>
+					<ExternalLink class="w-4 h-4 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />
+				</a>
+			{/if}
+
+			{#if status_url}
+				<a
+					href={status_url}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="flex items-center justify-between px-4 py-3 rounded-lg bg-neutral-50 dark:bg-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-600 border border-neutral-200 dark:border-neutral-600 transition-colors group"
+				>
+					<div class="flex items-center gap-3">
+						<div class="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+							<svg
+								class="w-5 h-5 text-green-600 dark:text-green-400"
+								fill="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+								/>
+							</svg>
+						</div>
+						<div>
+							<p class="font-medium text-neutral-900 dark:text-white">Status</p>
+							<p class="text-xs text-neutral-500">Uptime Monitoring</p>
+						</div>
+					</div>
+					<ExternalLink class="w-4 h-4 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />
+				</a>
+			{/if}
+
+			{#if analytics_url}
+				<a
+					href={analytics_url}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="flex items-center justify-between px-4 py-3 rounded-lg bg-neutral-50 dark:bg-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-600 border border-neutral-200 dark:border-neutral-600 transition-colors group"
+				>
+					<div class="flex items-center gap-3">
+						<div class="p-2 bg-pink-100 dark:bg-pink-900/30 rounded-lg">
+							<svg
+								class="w-5 h-5 text-pink-600 dark:text-pink-400"
+								fill="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"
+								/>
+							</svg>
+						</div>
+						<div>
+							<p class="font-medium text-neutral-900 dark:text-white">Analytics</p>
+							<p class="text-xs text-neutral-500">Traffic & Usage</p>
 						</div>
 					</div>
 					<ExternalLink class="w-4 h-4 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />

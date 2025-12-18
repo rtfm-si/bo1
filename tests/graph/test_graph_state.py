@@ -4,7 +4,7 @@ import pytest
 
 from bo1.graph.state import (
     create_initial_state,
-    state_to_dict,
+    serialize_state_for_checkpoint,
     validate_state,
 )
 from bo1.models.persona import PersonaProfile
@@ -150,7 +150,9 @@ def test_validate_state_max_rounds_exceeds_cap(sample_problem: Problem) -> None:
         validate_state(state)
 
 
-def test_state_to_dict(sample_problem: Problem, sample_personas: list[PersonaProfile]) -> None:
+def test_serialize_state_for_checkpoint(
+    sample_problem: Problem, sample_personas: list[PersonaProfile]
+) -> None:
     """Test converting state to dictionary for checkpointing."""
     state = create_initial_state(
         session_id="test-dict",
@@ -158,7 +160,7 @@ def test_state_to_dict(sample_problem: Problem, sample_personas: list[PersonaPro
         personas=sample_personas,
     )
 
-    result = state_to_dict(state)
+    result = serialize_state_for_checkpoint(state)
 
     assert isinstance(result, dict)
     assert result["session_id"] == "test-dict"
@@ -233,7 +235,7 @@ def test_graph_state_with_metrics(sample_problem: Problem) -> None:
     state["metrics"].cache_hits = 3
 
     # Convert to dict and verify metrics preserved
-    result = state_to_dict(state)
+    result = serialize_state_for_checkpoint(state)
     assert result["metrics"]["total_cost"] == 0.15
     assert result["metrics"]["total_tokens"] == 1500
     assert result["metrics"]["cache_hits"] == 3

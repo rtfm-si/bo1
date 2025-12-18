@@ -3,9 +3,15 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
 # Alerting rules
 rule_files:
-  - "alert_rules.yml"
+  - "/etc/prometheus/alert_rules.yml"
 
 scrape_configs:
   # Backend API metrics (blue deployment: boardofone project)

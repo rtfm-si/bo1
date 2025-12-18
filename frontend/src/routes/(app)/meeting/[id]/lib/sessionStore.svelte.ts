@@ -3,7 +3,8 @@
  * Svelte 5 runes-based store for session data and events
  */
 
-import type { SSEEvent } from '$lib/api/sse-events';
+import type { SSEEvent, ConvergencePayload, ContributionPayload } from '$lib/api/sse-events';
+import { isConvergenceEvent, isContributionEvent, getSubProblemIndex } from '$lib/api/sse-events';
 import { createLogger } from '$lib/utils/debug';
 
 const log = createLogger('Events');
@@ -97,8 +98,10 @@ export function createSessionStore() {
 
 		// Event management
 		addEvent(newEvent: SSEEvent) {
-			const subProblemIndex = newEvent.data.sub_problem_index ?? 'global';
-			const personaOrId = newEvent.data.persona_code || newEvent.data.sub_problem_id || '';
+			// Safe access to common event properties
+			const data = newEvent.data as Record<string, unknown>;
+			const subProblemIndex = getSubProblemIndex(newEvent) ?? 'global';
+			const personaOrId = (data.persona_code as string) || (data.sub_problem_id as string) || '';
 
 			// Singleton events should only appear once per session/sub-problem
 			// These events mark terminal states and should never be duplicated
@@ -147,7 +150,7 @@ export function createSessionStore() {
 			}
 
 			// Debug convergence events
-			if (newEvent.event_type === 'convergence') {
+			if (isConvergenceEvent(newEvent)) {
 				log.log('Convergence event:', {
 					sequence: eventSequence - 1,
 					event_type: newEvent.event_type,
@@ -158,14 +161,12 @@ export function createSessionStore() {
 				});
 			}
 			// Debug contribution events
-			if (newEvent.event_type === 'contribution') {
-				const data = newEvent.data as Record<string, unknown>;
-				const summary = data?.summary as Record<string, unknown> | undefined;
+			if (isContributionEvent(newEvent)) {
 				log.log('Contribution event:', {
-					persona_name: data?.persona_name,
-					persona_code: data?.persona_code,
-					archetype: data?.archetype,
-					has_summary: !!summary
+					persona_name: newEvent.data.persona_name,
+					persona_code: newEvent.data.persona_code,
+					archetype: newEvent.data.archetype,
+					has_summary: !!newEvent.data.summary
 				});
 			}
 		},

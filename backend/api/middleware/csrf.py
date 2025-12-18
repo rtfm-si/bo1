@@ -27,6 +27,7 @@ CSRF_TOKEN_LENGTH = 32  # bytes (64 hex chars)
 CSRF_COOKIE_NAME = "csrf_token"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 CSRF_COOKIE_MAX_AGE = 86400  # 24 hours
+CSRF_COOKIE_DELETE_AGE = 0  # Immediate expiry for deletion
 
 # Methods requiring CSRF validation
 CSRF_PROTECTED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -52,6 +53,70 @@ SUPERTOKENS_PREFIXES = (
 def generate_csrf_token() -> str:
     """Generate a cryptographically secure CSRF token."""
     return secrets.token_hex(CSRF_TOKEN_LENGTH)
+
+
+def set_csrf_cookie_on_response(
+    response: Any,
+    token: str,
+    secure: bool = False,
+    domain: str | None = None,
+) -> None:
+    """Set CSRF token cookie on a SuperTokens BaseResponse.
+
+    Used by auth callbacks to rotate CSRF token on sign-in.
+
+    Args:
+        response: SuperTokens BaseResponse object
+        token: The new CSRF token value
+        secure: Whether to set Secure flag (True for HTTPS)
+        domain: Cookie domain (e.g., '.boardof.one')
+    """
+    # SuperTokens BaseResponse uses expires (timestamp), not max_age
+    import time
+
+    expires = int(time.time()) + CSRF_COOKIE_MAX_AGE
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value=token,
+        expires=expires,
+        path="/",
+        domain=domain,
+        secure=secure,
+        httponly=False,  # JS must read this for X-CSRF-Token header
+        samesite="lax",
+    )
+    logger.debug(f"Rotated CSRF token on auth state change (domain={domain})")
+
+
+def clear_csrf_cookie_on_response(
+    response: Any,
+    secure: bool = False,
+    domain: str | None = None,
+) -> None:
+    """Clear CSRF token cookie on a SuperTokens BaseResponse.
+
+    Used by auth callbacks to clear CSRF token on sign-out.
+
+    Args:
+        response: SuperTokens BaseResponse object
+        secure: Whether to set Secure flag (True for HTTPS)
+        domain: Cookie domain (e.g., '.boardof.one')
+    """
+    import time
+
+    # Expire immediately by setting expires to past
+    expires = int(time.time()) - 1
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value="",
+        expires=expires,
+        path="/",
+        domain=domain,
+        secure=secure,
+        httponly=False,
+        samesite="lax",
+    )
+    logger.debug(f"Cleared CSRF token on sign-out (domain={domain})")
 
 
 def is_exempt_path(path: str) -> bool:

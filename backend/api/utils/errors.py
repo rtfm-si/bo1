@@ -22,6 +22,8 @@ from typing import Literal, TypeVar
 
 from fastapi import HTTPException
 
+from bo1.logging import ErrorCode, log_error
+
 logger = logging.getLogger(__name__)
 
 # Type alias for error categories
@@ -32,19 +34,30 @@ ErrorType = Literal[
     "forbidden",
     "invalid_input",
     "not_found",
+    "conflict",
+    "service_unavailable",
+    "gone",
+    "rate_limited",
+    "internal_error",
 ]
 
-# Standard error responses (status_code, message)
-ERROR_RESPONSES: dict[ErrorType, tuple[int, str]] = {
+# Standard error responses: (status_code, default_message, error_code)
+ERROR_RESPONSES: dict[ErrorType, tuple[int, str, str]] = {
     "redis_unavailable": (
         500,
         "Service temporarily unavailable - please try again",
+        "redis_unavailable",
     ),
-    "session_not_found": (404, "Session not found"),
-    "unauthorized": (401, "Authentication required"),
-    "forbidden": (403, "Access denied"),
-    "invalid_input": (400, "Invalid input"),
-    "not_found": (404, "Resource not found"),
+    "session_not_found": (404, "Session not found", "session_not_found"),
+    "unauthorized": (401, "Authentication required", "unauthorized"),
+    "forbidden": (403, "Access denied", "forbidden"),
+    "invalid_input": (400, "Invalid input", "invalid_input"),
+    "not_found": (404, "Resource not found", "not_found"),
+    "conflict": (409, "Resource conflict", "conflict"),
+    "service_unavailable": (503, "Service temporarily unavailable", "service_unavailable"),
+    "gone": (410, "Resource no longer available", "gone"),
+    "rate_limited": (429, "Rate limit exceeded", "rate_limited"),
+    "internal_error": (500, "An unexpected error occurred", "internal_error"),
 }
 
 
@@ -55,26 +68,26 @@ def raise_api_error(
     """Raise HTTPException with standardized error response.
 
     This provides a convenient way to raise HTTP errors with consistent
-    status codes and messages across the API.
+    status codes, messages, and error codes across the API.
 
     Args:
-        error_type: Category of error (determines status code)
+        error_type: Category of error (determines status code and error_code)
         detail: Optional custom error message (overrides default)
 
     Raises:
-        HTTPException with appropriate status code and message
+        HTTPException with appropriate status code, message, and error_code
 
     Examples:
         >>> raise_api_error("session_not_found")
-        # Raises 404 with "Session not found"
+        # Raises 404 with {"detail": "Session not found", "error_code": "session_not_found"}
 
         >>> raise_api_error("forbidden", "User lacks required permissions")
-        # Raises 403 with custom message
+        # Raises 403 with custom message and error_code "forbidden"
     """
-    status_code, default_detail = ERROR_RESPONSES[error_type]
+    status_code, default_detail, error_code = ERROR_RESPONSES[error_type]
     raise HTTPException(
         status_code=status_code,
-        detail=detail or default_detail,
+        detail={"detail": detail or default_detail, "error_code": error_code},
     )
 
 
@@ -85,12 +98,12 @@ def handle_api_errors(operation: str) -> Callable[[F], F]:
     """Decorator for consistent error handling in API endpoints.
 
     This decorator catches all exceptions and converts them to appropriate
-    HTTPExceptions with proper status codes and logging:
+    HTTPExceptions with proper status codes, error codes, and logging:
 
     - HTTPException: Re-raised as-is (already formatted)
-    - ValueError: Converted to 400 (invalid input)
-    - KeyError: Converted to 404 (not found)
-    - Exception: Converted to 500 (internal error)
+    - ValueError: Converted to 400 (invalid input) with error_code "validation_error"
+    - KeyError: Converted to 404 (not found) with error_code "not_found"
+    - Exception: Converted to 500 (internal error) with error_code "internal_error"
 
     All errors are logged with context for debugging, but stack traces
     are never leaked to clients.
@@ -109,9 +122,9 @@ def handle_api_errors(operation: str) -> Callable[[F], F]:
             session_id = await create_new_session(request)
             return {"session_id": session_id}
 
-        # ValueError in implementation → 400 response
-        # KeyError in implementation → 404 response
-        # Other exceptions → 500 response
+        # ValueError in implementation → 400 response with error_code "validation_error"
+        # KeyError in implementation → 404 response with error_code "not_found"
+        # Other exceptions → 500 response with error_code "internal_error"
     """
 
     def decorator(func: F) -> F:
@@ -130,7 +143,10 @@ def handle_api_errors(operation: str) -> Callable[[F], F]:
                 )
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Invalid input: {str(e)}",
+                    detail={
+                        "detail": f"Invalid input: {str(e)}",
+                        "error_code": "validation_error",
+                    },
                 ) from e
             except KeyError as e:
                 # Missing data errors → 404
@@ -140,18 +156,26 @@ def handle_api_errors(operation: str) -> Callable[[F], F]:
                 )
                 raise HTTPException(
                     status_code=404,
-                    detail=f"Resource not found: {str(e)}",
+                    detail={
+                        "detail": f"Resource not found: {str(e)}",
+                        "error_code": "not_found",
+                    },
                 ) from e
             except Exception as e:
                 # Unexpected errors → 500
-                logger.error(
+                log_error(
+                    logger,
+                    ErrorCode.API_REQUEST_ERROR,
                     f"Unexpected error in {operation}: {e}",
                     exc_info=True,
-                    extra={"operation": operation},
+                    operation=operation,
                 )
                 raise HTTPException(
                     status_code=500,
-                    detail="An unexpected error occurred",
+                    detail={
+                        "detail": "An unexpected error occurred",
+                        "error_code": "internal_error",
+                    },
                 ) from e
 
         return wrapper  # type: ignore[return-value]

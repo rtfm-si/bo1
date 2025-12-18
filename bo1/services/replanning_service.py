@@ -9,6 +9,7 @@ Handles:
 from datetime import UTC, datetime
 from typing import Any
 
+from bo1.logging import ErrorCode, log_error
 from bo1.security import sanitize_for_prompt
 from bo1.services.replanning_context import replanning_context_builder
 from bo1.state.database import db_session
@@ -134,7 +135,11 @@ class ReplanningService:
             logger.info(f"Created replanning session {session_id} for action {action_id}")
         except Exception as e:
             # Clean up Redis on PostgreSQL failure
-            logger.error(f"Failed to save replanning session to PostgreSQL: {e}")
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to save replanning session to PostgreSQL: {e}",
+            )
             try:
                 self.redis_manager.delete_state(session_id)
                 self.redis_manager.remove_session_from_user_index(user_id, session_id)

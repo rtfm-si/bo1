@@ -791,3 +791,63 @@ class TestLatencyMetricEmission:
             assert call_args.kwargs["duration_seconds"] == expected_seconds, (
                 f"Expected {expected_seconds}s for {latency_ms}ms"
             )
+
+
+class TestPartitionPruning:
+    """Test partition pruning for api_costs queries.
+
+    Validates that queries on partitioned tables include created_at
+    filters to enable partition pruning and avoid full table scans.
+    """
+
+    def test_get_session_costs_includes_partition_filter(self):
+        """Verify get_session_costs() includes created_at filter for partition pruning."""
+        session_id = "test_session_partition"
+
+        mock_row = (
+            5,  # total_calls
+            0.10,  # total_cost
+            0.08,  # anthropic_cost
+            0.01,  # voyage_cost
+            0.005,  # brave_cost
+            0.005,  # tavily_cost
+            5000,  # total_tokens
+            0.02,  # total_saved
+            0.5,  # cache_hit_rate
+        )
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchone.return_value = mock_row
+
+            CostTracker.get_session_costs(session_id)
+
+        # Check the SELECT query includes created_at filter
+        call_args = mock_cursor.execute.call_args
+        query = call_args[0][0]
+        # Must include partition key filter for efficient pruning
+        assert "created_at >=" in query, (
+            "get_session_costs() query must include created_at filter for partition pruning"
+        )
+
+    def test_get_subproblem_costs_includes_partition_filter(self):
+        """Verify get_subproblem_costs() includes created_at filter for partition pruning."""
+        session_id = "test_session_sp_partition"
+
+        mock_rows = [
+            (None, 5, 0.05, 1000, 0.05, 0.0, 0.0, 0.0, 0.05, 0.0, 0.0),
+        ]
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchall.return_value = mock_rows
+
+            CostTracker.get_subproblem_costs(session_id)
+
+        # Check the SELECT query includes created_at filter
+        call_args = mock_cursor.execute.call_args
+        query = call_args[0][0]
+        # Must include partition key filter for efficient pruning
+        assert "created_at >=" in query, (
+            "get_subproblem_costs() query must include created_at filter for partition pruning"
+        )

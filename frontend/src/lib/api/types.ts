@@ -4,6 +4,8 @@
  * These types match the Pydantic models in backend/api/models.py
  */
 
+import type { SSEEvent } from './sse-events';
+
 /**
  * Context IDs for attaching past meetings, actions, and datasets to a new session
  */
@@ -94,7 +96,24 @@ export interface SessionDetailResponse extends SessionResponse {
 		round_number?: number;
 		max_rounds?: number;
 		duration_seconds?: number;
-		[key: string]: any;
+		// Deliberation phase tracking
+		phase?: string;
+		current_phase?: string;
+		// Personas and contributions
+		personas?: Array<{ code: string; name: string; perspective: string }>;
+		contributions?: Array<{ persona_code: string; content: string; round_number: number }>;
+		// Sub-problem results
+		sub_problem_results?: Array<{ id: string; synthesis: string }>;
+		// Comparison detection
+		comparison_detected?: boolean;
+		comparison_options?: string[];
+		comparison_type?: string;
+		// Termination state
+		should_stop?: boolean;
+		stop_reason?: string | null;
+		termination_requested?: boolean;
+		termination_type?: string | null;
+		termination_reason?: string | null;
 	};
 	metrics?: {
 		total_cost: number;
@@ -486,9 +505,21 @@ export interface TaskExtractionResponse {
  */
 export interface SessionEventsResponse {
 	session_id: string;
-	events: unknown[];
+	events: SSEEvent[];
 	count: number;
 }
+
+// Re-export SSE event types for convenience
+export type { SSEEvent, SSEEventType, SSEEventMap, SSEEventHandlers } from './sse-events';
+export type {
+	WorkingStatusPayload,
+	CompletePayload,
+	ErrorPayload,
+	ContributionPayload,
+	ConvergencePayload,
+	VotingCompletePayload,
+	SynthesisCompletePayload
+} from './sse-events';
 
 /**
  * Task with session context for global actions view

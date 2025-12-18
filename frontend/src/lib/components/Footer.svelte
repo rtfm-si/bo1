@@ -80,7 +80,7 @@
 			<div class="flex items-center gap-3">
 				<img src="/logo.svg" alt="Board of One" class="h-8 w-8" />
 				<p class="text-sm text-neutral-600 dark:text-neutral-400">
-					© {currentYear} Board of One. All rights reserved.
+					© {currentYear} Sico Software Ltd. All rights reserved.
 				</p>
 			</div>
 

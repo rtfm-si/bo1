@@ -202,6 +202,14 @@ class RedisManager:
                 f"at {self.host}:{self.port}/{self.db}"
             )
 
+            # Record success in circuit breaker
+            try:
+                from bo1.state.circuit_breaker_wrappers import record_redis_success
+
+                record_redis_success()
+            except ImportError:
+                pass  # Circuit breaker not available
+
             # Emit Prometheus metric
             try:
                 from backend.api.metrics import prom_metrics
@@ -215,6 +223,13 @@ class RedisManager:
         except (redis.ConnectionError, redis.TimeoutError) as e:
             logger.warning(f"[REDIS_RECONNECT] Reconnect attempt failed: {e}")
             self._connection_state = RedisConnectionState.DISCONNECTED
+            # Record failure in circuit breaker
+            try:
+                from bo1.state.circuit_breaker_wrappers import record_redis_failure
+
+                record_redis_failure(e)
+            except ImportError:
+                pass
             return False
 
     async def _attempt_reconnect_async(self) -> bool:
@@ -273,6 +288,14 @@ class RedisManager:
                 f"at {self.host}:{self.port}/{self.db}"
             )
 
+            # Record success in circuit breaker
+            try:
+                from bo1.state.circuit_breaker_wrappers import record_redis_success
+
+                record_redis_success()
+            except ImportError:
+                pass  # Circuit breaker not available
+
             # Emit Prometheus metric
             try:
                 from backend.api.metrics import prom_metrics
@@ -286,16 +309,35 @@ class RedisManager:
         except (redis.ConnectionError, redis.TimeoutError) as e:
             logger.warning(f"[REDIS_RECONNECT] Async reconnect attempt failed: {e}")
             self._connection_state = RedisConnectionState.DISCONNECTED
+            # Record failure in circuit breaker
+            try:
+                from bo1.state.circuit_breaker_wrappers import record_redis_failure
+
+                record_redis_failure(e)
+            except ImportError:
+                pass
             return False
 
     def _ensure_connected(self) -> bool:
         """Ensure Redis connection is available, attempting reconnect if needed.
 
         Called before Redis operations to handle connection drops gracefully.
+        Integrates with Redis circuit breaker - if circuit is open, returns False
+        immediately without attempting reconnection.
 
         Returns:
             True if connected (or reconnected), False if unavailable
         """
+        # Check circuit breaker first
+        try:
+            from bo1.state.circuit_breaker_wrappers import is_redis_circuit_open
+
+            if is_redis_circuit_open():
+                logger.debug("[REDIS_CIRCUIT] Circuit open, skipping reconnection")
+                return False
+        except ImportError:
+            pass  # Circuit breaker not available
+
         if self._connection_state == RedisConnectionState.CONNECTED and self._available:
             # Already connected
             return True
@@ -324,9 +366,19 @@ class RedisManager:
     def _handle_connection_error(self, error: Exception) -> None:
         """Handle a connection error by updating state and preparing for reconnect.
 
+        Records failure in Redis circuit breaker for transient errors.
+
         Args:
             error: The connection error that occurred
         """
+        # Record failure in circuit breaker
+        try:
+            from bo1.state.circuit_breaker_wrappers import record_redis_failure
+
+            record_redis_failure(error)
+        except ImportError:
+            pass  # Circuit breaker not available
+
         if self._connection_state != RedisConnectionState.DISCONNECTED:
             logger.warning(f"[REDIS_DISCONNECT] Connection lost: {error}")
             self._available = False
@@ -1042,3 +1094,126 @@ class RedisManager:
         if self.is_available and self.pool:
             self.pool.disconnect()
             logger.info("Closed Redis connection pool")
+
+    # =========================================================================
+    # User Context Caching
+    # =========================================================================
+
+    def get_cached_context(self, user_id: str) -> dict[str, Any] | None:
+        """Get cached user context from Redis.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Cached context dict if found, None otherwise
+
+        Examples:
+            >>> manager = RedisManager()
+            >>> context = manager.get_cached_context("user123")
+            >>> if context:
+            ...     print(f"Cache hit for user {user_id}")
+        """
+        from bo1.constants import UserContextCache
+
+        if not UserContextCache.is_enabled():
+            return None
+
+        if not self.is_available:
+            logger.debug("Redis unavailable, skipping context cache lookup")
+            return None
+
+        try:
+            key = f"{UserContextCache.KEY_PREFIX}{user_id}"
+            assert self.redis is not None
+            context_json = self.redis.get(key)
+
+            if context_json:
+                context: dict[str, Any] = json.loads(str(context_json))
+                logger.debug(f"[CONTEXT_CACHE] Hit for user {user_id}")
+                return context
+
+            logger.debug(f"[CONTEXT_CACHE] Miss for user {user_id}")
+            return None
+
+        except Exception as e:
+            logger.warning(f"[CONTEXT_CACHE] Error fetching context for {user_id}: {e}")
+            return None
+
+    def cache_context(self, user_id: str, context: dict[str, Any], ttl: int | None = None) -> bool:
+        """Cache user context in Redis.
+
+        Args:
+            user_id: User identifier
+            context: Context dict to cache
+            ttl: Optional TTL override (defaults to UserContextCache.TTL_SECONDS)
+
+        Returns:
+            True if cached successfully, False otherwise
+
+        Examples:
+            >>> manager = RedisManager()
+            >>> manager.cache_context("user123", {"company_name": "Acme"})
+            True
+        """
+        from bo1.constants import UserContextCache
+
+        if not UserContextCache.is_enabled():
+            return False
+
+        if not self.is_available:
+            logger.debug("Redis unavailable, skipping context cache write")
+            return False
+
+        try:
+            key = f"{UserContextCache.KEY_PREFIX}{user_id}"
+            context_json = json.dumps(context, default=str)
+            ttl_seconds = ttl if ttl is not None else UserContextCache.TTL_SECONDS
+
+            assert self.redis is not None
+            self.redis.setex(key, ttl_seconds, context_json)
+            logger.debug(f"[CONTEXT_CACHE] Cached context for user {user_id} (TTL={ttl_seconds}s)")
+            return True
+
+        except Exception as e:
+            logger.warning(f"[CONTEXT_CACHE] Error caching context for {user_id}: {e}")
+            return False
+
+    def invalidate_context(self, user_id: str) -> bool:
+        """Invalidate cached user context in Redis.
+
+        Called after context updates to ensure cache consistency.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if invalidated (or key didn't exist), False on error
+
+        Examples:
+            >>> manager = RedisManager()
+            >>> manager.invalidate_context("user123")
+            True
+        """
+        from bo1.constants import UserContextCache
+
+        if not UserContextCache.is_enabled():
+            return True  # Nothing to invalidate
+
+        if not self.is_available:
+            logger.debug("Redis unavailable, skipping context cache invalidation")
+            return True  # Not an error - just no cache to clear
+
+        try:
+            key = f"{UserContextCache.KEY_PREFIX}{user_id}"
+            assert self.redis is not None
+            deleted = self.redis.delete(key)
+            if deleted:
+                logger.info(f"[CONTEXT_CACHE] Invalidated cache for user {user_id}")
+            else:
+                logger.debug(f"[CONTEXT_CACHE] No cache to invalidate for user {user_id}")
+            return True
+
+        except Exception as e:
+            logger.warning(f"[CONTEXT_CACHE] Error invalidating context for {user_id}: {e}")
+            return False

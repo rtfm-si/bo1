@@ -6,6 +6,18 @@
 import type { SSEEvent } from '$lib/api/sse-events';
 
 /**
+ * Helper to safely extract sub_problem_index from event data
+ * Many event types include this field for tab filtering
+ */
+function getSubProblemIndex(data: unknown): number | undefined {
+	if (data && typeof data === 'object' && 'sub_problem_index' in data) {
+		const idx = (data as Record<string, unknown>).sub_problem_index;
+		return typeof idx === 'number' ? idx : undefined;
+	}
+	return undefined;
+}
+
+/**
  * Filter events by type and optional sub-problem index
  */
 export function filterEventsByType(
@@ -23,7 +35,7 @@ export function filterEventsByType(
 		}
 
 		// Filter by active sub-problem
-		const eventSubIndex = e.data.sub_problem_index as number | undefined;
+		const eventSubIndex = getSubProblemIndex(e.data);
 		return eventSubIndex === activeSubProblemIndex;
 	});
 }
@@ -46,7 +58,7 @@ export function filterEventsByTypes(
 		}
 
 		// Filter by active sub-problem
-		const eventSubIndex = e.data.sub_problem_index as number | undefined;
+		const eventSubIndex = getSubProblemIndex(e.data);
 		return eventSubIndex === activeSubProblemIndex;
 	});
 }
@@ -105,7 +117,7 @@ export function filterEventsBySubProblem(
 
 	// Filter to active sub-problem only
 	return events.filter((e) => {
-		const eventSubIndex = e.data.sub_problem_index as number | undefined;
+		const eventSubIndex = getSubProblemIndex(e.data);
 		return eventSubIndex === activeSubProblemIndex;
 	});
 }

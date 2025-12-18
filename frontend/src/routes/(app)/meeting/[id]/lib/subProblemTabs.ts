@@ -2,7 +2,8 @@
  * Focus Area Tabs - Logic for building and managing focus area tabs
  */
 
-import type { SSEEvent } from '$lib/api/sse-events';
+import type { SSEEvent, SSEEventMap } from '$lib/api/sse-events';
+import { isDecompositionEvent, isConvergenceEvent, isSubproblemStartedEvent, getSubProblemIndex } from '$lib/api/sse-events';
 import { createLogger } from '$lib/utils/debug';
 
 const log = createLogger('TabBuild');
@@ -53,18 +54,14 @@ export function buildSubProblemTabs(
 	eventsBySubProblem: Map<number, SSEEvent[]>
 ): SubProblemTab[] {
 	// Find decomposition event
-	const decompositionEvent = events.find(e => e.event_type === 'decomposition_complete');
+	const decompositionEvent = events.find(isDecompositionEvent);
 
 	if (!decompositionEvent) {
 		log.debug('No decomposition_complete event found');
 		return [];
 	}
 
-	const subProblems = decompositionEvent.data.sub_problems as Array<{
-		goal: string;
-		complexity: number;
-		dependencies?: number[];
-	}>;
+	const subProblems = decompositionEvent.data.sub_problems;
 
 	log.debug('Decomposition event:', {
 		subProblemsCount: subProblems?.length || 0
@@ -91,7 +88,7 @@ export function buildSubProblemTabs(
 		let convergencePercent = 0;
 		let roundCount = 0;
 		let status: SubProblemTab['status'] = 'pending';
-		let latestConvergenceEvent: SSEEvent | null = null;
+		let latestConvergenceEvent: SSEEvent<'convergence'> | null = null;
 
 		for (const event of subEvents) {
 			// Count experts
@@ -99,7 +96,7 @@ export function buildSubProblemTabs(
 				expertCount++;
 			}
 			// Track latest convergence
-			else if (event.event_type === 'convergence') {
+			else if (isConvergenceEvent(event)) {
 				latestConvergenceEvent = event;
 			}
 			// Count rounds
@@ -120,8 +117,7 @@ export function buildSubProblemTabs(
 
 		// Calculate convergence percentage
 		if (latestConvergenceEvent) {
-			const score = latestConvergenceEvent.data.score as number;
-			const threshold = latestConvergenceEvent.data.threshold as number;
+			const { score, threshold } = latestConvergenceEvent.data;
 			convergencePercent = Math.round((score / threshold) * 100);
 			log.debug('Convergence:', { subProblem: index, score, threshold, convergencePercent });
 		}
@@ -132,23 +128,28 @@ export function buildSubProblemTabs(
 		// First, check if we have a subproblem_complete or synthesis_complete event with duration_seconds
 		const completionEvent = subEvents.find(
 			e => (e.event_type === 'subproblem_complete' || e.event_type === 'synthesis_complete') &&
-			     e.data?.duration_seconds !== undefined
+			     (e.data as { duration_seconds?: number })?.duration_seconds !== undefined
 		);
 
-		if (completionEvent?.data?.duration_seconds) {
+		const completionData = completionEvent?.data as { duration_seconds?: number } | undefined;
+		if (completionData?.duration_seconds !== undefined) {
 			// Use backend-provided duration
-			const totalSeconds = Math.floor(Number(completionEvent.data.duration_seconds));
+			const totalSeconds = Math.floor(Number(completionData.duration_seconds));
 			const minutes = Math.floor(totalSeconds / 60);
 			const seconds = totalSeconds % 60;
 			duration = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 		} else if (subEvents.length > 1) {
 			// Fallback: calculate from timestamps
-			const firstTime = new Date(subEvents[0].timestamp);
-			const lastTime = new Date(subEvents[subEvents.length - 1].timestamp);
-			const diffMs = lastTime.getTime() - firstTime.getTime();
-			const diffMin = Math.floor(diffMs / 60000);
-			const diffSec = Math.floor((diffMs % 60000) / 1000);
-			duration = diffMin > 0 ? `${diffMin}m ${diffSec}s` : `${diffSec}s`;
+			const firstTimestamp = subEvents[0].timestamp;
+			const lastTimestamp = subEvents[subEvents.length - 1].timestamp;
+			if (firstTimestamp && lastTimestamp) {
+				const firstTime = new Date(firstTimestamp);
+				const lastTime = new Date(lastTimestamp);
+				const diffMs = lastTime.getTime() - firstTime.getTime();
+				const diffMin = Math.floor(diffMs / 60000);
+				const diffSec = Math.floor((diffMs % 60000) / 1000);
+				duration = diffMin > 0 ? `${diffMin}m ${diffSec}s` : `${diffSec}s`;
+			}
 		}
 
 		tabs.push({
@@ -183,13 +184,13 @@ export function calculateSubProblemProgress(
 	const startedIndices = new Set<number>();
 
 	for (const event of events) {
-		if (event.event_type === 'subproblem_started') {
+		if (isSubproblemStartedEvent(event)) {
 			startedCount++;
 			if (!firstStarted) {
 				firstStarted = event;
-				totalSubProblems = (event.data.total_sub_problems as number) ?? 1;
+				totalSubProblems = event.data.total_sub_problems ?? 1;
 			}
-			const index = event.data.sub_problem_index as number;
+			const index = event.data.sub_problem_index;
 			if (index !== undefined) {
 				startedIndices.add(index);
 			}

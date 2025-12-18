@@ -10,6 +10,7 @@ from typing import Any
 from langgraph.graph import END, StateGraph
 
 from bo1.graph.checkpointer_factory import create_checkpointer
+from bo1.graph.metrics import wrap_node_with_timing, wrap_sync_node_with_timing
 from bo1.graph.nodes import (
     clarification_node,  # Pre-meeting context collection
     context_collection_node,
@@ -84,6 +85,7 @@ def create_deliberation_graph(
         from bo1.graph.nodes import analyze_dependencies_node, parallel_subproblems_node
 
     from bo1.graph.routers import (
+        route_after_identify_gaps,
         route_after_synthesis,
         route_clarification,
         route_convergence_check,
@@ -99,26 +101,51 @@ def create_deliberation_graph(
     # Initialize state graph
     workflow = StateGraph(DeliberationGraphState)
 
-    # Add nodes
-    workflow.add_node("decompose", decompose_node)
-    workflow.add_node("context_collection", context_collection_node)
-    workflow.add_node("select_personas", select_personas_node)
-    workflow.add_node("initial_round", initial_round_node)
-    workflow.add_node("facilitator_decide", facilitator_decide_node)
-    workflow.add_node("parallel_round", parallel_round_node)  # Multi-expert parallel rounds
+    # Add nodes with timing instrumentation
+    workflow.add_node("decompose", wrap_node_with_timing("decompose", decompose_node))
     workflow.add_node(
-        "moderator_intervene", moderator_intervene_node
+        "context_collection", wrap_node_with_timing("context_collection", context_collection_node)
+    )
+    workflow.add_node(
+        "select_personas", wrap_node_with_timing("select_personas", select_personas_node)
+    )
+    workflow.add_node("initial_round", wrap_node_with_timing("initial_round", initial_round_node))
+    workflow.add_node(
+        "facilitator_decide", wrap_node_with_timing("facilitator_decide", facilitator_decide_node)
+    )
+    workflow.add_node(
+        "parallel_round", wrap_node_with_timing("parallel_round", parallel_round_node)
+    )  # Multi-expert parallel rounds
+    workflow.add_node(
+        "moderator_intervene",
+        wrap_node_with_timing("moderator_intervene", moderator_intervene_node),
     )  # RESTORED: Premature consensus detection
-    workflow.add_node("research", research_node)  # Mid-meeting automated research (RESTORED)
-    workflow.add_node("data_analysis", data_analysis_node)  # Dataset analysis during deliberation
-    workflow.add_node("check_convergence", check_convergence_node)  # Day 24
-    workflow.add_node("cost_guard", cost_guard_node)  # Cost budget check
-    workflow.add_node("vote", vote_node)  # Day 31
-    workflow.add_node("synthesize", synthesize_node)  # Day 31
-    workflow.add_node("next_subproblem", next_subproblem_node)  # Day 36.5
-    workflow.add_node("meta_synthesis", meta_synthesize_node)  # Day 36.5
-    workflow.add_node("clarification", clarification_node)  # Day 37
-    workflow.add_node("identify_gaps", identify_gaps_node)  # Pre-deliberation Q&A
+    workflow.add_node(
+        "research", wrap_node_with_timing("research", research_node)
+    )  # Mid-meeting automated research (RESTORED)
+    workflow.add_node(
+        "data_analysis", wrap_node_with_timing("data_analysis", data_analysis_node)
+    )  # Dataset analysis during deliberation
+    workflow.add_node(
+        "check_convergence", wrap_node_with_timing("check_convergence", check_convergence_node)
+    )  # Day 24
+    workflow.add_node(
+        "cost_guard", wrap_sync_node_with_timing("cost_guard", cost_guard_node)
+    )  # Cost budget check
+    workflow.add_node("vote", wrap_node_with_timing("vote", vote_node))  # Day 31
+    workflow.add_node("synthesize", wrap_node_with_timing("synthesize", synthesize_node))  # Day 31
+    workflow.add_node(
+        "next_subproblem", wrap_node_with_timing("next_subproblem", next_subproblem_node)
+    )  # Day 36.5
+    workflow.add_node(
+        "meta_synthesis", wrap_node_with_timing("meta_synthesis", meta_synthesize_node)
+    )  # Day 36.5
+    workflow.add_node(
+        "clarification", wrap_node_with_timing("clarification", clarification_node)
+    )  # Day 37
+    workflow.add_node(
+        "identify_gaps", wrap_node_with_timing("identify_gaps", identify_gaps_node)
+    )  # Pre-deliberation Q&A
 
     # Add edges - Linear setup phase
     # ISSUE #3 FIX: Business context must flow BEFORE decomposition
@@ -131,45 +158,16 @@ def create_deliberation_graph(
     # decompose -> identify_gaps (analyze what info is missing)
     workflow.add_edge("decompose", "identify_gaps")
 
-    # Router for identify_gaps: if critical gaps, END (pause for Q&A), else continue
-    def route_after_identify_gaps(state: DeliberationGraphState) -> str:
-        """Route based on whether critical information gaps require user input.
-
-        After clarification answers are submitted, the checkpoint is updated with:
-        - clarification_answers: dict of question->answer pairs
-        - should_stop: False (reset to continue)
-        - stop_reason: None (cleared)
-
-        The router then sees should_stop=False and routes to "continue".
-        """
-        clarification_answers = state.get("clarification_answers")
-        should_stop = state.get("should_stop")
-        stop_reason = state.get("stop_reason")
-        pending = state.get("pending_clarification")
-
-        logger.info(
-            f"route_after_identify_gaps: should_stop={should_stop}, "
-            f"stop_reason={stop_reason}, has_answers={clarification_answers is not None}, "
-            f"has_pending={pending is not None}"
-        )
-
-        if should_stop and stop_reason == "clarification_needed":
-            logger.info("route_after_identify_gaps: Pausing for clarification")
-            return "END"
-
-        if clarification_answers:
-            logger.info(
-                f"route_after_identify_gaps: Resuming with {len(clarification_answers)} "
-                f"clarification answer(s) - continuing to deliberation"
-            )
-
-        logger.info("route_after_identify_gaps: Continuing to deliberation")
-        return "continue"
-
     # identify_gaps -> analyze_dependencies (if parallel sub-problems enabled, else select_personas)
     if ENABLE_PARALLEL_SUBPROBLEMS:
-        workflow.add_node("analyze_dependencies", analyze_dependencies_node)
-        workflow.add_node("parallel_subproblems", parallel_subproblems_node)
+        workflow.add_node(
+            "analyze_dependencies",
+            wrap_node_with_timing("analyze_dependencies", analyze_dependencies_node),
+        )
+        workflow.add_node(
+            "parallel_subproblems",
+            wrap_node_with_timing("parallel_subproblems", parallel_subproblems_node),
+        )
 
         # identify_gaps -> (END if clarification needed, else analyze_dependencies)
         workflow.add_conditional_edges(

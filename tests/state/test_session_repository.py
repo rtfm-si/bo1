@@ -710,3 +710,50 @@ class TestSaveEventsBatchWithCachedUserIds:
         # Query should have SELECT subquery
         query = calls[0][0][0]
         assert "SELECT user_id FROM sessions" in query
+
+
+class TestPartitionPruning:
+    """Test partition pruning for session_events queries.
+
+    Validates that queries on partitioned tables include created_at
+    filters to enable partition pruning and avoid full table scans.
+    """
+
+    @pytest.fixture
+    def mock_cursor(self):
+        """Create a mock cursor with RealDictCursor-like behavior."""
+        cursor = MagicMock()
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        cursor.fetchall.return_value = []
+        return cursor
+
+    @pytest.fixture
+    def mock_connection(self, mock_cursor):
+        """Create a mock connection."""
+        conn = MagicMock()
+        conn.__enter__ = MagicMock(return_value=conn)
+        conn.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = mock_cursor
+        return conn
+
+    def test_get_events_includes_partition_filter(self, mock_connection, mock_cursor):
+        """Verify get_events() includes created_at filter for partition pruning."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        # Patch base repository's db_session since _execute_query uses that import
+        with patch("bo1.state.repositories.base.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.get_events("bo1_test123")
+
+        # Check the SELECT query includes created_at filter
+        calls = mock_cursor.execute.call_args_list
+        select_call = [c for c in calls if "SELECT" in str(c) and "session_events" in str(c)]
+        assert len(select_call) >= 1
+        query = str(select_call[0])
+        # Must include partition key filter for efficient pruning
+        assert "created_at >=" in query, (
+            "get_events() query must include created_at filter for partition pruning"
+        )

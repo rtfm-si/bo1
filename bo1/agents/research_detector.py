@@ -19,7 +19,7 @@ from typing import Any
 from anthropic import AsyncAnthropic
 from pydantic import BaseModel, Field
 
-from bo1.config import get_settings, resolve_model_alias
+from bo1.config import get_model_for_role, get_settings
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
 from bo1.models.state import ContributionMessage
@@ -84,9 +84,9 @@ class ResearchDetector:
                 problem_context=problem_context,
             )
 
-            # Call Haiku for fast detection with cost tracking
+            # Call LLM for fast detection with cost tracking (centralized model selection)
             ctx = get_cost_context()
-            model = resolve_model_alias("haiku")
+            model = get_model_for_role("research_detection")
 
             with CostTracker.track_call(
                 provider="anthropic",

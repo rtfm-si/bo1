@@ -3,7 +3,8 @@
  * Extracts key events and conditions from the event stream
  */
 
-import type { SSEEvent } from '$lib/api/sse-events';
+import type { SSEEvent, SubproblemCompletePayload, ClarificationRequiredPayload, PersonaSelectedPayload } from '$lib/api/sse-events';
+import { isSubproblemCompleteEvent, isClarificationRequiredEvent, isPersonaSelectedEvent } from '$lib/api/sse-events';
 
 export interface EventDerivedStateConfig {
 	getEvents: () => SSEEvent[];
@@ -33,7 +34,7 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 
 	const subProblemCompleteEvents = $derived.by(() => {
 		const events = getEvents();
-		return events.filter((e) => e.event_type === 'subproblem_complete');
+		return events.filter(isSubproblemCompleteEvent);
 	});
 
 	const decompositionEvent = $derived.by(() => {
@@ -45,7 +46,7 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		const events = getEvents();
 		// Get the LAST clarification_required event (most recent questions)
 		// This handles the case where user partially answers and session re-pauses
-		const clarificationEvents = events.filter((e) => e.event_type === 'clarification_required');
+		const clarificationEvents = events.filter(isClarificationRequiredEvent);
 		return clarificationEvents.length > 0 ? clarificationEvents[clarificationEvents.length - 1] : undefined;
 	});
 
@@ -81,9 +82,8 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 	});
 
 	const clarificationQuestions = $derived.by(() => {
-		return clarificationRequiredEvent?.data?.questions as
-			| Array<{ question: string; reason?: string; priority?: string }>
-			| undefined;
+		// Type is already narrowed by filter above
+		return clarificationRequiredEvent?.data.questions;
 	});
 
 	const needsClarification = $derived.by(() => {
@@ -130,18 +130,15 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 	// P2-004: Get personas by sub-problem index from persona_selected events
 	const personasBySubProblem = $derived.by(() => {
 		const events = getEvents();
-		const personaEvents = events.filter((e) => e.event_type === 'persona_selected');
-		const result: Record<number, any[]> = {};
+		const personaEvents = events.filter(isPersonaSelectedEvent);
+		const result: Record<number, PersonaSelectedPayload['persona'][]> = {};
 
 		for (const event of personaEvents) {
-			// Type assertion: event.data contains sub_problem_index as number
-			const subProblemIndex = (event.data as { sub_problem_index?: number }).sub_problem_index ?? 0;
+			const subProblemIndex = event.data.sub_problem_index ?? 0;
 			if (!result[subProblemIndex]) {
 				result[subProblemIndex] = [];
 			}
-			// Type assertion: event.data contains persona object
-			const persona = (event.data as { persona: any }).persona;
-			result[subProblemIndex].push(persona);
+			result[subProblemIndex].push(event.data.persona);
 		}
 
 		return result;

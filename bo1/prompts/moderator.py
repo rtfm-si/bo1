@@ -4,6 +4,7 @@ Moderators intervene to challenge assumptions, push for rigorous thinking,
 and improve overall deliberation quality.
 """
 
+from bo1.config import TokenBudgets
 from bo1.prompts.protocols import (
     BEHAVIORAL_GUIDELINES,
     CITATION_REQUIREMENTS,
@@ -12,8 +13,8 @@ from bo1.prompts.protocols import (
 )
 from bo1.prompts.sanitizer import sanitize_user_input
 
-# Token budget constants for facilitator/moderator LLM calls
-FACILITATOR_MAX_TOKENS = 1000
+# Token budget constants for facilitator/moderator LLM calls (centralized in TokenBudgets)
+FACILITATOR_MAX_TOKENS = TokenBudgets.FACILITATOR
 FACILITATOR_TOKEN_WARNING_THRESHOLD = 0.9  # Warn at 90% usage
 
 # =============================================================================

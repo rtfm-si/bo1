@@ -6,10 +6,11 @@ Handles the final recommendation phase and synthesis of deliberation results.
 import logging
 from typing import Any
 
+from bo1.config import get_model_for_role
 from bo1.graph.state import DeliberationGraphState
 from bo1.llm.broker import PromptBroker, PromptRequest
 from bo1.llm.response import LLMResponse
-from bo1.llm.response_parser import ResponseParser
+from bo1.llm.response_parser import ResponseParser, ValidationConfig
 from bo1.models.recommendations import ConsensusLevel, Recommendation, RecommendationAggregation
 from bo1.prompts import RECOMMENDATION_SYSTEM_PROMPT, RECOMMENDATION_USER_MESSAGE
 from bo1.state.discussion_formatter import format_discussion_history
@@ -68,7 +69,7 @@ async def collect_recommendations(
             system=recommendation_system,  # CACHED - shared by all personas
             user_message=recommendation_user,  # NOT cached - unique per persona
             prefill="<thinking>",  # Force XML structure
-            model="sonnet",  # Sonnet + caching = 30% of Haiku cost + better quality
+            model=get_model_for_role("voting"),  # Centralized model selection
             cache_system=True,  # Enable prompt caching (discussion history cached)
             temperature=0.7,  # Slightly lower for recommendations
             max_tokens=2000,
@@ -76,8 +77,15 @@ async def collect_recommendations(
             agent_type=f"persona_{persona.code}",
         )
 
+        # Validation config for recommendations (auto-retry on missing tags)
+        validation = ValidationConfig(
+            required_tags=["recommendation", "reasoning", "confidence"],
+            max_retries=1,
+            strict=False,  # Return response even if validation fails after retry
+        )
+
         try:
-            response = await broker.call(request)
+            response = await broker.call_with_validation(request, validation)
 
             # Parse recommendation from response (prepend prefill for complete content)
             full_content = "<thinking>" + response.content
@@ -231,7 +239,7 @@ Output ONLY the JSON object (starting with the fields after the opening brace)."
         system=system_prompt,
         user_message=user_message,
         prefill="{",  # JSON prefill
-        model="haiku",  # Use Haiku for recommendation synthesis
+        model=get_model_for_role("recommendation"),  # Centralized model selection
         temperature=0.3,  # Lower for analysis
         max_tokens=1500,
         phase="recommendation_aggregation",

@@ -4,7 +4,7 @@
  */
 
 import { SSEClient } from '$lib/utils/sse';
-import type { SSEEvent } from '$lib/api/sse-events';
+import type { SSEEvent, SSEEventType } from '$lib/api/sse-events';
 import type { SessionStore } from './sessionStore.svelte';
 
 export interface SSEConnectionConfig {
@@ -126,7 +126,7 @@ export function createSSEConnection(config: SSEConnectionConfig) {
 
 			// Construct SSEEvent
 			const sseEvent: SSEEvent = {
-				event_type: eventType,
+				event_type: eventType as SSEEventType,
 				session_id: payload.session_id || sessionId,
 				timestamp: payload.timestamp || new Date().toISOString(),
 				data: payload,

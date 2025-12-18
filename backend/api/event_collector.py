@@ -6,7 +6,7 @@ Provides:
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from backend.api.dependencies import get_redis_manager
 from backend.api.event_extractors import extract_persona_dict, get_event_registry
@@ -21,6 +21,30 @@ if TYPE_CHECKING:
     from backend.api.protocols import SessionRepositoryProtocol
 
 logger = logging.getLogger(__name__)
+
+# Type-safe node name literal for graph nodes
+NodeName = Literal[
+    "decompose",
+    "identify_gaps",
+    "select_personas",
+    "initial_round",
+    "facilitator_decide",
+    "parallel_round",
+    "moderator_intervene",
+    "check_convergence",
+    "vote",
+    "synthesize",
+    "next_subproblem",
+    "meta_synthesis",
+    "meta_synthesize",
+    "research",
+    "context_collection",
+    "analyze_dependencies",
+    "data_analysis",
+    "cost_guard",
+    "clarification",
+    "parallel_subproblems",
+]
 
 
 class EventCollector:
@@ -43,7 +67,8 @@ class EventCollector:
     """
 
     # Node handler registry: maps node names to handler method names
-    NODE_HANDLERS: dict[str, str] = {
+    # Type-safe: keys must be valid NodeName values
+    NODE_HANDLERS: dict[NodeName, str] = {
         "decompose": "_handle_decomposition",
         "identify_gaps": "_handle_identify_gaps",
         "select_personas": "_handle_persona_selection",
@@ -60,6 +85,10 @@ class EventCollector:
         "research": "_handle_research",  # P2-006: Research results
         "context_collection": "_handle_context_collection",  # P1: UI feedback
         "analyze_dependencies": "_handle_dependency_analysis",  # P1: UI feedback
+        "data_analysis": "_handle_data_analysis",  # EPIC 4: Dataset analysis
+        "cost_guard": "_handle_cost_guard",  # Cost limit enforcement
+        "clarification": "_handle_clarification",  # User clarification requests
+        "parallel_subproblems": "_handle_parallel_subproblems",  # Parallel sub-problem execution
     }
 
     def __init__(
@@ -1006,6 +1035,66 @@ class EventCollector:
         logger.info(
             f"[DEPS] Published dependency_analysis_complete for session {session_id}: "
             f"batch_count={event_data['batch_count']}, parallel_mode={parallel_mode}"
+        )
+
+    async def _handle_data_analysis(self, session_id: str, output: dict) -> None:
+        """Handle data_analysis node completion (EPIC 4: Dataset analysis).
+
+        Stub handler that logs completion. The data_analysis node handles its own
+        event emission for analysis results; this handler provides visibility into
+        node completion for debugging and future enhancements.
+        """
+        data_analysis_results = output.get("data_analysis_results", [])
+        logger.info(
+            f"[DATA_ANALYSIS] Node completed for session {session_id}: "
+            f"results_count={len(data_analysis_results)}"
+        )
+
+    async def _handle_cost_guard(self, session_id: str, output: dict) -> None:
+        """Handle cost_guard node completion (cost limit enforcement).
+
+        Stub handler that logs cost check results. The cost_guard node enforces
+        per-session cost limits; this handler provides visibility into node
+        completion without emitting SSE events (cost data is sensitive).
+        """
+        metrics = output.get("metrics", {})
+        total_cost = (
+            metrics.total_cost if hasattr(metrics, "total_cost") else metrics.get("total_cost", 0.0)
+        )
+        should_stop = output.get("should_stop", False)
+        stop_reason = output.get("stop_reason", "")
+
+        logger.info(
+            f"[COST_GUARD] Node completed for session {session_id}: "
+            f"total_cost=${total_cost:.4f}, should_stop={should_stop}, stop_reason={stop_reason}"
+        )
+
+    async def _handle_clarification(self, session_id: str, output: dict) -> None:
+        """Handle clarification node completion (user clarification requests).
+
+        Stub handler that logs clarification processing. Clarification events are
+        emitted by _handle_identify_gaps; this handler provides visibility into
+        node completion for sessions that process clarification responses.
+        """
+        clarification_answers = output.get("clarification_answers")
+        has_answers = bool(clarification_answers)
+        logger.info(
+            f"[CLARIFICATION] Node completed for session {session_id}: "
+            f"has_answers={has_answers}, answer_count={len(clarification_answers) if has_answers else 0}"
+        )
+
+    async def _handle_parallel_subproblems(self, session_id: str, output: dict) -> None:
+        """Handle parallel_subproblems node completion (parallel sub-problem execution).
+
+        Stub handler that logs parallel batch execution. The subproblem_complete event
+        is already emitted by the node itself; this handler provides visibility into
+        batch completion for debugging and monitoring.
+        """
+        execution_batches = output.get("execution_batches", [])
+        sub_problem_index = output.get("sub_problem_index", 0)
+        logger.info(
+            f"[PARALLEL_SUBPROBLEMS] Node completed for session {session_id}: "
+            f"batch_count={len(execution_batches)}, current_sub_problem_index={sub_problem_index}"
         )
 
     async def _handle_completion(self, session_id: str, final_state: dict) -> None:

@@ -1,8 +1,22 @@
 """Graph state models for LangGraph-based deliberation.
 
 This module defines the TypedDict state for LangGraph (DeliberationGraphState).
+
+State is organized into logical groups:
+- ProblemState: Problem context and sub-problem tracking
+- PhaseState: Deliberation phase and round tracking
+- ParticipantState: Personas and expert assignments
+- DiscussionState: Contributions, summaries, votes, synthesis
+- ResearchState: Research queries and results
+- ComparisonState: X vs Y comparison detection
+- ContextState: Business context and clarification handling
+- ControlState: Termination and stop signals
+- MetricsState: Quality metrics and cost tracking
+- ParallelState: Parallel sub-problem execution
+- DataState: Dataset attachments and analysis results
 """
 
+import warnings
 from typing import Any, TypedDict
 
 from bo1.models.persona import PersonaProfile
@@ -13,6 +27,121 @@ from bo1.models.state import (
     DeliberationPhase,
     SubProblemResult,
 )
+
+# =============================================================================
+# NESTED STATE TYPEDDICTS
+# =============================================================================
+
+
+class ProblemState(TypedDict, total=False):
+    """Problem context and sub-problem tracking."""
+
+    problem: Problem
+    current_sub_problem: SubProblem | None
+    sub_problem_results: list[SubProblemResult]
+    sub_problem_index: int
+
+
+class PhaseState(TypedDict, total=False):
+    """Deliberation phase and round tracking."""
+
+    phase: DeliberationPhase
+    current_phase: str  # "exploration", "challenge", "convergence"
+    round_number: int
+    max_rounds: int
+    current_node: str
+
+
+class ParticipantState(TypedDict, total=False):
+    """Personas and expert assignments."""
+
+    personas: list[PersonaProfile]
+    experts_per_round: list[list[str]]
+
+
+class DiscussionState(TypedDict, total=False):
+    """Contributions, summaries, votes, synthesis."""
+
+    contributions: list[ContributionMessage]
+    round_summaries: list[str]
+    votes: list[dict[str, Any]]
+    synthesis: str | None
+
+
+class ResearchState(TypedDict, total=False):
+    """Research queries and results."""
+
+    completed_research_queries: list[dict[str, Any]]  # {"query": str, "embedding": list[float]}
+    pending_research_queries: list[dict[str, Any]]
+    research_results: list[dict[str, Any]]
+
+
+class ComparisonState(TypedDict, total=False):
+    """X vs Y comparison detection."""
+
+    comparison_detected: bool
+    comparison_options: list[str]
+    comparison_type: str
+
+
+class ContextState(TypedDict, total=False):
+    """Business context and clarification handling."""
+
+    collect_context: bool
+    business_context: dict[str, Any] | None
+    pending_clarification: dict[str, Any] | None
+    clarification_answers: dict[str, str] | None
+    context_ids: dict[str, list[str]] | None  # {meetings: [...], actions: [...], datasets: [...]}
+    context_insufficient_emitted: bool
+    context_insufficiency_info: dict[str, Any] | None
+    user_context_choice: str | None  # "continue" | "provide_more" | "end"
+    limited_context_mode: bool
+    best_effort_prompt_injected: bool
+
+
+class ControlState(TypedDict, total=False):
+    """Termination and stop signals."""
+
+    should_stop: bool
+    stop_reason: str | None
+    termination_requested: bool
+    termination_type: str | None  # blocker_identified, user_cancelled, continue_best_effort
+    termination_reason: str | None
+    skip_clarification: bool
+
+
+class MetricsState(TypedDict, total=False):
+    """Quality metrics and cost tracking."""
+
+    metrics: DeliberationMetrics
+    phase_costs: dict[str, float]
+    semantic_novelty_scores: dict[str, float]
+    exploration_score: float
+    focus_score: float
+    consecutive_research_without_improvement: int
+    meta_discussion_count: int
+    total_contributions_checked: int
+    high_conflict_low_novelty_rounds: int
+
+
+class ParallelState(TypedDict, total=False):
+    """Parallel sub-problem execution."""
+
+    execution_batches: list[list[int]]
+    parallel_mode: bool
+    dependency_error: str | None
+
+
+class DataState(TypedDict, total=False):
+    """Dataset attachments and analysis results."""
+
+    attached_datasets: list[str]
+    data_analysis_results: list[dict[str, Any]]
+
+
+# =============================================================================
+# MAIN STATE CLASS
+# =============================================================================
 
 
 class DeliberationGraphState(TypedDict, total=False):
@@ -278,35 +407,22 @@ def validate_state(state: DeliberationGraphState) -> None:
 def state_to_dict(state: DeliberationGraphState) -> dict[str, Any]:
     """Convert graph state to dictionary for checkpointing.
 
+    .. deprecated::
+        Use :func:`serialize_state_for_checkpoint` instead. This function
+        will be removed in a future release.
+
     Args:
         state: The graph state to serialize
 
     Returns:
         Dictionary representation suitable for JSON serialization
     """
-    # Convert to dict and handle Pydantic models
-    result = dict(state)
-
-    # Convert Pydantic models to dicts
-    if "problem" in result and result["problem"] is not None:
-        result["problem"] = result["problem"].model_dump()  # type: ignore[attr-defined]
-
-    if "current_sub_problem" in result and result["current_sub_problem"] is not None:
-        result["current_sub_problem"] = result["current_sub_problem"].model_dump()  # type: ignore[attr-defined]
-
-    if "personas" in result:
-        result["personas"] = [p.model_dump() for p in result["personas"]]  # type: ignore[attr-defined]
-
-    if "contributions" in result:
-        result["contributions"] = [c.model_dump() for c in result["contributions"]]  # type: ignore[attr-defined]
-
-    if "metrics" in result and result["metrics"] is not None:
-        result["metrics"] = result["metrics"].model_dump()  # type: ignore[attr-defined]
-
-    # facilitator_decision is already a dict (converted in node using asdict())
-    # No conversion needed
-
-    return result
+    warnings.warn(
+        "state_to_dict is deprecated; use serialize_state_for_checkpoint instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return serialize_state_for_checkpoint(state)
 
 
 def serialize_state_for_checkpoint(state: DeliberationGraphState) -> dict[str, Any]:
@@ -464,3 +580,131 @@ def deserialize_state_from_checkpoint(data: dict[str, Any]) -> dict[str, Any]:
         ]
 
     return result
+
+
+# =============================================================================
+# STATE ACCESSOR HELPERS (for gradual migration to nested structure)
+# =============================================================================
+
+
+def get_problem_state(state: DeliberationGraphState) -> ProblemState:
+    """Extract problem-related fields as ProblemState.
+
+    Use this helper to access problem fields in a grouped way,
+    preparing for future migration to nested state structure.
+    """
+    return ProblemState(
+        problem=state.get("problem"),  # type: ignore[typeddict-item]
+        current_sub_problem=state.get("current_sub_problem"),
+        sub_problem_results=state.get("sub_problem_results", []),
+        sub_problem_index=state.get("sub_problem_index", 0),
+    )
+
+
+def get_phase_state(state: DeliberationGraphState) -> PhaseState:
+    """Extract phase-related fields as PhaseState."""
+    return PhaseState(
+        phase=state.get("phase"),  # type: ignore[typeddict-item]
+        current_phase=state.get("current_phase", "exploration"),
+        round_number=state.get("round_number", 0),
+        max_rounds=state.get("max_rounds", 6),
+        current_node=state.get("current_node", "start"),
+    )
+
+
+def get_participant_state(state: DeliberationGraphState) -> ParticipantState:
+    """Extract participant-related fields as ParticipantState."""
+    return ParticipantState(
+        personas=state.get("personas", []),
+        experts_per_round=state.get("experts_per_round", []),
+    )
+
+
+def get_discussion_state(state: DeliberationGraphState) -> DiscussionState:
+    """Extract discussion-related fields as DiscussionState."""
+    return DiscussionState(
+        contributions=state.get("contributions", []),
+        round_summaries=state.get("round_summaries", []),
+        votes=state.get("votes", []),
+        synthesis=state.get("synthesis"),
+    )
+
+
+def get_research_state(state: DeliberationGraphState) -> ResearchState:
+    """Extract research-related fields as ResearchState."""
+    return ResearchState(
+        completed_research_queries=state.get("completed_research_queries", []),
+        pending_research_queries=state.get("pending_research_queries", []),
+        research_results=state.get("research_results", []),
+    )
+
+
+def get_comparison_state(state: DeliberationGraphState) -> ComparisonState:
+    """Extract comparison-related fields as ComparisonState."""
+    return ComparisonState(
+        comparison_detected=state.get("comparison_detected", False),
+        comparison_options=state.get("comparison_options", []),
+        comparison_type=state.get("comparison_type", ""),
+    )
+
+
+def get_context_state(state: DeliberationGraphState) -> ContextState:
+    """Extract context-related fields as ContextState."""
+    return ContextState(
+        collect_context=state.get("collect_context", True),
+        business_context=state.get("business_context"),
+        pending_clarification=state.get("pending_clarification"),
+        clarification_answers=state.get("clarification_answers"),
+        context_ids=state.get("context_ids"),
+        context_insufficient_emitted=state.get("context_insufficient_emitted", False),
+        context_insufficiency_info=state.get("context_insufficiency_info"),
+        user_context_choice=state.get("user_context_choice"),
+        limited_context_mode=state.get("limited_context_mode", False),
+        best_effort_prompt_injected=state.get("best_effort_prompt_injected", False),
+    )
+
+
+def get_control_state(state: DeliberationGraphState) -> ControlState:
+    """Extract control-related fields as ControlState."""
+    return ControlState(
+        should_stop=state.get("should_stop", False),
+        stop_reason=state.get("stop_reason"),
+        termination_requested=state.get("termination_requested", False),
+        termination_type=state.get("termination_type"),
+        termination_reason=state.get("termination_reason"),
+        skip_clarification=state.get("skip_clarification", False),
+    )
+
+
+def get_metrics_state(state: DeliberationGraphState) -> MetricsState:
+    """Extract metrics-related fields as MetricsState."""
+    return MetricsState(
+        metrics=state.get("metrics"),  # type: ignore[typeddict-item]
+        phase_costs=state.get("phase_costs", {}),
+        semantic_novelty_scores=state.get("semantic_novelty_scores", {}),
+        exploration_score=state.get("exploration_score", 0.0),
+        focus_score=state.get("focus_score", 1.0),
+        consecutive_research_without_improvement=state.get(
+            "consecutive_research_without_improvement", 0
+        ),
+        meta_discussion_count=state.get("meta_discussion_count", 0),
+        total_contributions_checked=state.get("total_contributions_checked", 0),
+        high_conflict_low_novelty_rounds=state.get("high_conflict_low_novelty_rounds", 0),
+    )
+
+
+def get_parallel_state(state: DeliberationGraphState) -> ParallelState:
+    """Extract parallel execution fields as ParallelState."""
+    return ParallelState(
+        execution_batches=state.get("execution_batches", []),
+        parallel_mode=state.get("parallel_mode", False),
+        dependency_error=state.get("dependency_error"),
+    )
+
+
+def get_data_state(state: DeliberationGraphState) -> DataState:
+    """Extract data-related fields as DataState."""
+    return DataState(
+        attached_datasets=state.get("attached_datasets", []),
+        data_analysis_results=state.get("data_analysis_results", []),
+    )

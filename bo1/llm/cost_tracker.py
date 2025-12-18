@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from bo1.logging import ErrorCode, log_error
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Batch Buffer Configuration
 # =============================================================================
-BATCH_SIZE = 50  # Flush when buffer exceeds this
+BATCH_SIZE = 100  # Flush when buffer exceeds this
 BATCH_INTERVAL_SECONDS = 30  # Flush if time since last flush exceeds this
 MAX_BUFFER_SIZE = 200  # Cap buffer size to prevent memory growth on repeated failures
 
@@ -610,7 +611,11 @@ class CostTracker:
             return batch_size
 
         except Exception as e:
-            logger.error(f"Failed to flush cost batch ({batch_size} records): {e}")
+            log_error(
+                logger,
+                ErrorCode.COST_FLUSH_ERROR,
+                f"Failed to flush cost batch ({batch_size} records): {e}",
+            )
             # Push failed records to Redis retry queue for resilience
             pushed_count = cls._push_to_retry_queue(to_flush)
             if pushed_count > 0:
@@ -727,7 +732,9 @@ class CostTracker:
             return pushed
 
         except Exception as e:
-            logger.error(f"Failed to push to Redis retry queue: {e}")
+            log_error(
+                logger, ErrorCode.COST_RETRY_ERROR, f"Failed to push to Redis retry queue: {e}"
+            )
             return 0
 
     @classmethod
@@ -756,7 +763,9 @@ class CostTracker:
                     if updated > 0:
                         logger.info(f"Marked {updated} sessions as having untracked costs")
         except Exception as e:
-            logger.error(f"Failed to mark sessions as untracked: {e}")
+            log_error(
+                logger, ErrorCode.DB_WRITE_ERROR, f"Failed to mark sessions as untracked: {e}"
+            )
 
     @staticmethod
     def _send_retry_queue_alert(queue_depth: int) -> None:
@@ -836,7 +845,7 @@ class CostTracker:
 
             return records
         except Exception as e:
-            logger.error(f"Failed to pop from retry queue: {e}")
+            log_error(logger, ErrorCode.COST_RETRY_ERROR, f"Failed to pop from retry queue: {e}")
             return []
 
     @classmethod
@@ -862,7 +871,9 @@ class CostTracker:
                     )
                     return bool(cur.rowcount and cur.rowcount > 0)
         except Exception as e:
-            logger.error(f"Failed to clear untracked costs flag: {e}")
+            log_error(
+                logger, ErrorCode.DB_WRITE_ERROR, f"Failed to clear untracked costs flag: {e}"
+            )
             return False
 
     @staticmethod
@@ -1121,6 +1132,8 @@ class CostTracker:
         """
         with db_session() as conn:
             with conn.cursor() as cur:
+                # partition: api_costs - Include created_at filter for partition pruning
+                # Sessions typically complete within 7 days; use 30 days for safety margin
                 cur.execute(
                     """
                     SELECT
@@ -1135,6 +1148,7 @@ class CostTracker:
                         AVG(CASE WHEN cache_hit THEN 1 ELSE 0 END) as cache_hit_rate
                     FROM api_costs
                     WHERE session_id = %s
+                      AND created_at >= NOW() - INTERVAL '30 days'
                     """,
                     (session_id,),
                 )
@@ -1197,6 +1211,8 @@ class CostTracker:
         """
         with db_session() as conn:
             with conn.cursor() as cur:
+                # partition: api_costs - Include created_at filter for partition pruning
+                # Sessions typically complete within 7 days; use 30 days for safety margin
                 cur.execute(
                     """
                     SELECT
@@ -1213,6 +1229,7 @@ class CostTracker:
                         SUM(CASE WHEN phase = 'synthesis' THEN total_cost ELSE 0 END) as synthesis_cost
                     FROM api_costs
                     WHERE session_id = %s
+                      AND created_at >= NOW() - INTERVAL '30 days'
                     GROUP BY sub_problem_index
                     ORDER BY sub_problem_index NULLS FIRST
                     """,

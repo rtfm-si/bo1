@@ -11,6 +11,8 @@ import sys
 import time
 from typing import Any
 
+from bo1.logging import ErrorCode, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -77,10 +79,13 @@ class LoggingCheckpointerWrapper:
 
         except Exception as e:
             latency_ms = (time.perf_counter() - start) * 1000
-            logger.error(
+            log_error(
+                logger,
+                ErrorCode.GRAPH_CHECKPOINT_ERROR,
                 f"[CHECKPOINT PUT ERROR] session={thread_id}, latency_ms={latency_ms:.2f}, "
                 f"error={type(e).__name__}: {e}",
                 exc_info=True,
+                session_id=thread_id,
             )
             raise
 
@@ -108,10 +113,13 @@ class LoggingCheckpointerWrapper:
 
         except Exception as e:
             latency_ms = (time.perf_counter() - start) * 1000
-            logger.error(
+            log_error(
+                logger,
+                ErrorCode.GRAPH_CHECKPOINT_ERROR,
                 f"[CHECKPOINT GET ERROR] session={thread_id}, latency_ms={latency_ms:.2f}, "
                 f"error={type(e).__name__}: {e}",
                 exc_info=True,
+                session_id=thread_id,
             )
             raise
 
@@ -129,10 +137,13 @@ class LoggingCheckpointerWrapper:
 
         except Exception as e:
             latency_ms = (time.perf_counter() - start) * 1000
-            logger.error(
+            log_error(
+                logger,
+                ErrorCode.GRAPH_CHECKPOINT_ERROR,
                 f"[CHECKPOINT LIST ERROR] session={thread_id}, latency_ms={latency_ms:.2f}, "
                 f"error={type(e).__name__}: {e}",
                 exc_info=True,
+                session_id=thread_id,
             )
             raise
 
@@ -163,10 +174,13 @@ class LoggingCheckpointerWrapper:
 
         except Exception as e:
             latency_ms = (time.perf_counter() - start) * 1000
-            logger.error(
+            log_error(
+                logger,
+                ErrorCode.GRAPH_CHECKPOINT_ERROR,
                 f"[CHECKPOINT PUT ERROR] session={thread_id}, latency_ms={latency_ms:.2f}, "
                 f"error={type(e).__name__}: {e}",
                 exc_info=True,
+                session_id=thread_id,
             )
             raise
 
@@ -187,9 +201,12 @@ class LoggingCheckpointerWrapper:
 
         except Exception as e:
             latency_ms = (time.perf_counter() - start) * 1000
-            logger.error(
+            log_error(
+                logger,
+                ErrorCode.GRAPH_CHECKPOINT_ERROR,
                 f"[CHECKPOINT GET ERROR] session={thread_id}, latency_ms={latency_ms:.2f}, "
                 f"error={type(e).__name__}: {e}",
                 exc_info=True,
+                session_id=thread_id,
             )
             raise

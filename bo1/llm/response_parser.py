@@ -47,6 +47,33 @@ class XMLValidationError(Exception):
         super().__init__(message)
 
 
+class ValidationConfig:
+    """Configuration for LLM response validation with re-prompt behavior.
+
+    Attributes:
+        required_tags: List of XML tags that must be present
+        max_retries: Maximum retry attempts on validation failure (default: 1)
+        strict: If True, raise exception after retries exhausted (default: False)
+    """
+
+    def __init__(
+        self,
+        required_tags: list[str],
+        max_retries: int = 1,
+        strict: bool = False,
+    ) -> None:
+        """Initialize validation config.
+
+        Args:
+            required_tags: XML tags required in response
+            max_retries: Max validation retries (default: 1)
+            strict: Raise on exhausted retries (default: False)
+        """
+        self.required_tags = required_tags
+        self.max_retries = max_retries
+        self.strict = strict
+
+
 class XMLValidator:
     """Validates XML structure in LLM responses.
 

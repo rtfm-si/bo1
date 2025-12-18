@@ -330,6 +330,7 @@ async def quick_quality_check(
         Shallow: True, Score: 0.15
         Feedback: Too vague - name specific risks with evidence and timeline.
     """
+    from bo1.config import get_model_for_role
     from bo1.llm.broker import PromptBroker, PromptRequest
 
     logger.debug(f"Quick quality check for contribution from {persona_name}")
@@ -363,16 +364,22 @@ Remember:
 """
 
     try:
-        # Call LLM (use Haiku 4.5 for speed and cost efficiency)
+        # Call LLM (centralized model selection)
         broker = PromptBroker()
+        quality_model: str = (
+            str(config.get("model"))
+            if config and config.get("model")
+            else get_model_for_role("quality_check")
+        )
         request = PromptRequest(
             system=QUALITY_CHECK_SYSTEM_PROMPT,
             user_message=user_prompt,
-            model=config.get("model", "haiku") if config else "haiku",
+            model=quality_model,
             temperature=config.get("temperature", 0.0) if config else 0.0,
             max_tokens=config.get("max_tokens", 500) if config else 500,
             phase="quality_check",
             prefill="{",  # Force JSON output - prevents markdown wrapping
+            cache_system=True,
         )
 
         response = await broker.call(request)

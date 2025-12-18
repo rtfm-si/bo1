@@ -91,8 +91,11 @@ export function createWaitingState(config: WaitingStateConfig) {
 		if (!lastSubProblemComplete) return false;
 		if (!lastSubProblemStarted) return true;
 
-		const completeTime = new Date(lastSubProblemComplete.timestamp).getTime();
-		const startTime = new Date(lastSubProblemStarted.timestamp).getTime();
+		const completeTimestamp = lastSubProblemComplete.timestamp;
+		const startTimestamp = lastSubProblemStarted.timestamp;
+		if (!completeTimestamp || !startTimestamp) return false;
+		const completeTime = new Date(completeTimestamp).getTime();
+		const startTime = new Date(startTimestamp).getTime();
 
 		return completeTime > startTime;
 	});

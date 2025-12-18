@@ -96,10 +96,12 @@ class TestReadyEndpoint:
 
             response = client.get("/api/ready")
             assert response.status_code == 503
-            data = response.json()["detail"]
+            data = response.json()
             assert data["ready"] is False
             assert data["checks"]["postgres"] is False
             assert data["checks"]["redis"] is True
+            # Verify error_code is present (structured error response)
+            assert "error_code" in data
 
     def test_ready_returns_503_when_redis_down(self, client: TestClient):
         """Ready endpoint should return 503 when Redis is down."""
@@ -124,10 +126,12 @@ class TestReadyEndpoint:
 
             response = client.get("/api/ready")
             assert response.status_code == 503
-            data = response.json()["detail"]
+            data = response.json()
             assert data["ready"] is False
             assert data["checks"]["postgres"] is True
             assert data["checks"]["redis"] is False
+            # Verify error_code is present (structured error response)
+            assert "error_code" in data
 
     def test_ready_returns_503_during_shutdown(self, client: TestClient):
         """Ready endpoint should return 503 during graceful shutdown."""
@@ -139,9 +143,11 @@ class TestReadyEndpoint:
 
         response = client.get("/api/ready")
         assert response.status_code == 503
-        data = response.json()["detail"]
+        data = response.json()
         assert data["status"] == "shutting_down"
         assert data["ready"] is False
+        # Verify error_code is present (structured error response)
+        assert "error_code" in data
 
 
 class TestHSTSEndpoint:
@@ -196,3 +202,111 @@ class TestGracefulShutdown:
         event1 = main_module.get_shutdown_event()
         event2 = main_module.get_shutdown_event()
         assert event1 is event2
+
+
+class TestVoyageHealthEndpoint:
+    """Tests for /api/health/voyage endpoint."""
+
+    def test_voyage_returns_200_when_key_set(self, client: TestClient):
+        """Voyage health should return 200 when API key is configured."""
+        with patch.dict("os.environ", {"VOYAGE_API_KEY": "pa-test-valid-key-12345"}):
+            response = client.get("/api/health/voyage")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "healthy"
+            assert data["component"] == "voyage"
+            assert data["healthy"] is True
+            assert data["message"] == "Voyage API key configured"
+            assert "timestamp" in data
+
+    def test_voyage_returns_503_when_key_missing(self, client: TestClient):
+        """Voyage health should return 503 when API key is not set."""
+        with patch.dict("os.environ", {}, clear=True):
+            # Ensure VOYAGE_API_KEY is not in environment
+            import os
+
+            original = os.environ.pop("VOYAGE_API_KEY", None)
+            try:
+                response = client.get("/api/health/voyage")
+                assert response.status_code == 503
+                data = response.json()
+                assert data["status"] == "unhealthy"
+                assert data["component"] == "voyage"
+                assert data["healthy"] is False
+                assert "not set" in data["message"]
+                assert "error_code" in data
+            finally:
+                if original:
+                    os.environ["VOYAGE_API_KEY"] = original
+
+    def test_voyage_returns_503_when_key_invalid_format(self, client: TestClient):
+        """Voyage health should return 503 when API key has invalid format."""
+        with patch.dict("os.environ", {"VOYAGE_API_KEY": "invalid-key-no-pa-prefix"}):
+            response = client.get("/api/health/voyage")
+            assert response.status_code == 503
+            data = response.json()
+            assert data["status"] == "unhealthy"
+            assert data["component"] == "voyage"
+            assert data["healthy"] is False
+            assert "invalid format" in data["message"]
+            assert "error_code" in data
+
+    def test_voyage_key_too_short(self, client: TestClient):
+        """Voyage health should return 503 when API key is too short."""
+        with patch.dict("os.environ", {"VOYAGE_API_KEY": "pa-short"}):
+            response = client.get("/api/health/voyage")
+            assert response.status_code == 503
+
+
+class TestBraveHealthEndpoint:
+    """Tests for /api/health/brave endpoint."""
+
+    def test_brave_returns_200_when_key_set(self, client: TestClient):
+        """Brave health should return 200 when API key is configured."""
+        with patch.dict("os.environ", {"BRAVE_API_KEY": "BSAtest1234567890abcdef12345"}):
+            response = client.get("/api/health/brave")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "healthy"
+            assert data["component"] == "brave"
+            assert data["healthy"] is True
+            assert data["message"] == "Brave API key configured"
+            assert "timestamp" in data
+
+    def test_brave_returns_503_when_key_missing(self, client: TestClient):
+        """Brave health should return 503 when API key is not set."""
+        import os
+
+        original = os.environ.pop("BRAVE_API_KEY", None)
+        try:
+            response = client.get("/api/health/brave")
+            assert response.status_code == 503
+            data = response.json()
+            assert data["status"] == "unhealthy"
+            assert data["component"] == "brave"
+            assert data["healthy"] is False
+            assert "not set" in data["message"]
+            assert "error_code" in data
+        finally:
+            if original:
+                os.environ["BRAVE_API_KEY"] = original
+
+    def test_brave_returns_503_when_key_invalid_format(self, client: TestClient):
+        """Brave health should return 503 when API key has invalid format."""
+        with patch.dict("os.environ", {"BRAVE_API_KEY": "sh"}):
+            response = client.get("/api/health/brave")
+            assert response.status_code == 503
+            data = response.json()
+            assert data["status"] == "unhealthy"
+            assert data["component"] == "brave"
+            assert data["healthy"] is False
+            assert "invalid format" in data["message"]
+            assert "error_code" in data
+
+    def test_brave_key_with_special_chars(self, client: TestClient):
+        """Brave health should accept keys with hyphens and underscores."""
+        with patch.dict("os.environ", {"BRAVE_API_KEY": "BSA_test-key_12345678901234"}):
+            response = client.get("/api/health/brave")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["healthy"] is True

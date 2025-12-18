@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from bo1.agents.selector import PersonaSelectorAgent
 from bo1.agents.summarizer import SummarizerAgent
+from bo1.config import get_model_for_role
 from bo1.data import get_persona_profile_by_code
 from bo1.graph.safety.loop_prevention import check_convergence_node, get_adaptive_max_rounds
 from bo1.graph.state import DeliberationGraphState
@@ -159,11 +160,12 @@ async def _generate_synthesis(
         system=synthesis_prompt,
         user_message="Generate the synthesis report now.",
         prefill="<thinking>",
-        model="sonnet",
+        model=get_model_for_role("synthesis"),
         temperature=0.7,
         max_tokens=4000,  # Increased from 3000 to avoid truncation
         phase="synthesis",
         agent_type="synthesizer",
+        cache_system=True,
     )
 
     response = await broker.call(request)

@@ -16,7 +16,7 @@ dependencies = [
     # langchain-anthropic removed - code uses raw Anthropic SDK directly
     "langchain-community>=0.4.0,<1.0", # Current stable
     # State & Embeddings
-    "redis>=6.4.0,<7.0", # BLOCKER: langgraph-checkpoint-redis 0.2.1 requires redis<7.0 (awaiting 0.3.0)
+    "redis>=6.4.0,<8.0", # BLOCKER: langgraph-checkpoint-redis 0.2.1 requires redis<7.0 (awaiting 0.3.0)
     "voyageai>=0.3.0", # Voyage AI embeddings API
     # Database (v2+)
     "alembic>=1.17.0", # Latest migration tool

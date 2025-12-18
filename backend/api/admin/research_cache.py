@@ -6,10 +6,11 @@ Provides:
 - GET /api/admin/research-cache/stale - Get stale research cache entries
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.admin.models import ResearchCacheStats, StaleEntriesResponse
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.errors import handle_api_errors
 from bo1.utils.logging import get_logger
@@ -31,8 +32,10 @@ router = APIRouter(prefix="", tags=["Admin - Research Cache"])
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get research cache stats")
 async def get_research_cache_stats(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> ResearchCacheStats:
     """Get research cache analytics and statistics."""
@@ -56,8 +59,10 @@ async def get_research_cache_stats(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("delete research cache entry")
 async def delete_research_cache_entry(
+    request: Request,
     cache_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> ControlResponse:
@@ -94,8 +99,10 @@ async def delete_research_cache_entry(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get stale research cache entries")
 async def get_stale_research_cache_entries(
+    request: Request,
     days_old: int = Query(90, ge=1, le=365, description="Number of days to consider stale"),
     _admin: str = Depends(require_admin_any),
 ) -> StaleEntriesResponse:

@@ -20,7 +20,15 @@ logger = logging.getLogger(__name__)
 # Whitelist of config keys that can be overridden at runtime
 # Each key maps to its expected type for validation
 ALLOWED_OVERRIDES: dict[str, type] = {
+    # Security toggles
     "prompt_injection_block_suspicious": bool,
+    # LLM/Caching toggles
+    "enable_llm_response_cache": bool,
+    "enable_prompt_cache": bool,
+    # Feature toggles
+    "enable_sse_streaming": bool,
+    "auto_generate_projects": bool,
+    "enable_context_collection": bool,
 }
 
 # Redis key prefix for runtime config overrides

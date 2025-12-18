@@ -51,6 +51,10 @@ class Session(BaseModel):
     # Recovery flags (from c3_add_session_recovery_flags migration)
     has_untracked_costs: bool = Field(False, description="True when cost inserts failed")
     recovery_needed: bool = Field(False, description="True when in-flight contributions exist")
+    # Failure acknowledgment (from z11_add_failure_acknowledged migration)
+    failure_acknowledged_at: datetime | None = Field(
+        None, description="When user acknowledged failed session"
+    )
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -112,4 +116,6 @@ class Session(BaseModel):
             # Recovery flags
             has_untracked_costs=row.get("has_untracked_costs", False),
             recovery_needed=row.get("recovery_needed", False),
+            # Failure acknowledgment
+            failure_acknowledged_at=row.get("failure_acknowledged_at"),
         )

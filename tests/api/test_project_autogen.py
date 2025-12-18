@@ -96,6 +96,22 @@ class TestGetUnassignedActionCount:
 
         assert count == 0
 
+    def test_passes_user_id_to_db_session_for_rls(self):
+        """Should pass user_id to db_session for RLS context."""
+        with patch("backend.services.project_autogen.db_session") as mock_db:
+            conn_mock = MagicMock()
+            cursor_mock = MagicMock()
+            cursor_mock.fetchone.return_value = {"count": 3}
+            conn_mock.cursor.return_value.__enter__ = MagicMock(return_value=cursor_mock)
+            conn_mock.cursor.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value.__enter__ = MagicMock(return_value=conn_mock)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+
+            get_unassigned_action_count("user-abc-123")
+
+            # Verify db_session called with user_id for RLS context
+            mock_db.assert_called_once_with(user_id="user-abc-123")
+
 
 class TestGetAutogenSuggestions:
     """Tests for get_autogen_suggestions function."""

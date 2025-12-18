@@ -21,6 +21,7 @@ import json
 import logging
 from typing import Any
 
+from backend.services.runtime_config import get_effective_value
 from bo1.config import get_settings
 from bo1.llm.base_cache import BaseCache
 from bo1.llm.broker import PromptRequest
@@ -50,7 +51,7 @@ def generate_cache_key(
         temperature: Temperature setting (affects response)
 
     Returns:
-        Redis cache key (e.g., 'llm:cache:a1b2c3d4e5f6g7h8')
+        Redis cache key (e.g., 'llm:cache:a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2')
 
     Examples:
         >>> key1 = generate_cache_key("sys", "user", "sonnet")
@@ -71,8 +72,8 @@ def generate_cache_key(
     # Generate SHA-256 hash
     content_hash = hashlib.sha256(content_json.encode()).hexdigest()
 
-    # Use first 16 chars for readability
-    cache_key = f"llm:cache:{content_hash[:16]}"
+    # Use full 64-char hash to eliminate collision risk
+    cache_key = f"llm:cache:{content_hash}"
 
     return cache_key
 
@@ -107,6 +108,17 @@ class LLMResponseCache(BaseCache[PromptRequest, LLMResponse]):
             ttl_seconds=cache_config.llm_cache_ttl_seconds,
         )
 
+    @property
+    def is_enabled(self) -> bool:
+        """Check if cache is enabled, respecting runtime override.
+
+        Runtime override takes precedence over settings.
+        """
+        override = get_effective_value("enable_llm_response_cache")
+        if override is not None:
+            return bool(override)
+        return self.enabled
+
     async def get(self, request: PromptRequest) -> LLMResponse | None:
         """Get cached LLM response (implements BaseCache.get).
 
@@ -116,7 +128,7 @@ class LLMResponseCache(BaseCache[PromptRequest, LLMResponse]):
         Returns:
             Cached LLMResponse if found, None otherwise
         """
-        if not self.enabled:
+        if not self.is_enabled:
             return None
 
         cache_key = generate_cache_key(
@@ -149,7 +161,7 @@ class LLMResponseCache(BaseCache[PromptRequest, LLMResponse]):
         Note:
             Failures to cache do not raise exceptions (graceful degradation).
         """
-        if not self.enabled:
+        if not self.is_enabled:
             return
 
         cache_key = generate_cache_key(

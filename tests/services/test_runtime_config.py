@@ -20,10 +20,47 @@ class TestAllowedOverrides:
         """prompt_injection_block_suspicious should be whitelisted."""
         assert "prompt_injection_block_suspicious" in ALLOWED_OVERRIDES
 
+    def test_enable_llm_response_cache_in_whitelist(self) -> None:
+        """enable_llm_response_cache should be whitelisted."""
+        assert "enable_llm_response_cache" in ALLOWED_OVERRIDES
+        assert ALLOWED_OVERRIDES["enable_llm_response_cache"] is bool
+
+    def test_enable_prompt_cache_in_whitelist(self) -> None:
+        """enable_prompt_cache should be whitelisted."""
+        assert "enable_prompt_cache" in ALLOWED_OVERRIDES
+        assert ALLOWED_OVERRIDES["enable_prompt_cache"] is bool
+
+    def test_enable_sse_streaming_in_whitelist(self) -> None:
+        """enable_sse_streaming should be whitelisted."""
+        assert "enable_sse_streaming" in ALLOWED_OVERRIDES
+        assert ALLOWED_OVERRIDES["enable_sse_streaming"] is bool
+
+    def test_auto_generate_projects_in_whitelist(self) -> None:
+        """auto_generate_projects should be whitelisted."""
+        assert "auto_generate_projects" in ALLOWED_OVERRIDES
+        assert ALLOWED_OVERRIDES["auto_generate_projects"] is bool
+
+    def test_enable_context_collection_in_whitelist(self) -> None:
+        """enable_context_collection should be whitelisted."""
+        assert "enable_context_collection" in ALLOWED_OVERRIDES
+        assert ALLOWED_OVERRIDES["enable_context_collection"] is bool
+
     def test_whitelist_types_are_valid(self) -> None:
         """All whitelisted keys should have valid type mappings."""
         for key, expected_type in ALLOWED_OVERRIDES.items():
             assert expected_type in (bool, str, int, float), f"Invalid type for {key}"
+
+    def test_all_expected_keys_present(self) -> None:
+        """Verify all expected config keys are whitelisted."""
+        expected_keys = {
+            "prompt_injection_block_suspicious",
+            "enable_llm_response_cache",
+            "enable_prompt_cache",
+            "enable_sse_streaming",
+            "auto_generate_projects",
+            "enable_context_collection",
+        }
+        assert expected_keys == set(ALLOWED_OVERRIDES.keys())
 
 
 class TestGetOverride:

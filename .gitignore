@@ -70,7 +70,7 @@ docker-compose.override.yml
 docker-compose.prod.override.yml
 
 # Session data (JSON exports)
-sessions/
+/sessions/
 exports/
 transcripts/
 

@@ -5,10 +5,11 @@
 	import { isAuthenticated } from '$lib/stores/auth';
 	import { apiClient } from '$lib/api/client';
 	import Spinner from '$lib/components/ui/Spinner.svelte';
+	import HoneypotFields from '$lib/components/ui/HoneypotFields.svelte';
 	import MeetingContextSelector from '$lib/components/meeting/MeetingContextSelector.svelte';
 	import MeetingProjectSelector from '$lib/components/meeting/MeetingProjectSelector.svelte';
 	import { AlertTriangle, X, Clock } from 'lucide-svelte';
-	import type { Dataset, StaleInsight, SessionContextIds, MeetingCapStatus } from '$lib/api/types';
+	import type { Dataset, StaleInsight, SessionContextIds, MeetingCapStatus, HoneypotFields as HoneypotFieldsType } from '$lib/api/types';
 	import { toast } from '$lib/stores/toast';
 
 	let problemStatement = $state('');
@@ -31,6 +32,8 @@
 	// Meeting cap state
 	let capStatus = $state<MeetingCapStatus | null>(null);
 	let loadingCapStatus = $state(false);
+	// Honeypot state
+	let honeypotValues = $state<HoneypotFieldsType>({});
 
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
@@ -131,7 +134,8 @@
 			const sessionData = await apiClient.createSession({
 				problem_statement: problemStatement.trim(),
 				dataset_id: selectedDatasetId || undefined,
-				context_ids: hasContext ? selectedContext : undefined
+				context_ids: hasContext ? selectedContext : undefined,
+				...honeypotValues
 			});
 
 			const sessionId = sessionData.id;
@@ -288,6 +292,9 @@
 
 		<div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-8">
 			<form onsubmit={handleSubmit} class="space-y-6">
+				<!-- Honeypot fields for bot detection -->
+				<HoneypotFields bind:values={honeypotValues} />
+
 				<!-- Problem Statement Input -->
 				<div>
 					<label for="problem" class="block text-lg font-semibold text-slate-900 dark:text-white mb-2">

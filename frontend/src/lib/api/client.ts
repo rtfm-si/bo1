@@ -706,6 +706,16 @@ export class ApiClient {
 		return this.fetch<import('./types').RecentFailuresResponse>(endpoint);
 	}
 
+	/**
+	 * Acknowledge failed meetings to make their actions visible.
+	 * Call this when user dismisses the failed meeting alert.
+	 */
+	async acknowledgeFailures(sessionIds: string[]): Promise<{ status: string; message: string }> {
+		return this.post<{ status: string; message: string }>('/api/v1/sessions/acknowledge-failures', {
+			session_ids: sessionIds
+		});
+	}
+
 	async listSessions(params?: { status?: string; limit?: number; offset?: number }): Promise<SessionListResponse> {
 		const endpoint = withQueryString('/api/v1/sessions', params || {});
 		return this.fetch<SessionListResponse>(endpoint);
@@ -1924,7 +1934,8 @@ export class ApiClient {
 	chatWithMentor(
 		message: string,
 		conversationId?: string | null,
-		persona?: string | null
+		persona?: string | null,
+		honeypot?: import('./types').HoneypotFields
 	): {
 		connect: () => AsyncGenerator<{ event: string; data: string }, void, unknown>;
 		abort: () => void;
@@ -1950,7 +1961,8 @@ export class ApiClient {
 				body: JSON.stringify({
 					message,
 					conversation_id: conversationId,
-					persona
+					persona,
+					...honeypot
 				})
 			});
 

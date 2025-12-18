@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap } from 'lucide-svelte';
 	import ExtendedKPIsPanel from '$lib/components/admin/ExtendedKPIsPanel.svelte';
 	import UptimeStatusBadge from '$lib/components/admin/UptimeStatusBadge.svelte';
 	import EmergencyToggles from '$lib/components/admin/EmergencyToggles.svelte';
-	import { adminApi, type EmailStatsResponse } from '$lib/api/admin';
+	import { adminApi, type EmailStatsResponse, type ResearchCacheStats } from '$lib/api/admin';
 	import { onMount } from 'svelte';
 
 	interface AdminStats {
@@ -27,21 +27,37 @@
 	let stats = $state<AdminStats>(data?.stats ?? defaultStats);
 	let emailStats = $state<EmailStatsResponse | null>(null);
 	let emailStatsLoading = $state(true);
+	let cacheStats = $state<ResearchCacheStats | null>(null);
+	let cacheStatsLoading = $state(true);
 
 	// Update local state when data changes
 	$effect(() => {
 		stats = data?.stats ?? defaultStats;
 	});
 
-	// Fetch email stats
+	// Fetch email and cache stats in parallel
 	onMount(async () => {
-		try {
-			emailStats = await adminApi.getEmailStats(30);
-		} catch (e) {
-			console.error('Failed to load email stats:', e);
-		} finally {
-			emailStatsLoading = false;
-		}
+		const fetchEmailStats = async () => {
+			try {
+				emailStats = await adminApi.getEmailStats(30);
+			} catch (e) {
+				console.error('Failed to load email stats:', e);
+			} finally {
+				emailStatsLoading = false;
+			}
+		};
+
+		const fetchCacheStats = async () => {
+			try {
+				cacheStats = await adminApi.getResearchCacheStats();
+			} catch (e) {
+				console.error('Failed to load research cache stats:', e);
+			} finally {
+				cacheStatsLoading = false;
+			}
+		};
+
+		await Promise.all([fetchEmailStats(), fetchCacheStats()]);
 	});
 </script>
 
@@ -201,6 +217,70 @@
 					{/if}
 				{:else}
 					<p class="text-neutral-500 dark:text-neutral-400 text-center py-8">No email data available</p>
+				{/if}
+			</div>
+		</div>
+
+		<!-- Research Cache Stats Card -->
+		<div class="mb-8">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Research Cache</h2>
+			<div class="bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700">
+				{#if cacheStatsLoading}
+					<div class="flex items-center justify-center h-32">
+						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+					</div>
+				{:else if cacheStats}
+					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+						<!-- Hit Rate -->
+						<div class="flex items-center gap-4">
+							<div class="p-3 bg-success-100 dark:bg-success-900/30 rounded-lg">
+								<Zap class="w-6 h-6 text-success-600 dark:text-success-400" />
+							</div>
+							<div>
+								<p class="text-sm text-neutral-600 dark:text-neutral-400">Hit Rate (30d)</p>
+								<p class="text-2xl font-semibold text-neutral-900 dark:text-white">{cacheStats.cache_hit_rate_30d.toFixed(1)}%</p>
+							</div>
+						</div>
+
+						<!-- Cost Savings -->
+						<div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Savings (30d)</p>
+							<p class="text-xl font-semibold text-success-600 dark:text-success-400">${cacheStats.cost_savings_30d.toFixed(2)}</p>
+						</div>
+
+						<!-- Total Cached -->
+						<div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Cached Results</p>
+							<p class="text-xl font-semibold text-neutral-900 dark:text-white">{cacheStats.total_cached_results.toLocaleString()}</p>
+						</div>
+
+						<!-- Top Questions Count -->
+						<div>
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-1">Top Questions</p>
+							<p class="text-xl font-semibold text-neutral-900 dark:text-white">{cacheStats.top_cached_questions.length}</p>
+						</div>
+					</div>
+
+					<!-- Top Cached Questions -->
+					{#if cacheStats.top_cached_questions.length > 0}
+						<details class="mt-6 pt-6 border-t border-neutral-200 dark:border-neutral-700">
+							<summary class="text-sm font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer hover:text-brand-600 dark:hover:text-brand-400">
+								View top cached questions
+							</summary>
+							<div class="mt-3 space-y-2">
+								{#each cacheStats.top_cached_questions.slice(0, 5) as q}
+									<div class="p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
+										<p class="text-sm text-neutral-900 dark:text-white truncate" title={q.question}>{q.question}</p>
+										<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+											{q.hit_count} hits
+										</p>
+									</div>
+								{/each}
+							</div>
+						</details>
+					{/if}
+				{:else}
+					<p class="text-neutral-500 dark:text-neutral-400 text-center py-8">No cache data available</p>
 				{/if}
 			</div>
 		</div>

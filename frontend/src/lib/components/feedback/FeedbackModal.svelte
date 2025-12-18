@@ -6,8 +6,9 @@
 	import Modal from '$lib/components/ui/Modal.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
+	import HoneypotFields from '$lib/components/ui/HoneypotFields.svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { FeedbackType } from '$lib/api/types';
+	import type { FeedbackType, HoneypotFields as HoneypotFieldsType } from '$lib/api/types';
 
 	interface Props {
 		open?: boolean;
@@ -24,6 +25,7 @@
 	let isSubmitting = $state(false);
 	let error = $state<string | null>(null);
 	let success = $state(false);
+	let honeypotValues = $state<HoneypotFieldsType>({});
 
 	function handleClose() {
 		// Close modal and reset form state
@@ -34,6 +36,7 @@
 		includeContext = true;
 		error = null;
 		success = false;
+		honeypotValues = {};
 		onclose?.();
 	}
 
@@ -58,7 +61,8 @@
 				type: feedbackType,
 				title: title.trim(),
 				description: description.trim(),
-				include_context: feedbackType === 'problem_report' ? includeContext : false
+				include_context: feedbackType === 'problem_report' ? includeContext : false,
+				...honeypotValues
 			});
 
 			success = true;
@@ -101,6 +105,9 @@
 		</div>
 	{:else}
 		<form onsubmit={handleSubmit} class="space-y-4">
+			<!-- Honeypot fields for bot detection -->
+			<HoneypotFields bind:values={honeypotValues} />
+
 			{#if error}
 				<Alert variant="error">{error}</Alert>
 			{/if}

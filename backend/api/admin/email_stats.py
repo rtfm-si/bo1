@@ -8,10 +8,11 @@ Provides:
 import logging
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.utils.errors import handle_api_errors
 from bo1.state.database import db_session
 
@@ -59,8 +60,10 @@ class EmailStatsResponse(BaseModel):
     summary="Email statistics",
     description="Get email send counts by type and time period (admin only).",
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get email stats")
 async def get_email_stats(
+    request: Request,
     _admin: dict = Depends(require_admin_any),
     days: int = Query(30, ge=1, le=365, description="Max days for 'month' period"),
 ) -> EmailStatsResponse:

@@ -7,10 +7,11 @@ Provides:
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from backend.api.metrics import metrics
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.errors import handle_api_errors
 from bo1.utils.logging import get_logger
@@ -37,8 +38,10 @@ router = APIRouter(prefix="", tags=["Admin - Metrics"])
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get metrics")
 async def get_metrics(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> dict[str, Any]:
     """Get all system metrics (admin only)."""
@@ -59,8 +62,10 @@ async def get_metrics(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("reset metrics")
 async def reset_metrics(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> ControlResponse:
     """Reset all metrics to zero (admin only)."""

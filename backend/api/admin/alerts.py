@@ -9,7 +9,7 @@ All endpoints require admin authentication.
 
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from backend.api.admin.models import (
     AlertHistoryItem,
@@ -17,6 +17,7 @@ from backend.api.admin.models import (
     AlertSettingsResponse,
 )
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.errors import handle_api_errors
 from bo1.constants import SecurityAlerts
@@ -37,8 +38,10 @@ router = APIRouter(prefix="/alerts", tags=["admin"])
     },
     dependencies=[Depends(require_admin_any)],
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get alert history")
 async def get_alert_history(
+    request: Request,
     alert_type: str | None = Query(None, description="Filter by alert type"),
     limit: int = Query(50, ge=1, le=100, description="Max records to return"),
     offset: int = Query(0, ge=0, description="Records to skip"),
@@ -120,8 +123,9 @@ async def get_alert_history(
     },
     dependencies=[Depends(require_admin_any)],
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get alert settings")
-async def get_alert_settings() -> AlertSettingsResponse:
+async def get_alert_settings(request: Request) -> AlertSettingsResponse:
     """Get current alert threshold settings."""
     return AlertSettingsResponse(
         auth_failure_threshold=SecurityAlerts.AUTH_FAILURE_THRESHOLD,
@@ -143,8 +147,9 @@ async def get_alert_settings() -> AlertSettingsResponse:
     },
     dependencies=[Depends(require_admin_any)],
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get alert types")
-async def get_alert_types() -> list[str]:
+async def get_alert_types(request: Request) -> list[str]:
     """Get distinct alert types for filtering."""
     from bo1.state.database import db_session
 

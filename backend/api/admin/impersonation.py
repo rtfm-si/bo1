@@ -7,9 +7,10 @@ Provides:
 - GET /api/admin/impersonate/history - Get impersonation audit log
 """
 
+import asyncio
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.admin.helpers import AdminQueryService, AdminUserService
 from backend.api.admin.models import (
@@ -21,7 +22,9 @@ from backend.api.admin.models import (
     StartImpersonationRequest,
 )
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
+from backend.api.ntfy import notify_admin_impersonation
 from backend.api.utils.errors import handle_api_errors
 from backend.services.admin_impersonation import (
     ImpersonationSession,
@@ -67,10 +70,12 @@ def _session_to_response(session: ImpersonationSession) -> ImpersonationSessionR
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("start impersonation")
 async def start_impersonation_endpoint(
+    request: Request,
     user_id: str,
-    request: StartImpersonationRequest,
+    body: StartImpersonationRequest,
     admin_id: str = Depends(require_admin_any),
 ) -> ImpersonationSessionResponse:
     """Start impersonating a target user."""
@@ -100,9 +105,9 @@ async def start_impersonation_endpoint(
     session = start_impersonation(
         admin_id=admin_id,
         target_user_id=user_id,
-        reason=request.reason,
-        write_mode=request.write_mode,
-        duration_minutes=request.duration_minutes,
+        reason=body.reason,
+        write_mode=body.write_mode,
+        duration_minutes=body.duration_minutes,
     )
 
     if not session:
@@ -118,15 +123,27 @@ async def start_impersonation_endpoint(
         resource_type="user",
         resource_id=user_id,
         details={
-            "reason": request.reason,
-            "write_mode": request.write_mode,
-            "duration_minutes": request.duration_minutes,
+            "reason": body.reason,
+            "write_mode": body.write_mode,
+            "duration_minutes": body.duration_minutes,
         },
     )
 
     logger.info(
         f"Admin {admin_id} started impersonation of {user_id} "
-        f"(write_mode={request.write_mode}, duration={request.duration_minutes}m)"
+        f"(write_mode={body.write_mode}, duration={body.duration_minutes}m)"
+    )
+
+    # Send ntfy alert (fire-and-forget)
+    admin_user = AdminQueryService.get_user(admin_id)
+    asyncio.create_task(
+        notify_admin_impersonation(
+            admin_email=admin_user.email,
+            target_email=target_user.email,
+            reason=body.reason,
+            write_mode=body.write_mode,
+            duration_minutes=body.duration_minutes,
+        )
     )
 
     return _session_to_response(session)
@@ -144,8 +161,10 @@ async def start_impersonation_endpoint(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("end impersonation")
 async def end_impersonation_endpoint(
+    request: Request,
     admin_id: str = Depends(require_admin_any),
 ) -> EndImpersonationResponse:
     """End the current impersonation session."""
@@ -183,8 +202,10 @@ async def end_impersonation_endpoint(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get impersonation status")
 async def get_impersonation_status(
+    request: Request,
     admin_id: str = Depends(require_admin_any),
 ) -> ImpersonationStatusResponse:
     """Check if admin is currently impersonating a user."""
@@ -214,8 +235,10 @@ async def get_impersonation_status(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get impersonation history")
 async def get_impersonation_history_endpoint(
+    request: Request,
     admin_user_id: str | None = Query(None, description="Filter by admin user ID"),
     target_user_id: str | None = Query(None, description="Filter by target user ID"),
     limit: int = Query(50, ge=1, le=200, description="Maximum records to return"),

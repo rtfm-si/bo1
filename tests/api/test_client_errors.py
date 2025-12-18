@@ -215,3 +215,16 @@ class TestClientErrorEndpoint:
         call_args = mock_query.call_args
         details_json = call_args[0][1][1]
         assert "test-correlation-123" in details_json
+
+
+class TestClientErrorCSRFExemption:
+    """Tests verifying /api/v1/errors is CSRF exempt."""
+
+    def test_errors_endpoint_csrf_exempt(self) -> None:
+        """Verify /api/v1/errors is in CSRF exempt prefixes."""
+        from backend.api.middleware.csrf import CSRF_EXEMPT_PREFIXES
+
+        # The endpoint should be CSRF exempt
+        assert any("/api/v1/errors".startswith(prefix) for prefix in CSRF_EXEMPT_PREFIXES), (
+            "/api/v1/errors should be CSRF exempt"
+        )

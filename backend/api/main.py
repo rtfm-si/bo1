@@ -19,6 +19,17 @@ _module_load_start = _time_module.perf_counter()
 import asyncio  # noqa: E402
 import logging  # noqa: E402
 import os  # noqa: E402
+
+# Configure logging early, before other imports that may log
+from backend.api.logging_config import configure_logging  # noqa: E402
+from bo1.config import get_settings as _get_settings_early  # noqa: E402
+
+_early_settings = _get_settings_early()
+configure_logging(
+    log_level=_early_settings.log_level,
+    log_format=_early_settings.log_format,
+    verbose_libs=_early_settings.verbose_libs,
+)
 import signal  # noqa: E402
 import time  # noqa: E402
 from collections.abc import AsyncGenerator  # noqa: E402

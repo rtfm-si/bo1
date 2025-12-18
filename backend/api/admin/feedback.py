@@ -9,9 +9,10 @@ Provides:
 - PATCH /api/admin/feedback/{id} - Update feedback status
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import (
     ErrorResponse,
     FeedbackAnalysisSummary,
@@ -43,8 +44,10 @@ router = APIRouter(prefix="/feedback", tags=["Admin - Feedback"])
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("list feedback")
 async def list_feedback(
+    request: Request,
     _admin: str = Depends(require_admin_any),
     type: str | None = Query(None, description="Filter by type (feature_request, problem_report)"),
     status: str | None = Query(
@@ -117,8 +120,10 @@ async def list_feedback(
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get feedback stats")
 async def get_feedback_stats(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> FeedbackStats:
     """Get feedback statistics."""
@@ -138,8 +143,10 @@ async def get_feedback_stats(
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get feedback analysis summary")
 async def get_feedback_analysis_summary(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> FeedbackAnalysisSummary:
     """Get aggregated feedback analysis (sentiment + themes)."""
@@ -163,8 +170,10 @@ async def get_feedback_analysis_summary(
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get feedback by theme")
 async def get_feedback_by_theme(
+    request: Request,
     theme: str = Path(..., description="Theme tag to filter by"),
     limit: int = Query(50, ge=1, le=100, description="Max results"),
     _admin: str = Depends(require_admin_any),
@@ -190,8 +199,10 @@ async def get_feedback_by_theme(
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get feedback")
 async def get_feedback(
+    request: Request,
     feedback_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> FeedbackResponse:
@@ -216,8 +227,10 @@ async def get_feedback(
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("update feedback status")
 async def update_feedback_status(
+    request: Request,
     feedback_id: str,
     body: FeedbackStatusUpdate,
     _admin: str = Depends(require_admin_any),

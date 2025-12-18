@@ -56,6 +56,12 @@
 		return 'session_id' in task && 'problem_statement' in task;
 	}
 
+	// Check if task is from a failed (but acknowledged) meeting
+	function isFromFailedMeeting(task: TaskType): boolean {
+		if (!hasSessionContext(task)) return false;
+		return task.source_session_status === 'failed';
+	}
+
 	// Track tasks by column for drag-and-drop
 	// Use a Map to support dynamic column IDs
 	let columnTasks = $state<Map<string, TaskType[]>>(new Map());
@@ -167,7 +173,10 @@
 									{onDelete}
 								/>
 								{#if showMeetingContext && hasSessionContext(task)}
-									<div class="meeting-context">
+									<div class="meeting-context" class:from-failed={isFromFailedMeeting(task)}>
+										{#if isFromFailedMeeting(task)}
+											<span class="failed-badge" title="This action is from a meeting that didn't complete">⚠</span>
+										{/if}
 										From: {truncate(task.problem_statement)}
 									</div>
 								{/if}
@@ -182,7 +191,10 @@
 								{onDelete}
 							/>
 							{#if showMeetingContext && hasSessionContext(task)}
-								<div class="meeting-context">
+								<div class="meeting-context" class:from-failed={isFromFailedMeeting(task)}>
+									{#if isFromFailedMeeting(task)}
+										<span class="failed-badge" title="This action is from a meeting that didn't complete">⚠</span>
+									{/if}
 									From: {truncate(task.problem_statement)}
 								</div>
 							{/if}
@@ -304,6 +316,25 @@
 		border-radius: 4px;
 		font-size: 0.75rem;
 		color: var(--color-brand);
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.meeting-context.from-failed {
+		background: rgb(245, 158, 11, 0.15);
+		color: rgb(180, 83, 9);
+		border: 1px solid rgb(245, 158, 11, 0.3);
+	}
+
+	:global(.dark) .meeting-context.from-failed {
+		background: rgb(245, 158, 11, 0.1);
+		color: rgb(251, 191, 36);
+		border-color: rgb(245, 158, 11, 0.2);
+	}
+
+	.failed-badge {
+		font-size: 0.7rem;
 	}
 
 	/* Styles for dragged items (provided by svelte-dnd-action) */

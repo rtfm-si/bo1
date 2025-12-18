@@ -238,6 +238,37 @@ async def notify_database_report(
     )
 
 
+async def notify_admin_impersonation(
+    admin_email: str,
+    target_email: str,
+    reason: str,
+    write_mode: bool,
+    duration_minutes: int,
+) -> bool:
+    """Send alert when admin starts impersonation session.
+
+    Args:
+        admin_email: Email of admin starting impersonation
+        target_email: Email of user being impersonated
+        reason: Stated reason for impersonation
+        write_mode: Whether write access is enabled
+        duration_minutes: Session duration in minutes
+
+    Returns:
+        True if notification sent successfully
+    """
+    settings = _get_ntfy_settings()
+    mode = "WRITE" if write_mode else "read-only"
+
+    return await send_ntfy_alert(
+        topic=settings["ntfy_topic_alerts"],
+        title="Admin Impersonation Started",
+        message=f"Admin: {admin_email}\nTarget: {target_email}\nMode: {mode}\nDuration: {duration_minutes}m\nReason: {reason}",
+        priority="high",
+        tags=["cop", "warning"],
+    )
+
+
 async def notify_database_alert(
     alert_type: Literal["warning", "critical"],
     title: str,

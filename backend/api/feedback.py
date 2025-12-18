@@ -20,6 +20,7 @@ from backend.api.models import (
     FeedbackType,
 )
 from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.honeypot import validate_honeypot_fields
 from backend.services.feedback_analyzer import analyze_feedback
 from backend.services.usage_tracking import get_effective_tier
 from bo1.security import sanitize_for_prompt
@@ -58,6 +59,9 @@ async def submit_feedback(
 
     For problem reports, can optionally auto-attach context (tier, URL, etc.)
     """
+    # Honeypot validation (cheap first-pass bot filter)
+    validate_honeypot_fields(body, "feedback.submit")
+
     user_id = user["user_id"]
 
     # Check rate limit

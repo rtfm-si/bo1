@@ -11,10 +11,11 @@ All changes are audit logged.
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.auth_helpers import require_admin_role
 from backend.api.utils.errors import handle_api_errors
@@ -60,8 +61,10 @@ class UpdateRuntimeConfigRequest(BaseModel):
         403: {"description": "Admin access required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("list runtime config")
 async def list_runtime_config(
+    request: Request,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> RuntimeConfigResponse:
     """List all runtime config items with override status.
@@ -96,9 +99,11 @@ async def list_runtime_config(
         403: {"description": "Admin access required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("set runtime config")
 async def set_runtime_config(
-    request: UpdateRuntimeConfigRequest,
+    request: Request,
+    body: UpdateRuntimeConfigRequest,
     key: str = Path(..., description="Config key name"),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> RuntimeConfigItem:
@@ -108,7 +113,8 @@ async def set_runtime_config(
     Use to emergency-disable security features without restart.
 
     Args:
-        request: Override value to set
+        request: FastAPI request object
+        body: Override value to set
         key: Config key name (must be whitelisted)
         current_user: Current authenticated user
 
@@ -125,7 +131,7 @@ async def set_runtime_config(
         )
 
     # Set the override
-    success = runtime_config.set_override(key, request.value)
+    success = runtime_config.set_override(key, body.value)
     if not success:
         raise HTTPException(
             status_code=500,
@@ -137,7 +143,7 @@ async def set_runtime_config(
         "ADMIN_RUNTIME_CONFIG_CHANGE: admin=%s key=%s value=%s",
         current_user.get("id"),
         key,
-        request.value,
+        body.value,
     )
 
     # Return updated state
@@ -163,14 +169,17 @@ async def set_runtime_config(
         403: {"description": "Admin access required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("clear runtime config")
 async def clear_runtime_config(
+    request: Request,
     key: str = Path(..., description="Config key name"),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> RuntimeConfigItem:
     """Clear runtime config override (revert to env var).
 
     Args:
+        request: FastAPI request object
         key: Config key name
         current_user: Current authenticated user
 

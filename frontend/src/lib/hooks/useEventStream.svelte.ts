@@ -43,6 +43,9 @@ export interface UseEventStreamOptions {
 	/** Callback for handling connection errors */
 	onError?: (error: string) => void;
 
+	/** Callback when sequence gap is detected during reconnection */
+	onGapDetected?: (missedCount: number, expectedSeq: number, actualSeq: number) => void;
+
 	/** Maximum retry attempts (default: 3) */
 	maxRetries?: number;
 
@@ -57,11 +60,20 @@ export interface EventStreamState {
 	/** Current retry count */
 	retryCount: number;
 
+	/** Whether a sequence gap was detected */
+	hasGap: boolean;
+
+	/** Number of missed events (if gap detected) */
+	missedEventCount: number;
+
 	/** Start the SSE connection */
 	start: () => Promise<void>;
 
 	/** Stop the SSE connection */
 	stop: () => void;
+
+	/** Clear the gap warning */
+	clearGapWarning: () => void;
 }
 
 /**
@@ -95,6 +107,7 @@ const DEFAULT_EVENT_TYPES = [
 	'error',
 	'clarification_requested',
 	'working_status',
+	'gap_detected',
 ];
 
 /**
@@ -105,6 +118,7 @@ export function useEventStream(options: UseEventStreamOptions): EventStreamState
 		sessionId,
 		onEvent,
 		onError,
+		onGapDetected,
 		maxRetries = 3,
 		eventTypes = DEFAULT_EVENT_TYPES,
 	} = options;
@@ -113,6 +127,8 @@ export function useEventStream(options: UseEventStreamOptions): EventStreamState
 	let connectionStatus = $state<ConnectionStatus>('disconnected');
 	let retryCount = $state<number>(0);
 	let retryTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
+	let hasGap = $state<boolean>(false);
+	let missedEventCount = $state<number>(0);
 
 	/**
 	 * Start the SSE connection with retry logic
@@ -137,6 +153,21 @@ export function useEventStream(options: UseEventStreamOptions): EventStreamState
 		const eventHandlers: Record<string, (event: MessageEvent) => void> = {};
 		for (const eventType of eventTypes) {
 			eventHandlers[eventType] = (event: MessageEvent) => {
+				// Handle gap_detected event specially
+				if (eventType === 'gap_detected') {
+					try {
+						const data = JSON.parse(event.data);
+						hasGap = true;
+						missedEventCount = data.missed_count || 0;
+						onGapDetected?.(
+							data.missed_count || 0,
+							data.expected_sequence || 0,
+							data.actual_sequence || 0
+						);
+					} catch (e) {
+						console.error('[SSE] Failed to parse gap_detected event:', e);
+					}
+				}
 				onEvent(eventType, event);
 			};
 		}
@@ -208,6 +239,14 @@ export function useEventStream(options: UseEventStreamOptions): EventStreamState
 		retryCount = 0;
 	}
 
+	/**
+	 * Clear the gap warning state
+	 */
+	function clearGapWarning(): void {
+		hasGap = false;
+		missedEventCount = 0;
+	}
+
 	// Return the reactive state object
 	return {
 		get connectionStatus() {
@@ -216,7 +255,14 @@ export function useEventStream(options: UseEventStreamOptions): EventStreamState
 		get retryCount() {
 			return retryCount;
 		},
+		get hasGap() {
+			return hasGap;
+		},
+		get missedEventCount() {
+			return missedEventCount;
+		},
 		start,
 		stop,
+		clearGapWarning,
 	};
 }

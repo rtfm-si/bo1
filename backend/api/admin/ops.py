@@ -10,10 +10,11 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -120,7 +121,9 @@ class PatternCreateResponse(BaseModel):
 
 
 @router.get("/patterns", response_model=ErrorPatternListResponse)
+@limiter.limit(ADMIN_RATE_LIMIT)
 async def list_error_patterns(
+    request: Request,
     error_type: str | None = None,
     enabled_only: bool = False,
     _user: dict = Depends(require_admin_any),
@@ -128,8 +131,10 @@ async def list_error_patterns(
     """List all error patterns with stats.
 
     Args:
+        request: FastAPI request object
         error_type: Filter by error type
         enabled_only: Only return enabled patterns
+        _user: Current authenticated admin user
     """
     try:
         with db_session() as conn:
@@ -192,7 +197,9 @@ async def list_error_patterns(
 
 
 @router.get("/remediations", response_model=RemediationHistoryResponse)
+@limiter.limit(ADMIN_RATE_LIMIT)
 async def list_remediations(
+    request: Request,
     limit: int = 50,
     offset: int = 0,
     outcome: str | None = None,
@@ -201,9 +208,11 @@ async def list_remediations(
     """List recent auto-remediation history.
 
     Args:
+        request: FastAPI request object
         limit: Max entries to return (default 50)
         offset: Pagination offset
         outcome: Filter by outcome (success, failure, skipped, partial)
+        _user: Current authenticated admin user
     """
     try:
         with db_session() as conn:
@@ -263,8 +272,10 @@ async def list_remediations(
 
 
 @router.post("/patterns", response_model=PatternCreateResponse)
+@limiter.limit(ADMIN_RATE_LIMIT)
 async def create_pattern(
-    request: CreatePatternRequest,
+    request: Request,
+    body: CreatePatternRequest,
     _user: dict = Depends(require_admin_any),
 ) -> PatternCreateResponse:
     """Create a new error pattern.
@@ -275,7 +286,7 @@ async def create_pattern(
 
     # Validate regex
     try:
-        re.compile(request.pattern_regex)
+        re.compile(body.pattern_regex)
     except re.error as e:
         raise HTTPException(status_code=400, detail=f"Invalid regex: {e}") from None
 
@@ -292,14 +303,14 @@ async def create_pattern(
                     RETURNING id
                     """,
                     (
-                        request.pattern_name,
-                        request.pattern_regex,
-                        request.error_type,
-                        request.severity,
-                        request.description,
-                        request.threshold_count,
-                        request.threshold_window_minutes,
-                        request.cooldown_minutes,
+                        body.pattern_name,
+                        body.pattern_regex,
+                        body.error_type,
+                        body.severity,
+                        body.description,
+                        body.threshold_count,
+                        body.threshold_window_minutes,
+                        body.cooldown_minutes,
                     ),
                 )
                 pattern_id = cur.fetchone()["id"]
@@ -307,7 +318,7 @@ async def create_pattern(
 
         return PatternCreateResponse(
             id=pattern_id,
-            pattern_name=request.pattern_name,
+            pattern_name=body.pattern_name,
             message="Pattern created successfully",
         )
 
@@ -315,25 +326,27 @@ async def create_pattern(
         if "unique constraint" in str(e).lower():
             raise HTTPException(
                 status_code=409,
-                detail=f"Pattern with name '{request.pattern_name}' already exists",
+                detail=f"Pattern with name '{body.pattern_name}' already exists",
             ) from None
         logger.error(f"Failed to create pattern: {e}")
         raise HTTPException(status_code=500, detail="Failed to create pattern") from None
 
 
 @router.patch("/patterns/{pattern_id}")
+@limiter.limit(ADMIN_RATE_LIMIT)
 async def update_pattern(
+    request: Request,
     pattern_id: int,
-    request: UpdatePatternRequest,
+    body: UpdatePatternRequest,
     _user: dict = Depends(require_admin_any),
 ) -> dict[str, str]:
     """Update an error pattern."""
     import re
 
     # Validate regex if provided
-    if request.pattern_regex:
+    if body.pattern_regex:
         try:
-            re.compile(request.pattern_regex)
+            re.compile(body.pattern_regex)
         except re.error as e:
             raise HTTPException(status_code=400, detail=f"Invalid regex: {e}") from None
 
@@ -341,33 +354,33 @@ async def update_pattern(
     updates = []
     params: list[Any] = []
 
-    if request.pattern_regex is not None:
+    if body.pattern_regex is not None:
         updates.append("pattern_regex = %s")
-        params.append(request.pattern_regex)
+        params.append(body.pattern_regex)
 
-    if request.severity is not None:
+    if body.severity is not None:
         updates.append("severity = %s")
-        params.append(request.severity)
+        params.append(body.severity)
 
-    if request.description is not None:
+    if body.description is not None:
         updates.append("description = %s")
-        params.append(request.description)
+        params.append(body.description)
 
-    if request.enabled is not None:
+    if body.enabled is not None:
         updates.append("enabled = %s")
-        params.append(request.enabled)
+        params.append(body.enabled)
 
-    if request.threshold_count is not None:
+    if body.threshold_count is not None:
         updates.append("threshold_count = %s")
-        params.append(request.threshold_count)
+        params.append(body.threshold_count)
 
-    if request.threshold_window_minutes is not None:
+    if body.threshold_window_minutes is not None:
         updates.append("threshold_window_minutes = %s")
-        params.append(request.threshold_window_minutes)
+        params.append(body.threshold_window_minutes)
 
-    if request.cooldown_minutes is not None:
+    if body.cooldown_minutes is not None:
         updates.append("cooldown_minutes = %s")
-        params.append(request.cooldown_minutes)
+        params.append(body.cooldown_minutes)
 
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -400,7 +413,9 @@ async def update_pattern(
 
 
 @router.get("/health", response_model=SystemHealthResponse)
+@limiter.limit(ADMIN_RATE_LIMIT)
 async def get_health(
+    request: Request,
     _user: dict = Depends(require_admin_any),
 ) -> SystemHealthResponse:
     """Get overall system health status.
@@ -428,14 +443,18 @@ async def get_health(
 
 
 @router.post("/check")
+@limiter.limit(ADMIN_RATE_LIMIT)
 async def trigger_check(
+    request: Request,
     execute_fixes: bool = True,
     _user: dict = Depends(require_admin_any),
 ) -> dict[str, Any]:
     """Manually trigger an error pattern check.
 
     Args:
+        request: FastAPI request object
         execute_fixes: Whether to execute fixes (default True)
+        _user: Current authenticated admin user
 
     Returns:
         Check results including detections and remediations

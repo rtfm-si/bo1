@@ -1053,6 +1053,39 @@ def context_insufficient_event(
     )
 
 
+def gap_detected_event(
+    session_id: str,
+    expected_seq: int,
+    actual_seq: int,
+    missed_count: int,
+) -> str:
+    """Create SSE event for sequence gap detection during reconnection.
+
+    Emitted when a client reconnects and gaps are detected in the event
+    sequence, indicating some events may have been lost.
+
+    Args:
+        session_id: Session identifier
+        expected_seq: Expected next sequence number (resume_from + 1)
+        actual_seq: Actual first sequence in replayed events
+        missed_count: Number of events that appear to be missing
+
+    Returns:
+        SSE-formatted event string
+    """
+    return format_sse_event(
+        "gap_detected",
+        {
+            "session_id": session_id,
+            "expected_sequence": expected_seq,
+            "actual_sequence": actual_seq,
+            "missed_count": missed_count,
+            "message": f"Detected {missed_count} potentially missed event(s). Consider refreshing for full data.",
+            "timestamp": datetime.now(UTC).isoformat(),
+        },
+    )
+
+
 def quality_metrics_update_event(
     session_id: str,
     round_number: int,

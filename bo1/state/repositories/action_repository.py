@@ -200,9 +200,14 @@ class ActionRepository(BaseRepository):
         """
         params: list[Any] = [user_id]
 
-        # P1-007: Only show actions from completed meetings for non-admin users
+        # P1-007: Only show actions from completed or acknowledged-failed meetings
+        # Actions from failed meetings become visible once user acknowledges the failure
         if not is_admin:
-            query += " AND (s.status = 'completed' OR s.id IS NULL)"
+            query += """ AND (
+                s.status = 'completed'
+                OR s.id IS NULL
+                OR (s.status = 'failed' AND s.failure_acknowledged_at IS NOT NULL)
+            )"""
 
         # P1-005: Exclude soft-deleted actions for non-admin users
         if not is_admin:

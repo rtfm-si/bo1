@@ -12,7 +12,7 @@ Provides:
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.admin.helpers import (
     USER_WITH_METRICS_GROUP_BY,
@@ -35,6 +35,7 @@ from backend.api.admin.models import (
     UserListResponse,
 )
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import handle_api_errors
@@ -57,8 +58,10 @@ router = APIRouter(prefix="", tags=["Admin - Users"])
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get admin stats")
 async def get_admin_stats(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> AdminStatsResponse:
     """Get aggregated statistics for the admin dashboard."""
@@ -82,8 +85,10 @@ async def get_admin_stats(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("list users")
 async def list_users(
+    request: Request,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(10, ge=1, le=100, description="Users per page (1-100)"),
     email: str | None = Query(None, description="Search by email (partial match)"),
@@ -115,8 +120,10 @@ async def list_users(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get user")
 async def get_user(
+    request: Request,
     user_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> UserInfo:
@@ -140,23 +147,25 @@ async def get_user(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("update user")
 async def update_user(
+    request: Request,
     user_id: str,
-    request: UpdateUserRequest,
+    body: UpdateUserRequest,
     _admin: str = Depends(require_admin_any),
 ) -> UserInfo:
     """Update user subscription tier or admin status."""
     # Validate at least one field is provided
-    if request.subscription_tier is None and request.is_admin is None:
+    if body.subscription_tier is None and body.is_admin is None:
         raise HTTPException(
             status_code=400,
             detail="At least one field (subscription_tier or is_admin) must be provided",
         )
 
     # Validate subscription_tier if provided
-    if request.subscription_tier is not None:
-        AdminValidationService.validate_subscription_tier(request.subscription_tier)
+    if body.subscription_tier is not None:
+        AdminValidationService.validate_subscription_tier(body.subscription_tier)
 
     # Check if user exists
     if not AdminQueryService.user_exists(user_id):
@@ -169,13 +178,13 @@ async def update_user(
     update_fields = []
     params: list[Any] = []
 
-    if request.subscription_tier is not None:
+    if body.subscription_tier is not None:
         update_fields.append("subscription_tier = %s")
-        params.append(request.subscription_tier)
+        params.append(body.subscription_tier)
 
-    if request.is_admin is not None:
+    if body.is_admin is not None:
         update_fields.append("is_admin = %s")
-        params.append(request.is_admin)
+        params.append(body.is_admin)
 
     # Always update updated_at
     update_fields.append("updated_at = NOW()")
@@ -199,7 +208,7 @@ async def update_user(
 
     user = _row_to_user_info(row)
 
-    logger.info(f"Admin: Updated user {user_id} - {request}")
+    logger.info(f"Admin: Updated user {user_id} - {body}")
     return user
 
 
@@ -217,10 +226,12 @@ async def update_user(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("lock user")
 async def lock_user(
+    request: Request,
     user_id: str,
-    request: LockUserRequest,
+    body: LockUserRequest,
     admin_id: str = Depends(require_admin_any),
 ) -> LockUserResponse:
     """Lock a user account and revoke their sessions."""
@@ -239,7 +250,7 @@ async def lock_user(
         )
 
     # Lock the user
-    result = AdminUserService.lock_user(user_id, admin_id, request.reason)
+    result = AdminUserService.lock_user(user_id, admin_id, body.reason)
     if not result:
         raise HTTPException(
             status_code=404,
@@ -255,7 +266,7 @@ async def lock_user(
         action="user_locked",
         resource_type="user",
         resource_id=user_id,
-        details={"reason": request.reason, "sessions_revoked": sessions_revoked},
+        details={"reason": body.reason, "sessions_revoked": sessions_revoked},
     )
 
     logger.info(f"Admin {admin_id}: Locked user {user_id}, revoked {sessions_revoked} sessions")
@@ -284,8 +295,10 @@ async def lock_user(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("unlock user")
 async def unlock_user(
+    request: Request,
     user_id: str,
     admin_id: str = Depends(require_admin_any),
 ) -> LockUserResponse:
@@ -339,10 +352,12 @@ async def unlock_user(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("delete user")
 async def delete_user(
+    request: Request,
     user_id: str,
-    request: DeleteUserRequest,
+    body: DeleteUserRequest,
     admin_id: str = Depends(require_admin_any),
 ) -> DeleteUserResponse:
     """Delete a user account."""
@@ -362,11 +377,11 @@ async def delete_user(
 
     # Revoke sessions if requested
     sessions_revoked = 0
-    if request.revoke_sessions:
+    if body.revoke_sessions:
         sessions_revoked = await AdminUserService.revoke_user_sessions(user_id)
 
     # Perform deletion
-    if request.hard_delete:
+    if body.hard_delete:
         deleted = AdminUserService.hard_delete_user(user_id)
         action = "user_hard_deleted"
         message = f"User {user_id} permanently deleted."
@@ -387,7 +402,7 @@ async def delete_user(
         action=action,
         resource_type="user",
         resource_id=user_id,
-        details={"hard_delete": request.hard_delete, "sessions_revoked": sessions_revoked},
+        details={"hard_delete": body.hard_delete, "sessions_revoked": sessions_revoked},
     )
 
     logger.info(f"Admin {admin_id}: {action} user {user_id}, revoked {sessions_revoked} sessions")
@@ -395,7 +410,7 @@ async def delete_user(
     return DeleteUserResponse(
         user_id=user_id,
         deleted=True,
-        hard_delete=request.hard_delete,
+        hard_delete=body.hard_delete,
         sessions_revoked=sessions_revoked,
         message=f"{message} {sessions_revoked} session(s) revoked.",
     )
@@ -419,8 +434,10 @@ async def delete_user(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get tier override")
 async def get_tier_override(
+    request: Request,
     user_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> TierOverrideResponse:
@@ -480,10 +497,12 @@ async def get_tier_override(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("set tier override")
 async def set_tier_override(
+    request: Request,
     user_id: str,
-    request: SetTierOverrideRequest,
+    body: SetTierOverrideRequest,
     admin_id: str = Depends(require_admin_any),
 ) -> TierOverrideResponse:
     """Set a tier override for a user."""
@@ -492,10 +511,10 @@ async def set_tier_override(
 
     # Validate tier
     valid_tiers = ["free", "starter", "pro", "enterprise"]
-    if request.tier.lower() not in valid_tiers:
+    if body.tier.lower() not in valid_tiers:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid tier: {request.tier}. Must be one of: {', '.join(valid_tiers)}",
+            detail=f"Invalid tier: {body.tier}. Must be one of: {', '.join(valid_tiers)}",
         )
 
     # Check if user exists
@@ -507,13 +526,13 @@ async def set_tier_override(
 
     # Build override object
     override = {
-        "tier": request.tier.lower(),
-        "reason": request.reason,
+        "tier": body.tier.lower(),
+        "reason": body.reason,
         "set_by": admin_id,
         "set_at": datetime.now(UTC).isoformat(),
     }
-    if request.expires_at:
-        override["expires_at"] = request.expires_at
+    if body.expires_at:
+        override["expires_at"] = body.expires_at
 
     # Update user
     execute_query(
@@ -531,13 +550,13 @@ async def set_tier_override(
         details=override,
     )
 
-    logger.info(f"Admin {admin_id}: Set tier override for {user_id} to {request.tier}")
+    logger.info(f"Admin {admin_id}: Set tier override for {user_id} to {body.tier}")
 
     return TierOverrideResponse(
         user_id=user_id,
         tier_override=override,
-        effective_tier=request.tier.lower(),
-        message=f"Tier override set to {request.tier}",
+        effective_tier=body.tier.lower(),
+        message=f"Tier override set to {body.tier}",
     )
 
 
@@ -554,8 +573,10 @@ async def set_tier_override(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("delete tier override")
 async def delete_tier_override(
+    request: Request,
     user_id: str,
     admin_id: str = Depends(require_admin_any),
 ) -> TierOverrideResponse:

@@ -12,6 +12,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from backend.services.runtime_config import get_effective_value
 from bo1.config import MODEL_BY_ROLE, get_settings, resolve_model_alias
 from bo1.constants import LLMConfig, TokenLimits
 from bo1.graph.state import DeliberationGraphState
@@ -109,8 +110,9 @@ class PersonaExecutor:
 
         # Create prompt request with retry protection
         # Use prompt caching if enabled (default: True for ~90% input token cost reduction)
-        settings = get_settings()
-        cache_system = settings.enable_prompt_cache
+        # Respects runtime override for emergency disable
+        override = get_effective_value("enable_prompt_cache")
+        cache_system = override if override is not None else get_settings().enable_prompt_cache
 
         broker = PromptBroker(client=self.client)
         request = PromptRequest(
@@ -251,9 +253,11 @@ class PersonaExecutor:
             "Engage directly with the problem statement above. Provide your expert analysis NOW."
         )
 
-        # Use prompt caching based on settings
-        settings = get_settings()
-        cache_system = settings.enable_prompt_cache
+        # Use prompt caching based on settings, respecting runtime override
+        override_retry = get_effective_value("enable_prompt_cache")
+        cache_system = (
+            override_retry if override_retry is not None else get_settings().enable_prompt_cache
+        )
 
         request_retry = PromptRequest(
             system=system_prompt,

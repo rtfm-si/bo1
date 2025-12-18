@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.tier_limits import record_mentor_usage, require_mentor_limit
 from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.honeypot import HoneypotMixin, validate_honeypot_fields
 from backend.services.mention_parser import parse_mentions
 from backend.services.mention_resolver import get_mention_resolver
 from backend.services.mentor_context import MentorContext, get_mentor_context_service
@@ -53,7 +54,7 @@ router = APIRouter(prefix="/v1/mentor", tags=["mentor"])
 # =============================================================================
 
 
-class MentorChatRequest(BaseModel):
+class MentorChatRequest(HoneypotMixin):
     """Request model for mentor chat."""
 
     message: str = Field(
@@ -435,6 +436,9 @@ async def mentor_chat(
 
     Returns SSE events: thinking, context, response, done, error.
     """
+    # Honeypot validation (cheap first-pass bot filter)
+    validate_honeypot_fields(request, "mentor.chat")
+
     user_id = user.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID not found")

@@ -11,10 +11,11 @@ All endpoints require admin authentication.
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.auth_helpers import require_admin_role
 from backend.api.utils.errors import handle_api_errors
@@ -111,13 +112,16 @@ def _flag_to_item(flag: ff.FeatureFlag) -> FeatureFlagItem:
         403: {"description": "Admin access required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("list feature flags")
 async def list_flags(
+    request: Request,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> FeatureFlagListResponse:
     """List all feature flags.
 
     Args:
+        request: FastAPI request object
         current_user: Current authenticated user
 
     Returns:
@@ -141,15 +145,18 @@ async def list_flags(
         403: {"description": "Admin access required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("create feature flag")
 async def create_flag(
-    request: CreateFeatureFlagRequest,
+    request: Request,
+    body: CreateFeatureFlagRequest,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> FeatureFlagItem:
     """Create a new feature flag.
 
     Args:
-        request: Flag creation request
+        request: FastAPI request object
+        body: Flag creation request
         current_user: Current authenticated user
 
     Returns:
@@ -159,16 +166,16 @@ async def create_flag(
 
     try:
         flag = ff.create_flag(
-            name=request.name,
-            description=request.description,
-            enabled=request.enabled,
-            rollout_pct=request.rollout_pct,
-            tiers=request.tiers,
+            name=body.name,
+            description=body.description,
+            enabled=body.enabled,
+            rollout_pct=body.rollout_pct,
+            tiers=body.tiers,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-    logger.info("Admin %s created feature flag: %s", current_user.get("id"), request.name)
+    logger.info("Admin %s created feature flag: %s", current_user.get("id"), body.name)
     return _flag_to_item(flag)
 
 
@@ -182,14 +189,17 @@ async def create_flag(
         404: {"description": "Flag not found", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get feature flag")
 async def get_flag(
+    request: Request,
     name: str = Path(..., description="Flag name"),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> FeatureFlagItem:
     """Get a feature flag by name.
 
     Args:
+        request: FastAPI request object
         name: Flag name
         current_user: Current authenticated user
 
@@ -215,16 +225,19 @@ async def get_flag(
         404: {"description": "Flag not found", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("update feature flag")
 async def update_flag(
-    request: UpdateFeatureFlagRequest,
+    request: Request,
+    body: UpdateFeatureFlagRequest,
     name: str = Path(..., description="Flag name"),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> FeatureFlagItem:
     """Update a feature flag.
 
     Args:
-        request: Update request
+        request: FastAPI request object
+        body: Update request
         name: Flag name
         current_user: Current authenticated user
 
@@ -235,10 +248,10 @@ async def update_flag(
 
     flag = ff.update_flag(
         name=name,
-        description=request.description,
-        enabled=request.enabled,
-        rollout_pct=request.rollout_pct,
-        tiers=request.tiers,
+        description=body.description,
+        enabled=body.enabled,
+        rollout_pct=body.rollout_pct,
+        tiers=body.tiers,
     )
 
     if not flag:
@@ -257,14 +270,17 @@ async def update_flag(
         404: {"description": "Flag not found", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("delete feature flag")
 async def delete_flag(
+    request: Request,
     name: str = Path(..., description="Flag name"),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, str]:
     """Delete a feature flag.
 
     Args:
+        request: FastAPI request object
         name: Flag name
         current_user: Current authenticated user
 
@@ -291,16 +307,19 @@ async def delete_flag(
         404: {"description": "Flag not found", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("set user override")
 async def set_override(
-    request: SetUserOverrideRequest,
+    request: Request,
+    body: SetUserOverrideRequest,
     name: str = Path(..., description="Flag name"),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> UserOverrideResponse:
     """Set a per-user override for a flag.
 
     Args:
-        request: Override request
+        request: FastAPI request object
+        body: Override request
         name: Flag name
         current_user: Current authenticated user
 
@@ -309,7 +328,7 @@ async def set_override(
     """
     require_admin_role(current_user)
 
-    success = ff.set_user_override(name, request.user_id, request.enabled)
+    success = ff.set_user_override(name, body.user_id, body.enabled)
     if not success:
         raise HTTPException(status_code=404, detail=f"Flag '{name}' not found")
 
@@ -317,11 +336,11 @@ async def set_override(
         "Admin %s set override for flag %s, user %s: %s",
         current_user.get("id"),
         name,
-        request.user_id,
-        request.enabled,
+        body.user_id,
+        body.enabled,
     )
 
-    return UserOverrideResponse(flag_name=name, user_id=request.user_id, enabled=request.enabled)
+    return UserOverrideResponse(flag_name=name, user_id=body.user_id, enabled=body.enabled)
 
 
 @router.delete(
@@ -333,16 +352,19 @@ async def set_override(
         404: {"description": "Flag or override not found", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("delete user override")
 async def delete_override(
-    request: DeleteOverrideRequest,
+    request: Request,
+    body: DeleteOverrideRequest,
     name: str = Path(..., description="Flag name"),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, str]:
     """Delete a per-user override for a flag.
 
     Args:
-        request: Override delete request
+        request: FastAPI request object
+        body: Override delete request
         name: Flag name
         current_user: Current authenticated user
 
@@ -351,18 +373,18 @@ async def delete_override(
     """
     require_admin_role(current_user)
 
-    deleted = ff.delete_user_override(name, request.user_id)
+    deleted = ff.delete_user_override(name, body.user_id)
     if not deleted:
         raise HTTPException(
             status_code=404,
-            detail=f"Override not found for flag '{name}', user '{request.user_id}'",
+            detail=f"Override not found for flag '{name}', user '{body.user_id}'",
         )
 
     logger.info(
         "Admin %s deleted override for flag %s, user %s",
         current_user.get("id"),
         name,
-        request.user_id,
+        body.user_id,
     )
 
-    return {"message": f"Override deleted for flag '{name}', user '{request.user_id}'"}
+    return {"message": f"Override deleted for flag '{name}', user '{body.user_id}'"}

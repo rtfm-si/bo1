@@ -10,8 +10,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from backend.api.utils.honeypot import HoneypotMixin
 
-class CreateSessionRequest(BaseModel):
+
+class CreateSessionRequest(HoneypotMixin):
     """Request model for creating a new deliberation session.
 
     Attributes:
@@ -354,8 +356,8 @@ class TaskStatusUpdate(BaseModel):
     status: str = Field(
         ...,
         description="New task status",
-        pattern="^(todo|doing|done)$",
-        examples=["todo", "doing", "done"],
+        pattern="^(todo|doing|done|in_progress|blocked|in_review|cancelled)$",
+        examples=["todo", "doing", "done", "in_progress"],
     )
 
 
@@ -476,6 +478,10 @@ class ActionDetailResponse(BaseModel):
     sub_problem_index: int | None = Field(default=None, description="Sub-problem index")
     status: str = Field(default="todo", description="Current status")
     session_id: str = Field(..., description="Parent session ID")
+    source_session_status: str | None = Field(
+        default=None,
+        description="Status of source session (completed/failed). 'failed' indicates action from acknowledged failure.",
+    )
     problem_statement: str = Field(..., description="Session decision")
     estimated_duration_days: int | None = Field(
         default=None, description="Duration in business days"
@@ -3093,7 +3099,7 @@ class FeedbackStatus:
     CLOSED = "closed"
 
 
-class FeedbackCreate(BaseModel):
+class FeedbackCreate(HoneypotMixin):
     """Request model for submitting feedback.
 
     Attributes:
@@ -3436,3 +3442,155 @@ class WhitelistCheckResponse(BaseModel):
     """Response for whitelist/beta access check endpoints."""
 
     is_whitelisted: bool = Field(..., description="Whether the email is whitelisted")
+
+
+# ============================================================================
+# Action Operation Response Models
+# ============================================================================
+
+
+class ActionStartedResponse(BaseModel):
+    """Response for starting an action."""
+
+    message: str = Field(..., description="Success message")
+    action_id: str = Field(..., description="UUID of the started action")
+
+
+class ActionCompletedResponse(BaseModel):
+    """Response for completing an action."""
+
+    message: str = Field(..., description="Success message")
+    action_id: str = Field(..., description="UUID of the completed action")
+    unblocked_actions: list[str] = Field(
+        default_factory=list, description="UUIDs of actions auto-unblocked by this completion"
+    )
+    generated_project: dict[str, str] | None = Field(
+        None, description="Auto-generated project info (id, name) if created"
+    )
+
+
+class GeneratedProjectInfo(BaseModel):
+    """Project info returned when auto-generated from action."""
+
+    id: str = Field(..., description="Project UUID")
+    name: str = Field(..., description="Project name")
+
+
+class ActionStatusUpdatedResponse(BaseModel):
+    """Response for updating action status."""
+
+    message: str = Field(..., description="Success message")
+    action_id: str = Field(..., description="UUID of the action")
+    status: str = Field(..., description="New status value")
+    unblocked_actions: list[str] = Field(
+        default_factory=list, description="UUIDs of actions auto-unblocked"
+    )
+    generated_project: GeneratedProjectInfo | None = Field(
+        None, description="Auto-generated project info if created"
+    )
+
+
+class RelatedAction(BaseModel):
+    """Summary of a related action for replan context."""
+
+    id: str = Field(..., description="Action UUID")
+    title: str = Field(..., description="Action title")
+    status: str = Field(..., description="Action status")
+
+
+class ActionReplanContextResponse(BaseModel):
+    """Response for getting replan context for a cancelled action."""
+
+    action_id: str = Field(..., description="UUID of the action")
+    action_title: str = Field(..., description="Title of the action")
+    problem_statement: str = Field(..., description="Problem statement from parent session")
+    failure_reason_text: str = Field(..., description="Original cancellation reason")
+    failure_reason_category: str = Field(
+        ..., description="Category: blocker/scope_creep/dependency/unknown"
+    )
+    related_actions: list[RelatedAction] = Field(
+        default_factory=list, description="Related actions from same session/project"
+    )
+    parent_session_id: str | None = Field(None, description="UUID of parent session")
+    business_context: dict[str, Any] | None = Field(None, description="User's business context")
+
+
+class ActionDeletedResponse(BaseModel):
+    """Response for soft-deleting an action."""
+
+    message: str = Field(..., description="Success message")
+    action_id: str = Field(..., description="UUID of the deleted action")
+
+
+class DependencyAddedResponse(BaseModel):
+    """Response for adding a dependency."""
+
+    message: str = Field(..., description="Success message")
+    action_id: str = Field(..., description="UUID of the action")
+    depends_on_action_id: str = Field(..., description="UUID of the dependency target")
+    auto_blocked: bool = Field(..., description="Whether action was auto-blocked")
+    blocking_reason: str | None = Field(None, description="Blocking reason if auto-blocked")
+
+
+class DependencyRemovedResponse(BaseModel):
+    """Response for removing a dependency."""
+
+    message: str = Field(..., description="Success message")
+    action_id: str = Field(..., description="UUID of the action")
+    depends_on_id: str = Field(..., description="UUID of the removed dependency target")
+    auto_unblocked: bool = Field(..., description="Whether action was auto-unblocked")
+    new_status: str | None = Field(None, description="New status if changed")
+
+
+class ActionBlockedResponse(BaseModel):
+    """Response for blocking an action."""
+
+    message: str = Field(..., description="Success message")
+    action_id: str = Field(..., description="UUID of the action")
+    blocking_reason: str = Field(..., description="Reason for blocking")
+    auto_unblock: bool = Field(..., description="Whether auto-unblock is enabled")
+
+
+class IncompleteDependencyInfo(BaseModel):
+    """Info about an incomplete dependency (warning in unblock response)."""
+
+    id: str = Field(..., description="Dependency action UUID")
+    title: str = Field(..., description="Dependency action title")
+
+
+class ActionUnblockedResponse(BaseModel):
+    """Response for unblocking an action."""
+
+    message: str = Field(..., description="Success message")
+    action_id: str = Field(..., description="UUID of the action")
+    new_status: str = Field(..., description="New status after unblocking")
+    warning: str | None = Field(None, description="Warning about incomplete dependencies")
+    incomplete_dependencies: list[IncompleteDependencyInfo] | None = Field(
+        None, description="List of incomplete dependencies if warning present"
+    )
+
+
+class ReminderSnoozedResponse(BaseModel):
+    """Response for snoozing an action reminder."""
+
+    message: str = Field(..., description="Success message")
+    action_id: str = Field(..., description="UUID of the action")
+    snooze_days: int = Field(..., description="Number of days snoozed")
+
+
+class SSEEvent(BaseModel):
+    """A single SSE event from history."""
+
+    event_type: str = Field(..., description="Type of event")
+    data: dict[str, Any] = Field(..., description="Event payload")
+    sequence: int = Field(default=0, description="Event sequence number")
+
+
+class EventHistoryResponse(BaseModel):
+    """Response for getting session event history."""
+
+    session_id: str = Field(..., description="Session UUID")
+    events: list[dict[str, Any]] = Field(..., description="List of events")
+    count: int = Field(..., description="Number of events returned")
+    last_event_id: str | None = Field(None, description="Last event ID for resume support")
+    can_resume: bool = Field(..., description="Whether session can be resumed")

@@ -340,3 +340,67 @@ class TestActionVisibilityReturnsCorrectData:
         titles = [r["title"] for r in results]
         assert "Action from Completed Session" in titles
         assert "Action from Running Session" in titles
+
+
+class TestAcknowledgedFailureVisibility:
+    """Test action visibility for acknowledged failed sessions."""
+
+    @pytest.fixture
+    def mock_cursor(self):
+        """Create a mock cursor."""
+        cursor = MagicMock()
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        cursor.fetchall.return_value = []
+        return cursor
+
+    @pytest.fixture
+    def mock_connection(self, mock_cursor):
+        """Create a mock connection."""
+        conn = MagicMock()
+        conn.__enter__ = MagicMock(return_value=conn)
+        conn.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = mock_cursor
+        return conn
+
+    def test_non_admin_query_includes_acknowledged_failures(self, mock_connection, mock_cursor):
+        """Verify non-admin query allows actions from acknowledged failed sessions."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        with patch("bo1.state.repositories.base.db_session") as mock_db:
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_connection)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value = mock_connection
+
+            repo = ActionRepository()
+            repo.get_by_user("user_123", is_admin=False)
+
+        executed_query = mock_cursor.execute.call_args[0][0]
+
+        # Non-admin should now include actions from acknowledged failed sessions
+        assert "s.status = 'completed'" in executed_query
+        assert "s.status = 'failed'" in executed_query
+        assert "failure_acknowledged_at IS NOT NULL" in executed_query
+
+    def test_query_structure_for_visibility_with_acknowledged_failures(
+        self, mock_connection, mock_cursor
+    ):
+        """Verify the SQL structure correctly handles all visibility cases."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        with patch("bo1.state.repositories.base.db_session") as mock_db:
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_connection)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value = mock_connection
+
+            repo = ActionRepository()
+            repo.get_by_user("user_123", is_admin=False)
+
+        executed_query = mock_cursor.execute.call_args[0][0]
+
+        # Should have OR condition structure allowing:
+        # 1. Completed sessions
+        # 2. Actions without sessions (NULL session)
+        # 3. Failed sessions that are acknowledged
+        assert "OR" in executed_query
+        assert "s.id IS NULL" in executed_query

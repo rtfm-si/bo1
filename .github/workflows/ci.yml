@@ -214,6 +214,121 @@ jobs:
         run: |
           ./osv-scanner --lockfile=uv.lock --lockfile=frontend/package-lock.json --config=.osv-scanner.toml
 
+  chaos-tests:
+    name: Chaos Tests (Resilience)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true  # Non-blocking initially
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: boardofone_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-extras
+
+      - name: Run database migrations
+        run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/boardofone_test
+
+      - name: Remove encrypted .env file
+        run: rm -f .env .env.production .env.local
+
+      - name: Run chaos tests
+        id: chaos
+        run: |
+          set +e
+          uv run pytest -m chaos --tb=short -v --junitxml=chaos-results.xml 2>&1 | tee chaos-output.txt
+          EXIT_CODE=$?
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+          # Extract counts from pytest output
+          PASSED=$(grep -oP '\d+(?= passed)' chaos-output.txt | tail -1 || echo "0")
+          FAILED=$(grep -oP '\d+(?= failed)' chaos-output.txt | tail -1 || echo "0")
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+
+          exit $EXIT_CODE
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/boardofone_test
+          REDIS_URL: redis://localhost:6379
+          ANTHROPIC_API_KEY: test-key-not-used
+
+      - name: Report chaos test results
+        if: always()
+        run: |
+          echo "## 🔥 Chaos Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.chaos.outputs.exit_code }}" = "0" ]; then
+            echo "✅ **All chaos tests passed**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Some chaos tests failed** (non-blocking)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Passed: ${{ steps.chaos.outputs.passed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Failed: ${{ steps.chaos.outputs.failed }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Chaos tests validate circuit breaker behavior for:" >> $GITHUB_STEP_SUMMARY
+          echo "- LLM API failures" >> $GITHUB_STEP_SUMMARY
+          echo "- Redis connection failures" >> $GITHUB_STEP_SUMMARY
+          echo "- PostgreSQL connection failures" >> $GITHUB_STEP_SUMMARY
+          echo "- SSE stream interruptions" >> $GITHUB_STEP_SUMMARY
+          echo "- Embedding service failures" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload chaos test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chaos-test-results
+          path: |
+            chaos-results.xml
+            chaos-output.txt
+          retention-days: 7
+
   e2e-tests:
     name: E2E Tests (Playwright)
     runs-on: ubuntu-latest

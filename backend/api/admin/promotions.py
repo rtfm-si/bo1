@@ -9,9 +9,10 @@ Provides:
 - GET /api/admin/promotions/users - List users with active promotions
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import (
     AddPromotionRequest,
     ApplyPromoToUserRequest,
@@ -41,8 +42,10 @@ router = APIRouter(prefix="/promotions", tags=["Admin - Promotions"])
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("list promotions")
 async def list_promotions(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> list[Promotion]:
     """List all promotions (admin view)."""
@@ -63,8 +66,10 @@ async def list_promotions(
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("create promotion")
 async def create_promotion(
+    request: Request,
     body: AddPromotionRequest,
     _admin: str = Depends(require_admin_any),
 ) -> Promotion:
@@ -103,8 +108,10 @@ async def create_promotion(
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("deactivate promotion")
 async def deactivate_promotion(
+    request: Request,
     promotion_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> dict:
@@ -133,8 +140,10 @@ async def deactivate_promotion(
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("restore promotion")
 async def restore_promotion(
+    request: Request,
     promotion_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> dict:
@@ -158,8 +167,10 @@ async def restore_promotion(
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("apply promotion to user")
 async def apply_promotion_to_user(
+    request: Request,
     body: ApplyPromoToUserRequest,
     _admin: str = Depends(require_admin_any),
 ) -> dict:
@@ -191,8 +202,10 @@ async def apply_promotion_to_user(
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("remove user promotion")
 async def remove_user_promotion(
+    request: Request,
     user_promotion_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> dict:
@@ -216,8 +229,10 @@ async def remove_user_promotion(
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("list users with promotions")
 async def list_users_with_promotions(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> list[UserWithPromotionsResponse]:
     """List all users with active promotions."""

@@ -5,7 +5,7 @@ Provides:
 - POST /api/admin/waitlist/{email}/approve - Approve waitlist entry
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from backend.api.admin.helpers import (
     AdminApprovalService,
@@ -16,6 +16,7 @@ from backend.api.admin.models import (
     WaitlistResponse,
 )
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.db_helpers import count_rows, execute_query
 from backend.api.utils.errors import handle_api_errors
@@ -38,8 +39,10 @@ router = APIRouter(prefix="", tags=["Admin - Waitlist"])
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("list waitlist")
 async def list_waitlist(
+    request: Request,
     status: str | None = Query(None, description="Filter by status (pending, invited, converted)"),
     _admin: str = Depends(require_admin_any),
 ) -> WaitlistResponse:
@@ -93,8 +96,10 @@ async def list_waitlist(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("approve waitlist entry")
 async def approve_waitlist_entry(
+    request: Request,
     email: str,
     _admin: str = Depends(require_admin_any),
 ) -> ApproveWaitlistResponse:

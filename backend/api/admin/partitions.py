@@ -9,10 +9,11 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.jobs.partition_retention_job import run_retention_job
 from backend.services.partition_manager import (
     PARTITIONED_TABLES,
@@ -88,7 +89,8 @@ class CleanupResultResponse(BaseModel):
     response_model=AllPartitionsResponse,
     dependencies=[Depends(require_admin_any)],
 )
-async def list_partitions() -> AllPartitionsResponse:
+@limiter.limit(ADMIN_RATE_LIMIT)
+async def list_partitions(request: Request) -> AllPartitionsResponse:
     """List all partitions with sizes and row counts.
 
     Returns partition information for all partitioned tables:
@@ -143,7 +145,8 @@ async def list_partitions() -> AllPartitionsResponse:
     response_model=CleanupResultResponse,
     dependencies=[Depends(require_admin_any)],
 )
-async def trigger_cleanup(request: CleanupRequest) -> CleanupResultResponse:
+@limiter.limit(ADMIN_RATE_LIMIT)
+async def trigger_cleanup(request: Request, body: CleanupRequest) -> CleanupResultResponse:
     """Trigger manual partition cleanup.
 
     Creates future partitions and drops expired ones based on
@@ -156,8 +159,8 @@ async def trigger_cleanup(request: CleanupRequest) -> CleanupResultResponse:
     """
     try:
         result = run_retention_job(
-            months_ahead=request.months_ahead,
-            dry_run=request.dry_run,
+            months_ahead=body.months_ahead,
+            dry_run=body.dry_run,
         )
 
         return CleanupResultResponse(

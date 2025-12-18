@@ -82,7 +82,9 @@ export type SSEEventType =
 	// Persistence
 	| 'persistence_verification_warning'
 	// Meeting failure
-	| 'meeting_failed';
+	| 'meeting_failed'
+	// Gap detection
+	| 'gap_detected';
 
 // =============================================================================
 // Lifecycle Events
@@ -613,6 +615,22 @@ export interface PersistenceVerificationWarningPayload {
 }
 
 // =============================================================================
+// Gap Detection Events
+// =============================================================================
+
+/**
+ * SSE sequence gap detected during reconnection
+ * Emitted: When client reconnects and gaps are found in event sequence
+ */
+export interface GapDetectedPayload {
+	session_id: string;
+	expected_sequence: number;
+	actual_sequence: number;
+	missed_count: number;
+	message: string;
+}
+
+// =============================================================================
 // Event Map & Wrapper
 // =============================================================================
 
@@ -666,6 +684,8 @@ export interface SSEEventMap {
 	persistence_verification_warning: PersistenceVerificationWarningPayload;
 	// Meeting failure
 	meeting_failed: MeetingFailedPayload;
+	// Gap detection
+	gap_detected: GapDetectedPayload;
 }
 
 /**
@@ -836,6 +856,11 @@ export type CostAnomalyEvent = SSEEvent<'cost_anomaly'>;
  */
 export type MeetingFailedEvent = SSEEvent<'meeting_failed'>;
 
+/**
+ * Typed gap_detected event
+ */
+export type GapDetectedEvent = SSEEvent<'gap_detected'>;
+
 // =============================================================================
 // Type Guards
 // =============================================================================
@@ -964,6 +989,13 @@ export function isVotingCompleteEvent(event: SSEEvent): event is SSEEvent<'votin
  */
 export function isDiscussionQualityStatusEvent(event: SSEEvent): event is SSEEvent<'discussion_quality_status'> {
 	return event.event_type === 'discussion_quality_status';
+}
+
+/**
+ * Type guard for gap_detected events
+ */
+export function isGapDetectedEvent(event: SSEEvent): event is SSEEvent<'gap_detected'> {
+	return event.event_type === 'gap_detected';
 }
 
 /**

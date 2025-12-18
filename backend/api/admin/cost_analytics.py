@@ -11,9 +11,10 @@ All endpoints require admin authentication.
 import logging
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Request
 
 from backend.api.middleware.auth import get_current_user
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import (
     CostSummaryResponse,
     DailyCostItem,
@@ -47,13 +48,16 @@ router = APIRouter(prefix="/analytics", tags=["admin"])
         403: {"description": "Admin access required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get cost summary")
 async def get_cost_summary(
+    request: Request,
     current_user: dict = Depends(get_current_user),
 ) -> CostSummaryResponse:
     """Get cost summary with totals for different time periods.
 
     Args:
+        request: FastAPI request object
         current_user: Current authenticated user (for admin check)
 
     Returns:
@@ -88,8 +92,10 @@ async def get_cost_summary(
         403: {"description": "Admin access required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get user costs")
 async def get_user_costs(
+    request: Request,
     current_user: dict = Depends(get_current_user),
     start_date: date | None = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: date | None = Query(None, description="End date (YYYY-MM-DD)"),
@@ -99,6 +105,7 @@ async def get_user_costs(
     """Get costs aggregated by user.
 
     Args:
+        request: FastAPI request object
         current_user: Current authenticated user (for admin check)
         start_date: Start of date range (optional)
         end_date: End of date range (optional)
@@ -146,8 +153,10 @@ async def get_user_costs(
         403: {"description": "Admin access required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get daily costs")
 async def get_daily_costs(
+    request: Request,
     current_user: dict = Depends(get_current_user),
     start_date: date | None = Query(None, description="Start date (default: 30 days ago)"),
     end_date: date | None = Query(None, description="End date (default: today)"),
@@ -155,6 +164,7 @@ async def get_daily_costs(
     """Get costs aggregated by day.
 
     Args:
+        request: FastAPI request object
         current_user: Current authenticated user (for admin check)
         start_date: Start of date range (default: 30 days ago)
         end_date: End of date range (default: today)
@@ -225,14 +235,17 @@ def _settings_to_item(s: uct.UserBudgetSettings) -> UserBudgetSettingsItem:
         403: {"description": "Admin access required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get top users by cost")
 async def get_top_users_by_cost(
+    request: Request,
     current_user: dict = Depends(get_current_user),
     limit: int = Query(20, ge=1, le=100, description="Max users to return"),
 ) -> TopUsersCostResponse:
     """Get users ranked by cost for the current period.
 
     Args:
+        request: FastAPI request object
         current_user: Current authenticated user (for admin check)
         limit: Max users to return
 
@@ -260,8 +273,10 @@ async def get_top_users_by_cost(
         403: {"description": "Admin access required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get user costs")
 async def get_user_cost_detail(
+    request: Request,
     user_id: str = Path(..., description="User ID"),
     current_user: dict = Depends(get_current_user),
     history_months: int = Query(6, ge=1, le=24, description="Months of history"),
@@ -269,6 +284,7 @@ async def get_user_cost_detail(
     """Get detailed cost info for a user including history and settings.
 
     Args:
+        request: FastAPI request object
         user_id: User ID to query
         current_user: Current authenticated user (for admin check)
         history_months: Number of months of history to include
@@ -312,17 +328,20 @@ async def get_user_cost_detail(
         403: {"description": "Admin access required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("update user budget settings")
 async def update_user_budget_settings(
+    request: Request,
     user_id: str = Path(..., description="User ID"),
-    request: UpdateBudgetSettingsRequest = ...,
+    body: UpdateBudgetSettingsRequest = ...,
     current_user: dict = Depends(get_current_user),
 ) -> UserBudgetSettingsItem:
     """Update budget settings for a user.
 
     Args:
+        request: FastAPI request object
         user_id: User ID to update
-        request: Budget settings to update
+        body: Budget settings to update
         current_user: Current authenticated user (for admin check)
 
     Returns:
@@ -332,9 +351,9 @@ async def update_user_budget_settings(
 
     settings = uct.set_user_budget_settings(
         user_id=user_id,
-        monthly_cost_limit_cents=request.monthly_cost_limit_cents,
-        alert_threshold_pct=request.alert_threshold_pct,
-        hard_limit_enabled=request.hard_limit_enabled,
+        monthly_cost_limit_cents=body.monthly_cost_limit_cents,
+        alert_threshold_pct=body.alert_threshold_pct,
+        hard_limit_enabled=body.hard_limit_enabled,
     )
 
     logger.info(

@@ -843,6 +843,57 @@ Technical details: {error_type} at {timestamp}
     return html, plain_text
 
 
+# =============================================================================
+# Admin Custom Email
+# =============================================================================
+
+
+def render_admin_custom_email(
+    subject: str,
+    body: str,
+    user_name: str | None = None,
+) -> tuple[str, str]:
+    """Render a custom email sent by admin with branding.
+
+    Args:
+        subject: Email subject line
+        body: Custom message body (plain text, will be wrapped in HTML)
+        user_name: Recipient's name for greeting
+
+    Returns:
+        Tuple of (html_content, plain_text)
+    """
+    greeting = f"Hi {user_name}," if user_name else "Hello,"
+
+    # Convert plain text body to HTML paragraphs
+    body_html = "".join(f"<p>{line}</p>" for line in body.split("\n") if line.strip())
+
+    content = f"""
+<h2>{subject}</h2>
+<p>{greeting}</p>
+
+{body_html}
+
+<p style="margin-top: 30px; color: #666; font-size: 14px;">
+This message was sent by the Board of One team.
+</p>
+"""
+
+    html = _wrap_email(content)
+
+    plain_text = f"""{subject}
+
+{greeting}
+
+{body}
+
+---
+This message was sent by the Board of One team.
+"""
+
+    return html, plain_text
+
+
 def render_action_deadline_reminder_email(
     user_id: str,
     action_title: str,

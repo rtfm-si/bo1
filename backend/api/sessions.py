@@ -46,6 +46,7 @@ from backend.api.models import (
 from backend.api.utils.auth_helpers import extract_user_id, is_admin
 from backend.api.utils.degradation import check_pool_health
 from backend.api.utils.errors import handle_api_errors, raise_api_error
+from backend.api.utils.honeypot import validate_honeypot_fields
 from backend.api.utils.text import truncate_text
 from backend.api.utils.validation import validate_session_id
 from backend.services.insight_staleness import get_stale_insights
@@ -144,6 +145,9 @@ async def create_session(
         HTTPException: If session creation fails
     """
     with track_api_call("sessions.create", "POST"):
+        # Honeypot validation (cheap first-pass bot filter)
+        validate_honeypot_fields(session_request, "sessions.create")
+
         # Create Redis manager
         redis_manager = get_redis_manager()
 
@@ -825,6 +829,174 @@ async def list_sessions(
                 status_code=500,
                 detail=f"Failed to list sessions: {str(e)}",
             ) from e
+
+
+# =============================================================================
+# Static Path Endpoints (MUST be before /{session_id} parameterized routes)
+# =============================================================================
+
+
+@router.get(
+    "/recent-failures",
+    summary="Get recent failed meetings",
+    description="Get failed meetings in the last 24 hours for dashboard alert.",
+    responses={
+        200: {
+            "description": "Recent failures retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "count": 1,
+                        "failures": [
+                            {
+                                "session_id": "bo1_abc123",
+                                "problem_statement_preview": "How should we approach...",
+                                "created_at": "2025-12-16T10:30:00+00:00",
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+    },
+)
+async def get_recent_failures(
+    user: dict[str, Any] = Depends(get_current_user),
+    hours: int = Query(24, ge=1, le=168, description="Look back window in hours"),
+) -> dict[str, Any]:
+    """Get recent failed meetings for dashboard alert.
+
+    Returns failed meetings in the specified window (default 24h) so the
+    dashboard can show a reassuring alert to the user.
+
+    Args:
+        user: Authenticated user data
+        hours: Look back window in hours (default 24, max 168/7days)
+
+    Returns:
+        Dict with count and list of failures
+    """
+    with track_api_call("sessions.recent_failures", "GET"):
+        user_id = extract_user_id(user)
+        failures = session_repository.list_recent_failures(user_id, hours=hours)
+        return {
+            "count": len(failures),
+            "failures": failures,
+        }
+
+
+@router.get(
+    "/cap-status",
+    summary="Get meeting cap status",
+    description="Get current meeting cap status for the authenticated user (beta feature).",
+    responses={
+        200: {
+            "description": "Cap status retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "allowed": True,
+                        "remaining": 2,
+                        "limit": 4,
+                        "reset_time": "2025-12-17T12:00:00+00:00",
+                        "exceeded": False,
+                        "recent_count": 2,
+                    }
+                }
+            },
+        },
+    },
+)
+async def get_cap_status(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get meeting cap status for the current user.
+
+    Returns the current state of the beta meeting cap including:
+    - Whether the user can start a new meeting
+    - How many meetings remain in the current window
+    - When the cap will reset (if exceeded)
+
+    Args:
+        user: Authenticated user data
+
+    Returns:
+        MeetingCapStatus dict
+    """
+    from backend.services.meeting_cap import check_meeting_cap
+
+    with track_api_call("sessions.cap_status", "GET"):
+        user_id = extract_user_id(user)
+        cap_status = check_meeting_cap(user_id)
+        return cap_status.to_dict()
+
+
+@router.post(
+    "/acknowledge-failures",
+    response_model=MessageResponse,
+    summary="Acknowledge failed meetings",
+    description="Acknowledge one or more failed meetings, making their actions visible.",
+    responses={
+        200: {
+            "description": "Failures acknowledged successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "success",
+                        "message": "Acknowledged 2 failed meetings",
+                    }
+                }
+            },
+        },
+        400: {"description": "No session IDs provided", "model": ErrorResponse},
+    },
+)
+@handle_api_errors("acknowledge failures")
+async def acknowledge_failures(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> MessageResponse:
+    """Acknowledge failed meetings to make their actions visible.
+
+    When a meeting fails, its actions are hidden by default. Users can
+    acknowledge the failure to make actions visible in their action list.
+
+    Args:
+        request: Request with session_ids to acknowledge
+        user: Authenticated user data
+
+    Returns:
+        MessageResponse with count of acknowledged sessions
+    """
+    with track_api_call("sessions.acknowledge_failures", "POST"):
+        user_id = extract_user_id(user)
+
+        # Parse request body
+        body = await request.json()
+        session_ids = body.get("session_ids", [])
+
+        if not session_ids:
+            raise_api_error("invalid_input", "No session IDs provided")
+
+        # Batch acknowledge all failures
+        acknowledged_count = session_repository.batch_acknowledge_failures(
+            session_ids=session_ids,
+            user_id=user_id,
+        )
+
+        logger.info(
+            f"User {user_id} acknowledged {acknowledged_count} failed meetings: {session_ids}"
+        )
+
+        return MessageResponse(
+            status="success",
+            message=f"Acknowledged {acknowledged_count} failed meeting(s)",
+        )
+
+
+# =============================================================================
+# Session Detail Endpoints (parameterized routes)
+# =============================================================================
 
 
 @router.get(
@@ -2443,111 +2615,6 @@ async def create_suggested_project(
             "session_id": session_id,
             "action_count": len(suggestion.action_ids),
         }
-
-
-# =============================================================================
-# Recent Failures (for Dashboard Alert)
-# =============================================================================
-
-
-@router.get(
-    "/recent-failures",
-    summary="Get recent failed meetings",
-    description="Get failed meetings in the last 24 hours for dashboard alert.",
-    responses={
-        200: {
-            "description": "Recent failures retrieved successfully",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "count": 1,
-                        "failures": [
-                            {
-                                "session_id": "bo1_abc123",
-                                "problem_statement_preview": "How should we approach...",
-                                "created_at": "2025-12-16T10:30:00+00:00",
-                            }
-                        ],
-                    }
-                }
-            },
-        },
-    },
-)
-async def get_recent_failures(
-    user: dict[str, Any] = Depends(get_current_user),
-    hours: int = Query(24, ge=1, le=168, description="Look back window in hours"),
-) -> dict[str, Any]:
-    """Get recent failed meetings for dashboard alert.
-
-    Returns failed meetings in the specified window (default 24h) so the
-    dashboard can show a reassuring alert to the user.
-
-    Args:
-        user: Authenticated user data
-        hours: Look back window in hours (default 24, max 168/7days)
-
-    Returns:
-        Dict with count and list of failures
-    """
-    with track_api_call("sessions.recent_failures", "GET"):
-        user_id = extract_user_id(user)
-        failures = session_repository.list_recent_failures(user_id, hours=hours)
-        return {
-            "count": len(failures),
-            "failures": failures,
-        }
-
-
-# =============================================================================
-# Meeting Cap Status
-# =============================================================================
-
-
-@router.get(
-    "/cap-status",
-    summary="Get meeting cap status",
-    description="Get current meeting cap status for the authenticated user (beta feature).",
-    responses={
-        200: {
-            "description": "Cap status retrieved successfully",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "allowed": True,
-                        "remaining": 2,
-                        "limit": 4,
-                        "reset_time": "2025-12-17T12:00:00+00:00",
-                        "exceeded": False,
-                        "recent_count": 2,
-                    }
-                }
-            },
-        },
-    },
-)
-async def get_cap_status(
-    user: dict[str, Any] = Depends(get_current_user),
-) -> dict[str, Any]:
-    """Get meeting cap status for the current user.
-
-    Returns the current state of the beta meeting cap including:
-    - Whether the user can start a new meeting
-    - How many meetings remain in the current window
-    - When the cap will reset (if exceeded)
-
-    Args:
-        user: Authenticated user data
-
-    Returns:
-        MeetingCapStatus dict
-    """
-    from backend.services.meeting_cap import check_meeting_cap
-
-    with track_api_call("sessions.cap_status", "GET"):
-        user_id = extract_user_id(user)
-        cap_status = check_meeting_cap(user_id)
-        return cap_status.to_dict()
 
 
 # Public share endpoint is in backend/api/share.py

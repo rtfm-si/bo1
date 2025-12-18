@@ -47,7 +47,7 @@ class TestCacheKeyGeneration:
         """Test cache key has expected format."""
         key = generate_cache_key("system", "user", "model")
         assert key.startswith("llm:cache:")
-        assert len(key) == 10 + 16  # "llm:cache:" + 16 hex chars
+        assert len(key) == 10 + 64  # "llm:cache:" + 64 hex chars (full SHA-256)
 
 
 @pytest.mark.integration
@@ -68,7 +68,10 @@ class TestLLMResponseCache:
         """Create cache instance with mock Redis."""
         from unittest.mock import MagicMock, patch
 
-        with patch("bo1.llm.cache.get_settings") as mock_settings:
+        with (
+            patch("bo1.llm.cache.get_settings") as mock_settings,
+            patch("bo1.llm.cache.get_effective_value") as mock_effective,
+        ):
             # Create mock cache config with proper attribute access
             mock_cache_config = MagicMock()
             mock_cache_config.llm_cache_enabled = True
@@ -79,7 +82,14 @@ class TestLLMResponseCache:
             mock_settings_instance.cache = mock_cache_config
             mock_settings.return_value = mock_settings_instance
 
-            return LLMResponseCache(mock_redis_manager)
+            # Mock runtime override to return None (use default)
+            mock_effective.return_value = None
+
+            cache = LLMResponseCache(mock_redis_manager)
+            # Patch the is_enabled property to always return True for tests
+            cache._mock_effective_value = mock_effective
+            mock_effective.return_value = None  # Will use self.enabled which is True
+            return cache
 
     @pytest.fixture
     def sample_request(self) -> PromptRequest:
@@ -115,11 +125,15 @@ class TestLLMResponseCache:
         sample_response: LLMResponse,
     ) -> None:
         """Test cache hit returns cached response."""
+        from unittest.mock import patch
+
         # Setup mock to return cached data
         cache.redis.get.return_value = sample_response.model_dump_json()
 
-        # Get cached response (using get() method)
-        cached = await cache.get(sample_request)
+        # Mock runtime override to return None (use default enabled=True)
+        with patch("bo1.llm.cache.get_effective_value", return_value=None):
+            # Get cached response (using get() method)
+            cached = await cache.get(sample_request)
 
         # Verify
         assert cached is not None
@@ -135,11 +149,15 @@ class TestLLMResponseCache:
         sample_request: PromptRequest,
     ) -> None:
         """Test cache miss returns None."""
+        from unittest.mock import patch
+
         # Setup mock to return no data
         cache.redis.get.return_value = None
 
-        # Get cached response (using get() method)
-        cached = await cache.get(sample_request)
+        # Mock runtime override to return None (use default enabled=True)
+        with patch("bo1.llm.cache.get_effective_value", return_value=None):
+            # Get cached response (using get() method)
+            cached = await cache.get(sample_request)
 
         # Verify
         assert cached is None
@@ -155,8 +173,12 @@ class TestLLMResponseCache:
         sample_response: LLMResponse,
     ) -> None:
         """Test caching response stores in Redis with TTL."""
-        # Cache response (using set() method)
-        await cache.set(sample_request, sample_response)
+        from unittest.mock import patch
+
+        # Mock runtime override to return None (use default enabled=True)
+        with patch("bo1.llm.cache.get_effective_value", return_value=None):
+            # Cache response (using set() method)
+            await cache.set(sample_request, sample_response)
 
         # Verify setex was called with correct parameters
         cache.redis.setex.assert_called_once()
@@ -177,7 +199,10 @@ class TestLLMResponseCache:
         """Test cache is bypassed when disabled."""
         from unittest.mock import MagicMock, patch
 
-        with patch("bo1.llm.cache.get_settings") as mock_settings:
+        with (
+            patch("bo1.llm.cache.get_settings") as mock_settings,
+            patch("bo1.llm.cache.get_effective_value") as mock_effective,
+        ):
             # Create mock cache config with cache disabled
             mock_cache_config = MagicMock()
             mock_cache_config.llm_cache_enabled = False
@@ -188,9 +213,28 @@ class TestLLMResponseCache:
             mock_settings_instance.cache = mock_cache_config
             mock_settings.return_value = mock_settings_instance
 
+            # No runtime override - will use default (False)
+            mock_effective.return_value = None
+
             cache = LLMResponseCache(mock_redis_manager)
 
             # Get should return None without checking Redis (using get() method)
+            cached = await cache.get(sample_request)
+            assert cached is None
+            cache.redis.get.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_cache_disabled_by_runtime_override(
+        self,
+        cache: LLMResponseCache,
+        sample_request: PromptRequest,
+    ) -> None:
+        """Test cache is bypassed when runtime override disables it."""
+        from unittest.mock import patch
+
+        # Runtime override says disabled (even though default is enabled)
+        with patch("bo1.llm.cache.get_effective_value", return_value=False):
+            # Get should return None without checking Redis
             cached = await cache.get(sample_request)
             assert cached is None
             cache.redis.get.assert_not_called()
@@ -202,11 +246,15 @@ class TestLLMResponseCache:
         sample_request: PromptRequest,
     ) -> None:
         """Test cache read errors don't break execution."""
+        from unittest.mock import patch
+
         # Setup mock to raise error
         cache.redis.get.side_effect = Exception("Redis connection failed")
 
-        # Get should return None (cache miss) (using get() method)
-        cached = await cache.get(sample_request)
+        # Mock runtime override to return None (use default enabled=True)
+        with patch("bo1.llm.cache.get_effective_value", return_value=None):
+            # Get should return None (cache miss) (using get() method)
+            cached = await cache.get(sample_request)
         assert cached is None
         assert cache._misses == 1
 
@@ -218,11 +266,15 @@ class TestLLMResponseCache:
         sample_response: LLMResponse,
     ) -> None:
         """Test cache write errors don't break execution."""
+        from unittest.mock import patch
+
         # Setup mock to raise error
         cache.redis.setex.side_effect = Exception("Redis connection failed")
 
-        # Cache should not raise exception (using set() method)
-        await cache.set(sample_request, sample_response)
+        # Mock runtime override to return None (use default enabled=True)
+        with patch("bo1.llm.cache.get_effective_value", return_value=None):
+            # Cache should not raise exception (using set() method)
+            await cache.set(sample_request, sample_response)
         # No assertion needed - just verify no exception raised
 
     def test_hit_rate_calculation(self, cache: LLMResponseCache) -> None:

@@ -145,10 +145,10 @@ class TestSSENonOwnedSession:
                 current_user=mock_current_user,
             )
 
-            # Should return event history dict
+            # Should return EventHistoryResponse model
             assert result is not None
-            assert "events" in result
-            assert result["session_id"] == session_id
+            assert hasattr(result, "events")
+            assert result.session_id == session_id
 
 
 class TestSSEUninitializedState:

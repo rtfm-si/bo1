@@ -4,7 +4,7 @@ Provides:
 - GET /api/admin/extended-kpis - Get extended KPI metrics
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from backend.api.admin.models import (
     ActionStats,
@@ -14,6 +14,7 @@ from backend.api.admin.models import (
     ProjectStats,
 )
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.errors import handle_api_errors
 from bo1.state.database import db_session
@@ -139,8 +140,10 @@ def get_action_stats() -> ActionStats:
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get extended KPIs")
 async def get_extended_kpis(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> ExtendedKPIsResponse:
     """Get extended KPI metrics (admin only)."""

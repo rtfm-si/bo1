@@ -219,6 +219,8 @@ services:
       # Application Configuration
       - DEBUG=${DEBUG:-true}
       - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - LOG_FORMAT=${LOG_FORMAT:-text}
+      - VERBOSE_LIBS=${VERBOSE_LIBS:-false}
 
       # Encryption (required for OAuth token storage)
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}

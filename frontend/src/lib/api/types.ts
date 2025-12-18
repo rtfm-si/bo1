@@ -7,6 +7,15 @@
 import type { SSEEvent } from './sse-events';
 
 /**
+ * Honeypot fields for bot detection - should always be empty from legitimate users
+ */
+export interface HoneypotFields {
+	_hp_email?: string;
+	_hp_url?: string;
+	_hp_phone?: string;
+}
+
+/**
  * Context IDs for attaching past meetings, actions, and datasets to a new session
  */
 export interface SessionContextIds {
@@ -15,7 +24,7 @@ export interface SessionContextIds {
 	datasets?: string[];
 }
 
-export interface CreateSessionRequest {
+export interface CreateSessionRequest extends HoneypotFields {
 	problem_statement: string;
 	problem_context?: Record<string, unknown>;
 	dataset_id?: string;
@@ -526,6 +535,8 @@ export type {
  */
 export interface TaskWithSessionContext extends TaskWithStatus {
 	session_id: string;
+	/** Status of source session (completed/failed). 'failed' indicates action from acknowledged failure. */
+	source_session_status: string | null;
 	problem_statement: string;
 }
 
@@ -571,6 +582,8 @@ export interface ActionDetailResponse {
 	sub_problem_index: number | null;
 	status: ActionStatus;
 	session_id: string;
+	/** Status of source session (completed/failed). 'failed' indicates action from acknowledged failure. */
+	source_session_status: string | null;
 	problem_statement: string;
 	estimated_duration_days: number | null;
 	target_start_date: string | null;
@@ -2049,7 +2062,7 @@ export type FeedbackStatus = 'new' | 'reviewing' | 'resolved' | 'closed';
 /**
  * Feedback create request
  */
-export interface FeedbackCreateRequest {
+export interface FeedbackCreateRequest extends HoneypotFields {
 	type: FeedbackType;
 	title: string;
 	description: string;

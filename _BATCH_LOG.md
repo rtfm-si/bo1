@@ -1,22 +1,22 @@
 === Starting batch run: 20 iterations ===
-2025-12-17 23:42:33: ✓ [QA][P1] Playwright sweep - Meeting creation and completion flow
-2025-12-17 23:45:46: ✓ [SECURITY][P2] Add rate limiting to CSRF-exempt `/api/v1/waitlist` endpoint
-2025-12-17 23:49:19: ✓ [DEPLOY][P1] Setup Uptime Monitoring
-2025-12-17 23:57:01: ✓ [LAUNCH][P1] Verify Alertmanager running in prod, set NTFY_TOPIC env var
-2025-12-18 00:03:07: ✓ [SECURITY][P2] CSRF Token Rotation on Auth State Change
-2025-12-18 00:12:44: ✓ Admin UI Toggle for PROMPT_INJECTION_BLOCK_SUSPICIOUS
-2025-12-18 00:14:41: ✓ [BRAND][P2] Update company attribution to "Sico Software Ltd"
-2025-12-18 00:17:32: ✓ [SEO][P2] Configure robots.txt and meta tags for AI tool discovery
-2025-12-18 00:28:40: ✓ [LLM][P2] Output format validation with re-prompt on XML parsing failure
-2025-12-18 00:36:22: ✓ [API][P2] Structured Error Response Schema
-2025-12-18 00:41:25: ✓ [DATA][P2] Automated Schema Validation Tests
-2025-12-18 00:45:06: ✓ [DATA][P2] Remove `[key: string]: any` Escape Hatch from Frontend Types
-2025-12-18 00:54:37: ✓ [OBS][P2] Standardize Error Logging Format
-2025-12-18 01:00:47: ✓ [REL][P2] Extend Circuit Breaker to Database and Redis
-2025-12-18 01:04:48: ✓ [REL][P2] Ensure Retry Callsites Use `total_timeout` Consistently
-2025-12-18 01:15:57: ✓ [API][P2] Document SSE Event Schemas
-2025-12-18 01:18:46: ✓ [COST][P2] Add cache_control to prompt builds
-2025-12-18 01:28:47: ✓ [COST][P2] Centralize model selection config for A/B testing
-2025-12-18 01:46:14: ✓ [DATA][P3] Fix SSE event type narrowing in meeting components
-2025-12-18 01:47:51: ✓ [DATA][P3] Update CLAUDE.md state serialization references
+2025-12-18 10:33:18: ✓ Fix P1 Production Bugs (404/422 API Errors)
+2025-12-18 10:36:43: ✓ Fix `/api/v1/projects/unassigned-count` 500 Error
+2025-12-18 10:45:45: ✓ Fix Admin API Rate Limiting (429s)
+2025-12-18 10:51:15: ✓ Fix admin sessions page 404
+2025-12-18 10:54:21: ✓ Add "Ask Mentor" Button to Actions Tab
+2025-12-18 11:12:35: ✓ Failed Meeting Acknowledgment & Action Visibility
+2025-12-18 11:15:16: ✓ Fix Client Error Reporting 403 (CSRF Exemption)
+2025-12-18 11:19:11: ✓ Add Audit Log Alerting for Admin Impersonation
+2025-12-18 11:22:46: ✓ [LANDING][P3] Remove or verify social links
+2025-12-18 11:27:31: ✓ [COST][P3] Expose research cache hit rate metrics to admin dashboard
+2025-12-18 11:30:59: ✓ [COST][P3] Use full SHA-256 hash for LLM cache keys
+2025-12-18 11:41:39: ✓ [ADMIN][P3] Expose emergency-disable config toggles in admin UI
+2025-12-18 11:44:41: ✓ Wire Chaos Tests into CI
+2025-12-18 11:57:17: ✓ Honeypot Detection for Prompt Injection
+2025-12-18 12:07:27: ✓ Add response_model to Endpoints Returning Raw Dicts
+2025-12-18 12:14:55: ✓ [OBS][P3] Log Level Tuning Per Environment
+2025-12-18 12:22:09: ✓ [REL][P3] SSE Event Sequence Gap Detection
+2025-12-18 12:31:08: ✓ [LLM][P3] Prompt Sanitization Documentation & Injection Vector Tests
+2025-12-18 12:40:45: ✓ [ADMIN][P3] Send branded email from admin to end user
+2025-12-18 12:45:22: ✓ [API][P3] Define API versioning strategy for breaking changes
 === Batch complete: 20 completed, 0 deferred ===

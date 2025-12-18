@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { fade } from 'svelte/transition';
-	import { CheckCircle, AlertCircle } from 'lucide-svelte';
+	import { CheckCircle, AlertCircle, AlertTriangle, X } from 'lucide-svelte';
 	import type { SSEEvent, ExpertInfo, ContributionEvent, PersonaSelectedPayload } from '$lib/api/sse-events';
 	import { isPersonaSelectedEvent } from '$lib/api/sse-events';
 	import type { EventGroup } from '../../../routes/(app)/meeting/[id]/lib/eventGrouping';
@@ -45,6 +45,11 @@
 		// Transition state
 		isTransitioningSubProblem: boolean;
 
+		// Gap detection state
+		hasGap?: boolean;
+		missedEventCount?: number;
+		onDismissGapWarning?: () => void;
+
 		// Callbacks
 		onToggleCardViewMode: (cardId: string) => void;
 	}
@@ -71,6 +76,9 @@
 		elapsedSeconds,
 		votingStartTime,
 		isTransitioningSubProblem,
+		hasGap = false,
+		missedEventCount = 0,
+		onDismissGapWarning,
 		onToggleCardViewMode
 	}: Props = $props();
 
@@ -91,6 +99,37 @@
 	class="overflow-y-auto"
 	style="height: calc(100vh - 400px); min-height: 600px; overflow-anchor: none;"
 >
+	<!-- Gap Detection Warning Banner -->
+	{#if hasGap}
+		<div
+			class="mx-4 mt-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-4"
+			transition:fade={{ duration: 200 }}
+		>
+			<div class="flex items-start gap-3">
+				<AlertTriangle size={20} class="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+				<div class="flex-1 min-w-0">
+					<h4 class="text-sm font-medium text-amber-800 dark:text-amber-200">
+						Possible Missing Updates
+					</h4>
+					<p class="text-sm text-amber-700 dark:text-amber-300 mt-1">
+						{missedEventCount} event{missedEventCount === 1 ? '' : 's'} may have been missed during reconnection.
+						For complete data, consider refreshing the page.
+					</p>
+				</div>
+				{#if onDismissGapWarning}
+					<button
+						type="button"
+						onclick={onDismissGapWarning}
+						class="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 transition-colors"
+						aria-label="Dismiss warning"
+					>
+						<X size={18} />
+					</button>
+				{/if}
+			</div>
+		</div>
+	{/if}
+
 	{#if isLoading}
 		<!-- Skeleton Loading States -->
 		<div class="space-y-4 p-4">

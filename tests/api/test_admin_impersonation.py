@@ -1,10 +1,11 @@
 """Tests for admin impersonation functionality."""
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from backend.api.ntfy import notify_admin_impersonation
 from backend.services.admin_impersonation import (
     end_impersonation,
     get_active_impersonation,
@@ -329,3 +330,69 @@ class TestImpersonationMiddleware:
         context = get_impersonation_context(request)
 
         assert context is None
+
+
+class TestImpersonationAlerts:
+    """Tests for impersonation ntfy alerts."""
+
+    @pytest.mark.asyncio
+    async def test_notify_admin_impersonation_sends_alert(self):
+        """Test impersonation alert sends to ntfy with correct params."""
+        with patch("backend.api.ntfy.send_ntfy_alert", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = True
+
+            result = await notify_admin_impersonation(
+                admin_email="admin@example.com",
+                target_email="user@example.com",
+                reason="Investigating bug",
+                write_mode=False,
+                duration_minutes=30,
+            )
+
+            assert result is True
+            mock_send.assert_called_once()
+
+            call_kwargs = mock_send.call_args.kwargs
+            assert call_kwargs["title"] == "Admin Impersonation Started"
+            assert call_kwargs["priority"] == "high"
+            assert "cop" in call_kwargs["tags"]
+            assert "warning" in call_kwargs["tags"]
+            assert "admin@example.com" in call_kwargs["message"]
+            assert "user@example.com" in call_kwargs["message"]
+            assert "read-only" in call_kwargs["message"]
+            assert "30m" in call_kwargs["message"]
+            assert "Investigating bug" in call_kwargs["message"]
+
+    @pytest.mark.asyncio
+    async def test_notify_admin_impersonation_write_mode(self):
+        """Test impersonation alert shows WRITE mode when enabled."""
+        with patch("backend.api.ntfy.send_ntfy_alert", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = True
+
+            await notify_admin_impersonation(
+                admin_email="admin@example.com",
+                target_email="user@example.com",
+                reason="Testing",
+                write_mode=True,
+                duration_minutes=15,
+            )
+
+            call_kwargs = mock_send.call_args.kwargs
+            assert "WRITE" in call_kwargs["message"]
+
+    @pytest.mark.asyncio
+    async def test_notify_admin_impersonation_handles_failure(self):
+        """Test impersonation alert handles ntfy failure gracefully."""
+        with patch("backend.api.ntfy.send_ntfy_alert", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = False
+
+            result = await notify_admin_impersonation(
+                admin_email="admin@example.com",
+                target_email="user@example.com",
+                reason="Testing",
+                write_mode=False,
+                duration_minutes=30,
+            )
+
+            # Should return False but not raise
+            assert result is False

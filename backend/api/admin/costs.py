@@ -12,7 +12,7 @@ import logging
 from datetime import date, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
 from backend.api.admin.models import (
     CostsByProviderResponse,
@@ -28,6 +28,7 @@ from backend.api.admin.models import (
     UpdateFixedCostRequest,
 )
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.utils.errors import handle_api_errors
 from backend.services import fixed_costs as fc
 from bo1.state.database import db_session
@@ -48,8 +49,10 @@ router = APIRouter(prefix="/costs", tags=["admin-costs"])
     summary="List fixed costs",
     description="Get all fixed infrastructure costs (admin only).",
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("list fixed costs")
 async def list_fixed_costs(
+    request: Request,
     _admin: dict = Depends(require_admin_any),
     include_inactive: bool = Query(False, description="Include inactive costs"),
 ) -> FixedCostsResponse:
@@ -80,18 +83,20 @@ async def list_fixed_costs(
     summary="Create fixed cost",
     description="Add a new fixed infrastructure cost (admin only).",
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("create fixed cost")
 async def create_fixed_cost(
-    request: CreateFixedCostRequest,
+    request: Request,
+    body: CreateFixedCostRequest,
     _admin: dict = Depends(require_admin_any),
 ) -> FixedCostItem:
     """Create a fixed cost entry."""
     cost = fc.create_fixed_cost(
-        provider=request.provider,
-        description=request.description,
-        monthly_amount_usd=Decimal(str(request.monthly_amount_usd)),
-        category=request.category,
-        notes=request.notes,
+        provider=body.provider,
+        description=body.description,
+        monthly_amount_usd=Decimal(str(body.monthly_amount_usd)),
+        category=body.category,
+        notes=body.notes,
     )
 
     return FixedCostItem(
@@ -111,20 +116,22 @@ async def create_fixed_cost(
     summary="Update fixed cost",
     description="Update a fixed cost entry (admin only).",
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("update fixed cost")
 async def update_fixed_cost(
+    request: Request,
     cost_id: int = Path(..., description="Fixed cost ID"),
-    request: UpdateFixedCostRequest = ...,
+    body: UpdateFixedCostRequest = ...,
     _admin: dict = Depends(require_admin_any),
 ) -> FixedCostItem:
     """Update a fixed cost entry."""
     cost = fc.update_fixed_cost(
         cost_id=cost_id,
-        monthly_amount_usd=Decimal(str(request.monthly_amount_usd))
-        if request.monthly_amount_usd is not None
+        monthly_amount_usd=Decimal(str(body.monthly_amount_usd))
+        if body.monthly_amount_usd is not None
         else None,
-        active=request.active,
-        notes=request.notes,
+        active=body.active,
+        notes=body.notes,
     )
 
     if not cost:
@@ -146,8 +153,10 @@ async def update_fixed_cost(
     summary="Delete fixed cost",
     description="Soft delete a fixed cost (admin only).",
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("delete fixed cost")
 async def delete_fixed_cost(
+    request: Request,
     cost_id: int = Path(..., description="Fixed cost ID"),
     _admin: dict = Depends(require_admin_any),
 ) -> dict:
@@ -164,8 +173,10 @@ async def delete_fixed_cost(
     summary="Seed default fixed costs",
     description="Create default fixed cost entries if none exist (admin only).",
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("seed fixed costs")
 async def seed_fixed_costs(
+    request: Request,
     _admin: dict = Depends(require_admin_any),
 ) -> FixedCostsResponse:
     """Seed default fixed costs."""
@@ -201,8 +212,10 @@ async def seed_fixed_costs(
     summary="Costs by provider",
     description="Get cost breakdown by provider for the last 30 days.",
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get costs by provider")
 async def get_costs_by_provider(
+    request: Request,
     _admin: dict = Depends(require_admin_any),
     days: int = Query(30, ge=1, le=365, description="Number of days to include"),
 ) -> CostsByProviderResponse:
@@ -252,8 +265,10 @@ async def get_costs_by_provider(
     summary="Meeting costs",
     description="Get total cost breakdown for a specific meeting/session.",
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get meeting costs")
 async def get_meeting_costs(
+    request: Request,
     session_id: str = Path(..., description="Session ID"),
     _admin: dict = Depends(require_admin_any),
 ) -> MeetingCostResponse:
@@ -317,8 +332,10 @@ async def get_meeting_costs(
     summary="Average cost per user",
     description="Get cost metrics per active user.",
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get per-user costs")
 async def get_per_user_costs(
+    request: Request,
     _admin: dict = Depends(require_admin_any),
     days: int = Query(30, ge=1, le=365, description="Number of days to include"),
     limit: int = Query(50, ge=1, le=200, description="Max users to return"),
@@ -379,8 +396,10 @@ async def get_per_user_costs(
     summary="Daily cost summary",
     description="Get aggregated daily cost totals.",
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get daily summary")
 async def get_daily_summary(
+    request: Request,
     _admin: dict = Depends(require_admin_any),
     days: int = Query(30, ge=1, le=365, description="Number of days to include"),
 ) -> DailySummaryResponse:

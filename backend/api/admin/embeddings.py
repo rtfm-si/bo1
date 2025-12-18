@@ -7,11 +7,12 @@ Provides:
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from backend.api.dependencies import get_redis_manager
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.errors import handle_api_errors
 from backend.services.embedding_visualizer import (
@@ -80,8 +81,10 @@ class EmbeddingSampleResponse(BaseModel):
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get embedding stats")
 async def get_stats(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> EmbeddingStatsResponse:
     """Get embedding storage statistics."""
@@ -102,8 +105,10 @@ async def get_stats(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get embedding sample")
 async def get_sample(
+    request: Request,
     embedding_type: Literal["all", "contributions", "research", "context"] = Query(
         "all", description="Filter by embedding type"
     ),

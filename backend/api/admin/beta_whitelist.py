@@ -6,7 +6,7 @@ Provides:
 - DELETE /api/admin/beta-whitelist/{email} - Remove email from whitelist
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.api.admin.helpers import (
     AdminValidationService,
@@ -18,6 +18,7 @@ from backend.api.admin.models import (
     BetaWhitelistResponse,
 )
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.db_helpers import execute_query, exists
 from backend.api.utils.errors import handle_api_errors
@@ -40,8 +41,10 @@ router = APIRouter(prefix="", tags=["Admin - Beta Whitelist"])
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("list beta whitelist")
 async def list_beta_whitelist(
+    request: Request,
     _admin: str = Depends(require_admin_any),
 ) -> BetaWhitelistResponse:
     """List all whitelisted emails for closed beta."""
@@ -76,14 +79,16 @@ async def list_beta_whitelist(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("add to beta whitelist")
 async def add_to_beta_whitelist(
-    request: AddWhitelistRequest,
+    request: Request,
+    body: AddWhitelistRequest,
     _admin: str = Depends(require_admin_any),
 ) -> BetaWhitelistEntry:
     """Add email to beta whitelist."""
     # Validate and normalize email
-    email = AdminValidationService.validate_email(request.email)
+    email = AdminValidationService.validate_email(body.email)
 
     # Check if email already exists
     if exists("beta_whitelist", where="email = %s", params=(email,)):
@@ -99,7 +104,7 @@ async def add_to_beta_whitelist(
         VALUES (%s, %s, %s)
         RETURNING id, email, added_by, notes, created_at
         """,
-        (email, "admin", request.notes),
+        (email, "admin", body.notes),
         fetch="one",
     )
 
@@ -121,8 +126,10 @@ async def add_to_beta_whitelist(
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("remove from beta whitelist")
 async def remove_from_beta_whitelist(
+    request: Request,
     email: str,
     _admin: str = Depends(require_admin_any),
 ) -> ControlResponse:

@@ -1196,6 +1196,25 @@ class AdminApiClient {
 			method: 'DELETE'
 		});
 	}
+
+	// =========================================================================
+	// Research Cache
+	// =========================================================================
+
+	async getResearchCacheStats(): Promise<ResearchCacheStats> {
+		return this.fetch<ResearchCacheStats>('/api/admin/research-cache/stats');
+	}
+
+	// =========================================================================
+	// Admin Email
+	// =========================================================================
+
+	async sendUserEmail(userId: string, request: SendEmailRequest): Promise<SendEmailResponse> {
+		return this.fetch<SendEmailResponse>(`/api/admin/users/${userId}/send-email`, {
+			method: 'POST',
+			body: JSON.stringify(request)
+		});
+	}
 }
 
 // Blog Post Types
@@ -1374,6 +1393,42 @@ export interface RuntimeConfigResponse {
 
 export interface UpdateRuntimeConfigRequest {
 	value: boolean;
+}
+
+// =============================================================================
+// Research Cache Types
+// =============================================================================
+
+export interface ResearchCacheStats {
+	total_cached_results: number;
+	cache_hit_rate_30d: number;
+	cost_savings_30d: number;
+	top_cached_questions: Array<{
+		question: string;
+		hit_count: number;
+		last_accessed: string;
+	}>;
+}
+
+// =============================================================================
+// Admin Email Types
+// =============================================================================
+
+export type EmailTemplateType = 'welcome' | 'custom';
+
+export interface SendEmailRequest {
+	template_type: EmailTemplateType;
+	subject?: string;
+	body?: string;
+}
+
+export interface SendEmailResponse {
+	user_id: string;
+	email: string;
+	template_type: string;
+	subject: string;
+	sent: boolean;
+	message: string;
 }
 
 export const adminApi = new AdminApiClient();

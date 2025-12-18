@@ -8,6 +8,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from backend.services.runtime_config import get_effective_value
+from bo1.config import get_settings
 from bo1.llm.client import ClaudeClient
 from bo1.state.database import db_session
 from bo1.state.repositories.project_repository import ProjectRepository
@@ -93,6 +95,14 @@ If no clear projects emerge from the actions, return {{"suggestions": []}}.
 """
 
 
+def _is_autogen_enabled() -> bool:
+    """Check if project auto-generation is enabled, respecting runtime override."""
+    override = get_effective_value("auto_generate_projects")
+    if override is not None:
+        return override
+    return get_settings().auto_generate_projects
+
+
 async def get_autogen_suggestions(
     user_id: str,
     min_confidence: float = 0.6,
@@ -106,6 +116,11 @@ async def get_autogen_suggestions(
     Returns:
         List of AutogenProjectSuggestion objects
     """
+    # Check if autogen is enabled via runtime config
+    if not _is_autogen_enabled():
+        logger.info("Project auto-generation disabled via runtime config")
+        return []
+
     # Get unassigned actions
     actions = _get_unassigned_actions(user_id)
 
@@ -292,7 +307,7 @@ def get_unassigned_action_count(user_id: str) -> int:
         Number of actions without project assignments
     """
     try:
-        with db_session() as conn:
+        with db_session(user_id=user_id) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """

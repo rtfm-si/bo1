@@ -33,7 +33,8 @@
 		X,
 		FolderKanban,
 		Trophy,
-		HelpCircle
+		HelpCircle,
+		MessageCircle
 	} from 'lucide-svelte';
 	import { getDueDateStatus, getDueDateLabel, getDueDateBadgeClasses, getEffectiveDueDate } from '$lib/utils/due-dates';
 	import ActionSocialShare from '$lib/components/actions/ActionSocialShare.svelte';
@@ -430,6 +431,15 @@
 		return `/mentor?${params.toString()}`;
 	}
 
+	// Build mentor URL for general action help
+	function getActionMentorUrl(): string {
+		const params = new URLSearchParams({
+			message: `Help me with @action:${actionId}`,
+			persona: 'task_master'
+		});
+		return `/mentor?${params.toString()}`;
+	}
+
 	// Helper functions with fallbacks
 	function getPriorityConfig(priority: string) {
 		const key = priority?.toLowerCase() || 'medium';
@@ -566,6 +576,17 @@
 							<ExternalLink class="w-4 h-4" />
 							<span class="hidden sm:inline">Back to Meeting</span>
 							<span class="sm:hidden">Meeting</span>
+						</a>
+					{/if}
+					{#if action}
+						<a
+							href={getActionMentorUrl()}
+							class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+							aria-label="Ask mentor for help with this action"
+						>
+							<MessageCircle class="w-4 h-4" />
+							<span class="hidden sm:inline">Ask Mentor</span>
+							<span class="sm:hidden">Help</span>
 						</a>
 					{/if}
 				</div>

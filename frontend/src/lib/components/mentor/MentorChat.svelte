@@ -4,8 +4,9 @@
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { MentorMessage as MessageType, MentorPersonaId, ResolvedMentions } from '$lib/api/types';
+	import type { MentorMessage as MessageType, MentorPersonaId, ResolvedMentions, HoneypotFields as HoneypotFieldsType } from '$lib/api/types';
 	import { Button } from '$lib/components/ui';
+	import HoneypotFields from '$lib/components/ui/HoneypotFields.svelte';
 	import MentorMessage from './MentorMessage.svelte';
 	import PersonaPicker from './PersonaPicker.svelte';
 	import ContextSourcesBadge from './ContextSourcesBadge.svelte';
@@ -41,6 +42,9 @@
 
 	// Abort controller for current stream
 	let currentAbort: (() => void) | null = null;
+
+	// Honeypot state
+	let honeypotValues = $state<HoneypotFieldsType>({});
 
 	function scrollToBottom() {
 		if (messagesContainer) {
@@ -138,7 +142,7 @@
 		streamingContent = '';
 
 		try {
-			const stream = apiClient.chatWithMentor(question, conversationId, selectedPersona);
+			const stream = apiClient.chatWithMentor(question, conversationId, selectedPersona, honeypotValues);
 			currentAbort = stream.abort;
 
 			for await (const { event, data } of stream.connect()) {
@@ -375,6 +379,9 @@
 
 	<!-- Input -->
 	<form onsubmit={handleSubmit} class="p-4 border-t border-neutral-200 dark:border-neutral-700">
+		<!-- Honeypot fields for bot detection -->
+		<HoneypotFields bind:values={honeypotValues} />
+
 		<div class="relative flex gap-2">
 			<!-- Mention Autocomplete -->
 			<MentionAutocomplete

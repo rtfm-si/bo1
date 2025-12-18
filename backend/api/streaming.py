@@ -9,7 +9,6 @@ import json
 import logging
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -17,12 +16,13 @@ from fastapi.responses import StreamingResponse
 from backend.api.dependencies import VerifiedSession, get_redis_manager
 from backend.api.events import (
     error_event,
+    gap_detected_event,
     node_start_event,
 )
 from backend.api.metrics import metrics
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import STREAMING_RATE_LIMIT, limiter
-from backend.api.models import ErrorResponse
+from backend.api.models import ErrorResponse, EventHistoryResponse
 from backend.api.utils.auth_helpers import is_admin
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.validation import validate_session_id
@@ -68,6 +68,7 @@ router = APIRouter(prefix="/v1/sessions", tags=["streaming"])
 
 @router.get(
     "/{session_id}/events",
+    response_model=EventHistoryResponse,
     summary="Get session event history",
     description="""
     Get all historical events for a session.
@@ -113,7 +114,7 @@ async def get_event_history(
     session_id: str,
     session_data: VerifiedSession,
     current_user: dict = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> EventHistoryResponse:
     """Get historical events for a session.
 
     Checks Redis first (transient storage), then PostgreSQL (permanent storage).
@@ -126,7 +127,7 @@ async def get_event_history(
         current_user: Current authenticated user (for admin check)
 
     Returns:
-        Dict with events array and count
+        EventHistoryResponse with events array and count
 
     Raises:
         HTTPException: If session not found or retrieval fails
@@ -180,13 +181,13 @@ async def get_event_history(
         status = metadata.get("status") if metadata else None
         can_resume = status in ["running", "completed"]
 
-        return {
-            "session_id": session_id,
-            "events": events,
-            "count": len(events),
-            "last_event_id": last_event_id,
-            "can_resume": can_resume,
-        }
+        return EventHistoryResponse(
+            session_id=session_id,
+            events=events,
+            count=len(events),
+            last_event_id=last_event_id,
+            can_resume=can_resume,
+        )
 
     except HTTPException:
         raise
@@ -447,6 +448,38 @@ async def stream_session_events(
                     session_id=session_id,
                     last_event_id=last_event_id,
                 )
+
+                # GAP DETECTION: Check for missing events between resume point and first replayed event
+                if missed_events:
+                    first_seq = missed_events[0].get("sequence", 0)
+                    expected_seq = resume_from_sequence + 1
+
+                    # Check for gap at the start (events lost before first replayed event)
+                    if first_seq > expected_seq:
+                        missed_count = first_seq - expected_seq
+                        logger.warning(
+                            f"[SSE GAP] session={session_id}, expected_seq={expected_seq}, "
+                            f"actual_seq={first_seq}, missed={missed_count}"
+                        )
+                        metrics.increment("sse.sequence_gaps")
+                        metrics.increment("sse.sequence_gaps.missed_events", missed_count)
+
+                        # Emit gap_detected event before replay
+                        yield gap_detected_event(session_id, expected_seq, first_seq, missed_count)
+                        events_sent += 1
+
+                    # Check for internal gaps in the replayed sequence
+                    prev_seq = first_seq
+                    for _i, payload in enumerate(missed_events[1:], start=1):
+                        curr_seq = payload.get("sequence", 0)
+                        if curr_seq > prev_seq + 1:
+                            internal_gap = curr_seq - prev_seq - 1
+                            logger.warning(
+                                f"[SSE GAP INTERNAL] session={session_id}, "
+                                f"after_seq={prev_seq}, gap={internal_gap}"
+                            )
+                            metrics.increment("sse.sequence_gaps.internal")
+                        prev_seq = curr_seq
 
                 replay_count = 0
                 for payload in missed_events:

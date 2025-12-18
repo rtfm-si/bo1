@@ -10,9 +10,10 @@ Provides:
 - GET /api/admin/blog/topics - Discover topics
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.middleware.admin import require_admin_any
+from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import (
     BlogGenerateRequest,
     BlogGenerateResponse,
@@ -45,8 +46,10 @@ router = APIRouter(prefix="/blog", tags=["Admin - Blog"])
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("list blog posts")
 async def list_posts(
+    request: Request,
     status: str | None = Query(None, description="Filter by status: draft, scheduled, published"),
     limit: int = Query(50, ge=1, le=100, description="Max results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
@@ -78,8 +81,10 @@ async def list_posts(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("create blog post")
 async def create_post(
+    request: Request,
     body: BlogPostCreate,
     admin_id: str = Depends(require_admin_any),
 ) -> BlogPostResponse:
@@ -112,8 +117,10 @@ async def create_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get blog post")
 async def get_post(
+    request: Request,
     post_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> BlogPostResponse:
@@ -140,8 +147,10 @@ async def get_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("update blog post")
 async def update_post(
+    request: Request,
     post_id: str,
     body: BlogPostUpdate,
     _admin: str = Depends(require_admin_any),
@@ -173,8 +182,10 @@ async def update_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("delete blog post")
 async def delete_post(
+    request: Request,
     post_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> dict:
@@ -203,8 +214,10 @@ async def delete_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("generate blog post")
 async def generate_post(
+    request: Request,
     body: BlogGenerateRequest,
     save_draft: bool = Query(True, description="Save as draft post"),
     admin_id: str = Depends(require_admin_any),
@@ -253,8 +266,10 @@ async def generate_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("discover topics")
 async def discover_blog_topics(
+    request: Request,
     industry: str | None = Query(None, description="Industry vertical"),
     _admin: str = Depends(require_admin_any),
 ) -> TopicsResponse:
@@ -297,8 +312,10 @@ async def discover_blog_topics(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("publish blog post")
 async def publish_post(
+    request: Request,
     post_id: str,
     _admin: str = Depends(require_admin_any),
 ) -> BlogPostResponse:
@@ -328,8 +345,10 @@ async def publish_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("schedule blog post")
 async def schedule_post(
+    request: Request,
     post_id: str,
     body: BlogPostUpdate,
     _admin: str = Depends(require_admin_any),

@@ -62,14 +62,24 @@
 
 	let dismissedSessionIds = $state<Set<string>>(new Set());
 
-	function handleDismiss() {
+	async function handleDismiss() {
 		isDismissed = true;
-		// Store dismiss with current failed session IDs
+		const sessionIds = failedMeetings.map(f => f.session_id);
+
+		// Store dismiss with current failed session IDs (immediate UX)
 		if (browser) {
 			localStorage.setItem(DISMISS_KEY, JSON.stringify({
 				timestamp: Date.now(),
-				sessionIds: failedMeetings.map(f => f.session_id)
+				sessionIds
 			}));
+		}
+
+		// Acknowledge failures on server (makes actions visible)
+		// Fire-and-forget: don't block dismiss UX, but log errors
+		if (sessionIds.length > 0) {
+			apiClient.acknowledgeFailures(sessionIds).catch((error) => {
+				console.error('Failed to acknowledge failures:', error);
+			});
 		}
 	}
 

@@ -1,35 +1,58 @@
-# Plan: [DATA][P3] Update CLAUDE.md state serialization references
+# Plan: [API][P3] Define API versioning strategy for breaking changes
 
 ## Summary
 
-- Replace outdated `state_to_v1()` / `v1_to_state()` references with actual function names
-- Update 3 files: root CLAUDE.md, bo1/CLAUDE.md, data_model manifest
-- Actual functions: `serialize_state_for_checkpoint()` / `deserialize_state_from_checkpoint()`
+- Document API versioning conventions already in use (v1 prefix)
+- Define criteria for when a version bump is required
+- Establish deprecation timeline and sunset policy
+- Create ADR (Architecture Decision Record) for versioning strategy
 
 ## Implementation Steps
 
-1. **Update root CLAUDE.md** (line 49)
-   - Change: `state_to_v1() / v1_to_state()` → `serialize_state_for_checkpoint() / deserialize_state_from_checkpoint()`
+1. **Create ADR document** (`docs/adr/004-api-versioning.md`)
+   - Document current v1 prefix convention
+   - Define what constitutes a breaking change:
+     - Removing fields/endpoints
+     - Changing field types
+     - Changing required/optional semantics
+     - Changing error response formats
+   - Define what does NOT require a version bump:
+     - Adding optional fields
+     - Adding new endpoints
+     - Adding new enum values (if client handles unknowns)
 
-2. **Update bo1/CLAUDE.md** (line 6)
-   - Change: `state_to_v1() / v1_to_state()` → `serialize_state_for_checkpoint() / deserialize_state_from_checkpoint()`
+2. **Define deprecation policy**
+   - Minimum deprecation notice: 90 days
+   - Deprecation headers: `Deprecation`, `Sunset` (RFC 8594)
+   - Announce via: changelog, dashboard banner, email to affected users
 
-3. **Update audits/manifests/data_model.manifest.xml** (line 13)
-   - Change: `state_to_v1/v1_to_state` → `serialize_state_for_checkpoint/deserialize_state_from_checkpoint`
+3. **Add version header support** (`backend/api/middleware/versioning.py`)
+   - Read `Accept-Version` or `X-API-Version` header
+   - Default to latest if not specified
+   - Log version usage for analytics
+
+4. **Create deprecation decorator** (`backend/api/utils/deprecation.py`)
+   - `@deprecated(sunset_date="2025-06-01", message="Use /v2/... instead")`
+   - Adds `Deprecation` and `Sunset` headers to response
+   - Logs usage of deprecated endpoints
+
+5. **Update CLAUDE.md**
+   - Add brief versioning rule reference
+   - Link to ADR
 
 ## Tests
 
 - Unit tests:
-  - None needed; documentation-only change
-- Integration tests:
-  - N/A
+  - `tests/api/test_versioning_middleware.py`: header parsing, default behavior
+  - `tests/api/test_deprecation_decorator.py`: header injection, logging
 - Manual validation:
-  - Grep confirms no remaining references to old function names
-  - New function names match actual code in `bo1/graph/state.py:428,516`
+  - Call deprecated endpoint, verify headers present
+  - Check logs for deprecation tracking
 
 ## Dependencies & Risks
 
 - Dependencies:
-  - None
+  - None (documentation + lightweight middleware)
 - Risks:
-  - None; purely documentation update
+  - Over-engineering: keep middleware simple, don't add full router versioning yet
+  - Clients may ignore deprecation headers: supplement with email/dashboard notices

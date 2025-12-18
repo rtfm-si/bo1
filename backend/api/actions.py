@@ -17,19 +17,26 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.api.middleware.auth import get_current_user
 from backend.api.models import (
+    ActionBlockedResponse,
     ActionCloneReplanRequest,
     ActionCloneReplanResponse,
     ActionCloseRequest,
     ActionCloseResponse,
+    ActionCompletedResponse,
     ActionDatesResponse,
     ActionDatesUpdate,
+    ActionDeletedResponse,
     ActionDetailResponse,
     ActionProgressUpdate,
     ActionRemindersResponse,
+    ActionReplanContextResponse,
+    ActionStartedResponse,
     ActionStatsResponse,
     ActionStatsTotals,
     ActionStatusUpdate,
+    ActionStatusUpdatedResponse,
     ActionTagsUpdate,
+    ActionUnblockedResponse,
     ActionUpdateCreate,
     ActionUpdateResponse,
     ActionUpdatesResponse,
@@ -37,15 +44,21 @@ from backend.api.models import (
     AllActionsResponse,
     BlockActionRequest,
     DailyActionStat,
+    DependencyAddedResponse,
     DependencyCreate,
     DependencyListResponse,
+    DependencyRemovedResponse,
     DependencyResponse,
     ErrorResponse,
     GanttActionData,
     GanttDependency,
+    GeneratedProjectInfo,
     GlobalGanttResponse,
+    IncompleteDependencyInfo,
+    RelatedAction,
     ReminderSettingsResponse,
     ReminderSettingsUpdate,
+    ReminderSnoozedResponse,
     ReplanRequest,
     ReplanResponse,
     SnoozeReminderRequest,
@@ -216,6 +229,7 @@ async def get_all_actions(
         # Format action for response
         # Use updated_at if available, otherwise fallback to created_at
         updated_at = action.get("updated_at") or action.get("created_at")
+        session_info = sessions_map.get(session_id, {})
         action_data = {
             "id": str(action.get("id", "")),
             "title": action.get("title", ""),
@@ -232,7 +246,8 @@ async def get_all_actions(
             "sub_problem_index": action.get("sub_problem_index"),
             "status": action.get("status", "todo"),
             "session_id": session_id,
-            "problem_statement": sessions_map.get(session_id, {}).get("problem_statement", ""),
+            "source_session_status": session_info.get("session_status"),
+            "problem_statement": session_info.get("problem_statement", ""),
             "updated_at": updated_at.isoformat() if updated_at else None,
         }
 
@@ -770,10 +785,16 @@ async def get_action_detail(
     session_id = action.get("source_session_id", "")
     session = session_repository.get(session_id)
     problem_statement = session.get("problem_statement", "") if session else ""
+    session_status = session.get("status", "") if session else ""
 
-    # P1-007: Non-admin users only see actions from completed meetings
-    if session and not is_admin and session.get("status") != "completed":
-        raise HTTPException(status_code=404, detail="Action not found")
+    # P1-007: Non-admin users only see actions from completed or acknowledged-failed meetings
+    if session and not is_admin:
+        is_completed = session_status == "completed"
+        is_acknowledged_failure = (
+            session_status == "failed" and session.get("failure_acknowledged_at") is not None
+        )
+        if not is_completed and not is_acknowledged_failure:
+            raise HTTPException(status_code=404, detail="Action not found")
 
     # Format dates as ISO strings
     def to_iso(dt: datetime | None) -> str | None:
@@ -795,6 +816,7 @@ async def get_action_detail(
         sub_problem_index=action.get("sub_problem_index"),
         status=action.get("status", "todo"),
         session_id=session_id,
+        source_session_status=session_status if session_status else None,
         problem_statement=problem_statement,
         estimated_duration_days=action.get("estimated_duration_days"),
         target_start_date=to_iso(action.get("target_start_date")),
@@ -814,6 +836,7 @@ async def get_action_detail(
 
 @router.post(
     "/{action_id}/start",
+    response_model=ActionStartedResponse,
     summary="Start an action",
     description="Mark action as in_progress and set actual_start_date.",
     responses={
@@ -825,7 +848,7 @@ async def get_action_detail(
 async def start_action(
     action_id: str,
     user_data: dict = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> ActionStartedResponse:
     """Start an action (mark as in_progress).
 
     Args:
@@ -833,7 +856,7 @@ async def start_action(
         user_data: Current user from auth
 
     Returns:
-        Success message
+        ActionStartedResponse with success message
     """
     user_id = user_data.get("user_id")
     logger.info(f"Starting action {action_id} for user {user_id}")
@@ -852,11 +875,12 @@ async def start_action(
             status_code=400, detail="Action cannot be started (already in progress or done)"
         )
 
-    return {"message": "Action started successfully", "action_id": action_id}
+    return ActionStartedResponse(message="Action started successfully", action_id=action_id)
 
 
 @router.post(
     "/{action_id}/complete",
+    response_model=ActionCompletedResponse,
     summary="Complete an action",
     description="Mark action as done and set actual_end_date. Auto-unblocks dependent actions.",
     responses={
@@ -868,7 +892,7 @@ async def start_action(
 async def complete_action(
     action_id: str,
     user_data: dict = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> ActionCompletedResponse:
     """Complete an action (mark as done).
 
     Args:
@@ -876,7 +900,7 @@ async def complete_action(
         user_data: Current user from auth
 
     Returns:
-        Success message with list of auto-unblocked actions
+        ActionCompletedResponse with success message and unblocked actions
     """
     user_id = user_data.get("user_id")
     logger.info(f"Completing action {action_id} for user {user_id}")
@@ -940,19 +964,19 @@ async def complete_action(
     except Exception as e:
         logger.debug(f"Action-affected flagging failed (non-blocking): {e}")
 
-    response: dict[str, Any] = {
-        "message": "Action completed successfully",
-        "action_id": action_id,
-        "unblocked_actions": unblocked_ids,
-    }
-
+    project_info = None
     if generated_project:
-        response["generated_project"] = {
+        project_info = {
             "id": str(generated_project.get("id")),
             "name": generated_project.get("name"),
         }
 
-    return response
+    return ActionCompletedResponse(
+        message="Action completed successfully",
+        action_id=action_id,
+        unblocked_actions=unblocked_ids,
+        generated_project=project_info,
+    )
 
 
 @router.post(
@@ -1090,6 +1114,7 @@ async def clone_replan_action(
 
 @router.patch(
     "/{action_id}/status",
+    response_model=ActionStatusUpdatedResponse,
     summary="Update action status",
     description="Update action status with optional blocking reason. Validates status transitions.",
     responses={
@@ -1105,7 +1130,7 @@ async def update_action_status(
     status_update: ActionStatusUpdate,
     user_data: dict = Depends(get_current_user),
     _pool_check: None = Depends(check_pool_health),
-) -> dict[str, Any]:
+) -> ActionStatusUpdatedResponse:
     """Update action status.
 
     Args:
@@ -1114,7 +1139,7 @@ async def update_action_status(
         user_data: Current user from auth
 
     Returns:
-        Success message with list of auto-unblocked actions (if completing)
+        ActionStatusUpdatedResponse with success message and unblocked actions
     """
     user_id = user_data.get("user_id")
     logger.info(f"Updating action {action_id} status to {status_update.status} for user {user_id}")
@@ -1271,20 +1296,20 @@ async def update_action_status(
         except Exception as e:
             logger.debug(f"Project auto-generation failed (non-blocking): {e}")
 
-    response: dict[str, Any] = {
-        "message": "Action status updated successfully",
-        "action_id": action_id,
-        "status": status_update.status,
-        "unblocked_actions": unblocked_ids,
-    }
-
+    project_info = None
     if generated_project:
-        response["generated_project"] = {
-            "id": str(generated_project.get("id")),
-            "name": generated_project.get("name"),
-        }
+        project_info = GeneratedProjectInfo(
+            id=str(generated_project.get("id")),
+            name=generated_project.get("name"),
+        )
 
-    return response
+    return ActionStatusUpdatedResponse(
+        message="Action status updated successfully",
+        action_id=action_id,
+        status=status_update.status,
+        unblocked_actions=unblocked_ids,
+        generated_project=project_info,
+    )
 
 
 # =============================================================================
@@ -1294,6 +1319,7 @@ async def update_action_status(
 
 @router.get(
     "/{action_id}/replan-context",
+    response_model=ActionReplanContextResponse,
     summary="Get replanning context for action",
     description="Get context for creating a new meeting to replan a cancelled action.",
     responses={
@@ -1305,7 +1331,7 @@ async def update_action_status(
 async def get_replan_context(
     action_id: str,
     user_data: dict = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> ActionReplanContextResponse:
     """Get context for replanning a cancelled action.
 
     Args:
@@ -1313,7 +1339,7 @@ async def get_replan_context(
         user_data: Current user from auth
 
     Returns:
-        Dict with problem_statement, failure_reason, related_actions, etc.
+        ActionReplanContextResponse with problem_statement, failure_reason, related_actions
     """
     from backend.services.action_context import extract_replan_context
 
@@ -1329,7 +1355,27 @@ async def get_replan_context(
 
     # Extract context
     context = extract_replan_context(action_id)
-    return context
+
+    # Convert related_actions to typed models
+    related = [
+        RelatedAction(
+            id=str(a.get("id", "")),
+            title=a.get("title", ""),
+            status=a.get("status", ""),
+        )
+        for a in context.get("related_actions", [])
+    ]
+
+    return ActionReplanContextResponse(
+        action_id=context.get("action_id", str(action_id)),
+        action_title=context.get("action_title", ""),
+        problem_statement=context.get("problem_statement", ""),
+        failure_reason_text=context.get("failure_reason_text", ""),
+        failure_reason_category=context.get("failure_reason_category", "unknown"),
+        related_actions=related,
+        parent_session_id=context.get("parent_session_id"),
+        business_context=context.get("business_context"),
+    )
 
 
 # =============================================================================
@@ -1339,6 +1385,7 @@ async def get_replan_context(
 
 @router.delete(
     "/{action_id}",
+    response_model=ActionDeletedResponse,
     summary="Delete action (soft delete)",
     description="Soft delete an action. Admin users can restore deleted actions.",
     responses={
@@ -1350,7 +1397,7 @@ async def get_replan_context(
 async def delete_action(
     action_id: str,
     user_data: dict = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> ActionDeletedResponse:
     """Soft delete an action.
 
     Args:
@@ -1358,7 +1405,7 @@ async def delete_action(
         user_data: Current user from auth
 
     Returns:
-        Success message
+        ActionDeletedResponse with success message
     """
     user_id = user_data.get("user_id")
     logger.info(f"Soft deleting action {action_id} for user {user_id}")
@@ -1377,10 +1424,10 @@ async def delete_action(
 
     logger.info(f"Successfully soft-deleted action {action_id}")
 
-    return {
-        "message": "Action deleted successfully",
-        "action_id": action_id,
-    }
+    return ActionDeletedResponse(
+        message="Action deleted successfully",
+        action_id=action_id,
+    )
 
 
 # =============================================================================
@@ -1445,6 +1492,7 @@ async def get_action_dependencies(
 
 @router.post(
     "/{action_id}/dependencies",
+    response_model=DependencyAddedResponse,
     summary="Add action dependency",
     description="Add a dependency to an action. Auto-blocks if dependency is incomplete.",
     responses={
@@ -1458,7 +1506,7 @@ async def add_action_dependency(
     action_id: str,
     dependency: DependencyCreate,
     user_data: dict = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> DependencyAddedResponse:
     """Add a dependency to an action.
 
     Args:
@@ -1467,7 +1515,7 @@ async def add_action_dependency(
         user_data: Current user from auth
 
     Returns:
-        Success message with auto-block info
+        DependencyAddedResponse with auto-block info
     """
     user_id = user_data.get("user_id")
     logger.info(f"Adding dependency on {dependency.depends_on_action_id} to action {action_id}")
@@ -1509,17 +1557,18 @@ async def add_action_dependency(
     updated_action = action_repository.get(action_id)
     was_blocked = updated_action and updated_action.get("status") == "blocked"
 
-    return {
-        "message": "Dependency added successfully",
-        "action_id": action_id,
-        "depends_on_action_id": dependency.depends_on_action_id,
-        "auto_blocked": was_blocked,
-        "blocking_reason": updated_action.get("blocking_reason") if was_blocked else None,
-    }
+    return DependencyAddedResponse(
+        message="Dependency added successfully",
+        action_id=action_id,
+        depends_on_action_id=dependency.depends_on_action_id,
+        auto_blocked=was_blocked,
+        blocking_reason=updated_action.get("blocking_reason") if was_blocked else None,
+    )
 
 
 @router.delete(
     "/{action_id}/dependencies/{depends_on_id}",
+    response_model=DependencyRemovedResponse,
     summary="Remove action dependency",
     description="Remove a dependency from an action. May auto-unblock if no more incomplete dependencies.",
     responses={
@@ -1532,7 +1581,7 @@ async def remove_action_dependency(
     action_id: str,
     depends_on_id: str,
     user_data: dict = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> DependencyRemovedResponse:
     """Remove a dependency from an action.
 
     Args:
@@ -1541,7 +1590,7 @@ async def remove_action_dependency(
         user_data: Current user from auth
 
     Returns:
-        Success message with auto-unblock info
+        DependencyRemovedResponse with auto-unblock info
     """
     user_id = user_data.get("user_id")
     logger.info(f"Removing dependency on {depends_on_id} from action {action_id}")
@@ -1570,13 +1619,13 @@ async def remove_action_dependency(
     updated_action = action_repository.get(action_id)
     was_unblocked = was_blocked and updated_action and updated_action.get("status") != "blocked"
 
-    return {
-        "message": "Dependency removed successfully",
-        "action_id": action_id,
-        "depends_on_id": depends_on_id,
-        "auto_unblocked": was_unblocked,
-        "new_status": updated_action.get("status") if updated_action else None,
-    }
+    return DependencyRemovedResponse(
+        message="Dependency removed successfully",
+        action_id=action_id,
+        depends_on_id=depends_on_id,
+        auto_unblocked=was_unblocked,
+        new_status=updated_action.get("status") if updated_action else None,
+    )
 
 
 # =============================================================================
@@ -1586,6 +1635,7 @@ async def remove_action_dependency(
 
 @router.post(
     "/{action_id}/block",
+    response_model=ActionBlockedResponse,
     summary="Block an action",
     description="Block an action with a reason. Validates status transition.",
     responses={
@@ -1599,7 +1649,7 @@ async def block_action(
     action_id: str,
     block_request: BlockActionRequest,
     user_data: dict = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> ActionBlockedResponse:
     """Block an action with a reason.
 
     Args:
@@ -1608,7 +1658,7 @@ async def block_action(
         user_data: Current user from auth
 
     Returns:
-        Success message
+        ActionBlockedResponse with success message
     """
     user_id = user_data.get("user_id")
     logger.info(f"Blocking action {action_id}: {block_request.blocking_reason}")
@@ -1635,16 +1685,17 @@ async def block_action(
             detail=f"Cannot block action with status '{current_status}'",
         )
 
-    return {
-        "message": "Action blocked successfully",
-        "action_id": action_id,
-        "blocking_reason": block_request.blocking_reason,
-        "auto_unblock": block_request.auto_unblock,
-    }
+    return ActionBlockedResponse(
+        message="Action blocked successfully",
+        action_id=action_id,
+        blocking_reason=block_request.blocking_reason,
+        auto_unblock=block_request.auto_unblock,
+    )
 
 
 @router.post(
     "/{action_id}/unblock",
+    response_model=ActionUnblockedResponse,
     summary="Unblock an action",
     description="Unblock a blocked action. Validates status transition.",
     responses={
@@ -1658,7 +1709,7 @@ async def unblock_action(
     action_id: str,
     unblock_request: UnblockActionRequest | None = None,
     user_data: dict = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> ActionUnblockedResponse:
     """Unblock a blocked action.
 
     Args:
@@ -1667,7 +1718,7 @@ async def unblock_action(
         user_data: Current user from auth
 
     Returns:
-        Success message
+        ActionUnblockedResponse with success message
     """
     user_id = user_data.get("user_id")
     target_status = unblock_request.target_status if unblock_request else "todo"
@@ -1697,20 +1748,25 @@ async def unblock_action(
     if not success:
         raise HTTPException(status_code=400, detail="Failed to unblock action")
 
-    response: dict[str, Any] = {
-        "message": "Action unblocked successfully",
-        "action_id": action_id,
-        "new_status": target_status,
-    }
-
+    warning = None
+    incomplete_dep_info = None
     if has_incomplete:
-        response["warning"] = "Action has incomplete dependencies"
-        response["incomplete_dependencies"] = [
-            {"id": str(dep["depends_on_action_id"]), "title": dep["title"]}
+        warning = "Action has incomplete dependencies"
+        incomplete_dep_info = [
+            IncompleteDependencyInfo(
+                id=str(dep["depends_on_action_id"]),
+                title=dep["title"],
+            )
             for dep in incomplete_deps
         ]
 
-    return response
+    return ActionUnblockedResponse(
+        message="Action unblocked successfully",
+        action_id=action_id,
+        new_status=target_status,
+        warning=warning,
+        incomplete_dependencies=incomplete_dep_info,
+    )
 
 
 # =============================================================================
@@ -2444,6 +2500,7 @@ async def update_action_reminder_settings(
 
 @router.post(
     "/{action_id}/snooze-reminder",
+    response_model=ReminderSnoozedResponse,
     summary="Snooze action reminder",
     description="Delay reminder for this action by N days.",
     responses={
@@ -2456,7 +2513,7 @@ async def snooze_action_reminder(
     action_id: str,
     snooze_request: "SnoozeReminderRequest",
     user_data: dict = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> ReminderSnoozedResponse:
     """Snooze reminders for an action.
 
     Args:
@@ -2465,7 +2522,7 @@ async def snooze_action_reminder(
         user_data: Current user from auth
 
     Returns:
-        Success message with snooze details
+        ReminderSnoozedResponse with snooze details
     """
     from backend.services.action_reminders import snooze_reminder
 
@@ -2481,11 +2538,11 @@ async def snooze_action_reminder(
     if not success:
         raise HTTPException(status_code=404, detail="Action not found")
 
-    return {
-        "message": "Reminder snoozed successfully",
-        "action_id": action_id,
-        "snooze_days": snooze_request.snooze_days,
-    }
+    return ReminderSnoozedResponse(
+        message="Reminder snoozed successfully",
+        action_id=action_id,
+        snooze_days=snooze_request.snooze_days,
+    )
 
 
 def _action_to_detail_response(action: dict[str, Any]) -> ActionDetailResponse:

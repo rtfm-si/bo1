@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-18_
+_Last updated: 2025-12-18 (API versioning strategy completed)_
 
 ---
 
@@ -38,8 +38,8 @@ _Last updated: 2025-12-18_
 - [x] [SECURITY][P1] Fix Redis healthcheck to avoid password exposure (use REDISCLI_AUTH env var instead of `-a` flag)
 - [x] [SECURITY][P2] Add rate limiting to CSRF-exempt `/api/v1/waitlist` endpoint
 - [x] [SECURITY][P2] CSRF token rotation on auth state change (regenerate in SuperTokens sign-in callback)
-- [ ] [SECURITY][P3] Honeypot detection for prompt injection (hidden fields for automated attack detection)
-- [ ] [SECURITY][P3] Audit log alerting for admin impersonation usage
+- [x] [SECURITY][P3] Honeypot detection for prompt injection (hidden fields for automated attack detection)
+- [x] [SECURITY][P3] Audit log alerting for admin impersonation usage
 
 ### QA Automation [QA]
 
@@ -49,20 +49,23 @@ _Last updated: 2025-12-18_
 ### Admin Features [ADMIN]
 
 - [x] [ADMIN][P2] Admin UI toggle for `PROMPT_INJECTION_BLOCK_SUSPICIOUS` (emergency disable - LLM shutdown)
-- [ ] [ADMIN][P3] Send branded email (from template) to end user from within admin
-- [ ] [ADMIN][P3] Expose other emergency-disable config toggles in admin UI
+- [x] [ADMIN][P3] Send branded email (from template) to end user from within admin
+- [x] [ADMIN][P3] Expose other emergency-disable config toggles in admin UI
 
 ### LLM Alignment [LLM]
 
 - [x] [LLM][P2] Output format validation with re-prompt on XML parsing failure (standardize across nodes)
-- [ ] [LLM][P3] Document sanitization requirements per prompt template; add injection vector tests
+- [x] [LLM][P3] Document sanitization requirements per prompt template; add injection vector tests
+  - Created `bo1/prompts/SANITIZATION.md` documenting all sanitization functions, prompt builders, and API entry points
+  - Added 68 injection vector tests in `tests/prompts/test_injection_vectors.py`
+  - Added 31 integration tests in `tests/security/test_template_injection.py`
 
 ### API Contract [API]
 
 - [x] [API][P2] Define and enforce structured error response schema (replace ad-hoc HTTPException)
 - [x] [API][P2] Document SSE event schemas - created `frontend/src/lib/api/sse-events.ts` with 40+ typed event definitions
-- [ ] [API][P3] Add `response_model` to endpoints returning raw dicts
-- [ ] [API][P3] Define API versioning strategy for breaking changes
+- [x] [API][P3] Add `response_model` to endpoints returning raw dicts
+- [x] [API][P3] Define API versioning strategy for breaking changes (ADR, middleware, deprecation decorator)
 
 ### Data Model [DATA]
 
@@ -75,21 +78,21 @@ _Last updated: 2025-12-18_
 ### Observability [OBS]
 
 - [x] [OBS][P2] Standardize error logging format with error codes for easier aggregation
-- [ ] [OBS][P3] Log level tuning per environment (reduce noise in production)
+- [x] [OBS][P3] Log level tuning per environment (reduce noise in production)
 
 ### Reliability [REL]
 
 - [x] [REL][P2] Extend circuit breaker pattern to database and Redis calls (currently LLM-only)
 - [x] [REL][P2] Ensure all retry callsites use `total_timeout` parameter consistently
-- [ ] [REL][P3] Wire chaos tests (`tests/chaos/`) into CI for automated resilience verification
-- [ ] [REL][P3] SSE event sequence detection for reconnection gaps
+- [x] [REL][P3] Wire chaos tests (`tests/chaos/`) into CI for automated resilience verification
+- [x] [REL][P3] SSE event sequence detection for reconnection gaps
 
 ### Cost Optimization [COST]
 
 - [x] [COST][P2] Centralize model selection config for easier A/B testing of cheaper models
 - [x] [COST][P2] Add `cache_control` markers to prompt builds that don't currently use them
-- [ ] [COST][P3] Expose research cache hit rate metrics to admin dashboard
-- [ ] [COST][P3] Use full SHA-256 hash for LLM cache keys (currently first 16 chars)
+- [x] [COST][P3] Expose research cache hit rate metrics to admin dashboard
+- [x] [COST][P3] Use full SHA-256 hash for LLM cache keys (currently first 16 chars)
 
 ### Infrastructure [INFRA]
 
@@ -107,7 +110,7 @@ _Last updated: 2025-12-18_
 
 ### Landing Page [LANDING]
 
-- [ ] [LANDING][P3] Remove or verify social links (bottom right of landing page)
+- [x] [LANDING][P3] Remove or verify social links (bottom right of landing page)
 
 ### Auth [AUTH]
 
@@ -116,6 +119,26 @@ _Last updated: 2025-12-18_
 ### Documentation [DOCS]
 
 - [ ] [DOCS][P3] Help pages need content review and polish (Si's todo)
+
+### Production Bugs [BUG]
+
+- [x] [BUG][P1] Fix `/api/v1/sessions/recent-failures` 404 on dashboard
+- [x] [BUG][P1] Fix action status PATCH 422 errors (drag-drop and "start" button)
+- [x] [BUG][P2] Fix `/api/v1/projects/unassigned-count` 500 error on projects tab
+- [x] [BUG][P2] Fix admin API rate limiting (429s hitting most admin endpoints)
+- [x] [BUG][P2] Fix admin sessions page 404 (`/admin/sessions`)
+- [x] [BUG][P3] Fix admin error reporting POST 403 (`/api/errors`)
+
+### UX Improvements [UX]
+
+- [x] [UX][P2] Add "ask mentor" button to actions tab (link to mentor with context)
+- [ ] [UX][P2] Include actions in mentor @ mention popup (currently only shows meetings)
+- [x] [UX][P2] Add failed meeting acknowledgment UI (mask failures after user acknowledges)
+- [x] [UX][P2] Hide actions from unacknowledged failed meetings (prevent orphan/unprogressable actions)
+
+### Integrations [INTEG]
+
+- [ ] [INTEG][P3] Add user-level "Sync actions to Google Calendar" toggle in settings (only show if user has Google auth provider; controls whether actions with due dates create calendar events)
 
 ---
 

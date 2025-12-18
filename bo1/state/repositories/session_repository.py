@@ -890,12 +890,19 @@ class SessionRepository(BaseRepository):
         Args:
             session_id: Session identifier
             task_id: Task ID (e.g., "task_1")
-            status: New status ("todo", "doing", "done")
+            status: New status (todo/doing/done/in_progress/blocked/in_review/cancelled)
 
         Returns:
             True if updated successfully, False otherwise
         """
-        if status not in ("todo", "doing", "done"):
+        # Map frontend status names to storage values
+        status_map = {
+            "in_progress": "doing",  # Frontend uses in_progress, storage uses doing
+        }
+        storage_status = status_map.get(status, status)
+
+        valid_statuses = ("todo", "doing", "done", "blocked", "in_review", "cancelled")
+        if storage_status not in valid_statuses:
             raise ValueError(f"Invalid task status: {status}")
 
         return (
@@ -905,7 +912,7 @@ class SessionRepository(BaseRepository):
                 SET task_statuses = task_statuses || %s::jsonb
                 WHERE session_id = %s
                 """,
-                (Json({task_id: status}), session_id),
+                (Json({task_id: storage_status}), session_id),
             )
             > 0
         )
@@ -1312,6 +1319,68 @@ class SessionRepository(BaseRepository):
             (session_id,),
         )
         return dict(result) if result else None
+
+    # =========================================================================
+    # Failure Acknowledgment
+    # =========================================================================
+
+    @retry_db(max_attempts=3, base_delay=0.5, total_timeout=30.0)
+    def acknowledge_failure(self, session_id: str, user_id: str) -> dict[str, Any] | None:
+        """Acknowledge a failed session to make its actions visible.
+
+        Only works on sessions with status='failed'. Sets failure_acknowledged_at
+        to current timestamp.
+
+        Args:
+            session_id: Session identifier
+            user_id: User ID (for ownership validation)
+
+        Returns:
+            Updated session record or None if not found/not failed/not owned
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE sessions
+                    SET failure_acknowledged_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s
+                      AND user_id = %s
+                      AND status = 'failed'
+                      AND failure_acknowledged_at IS NULL
+                    RETURNING id, status, failure_acknowledged_at, updated_at
+                    """,
+                    (session_id, user_id),
+                )
+                result = cur.fetchone()
+                return dict(result) if result else None
+
+    def batch_acknowledge_failures(self, session_ids: list[str], user_id: str) -> int:
+        """Acknowledge multiple failed sessions at once.
+
+        Args:
+            session_ids: List of session identifiers
+            user_id: User ID (for ownership validation)
+
+        Returns:
+            Number of sessions acknowledged
+        """
+        if not session_ids:
+            return 0
+
+        return self._execute_count(
+            """
+            UPDATE sessions
+            SET failure_acknowledged_at = NOW(),
+                updated_at = NOW()
+            WHERE id = ANY(%s)
+              AND user_id = %s
+              AND status = 'failed'
+              AND failure_acknowledged_at IS NULL
+            """,
+            (session_ids, user_id),
+        )
 
 
 # Singleton instance for convenience

@@ -7,7 +7,10 @@ Validates:
 - Deduplication between replay and live events
 """
 
+import json
+
 from backend.api.events import (
+    gap_detected_event,
     make_event_id,
     parse_event_id,
 )
@@ -210,3 +213,150 @@ class TestSequenceTracking:
 
         assert counters["session_a"] == 11
         assert counters["session_b"] == 6
+
+
+class TestGapDetection:
+    """Test SSE sequence gap detection for reconnection."""
+
+    def test_detect_gap_at_start(self):
+        """Gap detected when first replayed event > expected sequence."""
+        resume_from_sequence = 5
+        expected_seq = resume_from_sequence + 1  # 6
+
+        replayed_events = [
+            {"sequence": 10, "event_type": "a"},
+            {"sequence": 11, "event_type": "b"},
+        ]
+
+        first_seq = replayed_events[0].get("sequence", 0)
+        has_gap = first_seq > expected_seq
+        missed_count = first_seq - expected_seq if has_gap else 0
+
+        assert has_gap is True
+        assert missed_count == 4  # 6, 7, 8, 9 missing
+
+    def test_no_gap_contiguous_sequence(self):
+        """No gap when sequences are contiguous."""
+        resume_from_sequence = 5
+        expected_seq = resume_from_sequence + 1  # 6
+
+        replayed_events = [
+            {"sequence": 6, "event_type": "a"},
+            {"sequence": 7, "event_type": "b"},
+        ]
+
+        first_seq = replayed_events[0].get("sequence", 0)
+        has_gap = first_seq > expected_seq
+
+        assert has_gap is False
+
+    def test_detect_internal_gap(self):
+        """Detect gaps within the replayed event sequence."""
+        replayed_events = [
+            {"sequence": 6, "event_type": "a"},
+            {"sequence": 7, "event_type": "b"},
+            {"sequence": 10, "event_type": "c"},  # Gap: 8, 9 missing
+            {"sequence": 11, "event_type": "d"},
+        ]
+
+        internal_gaps = []
+        prev_seq = replayed_events[0].get("sequence", 0)
+
+        for event in replayed_events[1:]:
+            curr_seq = event.get("sequence", 0)
+            if curr_seq > prev_seq + 1:
+                gap_size = curr_seq - prev_seq - 1
+                internal_gaps.append((prev_seq, curr_seq, gap_size))
+            prev_seq = curr_seq
+
+        assert len(internal_gaps) == 1
+        assert internal_gaps[0] == (7, 10, 2)  # Gap of 2 after seq 7
+
+    def test_no_internal_gaps(self):
+        """No internal gaps when sequences are consecutive."""
+        replayed_events = [
+            {"sequence": 1, "event_type": "a"},
+            {"sequence": 2, "event_type": "b"},
+            {"sequence": 3, "event_type": "c"},
+        ]
+
+        internal_gaps = []
+        prev_seq = replayed_events[0].get("sequence", 0)
+
+        for event in replayed_events[1:]:
+            curr_seq = event.get("sequence", 0)
+            if curr_seq > prev_seq + 1:
+                internal_gaps.append((prev_seq, curr_seq))
+            prev_seq = curr_seq
+
+        assert len(internal_gaps) == 0
+
+    def test_empty_replay_no_gap(self):
+        """No gap detection for empty replay list."""
+        replayed_events: list = []
+        resume_from_sequence = 5
+
+        # With no events, can't detect a gap
+        has_gap = False
+        if replayed_events:
+            first_seq = replayed_events[0].get("sequence", 0)
+            has_gap = first_seq > resume_from_sequence + 1
+
+        assert has_gap is False
+
+
+class TestGapDetectedEvent:
+    """Test gap_detected SSE event formatting."""
+
+    def test_gap_detected_event_format(self):
+        """gap_detected event has correct structure."""
+        event = gap_detected_event(
+            session_id="bo1_test123",
+            expected_seq=6,
+            actual_seq=10,
+            missed_count=4,
+        )
+
+        # Parse SSE format
+        lines = event.strip().split("\n")
+        assert lines[0] == "event: gap_detected"
+        assert lines[1].startswith("data: ")
+
+        # Parse JSON data
+        data = json.loads(lines[1][6:])  # Skip "data: "
+        assert data["session_id"] == "bo1_test123"
+        assert data["expected_sequence"] == 6
+        assert data["actual_sequence"] == 10
+        assert data["missed_count"] == 4
+        assert "message" in data
+        assert "timestamp" in data
+        assert data["event_version"] == 1
+
+    def test_gap_detected_event_message(self):
+        """gap_detected event has user-friendly message."""
+        event = gap_detected_event(
+            session_id="bo1_test",
+            expected_seq=1,
+            actual_seq=5,
+            missed_count=4,
+        )
+
+        lines = event.strip().split("\n")
+        data = json.loads(lines[1][6:])
+
+        assert "4" in data["message"]
+        assert "missed" in data["message"].lower() or "event" in data["message"].lower()
+
+    def test_gap_detected_event_single_missed(self):
+        """gap_detected event handles single missed event."""
+        event = gap_detected_event(
+            session_id="bo1_test",
+            expected_seq=5,
+            actual_seq=6,
+            missed_count=1,
+        )
+
+        lines = event.strip().split("\n")
+        data = json.loads(lines[1][6:])
+
+        assert data["missed_count"] == 1

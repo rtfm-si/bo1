@@ -3,7 +3,8 @@
 	import { page } from '$app/stores';
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui';
-	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2, Eye, Gift } from 'lucide-svelte';
+	import { Search, ChevronLeft, ChevronRight, Lock, Unlock, Trash2, Eye, Gift, Mail } from 'lucide-svelte';
+	import SendEmailModal from '$lib/components/admin/SendEmailModal.svelte';
 	import { getTierColor } from '$lib/utils/colors';
 	import { adminApi, type StartImpersonationRequest } from '$lib/api/admin';
 
@@ -32,6 +33,7 @@
 	let impersonateDuration = $state(30);
 	let promoCode = $state('');
 	let promoError = $state('');
+	let emailModalUser = $state<{ user_id: string; email: string } | null>(null);
 
 	// Update local state when data changes
 	$effect(() => {
@@ -427,6 +429,13 @@
 														<Gift class="w-3 h-3" />
 														Promo
 													</button>
+													<button
+														onclick={() => emailModalUser = { user_id: user.user_id, email: user.email }}
+														class="text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1"
+													>
+														<Mail class="w-3 h-3" />
+														Email
+													</button>
 												{/if}
 											</div>
 										{/if}
@@ -737,3 +746,11 @@
 		</div>
 	</div>
 {/if}
+
+<!-- Send Email Modal -->
+<SendEmailModal
+	open={!!emailModalUser}
+	userId={emailModalUser?.user_id ?? ''}
+	userEmail={emailModalUser?.email ?? ''}
+	onClose={() => emailModalUser = null}
+/>

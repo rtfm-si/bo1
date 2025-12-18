@@ -38,7 +38,7 @@ dependencies = [
     # supabase removed - SuperTokens used for auth instead
     "pyjwt>=2.8.0,<3.0", # JWT token verification
     "httpx>=0.27.0,<1.0", # HTTP client for API calls
-    "supertokens-python>=0.29.0,<0.30.0", # SuperTokens SDK for BFF auth pattern (Core 9.3.0 uses CDI 5.2)
+    "supertokens-python>=0.29.0,<0.31.0", # SuperTokens SDK for BFF auth pattern (Core 9.3.0 uses CDI 5.2)
     # Console UI
     "rich>=14.0.0", # 14.x current stable
     # Utilities

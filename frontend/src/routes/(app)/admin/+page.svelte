@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server } from 'lucide-svelte';
 	import ExtendedKPIsPanel from '$lib/components/admin/ExtendedKPIsPanel.svelte';
 	import UptimeStatusBadge from '$lib/components/admin/UptimeStatusBadge.svelte';
 	import EmergencyToggles from '$lib/components/admin/EmergencyToggles.svelte';
-	import { adminApi, type EmailStatsResponse, type ResearchCacheStats } from '$lib/api/admin';
+	import { adminApi, type EmailStatsResponse, type ResearchCacheStats, type ObservabilityLinksResponse } from '$lib/api/admin';
 	import { onMount } from 'svelte';
 
 	interface AdminStats {
@@ -29,13 +29,14 @@
 	let emailStatsLoading = $state(true);
 	let cacheStats = $state<ResearchCacheStats | null>(null);
 	let cacheStatsLoading = $state(true);
+	let observabilityLinks = $state<ObservabilityLinksResponse | null>(null);
 
 	// Update local state when data changes
 	$effect(() => {
 		stats = data?.stats ?? defaultStats;
 	});
 
-	// Fetch email and cache stats in parallel
+	// Fetch email, cache stats, and observability links in parallel
 	onMount(async () => {
 		const fetchEmailStats = async () => {
 			try {
@@ -57,7 +58,15 @@
 			}
 		};
 
-		await Promise.all([fetchEmailStats(), fetchCacheStats()]);
+		const fetchObservabilityLinks = async () => {
+			try {
+				observabilityLinks = await adminApi.getObservabilityLinks();
+			} catch (e) {
+				console.error('Failed to load observability links:', e);
+			}
+		};
+
+		await Promise.all([fetchEmailStats(), fetchCacheStats(), fetchObservabilityLinks()]);
 	});
 </script>
 
@@ -292,9 +301,63 @@
 		<div class="mb-8">
 			<h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">System Status</h2>
 			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-				<UptimeStatusBadge statusPageUrl="https://stats.uptimerobot.com/boardofone" />
+				<UptimeStatusBadge statusPageUrl={observabilityLinks?.uptimerobot_url} />
 				<EmergencyToggles />
 			</div>
+
+			<!-- Monitoring Quick Links -->
+			{#if observabilityLinks && (observabilityLinks.grafana_url || observabilityLinks.prometheus_url || observabilityLinks.analytics_url || observabilityLinks.status_url)}
+				<div class="mt-4 flex flex-wrap gap-3">
+					{#if observabilityLinks.grafana_url}
+						<a
+							href={observabilityLinks.grafana_url}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors"
+						>
+							<LineChart class="w-4 h-4 text-brand-500" />
+							Grafana
+							<ExternalLink class="w-3.5 h-3.5 text-neutral-400" />
+						</a>
+					{/if}
+					{#if observabilityLinks.prometheus_url}
+						<a
+							href={observabilityLinks.prometheus_url}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-warning-300 dark:hover:border-warning-600 transition-colors"
+						>
+							<Server class="w-4 h-4 text-warning-500" />
+							Prometheus
+							<ExternalLink class="w-3.5 h-3.5 text-neutral-400" />
+						</a>
+					{/if}
+					{#if observabilityLinks.analytics_url}
+						<a
+							href={observabilityLinks.analytics_url}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-info-300 dark:hover:border-info-600 transition-colors"
+						>
+							<BarChart3 class="w-4 h-4 text-info-500" />
+							Analytics
+							<ExternalLink class="w-3.5 h-3.5 text-neutral-400" />
+						</a>
+					{/if}
+					{#if observabilityLinks.status_url}
+						<a
+							href={observabilityLinks.status_url}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-success-300 dark:hover:border-success-600 transition-colors"
+						>
+							<Activity class="w-4 h-4 text-success-500" />
+							Status Page
+							<ExternalLink class="w-3.5 h-3.5 text-neutral-400" />
+						</a>
+					{/if}
+				</div>
+			{/if}
 		</div>
 
 		<!-- Quick Links - Monitoring -->

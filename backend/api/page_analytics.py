@@ -156,6 +156,7 @@ async def record_page_view(
     response_model=PageViewResponse | None,
     summary="Update page view (public, no auth required)",
     description="Update page view with duration/scroll data (call on page unload). Supports POST for sendBeacon. No authentication required.",
+    include_in_schema=False,  # Exclude to avoid duplicate operation ID (PATCH + POST)
 )
 @limiter.limit(PAGE_VIEW_RATE_LIMIT)
 @handle_api_errors("update page view")

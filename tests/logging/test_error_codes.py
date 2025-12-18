@@ -27,10 +27,22 @@ class TestErrorCodeEnum:
             assert " " not in code.value
 
     def test_code_format_matches_log_regex(self) -> None:
-        """All codes should match Promtail extraction regex: [A-Z_]+"""
-        pattern = re.compile(r"^[A-Z_]+$")
+        """All codes should match Promtail extraction regex patterns.
+
+        Regular codes: [A-Z_]+
+        Security event codes: SECURITY:[A-Z_]+
+        """
+        regular_pattern = re.compile(r"^[A-Z_]+$")
+        security_pattern = re.compile(r"^SECURITY:[A-Z_]+$")
         for code in ErrorCode:
-            assert pattern.match(code.value), f"{code.value} doesn't match [A-Z_]+ pattern"
+            if code.value.startswith("SECURITY:"):
+                assert security_pattern.match(code.value), (
+                    f"{code.value} doesn't match SECURITY:[A-Z_]+ pattern"
+                )
+            else:
+                assert regular_pattern.match(code.value), (
+                    f"{code.value} doesn't match [A-Z_]+ pattern"
+                )
 
     def test_expected_categories_exist(self) -> None:
         """Verify expected error code categories exist."""
@@ -126,9 +138,14 @@ class TestPromtailExtraction:
     """Tests to verify log format matches Promtail regex extraction."""
 
     def test_error_code_extractable_by_promtail_regex(self) -> None:
-        """Log format should be extractable by Promtail regex."""
-        # Promtail regex: \[(?P<error_code>[A-Z_]+)\]
-        promtail_regex = re.compile(r"\[(?P<error_code>[A-Z_]+)\]")
+        r"""Log format should be extractable by Promtail regex.
+
+        Promtail has two patterns:
+        - Regular codes: \[(?P<error_code>[A-Z_]+)\]
+        - Security events: \[SECURITY:(?P<security_event>[A-Z_]+)\]
+        """
+        regular_regex = re.compile(r"\[(?P<error_code>[A-Z_]+)\]")
+        security_regex = re.compile(r"\[SECURITY:(?P<security_event>[A-Z_]+)\]")
 
         mock_logger = MagicMock(spec=logging.Logger)
 
@@ -136,9 +153,19 @@ class TestPromtailExtraction:
             log_error(mock_logger, code, "Test message")
 
             logged_message = mock_logger.error.call_args[0][0]
-            match = promtail_regex.search(logged_message)
 
-            assert match is not None, f"Code {code.value} not extractable from: {logged_message}"
-            assert match.group("error_code") == code.value
+            if code.value.startswith("SECURITY:"):
+                match = security_regex.search(logged_message)
+                assert match is not None, (
+                    f"Code {code.value} not extractable from: {logged_message}"
+                )
+                expected_event = code.value.replace("SECURITY:", "")
+                assert match.group("security_event") == expected_event
+            else:
+                match = regular_regex.search(logged_message)
+                assert match is not None, (
+                    f"Code {code.value} not extractable from: {logged_message}"
+                )
+                assert match.group("error_code") == code.value
 
             mock_logger.reset_mock()

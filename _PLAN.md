@@ -1,58 +1,52 @@
-# Plan: [API][P3] Define API versioning strategy for breaking changes
+# Plan: Task Backlog Complete - Awaiting User Action
 
 ## Summary
 
-- Document API versioning conventions already in use (v1 prefix)
-- Define criteria for when a version bump is required
-- Establish deprecation timeline and sunset policy
-- Create ADR (Architecture Decision Record) for versioning strategy
+- All automatable development tasks in `_TASK.md` are complete
+- Remaining items require manual user action, external setup, or clarification
+- No code changes needed at this time
+
+## Remaining Items (Not Automatable)
+
+### Blocked on User Action (LAUNCH)
+- [ ] [LAUNCH][P1] Switch Stripe to live mode - requires dashboard access
+- [ ] [LAUNCH][P1] Test emergency access procedures - requires ops team
+
+### Blocked on User Setup (BILLING)
+- [ ] [BILLING][P4] Configure Stripe products/prices (Free/Starter/Pro) - dashboard setup
+
+### Blocked on Dependencies
+- [ ] [EMAIL][P4] Payment receipt email trigger - blocked on Stripe integration
+- [ ] [SOCIAL][P3] Direct posting to social accounts - blocked on user decision
+
+### Needs User Clarification
+- [ ] [MONITORING][P1] Kubernetes deployment manifest - unclear if K8s is used
+- [ ] [MONITORING] Clarify "grafana logs: value A" (ambiguous)
+
+### User-Owned
+- [ ] [DOCS][P3] Help pages content review and polish - marked "Si's todo"
+
+## Recommended Next Actions
+
+1. **For LAUNCH tasks**: Schedule time to switch Stripe to live mode and test emergency procedures
+2. **For BILLING tasks**: Create Stripe products in dashboard, then unblock email receipt task
+3. **For MONITORING clarification**: Confirm whether Kubernetes is in scope; clarify grafana logs issue
+4. **For SOCIAL decision**: Review direct posting scope in previous plan discussion
 
 ## Implementation Steps
 
-1. **Create ADR document** (`docs/adr/004-api-versioning.md`)
-   - Document current v1 prefix convention
-   - Define what constitutes a breaking change:
-     - Removing fields/endpoints
-     - Changing field types
-     - Changing required/optional semantics
-     - Changing error response formats
-   - Define what does NOT require a version bump:
-     - Adding optional fields
-     - Adding new endpoints
-     - Adding new enum values (if client handles unknowns)
-
-2. **Define deprecation policy**
-   - Minimum deprecation notice: 90 days
-   - Deprecation headers: `Deprecation`, `Sunset` (RFC 8594)
-   - Announce via: changelog, dashboard banner, email to affected users
-
-3. **Add version header support** (`backend/api/middleware/versioning.py`)
-   - Read `Accept-Version` or `X-API-Version` header
-   - Default to latest if not specified
-   - Log version usage for analytics
-
-4. **Create deprecation decorator** (`backend/api/utils/deprecation.py`)
-   - `@deprecated(sunset_date="2025-06-01", message="Use /v2/... instead")`
-   - Adds `Deprecation` and `Sunset` headers to response
-   - Logs usage of deprecated endpoints
-
-5. **Update CLAUDE.md**
-   - Add brief versioning rule reference
-   - Link to ADR
+N/A - No code implementation required.
 
 ## Tests
 
-- Unit tests:
-  - `tests/api/test_versioning_middleware.py`: header parsing, default behavior
-  - `tests/api/test_deprecation_decorator.py`: header injection, logging
-- Manual validation:
-  - Call deprecated endpoint, verify headers present
-  - Check logs for deprecation tracking
+N/A - No new code to test.
 
 ## Dependencies & Risks
 
 - Dependencies:
-  - None (documentation + lightweight middleware)
-- Risks:
-  - Over-engineering: keep middleware simple, don't add full router versioning yet
-  - Clients may ignore deprecation headers: supplement with email/dashboard notices
+  - Stripe dashboard access for billing tasks
+  - User decisions for blocked items
+
+- Risks/edge cases:
+  - Stripe live mode switch needs careful timing (after full testing)
+  - Emergency procedures testing should be done in staging first

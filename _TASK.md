@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-18 (API versioning strategy completed)_
+_Last updated: 2025-12-18 (Task backlog complete - remaining items require user action)_
 
 ---
 
@@ -26,8 +26,12 @@ _Last updated: 2025-12-18 (API versioning strategy completed)_
 ### Needs Clarification
 
 - [ ] [MONITORING][P1] Kubernetes deployment manifest - are we using kubernetes?
-- [ ] [SEO][P3] Clarify scope of "auto seo" feature (ambiguous)
+- [x] [SEO][P3] Clarify scope of "auto seo" feature - implemented as blog system with AI generation
 - [ ] [MONITORING] Clarify "grafana logs: value A" (ambiguous)
+
+### User-Owned
+
+- [ ] [DOCS][P3] Help pages content review and polish (Si's todo)
 
 ---
 
@@ -72,7 +76,12 @@ _Last updated: 2025-12-18 (API versioning strategy completed)_
 - [x] [DATA][P2] Automated schema validation tests (Pydantic models vs migration schema)
 - [x] [DATA][P2] Remove `[key: string]: any` escape hatch from `SessionDetailResponse.state` in frontend types
 - [x] [DATA][P3] Update CLAUDE.md to replace `state_to_v1/v1_to_state` references with actual function names
-- [ ] [DATA][P3] Consider auto-generating frontend TypeScript types from Pydantic models
+- [x] [DATA][P3] Auto-generate frontend TypeScript types from Pydantic models via openapi-typescript
+  - Added `openapi-typescript` package and `npm run generate:types` script
+  - Created `make openapi-export` to export OpenAPI spec from backend
+  - Generated types in `frontend/src/lib/api/generated-types.ts`
+  - Added freshness check (`npm run check:types-fresh`) with pre-commit hook and CI integration
+  - Re-exported key types in `types.ts` with `Generated*` prefix for gradual migration
 - [x] [DATA][P3] Fix SSE event type narrowing in meeting components (69 strict type errors exposed by new SSEEventMap)
 
 ### Observability [OBS]
@@ -96,9 +105,19 @@ _Last updated: 2025-12-18 (API versioning strategy completed)_
 
 ### Infrastructure [INFRA]
 
-- [ ] [INFRA][P3] Evaluate WAF (Web Application Firewall) for additional protection
-- [ ] [INFRA][P3] SIEM integration for centralized threat detection
-- [ ] [INFRA][P3] Automated dependency vulnerability scanning in CI (beyond pip-audit)
+- [x] [INFRA][P3] Evaluate WAF (Web Application Firewall) for additional protection
+  - Recommendation: No additional WAF needed - existing nginx WAF + rate limiting is comprehensive
+  - Report: `docs/infra/waf-evaluation.md`
+- [x] [INFRA][P3] SIEM integration for centralized threat detection
+  - Grafana security dashboard: `monitoring/grafana/dashboards/security.json`
+  - Loki alerting rules: `monitoring/loki/loki-alerting-rules.yml`
+  - Promtail security event labels in `monitoring/promtail/promtail-config.yml`
+  - Grafana contact point routing to ntfy: `monitoring/grafana/provisioning/alerting/security-alerts.yml`
+  - Structured security event logging: `log_security_event()` in `bo1/logging/errors.py`
+- [x] [INFRA][P3] Automated dependency vulnerability scanning in CI (beyond pip-audit)
+  - Added `.github/dependabot.yml` for Python, npm, and GitHub Actions
+  - Added Trivy container scanning job to CI (fails on CRITICAL/HIGH)
+  - Existing: pip-audit, npm audit, OSV Scanner, dependency-review-action
 - [x] [DEPLOY][P1] Setup uptime monitoring (UptimeRobot) - create monitors for boardof.one, /health
 - [x] [LAUNCH][P1] Verify Alertmanager running in prod, set NTFY_TOPIC env var
 
@@ -106,7 +125,11 @@ _Last updated: 2025-12-18 (API versioning strategy completed)_
 
 - [x] [BRAND][P2] Update company attribution to "Sico Software Ltd" (footer, legal pages, about)
 - [x] [SEO][P2] Configure robots.txt and meta tags for AI tool discovery (ChatGPT, Claude, etc.)
-- [ ] [SEO][P3] Auto-SEO content pages: AI-generated topic pages with admin approval workflow
+- [x] [SEO][P3] Auto-SEO content pages: AI-generated topic pages with admin approval workflow
+  - Backend: `/api/v1/blog/posts` public API, blog_repository CRUD, AI content generation
+  - Admin UI: `/admin/blog` with generate/edit/publish/schedule workflow
+  - Frontend: `/blog` list page, `/blog/[slug]` detail page with SEO meta tags
+  - Tests: `tests/api/test_public_blog.py` (8 tests passing)
 
 ### Landing Page [LANDING]
 
@@ -114,14 +137,15 @@ _Last updated: 2025-12-18 (API versioning strategy completed)_
 
 ### Auth [AUTH]
 
-- [ ] [AUTH][P3] Setup additional social login providers (LinkedIn, Bluesky, Twitter/X)
-
-### Documentation [DOCS]
-
-- [ ] [DOCS][P3] Help pages need content review and polish (Si's todo)
+- [x] [AUTH][P3] Setup additional social login providers (LinkedIn, Bluesky, Twitter/X)
+  - Backend: SuperTokens config in `backend/api/supertokens_config.py` supports all providers
+  - Feature flags: `TWITTER_OAUTH_ENABLED`, `BLUESKY_OAUTH_ENABLED` (default false until creds added)
+  - Frontend: Login/signup pages have buttons for all providers
+  - Tests: 23 auth tests passing (`test_auth_twitter.py`, `test_auth_bluesky.py`, `test_auth_linkedin.py`)
 
 ### Production Bugs [BUG]
 
+- [x] [BUG][P2] Fix UptimeRobot 404 when clicking through from admin system status
 - [x] [BUG][P1] Fix `/api/v1/sessions/recent-failures` 404 on dashboard
 - [x] [BUG][P1] Fix action status PATCH 422 errors (drag-drop and "start" button)
 - [x] [BUG][P2] Fix `/api/v1/projects/unassigned-count` 500 error on projects tab
@@ -131,14 +155,17 @@ _Last updated: 2025-12-18 (API versioning strategy completed)_
 
 ### UX Improvements [UX]
 
+- [x] [UX][P2] Add links to monitoring, analytics, and status pages from admin system status
 - [x] [UX][P2] Add "ask mentor" button to actions tab (link to mentor with context)
-- [ ] [UX][P2] Include actions in mentor @ mention popup (currently only shows meetings)
+- [x] [UX][P2] Include actions in mentor @ mention popup (currently only shows meetings)
+  - Actions tab in `MentionAutocomplete.svelte:127-131`
+  - Backend search handles `type == "action"` in `mentor.py:555-572`
 - [x] [UX][P2] Add failed meeting acknowledgment UI (mask failures after user acknowledges)
 - [x] [UX][P2] Hide actions from unacknowledged failed meetings (prevent orphan/unprogressable actions)
 
 ### Integrations [INTEG]
 
-- [ ] [INTEG][P3] Add user-level "Sync actions to Google Calendar" toggle in settings (only show if user has Google auth provider; controls whether actions with due dates create calendar events)
+- [x] [INTEG][P3] Add user-level "Sync actions to Google Calendar" toggle in settings (only show if user has Google auth provider; controls whether actions with due dates create calendar events)
 
 ---
 

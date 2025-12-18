@@ -627,3 +627,22 @@ version: ## Show version information
 	@echo ""
 	@echo "Python version (in container):"
 	@docker-compose run --rm bo1 python --version 2>/dev/null || echo "Container not built yet. Run 'make build' first."
+
+# =============================================================================
+# OpenAPI / Type Generation Commands
+# =============================================================================
+
+.PHONY: openapi-export
+openapi-export: ## Export OpenAPI spec to openapi.json (for frontend type generation)
+	@docker-compose run --rm bo1 python scripts/export_openapi.py --stdout 2>/dev/null > openapi.json
+	@echo "✓ OpenAPI spec exported to openapi.json"
+
+.PHONY: generate-types
+generate-types: openapi-export ## Generate TypeScript types from OpenAPI spec
+	@echo "Generating TypeScript types..."
+	@cd frontend && npm run generate:types
+	@echo "✓ Types generated at frontend/src/lib/api/generated-types.ts"
+
+.PHONY: check-types-fresh
+check-types-fresh: ## Check if generated types are up-to-date with OpenAPI spec
+	@cd frontend && npm run check:types-fresh

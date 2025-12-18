@@ -14,7 +14,9 @@
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "postinstall": "node scripts/patch-frappe-gantt.js"
+    "postinstall": "node scripts/patch-frappe-gantt.js",
+    "generate:types": "openapi-typescript ../openapi.json -o src/lib/api/generated-types.ts && node scripts/save-openapi-hash.js",
+    "check:types-fresh": "node scripts/check-types-fresh.js"
   },
   "devDependencies": {
     "@lucide/svelte": "^0.561.0",
@@ -29,6 +31,7 @@
     "@types/node": "24.10.1",
     "@vitest/ui": "4.0.14",
     "clsx": "^2.1.1",
+    "openapi-typescript": "^7.10.1",
     "svelte": "5.43.8",
     "svelte-check": "4.3.4",
     "tailwind-merge": "^3.4.0",

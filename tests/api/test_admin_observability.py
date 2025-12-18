@@ -33,24 +33,27 @@ class TestObservabilityLinks:
         monkeypatch.setenv("GRAFANA_URL", "https://grafana.example.com")
         monkeypatch.setenv("PROMETHEUS_URL", "https://prometheus.example.com")
         monkeypatch.setenv("SENTRY_URL", "https://sentry.example.com")
+        monkeypatch.setenv("UPTIMEROBOT_STATUS_URL", "https://stats.uptimerobot.com/test")
 
         links = get_observability_links()
 
         assert links.grafana_url == "https://grafana.example.com"
         assert links.prometheus_url == "https://prometheus.example.com"
         assert links.sentry_url == "https://sentry.example.com"
+        assert links.uptimerobot_url == "https://stats.uptimerobot.com/test"
 
     def test_get_observability_links_partial_configured(self, monkeypatch):
         """Test getting links when only some URLs are configured."""
         reset_settings()
         monkeypatch.setenv("GRAFANA_URL", "https://grafana.example.com")
-        # Leave Prometheus and Sentry unconfigured
+        # Leave Prometheus, Sentry, and UptimeRobot unconfigured
 
         links = get_observability_links()
 
         assert links.grafana_url == "https://grafana.example.com"
         assert links.prometheus_url is None
         assert links.sentry_url is None
+        assert links.uptimerobot_url is None
 
     def test_get_observability_links_none_configured(self, monkeypatch):
         """Test getting links when no URLs are configured."""
@@ -59,12 +62,14 @@ class TestObservabilityLinks:
         monkeypatch.setenv("GRAFANA_URL", "")
         monkeypatch.setenv("PROMETHEUS_URL", "")
         monkeypatch.setenv("SENTRY_URL", "")
+        monkeypatch.setenv("UPTIMEROBOT_STATUS_URL", "")
 
         links = get_observability_links()
 
         assert links.grafana_url is None
         assert links.prometheus_url is None
         assert links.sentry_url is None
+        assert links.uptimerobot_url is None
 
     def test_observability_links_model(self):
         """Test ObservabilityLinks Pydantic model validation."""
@@ -72,11 +77,13 @@ class TestObservabilityLinks:
             grafana_url="https://grafana.example.com",
             prometheus_url="https://prometheus.example.com",
             sentry_url=None,
+            uptimerobot_url="https://stats.uptimerobot.com/test",
         )
 
         assert links.grafana_url == "https://grafana.example.com"
         assert links.prometheus_url == "https://prometheus.example.com"
         assert links.sentry_url is None
+        assert links.uptimerobot_url == "https://stats.uptimerobot.com/test"
 
     def test_observability_links_model_all_optional(self):
         """Test that all fields in ObservabilityLinks model are optional."""
@@ -85,6 +92,7 @@ class TestObservabilityLinks:
         assert links.grafana_url is None
         assert links.prometheus_url is None
         assert links.sentry_url is None
+        assert links.uptimerobot_url is None
 
 
 class TestObservabilityLinksEndpoint:

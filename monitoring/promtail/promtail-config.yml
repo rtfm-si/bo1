@@ -101,6 +101,10 @@ scrape_configs:
       - regex:
           source: log
           expression: '\[(?P<error_code>[A-Z_]+)\]'
+      # Extract security_event_type for SIEM categorization
+      - regex:
+          source: log
+          expression: '\[SECURITY:(?P<security_event>[A-Z_]+)\]'
       # Set labels from parsed JSON
       - labels:
           level:
@@ -108,6 +112,7 @@ scrape_configs:
           trace_id:
           service:
           error_code:
+          security_event:
       # Use the log message as output
       - output:
           source: log

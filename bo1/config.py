@@ -366,6 +366,9 @@ class Settings(BaseSettings):
     analytics_url: str = Field(
         default="https://analytics.boardof.one", description="Umami analytics URL"
     )
+    uptimerobot_status_url: str = Field(
+        default="", description="UptimeRobot public status page URL"
+    )
 
     # Internal Cost Limits (admin monitoring, cents/month)
     # These are internal thresholds for abuse detection - not exposed to users

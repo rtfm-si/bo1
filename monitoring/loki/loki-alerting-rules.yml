@@ -1,0 +1,83 @@
+# Loki Alerting Rules for Security Event Correlation
+# Integrates with Alertmanager for ntfy notifications
+groups:
+  - name: security
+    interval: 1m
+    rules:
+      # Auth failure spike: >10 failures from same IP in 5m
+      - alert: AuthFailureSpike
+        expr: |
+          sum by (client_ip) (
+            count_over_time({job="docker"} |= "SECURITY:AUTH_FAILURE" [5m])
+          ) > 10
+        for: 0m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "Auth failure spike detected"
+          description: "IP {{ $labels.client_ip }} has {{ $value }} auth failures in 5 minutes"
+
+      # WAF block spike: >20 blocks in 5m
+      - alert: WAFBlockSpike
+        expr: |
+          sum by (attack_type) (
+            count_over_time({job="waf"} [5m])
+          ) > 20
+        for: 0m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "WAF block spike detected"
+          description: "{{ $value }} WAF blocks of type {{ $labels.attack_type }} in 5 minutes"
+
+      # Prompt injection detection: any event (critical)
+      - alert: PromptInjectionDetected
+        expr: |
+          count_over_time({job="docker"} |= "SECURITY:PROMPT_INJECTION" [5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Prompt injection attempt detected"
+          description: "{{ $value }} prompt injection attempts in last 5 minutes"
+
+      # Rate limit abuse: >50 429s from same IP in 10m
+      - alert: RateLimitAbuse
+        expr: |
+          sum by (client_ip) (
+            count_over_time({job="docker"} |= "SECURITY:RATE_LIMIT" [10m])
+          ) > 50
+        for: 0m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "Rate limit abuse detected"
+          description: "IP {{ $labels.client_ip }} hit rate limit {{ $value }} times in 10 minutes"
+
+      # Account lockout detection
+      - alert: AccountLockout
+        expr: |
+          count_over_time({job="docker"} |= "SECURITY:LOCKOUT" [5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "Account lockout triggered"
+          description: "{{ $value }} account lockouts in last 5 minutes"
+
+      # High error rate from security events
+      - alert: SecurityErrorSpike
+        expr: |
+          count_over_time({job="docker"} |~ "SECURITY:(AUTH_FAILURE|RATE_LIMIT|LOCKOUT|PROMPT_INJECTION)" [15m]) > 100
+        for: 0m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "High volume of security events"
+          description: "{{ $value }} security events in last 15 minutes - potential attack"

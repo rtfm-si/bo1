@@ -31,6 +31,13 @@ repos:
         pass_filenames: false
         files: ^frontend/
 
+      - id: types-freshness
+        name: Check generated types freshness
+        entry: bash -c "cd frontend && npm run check:types-fresh"
+        language: system
+        pass_filenames: false
+        files: ^(openapi\.json|frontend/src/lib/api/generated-types\.ts)$
+
       # Fast backend tests (no LLM)
       - id: backend-tests-fast
         name: Backend tests (no LLM)

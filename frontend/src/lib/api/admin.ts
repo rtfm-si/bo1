@@ -256,6 +256,7 @@ export interface ObservabilityLinksResponse {
 	sentry_url: string | null;
 	status_url: string | null;
 	analytics_url: string | null;
+	uptimerobot_url: string | null;
 }
 
 // =============================================================================

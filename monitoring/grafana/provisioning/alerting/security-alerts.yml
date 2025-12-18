@@ -1,0 +1,35 @@
+# Grafana Alerting Configuration for Security Events
+# Contact points route to ntfy for push notifications
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: security-ntfy
+    receivers:
+      - uid: security-ntfy-1
+        type: webhook
+        settings:
+          url: https://ntfy.boardof.one/bo1-prod-alerts
+          httpMethod: POST
+        secureSettings: {}
+        disableResolveMessage: false
+
+policies:
+  - orgId: 1
+    receiver: security-ntfy
+    group_by:
+      - grafana_folder
+      - alertname
+    routes:
+      - receiver: security-ntfy
+        object_matchers:
+          - - category
+            - "="
+            - security
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+
+muteTimes: []
+
+templates: []

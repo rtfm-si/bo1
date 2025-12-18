@@ -1,10 +1,34 @@
 /**
  * API Types - TypeScript interfaces for Board of One API
  *
- * These types match the Pydantic models in backend/api/models.py
+ * This file re-exports generated types from the OpenAPI spec where available,
+ * and defines frontend-only types (HoneypotFields, SSE events, etc.) manually.
+ *
+ * To regenerate types from backend: npm run generate:types (requires backend running)
+ * The generated types are in ./generated-types.ts
  */
 
 import type { SSEEvent } from './sse-events';
+import type { components } from './generated-types';
+
+// =============================================================================
+// Generated Types (from OpenAPI spec via openapi-typescript)
+// =============================================================================
+// These types are auto-generated from backend Pydantic models.
+// To update: 1) make openapi-export  2) npm run generate:types
+
+/** Session detail response (full) - from OpenAPI */
+export type GeneratedSessionResponse = components['schemas']['SessionResponse'];
+export type GeneratedSessionDetailResponse = components['schemas']['FullSessionResponse'];
+export type GeneratedActionDetailResponse = components['schemas']['ActionDetailResponse'];
+export type GeneratedAllActionsResponse = components['schemas']['AllActionsResponse'];
+export type GeneratedProjectDetailResponse = components['schemas']['ProjectDetailResponse'];
+export type GeneratedBusinessContext = components['schemas']['BusinessContext'];
+export type GeneratedHealthResponse = components['schemas']['HealthResponse'];
+
+// =============================================================================
+// Frontend-Only Types (not in backend)
+// =============================================================================
 
 /**
  * Honeypot fields for bot detection - should always be empty from legitimate users
@@ -2122,6 +2146,7 @@ export interface CalendarStatusResponse {
 	connected: boolean;
 	connected_at: string | null;
 	feature_enabled: boolean;
+	sync_enabled: boolean;
 }
 
 // =============================================================================
@@ -2328,4 +2353,34 @@ export interface KanbanColumnsResponse {
  */
 export interface KanbanColumnsUpdate {
 	columns: KanbanColumn[];
+}
+
+// ============================================================================
+// Public Blog Types
+// ============================================================================
+
+/**
+ * Public blog post (published content only)
+ */
+export interface PublicBlogPost {
+	id: string;
+	title: string;
+	slug: string;
+	content?: string;
+	excerpt?: string;
+	status: 'published';
+	published_at?: string;
+	seo_keywords?: string[];
+	meta_title?: string;
+	meta_description?: string;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * Public blog post list response
+ */
+export interface PublicBlogPostListResponse {
+	posts: PublicBlogPost[];
+	total: number;
 }

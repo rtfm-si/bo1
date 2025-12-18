@@ -12,10 +12,12 @@
 	let calendarConnected = $state(false);
 	let calendarConnectedAt = $state<string | null>(null);
 	let calendarFeatureEnabled = $state(true);
+	let calendarSyncEnabled = $state(true);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let success = $state<string | null>(null);
 	let isDisconnecting = $state(false);
+	let isTogglingSync = $state(false);
 
 	// Check for callback params
 	$effect(() => {
@@ -56,6 +58,7 @@
 			calendarConnected = status.connected;
 			calendarConnectedAt = status.connected_at;
 			calendarFeatureEnabled = status.feature_enabled;
+			calendarSyncEnabled = status.sync_enabled;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load integration status';
 		} finally {
@@ -88,6 +91,24 @@
 			error = e instanceof Error ? e.message : 'Failed to disconnect';
 		} finally {
 			isDisconnecting = false;
+		}
+	}
+
+	// Toggle sync on/off
+	async function toggleSync() {
+		isTogglingSync = true;
+		error = null;
+
+		try {
+			const newEnabled = !calendarSyncEnabled;
+			const status = await apiClient.toggleCalendarSync(newEnabled);
+			calendarSyncEnabled = status.sync_enabled;
+			success = newEnabled ? 'Calendar sync enabled' : 'Calendar sync paused';
+			setTimeout(() => { success = null; }, 3000);
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to toggle sync';
+		} finally {
+			isTogglingSync = false;
 		}
 	}
 
@@ -160,7 +181,7 @@
 						</p>
 					</div>
 				{:else if calendarConnected}
-					<div class="mt-4 space-y-3">
+					<div class="mt-4 space-y-4">
 						<div class="flex items-center gap-2">
 							<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
 								<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -175,18 +196,41 @@
 							{/if}
 						</div>
 
-						<p class="text-sm text-slate-600 dark:text-slate-400">
-							Actions with due dates will automatically appear in your Google Calendar.
-						</p>
+						<!-- Sync Toggle -->
+						<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+							<div>
+								<p class="text-sm font-medium text-slate-900 dark:text-white">
+									Sync actions to calendar
+								</p>
+								<p class="text-xs text-slate-500 dark:text-slate-400">
+									{calendarSyncEnabled ? 'Actions with due dates will appear in your calendar' : 'Sync paused - no new events will be created'}
+								</p>
+							</div>
+							<button
+								type="button"
+								class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed {calendarSyncEnabled ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-600'}"
+								role="switch"
+								aria-checked={calendarSyncEnabled}
+								disabled={isTogglingSync}
+								onclick={toggleSync}
+							>
+								<span class="sr-only">Toggle calendar sync</span>
+								<span
+									class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {calendarSyncEnabled ? 'translate-x-5' : 'translate-x-0'}"
+								></span>
+							</button>
+						</div>
 
-						<Button
-							variant="secondary"
-							size="sm"
-							loading={isDisconnecting}
-							onclick={disconnectCalendar}
-						>
-							Disconnect
-						</Button>
+						<div class="flex gap-2">
+							<Button
+								variant="secondary"
+								size="sm"
+								loading={isDisconnecting}
+								onclick={disconnectCalendar}
+							>
+								Disconnect
+							</Button>
+						</div>
 					</div>
 				{:else}
 					<div class="mt-4 space-y-3">

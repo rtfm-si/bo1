@@ -130,12 +130,16 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # Loki: Log aggregation
+  # Loki: Log aggregation with alerting rules
   # ---------------------------------------------------------------------------
   loki:
     image: grafana/loki:2.9.0
+    depends_on:
+      alertmanager:
+        condition: service_healthy
     volumes:
       - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - ./monitoring/loki/loki-alerting-rules.yml:/loki/rules/fake/security.yml:ro
       - loki-data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     ports:

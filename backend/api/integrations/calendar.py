@@ -48,6 +48,13 @@ class CalendarStatusResponse(BaseModel):
     connected: bool
     connected_at: str | None = None
     feature_enabled: bool = True
+    sync_enabled: bool = True
+
+
+class CalendarSyncToggleRequest(BaseModel):
+    """Request to toggle calendar sync."""
+
+    enabled: bool
 
 
 class CalendarConnectResponse(BaseModel):
@@ -68,6 +75,7 @@ async def get_calendar_status(
         connected: True if user has Calendar tokens
         connected_at: When the connection was established
         feature_enabled: Whether Calendar feature is enabled
+        sync_enabled: Whether user has sync enabled (can be paused)
     """
     settings = get_settings()
     user_id = session.get_user_id()
@@ -77,19 +85,24 @@ async def get_calendar_status(
             connected=False,
             connected_at=None,
             feature_enabled=False,
+            sync_enabled=False,
         )
 
     tokens = user_repository.get_calendar_tokens(user_id)
 
     if not tokens:
-        return CalendarStatusResponse(connected=False)
+        return CalendarStatusResponse(connected=False, sync_enabled=True)
 
     connected_at = tokens.get("connected_at")
     connected_at_str = connected_at.isoformat() if connected_at else None
 
+    # Get user's sync preference
+    sync_enabled = user_repository.get_calendar_sync_enabled(user_id)
+
     return CalendarStatusResponse(
         connected=bool(tokens.get("access_token")),
         connected_at=connected_at_str,
+        sync_enabled=sync_enabled,
     )
 
 
@@ -237,3 +250,41 @@ async def disconnect_calendar(
 
     logger.info(f"User {user_id} disconnected Google Calendar")
     return {"success": True}
+
+
+@router.patch("/status", response_model=CalendarStatusResponse)
+@limiter.limit(AUTH_RATE_LIMIT)
+@handle_api_errors("toggle calendar sync")
+async def toggle_calendar_sync(
+    request: Request,
+    body: CalendarSyncToggleRequest,
+    session: SessionContainer = Depends(verify_session()),
+) -> CalendarStatusResponse:
+    """Toggle calendar sync on/off without disconnecting.
+
+    Allows users to pause sync while keeping calendar connected.
+
+    Returns:
+        Updated calendar status
+    """
+    settings = get_settings()
+    user_id = session.get_user_id()
+
+    if not settings.google_calendar_enabled:
+        raise HTTPException(status_code=403, detail="Calendar integration is disabled")
+
+    # Update preference
+    user_repository.set_calendar_sync_enabled(user_id, body.enabled)
+
+    logger.info(f"User {user_id} {'enabled' if body.enabled else 'disabled'} calendar sync")
+
+    # Return updated status
+    tokens = user_repository.get_calendar_tokens(user_id)
+    connected_at = tokens.get("connected_at") if tokens else None
+    connected_at_str = connected_at.isoformat() if connected_at else None
+
+    return CalendarStatusResponse(
+        connected=bool(tokens.get("access_token")) if tokens else False,
+        connected_at=connected_at_str,
+        sync_enabled=body.enabled,
+    )

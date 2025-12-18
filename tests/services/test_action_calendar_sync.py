@@ -73,9 +73,26 @@ class TestSyncActionToCalendar:
         result = sync_action_to_calendar("action123", "user1")
         assert result is None
 
+    def test_skips_when_user_sync_disabled(self, mock_settings_enabled):
+        """Test that sync is skipped when user has disabled sync at user level."""
+        from bo1.state.repositories import user_repository
+
+        with patch.object(
+            user_repository, "get_calendar_sync_enabled", return_value=False
+        ) as mock_sync:
+            result = sync_action_to_calendar("action123", "user1")
+
+        assert result is None
+        mock_sync.assert_called_once_with("user1")
+
     def test_skips_when_action_not_found(self, mock_settings_enabled):
         """Test that sync is skipped when action doesn't exist."""
-        with patch("backend.services.action_calendar_sync._get_action_details") as mock_get:
+        from bo1.state.repositories import user_repository
+
+        with (
+            patch.object(user_repository, "get_calendar_sync_enabled", return_value=True),
+            patch("backend.services.action_calendar_sync._get_action_details") as mock_get,
+        ):
             mock_get.return_value = None
             result = sync_action_to_calendar("nonexistent", "user1")
 
@@ -85,9 +102,14 @@ class TestSyncActionToCalendar:
         self, mock_settings_enabled, mock_action_with_due_date
     ):
         """Test that sync is skipped when action has sync disabled."""
+        from bo1.state.repositories import user_repository
+
         mock_action_with_due_date["calendar_sync_enabled"] = False
 
-        with patch("backend.services.action_calendar_sync._get_action_details") as mock_get:
+        with (
+            patch.object(user_repository, "get_calendar_sync_enabled", return_value=True),
+            patch("backend.services.action_calendar_sync._get_action_details") as mock_get,
+        ):
             mock_get.return_value = mock_action_with_due_date
             result = sync_action_to_calendar("action123", "user1")
 
@@ -95,6 +117,8 @@ class TestSyncActionToCalendar:
 
     def test_skips_when_no_due_date(self, mock_settings_enabled):
         """Test that sync is skipped when action has no due date."""
+        from bo1.state.repositories import user_repository
+
         action_no_date = {
             "id": "action789",
             "title": "No Date Action",
@@ -103,7 +127,10 @@ class TestSyncActionToCalendar:
             "calendar_sync_enabled": True,
         }
 
-        with patch("backend.services.action_calendar_sync._get_action_details") as mock_get:
+        with (
+            patch.object(user_repository, "get_calendar_sync_enabled", return_value=True),
+            patch("backend.services.action_calendar_sync._get_action_details") as mock_get,
+        ):
             mock_get.return_value = action_no_date
             result = sync_action_to_calendar("action789", "user1")
 
@@ -113,7 +140,10 @@ class TestSyncActionToCalendar:
         self, mock_settings_enabled, mock_action_with_due_date
     ):
         """Test that sync is skipped when user hasn't connected calendar."""
+        from bo1.state.repositories import user_repository
+
         with (
+            patch.object(user_repository, "get_calendar_sync_enabled", return_value=True),
             patch("backend.services.action_calendar_sync._get_action_details") as mock_get,
             patch("backend.services.google_calendar.get_calendar_client") as mock_client,
         ):
@@ -126,6 +156,8 @@ class TestSyncActionToCalendar:
 
     def test_creates_new_event(self, mock_settings_enabled, mock_action_with_due_date):
         """Test that new calendar event is created."""
+        from bo1.state.repositories import user_repository
+
         mock_event = MagicMock()
         mock_event.event_id = "new_event_id"
         mock_event.html_link = "https://calendar.google.com/event?id=new"
@@ -134,6 +166,7 @@ class TestSyncActionToCalendar:
         mock_client.create_event.return_value = mock_event
 
         with (
+            patch.object(user_repository, "get_calendar_sync_enabled", return_value=True),
             patch("backend.services.action_calendar_sync._get_action_details") as mock_get,
             patch("backend.services.google_calendar.get_calendar_client") as mock_get_client,
             patch(
@@ -152,6 +185,8 @@ class TestSyncActionToCalendar:
 
     def test_updates_existing_event(self, mock_settings_enabled, mock_action_with_event):
         """Test that existing calendar event is updated."""
+        from bo1.state.repositories import user_repository
+
         mock_event = MagicMock()
         mock_event.event_id = "cal_event_123"
         mock_event.html_link = "https://calendar.google.com/event?id=123"
@@ -160,6 +195,7 @@ class TestSyncActionToCalendar:
         mock_client.update_event.return_value = mock_event
 
         with (
+            patch.object(user_repository, "get_calendar_sync_enabled", return_value=True),
             patch("backend.services.action_calendar_sync._get_action_details") as mock_get,
             patch("backend.services.google_calendar.get_calendar_client") as mock_get_client,
             patch("backend.services.action_calendar_sync._update_action_calendar_fields"),

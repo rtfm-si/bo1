@@ -32,6 +32,7 @@ def sync_action_to_calendar(
     Creates or updates a calendar event based on action due date.
     Skips if:
     - Calendar not enabled/connected
+    - User-level sync is disabled (paused)
     - Action has no due date
     - Action's calendar_sync_enabled is False
 
@@ -48,6 +49,13 @@ def sync_action_to_calendar(
     # Check feature flag
     if not settings.google_calendar_enabled:
         logger.debug("Calendar sync skipped: feature disabled")
+        return None
+
+    # Check user-level sync preference
+    from bo1.state.repositories import user_repository
+
+    if not user_repository.get_calendar_sync_enabled(user_id):
+        logger.debug(f"Calendar sync skipped for user {user_id}: user sync disabled")
         return None
 
     # Get action details

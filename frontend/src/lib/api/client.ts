@@ -142,7 +142,10 @@ import type {
 	ExtendedKPIsResponse,
 	// Kanban Column Preferences
 	KanbanColumn,
-	KanbanColumnsResponse
+	KanbanColumnsResponse,
+	// Public Blog types
+	PublicBlogPost,
+	PublicBlogPostListResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -2512,6 +2515,15 @@ export class ApiClient {
 		return this.delete<{ success: boolean }>('/api/v1/integrations/calendar/disconnect');
 	}
 
+	/**
+	 * Toggle calendar sync on/off without disconnecting
+	 */
+	async toggleCalendarSync(enabled: boolean): Promise<CalendarStatusResponse> {
+		return this.patch<CalendarStatusResponse>('/api/v1/integrations/calendar/status', {
+			enabled
+		});
+	}
+
 	// ============================================================================
 	// Session-Project Linking
 	// ============================================================================
@@ -2573,6 +2585,32 @@ export class ApiClient {
 			`/api/v1/sessions/${sessionId}/create-suggested-project`,
 			suggestion
 		);
+	}
+
+	// =========================================================================
+	// Public Blog (no auth required)
+	// =========================================================================
+
+	/**
+	 * List published blog posts (public, no auth)
+	 */
+	async listPublishedBlogPosts(params?: {
+		limit?: number;
+		offset?: number;
+	}): Promise<PublicBlogPostListResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.limit) searchParams.set('limit', String(params.limit));
+		if (params?.offset) searchParams.set('offset', String(params.offset));
+
+		const query = searchParams.toString();
+		return this.fetch<PublicBlogPostListResponse>(`/api/v1/blog/posts${query ? `?${query}` : ''}`);
+	}
+
+	/**
+	 * Get a published blog post by slug (public, no auth)
+	 */
+	async getBlogPostBySlug(slug: string): Promise<PublicBlogPost> {
+		return this.fetch<PublicBlogPost>(`/api/v1/blog/posts/${slug}`);
 	}
 }
 

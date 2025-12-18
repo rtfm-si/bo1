@@ -81,6 +81,14 @@ class ErrorCode(str, Enum):
     # Security errors
     SECURITY_ALERT_ERROR = "SECURITY_ALERT_ERROR"
 
+    # Security events (for SIEM aggregation - prefixed with SECURITY:)
+    # These use special format for Loki label extraction
+    SECURITY_AUTH_FAILURE = "SECURITY:AUTH_FAILURE"
+    SECURITY_RATE_LIMIT = "SECURITY:RATE_LIMIT"
+    SECURITY_LOCKOUT = "SECURITY:LOCKOUT"
+    SECURITY_PROMPT_INJECTION = "SECURITY:PROMPT_INJECTION"
+    SECURITY_WAF_BLOCK = "SECURITY:WAF_BLOCK"
+
     # Cost tracking errors
     COST_FLUSH_ERROR = "COST_FLUSH_ERROR"
     COST_RETRY_ERROR = "COST_RETRY_ERROR"
@@ -109,4 +117,37 @@ def log_error(
         f"[{code.value}] {message}",
         exc_info=exc_info,
         extra={"error_code": code.value, **context},
+    )
+
+
+def log_security_event(
+    logger: logging.Logger,
+    code: ErrorCode,
+    message: str,
+    client_ip: str | None = None,
+    **context: Any,
+) -> None:
+    """Log security event with structured format for SIEM aggregation.
+
+    Format: [{security_event_code}] {message}
+    Extra includes client_ip and security_event label for Loki filtering.
+
+    Args:
+        logger: Logger instance
+        code: ErrorCode enum value (should be SECURITY_* type)
+        message: Event description
+        client_ip: Client IP address for correlation
+        **context: Additional context fields
+    """
+    extra = {
+        "error_code": code.value,
+        "security_event": code.value.replace("SECURITY:", ""),
+        **context,
+    }
+    if client_ip:
+        extra["client_ip"] = client_ip
+
+    logger.warning(
+        f"[{code.value}] {message}",
+        extra=extra,
     )

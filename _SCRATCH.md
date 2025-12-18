@@ -5,3 +5,6 @@ change business code on companies house
 
 grafana logs: value A
 umami funnels etc
+
+using the 'ask a mentor' feature:
+'datetime.datetime' object is not subscriptable

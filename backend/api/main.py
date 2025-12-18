@@ -49,6 +49,7 @@ from backend.api import (  # noqa: E402
     analysis,
     auth,
     billing,
+    blog,
     business_metrics,
     client_errors,
     client_metrics,
@@ -542,6 +543,7 @@ app.include_router(client_metrics.router, tags=["metrics"])
 app.include_router(calendar_router, prefix="/api", tags=["integrations"])
 app.include_router(page_analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(page_analytics.admin_router, prefix="/api", tags=["admin"])
+app.include_router(blog.router, prefix="/api", tags=["blog"])
 
 _startup_times["router_registration"] = (time.perf_counter() - _routers_start) * 1000
 print(f"⏱️  Router registration: {_startup_times['router_registration']:.1f}ms")

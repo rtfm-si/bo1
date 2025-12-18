@@ -18,7 +18,7 @@ from typing import Any
 
 from bo1.config import get_settings
 from bo1.constants import SecurityAlerts
-from bo1.logging import ErrorCode, log_error
+from bo1.logging import ErrorCode, log_error, log_security_event
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +197,16 @@ class SecurityAlertingService:
             reason,
         )
 
+        # Emit structured security event for SIEM
+        log_security_event(
+            logger,
+            ErrorCode.SECURITY_AUTH_FAILURE,
+            f"Auth failure: {reason}",
+            client_ip=ip,
+            reason=reason,
+            count=count,
+        )
+
         # Check threshold and send alert if exceeded
         if count >= SecurityAlerts.AUTH_FAILURE_THRESHOLD:
             if self._should_alert("auth_failure", ip):
@@ -225,6 +235,16 @@ class SecurityAlertingService:
             endpoint,
         )
 
+        # Emit structured security event for SIEM
+        log_security_event(
+            logger,
+            ErrorCode.SECURITY_RATE_LIMIT,
+            f"Rate limit hit: {endpoint}",
+            client_ip=ip,
+            endpoint=endpoint,
+            count=count,
+        )
+
         # Check threshold and send alert if exceeded
         if count >= SecurityAlerts.RATE_LIMIT_THRESHOLD:
             if self._should_alert("rate_limit", ip):
@@ -248,6 +268,15 @@ class SecurityAlertingService:
             "lockout",
             ip,
             SecurityAlerts.LOCKOUT_WINDOW_SECONDS,
+        )
+
+        # Emit structured security event for SIEM
+        log_security_event(
+            logger,
+            ErrorCode.SECURITY_LOCKOUT,
+            "Account lockout triggered",
+            client_ip=ip,
+            count=count,
         )
 
         # Check threshold and send alert if exceeded

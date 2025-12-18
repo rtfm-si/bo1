@@ -17,6 +17,7 @@ class ObservabilityLinks(BaseModel):
         sentry_url: Sentry error tracking URL (optional)
         status_url: Uptime Kuma status page URL (optional)
         analytics_url: Umami analytics URL (optional)
+        uptimerobot_url: UptimeRobot status page URL (optional)
     """
 
     grafana_url: str | None = Field(None, description="Grafana dashboard URL")
@@ -24,6 +25,7 @@ class ObservabilityLinks(BaseModel):
     sentry_url: str | None = Field(None, description="Sentry error tracking URL")
     status_url: str | None = Field(None, description="Uptime Kuma status page URL")
     analytics_url: str | None = Field(None, description="Umami analytics URL")
+    uptimerobot_url: str | None = Field(None, description="UptimeRobot status page URL")
 
 
 def get_observability_links() -> ObservabilityLinks:
@@ -42,4 +44,5 @@ def get_observability_links() -> ObservabilityLinks:
         sentry_url=settings.sentry_url or None,
         status_url=settings.status_url or None,
         analytics_url=settings.analytics_url or None,
+        uptimerobot_url=settings.uptimerobot_status_url or None,
     )

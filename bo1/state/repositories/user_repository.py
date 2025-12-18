@@ -735,6 +735,51 @@ class UserRepository(BaseRepository):
             logger.error(f"Failed to clear Calendar tokens for user {user_id}: {e}")
             return False
 
+    def get_calendar_sync_enabled(self, user_id: str) -> bool:
+        """Get user's calendar sync preference.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if calendar sync is enabled (default), False if paused
+        """
+        result = self._execute_one(
+            "SELECT calendar_sync_enabled FROM users WHERE id = %s",
+            (user_id,),
+        )
+        if result is None:
+            return True  # Default to enabled
+        # Handle None value in column (default to True)
+        return result.get("calendar_sync_enabled") is not False
+
+    def set_calendar_sync_enabled(self, user_id: str, enabled: bool) -> bool:
+        """Set user's calendar sync preference.
+
+        Args:
+            user_id: User identifier
+            enabled: Whether to enable calendar sync
+
+        Returns:
+            True if updated successfully
+        """
+        try:
+            with db_session() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET calendar_sync_enabled = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (enabled, user_id),
+                    )
+                    return bool(cur.rowcount and cur.rowcount > 0)
+        except Exception as e:
+            logger.error(f"Failed to set calendar sync for user {user_id}: {e}")
+            return False
+
     # =========================================================================
     # Stripe Billing
     # =========================================================================

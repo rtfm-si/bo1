@@ -83,6 +83,9 @@ jobs:
       - name: Typecheck frontend (svelte-check)
         run: cd frontend && npm run check
 
+      - name: Check generated types freshness
+        run: cd frontend && npm run check:types-fresh
+
       - name: Scan npm dependencies for vulnerabilities
         run: cd frontend && npm audit --audit-level=moderate
 
@@ -213,6 +216,44 @@ jobs:
       - name: Run OSV Scanner
         run: |
           ./osv-scanner --lockfile=uv.lock --lockfile=frontend/package-lock.json --config=.osv-scanner.toml
+
+  container-scan:
+    name: Container Security (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Build Docker image
+        run: docker build -t bo1:ci-scan -f Dockerfile .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: 'bo1:ci-scan'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Trivy (SARIF for GitHub Security)
+        uses: aquasecurity/trivy-action@0.28.0
+        if: always()
+        with:
+          image-ref: 'bo1:ci-scan'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
 
   chaos-tests:
     name: Chaos Tests (Resilience)

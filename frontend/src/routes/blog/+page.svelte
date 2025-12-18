@@ -1,86 +1,21 @@
 <script lang="ts">
 	/**
 	 * Blog Page - SEO-optimized blog with filters, sort, and search
+	 * Fetches published posts from the API
 	 */
+	import { onMount } from 'svelte';
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
-
-	// Sample blog posts - replace with API/CMS data
-	const posts = [
-		{
-			id: 'decision-fatigue-founder',
-			title: 'How Decision Fatigue is Killing Your Startup',
-			excerpt: 'Solo founders make 35+ decisions daily. Learn how cognitive load impacts your judgment and what to do about it.',
-			category: 'Founder Insights',
-			author: 'Board of One Team',
-			date: '2025-01-15',
-			readTime: 8,
-			image: null,
-			featured: true
-		},
-		{
-			id: 'ai-advisory-boards',
-			title: 'The Rise of AI Advisory Boards: What Founders Need to Know',
-			excerpt: 'Traditional advisory boards are expensive and slow. AI-powered alternatives are changing how founders get strategic advice.',
-			category: 'AI & Strategy',
-			author: 'Board of One Team',
-			date: '2025-01-10',
-			readTime: 6,
-			image: null,
-			featured: true
-		},
-		{
-			id: 'pricing-strategy-saas',
-			title: '5 Pricing Decisions That Make or Break SaaS Startups',
-			excerpt: 'From freemium to enterprise pricing, we analyze the strategic trade-offs that determine SaaS success.',
-			category: 'Strategy',
-			author: 'Board of One Team',
-			date: '2025-01-05',
-			readTime: 10,
-			image: null,
-			featured: false
-		},
-		{
-			id: 'hiring-first-employee',
-			title: 'When to Hire Your First Employee (And Who It Should Be)',
-			excerpt: 'The first hire sets the culture. We break down the decision framework for solo founders ready to grow.',
-			category: 'Hiring',
-			author: 'Board of One Team',
-			date: '2024-12-28',
-			readTime: 7,
-			image: null,
-			featured: false
-		},
-		{
-			id: 'structured-thinking',
-			title: 'Structured Thinking: The Secret Weapon of Top Founders',
-			excerpt: 'Why the best founders use frameworks, and how to implement structured decision-making in your startup.',
-			category: 'Founder Insights',
-			author: 'Board of One Team',
-			date: '2024-12-20',
-			readTime: 5,
-			image: null,
-			featured: false
-		},
-		{
-			id: 'pivot-or-persevere',
-			title: 'Pivot or Persevere: A Framework for the Hardest Startup Decision',
-			excerpt: 'When traction stalls, founders face an existential choice. Here\'s how to think through it systematically.',
-			category: 'Strategy',
-			author: 'Board of One Team',
-			date: '2024-12-15',
-			readTime: 9,
-			image: null,
-			featured: false
-		}
-	];
-
-	const categories = ['All', ...new Set(posts.map(p => p.category))];
+	import { apiClient } from '$lib/api/client';
+	import type { PublicBlogPost } from '$lib/api/types';
 
 	// State
+	let posts = $state<PublicBlogPost[]>([]);
+	let total = $state(0);
+	let isLoading = $state(true);
+	let error = $state<string | null>(null);
 	let searchQuery = $state('');
-	let selectedCategory = $state('All');
-	let sortBy = $state<'newest' | 'oldest' | 'readTime'>('newest');
+	let sortBy = $state<'newest' | 'oldest'>('newest');
 
 	// Filtered and sorted posts
 	const filteredPosts = $derived.by(() => {
@@ -90,33 +25,51 @@
 		if (searchQuery.trim()) {
 			const query = searchQuery.toLowerCase();
 			result = result.filter(
-				p =>
+				(p) =>
 					p.title.toLowerCase().includes(query) ||
-					p.excerpt.toLowerCase().includes(query) ||
-					p.category.toLowerCase().includes(query)
+					(p.excerpt?.toLowerCase().includes(query) ?? false) ||
+					(p.meta_description?.toLowerCase().includes(query) ?? false)
 			);
-		}
-
-		// Filter by category
-		if (selectedCategory !== 'All') {
-			result = result.filter(p => p.category === selectedCategory);
 		}
 
 		// Sort
 		if (sortBy === 'newest') {
-			result = [...result].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-		} else if (sortBy === 'oldest') {
-			result = [...result].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+			result = [...result].sort(
+				(a, b) =>
+					new Date(b.published_at || b.created_at).getTime() -
+					new Date(a.published_at || a.created_at).getTime()
+			);
 		} else {
-			result = [...result].sort((a, b) => a.readTime - b.readTime);
+			result = [...result].sort(
+				(a, b) =>
+					new Date(a.published_at || a.created_at).getTime() -
+					new Date(b.published_at || b.created_at).getTime()
+			);
 		}
 
 		return result;
 	});
 
-	const featuredPosts = $derived(posts.filter(p => p.featured).slice(0, 2));
+	const featuredPosts = $derived(filteredPosts.slice(0, 2));
 
-	function formatDate(dateStr: string): string {
+	async function loadPosts() {
+		isLoading = true;
+		error = null;
+		try {
+			const response = await apiClient.listPublishedBlogPosts({ limit: 50 });
+			posts = response.posts;
+			total = response.total;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to load posts';
+			// Keep showing placeholder posts on error
+			posts = [];
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	function formatDate(dateStr: string | undefined): string {
+		if (!dateStr) return '';
 		return new Date(dateStr).toLocaleDateString('en-US', {
 			year: 'numeric',
 			month: 'long',
@@ -124,21 +77,23 @@
 		});
 	}
 
-	const categoryColors: Record<string, string> = {
-		'Founder Insights': 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-		'AI & Strategy': 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-		'Strategy': 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-		'Hiring': 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
-	};
-
-	function getCategoryColor(category: string): string {
-		return categoryColors[category] || 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300';
+	function estimateReadTime(content: string | undefined): number {
+		if (!content) return 3;
+		const words = content.split(/\s+/).length;
+		return Math.max(1, Math.ceil(words / 200));
 	}
+
+	onMount(() => {
+		loadPosts();
+	});
 </script>
 
 <svelte:head>
 	<title>Blog - Board of One</title>
-	<meta name="description" content="Insights on decision-making, startup strategy, and AI-powered advisory for founders and leaders." />
+	<meta
+		name="description"
+		content="Insights on decision-making, startup strategy, and AI-powered advisory for founders and leaders."
+	/>
 </svelte:head>
 
 <div class="min-h-screen flex flex-col">
@@ -146,7 +101,9 @@
 
 	<main class="flex-grow bg-white dark:bg-neutral-900">
 		<!-- Hero -->
-		<section class="py-16 bg-gradient-to-b from-brand-50 to-white dark:from-neutral-800 dark:to-neutral-900">
+		<section
+			class="py-16 bg-gradient-to-b from-brand-50 to-white dark:from-neutral-800 dark:to-neutral-900"
+		>
 			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<div class="text-center mb-12">
 					<h1 class="text-4xl md:text-5xl font-bold text-neutral-900 dark:text-neutral-100 mb-4">
@@ -158,28 +115,53 @@
 				</div>
 
 				<!-- Featured Posts -->
-				{#if featuredPosts.length > 0}
+				{#if isLoading}
+					<div class="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+						{#each [1, 2] as _}
+							<div
+								class="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 overflow-hidden animate-pulse"
+							>
+								<div
+									class="aspect-video bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center"
+								></div>
+								<div class="p-6 space-y-3">
+									<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/4"></div>
+									<div class="h-6 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4"></div>
+									<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-full"></div>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{:else if featuredPosts.length > 0}
 					<div class="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
 						{#each featuredPosts as post}
 							<a
-								href="/blog/{post.id}"
+								href="/blog/{post.slug}"
 								class="group bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 overflow-hidden hover:border-brand-300 dark:hover:border-brand-600 hover:shadow-lg transition-all"
 							>
-								<div class="aspect-video bg-gradient-to-br from-brand-100 to-brand-200 dark:from-brand-900/50 dark:to-neutral-800 flex items-center justify-center">
+								<div
+									class="aspect-video bg-gradient-to-br from-brand-100 to-brand-200 dark:from-brand-900/50 dark:to-neutral-800 flex items-center justify-center"
+								>
 									<span class="text-brand-600 dark:text-brand-400 font-bold text-lg">Featured</span>
 								</div>
 								<div class="p-6">
 									<div class="flex items-center gap-2 mb-3">
-										<span class="px-2 py-1 text-xs font-medium rounded-full {getCategoryColor(post.category)}">
-											{post.category}
+										<span
+											class="px-2 py-1 text-xs font-medium rounded-full bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300"
+										>
+											Article
 										</span>
-										<span class="text-sm text-neutral-500 dark:text-neutral-400">{post.readTime} min read</span>
+										<span class="text-sm text-neutral-500 dark:text-neutral-400"
+											>{estimateReadTime(post.content)} min read</span
+										>
 									</div>
-									<h2 class="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-2 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
+									<h2
+										class="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-2 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors"
+									>
 										{post.title}
 									</h2>
 									<p class="text-neutral-600 dark:text-neutral-400 text-sm line-clamp-2">
-										{post.excerpt}
+										{post.excerpt || post.meta_description || ''}
 									</p>
 								</div>
 							</a>
@@ -196,8 +178,18 @@
 				<div class="flex flex-col md:flex-row gap-4 mb-8">
 					<!-- Search -->
 					<div class="relative flex-grow max-w-md">
-						<svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+						<svg
+							class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+							/>
 						</svg>
 						<input
 							type="text"
@@ -207,21 +199,6 @@
 						/>
 					</div>
 
-					<!-- Category Filter -->
-					<div class="flex gap-2 flex-wrap">
-						{#each categories as category}
-							<button
-								onclick={() => selectedCategory = category}
-								class="px-4 py-2 text-sm font-medium rounded-lg transition-colors
-									{selectedCategory === category
-										? 'bg-brand-600 text-white'
-										: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'}"
-							>
-								{category}
-							</button>
-						{/each}
-					</div>
-
 					<!-- Sort -->
 					<select
 						bind:value={sortBy}
@@ -229,43 +206,92 @@
 					>
 						<option value="newest">Newest First</option>
 						<option value="oldest">Oldest First</option>
-						<option value="readTime">Quick Reads</option>
 					</select>
 				</div>
 
-				<!-- Posts Grid -->
-				{#if filteredPosts.length > 0}
+				<!-- Error State -->
+				{#if error}
+					<div
+						class="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 mb-6"
+					>
+						<p class="text-sm text-red-700 dark:text-red-400">{error}</p>
+						<button
+							onclick={() => loadPosts()}
+							class="mt-2 text-sm text-red-600 dark:text-red-400 underline hover:no-underline"
+						>
+							Try again
+						</button>
+					</div>
+				{/if}
+
+				<!-- Loading State -->
+				{#if isLoading}
+					<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+						{#each Array(6) as _}
+							<div
+								class="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 animate-pulse"
+							>
+								<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/4 mb-3"></div>
+								<div class="h-6 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4 mb-2"></div>
+								<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-full mb-4"></div>
+								<div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2"></div>
+							</div>
+						{/each}
+					</div>
+				{:else if filteredPosts.length > 0}
+					<!-- Posts Grid -->
 					<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
 						{#each filteredPosts as post}
 							<a
-								href="/blog/{post.id}"
+								href="/blog/{post.slug}"
 								class="group bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 hover:border-brand-300 dark:hover:border-brand-600 hover:shadow-md transition-all"
 							>
 								<div class="flex items-center gap-2 mb-3">
-									<span class="px-2 py-1 text-xs font-medium rounded-full {getCategoryColor(post.category)}">
-										{post.category}
+									<span
+										class="px-2 py-1 text-xs font-medium rounded-full bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300"
+									>
+										Article
 									</span>
 								</div>
-								<h3 class="text-lg font-bold text-neutral-900 dark:text-neutral-100 mb-2 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors line-clamp-2">
+								<h3
+									class="text-lg font-bold text-neutral-900 dark:text-neutral-100 mb-2 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors line-clamp-2"
+								>
 									{post.title}
 								</h3>
 								<p class="text-neutral-600 dark:text-neutral-400 text-sm mb-4 line-clamp-3">
-									{post.excerpt}
+									{post.excerpt || post.meta_description || ''}
 								</p>
-								<div class="flex items-center justify-between text-sm text-neutral-500 dark:text-neutral-400">
-									<span>{formatDate(post.date)}</span>
-									<span>{post.readTime} min read</span>
+								<div
+									class="flex items-center justify-between text-sm text-neutral-500 dark:text-neutral-400"
+								>
+									<span>{formatDate(post.published_at || post.created_at)}</span>
+									<span>{estimateReadTime(post.content)} min read</span>
 								</div>
 							</a>
 						{/each}
 					</div>
 				{:else}
+					<!-- Empty State -->
 					<div class="text-center py-16">
-						<svg class="w-16 h-16 text-neutral-300 dark:text-neutral-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+						<svg
+							class="w-16 h-16 text-neutral-300 dark:text-neutral-600 mx-auto mb-4"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+							/>
 						</svg>
-						<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">No articles found</h3>
-						<p class="text-neutral-600 dark:text-neutral-400">Try adjusting your search or filters.</p>
+						<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">
+							No articles found
+						</h3>
+						<p class="text-neutral-600 dark:text-neutral-400">
+							{searchQuery ? 'Try adjusting your search.' : 'Check back soon for new content.'}
+						</p>
 					</div>
 				{/if}
 			</div>

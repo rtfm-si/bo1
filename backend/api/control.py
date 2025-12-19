@@ -1791,6 +1791,166 @@ async def _submit_clarification_impl(
 # =============================================================================
 
 
+class RaiseHandRequest(BaseModel):
+    """Request model for user interjection during deliberation.
+
+    Allows users to interject with a question or context during an active meeting.
+    """
+
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="User's interjection message (question or context to add)",
+        examples=["What about the regulatory compliance implications?"],
+    )
+
+
+@router.post(
+    "/{session_id}/raise-hand",
+    response_model=ControlResponse,
+    status_code=202,
+    summary="Raise hand to interject during deliberation",
+    description="Submit a question or context during an active meeting. Experts will acknowledge and respond.",
+    responses={
+        202: {"description": "Interjection submitted, experts will respond"},
+        400: {
+            "description": "Invalid request or session not running",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Cannot raise hand: session is not running",
+                        "session_id": "bo1_abc123",
+                        "status": "paused",
+                    }
+                }
+            },
+        },
+        404: {"description": "Session not found", "model": ErrorResponse},
+        422: {
+            "description": "Prompt injection detected",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Interjection message contains unsafe content",
+                        "error_code": "INJECTION_DETECTED",
+                    }
+                }
+            },
+        },
+        429: {
+            "description": "Rate limit exceeded",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {"example": {"detail": "Rate limit exceeded. Try again later."}}
+            },
+        },
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+)
+@limiter.limit(CONTROL_RATE_LIMIT)
+@handle_api_errors("raise hand")
+async def raise_hand(
+    request: Request,
+    session_id: str,
+    body: RaiseHandRequest,
+    session_data: VerifiedSession,
+    redis_manager: RedisManager = Depends(get_redis_manager),
+) -> ControlResponse:
+    """Submit an interjection during an active deliberation.
+
+    The interjection is saved to the checkpoint state and will be processed
+    at the next round boundary. Experts will provide brief responses.
+
+    Args:
+        request: FastAPI request object for rate limiting
+        session_id: Session identifier
+        body: Interjection message
+        session_data: Verified session (user_id, metadata) from dependency
+        redis_manager: Redis manager instance
+
+    Returns:
+        ControlResponse with confirmation
+
+    Raises:
+        HTTPException: If session not running, injection detected, or save fails
+    """
+    # Validate session ID format
+    session_id = validate_session_id(session_id)
+
+    # Unpack verified session data
+    user_id, metadata = session_data
+
+    # Validate session is running
+    status = metadata.get("status")
+    if status != "running":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot raise hand: session is not running (status: {status})",
+        )
+
+    # Prompt injection check
+    await check_for_injection(
+        content=body.message,
+        source="raise_hand_interjection",
+        raise_on_unsafe=True,
+    )
+
+    # Load current checkpoint state
+    state = await load_state_from_checkpoint(session_id)
+    if not state:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to load session state from checkpoint",
+        )
+
+    # Check for existing pending interjection (rate limit at state level)
+    if state.get("needs_interjection_response"):
+        raise HTTPException(
+            status_code=429,
+            detail="An interjection is already pending. Please wait for experts to respond.",
+        )
+
+    # Update state with interjection
+    state["user_interjection"] = body.message
+    state["needs_interjection_response"] = True
+    state["interjection_responses"] = []  # Clear previous responses
+
+    # Save updated state to checkpoint
+    saved = await save_state_to_checkpoint(session_id, state)
+    if not saved:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save interjection to session state",
+        )
+
+    # Emit SSE event for real-time UI update
+    from backend.api.dependencies import get_event_publisher
+
+    publisher = get_event_publisher()
+    await publisher.publish(
+        session_id,
+        {
+            "event_type": "user_interjection_raised",
+            "data": {
+                "message": body.message,
+                "timestamp": datetime.now(UTC).isoformat(),
+            },
+        },
+    )
+
+    logger.info(f"User raised hand in session {session_id}: {body.message[:50]}...")
+
+    return ControlResponse(
+        session_id=session_id,
+        action="raise_hand",
+        status="success",
+        message="Interjection submitted. Experts will acknowledge your question.",
+    )
+
+
 class ContextChoiceRequest(BaseModel):
     """Request model for context insufficiency user choice.
 

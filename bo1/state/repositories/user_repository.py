@@ -177,6 +177,7 @@ class UserRepository(BaseRepository):
         "onboarding_completed_at",
         # Goals
         "north_star_goal",
+        "strategic_objectives",
         # Clarification answers from meetings
         "clarifications",
         # Context auto-update tracking
@@ -323,6 +324,7 @@ class UserRepository(BaseRepository):
             "context_metric_history",
             "pending_updates",
             "benchmark_timestamps",
+            "strategic_objectives",
         }
 
         values = []

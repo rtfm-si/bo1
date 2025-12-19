@@ -17,6 +17,7 @@
  * - Clarification: clarification_required, context_insufficient
  * - Cost: phase_cost_breakdown, cost_anomaly
  * - Persistence: persistence_verification_warning
+ * - Interjection: user_interjection_raised, interjection_response, interjection_complete
  */
 
 // =============================================================================
@@ -84,7 +85,11 @@ export type SSEEventType =
 	// Meeting failure
 	| 'meeting_failed'
 	// Gap detection
-	| 'gap_detected';
+	| 'gap_detected'
+	// User Interjection ("Raise Hand")
+	| 'user_interjection_raised'
+	| 'interjection_response'
+	| 'interjection_complete';
 
 // =============================================================================
 // Lifecycle Events
@@ -631,6 +636,44 @@ export interface GapDetectedPayload {
 }
 
 // =============================================================================
+// User Interjection Events ("Raise Hand")
+// =============================================================================
+
+/**
+ * User raised hand with interjection message
+ * Emitted: When user submits a question/comment during deliberation
+ */
+export interface UserInterjectionRaisedPayload {
+	session_id: string;
+	message: string;
+	timestamp: string;
+}
+
+/**
+ * Expert response to user interjection
+ * Emitted: For each expert's brief response to the user's question
+ */
+export interface InterjectionResponsePayload {
+	session_id: string;
+	persona_code: string;
+	persona_name: string;
+	response: string;
+	round_number: number;
+	timestamp: string;
+}
+
+/**
+ * Interjection processing complete
+ * Emitted: After all experts have responded to the interjection
+ */
+export interface InterjectionCompletePayload {
+	session_id: string;
+	total_responses: number;
+	round_number: number;
+	timestamp: string;
+}
+
+// =============================================================================
 // Event Map & Wrapper
 // =============================================================================
 
@@ -686,6 +729,10 @@ export interface SSEEventMap {
 	meeting_failed: MeetingFailedPayload;
 	// Gap detection
 	gap_detected: GapDetectedPayload;
+	// User Interjection
+	user_interjection_raised: UserInterjectionRaisedPayload;
+	interjection_response: InterjectionResponsePayload;
+	interjection_complete: InterjectionCompletePayload;
 }
 
 /**
@@ -861,6 +908,21 @@ export type MeetingFailedEvent = SSEEvent<'meeting_failed'>;
  */
 export type GapDetectedEvent = SSEEvent<'gap_detected'>;
 
+/**
+ * Typed user_interjection_raised event
+ */
+export type UserInterjectionRaisedEvent = SSEEvent<'user_interjection_raised'>;
+
+/**
+ * Typed interjection_response event
+ */
+export type InterjectionResponseEvent = SSEEvent<'interjection_response'>;
+
+/**
+ * Typed interjection_complete event
+ */
+export type InterjectionCompleteEvent = SSEEvent<'interjection_complete'>;
+
 // =============================================================================
 // Type Guards
 // =============================================================================
@@ -996,6 +1058,27 @@ export function isDiscussionQualityStatusEvent(event: SSEEvent): event is SSEEve
  */
 export function isGapDetectedEvent(event: SSEEvent): event is SSEEvent<'gap_detected'> {
 	return event.event_type === 'gap_detected';
+}
+
+/**
+ * Type guard for user_interjection_raised events
+ */
+export function isUserInterjectionRaisedEvent(event: SSEEvent): event is SSEEvent<'user_interjection_raised'> {
+	return event.event_type === 'user_interjection_raised';
+}
+
+/**
+ * Type guard for interjection_response events
+ */
+export function isInterjectionResponseEvent(event: SSEEvent): event is SSEEvent<'interjection_response'> {
+	return event.event_type === 'interjection_response';
+}
+
+/**
+ * Type guard for interjection_complete events
+ */
+export function isInterjectionCompleteEvent(event: SSEEvent): event is SSEEvent<'interjection_complete'> {
+	return event.event_type === 'interjection_complete';
 }
 
 /**

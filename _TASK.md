@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-18 (Task backlog complete - remaining items require user action)_
+_Last updated: 2025-12-18 (Strategic Objectives feature)_
 
 ---
 
@@ -121,6 +121,16 @@ _Last updated: 2025-12-18 (Task backlog complete - remaining items require user 
 - [x] [DEPLOY][P1] Setup uptime monitoring (UptimeRobot) - create monitors for boardof.one, /health
 - [x] [LAUNCH][P1] Verify Alertmanager running in prod, set NTFY_TOPIC env var
 
+### Context & Goals [CONTEXT]
+
+- [x] [CONTEXT][P2] Capture company goals/objectives as meeting context (allow users to define strategic objectives)
+  - Added `strategic_objectives` field to `BusinessContext` model (list of up to 5 strings)
+  - Added to `CONTEXT_FIELDS` and JSONB serialization in `user_repository.py`
+  - Context injection in `context_collection_node.py` adds "## Strategic Objectives" section
+  - UI section added to `/context/overview` page with add/remove functionality
+  - Frontend types updated in `types.ts`
+  - 11 tests added in `tests/api/context/test_strategic_objectives.py`
+
 ### Branding & SEO [BRAND/SEO]
 
 - [x] [BRAND][P2] Update company attribution to "Sico Software Ltd" (footer, legal pages, about)
@@ -145,6 +155,14 @@ _Last updated: 2025-12-18 (Task backlog complete - remaining items require user 
 
 ### Production Bugs [BUG]
 
+- [x] [BUG][P1] Fix drag-and-drop action status update: "Invalid task ID format. Expected 'task_N' format" error
+  - Fixed `/actions` page to use `updateActionStatus` (UUID-based) instead of `updateTaskStatus` (task_N format)
+  - Fixed `handleKanbanStatusChange` and `handleBulkStatusChange` in `/actions/+page.svelte`
+- [x] [BUG][P2] Meeting clarification questions don't appear on mobile (meeting appears paused)
+  - Added floating mobile action button (lg:hidden) that prompts users to scroll up when questions need answers
+  - Improved auto-scroll behavior with multiple attempts and window.scrollTo for mobile Safari compatibility
+- [x] [BUG][P2] Submit/skip question buttons still visible after questions have been answered (desktop)
+  - Fixed `handleClarificationSubmitted` to immediately update session status/phase, hiding the form before SSE reconnects
 - [x] [BUG][P2] Fix UptimeRobot 404 when clicking through from admin system status
 - [x] [BUG][P1] Fix `/api/v1/sessions/recent-failures` 404 on dashboard
 - [x] [BUG][P1] Fix action status PATCH 422 errors (drag-drop and "start" button)
@@ -155,6 +173,13 @@ _Last updated: 2025-12-18 (Task backlog complete - remaining items require user 
 
 ### UX Improvements [UX]
 
+- [x] [UX][P2] Add "raise hand" feature for users to interject during meetings with context or questions
+  - Backend: POST `/sessions/{id}/raise-hand` endpoint with rate limiting and injection checks
+  - State: Added `user_interjection`, `interjection_responses`, `needs_interjection_response` to graph state
+  - SSE: Three new events - `user_interjection_raised`, `interjection_response`, `interjection_complete`
+  - Frontend: Floating `RaiseHandButton.svelte` component with modal, integrated in meeting page
+  - API client: `raiseHand()` method added
+  - Tests: 13 tests in `tests/api/test_raise_hand.py`
 - [x] [UX][P2] Add links to monitoring, analytics, and status pages from admin system status
 - [x] [UX][P2] Add "ask mentor" button to actions tab (link to mentor with context)
 - [x] [UX][P2] Include actions in mentor @ mention popup (currently only shows meetings)

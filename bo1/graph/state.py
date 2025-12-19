@@ -108,6 +108,10 @@ class ControlState(TypedDict, total=False):
     termination_type: str | None  # blocker_identified, user_cancelled, continue_best_effort
     termination_reason: str | None
     skip_clarification: bool
+    # User interjection ("raise hand") during deliberation
+    user_interjection: str | None  # User's interjection message
+    interjection_responses: list[dict[str, Any]]  # Expert responses to interjection
+    needs_interjection_response: bool  # Flag for processing in next round
 
 
 class MetricsState(TypedDict, total=False):
@@ -265,6 +269,11 @@ class DeliberationGraphState(TypedDict, total=False):
     termination_type: str | None  # blocker_identified, user_cancelled, continue_best_effort
     termination_reason: str | None  # User-provided reason for termination
 
+    # USER INTERJECTION ("Raise Hand" feature)
+    user_interjection: str | None  # User's interjection message during deliberation
+    interjection_responses: list[dict[str, Any]]  # Expert responses to the interjection
+    needs_interjection_response: bool  # Flag indicating interjection needs processing
+
 
 def create_initial_state(
     session_id: str,
@@ -359,6 +368,10 @@ def create_initial_state(
         termination_requested=False,  # Will be set if user requests early termination
         termination_type=None,  # Type of termination
         termination_reason=None,  # User-provided reason
+        # USER INTERJECTION ("Raise Hand")
+        user_interjection=None,  # User's interjection message
+        interjection_responses=[],  # Expert responses to interjection
+        needs_interjection_response=False,  # Flag for interjection processing
     )
 
 
@@ -673,6 +686,9 @@ def get_control_state(state: DeliberationGraphState) -> ControlState:
         termination_type=state.get("termination_type"),
         termination_reason=state.get("termination_reason"),
         skip_clarification=state.get("skip_clarification", False),
+        user_interjection=state.get("user_interjection"),
+        interjection_responses=state.get("interjection_responses", []),
+        needs_interjection_response=state.get("needs_interjection_response", False),
     )
 
 

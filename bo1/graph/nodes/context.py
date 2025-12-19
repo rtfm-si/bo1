@@ -77,6 +77,16 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
                 if saved_context.get("growth_rate"):
                     context_lines.append(f"- Growth Rate: {saved_context['growth_rate']}")
 
+                # Strategic objectives (user-defined supporting goals)
+                strategic_objectives = saved_context.get("strategic_objectives")
+                if strategic_objectives and isinstance(strategic_objectives, list):
+                    context_lines.append("\n## Strategic Objectives")
+                    for obj in strategic_objectives[:5]:  # Max 5
+                        context_lines.append(f"- {obj}")
+                    logger.info(
+                        f"Injected {len(strategic_objectives[:5])} strategic objectives into context"
+                    )
+
                 # ISSUE #4 FIX: Include saved clarifications from previous meetings
                 # with freshness indicators for expert awareness
                 # Enhanced: Include structured category/metric info from Haiku parsing

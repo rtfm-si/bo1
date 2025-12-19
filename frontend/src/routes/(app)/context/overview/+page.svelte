@@ -18,6 +18,7 @@
 	let businessStage = $state<BusinessStage | undefined>(undefined);
 	let primaryObjective = $state<PrimaryObjective | undefined>(undefined);
 	let northStarGoal = $state('');
+	let strategicObjectives = $state<string[]>([]);
 	let businessModel = $state('');
 	let targetMarket = $state('');
 	let productDescription = $state('');
@@ -69,6 +70,7 @@
 				businessStage = ctx.business_stage;
 				primaryObjective = ctx.primary_objective;
 				northStarGoal = ctx.north_star_goal || '';
+				strategicObjectives = ctx.strategic_objectives || [];
 				businessModel = ctx.business_model || '';
 				targetMarket = ctx.target_market || '';
 				productDescription = ctx.product_description || '';
@@ -186,6 +188,10 @@
 				business_stage: businessStage,
 				primary_objective: primaryObjective,
 				north_star_goal: northStarGoal.trim() || undefined,
+				strategic_objectives:
+					strategicObjectives.filter((o) => o.trim()).length > 0
+						? strategicObjectives.filter((o) => o.trim())
+						: undefined,
 				business_model: businessModel.trim() || undefined,
 				target_market: targetMarket.trim() || undefined,
 				product_description: productDescription.trim() || undefined,
@@ -225,6 +231,7 @@
 			businessStage = undefined;
 			primaryObjective = undefined;
 			northStarGoal = '';
+			strategicObjectives = [];
 			businessModel = '';
 			targetMarket = '';
 			productDescription = '';
@@ -373,6 +380,54 @@
 						helperText="Your primary objective for the next 3-6 months"
 						maxlength={200}
 					/>
+				</div>
+
+				<!-- Strategic Objectives -->
+				<div class="md:col-span-2">
+					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+						Strategic Objectives
+					</label>
+					<p class="text-sm text-neutral-500 dark:text-neutral-400 mb-3">
+						Define up to 5 supporting objectives that help achieve your north star goal.
+					</p>
+					<div class="space-y-2">
+						{#each strategicObjectives as _, i}
+							<div class="flex items-center gap-2">
+								<div class="flex-1">
+									<Input
+										placeholder={`Objective ${i + 1} (e.g., Increase conversion rate)`}
+										bind:value={strategicObjectives[i]}
+									/>
+								</div>
+								<button
+									type="button"
+									onclick={() => {
+										strategicObjectives = strategicObjectives.filter((_, idx) => idx !== i);
+									}}
+									class="p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+									aria-label="Remove objective"
+								>
+									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+									</svg>
+								</button>
+							</div>
+						{/each}
+						{#if strategicObjectives.length < 5}
+							<button
+								type="button"
+								onclick={() => {
+									strategicObjectives = [...strategicObjectives, ''];
+								}}
+								class="flex items-center gap-2 text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 font-medium"
+							>
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+								</svg>
+								Add Objective
+							</button>
+						{/if}
+					</div>
 				</div>
 
 				<Input

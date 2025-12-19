@@ -229,7 +229,7 @@
 		try {
 			const tasksToUpdate = allTasks.filter(t => selectedTaskIds.has(t.id));
 			await Promise.all(
-				tasksToUpdate.map(t => apiClient.updateTaskStatus(t.session_id, t.id, newStatus))
+				tasksToUpdate.map(t => apiClient.updateActionStatus(t.id, newStatus))
 			);
 			selectedTaskIds = new Set();
 			await fetchData();
@@ -248,19 +248,11 @@
 	// Handler for KanbanBoard drag-drop status changes
 	async function handleKanbanStatusChange(
 		taskId: string,
-		newStatus: ActionStatus,
-		sessionId?: string
+		newStatus: ActionStatus
 	) {
-		// Find the task to get the sessionId if not provided
-		const task = allTasks.find(t => t.id === taskId);
-		const resolvedSessionId = sessionId || task?.session_id;
-		if (!resolvedSessionId) {
-			toast.error('Could not find session for action');
-			return;
-		}
 		isKanbanLoading = true;
 		try {
-			await apiClient.updateTaskStatus(resolvedSessionId, taskId, newStatus);
+			await apiClient.updateActionStatus(taskId, newStatus);
 			await fetchData();
 		} catch (err) {
 			console.error('Failed to update task status:', err);

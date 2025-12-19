@@ -25,3 +25,4 @@ export { default as TerminationModal } from './TerminationModal.svelte';
 export { default as MeetingError } from './MeetingError.svelte';
 export { default as MeetingSummaryCard } from './MeetingSummaryCard.svelte';
 export { default as MeetingSocialShare } from './MeetingSocialShare.svelte';
+export { default as RaiseHandButton } from './RaiseHandButton.svelte';

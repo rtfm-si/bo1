@@ -14,7 +14,7 @@ Pydantic Schemas:
 TypeScript Interfaces:
     See frontend/src/lib/api/sse-events.ts for frontend types.
 
-Event Types (30 total):
+Event Types (33 total):
     Session: session_started
     Decomposition: decomposition_started, decomposition_complete
     Persona: persona_selection_started, persona_selected, persona_selection_complete
@@ -31,6 +31,7 @@ Event Types (30 total):
     Cost: phase_cost_breakdown
     Node: node_start, node_end
     Facilitator: facilitator_decision
+    Interjection: user_interjection_raised, interjection_response, interjection_complete
 """
 
 import json
@@ -1139,3 +1140,97 @@ def quality_metrics_update_event(
         data["facilitator_guidance"] = facilitator_guidance
 
     return format_sse_event("quality_metrics_update", data)
+
+
+# =============================================================================
+# User Interjection ("Raise Hand") Events
+# =============================================================================
+
+
+def user_interjection_raised_event(
+    session_id: str,
+    message: str,
+) -> str:
+    """Create SSE event when user raises hand with interjection.
+
+    Notifies UI that user has submitted a question/comment and
+    experts will acknowledge it.
+
+    Args:
+        session_id: Session identifier
+        message: User's interjection message
+
+    Returns:
+        SSE-formatted event string
+    """
+    return format_sse_event(
+        "user_interjection_raised",
+        {
+            "session_id": session_id,
+            "message": message,
+            "timestamp": datetime.now(UTC).isoformat(),
+        },
+    )
+
+
+def interjection_response_event(
+    session_id: str,
+    persona_code: str,
+    persona_name: str,
+    response: str,
+    round_number: int,
+) -> str:
+    """Create SSE event for expert response to user interjection.
+
+    Emitted as each expert provides a brief response to the user's
+    raised-hand question.
+
+    Args:
+        session_id: Session identifier
+        persona_code: Expert persona code (e.g., "CFO")
+        persona_name: Expert display name
+        response: Expert's brief response to the interjection
+        round_number: Current round when response occurred
+
+    Returns:
+        SSE-formatted event string
+    """
+    return format_sse_event(
+        "interjection_response",
+        {
+            "session_id": session_id,
+            "persona_code": persona_code,
+            "persona_name": persona_name,
+            "response": response,
+            "round_number": round_number,
+            "timestamp": datetime.now(UTC).isoformat(),
+        },
+    )
+
+
+def interjection_complete_event(
+    session_id: str,
+    total_responses: int,
+    round_number: int,
+) -> str:
+    """Create SSE event when all experts have responded to interjection.
+
+    Signals UI to hide the interjection banner and resume normal view.
+
+    Args:
+        session_id: Session identifier
+        total_responses: Number of expert responses collected
+        round_number: Current round when processing completed
+
+    Returns:
+        SSE-formatted event string
+    """
+    return format_sse_event(
+        "interjection_complete",
+        {
+            "session_id": session_id,
+            "total_responses": total_responses,
+            "round_number": round_number,
+            "timestamp": datetime.now(UTC).isoformat(),
+        },
+    )

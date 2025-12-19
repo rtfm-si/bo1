@@ -243,6 +243,7 @@ export interface UserContext {
 
 	// Goals
 	north_star_goal?: string;
+	strategic_objectives?: string[];
 }
 
 export interface UserContextResponse {

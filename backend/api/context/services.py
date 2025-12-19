@@ -118,6 +118,7 @@ def context_data_to_model(context_data: dict[str, Any]) -> BusinessContext:
         enrichment_source=context_data.get("enrichment_source"),
         enrichment_date=context_data.get("enrichment_date"),
         north_star_goal=context_data.get("north_star_goal"),
+        strategic_objectives=context_data.get("strategic_objectives"),
         benchmark_timestamps=context_data.get("benchmark_timestamps"),
     )
 
@@ -168,6 +169,7 @@ def context_model_to_dict(context: BusinessContext) -> dict[str, Any]:
         "enrichment_source": context.enrichment_source.value if context.enrichment_source else None,
         "enrichment_date": context.enrichment_date,
         "north_star_goal": context.north_star_goal,
+        "strategic_objectives": context.strategic_objectives,
         "benchmark_timestamps": context.benchmark_timestamps,
     }
 

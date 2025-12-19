@@ -758,6 +758,17 @@ export class ApiClient {
 		});
 	}
 
+	/**
+	 * Raise hand to interject during an active meeting.
+	 * Experts will acknowledge and respond to the user's question/context.
+	 *
+	 * @param sessionId - Session identifier
+	 * @param message - User's interjection message (question or context)
+	 */
+	async raiseHand(sessionId: string, message: string): Promise<ControlResponse> {
+		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/raise-hand`, { message });
+	}
+
 	// ==========================================================================
 	// Context Endpoints
 	// ==========================================================================

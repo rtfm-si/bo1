@@ -211,6 +211,12 @@ class BusinessContext(BaseModel):
         description="Primary objective for next 3-6 months (e.g., '10K MRR by Q2')",
         examples=["10K MRR by Q2", "100 paying customers by March"],
     )
+    strategic_objectives: list[str] | None = Field(
+        None,
+        max_length=5,
+        description="Supporting strategic objectives (up to 5) to complement the north star goal",
+        examples=[["Increase conversion rate", "Reduce churn", "Expand to EU market"]],
+    )
 
     # Onboarding
     onboarding_completed: bool | None = Field(

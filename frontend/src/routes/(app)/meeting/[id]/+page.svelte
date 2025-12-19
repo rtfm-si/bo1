@@ -34,6 +34,7 @@
 		ShareModal,
 		MeetingSocialShare,
 		MeetingError,
+		RaiseHandButton,
 	} from '$lib/components/meeting';
 	import { activeMeeting } from '$lib/stores/meeting';
 	import type { MeetingSummaryData } from '$lib/utils/canvas-export';
@@ -123,6 +124,12 @@
 	let reportActions = $state<ReportAction[]>([]);
 	let clarificationFormRef: HTMLElement | undefined = $state(undefined);
 	let shareModalOpen = $state(false);
+
+	// Track pending interjections ("raise hand")
+	const hasPendingInterjection = $derived(
+		events.some(e => e.event_type === 'user_interjection_raised') &&
+		!events.some(e => e.event_type === 'interjection_complete')
+	);
 
 	// Derive meeting summary data for social sharing
 	const meetingSummaryData = $derived.by((): MeetingSummaryData | null => {
@@ -253,10 +260,18 @@
 	// Auto-scroll to clarification form when user action required
 	$effect(() => {
 		if (eventState.needsClarification && clarificationFormRef) {
-			// Small delay to ensure element is rendered
-			setTimeout(() => {
-				clarificationFormRef?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-			}, 100);
+			// Multiple attempts with increasing delays for mobile browsers
+			// Mobile Safari can be slow to render and may ignore first scroll attempts
+			const scrollToForm = () => {
+				clarificationFormRef?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				// Also scroll the window to ensure form is visible above keyboard on mobile
+				window.scrollTo({ top: 0, behavior: 'smooth' });
+			};
+
+			// Initial attempt
+			setTimeout(scrollToForm, 100);
+			// Retry after a longer delay for slow mobile renders
+			setTimeout(scrollToForm, 500);
 		}
 	});
 
@@ -414,6 +429,15 @@
 	}
 
 	async function handleClarificationSubmitted() {
+		// Immediately update session state to hide clarification form
+		// This prevents the form from staying visible while waiting for SSE events
+		if (store.session) {
+			store.setSession({
+				...store.session,
+				status: 'active',
+				phase: 'resuming', // Transitional phase until SSE updates
+			});
+		}
 		await startEventStream();
 	}
 
@@ -1084,4 +1108,27 @@
 
 		<AiDisclaimer class="mt-8" />
 	</main>
+
+	<!-- Mobile floating action prompt for clarification questions -->
+	{#if eventState.needsClarification}
+		<button
+			onclick={() => {
+				clarificationFormRef?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				window.scrollTo({ top: 0, behavior: 'smooth' });
+			}}
+			class="fixed bottom-4 left-4 right-4 z-50 lg:hidden bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 px-4 rounded-lg shadow-lg flex items-center justify-center gap-2 animate-bounce"
+			transition:fade
+		>
+			<AlertCircle size={20} />
+			<span>Questions Need Your Answer</span>
+		</button>
+	{/if}
+
+	<!-- Raise Hand Button (floating) for user interjections during active meetings -->
+	<RaiseHandButton
+		{sessionId}
+		sessionStatus={session?.status}
+		{hasPendingInterjection}
+		disabled={eventState.needsClarification}
+	/>
 </div>

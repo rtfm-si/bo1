@@ -1,18 +1,36 @@
-add this to config
-https://stats.uptimerobot.com/ojaXfkowVD
+admin/blog page needs a link from the admin page
 
-company goals / objectives should be captured as context
+XHRGET
+https://boardof.one/api/admin/blog/posts
+[HTTP/2 429 22ms]
 
-drag and drop action:
-XHRPATCH
-https://boardof.one/api/v1/sessions/bo1_591c3658-4a1e-49b8-b5a3-af1d4ed85824/actions/9e2c75d0-5913-4733-a053-443f248623b7
-[HTTP/2 400 35ms]
+XHRGET
+https://boardof.one/api/admin/impersonate/status
+[HTTP/2 429 22ms]
 
-Failed to update task status: ApiClientError: Invalid task ID format. Expected 'task_N' format.
-Immutable 64
-9.BCmVtM4v.js:157:46898
+XHRGET
+https://boardof.one/api/admin/blog/posts?status=scheduled
+[HTTP/2 429 21ms]
 
-meeting clarification questions dont appear on mobile: meeting is paused on mobile
-on desktop - submitting and skip questions still show even after the questions have been answerred
+XHRGET
+https://boardof.one/api/admin/blog/posts?status=published
+[HTTP/2 429 25ms]
 
-where is the 'raise hand' option for end user to interject during meeitng with additional context, or as a question etc?
+XHRGET
+https://boardof.one/api/admin/blog/posts?status=draft
+[HTTP/2 429 22ms]
+
+trying to create a blog post generates: Invalid input: Blog generation returned invalid JSON format
+
+status.boardof.one = 502 bad gateway
+
+clicking delete on an action doesnt do anything
+XHRGET
+https://boardof.one/api/v1/actions/15293395-9625-4a25-b5d0-acb6cf12a518/reminder-settings
+[HTTP/2 404 36ms]
+
+Failed to load reminder settings: ApiClientError: Action not found
+Immutable 56
+async* https://boardof.one/actions:122
+promise callback* https://boardof.one/actions:121
+10.bCnn3fiQ.js:1:29563

@@ -353,7 +353,8 @@ test.describe('Actions List Page', () => {
 			await ganttToggle.click();
 
 			// Wait for Gantt container to appear (mocked API should return quickly)
-			const ganttContainer = page.locator('.gantt-container');
+			// Use specific selector to avoid strict mode violation (2 .gantt-container elements exist)
+			const ganttContainer = page.locator('.gantt-chart > .gantt-container');
 			await expect(ganttContainer).toBeVisible({ timeout: 10000 });
 		});
 

@@ -33,6 +33,7 @@ WORKDIR /app
 
 # Copy only dependency files (for layer caching)
 COPY pyproject.toml .
+COPY uv.lock .
 COPY README.md .
 
 # Copy source code (needed for editable install)
@@ -45,9 +46,9 @@ COPY migrations/ ./migrations/
 # Copy scripts (for seed_personas.py)
 COPY scripts/ ./scripts/
 
-# Create virtual environment and install dependencies
+# Create virtual environment and install dependencies using lock file
 RUN uv venv && \
-    uv pip install -e .
+    uv sync --frozen
 
 # Activate virtual environment for subsequent stages
 ENV PATH="/app/.venv/bin:$PATH"
@@ -59,8 +60,8 @@ FROM dependencies AS development
 
 WORKDIR /app
 
-# Install dev dependencies (including type stubs)
-RUN uv pip install -e .[dev]
+# Install dev dependencies using lock file
+RUN uv sync --frozen --extra dev
 
 # Copy source code (will be overridden by volume mount in docker-compose)
 COPY bo1/ ./bo1/

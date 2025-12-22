@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
         with:
@@ -25,19 +25,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -46,7 +46,7 @@ jobs:
         run: pip install uv
 
       - name: Cache Python dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
@@ -70,7 +70,7 @@ jobs:
 
       # Frontend linting
       - name: Cache Node modules
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: frontend/node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
@@ -119,14 +119,14 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -134,7 +134,7 @@ jobs:
         run: pip install uv
 
       - name: Cache Python dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
@@ -161,7 +161,7 @@ jobs:
           ADMIN_API_KEY: test-admin-key
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           file: ./coverage.xml
           flags: backend
@@ -174,19 +174,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
 
       - name: Cache Node modules
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: frontend/node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
@@ -204,7 +204,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -225,7 +225,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -233,7 +233,7 @@ jobs:
         run: docker build -t bo1:ci-scan -f Dockerfile .
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: 'bo1:ci-scan'
           format: 'table'
@@ -243,7 +243,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Run Trivy (SARIF for GitHub Security)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.33.1
         if: always()
         with:
           image-ref: 'bo1:ci-scan'
@@ -254,7 +254,7 @@ jobs:
           vuln-type: 'os,library'
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
@@ -290,14 +290,14 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -305,7 +305,7 @@ jobs:
         run: pip install uv
 
       - name: Cache Python dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
@@ -365,7 +365,7 @@ jobs:
           echo "- Embedding service failures" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload chaos test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: chaos-test-results
@@ -405,19 +405,19 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -425,7 +425,7 @@ jobs:
         run: pip install uv
 
       - name: Cache Python dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
@@ -433,7 +433,7 @@ jobs:
             ${{ runner.os }}-uv-
 
       - name: Cache Node modules
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: frontend/node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
@@ -441,7 +441,7 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
@@ -517,7 +517,7 @@ jobs:
           CI: true
 
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: playwright-report

@@ -32,14 +32,14 @@ jobs:
     needs: validate-confirmation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -73,7 +73,7 @@ jobs:
         continue-on-error: true  # Don't block deployment on warnings
 
       - name: Upload security reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: security-reports
@@ -87,7 +87,7 @@ jobs:
     needs: [validate-confirmation, security-scan]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
         env:
@@ -161,7 +161,7 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
         env:
@@ -189,7 +189,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push API image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./backend/Dockerfile.prod
@@ -214,7 +214,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push Frontend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./frontend
           file: ./frontend/Dockerfile.prod
@@ -234,7 +234,7 @@ jobs:
       url: https://boardof.one
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
         env:
@@ -262,7 +262,7 @@ jobs:
           echo "User: ${{ secrets.PRODUCTION_USER }}"
 
       - name: Blue-Green Deployment to Production
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.4
         env:
           GITHUB_SHA: ${{ github.sha }}
           REGISTRY: ${{ env.REGISTRY }}
@@ -819,7 +819,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Full history for changelog
         env:

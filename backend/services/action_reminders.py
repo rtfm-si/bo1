@@ -199,7 +199,7 @@ def get_pending_reminders(user_id: str, limit: int = 50) -> list[ActionReminder]
     reminders: list[ActionReminder] = []
     now = datetime.utcnow()
 
-    with db_session() as conn:
+    with db_session(user_id=user_id) as conn:
         with conn.cursor() as cur:
             # Query for pending actions that might need reminders
             cur.execute(
@@ -291,7 +291,7 @@ def snooze_reminder(
     snooze_days = max(1, min(14, snooze_days))
     snooze_until = datetime.utcnow() + timedelta(days=snooze_days)
 
-    with db_session() as conn:
+    with db_session(user_id=user_id) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -345,7 +345,7 @@ def update_reminder_settings(
     updates.append("updated_at = NOW()")
     params.extend([action_id, user_id])
 
-    with db_session() as conn:
+    with db_session(user_id=user_id) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 f"""
@@ -380,7 +380,7 @@ def get_reminder_settings(action_id: str, user_id: str) -> ReminderSettings | No
     Returns:
         ReminderSettings or None if not found
     """
-    with db_session() as conn:
+    with db_session(user_id=user_id) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """

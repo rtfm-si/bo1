@@ -2458,7 +2458,7 @@ async def get_action_reminder_settings(
 @handle_api_errors("update reminder settings")
 async def update_action_reminder_settings(
     action_id: str,
-    settings_update: "ReminderSettingsUpdate",
+    settings_update: ReminderSettingsUpdate,
     user_data: dict = Depends(get_current_user),
 ) -> ReminderSettingsResponse:
     """Update reminder settings for an action.

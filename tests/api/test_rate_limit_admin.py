@@ -50,10 +50,11 @@ class TestAdminEndpointRateLimits:
     """
 
     # All admin modules that should have rate limiting
+    # Note: "blog" is intentionally excluded - uses global IP limit only
+    # to avoid 429s when admin dashboard fires many parallel requests
     ADMIN_MODULES = [
         "alerts",
         "beta_whitelist",
-        "blog",
         "cost_analytics",
         "costs",
         "email_stats",

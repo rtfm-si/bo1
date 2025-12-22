@@ -13,7 +13,6 @@ Provides:
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.middleware.admin import require_admin_any
-from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import (
     BlogGenerateRequest,
     BlogGenerateResponse,
@@ -46,7 +45,6 @@ router = APIRouter(prefix="/blog", tags=["Admin - Blog"])
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
-@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("list blog posts")
 async def list_posts(
     request: Request,
@@ -81,7 +79,6 @@ async def list_posts(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
-@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("create blog post")
 async def create_post(
     request: Request,
@@ -117,7 +114,6 @@ async def create_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
-@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get blog post")
 async def get_post(
     request: Request,
@@ -147,7 +143,6 @@ async def get_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
-@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("update blog post")
 async def update_post(
     request: Request,
@@ -182,7 +177,6 @@ async def update_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
-@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("delete blog post")
 async def delete_post(
     request: Request,
@@ -214,7 +208,6 @@ async def delete_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
-@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("generate blog post")
 async def generate_post(
     request: Request,
@@ -266,7 +259,6 @@ async def generate_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
-@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("discover topics")
 async def discover_blog_topics(
     request: Request,
@@ -312,7 +304,6 @@ async def discover_blog_topics(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
-@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("publish blog post")
 async def publish_post(
     request: Request,
@@ -345,7 +336,6 @@ async def publish_post(
         401: {"description": "Admin authentication required", "model": ErrorResponse},
     },
 )
-@limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("schedule blog post")
 async def schedule_post(
     request: Request,

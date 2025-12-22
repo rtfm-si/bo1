@@ -9,6 +9,7 @@ import logging
 from dataclasses import dataclass
 
 from bo1.llm.client import ClaudeClient, TokenUsage
+from bo1.llm.response_parser import extract_json_from_response
 
 logger = logging.getLogger(__name__)
 
@@ -78,39 +79,73 @@ async def generate_blog_post(
         keywords=keywords_str,
     )
 
-    try:
-        response, usage = await client.call(
-            model=MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=4096,
-            prefill="{",
-        )
+    max_retries = 1
+    last_error: Exception | None = None
 
-        # Parse JSON response (prefill starts with '{')
-        json_str = "{" + response
-        data = json.loads(json_str)
+    for attempt in range(max_retries + 1):
+        try:
+            # On retry, add explicit JSON instruction
+            messages = [{"role": "user", "content": prompt}]
+            if attempt > 0:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Your previous response could not be parsed as JSON. "
+                        "Please respond with ONLY valid JSON, no markdown or extra text.",
+                    }
+                )
 
-        logger.info(
-            f"Generated blog post: '{data.get('title', 'Untitled')}' "
-            f"(tokens: {usage.total_tokens}, cost: ${usage.calculate_cost(MODEL):.4f})"
-        )
+            response, usage = await client.call(
+                model=MODEL,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=4096,
+                prefill="{",
+            )
 
-        return BlogContent(
-            title=data["title"],
-            excerpt=data["excerpt"],
-            content=data["content"],
-            meta_title=data.get("meta_title", data["title"]),
-            meta_description=data.get("meta_description", data["excerpt"]),
-            usage=usage,
-        )
+            # Parse JSON response using robust parser
+            json_str = "{" + response
+            try:
+                data = extract_json_from_response(json_str)
+            except json.JSONDecodeError:
+                # Log raw response for debugging
+                logger.warning(
+                    f"JSON parse failed (attempt {attempt + 1}/{max_retries + 1}). "
+                    f"Raw response preview: {response[:200]}..."
+                )
+                raise
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse blog generation response: {e}")
-        raise ValueError("Blog generation returned invalid JSON format") from e
-    except KeyError as e:
-        logger.error(f"Missing required field in blog generation: {e}")
-        raise ValueError(f"Blog generation missing required field: {e}") from e
+            logger.info(
+                f"Generated blog post: '{data.get('title', 'Untitled')}' "
+                f"(tokens: {usage.total_tokens}, cost: ${usage.calculate_cost(MODEL):.4f})"
+            )
+
+            return BlogContent(
+                title=data["title"],
+                excerpt=data["excerpt"],
+                content=data["content"],
+                meta_title=data.get("meta_title", data["title"]),
+                meta_description=data.get("meta_description", data["excerpt"]),
+                usage=usage,
+            )
+
+        except json.JSONDecodeError as e:
+            last_error = e
+            if attempt < max_retries:
+                logger.warning(
+                    f"Retrying blog generation after JSON parse failure (attempt {attempt + 1})"
+                )
+                continue
+            logger.error(
+                f"Failed to parse blog generation response after {max_retries + 1} attempts: {e}"
+            )
+            raise ValueError("Blog generation returned invalid JSON format") from e
+        except KeyError as e:
+            logger.error(f"Missing required field in blog generation: {e}")
+            raise ValueError(f"Blog generation missing required field: {e}") from e
+
+    # Should not reach here, but safety fallback
+    raise ValueError("Blog generation failed") from last_error
 
 
 async def generate_blog_outline(

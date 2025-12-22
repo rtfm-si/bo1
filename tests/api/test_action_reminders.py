@@ -410,3 +410,134 @@ class TestGetPendingReminders:
         reminders = get_pending_reminders(test_user_id, limit=1)
 
         assert len(reminders) <= 1
+
+
+# =============================================================================
+# HTTP API Endpoint Tests
+# =============================================================================
+
+
+class TestReminderSettingsHTTPEndpoints:
+    """Tests for reminder-settings HTTP API endpoints.
+
+    These tests verify that the actual HTTP endpoints work correctly,
+    including proper RLS context being set via db_session(user_id=...).
+    """
+
+    @pytest.fixture
+    def api_client(self, test_user_id):
+        """Create test client with auth override for the test user."""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from backend.api.actions import router
+        from backend.api.middleware.auth import get_current_user
+
+        def mock_user_override():
+            return {"user_id": test_user_id, "email": f"test-{test_user_id[:8]}@example.com"}
+
+        app = FastAPI()
+        app.dependency_overrides[get_current_user] = mock_user_override
+        app.include_router(router, prefix="/api")
+        return TestClient(app)
+
+    @pytest.fixture
+    def wrong_user_client(self):
+        """Create test client with different user (for ownership tests)."""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from backend.api.actions import router
+        from backend.api.middleware.auth import get_current_user
+
+        wrong_user_id = str(uuid.uuid4())
+
+        def mock_wrong_user_override():
+            return {"user_id": wrong_user_id, "email": f"wrong-{wrong_user_id[:8]}@example.com"}
+
+        app = FastAPI()
+        app.dependency_overrides[get_current_user] = mock_wrong_user_override
+        app.include_router(router, prefix="/api")
+        return TestClient(app)
+
+    def test_get_reminder_settings_http(self, api_client, test_action_id):
+        """GET /actions/{id}/reminder-settings should return settings."""
+        response = api_client.get(f"/api/v1/actions/{test_action_id}/reminder-settings")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action_id"] == test_action_id
+        assert data["reminders_enabled"] is True
+        assert data["reminder_frequency_days"] == 3
+
+    def test_get_reminder_settings_http_wrong_user(self, wrong_user_client, test_action_id):
+        """GET should return 404 for action owned by different user."""
+        response = wrong_user_client.get(f"/api/v1/actions/{test_action_id}/reminder-settings")
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_get_reminder_settings_http_nonexistent(self, api_client):
+        """GET should return 404 for nonexistent action."""
+        fake_id = str(uuid.uuid4())
+        response = api_client.get(f"/api/v1/actions/{fake_id}/reminder-settings")
+
+        assert response.status_code == 404
+
+    def test_patch_reminder_settings_http(self, api_client, test_action_id):
+        """PATCH /actions/{id}/reminder-settings should update settings."""
+        response = api_client.patch(
+            f"/api/v1/actions/{test_action_id}/reminder-settings",
+            json={"reminders_enabled": False, "reminder_frequency_days": 7},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["reminders_enabled"] is False
+        assert data["reminder_frequency_days"] == 7
+
+    def test_patch_reminder_settings_http_wrong_user(self, wrong_user_client, test_action_id):
+        """PATCH should return 404 for action owned by different user."""
+        response = wrong_user_client.patch(
+            f"/api/v1/actions/{test_action_id}/reminder-settings",
+            json={"reminders_enabled": False},
+        )
+
+        assert response.status_code == 404
+
+    def test_patch_reminder_settings_partial(self, api_client, test_action_id):
+        """PATCH should allow partial updates (only reminders_enabled)."""
+        response = api_client.patch(
+            f"/api/v1/actions/{test_action_id}/reminder-settings",
+            json={"reminders_enabled": False},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["reminders_enabled"] is False
+        # frequency should remain unchanged
+        assert data["reminder_frequency_days"] == 3
+
+    def test_patch_reminder_settings_frequency_validation(self, api_client, test_action_id):
+        """PATCH should reject invalid frequency values (outside 1-14 range)."""
+        # Test too high - should be rejected by Pydantic validation
+        response = api_client.patch(
+            f"/api/v1/actions/{test_action_id}/reminder-settings",
+            json={"reminder_frequency_days": 30},
+        )
+        assert response.status_code == 422  # Validation error
+
+        # Test too low
+        response = api_client.patch(
+            f"/api/v1/actions/{test_action_id}/reminder-settings",
+            json={"reminder_frequency_days": 0},
+        )
+        assert response.status_code == 422  # Validation error
+
+        # Test valid value at boundary
+        response = api_client.patch(
+            f"/api/v1/actions/{test_action_id}/reminder-settings",
+            json={"reminder_frequency_days": 14},
+        )
+        assert response.status_code == 200
+        assert response.json()["reminder_frequency_days"] == 14

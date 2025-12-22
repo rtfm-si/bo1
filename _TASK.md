@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-18 (Strategic Objectives feature)_
+_Last updated: 2025-12-19 (Task backlog review - all dev tasks complete)_
 
 ---
 
@@ -52,6 +52,11 @@ _Last updated: 2025-12-18 (Strategic Objectives feature)_
 
 ### Admin Features [ADMIN]
 
+- [x] [ADMIN][P2] Add user impersonation access point to admin UI (link/button to initiate impersonation from user list or user detail page)
+  - Impersonate button with Eye icon in `/admin/users` page (line 416-421)
+  - Full impersonation modal with confirmation workflow (line 598-690)
+  - Backend API: `backend/api/admin/impersonation.py`
+  - Tests: `tests/api/test_admin_impersonation.py`, `tests/api/admin/test_impersonation.py`
 - [x] [ADMIN][P2] Admin UI toggle for `PROMPT_INJECTION_BLOCK_SUSPICIOUS` (emergency disable - LLM shutdown)
 - [x] [ADMIN][P3] Send branded email (from template) to end user from within admin
 - [x] [ADMIN][P3] Expose other emergency-disable config toggles in admin UI
@@ -155,6 +160,30 @@ _Last updated: 2025-12-18 (Strategic Objectives feature)_
 
 ### Production Bugs [BUG]
 
+- [x] [BUG][P1] Fix admin blog API 429 rate limiting (all `/api/admin/blog/posts*` endpoints returning 429)
+  - Removed per-endpoint `@limiter.limit(ADMIN_RATE_LIMIT)` from all 9 blog endpoints
+  - Blog admin endpoints now use global IP limit only (500/min), matching other high-traffic admin pages
+  - Authentication still required via API key
+- [x] [BUG][P2] Fix blog post generation returning "Invalid input: Blog generation returned invalid JSON format"
+  - Added robust JSON parser (`extract_json_from_response`) to handle markdown wrapping and trailing text
+  - Added retry logic (1 retry) with explicit re-prompt on parse failure
+  - Added 7 unit tests in `tests/services/test_content_generator.py`
+- [x] [BUG][P1] Fix status.boardof.one returning 502 Bad Gateway
+  - Added `uptime-kuma` service to `docker-compose.infrastructure.yml`
+  - Port: 127.0.0.1:3003:3001, Volume: uptime-kuma-data, Network: bo1-network
+  - Resource limits: 0.25 CPU, 256M memory
+  - Requires prod deployment to apply; may need first-run admin setup via web UI
+- [x] [BUG][P2] Fix action delete button not working (no response on click)
+  - Added `e.stopPropagation()` to all action buttons in TaskCard.svelte (Start, Complete, Move back, Reopen, Delete, expand)
+  - Added stopPropagation to delete confirmation overlay to prevent parent button click
+- [x] [BUG][P2] Fix action reminder-settings 404 (`/api/v1/actions/{id}/reminder-settings` returns "Action not found")
+  - Root cause: `db_session()` calls missing `user_id` parameter for RLS context
+  - Fixed: Added `user_id` to `get_reminder_settings`, `update_reminder_settings`, `snooze_reminder`, `get_pending_reminders`
+  - Fixed: Removed forward reference quotes from `ReminderSettingsUpdate` type annotation in API endpoint
+  - Added 7 HTTP API integration tests in `tests/api/test_action_reminders.py`
+- [x] [UX][P3] Add admin/blog page link from main admin page
+  - Added Blog Management card to admin dashboard with FileText icon
+  - Links to `/admin/blog`
 - [x] [BUG][P1] Fix drag-and-drop action status update: "Invalid task ID format. Expected 'task_N' format" error
   - Fixed `/actions` page to use `updateActionStatus` (UUID-based) instead of `updateTaskStatus` (task_N format)
   - Fixed `handleKanbanStatusChange` and `handleBulkStatusChange` in `/actions/+page.svelte`

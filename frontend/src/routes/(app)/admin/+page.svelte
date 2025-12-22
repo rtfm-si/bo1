@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server } from 'lucide-svelte';
+	import { Users, List, TrendingUp, DollarSign, Clock, Activity, BarChart3, History, PieChart, Bell, Tag, MessageSquare, Wrench, Globe, Database, Mail, Zap, ExternalLink, LineChart, Server, FileText } from 'lucide-svelte';
 	import ExtendedKPIsPanel from '$lib/components/admin/ExtendedKPIsPanel.svelte';
 	import UptimeStatusBadge from '$lib/components/admin/UptimeStatusBadge.svelte';
 	import EmergencyToggles from '$lib/components/admin/EmergencyToggles.svelte';
@@ -592,6 +592,23 @@
 					</div>
 				</div>
 				<span class="text-sm text-info-600 dark:text-info-400">View feedback →</span>
+			</a>
+
+			<!-- Blog Management Card -->
+			<a
+				href="/admin/blog"
+				class="block bg-white dark:bg-neutral-800 rounded-lg p-6 border border-neutral-200 dark:border-neutral-700 hover:shadow-md hover:border-success-300 dark:hover:border-success-700 transition-all duration-200"
+			>
+				<div class="flex items-center gap-4 mb-3">
+					<div class="p-3 bg-success-100 dark:bg-success-900/30 rounded-lg">
+						<FileText class="w-6 h-6 text-success-600 dark:text-success-400" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Blog Management</h3>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">Create & publish SEO content</p>
+					</div>
+				</div>
+				<span class="text-sm text-success-600 dark:text-success-400">Manage blog →</span>
 			</a>
 		</div>
 	</main>

@@ -1,3 +1,5 @@
+admin user impersonation needs some way of accessing via admin
+
 admin/blog page needs a link from the admin page
 
 XHRGET

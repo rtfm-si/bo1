@@ -255,6 +255,30 @@ services:
       - bo1-network
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # Uptime Kuma: Status page and uptime monitoring
+  # ---------------------------------------------------------------------------
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    volumes:
+      - uptime-kuma-data:/app/data
+    ports:
+      - "127.0.0.1:3003:3001"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - bo1-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
 volumes:
   postgres-data:
     driver: local
@@ -271,6 +295,8 @@ volumes:
   grafana-data:
     driver: local
   promtail-positions:
+    driver: local
+  uptime-kuma-data:
     driver: local
 
 networks:

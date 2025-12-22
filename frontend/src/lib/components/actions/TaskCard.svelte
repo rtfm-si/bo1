@@ -45,7 +45,7 @@
 >
 	<div class="task-header">
 		<span class="task-title">{task.title}</span>
-		<button class="expand-btn" onclick={() => (expanded = !expanded)}>
+		<button class="expand-btn" onclick={(e) => { e.stopPropagation(); expanded = !expanded; }}>
 			{expanded ? '-' : '+'}
 		</button>
 	</div>
@@ -112,24 +112,24 @@
 
 	<div class="task-actions">
 		{#if nextStatus}
-			<button class="action-btn primary" onclick={() => onStatusChange(task.id, nextStatus)}>
+			<button class="action-btn primary" onclick={(e) => { e.stopPropagation(); onStatusChange(task.id, nextStatus); }}>
 				{nextStatus === 'in_progress' ? 'Start' : 'Complete'}
 			</button>
 		{/if}
 		{#if task.status === 'in_progress'}
-			<button class="action-btn secondary" onclick={() => onStatusChange(task.id, 'todo')}>
+			<button class="action-btn secondary" onclick={(e) => { e.stopPropagation(); onStatusChange(task.id, 'todo'); }}>
 				Move back
 			</button>
 		{/if}
 		{#if task.status === 'done'}
-			<button class="action-btn secondary" onclick={() => onStatusChange(task.id, 'in_progress')}>
+			<button class="action-btn secondary" onclick={(e) => { e.stopPropagation(); onStatusChange(task.id, 'in_progress'); }}>
 				Reopen
 			</button>
 		{/if}
 		{#if onDelete}
 			<button
 				class="action-btn delete"
-				onclick={() => showDeleteConfirm = true}
+				onclick={(e) => { e.stopPropagation(); showDeleteConfirm = true; }}
 				title="Delete action"
 			>
 				<Trash2 class="h-4 w-4" />
@@ -139,13 +139,13 @@
 
 	<!-- Delete confirmation overlay -->
 	{#if showDeleteConfirm}
-		<div class="delete-confirm-overlay">
+		<div class="delete-confirm-overlay" onclick={(e) => e.stopPropagation()}>
 			<p>Delete this action?</p>
 			<div class="confirm-actions">
-				<button class="action-btn danger" onclick={() => { onDelete?.(task.id); showDeleteConfirm = false; }}>
+				<button class="action-btn danger" onclick={(e) => { e.stopPropagation(); onDelete?.(task.id); showDeleteConfirm = false; }}>
 					Delete
 				</button>
-				<button class="action-btn secondary" onclick={() => showDeleteConfirm = false}>
+				<button class="action-btn secondary" onclick={(e) => { e.stopPropagation(); showDeleteConfirm = false; }}>
 					Cancel
 				</button>
 			</div>

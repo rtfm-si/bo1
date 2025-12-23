@@ -50,6 +50,74 @@ def get_sub_problem_id(sp: Any) -> str:
     return result
 
 
+def get_sub_problem_id_safe(sp: Any, logger: Any = None) -> str:
+    """Get id from sub-problem with corruption detection and repair.
+
+    After LangGraph checkpoint restore, the sub_problem.id field may become
+    corrupted to a type annotation path list like:
+    ['bo1', 'models', 'problem', 'SubProblem']
+
+    This helper detects and handles that corruption.
+
+    Args:
+        sp: SubProblem object or dict
+        logger: Optional logger for warning on corruption
+
+    Returns:
+        Valid string ID, or empty string if corrupted/missing
+    """
+    if sp is None:
+        return ""
+
+    raw_id = get_attr_safe(sp, "id", "")
+
+    # Handle corrupted list case (type annotation path)
+    if isinstance(raw_id, list):
+        if logger:
+            logger.warning(
+                f"Corrupted sub_problem.id detected: {raw_id} - "
+                "this is a type annotation path, not a valid ID"
+            )
+        return ""
+
+    # Validate it's actually a string
+    if not isinstance(raw_id, str):
+        if logger:
+            logger.warning(f"Invalid sub_problem.id type: {type(raw_id).__name__}")
+        return ""
+
+    return raw_id
+
+
+def get_sub_problem_goal_safe(sp: Any, logger: Any = None) -> str:
+    """Get goal from sub-problem with corruption detection.
+
+    Args:
+        sp: SubProblem object or dict
+        logger: Optional logger for warning on corruption
+
+    Returns:
+        Valid string goal, or empty string if corrupted/missing
+    """
+    if sp is None:
+        return ""
+
+    raw_goal = get_attr_safe(sp, "goal", "")
+
+    # Handle corrupted list case
+    if isinstance(raw_goal, list):
+        if logger:
+            logger.warning(f"Corrupted sub_problem.goal detected: {raw_goal}")
+        return ""
+
+    if not isinstance(raw_goal, str):
+        if logger:
+            logger.warning(f"Invalid sub_problem.goal type: {type(raw_goal).__name__}")
+        return ""
+
+    return raw_goal
+
+
 def get_problem_description(problem: Any) -> str:
     """Get description from problem (handles dict or Problem)."""
     result: str = get_attr_safe(problem, "description", "")

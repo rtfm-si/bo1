@@ -12,6 +12,7 @@
 	import { apiClient } from '$lib/api/client';
 	import type { FailedMeeting } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
+	import { RotateCcw } from 'lucide-svelte';
 
 	// Props
 	interface Props {
@@ -23,6 +24,7 @@
 	let failedMeetings = $state<FailedMeeting[]>([]);
 	let isLoading = $state(true);
 	let isDismissed = $state(false);
+	let retryingSessionIds = $state<Set<string>>(new Set());
 
 	// LocalStorage key for dismiss state (per-user, 24h expiry)
 	const DISMISS_KEY = 'bo1_failed_meeting_alert_dismissed';
@@ -83,8 +85,29 @@
 		}
 	}
 
-	function handleRetry() {
+	function handleStartNew() {
 		goto('/meeting/new');
+	}
+
+	/**
+	 * Retry a specific failed session from its last checkpoint.
+	 */
+	async function handleRetrySession(sessionId: string) {
+		if (retryingSessionIds.has(sessionId)) return;
+
+		// Mark as retrying
+		retryingSessionIds = new Set([...retryingSessionIds, sessionId]);
+
+		try {
+			await apiClient.retrySession(sessionId);
+			// Navigate to the meeting page to watch progress
+			goto(`/meeting/${sessionId}`);
+		} catch (error) {
+			console.error('Failed to retry session:', error);
+			// Remove from retrying set on error
+			retryingSessionIds = new Set([...retryingSessionIds].filter(id => id !== sessionId));
+			// Could show a toast here if we had access to toast store
+		}
 	}
 
 	// Show alert if there are failed meetings and not dismissed
@@ -121,15 +144,42 @@
 						: `${failedMeetings.length} meetings didn't complete`}
 				</h3>
 				<p class="mt-1 text-sm text-amber-700 dark:text-amber-300">
-					This doesn't count toward your usage. Try again, or contact support if the issue persists.
+					This doesn't count toward your usage. Retry to continue from where it stopped, or start fresh.
 				</p>
+
+				<!-- Failed meetings list with individual retry buttons -->
+				{#if failedMeetings.length > 0}
+					<div class="mt-3 space-y-2">
+						{#each failedMeetings as meeting}
+							<div class="flex items-center justify-between gap-2 rounded-md bg-amber-100/50 dark:bg-amber-800/30 px-3 py-2">
+								<span class="text-sm text-amber-800 dark:text-amber-200 truncate flex-1">
+									{meeting.problem_statement_preview || 'Untitled meeting'}
+								</span>
+								<Button
+									variant="brand"
+									size="sm"
+									onclick={() => handleRetrySession(meeting.session_id)}
+									disabled={retryingSessionIds.has(meeting.session_id)}
+								>
+									{#if retryingSessionIds.has(meeting.session_id)}
+										<span class="animate-spin">⏳</span>
+										<span>Retrying...</span>
+									{:else}
+										<RotateCcw size={14} />
+										<span>Retry</span>
+									{/if}
+								</Button>
+							</div>
+						{/each}
+					</div>
+				{/if}
 
 				<!-- Actions -->
 				<div class="mt-3 flex flex-wrap gap-2">
 					<Button
-						variant="brand"
+						variant="secondary"
 						size="sm"
-						onclick={handleRetry}
+						onclick={handleStartNew}
 					>
 						Start New Meeting
 					</Button>

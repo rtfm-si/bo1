@@ -18,11 +18,67 @@ Usage:
 import logging
 from collections.abc import Callable
 from functools import wraps
-from typing import Literal, TypeVar
+from typing import Any, Literal, TypedDict, TypeVar
 
 from fastapi import HTTPException
 
 from bo1.logging import ErrorCode, log_error
+
+
+class ErrorDetailDict(TypedDict, total=False):
+    """Structured error response format for HTTPException detail.
+
+    All API errors should use this format for consistent client-side handling.
+    The error_code enables log aggregation and programmatic error handling.
+    """
+
+    error_code: str  # Required: machine-readable error code from ErrorCode enum
+    message: str  # Required: human-readable error message
+    detail: dict[str, Any] | None  # Optional: additional context
+
+
+def http_error(
+    code: ErrorCode,
+    message: str,
+    status: int = 400,
+    **context: Any,
+) -> HTTPException:
+    """Create HTTPException with structured error response.
+
+    This is the preferred way to raise HTTP errors across all API endpoints.
+    It ensures consistent error format with error_code for log aggregation
+    and client-side error handling.
+
+    Args:
+        code: ErrorCode enum value for machine-readable error identification
+        message: Human-readable error message
+        status: HTTP status code (default 400)
+        **context: Additional context fields to include in detail
+
+    Returns:
+        HTTPException with structured detail dict
+
+    Examples:
+        >>> raise http_error(ErrorCode.VALIDATION_ERROR, "Invalid session ID")
+        # Raises 400 with {"error_code": "VALIDATION_ERROR", "message": "Invalid session ID"}
+
+        >>> raise http_error(
+        ...     ErrorCode.AUTH_TOKEN_ERROR,
+        ...     "Session expired",
+        ...     status=401,
+        ...     session_id="abc123"
+        ... )
+        # Raises 401 with {"error_code": "AUTH_TOKEN_ERROR", "message": "Session expired", "session_id": "abc123"}
+    """
+    detail: dict[str, Any] = {
+        "error_code": code.value,
+        "message": message,
+    }
+    if context:
+        detail.update(context)
+
+    return HTTPException(status_code=status, detail=detail)
+
 
 logger = logging.getLogger(__name__)
 

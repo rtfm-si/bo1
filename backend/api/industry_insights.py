@@ -28,6 +28,7 @@ from backend.api.utils.db_helpers import get_user_tier
 from backend.api.utils.errors import handle_api_errors
 from backend.services.insight_staleness import get_stale_benchmarks
 from bo1.constants import IndustryBenchmarkLimits
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
@@ -645,7 +646,13 @@ async def get_insights_for_user(
         )
 
     except (DatabaseError, OperationalError) as e:
-        logger.error(f"Database error getting insights: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Database error getting insights: {e}",
+            user_id=user_id,
+            industry=industry if "industry" in locals() else None,
+        )
         raise HTTPException(
             status_code=500,
             detail="Database error while retrieving insights",
@@ -653,7 +660,14 @@ async def get_insights_for_user(
     except asyncio.CancelledError:
         raise  # Always re-raise CancelledError
     except Exception as e:
-        logger.error(f"Unexpected error getting insights: {e}", exc_info=True)
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Unexpected error getting insights: {e}",
+            exc_info=True,
+            user_id=user_id if "user_id" in locals() else None,
+            industry=industry if "industry" in locals() else None,
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get insights: {str(e)}",
@@ -792,7 +806,13 @@ async def compare_benchmarks(
         )
 
     except (DatabaseError, OperationalError) as e:
-        logger.error(f"Database error comparing benchmarks: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Database error comparing benchmarks: {e}",
+            user_id=user_id,
+            industry=industry if "industry" in locals() else None,
+        )
         raise HTTPException(
             status_code=500,
             detail="Database error while comparing benchmarks",
@@ -800,7 +820,14 @@ async def compare_benchmarks(
     except asyncio.CancelledError:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error comparing benchmarks: {e}", exc_info=True)
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Unexpected error comparing benchmarks: {e}",
+            exc_info=True,
+            user_id=user_id if "user_id" in locals() else None,
+            industry=industry if "industry" in locals() else None,
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Failed to compare benchmarks: {str(e)}",
@@ -857,7 +884,14 @@ async def get_insights_by_industry(
     except asyncio.CancelledError:
         raise  # Always re-raise CancelledError
     except Exception as e:
-        logger.error(f"Unexpected error getting insights for {industry}: {e}", exc_info=True)
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Unexpected error getting insights for {industry}: {e}",
+            exc_info=True,
+            user_id=user_id if "user_id" in locals() else None,
+            industry=industry,
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get insights: {str(e)}",

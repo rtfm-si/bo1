@@ -16,6 +16,7 @@ from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from bo1.config import get_settings
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,11 @@ def require_admin(x_admin_key: str = Header(default=None)) -> str:
         HTTPException: 401 if key not provided, 403 if key invalid
     """
     if not ADMIN_API_KEY:
-        logger.error("Admin API key not configured - API key access denied")
+        log_error(
+            logger,
+            ErrorCode.API_UNAUTHORIZED,
+            "Admin API key not configured - API key access denied",
+        )
         raise HTTPException(
             status_code=500,
             detail="Admin API key not configured",
@@ -169,7 +174,9 @@ async def require_admin_any(
         logger.debug(f"Session auth failed: {e}")  # Will try other methods or raise below
 
     # Neither auth method succeeded
-    logger.warning("Admin access denied - no valid session or API key")
+    log_error(
+        logger, ErrorCode.API_UNAUTHORIZED, "Admin access denied - no valid session or API key"
+    )
     raise HTTPException(
         status_code=403,
         detail="Admin access required. Please log in as an admin user.",

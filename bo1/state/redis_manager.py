@@ -1083,6 +1083,71 @@ class RedisManager:
         logger.debug(f"[REDIS_FALLBACK] No user_id found for {session_id}")
         return None
 
+    def get_pool_health(self) -> dict[str, Any]:
+        """Get Redis connection pool health metrics.
+
+        Returns pool statistics including:
+        - used_connections: Connections currently in use
+        - free_connections: Connections available in pool
+        - max_connections: Maximum pool size
+        - utilization_pct: Pool utilization percentage (0-100)
+        - healthy: Whether pool is in healthy state
+
+        Note: redis-py ConnectionPool uses internal attributes that may vary by version:
+        - _in_use_connections: set of connections currently checked out
+        - _available_connections: list of connections available
+
+        Returns:
+            Dict with pool health metrics
+
+        Examples:
+            >>> manager = RedisManager()
+            >>> health = manager.get_pool_health()
+            >>> print(f"Pool utilization: {health['utilization_pct']:.1f}%")
+        """
+        if not self.is_available or not self.pool:
+            return {
+                "healthy": False,
+                "used_connections": 0,
+                "free_connections": 0,
+                "max_connections": 0,
+                "utilization_pct": 0.0,
+                "error": "Redis pool not available",
+            }
+
+        try:
+            # Access pool internals (redis-py implementation detail)
+            # _in_use_connections is a set of connections currently in use
+            # _available_connections is a list of available connections
+            in_use: set[object] = getattr(self.pool, "_in_use_connections", set())
+            available = getattr(self.pool, "_available_connections", [])
+            max_conns = getattr(self.pool, "max_connections", 10)
+
+            used_count = len(in_use) if in_use else 0
+            free_count = len(available) if available else 0
+
+            # Calculate utilization (used / max, not used / total_created)
+            utilization = (used_count / max_conns * 100) if max_conns > 0 else 0.0
+
+            return {
+                "healthy": True,
+                "used_connections": used_count,
+                "free_connections": free_count,
+                "max_connections": max_conns,
+                "utilization_pct": round(utilization, 2),
+            }
+
+        except Exception as e:
+            logger.warning(f"[REDIS_POOL] Failed to get pool health: {e}")
+            return {
+                "healthy": False,
+                "used_connections": 0,
+                "free_connections": 0,
+                "max_connections": 0,
+                "utilization_pct": 0.0,
+                "error": str(e),
+            }
+
     def close(self) -> None:
         """Close Redis connection pool.
 

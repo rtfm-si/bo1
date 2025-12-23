@@ -51,6 +51,7 @@ from backend.services.workspace_auth import (
     can_remove_member,
     can_transfer_ownership,
 )
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories.user_repository import user_repository
 from bo1.state.repositories.workspace_repository import workspace_repository
 
@@ -100,7 +101,14 @@ async def create_workspace(
             detail="Workspace slug already exists",
         ) from e
     except Exception as e:
-        logger.error(f"Failed to create workspace: {e}")
+        log_error(
+            logger,
+            ErrorCode.API_WORKSPACE_ERROR,
+            f"Failed to create workspace: {e}",
+            exc_info=True,
+            user_id=user_id,
+            workspace_name=request.name,
+        )
         raise HTTPException(status_code=500, detail="Failed to create workspace") from e
 
 
@@ -323,7 +331,15 @@ async def add_member(
         logger.info(f"Added member {target_id} to workspace {workspace_id}")
         return member
     except Exception as e:
-        logger.error(f"Failed to add member: {e}")
+        log_error(
+            logger,
+            ErrorCode.API_WORKSPACE_ERROR,
+            f"Failed to add member: {e}",
+            exc_info=True,
+            workspace_id=str(workspace_id),
+            target_user_id=target_id,
+            inviter_id=actor_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to add member") from e
 
 

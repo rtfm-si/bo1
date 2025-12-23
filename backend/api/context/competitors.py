@@ -20,6 +20,7 @@ from backend.api.context.models import (
 from backend.api.context.services import auto_save_competitors
 from bo1.config import get_settings
 from bo1.llm.client import ClaudeClient
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
@@ -176,7 +177,9 @@ Return ONLY the JSON array, no other text. If no valid companies found, return [
         return validated
 
     except Exception as e:
-        logger.error(f"LLM competitor extraction failed: {e}")
+        log_error(
+            logger, ErrorCode.SERVICE_EXECUTION_ERROR, f"LLM competitor extraction failed: {e}"
+        )
         return []
 
 
@@ -266,14 +269,21 @@ async def detect_competitors_for_user(
         )
 
     except httpx.HTTPError as e:
-        logger.error(f"Tavily API error: {e}")
+        log_error(
+            logger, ErrorCode.SERVICE_EXECUTION_ERROR, f"Tavily API error: {e}", user_id=user_id
+        )
         return CompetitorDetectResponse(
             success=False,
             competitors=[],
             error="Search service temporarily unavailable. Please try again later.",
         )
     except Exception as e:
-        logger.error(f"Competitor detection failed: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Competitor detection failed: {e}",
+            user_id=user_id,
+        )
         return CompetitorDetectResponse(
             success=False,
             competitors=[],
@@ -454,7 +464,12 @@ async def refresh_market_trends(
         )
 
     except Exception as e:
-        logger.error(f"Trends refresh failed: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Trends refresh failed: {e}",
+            user_id=user_id,
+        )
         return TrendsRefreshResponse(
             success=False,
             trends=[],

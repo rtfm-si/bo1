@@ -31,9 +31,9 @@ class Session(BaseModel):
     problem_statement: str = Field(..., description="Original problem statement")
     problem_context: dict[str, Any] | None = Field(None, description="Additional context as JSONB")
     status: SessionStatus = Field(SessionStatus.CREATED, description="Current session status")
-    phase: str | None = Field(None, description="Current deliberation phase")
-    total_cost: float | None = Field(None, description="Total cost in USD")
-    round_number: int | None = Field(None, description="Current round number")
+    phase: str = Field("problem_decomposition", description="Current deliberation phase")
+    total_cost: float = Field(0.0, description="Total cost in USD")
+    round_number: int = Field(0, description="Current round number")
     created_at: datetime = Field(..., description="Session creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     synthesis_text: str | None = Field(None, description="Final synthesis text")
@@ -47,7 +47,11 @@ class Session(BaseModel):
     billable_portion: float | None = Field(None, description="Billable portion 0.0-1.0")
     # Count fields (from d1_add_session_counts migration)
     expert_count: int = Field(0, description="Number of experts in session")
+    contribution_count: int = Field(0, description="Number of contributions in session")
     focus_area_count: int = Field(0, description="Number of focus areas in session")
+    task_count: int = Field(0, description="Number of tasks in session")
+    # Workspace scope (from aa2_add_workspace_to_sessions migration)
+    workspace_id: str | None = Field(None, description="Workspace UUID (None = personal)")
     # Recovery flags (from c3_add_session_recovery_flags migration)
     has_untracked_costs: bool = Field(False, description="True when cost inserts failed")
     recovery_needed: bool = Field(False, description="True when in-flight contributions exist")
@@ -98,9 +102,9 @@ class Session(BaseModel):
             problem_statement=row["problem_statement"],
             problem_context=row.get("problem_context"),
             status=status,
-            phase=row.get("phase"),
-            total_cost=row.get("total_cost"),
-            round_number=row.get("round_number"),
+            phase=row.get("phase", "problem_decomposition"),
+            total_cost=row.get("total_cost", 0.0),
+            round_number=row.get("round_number", 0),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             synthesis_text=row.get("synthesis_text"),
@@ -112,7 +116,11 @@ class Session(BaseModel):
             billable_portion=row.get("billable_portion"),
             # Count fields
             expert_count=row.get("expert_count", 0),
+            contribution_count=row.get("contribution_count", 0),
             focus_area_count=row.get("focus_area_count", 0),
+            task_count=row.get("task_count", 0),
+            # Workspace scope
+            workspace_id=row.get("workspace_id"),
             # Recovery flags
             has_untracked_costs=row.get("has_untracked_costs", False),
             recovery_needed=row.get("recovery_needed", False),

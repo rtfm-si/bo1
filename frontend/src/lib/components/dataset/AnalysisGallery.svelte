@@ -116,9 +116,14 @@
 		onclick={() => selectedAnalysis = null}
 		onkeydown={(e) => e.key === 'Escape' && (selectedAnalysis = null)}
 	>
+		<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 		<div
 			class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
 		>
 			<!-- Header -->
 			<div class="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">

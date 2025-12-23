@@ -12,6 +12,7 @@ from bo1.graph.safety.loop_prevention import get_adaptive_max_rounds
 from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
 from bo1.models.state import ContributionMessage, DeliberationMetrics, SubProblemResult
+from bo1.utils.checkpoint_helpers import get_sub_problem_goal_safe, get_sub_problem_id_safe
 
 
 class SubProblemGraphState(TypedDict, total=False):
@@ -138,9 +139,11 @@ def result_from_subgraph_state(state: SubProblemGraphState) -> SubProblemResult:
     Returns:
         SubProblemResult with synthesis, votes, costs, and expert summaries
     """
+    # Use safe accessors to handle corrupted checkpoint data
+    sub_problem = state.get("sub_problem")
     return SubProblemResult(
-        sub_problem_id=state["sub_problem"].id,
-        sub_problem_goal=state["sub_problem"].goal,
+        sub_problem_id=get_sub_problem_id_safe(sub_problem),
+        sub_problem_goal=get_sub_problem_goal_safe(sub_problem),
         synthesis=state.get("synthesis") or "",
         votes=state.get("votes", []),
         contribution_count=len(state.get("contributions", [])),

@@ -23,6 +23,7 @@ import os  # noqa: E402
 # Configure logging early, before other imports that may log
 from backend.api.logging_config import configure_logging  # noqa: E402
 from bo1.config import get_settings as _get_settings_early  # noqa: E402
+from bo1.logging.errors import ErrorCode, log_error  # noqa: E402
 
 _early_settings = _get_settings_early()
 configure_logging(
@@ -209,7 +210,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     result = cleanup_expired_shares()
                     _shutdown_logger.info(f"Session share cleanup: {result}")
                 except Exception as e:
-                    _shutdown_logger.error(f"Session share cleanup failed: {e}")
+                    log_error(
+                        _shutdown_logger,
+                        ErrorCode.SERVICE_EXECUTION_ERROR,
+                        f"Session share cleanup failed: {e}",
+                        exc_info=True,
+                    )
                 try:
                     await asyncio.wait_for(
                         asyncio.shield(get_shutdown_event().wait()),
@@ -592,13 +598,13 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     settings = get_settings()
 
     # Log full error server-side for all environments
-    logger.error(
+    log_error(
+        logger,
+        ErrorCode.SERVICE_EXECUTION_ERROR,
         f"Unhandled exception: {type(exc).__name__}: {exc}",
         exc_info=True,
-        extra={
-            "request_path": request.url.path,
-            "request_method": request.method,
-        },
+        request_path=request.url.path,
+        request_method=request.method,
     )
 
     if settings.debug:

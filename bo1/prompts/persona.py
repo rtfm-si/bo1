@@ -122,11 +122,11 @@ def compose_persona_contribution_prompt(
         </phase_goals>
         """
 
-    # Format previous contributions for context (last 5 only)
+    # Format previous contributions for context (last 3 only - optimized for token efficiency)
     discussion_history = "\n\n".join(
         [
             f"[{c.get('persona_code', 'Unknown')}]: {c.get('content', '')}"
-            for c in previous_contributions[-5:]  # Last 5 contributions
+            for c in previous_contributions[-3:]  # Last 3 contributions
         ]
     )
 

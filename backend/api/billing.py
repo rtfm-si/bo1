@@ -23,6 +23,7 @@ from backend.api.utils.auth_helpers import extract_user_email, extract_user_id
 from backend.api.utils.db_helpers import get_single_value
 from backend.api.utils.errors import handle_api_errors
 from bo1.config import get_settings
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.database import db_session
 from bo1.state.repositories.user_repository import user_repository
 
@@ -178,7 +179,12 @@ def _record_event(
                     (event_id, event_type, customer_id, subscription_id, payload_hash),
                 )
     except Exception as e:
-        logger.error(f"Failed to record Stripe event {event_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.EXT_STRIPE_ERROR,
+            f"Failed to record Stripe event {event_id}: {e}",
+            event_id=event_id,
+        )
 
 
 def _validate_webhook_timestamp(signature_header: str) -> None:
@@ -399,7 +405,12 @@ async def create_portal_session(
             available=True,
         )
     except Exception as e:
-        logger.error(f"Failed to create billing portal: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_BILLING_ERROR,
+            f"Failed to create billing portal: {e}",
+            user_id=user_id,
+        )
         return BillingPortalResponse(
             url=None,
             message="Failed to create billing portal. Please contact support.",
@@ -434,7 +445,11 @@ async def handle_stripe_webhook(request: Request) -> dict[str, str]:
         logger.warning(f"Invalid webhook signature: {e}")
         raise HTTPException(status_code=400, detail="Invalid signature") from None
     except Exception as e:
-        logger.error(f"Failed to construct webhook event: {e}")
+        log_error(
+            logger,
+            ErrorCode.EXT_STRIPE_ERROR,
+            f"Failed to construct webhook event: {e}",
+        )
         raise HTTPException(status_code=400, detail="Invalid payload") from None
 
     # Idempotency check - skip if already processed
@@ -475,7 +490,13 @@ async def handle_stripe_webhook(request: Request) -> dict[str, str]:
         return {"status": "success"}
 
     except Exception as e:
-        logger.error(f"Failed to process webhook event {event.id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.EXT_STRIPE_ERROR,
+            f"Failed to process webhook event {event.id}: {e}",
+            event_id=event.id,
+            event_type=event.type,
+        )
         # Don't record failed events - they'll be retried by Stripe
         raise HTTPException(status_code=500, detail="Event processing failed") from None
 
@@ -678,7 +699,13 @@ async def _handle_invoice_created(invoice: Any) -> None:
             logger.debug(f"No promos applied to invoice {invoice_id}")
 
     except Exception as e:
-        logger.error(f"Failed to apply promos to invoice {invoice_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_BILLING_ERROR,
+            f"Failed to apply promos to invoice {invoice_id}: {e}",
+            user_id=user_id,
+            invoice_id=invoice_id,
+        )
         # Don't fail the webhook - invoice will proceed without promo discounts
 
 

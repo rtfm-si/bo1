@@ -139,7 +139,8 @@
 
 	<!-- Delete confirmation overlay -->
 	{#if showDeleteConfirm}
-		<div class="delete-confirm-overlay" onclick={(e) => e.stopPropagation()}>
+		<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+		<div class="delete-confirm-overlay" role="presentation" onclick={(e) => e.stopPropagation()}>
 			<p>Delete this action?</p>
 			<div class="confirm-actions">
 				<button class="action-btn danger" onclick={(e) => { e.stopPropagation(); onDelete?.(task.id); showDeleteConfirm = false; }}>

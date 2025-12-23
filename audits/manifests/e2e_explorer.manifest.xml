@@ -1,0 +1,147 @@
+# Automated E2E Explorer Manifest
+
+<audit_manifest>
+  <audit_type>e2e_explorer</audit_type>
+
+  <purpose>
+    Run a synthetic user session through the "Golden Meeting" journey using Playwright MCP.
+    Capture evidence at every step. Produce a structured, machine-parseable report with
+    actionable issues and fixes. No code changes, PRs, or diffs—diagnostics only.
+  </purpose>
+
+  <scope>
+    - Full end-to-end user journey via browser (Playwright MCP)
+    - Login → Create meeting → Run meeting → View results → Create action → Logout
+    - Screenshot capture after each major step
+    - Console error/warning monitoring
+    - Network failure detection (4xx/5xx/timeouts)
+    - UI defect identification (stuck loaders, broken layout, disabled buttons)
+    - UX confusion detection (unclear labels, missing feedback, dead ends)
+  </scope>
+
+  <constraints>
+    - MUST NOT propose code changes, patches, diffs, or PRs
+    - MUST NOT modify application code, data, or database
+    - MUST capture at least one evidence item for every reported issue
+    - MUST follow the scenario steps exactly (no unrelated exploration)
+    - MUST use Playwright MCP for all browser interactions
+    - Read-only observation mode only
+    - Follow CLAUDE.md, GOVERNANCE, CONTEXT_BOUNDARY, MODEL_GUIDANCE
+  </constraints>
+
+  <required_inputs>
+    - base_url: Application URL (e.g., http://localhost:5173 or https://boardof.one)
+    - test_user_id: SuperTokens user ID for E2E test account (from one-time setup)
+    - test_email: E2E test account email
+    - supertokens_core_url: SuperTokens Core API URL (internal network)
+    - supertokens_api_key: SuperTokens API key (from E2E_SUPERTOKENS_API_KEY env)
+    - cookie_domain: Cookie domain for session (boardof.one or localhost)
+    - problem_text: Sample problem statement for meeting
+    - action_title: Sample action item title to create
+  </required_inputs>
+
+  <auth_method>
+    Session Injection via SuperTokens Core API:
+    - No OAuth flow required (bypasses Google/LinkedIn/GitHub)
+    - Creates session directly via /recipe/session endpoint
+    - Injects sAccessToken + sRefreshToken cookies into Playwright
+    - Requires one-time user setup in SuperTokens + PostgreSQL
+    - Safe: uses existing SuperTokens API (already protected by API key)
+  </auth_method>
+
+  <expected_outputs>
+    - Single file: _E2E_RUN_REPORT.md
+    - YAML frontmatter with run metadata
+    - Summary with pass/warn/fail result and issue counts
+    - Timeline table with step-by-step evidence
+    - Issue blocks with severity, evidence, and suggested fixes
+    - Prioritized recommendations
+    - Appendix with console excerpts and network failures
+  </expected_outputs>
+
+  <severity_rules>
+    - Critical: Blocks completing meeting/report flow, data loss, auth failures, payment broken
+    - Major: Core flow works but with significant errors, broken UI, repeated failures
+    - Minor: Cosmetic issues, non-blocking warnings, copy improvements
+  </severity_rules>
+
+  <evidence_rule>
+    NO ISSUE MAY BE REPORTED WITHOUT AT LEAST ONE EVIDENCE ITEM:
+    - Screenshot filename, OR
+    - Console log excerpt, OR
+    - Network endpoint + status code, OR
+    - Precise UI location/component reference
+  </evidence_rule>
+
+  <scenario name="golden_meeting_v1">
+    <step n="0.1">Create session via SuperTokens Core API</step>
+    <step n="0.2">Open base_url (unauthenticated)</step>
+    <step n="0.3">Inject session cookies via browser_evaluate</step>
+    <step n="0.4">Reload page to apply session</step>
+    <step n="0.5">Verify authenticated state</step>
+    <step n="1">Confirm authenticated (dashboard visible)</step>
+    <step n="2">Navigate to create new meeting</step>
+    <step n="3">Enter problem_text as problem statement</step>
+    <step n="4">Start the meeting</step>
+    <step n="5">Wait for meeting to complete OR error state</step>
+    <step n="6">Open the generated report/results</step>
+    <step n="7">Create one action item titled action_title</step>
+    <step n="8">Verify action is visible in the appropriate list</step>
+    <step n="9">Close browser / end session</step>
+  </scenario>
+
+  <expected_meeting_flow>
+    The meeting flow is NOT linear—it branches and loops based on facilitator decisions.
+
+    <phase name="setup">
+      context_collection → decompose → identify_gaps
+      May pause for clarification Q&A before continuing
+    </phase>
+
+    <phase name="deliberation" repeat="per_subproblem">
+      select_personas → initial_round → facilitator_decide
+      Loop: facilitator_decide → (parallel_round|research|data_analysis|clarification|moderator)
+            → cost_guard → check_convergence → back to facilitator_decide
+      Exit: when should_stop=true → vote → synthesize
+    </phase>
+
+    <phase name="synthesis">
+      If multiple sub-problems: next_subproblem loops back to select_personas
+      After all sub-problems: meta_synthesis combines results
+      Single sub-problem: END directly after synthesize
+    </phase>
+
+    <deliberation_phases>
+      - Exploration (rounds 1-2): Divergent thinking
+      - Challenge (rounds 3-4): Deep analysis
+      - Convergence (rounds 5-6): Synthesis
+    </deliberation_phases>
+
+    <expected_elements>
+      - Sub-problems: 1-5 (atomic problems have 1)
+      - Experts: 3-5 personas per sub-problem
+      - Rounds: 2-6 per sub-problem
+      - Contributions: All experts contribute each round (parallel)
+    </expected_elements>
+  </expected_meeting_flow>
+
+  <recovery_policy>
+    If a step fails:
+    1. Capture screenshot and console state immediately
+    2. Attempt ONE recovery action (refresh page OR re-login)
+    3. If recovery fails, record failure with evidence and STOP
+    4. Do not skip steps or continue past blockers
+  </recovery_policy>
+
+  <activation_conditions>
+    - After deploys (smoke test)
+    - Before releases (acceptance test)
+    - After frontend/UI changes
+    - Nightly regression runs
+    - On-demand exploratory testing
+  </activation_conditions>
+
+  <report_template>
+    See .claude/commands/e2e.md for full template specification
+  </report_template>
+</audit_manifest>

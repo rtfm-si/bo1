@@ -166,10 +166,19 @@ bo1_early_exit_total = Counter(
 )
 
 # Circuit breaker metrics
+# Legacy gauge (numeric state values, kept for backward compatibility)
 bo1_circuit_breaker_state = Gauge(
     "bo1_circuit_breaker_state",
     "Circuit breaker state (0=closed, 1=half_open, 2=open)",
     ["service"],
+)
+
+# New gauge with provider+state labels for better alerting
+# Each state is a separate time series: circuit_breaker_state{provider="anthropic", state="open"} = 1
+bo1_circuit_breaker_state_labeled = Gauge(
+    "circuit_breaker_state",
+    "Circuit breaker state per provider and state (1=active, 0=inactive)",
+    ["provider", "state"],
 )
 
 bo1_circuit_breaker_trips_total = Counter(
@@ -201,6 +210,86 @@ bo1_llm_xml_retry_success_total = Counter(
     "bo1_llm_xml_retry_success_total",
     "Total successful retries after XML validation failure",
     ["agent_type"],
+)
+
+# Graph execution timeout metrics
+bo1_graph_execution_timeout_total = Counter(
+    "bo1_graph_execution_timeout_total",
+    "Total graph execution timeouts",
+    ["session_type"],
+)
+
+bo1_graph_execution_duration_seconds = Histogram(
+    "bo1_graph_execution_duration_seconds",
+    "Graph execution duration in seconds",
+    buckets=(30, 60, 120, 180, 300, 600, 900, 1200),  # 30s to 20min
+)
+
+# SSE Polling Fallback metrics
+bo1_sse_fallback_activations_total = Counter(
+    "bo1_sse_fallback_activations_total",
+    "Total SSE fallback activations when Redis PubSub unavailable",
+    ["session_id", "reason"],
+)
+
+bo1_sse_polling_duration_seconds = Histogram(
+    "bo1_sse_polling_duration_seconds",
+    "Duration of PostgreSQL polling operations in seconds",
+    buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+
+bo1_sse_polling_events_per_batch = Histogram(
+    "bo1_sse_polling_events_per_batch",
+    "Number of events retrieved per polling batch",
+    buckets=(0, 1, 5, 10, 25, 50, 100),
+)
+
+bo1_sse_fallback_active = Gauge(
+    "bo1_sse_fallback_active",
+    "Number of SSE connections currently using PostgreSQL fallback",
+)
+
+# LLM output length validation metrics
+bo1_llm_output_length_warnings_total = Counter(
+    "llm_output_length_warnings_total",
+    "Total LLM output length warnings",
+    ["type", "model"],
+)
+
+# LLM provider fallback metrics
+bo1_llm_provider_fallback_total = Counter(
+    "llm_provider_fallback_total",
+    "Total LLM provider fallback activations",
+    ["from_provider", "to_provider", "reason"],
+)
+
+# LLM session rate limiter metrics
+bo1_llm_rate_limit_exceeded_total = Counter(
+    "llm_rate_limit_exceeded_total",
+    "Total LLM rate limit exceeded events",
+    ["type", "session_id"],
+)
+
+# Redis connection pool metrics
+bo1_redis_pool_used_connections = Gauge(
+    "bo1_redis_pool_used_connections",
+    "Number of Redis connections currently in use",
+)
+
+bo1_redis_pool_free_connections = Gauge(
+    "bo1_redis_pool_free_connections",
+    "Number of Redis connections available in pool",
+)
+
+bo1_redis_pool_utilization_percent = Gauge(
+    "bo1_redis_pool_utilization_percent",
+    "Percentage of Redis connection pool in use (0-100)",
+)
+
+bo1_redis_connection_acquire_seconds = Histogram(
+    "bo1_redis_connection_acquire_seconds",
+    "Redis connection acquisition latency in seconds",
+    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
 )
 
 
@@ -355,12 +444,22 @@ def record_early_exit(reason: str = "convergence_high") -> None:
 def record_circuit_breaker_state(service: str, state: str) -> None:
     """Record circuit breaker state for a service.
 
+    Updates both legacy gauge (numeric values) and new labeled gauge (per-state values).
+    The labeled gauge enables alerting like: circuit_breaker_state{provider="anthropic", state="open"} == 1
+
     Args:
-        service: Service name (e.g., "anthropic", "voyage", "brave")
+        service: Service name (e.g., "anthropic", "voyage", "brave", "openai")
         state: State string ("closed", "half_open", "open")
     """
+    # Update legacy gauge (for backward compatibility)
     state_map = {"closed": 0, "half_open": 1, "open": 2}
     bo1_circuit_breaker_state.labels(service=service).set(state_map.get(state, -1))
+
+    # Update new labeled gauge - set current state to 1, reset others to 0
+    all_states = ["closed", "half_open", "open"]
+    for s in all_states:
+        value = 1 if s == state else 0
+        bo1_circuit_breaker_state_labeled.labels(provider=service, state=s).set(value)
 
 
 def record_circuit_breaker_trip(service: str) -> None:
@@ -408,3 +507,126 @@ def record_xml_retry_success(agent_type: str) -> None:
         agent_type: Type of agent that succeeded on retry
     """
     bo1_llm_xml_retry_success_total.labels(agent_type=agent_type).inc()
+
+
+def record_graph_execution_timeout(session_type: str = "standard") -> None:
+    """Record a graph execution timeout.
+
+    Args:
+        session_type: Type of session that timed out (e.g., "standard", "mentor")
+    """
+    bo1_graph_execution_timeout_total.labels(session_type=session_type).inc()
+
+
+def record_graph_execution_duration(duration_seconds: float) -> None:
+    """Record graph execution duration for completed sessions.
+
+    Args:
+        duration_seconds: Time taken to complete graph execution
+    """
+    bo1_graph_execution_duration_seconds.observe(duration_seconds)
+
+
+def record_sse_fallback_activation(session_id: str, reason: str) -> None:
+    """Record an SSE fallback activation when Redis PubSub is unavailable.
+
+    Args:
+        session_id: Session identifier (truncated for cardinality)
+        reason: Reason for fallback (e.g., "circuit_open", "connection_error")
+    """
+    from bo1.utils.metrics import truncate_label
+
+    bo1_sse_fallback_activations_total.labels(
+        session_id=truncate_label(session_id), reason=reason
+    ).inc()
+
+
+def record_sse_polling_duration(duration_seconds: float) -> None:
+    """Record PostgreSQL polling operation duration.
+
+    Args:
+        duration_seconds: Time taken to poll PostgreSQL for events
+    """
+    bo1_sse_polling_duration_seconds.observe(duration_seconds)
+
+
+def record_sse_polling_batch_size(event_count: int) -> None:
+    """Record number of events retrieved in a polling batch.
+
+    Args:
+        event_count: Number of events retrieved
+    """
+    bo1_sse_polling_events_per_batch.observe(event_count)
+
+
+def increment_sse_fallback_active() -> None:
+    """Increment count of SSE connections using PostgreSQL fallback."""
+    bo1_sse_fallback_active.inc()
+
+
+def decrement_sse_fallback_active() -> None:
+    """Decrement count of SSE connections using PostgreSQL fallback."""
+    bo1_sse_fallback_active.dec()
+
+
+def record_output_length_warning(warning_type: str, model: str) -> None:
+    """Record an LLM output length warning.
+
+    Args:
+        warning_type: Type of warning ("verbose" or "truncated")
+        model: Model name that produced the output
+    """
+    bo1_llm_output_length_warnings_total.labels(type=warning_type, model=model).inc()
+
+
+def record_provider_fallback(from_provider: str, to_provider: str, reason: str) -> None:
+    """Record an LLM provider fallback activation.
+
+    Args:
+        from_provider: Original provider that failed (e.g., "anthropic")
+        to_provider: Fallback provider used (e.g., "openai")
+        reason: Reason for fallback (e.g., "circuit_breaker_open")
+    """
+    bo1_llm_provider_fallback_total.labels(
+        from_provider=from_provider, to_provider=to_provider, reason=reason
+    ).inc()
+
+
+def record_llm_rate_limit_exceeded(limit_type: str, session_id: str) -> None:
+    """Record an LLM rate limit exceeded event.
+
+    Args:
+        limit_type: Type of limit ("round" or "call_rate")
+        session_id: Session identifier (truncated for cardinality)
+    """
+    from bo1.utils.metrics import truncate_label
+
+    bo1_llm_rate_limit_exceeded_total.labels(
+        type=limit_type, session_id=truncate_label(session_id)
+    ).inc()
+
+
+def update_redis_pool_metrics(
+    used_connections: int,
+    free_connections: int,
+    utilization_pct: float,
+) -> None:
+    """Update Redis connection pool metrics.
+
+    Args:
+        used_connections: Number of connections currently in use
+        free_connections: Number of connections available in pool
+        utilization_pct: Pool utilization percentage (0-100)
+    """
+    bo1_redis_pool_used_connections.set(used_connections)
+    bo1_redis_pool_free_connections.set(free_connections)
+    bo1_redis_pool_utilization_percent.set(utilization_pct)
+
+
+def record_redis_connection_acquire_latency(duration_seconds: float) -> None:
+    """Record Redis connection acquisition latency.
+
+    Args:
+        duration_seconds: Time taken to acquire a connection from the pool
+    """
+    bo1_redis_connection_acquire_seconds.observe(duration_seconds)

@@ -553,6 +553,68 @@ class SessionManager:
         logger.warning("SessionManager shutdown complete")
 
 
+async def resume_session_from_checkpoint(
+    session_id: str,
+    graph: Any,
+    config: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Load and prepare state from checkpoint for resuming a failed session.
+
+    This function loads the last checkpoint for a session and prepares
+    the state for resumption by:
+    1. Loading state via graph.aget_state()
+    2. Resetting should_stop and stop_reason flags
+    3. Clearing any error state
+
+    Args:
+        session_id: Session identifier
+        graph: LangGraph graph instance with checkpointer
+        config: Graph config with thread_id
+
+    Returns:
+        Prepared state dict ready for graph resumption, or None if checkpoint not found
+    """
+    try:
+        # Load state from checkpoint
+        checkpoint_state = await graph.aget_state(config)
+
+        if not checkpoint_state or not checkpoint_state.values:
+            logger.warning(f"No checkpoint found for session {session_id}")
+            return None
+
+        state = dict(checkpoint_state.values)
+
+        # Validate sub_problems exist (critical for deliberation)
+        problem = state.get("problem")
+        if problem:
+            if isinstance(problem, dict):
+                sub_problems = problem.get("sub_problems", [])
+            else:
+                sub_problems = getattr(problem, "sub_problems", []) or []
+            sub_problems_count = len(sub_problems) if sub_problems else 0
+        else:
+            sub_problems_count = 0
+
+        logger.info(
+            f"Loaded checkpoint for {session_id}: "
+            f"problem={bool(problem)}, sub_problems={sub_problems_count}"
+        )
+
+        # Reset stop flags so graph continues execution
+        state["should_stop"] = False
+        state["stop_reason"] = None
+
+        # Clear any pending clarification state (we're retrying, not answering)
+        state["pending_clarification"] = None
+
+        logger.debug(f"Prepared state for resume from checkpoint for session {session_id}")
+        return state
+
+    except Exception as e:
+        logger.error(f"Failed to load/prepare checkpoint for {session_id}: {e}")
+        return None
+
+
 # Global signal handler setup for applications
 def setup_shutdown_handlers(session_manager: SessionManager) -> None:
     """Setup SIGTERM and SIGINT handlers for graceful shutdown.

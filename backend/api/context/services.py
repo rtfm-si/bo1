@@ -15,6 +15,7 @@ from backend.api.context.models import (
     EnrichmentSource,
 )
 from backend.api.utils.db_helpers import execute_query, get_single_value
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.security import sanitize_for_prompt
 
 logger = logging.getLogger(__name__)
@@ -346,7 +347,12 @@ async def auto_save_competitors(user_id: str, competitors: list[DetectedCompetit
 
     except Exception as e:
         # Don't fail the main request if auto-save fails
-        logger.error(f"Failed to auto-save competitors: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to auto-save competitors: {e}",
+            user_id=user_id,
+        )
 
 
 # =============================================================================

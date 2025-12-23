@@ -182,9 +182,36 @@ export interface HealthResponse {
 	details?: Record<string, unknown>;
 }
 
+/**
+ * Structured API error response.
+ *
+ * The API returns errors in a consistent format with:
+ * - error_code: Machine-readable code for log aggregation and programmatic handling
+ * - message: Human-readable error message
+ * - Additional context fields may be present depending on the error type
+ *
+ * @example
+ * {
+ *   "error_code": "API_SESSION_ERROR",
+ *   "message": "Session checkpoint expired",
+ *   "session_id": "bo1_abc123"
+ * }
+ */
 export interface ApiError {
-	detail: string;
+	/** Legacy string detail (deprecated - use message) */
+	detail?: string;
+	/** HTTP status code */
 	status?: number;
+	/** Machine-readable error code for programmatic handling */
+	error_code?: string;
+	/** Human-readable error message */
+	message?: string;
+	/** Rate limit reset time (ISO 8601) for 429 errors */
+	reset_time?: string;
+	/** Rate limit for 429 errors */
+	limit?: number;
+	/** Remaining requests for 429 errors */
+	remaining?: number;
 }
 
 // ============================================================================

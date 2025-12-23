@@ -31,6 +31,7 @@ from backend.services.mentor_persona import (
 )
 from backend.services.usage_tracking import UsageResult
 from bo1.llm.client import ClaudeClient
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.prompts.mentor import (
     build_mentor_prompt,
     format_active_actions,
@@ -405,7 +406,12 @@ async def _stream_mentor_response(
         yield f"event: done\ndata: {json.dumps(done_data)}\n\n"
 
     except Exception as e:
-        logger.error(f"Error in mentor chat for user {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Error in mentor chat for user {user_id}: {e}",
+            user_id=user_id,
+        )
         yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
 
@@ -533,9 +539,7 @@ async def search_mentions(
 
     if type == "meeting":
         repo = SessionRepository()
-        sessions = repo.list_by_user(
-            user_id, limit=50, status_filter=None, include_task_count=False
-        )
+        sessions = repo.list_by_user(user_id, limit=50, status_filter=None)
         for s in sessions:
             problem = s.get("problem_statement", "")
             # Filter by query if provided

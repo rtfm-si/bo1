@@ -71,6 +71,7 @@ from backend.api.utils.errors import handle_api_errors
 from backend.services.gantt_service import GanttColorService
 from bo1.config import get_settings
 from bo1.constants import GanttColorStrategy
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.services.replanning_service import replanning_service
 from bo1.state.database import db_session
 from bo1.state.repositories.action_repository import action_repository
@@ -1837,7 +1838,14 @@ async def request_replan(
         else:
             raise HTTPException(status_code=400, detail=error_msg) from None
     except Exception as e:
-        logger.error(f"Failed to create replan session: {e}", exc_info=True)
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to create replan session: {e}",
+            exc_info=True,
+            action_id=action_id,
+            user_id=user_id,
+        )
         raise HTTPException(
             status_code=500,
             detail="Failed to create replanning session. Please try again.",
@@ -2511,7 +2519,7 @@ async def update_action_reminder_settings(
 @handle_api_errors("snooze reminder")
 async def snooze_action_reminder(
     action_id: str,
-    snooze_request: "SnoozeReminderRequest",
+    snooze_request: SnoozeReminderRequest,
     user_data: dict = Depends(get_current_user),
 ) -> ReminderSnoozedResponse:
     """Snooze reminders for an action.

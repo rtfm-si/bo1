@@ -21,6 +21,7 @@ from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
 from backend.api.utils.errors import handle_api_errors
 from backend.services.email import validate_unsubscribe_token
 from bo1.config import get_settings
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -199,13 +200,23 @@ def send_beta_welcome_email(email: str) -> dict | None:
 
     except resend.exceptions.ResendError as e:
         # Log full error details - common issues: invalid API key, domain not verified, rate limit
-        logger.error(
+        log_error(
+            logger,
+            ErrorCode.EXT_EMAIL_ERROR,
             f"Resend API error sending email to {email}: {e}",
-            extra={"error_type": type(e).__name__, "error_detail": str(e)},
+            email=email,
+            error_type=type(e).__name__,
+            error_detail=str(e),
         )
         return None
     except Exception as e:
-        logger.error(f"Unexpected error sending beta welcome email to {email}: {e}", exc_info=True)
+        log_error(
+            logger,
+            ErrorCode.EXT_EMAIL_ERROR,
+            f"Unexpected error sending beta welcome email to {email}: {e}",
+            exc_info=True,
+            email=email,
+        )
         return None
 
 
@@ -257,7 +268,12 @@ async def get_email_preferences(
         return EmailPreferencesResponse(preferences=prefs)
 
     except Exception as e:
-        logger.error(f"Failed to get email preferences for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.EXT_EMAIL_ERROR,
+            f"Failed to get email preferences for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to get email preferences") from None
 
 
@@ -296,7 +312,12 @@ async def update_email_preferences(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update email preferences for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.EXT_EMAIL_ERROR,
+            f"Failed to update email preferences for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to update email preferences") from None
 
 
@@ -370,7 +391,13 @@ async def unsubscribe(
         )
 
     except Exception as e:
-        logger.error(f"Failed to unsubscribe user {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.EXT_EMAIL_ERROR,
+            f"Failed to unsubscribe user {user_id}: {e}",
+            user_id=user_id,
+            email_type=email_type,
+        )
         return HTMLResponse(
             content=_render_unsubscribe_page(
                 success=False,

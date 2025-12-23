@@ -18,7 +18,7 @@ from anthropic import APIError, RateLimitError
 from pydantic import BaseModel, Field, field_validator
 
 from bo1.config import TokenBudgets, get_settings, resolve_tier_to_model
-from bo1.constants import LLMConfig
+from bo1.constants import LLMConfig, OutputLengthConfig
 from bo1.llm.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerOpenError,
@@ -37,7 +37,10 @@ from bo1.utils.logging import get_logger, log_llm_call
 try:
     from backend.api.middleware.metrics import (
         record_llm_cost,
+        record_llm_rate_limit_exceeded,
         record_llm_request,
+        record_output_length_warning,
+        record_provider_fallback,
         record_xml_retry_success,
         record_xml_validation_failure,
     )
@@ -57,6 +60,15 @@ except ImportError:
         """No-op when metrics unavailable."""
 
     def record_xml_retry_success(agent_type: str) -> None:  # noqa: D103
+        """No-op when metrics unavailable."""
+
+    def record_output_length_warning(warning_type: str, model: str) -> None:  # noqa: D103
+        """No-op when metrics unavailable."""
+
+    def record_provider_fallback(from_provider: str, to_provider: str, reason: str) -> None:  # noqa: D103
+        """No-op when metrics unavailable."""
+
+    def record_llm_rate_limit_exceeded(limit_type: str, session_id: str) -> None:  # noqa: D103
         """No-op when metrics unavailable."""
 
 
@@ -219,17 +231,19 @@ class PromptBroker:
         """Backward compatibility: return Anthropic circuit breaker."""
         return self._get_circuit_breaker("anthropic")
 
-    async def call(self, request: PromptRequest) -> LLMResponse:
+    async def call(self, request: PromptRequest, *, _used_fallback: bool = False) -> LLMResponse:
         """Execute an LLM call with retry/rate-limit handling and caching.
 
         Args:
             request: Structured prompt request
+            _used_fallback: Internal flag to prevent infinite fallback loops
 
         Returns:
             LLMResponse with comprehensive metrics
 
         Raises:
             APIError: If all retries exhausted or non-retryable error
+            RuntimeError: If circuit breaker open and fallback unavailable/disabled
         """
         # Check cache first (fast path)
         from bo1.llm.cache import get_llm_cache
@@ -244,6 +258,34 @@ class PromptBroker:
             return cached_response
 
         start_time = time.time()
+
+        # Apply session-level rate limiting (non-blocking, graceful degradation)
+        from bo1.llm.rate_limiter import get_session_rate_limiter
+
+        rate_limiter = get_session_rate_limiter()
+        cost_ctx = get_cost_context()
+        session_id = cost_ctx.get("session_id")
+        round_number = cost_ctx.get("round_number", 0)
+
+        if session_id:
+            # Check round limit (log warning, emit metric, but don't block)
+            if not rate_limiter.check_session_round_limit(session_id, round_number):
+                record_llm_rate_limit_exceeded("round", session_id)
+                # Continue anyway - graceful degradation
+
+            # Check call rate limit (await if needed)
+            allowed, wait_seconds = rate_limiter.check_call_rate(session_id)
+            if not allowed:
+                record_llm_rate_limit_exceeded("call_rate", session_id)
+                if wait_seconds > 0:
+                    logger.info(f"[{request.request_id}] Rate limited, waiting {wait_seconds:.1f}s")
+                    await asyncio.sleep(wait_seconds)
+                    # Record the call after waiting
+                    rate_limiter.record_call(session_id)
+
+            # Periodic cleanup of stale sessions
+            rate_limiter.maybe_cleanup()
+
         retry_count = 0
         last_error: Exception | None = None
 
@@ -255,6 +297,11 @@ class PromptBroker:
             fallback_enabled=settings.llm_fallback_enabled,
         )
 
+        # Determine fallback provider
+        fallback_provider = (
+            "openai" if settings.llm_primary_provider == "anthropic" else "anthropic"
+        )
+
         # Resolve model tier/alias to full ID for the active provider
         model_id = resolve_tier_to_model(request.model, provider=provider)
 
@@ -262,9 +309,6 @@ class PromptBroker:
             f"[{request.request_id}] Starting LLM call: "
             f"provider={provider}, model={model_id}, phase={request.phase}, agent={request.agent_type}"
         )
-
-        # Get cost tracking context from thread-local storage
-        cost_ctx = get_cost_context()
 
         # Get circuit breaker for the active provider
         circuit_breaker = self._get_circuit_breaker(provider)
@@ -334,6 +378,13 @@ class PromptBroker:
                     agent_type=request.agent_type,
                 )
 
+                # Calculate output ratio for logging
+                output_ratio = (
+                    token_usage.output_tokens / request.max_tokens
+                    if request.max_tokens > 0
+                    else 0.0
+                )
+
                 # Log structured metrics
                 log_llm_call(
                     logger,
@@ -346,6 +397,8 @@ class PromptBroker:
                     agent=request.agent_type or "unknown",
                     request_id=request.request_id,
                     retry_count=retry_count,
+                    output_ratio=f"{output_ratio:.2%}",
+                    max_tokens=request.max_tokens,
                 )
 
                 # Track Prometheus metrics
@@ -353,6 +406,17 @@ class PromptBroker:
                 # Convert cost to cents (cost_total is in dollars)
                 cost_cents = llm_response.cost_total * 100 if llm_response.cost_total else 0
                 record_llm_cost(model=model_id, provider=provider, cost_cents=cost_cents)
+
+                # Validate output length (non-blocking, warnings only)
+                warning_type = self._validate_output_length(
+                    response=llm_response,
+                    max_tokens=request.max_tokens,
+                    request_id=request.request_id,
+                    model=model_id,
+                    phase=request.phase,
+                )
+                if warning_type:
+                    record_output_length_warning(warning_type, model_id)
 
                 # Cache the response for future use
                 await cache.set(request, llm_response)
@@ -422,11 +486,45 @@ class PromptBroker:
                 log_error(
                     logger,
                     ErrorCode.LLM_CIRCUIT_OPEN,
-                    f"[{request.request_id}] Circuit breaker OPEN - API unavailable, skipping retry: {e}",
+                    f"[{request.request_id}] Circuit breaker OPEN for {provider}: {e}",
                     request_id=request.request_id,
+                    provider=provider,
                 )
                 record_llm_request(model=model_id, provider=provider, success=False)
-                # Re-raise as RuntimeError to avoid retry loop
+
+                # Attempt fallback if enabled and not already tried
+                if settings.llm_fallback_enabled and not _used_fallback:
+                    # Check if fallback provider's circuit breaker is closed
+                    fallback_cb = self._get_circuit_breaker(fallback_provider)
+                    if fallback_cb.state.name.lower() != "open":
+                        logger.warning(
+                            f"[{request.request_id}] Provider fallback: "
+                            f"{provider} → {fallback_provider} (reason: circuit_breaker_open)"
+                        )
+                        record_provider_fallback(
+                            from_provider=provider,
+                            to_provider=fallback_provider,
+                            reason="circuit_breaker_open",
+                        )
+                        # Retry with fallback provider (recursive call with flag)
+                        return await self._call_with_provider(
+                            request=request,
+                            provider=fallback_provider,
+                            start_time=start_time,
+                            cost_ctx=cost_ctx,
+                            cache=cache,
+                            _used_fallback=True,
+                        )
+                    else:
+                        log_error(
+                            logger,
+                            ErrorCode.LLM_CIRCUIT_OPEN,
+                            f"[{request.request_id}] Both providers unavailable: "
+                            f"{provider} and {fallback_provider} circuits open",
+                            request_id=request.request_id,
+                        )
+
+                # Re-raise as RuntimeError - no fallback available
                 raise RuntimeError(
                     "Service temporarily unavailable due to repeated failures. Please try again later."
                 ) from e
@@ -451,6 +549,128 @@ class PromptBroker:
         )
         record_llm_request(model=model_id, provider=provider, success=False)
         raise last_error or RuntimeError("All retries exhausted with no error captured")
+
+    async def _call_with_provider(
+        self,
+        request: PromptRequest,
+        provider: str,
+        start_time: float,
+        cost_ctx: dict[str, Any],
+        cache: Any,
+        _used_fallback: bool = False,
+    ) -> LLMResponse:
+        """Execute LLM call with a specific provider (used for fallback).
+
+        Args:
+            request: Structured prompt request
+            provider: Provider to use ("anthropic" or "openai")
+            start_time: Original request start time for duration tracking
+            cost_ctx: Cost tracking context
+            cache: LLM cache instance
+            _used_fallback: Flag indicating this is a fallback call
+
+        Returns:
+            LLMResponse from the fallback provider
+        """
+        # Resolve model for fallback provider
+        model_id = resolve_tier_to_model(request.model, provider=provider)
+
+        logger.info(
+            f"[{request.request_id}] Fallback LLM call: "
+            f"provider={provider}, model={model_id}, phase={request.phase}"
+        )
+
+        # Get circuit breaker for fallback provider
+        circuit_breaker = self._get_circuit_breaker(provider)
+
+        # Single attempt for fallback (no retry loop - already exhausted retries)
+        with CostTracker.track_call(
+            provider=provider,
+            operation_type="completion",
+            model_name=model_id,
+            session_id=cost_ctx.get("session_id"),
+            user_id=cost_ctx.get("user_id"),
+            node_name=cost_ctx.get("node_name"),
+            phase=cost_ctx.get("phase") or request.phase,
+            persona_name=cost_ctx.get("persona_name"),
+            round_number=cost_ctx.get("round_number"),
+            sub_problem_index=cost_ctx.get("sub_problem_index"),
+            metadata={"prompt_name": cost_ctx.get("prompt_name", request.agent_type)},
+        ) as cost_record:
+            # Make the LLM call with circuit breaker protection
+            async def _make_api_call() -> tuple[str, TokenUsage]:
+                if provider == "openai":
+                    openai_client = self._get_openai_client()
+                    return await openai_client.call(  # type: ignore[no-any-return]
+                        model=model_id,
+                        messages=[{"role": "user", "content": request.user_message}],
+                        system=request.system,
+                        cache_system=request.cache_system,
+                        temperature=request.temperature,
+                        max_tokens=request.max_tokens,
+                        prefill=request.prefill,
+                    )
+                else:
+                    return await self.client.call(
+                        model=model_id,
+                        messages=[{"role": "user", "content": request.user_message}],
+                        system=request.system,
+                        cache_system=request.cache_system,
+                        temperature=request.temperature,
+                        max_tokens=request.max_tokens,
+                        prefill=request.prefill,
+                    )
+
+            response_text, token_usage = await circuit_breaker.call(_make_api_call)
+
+            # Populate cost record
+            cost_record.input_tokens = token_usage.input_tokens
+            cost_record.output_tokens = token_usage.output_tokens
+            cost_record.cache_creation_tokens = token_usage.cache_creation_tokens
+            cost_record.cache_read_tokens = token_usage.cache_read_tokens
+
+        # Calculate duration from original start
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Build LLMResponse
+        llm_response = LLMResponse(
+            content=response_text,
+            model=model_id,
+            token_usage=token_usage,
+            duration_ms=duration_ms,
+            retry_count=0,  # Fallback is not a retry
+            request_id=request.request_id,
+            phase=request.phase,
+            agent_type=request.agent_type,
+        )
+
+        # Log structured metrics
+        log_llm_call(
+            logger,
+            model=model_id,
+            prompt_tokens=token_usage.input_tokens,
+            completion_tokens=token_usage.output_tokens,
+            cost=llm_response.cost_total,
+            duration_ms=duration_ms,
+            phase=request.phase or "unknown",
+            agent=request.agent_type or "unknown",
+            request_id=request.request_id,
+            retry_count=0,
+            output_ratio=f"{token_usage.output_tokens / request.max_tokens:.2%}"
+            if request.max_tokens > 0
+            else "0.00%",
+            max_tokens=request.max_tokens,
+        )
+
+        # Track Prometheus metrics
+        record_llm_request(model=model_id, provider=provider, success=True)
+        cost_cents = llm_response.cost_total * 100 if llm_response.cost_total else 0
+        record_llm_cost(model=model_id, provider=provider, cost_cents=cost_cents)
+
+        # Cache the response
+        await cache.set(request, llm_response)
+
+        return llm_response
 
     def _extract_retry_after(self, error: RateLimitError) -> float | None:
         """Extract Retry-After value from rate limit error.
@@ -489,6 +709,54 @@ class PromptBroker:
 
         # If we can't determine status code, don't retry
         return False
+
+    def _validate_output_length(
+        self,
+        response: LLMResponse,
+        max_tokens: int,
+        request_id: str,
+        model: str,
+        phase: str | None,
+    ) -> str | None:
+        """Validate output length and return warning type if applicable.
+
+        Args:
+            response: LLM response to validate
+            max_tokens: Maximum tokens requested for this call
+            request_id: Request identifier for logging
+            model: Model name used for this call
+            phase: Deliberation phase for context
+
+        Returns:
+            Warning type ("verbose" or "truncated") or None if normal
+        """
+        if not OutputLengthConfig.is_enabled():
+            return None
+
+        if max_tokens <= 0:
+            return None
+
+        output_tokens = response.token_usage.output_tokens
+        ratio = output_tokens / max_tokens
+
+        warning_type: str | None = None
+
+        if ratio < OutputLengthConfig.VERBOSE_THRESHOLD:
+            warning_type = "verbose"
+            logger.warning(
+                f"[{request_id}] Output length warning: response uses only "
+                f"{ratio:.1%} of max_tokens ({output_tokens}/{max_tokens}), "
+                f"model={model}, phase={phase or 'unknown'}"
+            )
+        elif ratio > OutputLengthConfig.TRUNCATION_THRESHOLD:
+            warning_type = "truncated"
+            logger.warning(
+                f"[{request_id}] Output length warning: response uses "
+                f"{ratio:.1%} of max_tokens ({output_tokens}/{max_tokens}), "
+                f"possible truncation, model={model}, phase={phase or 'unknown'}"
+            )
+
+        return warning_type
 
     async def call_with_validation(
         self,

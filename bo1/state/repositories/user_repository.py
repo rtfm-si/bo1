@@ -218,6 +218,11 @@ class UserRepository(BaseRepository):
         Tries Redis cache first, falls back to PostgreSQL on miss.
         Caches result on miss for subsequent requests.
 
+        Note: Repository pattern uses service role connection (no RLS) for internal
+        operations. The API layer is responsible for auth/authorization checks.
+        For direct DB queries in API routes that need RLS, use execute_query()
+        with user_id parameter to set app.current_user_id for RLS policies.
+
         Args:
             user_id: User ID (from Supabase auth)
 

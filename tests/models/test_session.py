@@ -79,7 +79,7 @@ class TestSessionRoundtrip:
             assert restored.status == status
 
     def test_session_optional_fields_null(self) -> None:
-        """Optional fields serialize correctly when None."""
+        """Optional fields serialize correctly when None, required fields have defaults."""
         session = Session(
             id="bo1_test",
             user_id="u1",
@@ -87,21 +87,22 @@ class TestSessionRoundtrip:
             status=SessionStatus.CREATED,
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
-            # All optional fields default to None
+            # Optional fields default to None, required fields have DB-matching defaults
         )
 
         data = session.model_dump()
         assert data["problem_context"] is None
-        assert data["phase"] is None
-        assert data["total_cost"] is None
-        assert data["round_number"] is None
+        # phase, total_cost, round_number now have defaults matching DB server_default
+        assert data["phase"] == "problem_decomposition"
+        assert data["total_cost"] == 0.0
+        assert data["round_number"] == 0
         assert data["synthesis_text"] is None
         assert data["final_recommendation"] is None
 
         # Roundtrip
         restored = Session.model_validate_json(session.model_dump_json())
         assert restored.problem_context is None
-        assert restored.phase is None
+        assert restored.phase == "problem_decomposition"
 
     def test_session_termination_fields(self) -> None:
         """Termination fields map correctly from DB row."""
@@ -134,11 +135,15 @@ class TestSessionRoundtrip:
             "created_at": datetime.now(UTC),
             "updated_at": datetime.now(UTC),
             "expert_count": 5,
+            "contribution_count": 12,
             "focus_area_count": 3,
+            "task_count": 8,
         }
         session = Session.from_db_row(row)
         assert session.expert_count == 5
+        assert session.contribution_count == 12
         assert session.focus_area_count == 3
+        assert session.task_count == 8
 
     def test_session_count_fields_default_zero(self) -> None:
         """Count fields default to 0 when not present in row."""
@@ -152,7 +157,9 @@ class TestSessionRoundtrip:
         }
         session = Session.from_db_row(row)
         assert session.expert_count == 0
+        assert session.contribution_count == 0
         assert session.focus_area_count == 0
+        assert session.task_count == 0
 
     def test_session_termination_fields_optional(self) -> None:
         """Termination fields default to None when not present."""
@@ -169,3 +176,99 @@ class TestSessionRoundtrip:
         assert session.termination_type is None
         assert session.termination_reason is None
         assert session.billable_portion is None
+
+    def test_session_from_db_row_with_workspace_id(self) -> None:
+        """from_db_row() correctly maps workspace_id from DB column."""
+        row = {
+            "id": "bo1_test",
+            "user_id": "u1",
+            "problem_statement": "test",
+            "status": "running",
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            "workspace_id": "ws_abc123",
+        }
+        session = Session.from_db_row(row)
+        assert session.workspace_id == "ws_abc123"
+
+    def test_session_from_db_row_without_workspace_id(self) -> None:
+        """from_db_row() defaults workspace_id to None when not present."""
+        row = {
+            "id": "bo1_test",
+            "user_id": "u1",
+            "problem_statement": "test",
+            "status": "running",
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+        session = Session.from_db_row(row)
+        assert session.workspace_id is None
+
+    def test_session_model_schema_includes_workspace_id(self) -> None:
+        """workspace_id field appears in JSON schema."""
+        schema = Session.model_json_schema()
+        assert "workspace_id" in schema["properties"]
+        workspace_field = schema["properties"]["workspace_id"]
+        assert workspace_field["description"] == "Workspace UUID (None = personal)"
+
+    def test_session_default_values_match_db(self) -> None:
+        """Verify Session defaults match DB server_default values."""
+        session = Session(
+            id="bo1_test",
+            user_id="u1",
+            problem_statement="test",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        # DB defaults (from migrations)
+        assert session.phase == "problem_decomposition"
+        assert session.total_cost == 0.0
+        assert session.round_number == 0
+        assert session.expert_count == 0
+        assert session.contribution_count == 0
+        assert session.focus_area_count == 0
+        assert session.task_count == 0
+
+    def test_session_from_db_row_with_counts(self) -> None:
+        """from_db_row() correctly maps contribution_count and task_count."""
+        row = {
+            "id": "bo1_test",
+            "user_id": "u1",
+            "problem_statement": "test",
+            "status": "completed",
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            "contribution_count": 25,
+            "task_count": 10,
+        }
+        session = Session.from_db_row(row)
+        assert session.contribution_count == 25
+        assert session.task_count == 10
+
+    def test_session_from_db_row_missing_optional(self) -> None:
+        """from_db_row() uses correct defaults when optional fields missing."""
+        row = {
+            "id": "bo1_test",
+            "user_id": "u1",
+            "problem_statement": "test",
+            "status": "created",
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            # All optional/defaulted fields missing
+        }
+        session = Session.from_db_row(row)
+        # Required fields with DB-matching defaults
+        assert session.phase == "problem_decomposition"
+        assert session.total_cost == 0.0
+        assert session.round_number == 0
+        # Count fields default to 0
+        assert session.contribution_count == 0
+        assert session.task_count == 0
+
+    def test_session_model_schema_includes_all_count_fields(self) -> None:
+        """All count fields appear in JSON schema."""
+        schema = Session.model_json_schema()
+        assert "expert_count" in schema["properties"]
+        assert "contribution_count" in schema["properties"]
+        assert "focus_area_count" in schema["properties"]
+        assert "task_count" in schema["properties"]

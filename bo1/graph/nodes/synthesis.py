@@ -15,7 +15,7 @@ from typing import Any
 
 from bo1.config import get_model_for_role
 from bo1.graph.nodes.utils import emit_node_duration, log_with_session
-from bo1.graph.state import DeliberationGraphState
+from bo1.graph.state import DeliberationGraphState, prune_contributions_for_phase
 from bo1.graph.utils import ensure_metrics, track_aggregated_cost, track_phase_cost
 from bo1.models.state import DeliberationPhase, SubProblemResult
 from bo1.prompts.synthesis import (
@@ -23,6 +23,7 @@ from bo1.prompts.synthesis import (
     SYNTHESIS_MAX_TOKENS,
     SYNTHESIS_TOKEN_WARNING_THRESHOLD,
 )
+from bo1.utils.checkpoint_helpers import get_sub_problem_goal_safe, get_sub_problem_id_safe
 from bo1.utils.deliberation_logger import get_deliberation_logger
 
 logger = logging.getLogger(__name__)
@@ -46,9 +47,22 @@ def _get_subproblem_attr(sp: Any, attr: str, default: Any = None) -> Any:
 
     After checkpoint restoration, SubProblem objects may be deserialized as dicts.
     This helper handles both cases.
+
+    For 'id' and 'goal' attributes, uses safe helpers that detect and handle
+    corrupted values (e.g., type annotation lists like ['bo1', 'models', ...]).
     """
     if sp is None:
         return default
+
+    # Use safe accessors for id and goal to handle corruption
+    if attr == "id":
+        result = get_sub_problem_id_safe(sp, logger)
+        return result if result else default
+    if attr == "goal":
+        result = get_sub_problem_goal_safe(sp, logger)
+        return result if result else default
+
+    # Standard access for other attributes
     if isinstance(sp, dict):
         return sp.get(attr, default)
     return getattr(sp, attr, default)
@@ -153,9 +167,13 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
     dlog = get_deliberation_logger(session_id, user_id, "synthesize_node")
     dlog.info("Starting synthesis with lean McKinsey-style template")
 
+    # Prune contributions to reduce token usage (post-convergence)
+    # Safe: synthesis uses round_summaries for context, not raw contributions
+    pruned_contributions = prune_contributions_for_phase(state)
+
     # Get problem and contributions
     problem = state.get("problem")
-    contributions = state.get("contributions", [])
+    contributions = pruned_contributions
     votes = state.get("votes", [])
     round_summaries = state.get("round_summaries", [])
     current_round = state.get("round_number", 1)
@@ -183,9 +201,9 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         for contrib in final_round_contribs:
             final_round_contributions.append(f"{contrib.persona_name}:\n{contrib.content}\n")
     else:
-        # Fallback: if no final round contributions, use last 5 contributions
-        logger.warning("synthesize_node: No final round contributions found, using last 5")
-        for contrib in contributions[-5:]:
+        # Fallback: if no final round contributions, use last 3 contributions
+        logger.warning("synthesize_node: No final round contributions found, using last 3")
+        for contrib in contributions[-3:]:
             final_round_contributions.append(
                 f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
             )
@@ -299,7 +317,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         f"({synthesis_length} chars, cost: ${response.cost_total:.4f})"
     )
 
-    # Return state updates
+    # Return state updates (include pruned contributions to reduce checkpoint size)
     emit_node_duration("synthesize_node", (time.perf_counter() - _start_time) * 1000)
     return {
         "synthesis": synthesis_report_with_disclaimer,
@@ -307,6 +325,7 @@ async def synthesize_node(state: DeliberationGraphState) -> dict[str, Any]:
         "metrics": metrics,
         "current_node": "synthesize",
         "sub_problem_index": state.get("sub_problem_index", 0),  # Preserve sub_problem_index
+        "contributions": contributions,  # Pruned contributions (reduces Redis payload)
     }
 
 

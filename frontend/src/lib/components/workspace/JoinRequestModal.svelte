@@ -73,13 +73,16 @@
 		onclick={() => handleClose()}
 		role="presentation"
 	>
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
 		<!-- Modal -->
 		<div
 			class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full"
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="join-request-title"
+			tabindex="-1"
 		>
 			<!-- Header -->
 			<div class="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">

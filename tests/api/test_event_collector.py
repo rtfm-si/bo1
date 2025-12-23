@@ -724,3 +724,426 @@ async def test_verify_event_persistence_logs_mismatch():
 
 
 # NOTE: Schema validation tests moved to tests/api/test_contribution_summarizer.py
+
+
+# ============================================================================
+# Graph Execution Timeout Tests (ARCH P1: Wall-clock timeout)
+# ============================================================================
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_collect_with_custom_events_timeout():
+    """Test that _collect_with_custom_events enforces wall-clock timeout."""
+    import asyncio
+    from unittest.mock import MagicMock, patch
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    mock_session_repo = _create_mock_session_repo()
+    mock_session_repo.get.return_value = {"user_id": "user-123", "session_type": "standard"}
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=mock_session_repo,
+    )
+
+    # Mock graph that delays indefinitely
+    async def slow_astream(*args, **kwargs):
+        await asyncio.sleep(100)  # Simulate slow graph
+        yield ((), "updates", {"test_node": {}})
+
+    mock_graph = MagicMock()
+    mock_graph.astream = slow_astream
+
+    # Patch timeout to 0.1 seconds for fast test
+    with (
+        patch("backend.api.event_collector.GRAPH_EXECUTION_TIMEOUT_SECONDS", 0.1),
+        patch("backend.api.event_collector.record_graph_execution_timeout"),
+    ):
+        with pytest.raises(TimeoutError):
+            await collector._collect_with_custom_events(
+                session_id="test-session",
+                graph=mock_graph,
+                initial_state={},
+                config={},
+            )
+
+    # The TimeoutError is raised by asyncio.timeout, then wrapped by our code
+    # The logs show our message is in the wrapped exception
+    # Verify session was marked as failed with timeout flag
+    mock_session_repo.update_status.assert_called()
+    update_call = mock_session_repo.update_status.call_args
+    assert update_call[1]["status"] == "failed"
+    metadata = update_call[1].get("metadata", {})
+    assert metadata.get("timeout_exceeded") is True
+
+    # Verify session_timeout event was published
+    timeout_event_calls = [
+        call
+        for call in mock_publisher.publish_event.call_args_list
+        if call[0][1] == "session_timeout"
+    ]
+    assert len(timeout_event_calls) == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_collect_with_astream_events_timeout():
+    """Test that _collect_with_astream_events enforces wall-clock timeout."""
+    import asyncio
+    from unittest.mock import MagicMock, patch
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    mock_session_repo = _create_mock_session_repo()
+    mock_session_repo.get.return_value = {"user_id": "user-123", "session_type": "standard"}
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=mock_session_repo,
+    )
+
+    # Mock graph that delays indefinitely
+    async def slow_astream_events(*args, **kwargs):
+        await asyncio.sleep(100)  # Simulate slow graph
+        yield {"event": "on_chain_end", "data": {"output": {}}}
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = slow_astream_events
+
+    with (
+        patch("backend.api.event_collector.GRAPH_EXECUTION_TIMEOUT_SECONDS", 0.1),
+        patch("backend.api.event_collector.record_graph_execution_timeout"),
+    ):
+        with pytest.raises(TimeoutError):
+            await collector._collect_with_astream_events(
+                session_id="test-session",
+                graph=mock_graph,
+                initial_state={},
+                config={},
+            )
+
+    # Verify session was marked failed
+    mock_session_repo.update_status.assert_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_mark_session_failed_with_timeout():
+    """Test that _mark_session_failed publishes session_timeout event when timeout_exceeded=True."""
+    from unittest.mock import MagicMock, patch
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    mock_session_repo = _create_mock_session_repo()
+    mock_session_repo.get.return_value = {"user_id": "user-123", "session_type": "standard"}
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=mock_session_repo,
+    )
+
+    timeout_error = TimeoutError("Test timeout")
+
+    with patch("backend.api.event_collector.record_graph_execution_timeout") as mock_metric:
+        collector._mark_session_failed(
+            session_id="test-session",
+            error=timeout_error,
+            timeout_exceeded=True,
+            elapsed_seconds=605.5,
+        )
+
+    # Verify session_timeout event was published FIRST
+    publish_calls = mock_publisher.publish_event.call_args_list
+    assert len(publish_calls) >= 2
+
+    # First call should be session_timeout
+    first_call = publish_calls[0]
+    assert first_call[0][1] == "session_timeout"
+    timeout_data = first_call[0][2]
+    assert timeout_data["elapsed_seconds"] == 605.5
+    assert "timeout_threshold_seconds" in timeout_data
+
+    # Second call should be error event with timeout info
+    second_call = publish_calls[1]
+    assert second_call[0][1] == "error"
+    error_data = second_call[0][2]
+    assert error_data["timeout_exceeded"] is True
+    assert error_data["elapsed_seconds"] == 605.5
+
+    # Verify metric was recorded
+    mock_metric.assert_called_once_with("standard")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_collect_with_custom_events_success_no_timeout():
+    """Test that successful graph execution does not trigger timeout."""
+    from unittest.mock import MagicMock, patch
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    mock_session_repo = _create_mock_session_repo()
+    mock_session_repo.get.return_value = {"user_id": "user-123", "phase": "synthesis"}
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=mock_session_repo,
+    )
+
+    # Mock graph that completes quickly
+    async def fast_astream(*args, **kwargs):
+        yield ((), "updates", {"test_node": {"synthesis": "Done"}})
+
+    mock_graph = MagicMock()
+    mock_graph.astream = fast_astream
+
+    with patch("backend.api.event_collector.GRAPH_EXECUTION_TIMEOUT_SECONDS", 10):
+        result = await collector._collect_with_custom_events(
+            session_id="test-session",
+            graph=mock_graph,
+            initial_state={},
+            config={},
+        )
+
+    assert result is not None
+
+    # Verify no session_timeout event was published
+    timeout_events = [
+        call
+        for call in mock_publisher.publish_event.call_args_list
+        if len(call[0]) > 1 and call[0][1] == "session_timeout"
+    ]
+    assert len(timeout_events) == 0
+
+
+@pytest.mark.unit
+def test_timeout_config_default():
+    """Test that GRAPH_EXECUTION_TIMEOUT_SECONDS has correct default value."""
+    from backend.api.constants import GRAPH_EXECUTION_TIMEOUT_SECONDS
+
+    # Default should be 600 seconds (10 minutes)
+    assert GRAPH_EXECUTION_TIMEOUT_SECONDS == 600
+
+
+# ============================================================================
+# State Transition Event Tests (ARCH P2: Progress visualization)
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_emit_state_transition_first_node():
+    """Test _emit_state_transition emits from_node=None for first node."""
+    from unittest.mock import MagicMock
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
+
+    # First node - previous should be None
+    collector._emit_state_transition("test-session", "decompose", sub_problem_index=0)
+
+    mock_publisher.publish_event.assert_called_once()
+    call_args = mock_publisher.publish_event.call_args
+    assert call_args[0][0] == "test-session"
+    assert call_args[0][1] == "state_transition"
+    event_data = call_args[0][2]
+    assert event_data["from_node"] is None
+    assert event_data["to_node"] == "decompose"
+    assert event_data["sub_problem_index"] == 0
+
+
+@pytest.mark.unit
+def test_emit_state_transition_updates_previous_node():
+    """Test _emit_state_transition updates _previous_node after emission."""
+    from unittest.mock import MagicMock
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
+
+    # First transition
+    collector._emit_state_transition("test-session", "decompose")
+    assert collector._previous_node == "decompose"
+
+    # Second transition
+    collector._emit_state_transition("test-session", "select_personas")
+    assert collector._previous_node == "select_personas"
+
+
+@pytest.mark.unit
+def test_emit_state_transition_sequential_nodes():
+    """Test _emit_state_transition chains from_node correctly across multiple nodes."""
+    from unittest.mock import MagicMock
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
+
+    # Simulate node progression
+    nodes = ["decompose", "select_personas", "initial_round", "check_convergence"]
+
+    for node in nodes:
+        collector._emit_state_transition("test-session", node, sub_problem_index=0)
+
+    # Verify all calls
+    assert mock_publisher.publish_event.call_count == 4
+
+    calls = mock_publisher.publish_event.call_args_list
+
+    # First: None -> decompose
+    assert calls[0][0][2]["from_node"] is None
+    assert calls[0][0][2]["to_node"] == "decompose"
+
+    # Second: decompose -> select_personas
+    assert calls[1][0][2]["from_node"] == "decompose"
+    assert calls[1][0][2]["to_node"] == "select_personas"
+
+    # Third: select_personas -> initial_round
+    assert calls[2][0][2]["from_node"] == "select_personas"
+    assert calls[2][0][2]["to_node"] == "initial_round"
+
+    # Fourth: initial_round -> check_convergence
+    assert calls[3][0][2]["from_node"] == "initial_round"
+    assert calls[3][0][2]["to_node"] == "check_convergence"
+
+
+@pytest.mark.unit
+def test_emit_state_transition_with_sub_problem_index():
+    """Test _emit_state_transition includes sub_problem_index in event data."""
+    from unittest.mock import MagicMock
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
+
+    # Emit with specific sub_problem_index
+    collector._emit_state_transition("test-session", "vote", sub_problem_index=2)
+
+    call_args = mock_publisher.publish_event.call_args
+    event_data = call_args[0][2]
+    assert event_data["sub_problem_index"] == 2
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_collect_and_publish_resets_previous_node():
+    """Test that collect_and_publish resets _previous_node for new session."""
+    from unittest.mock import MagicMock, patch
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=_create_mock_session_repo(),
+    )
+
+    # Set previous node from a prior session
+    collector._previous_node = "old_node"
+
+    # Mock feature flag and graph
+    async def fast_astream(*args, **kwargs):
+        yield ((), "updates", {"test_node": {}})
+
+    mock_graph = MagicMock()
+    mock_graph.astream = fast_astream
+
+    with patch("bo1.feature_flags.USE_SUBGRAPH_DELIBERATION", True):
+        # _previous_node should be reset at start of collect_and_publish
+        await collector.collect_and_publish(
+            session_id="new-session",
+            graph=mock_graph,
+            initial_state={},
+            config={},
+        )
+
+    # After reset and one node, _previous_node should be the new node
+    # The first transition should have from_node=None (verified indirectly)
+    # Find state_transition calls
+    transition_calls = [
+        call
+        for call in mock_publisher.publish_event.call_args_list
+        if len(call[0]) > 1 and call[0][1] == "state_transition"
+    ]
+
+    if transition_calls:
+        first_transition = transition_calls[0]
+        assert first_transition[0][2]["from_node"] is None
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_collect_with_custom_events_emits_transitions():
+    """Test _collect_with_custom_events emits state_transition for each node."""
+    from unittest.mock import MagicMock, patch
+
+    from backend.api.event_collector import EventCollector
+
+    mock_publisher = MagicMock()
+    mock_session_repo = _create_mock_session_repo()
+    mock_session_repo.get.return_value = {"user_id": "user-123", "phase": "synthesis"}
+    collector = EventCollector(
+        publisher=mock_publisher,
+        summarizer=_create_mock_summarizer(),
+        session_repo=mock_session_repo,
+    )
+
+    # Mock graph yielding multiple nodes
+    async def multi_node_astream(*args, **kwargs):
+        yield ((), "updates", {"decompose": {"sub_problem_index": 0}})
+        yield ((), "updates", {"select_personas": {"sub_problem_index": 0}})
+
+    mock_graph = MagicMock()
+    mock_graph.astream = multi_node_astream
+
+    with patch("backend.api.event_collector.GRAPH_EXECUTION_TIMEOUT_SECONDS", 10):
+        await collector._collect_with_custom_events(
+            session_id="test-session",
+            graph=mock_graph,
+            initial_state={},
+            config={},
+        )
+
+    # Filter state_transition events
+    transition_calls = [
+        call
+        for call in mock_publisher.publish_event.call_args_list
+        if len(call[0]) > 1 and call[0][1] == "state_transition"
+    ]
+
+    assert len(transition_calls) == 2
+
+    # First transition: None -> decompose
+    assert transition_calls[0][0][2]["from_node"] is None
+    assert transition_calls[0][0][2]["to_node"] == "decompose"
+
+    # Second transition: decompose -> select_personas
+    assert transition_calls[1][0][2]["from_node"] == "decompose"
+    assert transition_calls[1][0][2]["to_node"] == "select_personas"

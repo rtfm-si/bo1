@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -192,7 +193,13 @@ async def list_error_patterns(
         return ErrorPatternListResponse(patterns=patterns, total=len(patterns))
 
     except Exception as e:
-        logger.error(f"Failed to list error patterns: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to list error patterns: {e}",
+            error_type=error_type,
+            enabled_only=enabled_only,
+        )
         raise HTTPException(status_code=500, detail="Failed to list error patterns") from None
 
 
@@ -267,7 +274,14 @@ async def list_remediations(
         return RemediationHistoryResponse(entries=entries, total=total)
 
     except Exception as e:
-        logger.error(f"Failed to list remediations: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to list remediations: {e}",
+            limit=limit,
+            offset=offset,
+            outcome_filter=outcome,
+        )
         raise HTTPException(status_code=500, detail="Failed to list remediations") from None
 
 
@@ -328,7 +342,13 @@ async def create_pattern(
                 status_code=409,
                 detail=f"Pattern with name '{body.pattern_name}' already exists",
             ) from None
-        logger.error(f"Failed to create pattern: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to create pattern: {e}",
+            pattern_name=body.pattern_name,
+            error_type=body.error_type,
+        )
         raise HTTPException(status_code=500, detail="Failed to create pattern") from None
 
 
@@ -408,7 +428,12 @@ async def update_pattern(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update pattern: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to update pattern: {e}",
+            pattern_id=pattern_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to update pattern") from None
 
 
@@ -434,7 +459,11 @@ async def get_health(
             recent_remediations=health.get("recent_remediations", {}),
         )
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Health check failed: {e}",
+        )
         return SystemHealthResponse(
             checked_at=datetime.now(UTC),
             overall="unknown",
@@ -468,5 +497,10 @@ async def trigger_check(
         )
         return result
     except Exception as e:
-        logger.error(f"Manual check failed: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Manual check failed: {e}",
+            execute_fixes=execute_fixes,
+        )
         raise HTTPException(status_code=500, detail=f"Check failed: {e}") from None

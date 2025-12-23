@@ -4,12 +4,41 @@ Routers determine the next node to execute based on the current state.
 """
 
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 from bo1.graph.state import DeliberationGraphState
 from bo1.logging import ErrorCode, log_error
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+
+def _validate_state_field(
+    state: DeliberationGraphState, field_name: str, router_name: str
+) -> Any | None:
+    """Validate that a required state field is present.
+
+    Returns the field value if present, None if missing.
+    Logs ErrorCode.GRAPH_STATE_ERROR with router context when field is missing.
+
+    Args:
+        state: Current graph state
+        field_name: Name of the field to validate
+        router_name: Name of the calling router (for logging context)
+
+    Returns:
+        Field value if present, None if missing
+    """
+    value = state.get(field_name)
+    if not value:
+        log_error(
+            logger,
+            ErrorCode.GRAPH_STATE_ERROR,
+            f"{router_name}: No {field_name} in state!",
+        )
+        return None
+    return value
 
 
 def _get_problem_attr(problem: Any, attr: str, default: Any = None) -> Any:
@@ -98,14 +127,8 @@ def route_facilitator_decision(
     Returns:
         Next node name to execute
     """
-    decision = state.get("facilitator_decision")
-
+    decision = _validate_state_field(state, "facilitator_decision", "route_facilitator_decision")
     if not decision:
-        log_error(
-            logger,
-            ErrorCode.GRAPH_STATE_ERROR,
-            "route_facilitator_decision: No facilitator decision in state!",
-        )
         return "END"
 
     # decision is now a dict (converted from dataclass using asdict())
@@ -193,15 +216,12 @@ def route_after_synthesis(
         - "meta_synthesis" if all complete and multiple sub-problems
         - "END" if atomic problem (only 1 sub-problem) OR if sub-problems failed
     """
-    problem = state.get("problem")
+    problem = _validate_state_field(state, "problem", "route_after_synthesis")
+    if not problem:
+        return "END"
+
     sub_problem_index = state.get("sub_problem_index", 0)
     sub_problem_results = state.get("sub_problem_results", [])
-
-    if not problem:
-        log_error(
-            logger, ErrorCode.GRAPH_STATE_ERROR, "route_after_synthesis: No problem in state!"
-        )
-        return "END"
 
     sub_problems = _get_problem_attr(problem, "sub_problems", [])
     total_sub_problems = len(sub_problems)

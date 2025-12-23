@@ -37,16 +37,31 @@ import logging
 import threading
 import time
 import uuid
+from collections import OrderedDict
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from prometheus_client import Counter
+
 from bo1.logging import ErrorCode, log_error
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Aggregation Cache Prometheus Metrics
+# =============================================================================
+aggregation_cache_hits = Counter(
+    "aggregation_cache_hits_total",
+    "Total session cost aggregation cache hits",
+)
+aggregation_cache_misses = Counter(
+    "aggregation_cache_misses_total",
+    "Total session cost aggregation cache misses",
+)
 
 # =============================================================================
 # Batch Buffer Configuration
@@ -60,6 +75,121 @@ MAX_BUFFER_SIZE = 200  # Cap buffer size to prevent memory growth on repeated fa
 # =============================================================================
 COST_RETRY_QUEUE_KEY = "cost_retry_queue"  # Redis key for retry queue
 COST_RETRY_ALERT_THRESHOLD = 100  # Alert if queue exceeds this depth
+
+# =============================================================================
+# Aggregation Cache Configuration
+# =============================================================================
+AGGREGATION_CACHE_TTL_SECONDS = 60  # 60s TTL for session cost aggregations
+AGGREGATION_CACHE_MAX_SIZE = 500  # Max cached sessions (sessions typically short-lived)
+
+
+class AggregationCache:
+    """Thread-safe LRU cache with TTL for session cost aggregations.
+
+    Reduces database load by caching get_session_costs() results for 60 seconds.
+    Cache is invalidated when new costs are flushed for a session.
+
+    Similar pattern to SessionMetadataCache but specialized for cost aggregations.
+    """
+
+    def __init__(
+        self,
+        max_size: int = AGGREGATION_CACHE_MAX_SIZE,
+        ttl_seconds: int = AGGREGATION_CACHE_TTL_SECONDS,
+    ) -> None:
+        """Initialize cache with size and TTL limits.
+
+        Args:
+            max_size: Maximum entries before LRU eviction
+            ttl_seconds: Entry expiration time in seconds
+        """
+        self._cache: OrderedDict[str, tuple[dict[str, Any], float]] = OrderedDict()
+        self._lock = threading.RLock()
+        self._max_size = max_size
+        self._ttl_seconds = ttl_seconds
+
+    def get(self, session_id: str) -> dict[str, Any] | None:
+        """Get cached aggregation if present and not expired.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Cached cost aggregation dict or None if missing/expired
+        """
+        with self._lock:
+            if session_id not in self._cache:
+                return None
+
+            value, timestamp = self._cache[session_id]
+
+            # Check TTL expiry
+            if time.monotonic() - timestamp > self._ttl_seconds:
+                del self._cache[session_id]
+                return None
+
+            # Move to end for LRU
+            self._cache.move_to_end(session_id)
+            return value
+
+    def set(self, session_id: str, result: dict[str, Any]) -> None:
+        """Store aggregation result in cache.
+
+        Args:
+            session_id: Session identifier
+            result: Aggregated cost dict
+        """
+        with self._lock:
+            # Remove if exists to update timestamp
+            if session_id in self._cache:
+                del self._cache[session_id]
+
+            # Evict LRU entries if at capacity
+            while len(self._cache) >= self._max_size:
+                self._cache.popitem(last=False)
+
+            # Add with current timestamp
+            self._cache[session_id] = (result, time.monotonic())
+
+    def invalidate(self, session_id: str) -> bool:
+        """Remove entry from cache (called when new costs are flushed).
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if entry was removed, False if not present
+        """
+        with self._lock:
+            if session_id in self._cache:
+                del self._cache[session_id]
+                logger.debug(f"Invalidated aggregation cache for session {session_id}")
+                return True
+            return False
+
+    def clear(self) -> int:
+        """Clear all cached entries.
+
+        Returns:
+            Number of entries removed
+        """
+        with self._lock:
+            count = len(self._cache)
+            self._cache.clear()
+            return count
+
+    def size(self) -> int:
+        """Get current cache size.
+
+        Returns:
+            Number of cached entries
+        """
+        with self._lock:
+            return len(self._cache)
+
+
+# Module-level cache instance
+_session_costs_cache = AggregationCache()
 
 
 # =============================================================================
@@ -607,6 +737,13 @@ class CostTracker:
                         insert_data,
                     )
 
+            # Invalidate aggregation cache for affected sessions
+            session_ids = {r.session_id for r in to_flush if r.session_id}
+            for sid in session_ids:
+                _session_costs_cache.invalidate(sid)
+            if session_ids:
+                logger.debug(f"Invalidated aggregation cache for {len(session_ids)} sessions")
+
             logger.info(f"Successfully flushed {batch_size} cost records")
             return batch_size
 
@@ -1103,7 +1240,10 @@ class CostTracker:
 
     @staticmethod
     def get_session_costs(session_id: str) -> dict[str, Any]:
-        """Get aggregated costs for a session.
+        """Get aggregated costs for a session (cached with 60s TTL).
+
+        Uses in-memory cache to reduce database load. Cache is invalidated
+        when new costs are flushed for the session.
 
         Args:
             session_id: Session identifier
@@ -1129,6 +1269,30 @@ class CostTracker:
             >>> print(f"Total cost: ${costs['total_cost']:.4f}")
             >>> print(f"Cache savings: ${costs['total_saved']:.4f}")
             >>> print(f"Cache hit rate: {costs['cache_hit_rate']:.1%}")
+        """
+        # Check cache first
+        cached = _session_costs_cache.get(session_id)
+        if cached is not None:
+            aggregation_cache_hits.inc()
+            return cached
+
+        # Cache miss - query database
+        aggregation_cache_misses.inc()
+        result = CostTracker._query_session_costs(session_id)
+
+        # Cache the result
+        _session_costs_cache.set(session_id, result)
+        return result
+
+    @staticmethod
+    def _query_session_costs(session_id: str) -> dict[str, Any]:
+        """Query database for session cost aggregations (internal, uncached).
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Aggregated cost dict
         """
         with db_session() as conn:
             with conn.cursor() as cur:
@@ -1181,6 +1345,20 @@ class CostTracker:
                     "total_saved": 0.0,
                     "cache_hit_rate": 0.0,
                 }
+
+    @staticmethod
+    def invalidate_session_costs_cache(session_id: str) -> bool:
+        """Invalidate the aggregation cache for a session.
+
+        Called after flushing new costs to ensure stale data is evicted.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if entry was invalidated, False if not cached
+        """
+        return _session_costs_cache.invalidate(session_id)
 
     @staticmethod
     def get_subproblem_costs(session_id: str) -> list[dict[str, Any]]:

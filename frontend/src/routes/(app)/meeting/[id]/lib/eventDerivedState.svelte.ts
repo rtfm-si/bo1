@@ -3,8 +3,9 @@
  * Extracts key events and conditions from the event stream
  */
 
-import type { SSEEvent, SubproblemCompletePayload, ClarificationRequiredPayload, PersonaSelectedPayload } from '$lib/api/sse-events';
-import { isSubproblemCompleteEvent, isClarificationRequiredEvent, isPersonaSelectedEvent } from '$lib/api/sse-events';
+import type { SSEEvent, SubproblemCompletePayload, ClarificationRequiredPayload, PersonaSelectedPayload, DecompositionCompletePayload } from '$lib/api/sse-events';
+import { isSubproblemCompleteEvent, isClarificationRequiredEvent, isPersonaSelectedEvent, isDecompositionEvent } from '$lib/api/sse-events';
+import type { SubProblemResult } from '$lib/components/meeting';
 
 export interface EventDerivedStateConfig {
 	getEvents: () => SSEEvent[];
@@ -144,6 +145,87 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		return result;
 	});
 
+	// Partial success: Extract sub-problem results for MeetingError display
+	const subProblemResultsForPartialSuccess = $derived.by((): SubProblemResult[] => {
+		const events = getEvents();
+
+		// Get decomposition to know all sub-problems
+		const decomposition = events.find(isDecompositionEvent);
+		if (!decomposition) return [];
+
+		const decompositionData = decomposition.data as DecompositionCompletePayload;
+		const subProblems = decompositionData.sub_problems || [];
+
+		// Get completed sub-problems
+		const completedEvents = events.filter(isSubproblemCompleteEvent);
+		const completedMap = new Map<number, SubproblemCompletePayload>();
+		for (const event of completedEvents) {
+			completedMap.set(event.data.sub_problem_index, event.data);
+		}
+
+		// Check for subproblem_started events to detect in-progress
+		const startedIndices = new Set<number>();
+		for (const event of events) {
+			if (event.event_type === 'subproblem_started') {
+				const data = event.data as { sub_problem_index: number };
+				startedIndices.add(data.sub_problem_index);
+			}
+		}
+
+		// Build results array with status for each sub-problem
+		return subProblems.map((sp, index): SubProblemResult => {
+			const completed = completedMap.get(index);
+			if (completed) {
+				return {
+					id: sp.id,
+					goal: sp.goal,
+					synthesis: completed.synthesis || '',
+					status: 'complete',
+				};
+			}
+
+			// Check if sub-problem has started but not completed
+			if (startedIndices.has(index)) {
+				return {
+					id: sp.id,
+					goal: sp.goal,
+					synthesis: '',
+					status: 'in_progress',
+				};
+			}
+
+			// Check if this is the failed sub-problem (meeting_failed event)
+			const meetingFailedEvent = events.find(e => e.event_type === 'meeting_failed');
+			if (meetingFailedEvent) {
+				const failedData = meetingFailedEvent.data as { failed_ids?: string[] };
+				if (failedData.failed_ids?.includes(sp.id)) {
+					return {
+						id: sp.id,
+						goal: sp.goal,
+						synthesis: '',
+						status: 'failed',
+					};
+				}
+			}
+
+			return {
+				id: sp.id,
+				goal: sp.goal,
+				synthesis: '',
+				status: 'pending',
+			};
+		});
+	});
+
+	// Total sub-problems count from decomposition
+	const totalSubProblemsCount = $derived.by(() => {
+		const events = getEvents();
+		const decomposition = events.find(isDecompositionEvent);
+		if (!decomposition) return 0;
+		const data = decomposition.data as DecompositionCompletePayload;
+		return data.sub_problems?.length || 0;
+	});
+
 	return {
 		// Reactive getters
 		get metaSynthesisEvent() {
@@ -181,6 +263,12 @@ export function createEventDerivedState(config: EventDerivedStateConfig) {
 		},
 		get shouldHideDecomposition() {
 			return shouldHideDecomposition;
+		},
+		get subProblemResultsForPartialSuccess() {
+			return subProblemResultsForPartialSuccess;
+		},
+		get totalSubProblemsCount() {
+			return totalSubProblemsCount;
 		},
 	};
 }

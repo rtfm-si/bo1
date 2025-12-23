@@ -254,18 +254,17 @@ class SessionRepository(BaseRepository):
         status_filter: str | None = None,
         include_deleted: bool = False,
         workspace_id: str | None = None,
-        include_task_count: bool = True,
     ) -> list[dict[str, Any]]:
         """List sessions for a user with pagination and summary counts.
 
         Uses denormalized counts from sessions table (expert_count, contribution_count,
-        focus_area_count) for fast reads. task_count requires JOIN to session_tasks.
+        focus_area_count, task_count) for fast reads. All counts are O(1) with no JOINs.
 
         Performance Notes:
-            - Query is optimized with denormalized counts - most reads avoid JOINs
+            - Query is optimized with denormalized counts - no JOINs required
             - LIMIT pagination keeps response time O(1) per page
             - Indexed on (user_id, created_at) for efficient ordering
-            - Use include_task_count=False for high-volume callers that don't display tasks
+            - task_count is maintained by PostgreSQL trigger on session_tasks
 
         Scaling Guidance (Read Replicas):
             Current optimization is sufficient for <1000 concurrent users or <100 QPS.
@@ -281,40 +280,22 @@ class SessionRepository(BaseRepository):
             status_filter: Filter by status (optional)
             include_deleted: Include deleted sessions
             workspace_id: Filter by workspace UUID (optional)
-            include_task_count: Include task_count via JOIN (default True). Set False for
-                high-volume callers that don't need task counts (mentor, admin bulk ops).
 
         Returns:
             List of session records with expert_count, contribution_count, task_count, focus_area_count.
-            When include_task_count=False, task_count is always 0.
         """
         with db_session() as conn:
             with conn.cursor() as cur:
-                # Read denormalized counts directly from sessions table
-                # task_count requires JOIN - skip it when not needed
-                if include_task_count:
-                    query = """
-                        SELECT s.id, s.user_id, s.problem_statement, s.problem_context, s.status,
-                               s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
-                               s.synthesis_text, s.final_recommendation,
-                               s.expert_count, s.contribution_count, s.focus_area_count,
-                               s.workspace_id,
-                               COALESCE(st.total_tasks, 0)::int as task_count
-                        FROM sessions s
-                        LEFT JOIN session_tasks st ON st.session_id = s.id
-                        WHERE s.user_id = %s
-                    """
-                else:
-                    query = """
-                        SELECT s.id, s.user_id, s.problem_statement, s.problem_context, s.status,
-                               s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
-                               s.synthesis_text, s.final_recommendation,
-                               s.expert_count, s.contribution_count, s.focus_area_count,
-                               s.workspace_id,
-                               0 as task_count
-                        FROM sessions s
-                        WHERE s.user_id = %s
-                    """
+                # Read all denormalized counts directly from sessions table - no JOINs
+                query = """
+                    SELECT s.id, s.user_id, s.problem_statement, s.problem_context, s.status,
+                           s.phase, s.total_cost, s.round_number, s.created_at, s.updated_at,
+                           s.synthesis_text, s.final_recommendation,
+                           s.expert_count, s.contribution_count, s.focus_area_count,
+                           s.workspace_id, s.task_count
+                    FROM sessions s
+                    WHERE s.user_id = %s
+                """
                 params: list[Any] = [user_id]
 
                 if not include_deleted:
@@ -1381,6 +1362,188 @@ class SessionRepository(BaseRepository):
             """,
             (session_ids, user_id),
         )
+
+    def delete(self, session_id: str) -> bool:
+        """Hard delete a session from PostgreSQL.
+
+        Used for rollback when session creation fails mid-process.
+        Cascades to session_events, session_tasks, session_projects via FK.
+
+        Args:
+            session_id: Session identifier to delete
+
+        Returns:
+            True if deleted, False if session not found
+        """
+        return (
+            self._execute_count(
+                """
+                DELETE FROM sessions
+                WHERE id = %s
+                """,
+                (session_id,),
+            )
+            > 0
+        )
+
+    # =========================================================================
+    # Redis Fallback - PostgreSQL Metadata Persistence
+    # =========================================================================
+
+    @retry_db(max_attempts=3, base_delay=0.5, total_timeout=30.0)
+    def save_metadata(
+        self,
+        session_id: str,
+        metadata: dict[str, Any],
+    ) -> bool:
+        """Save session metadata to PostgreSQL for Redis fallback scenarios.
+
+        When Redis is unavailable (circuit breaker open), this method persists
+        critical session metadata to PostgreSQL for recovery. Maps metadata keys
+        to DB columns with safe type coercion.
+
+        Supported metadata fields:
+            - phase: str (e.g., 'exploration', 'synthesis')
+            - round_number: int
+            - current_node: str (stored as phase if phase not provided)
+            - expert_count: int
+            - contribution_count: int
+            - focus_area_count: int
+            - sub_problem_index: int (stored in problem_context)
+
+        Args:
+            session_id: Session identifier
+            metadata: Dict of metadata fields to persist
+
+        Returns:
+            True if upserted successfully, False otherwise
+
+        Example:
+            >>> session_repo.save_metadata("bo1_abc123", {
+            ...     "phase": "exploration",
+            ...     "round_number": 2,
+            ...     "expert_count": 5,
+            ...     "contribution_count": 12
+            ... })
+        """
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                # Build dynamic UPDATE based on provided fields
+                update_fields = ["updated_at = NOW()"]
+                params: list[Any] = []
+
+                # Map metadata keys to DB columns with type coercion
+                field_mappings = {
+                    "phase": ("phase", str),
+                    "current_node": ("phase", str),  # Fallback: use current_node as phase
+                    "round_number": ("round_number", int),
+                    "expert_count": ("expert_count", int),
+                    "contribution_count": ("contribution_count", int),
+                    "focus_area_count": ("focus_area_count", int),
+                }
+
+                for key, (column, type_fn) in field_mappings.items():
+                    if key in metadata and metadata[key] is not None:
+                        # Skip current_node if phase already set
+                        if key == "current_node" and "phase" in metadata:
+                            continue
+                        try:
+                            value = type_fn(metadata[key])
+                            update_fields.append(f"{column} = %s")
+                            params.append(value)
+                        except (ValueError, TypeError) as e:
+                            logger.warning(
+                                f"[METADATA] Type coercion failed for {key}={metadata[key]}: {e}"
+                            )
+
+                # Store sub_problem_index in problem_context if provided
+                if "sub_problem_index" in metadata:
+                    update_fields.append(
+                        "problem_context = COALESCE(problem_context, '{}') || %s::jsonb"
+                    )
+                    params.append(Json({"sub_problem_index": int(metadata["sub_problem_index"])}))
+
+                if len(update_fields) == 1:
+                    # Only updated_at, no meaningful fields to update
+                    logger.debug(f"[METADATA] No mappable fields in metadata for {session_id}")
+                    return True
+
+                params.append(session_id)
+
+                # Safe: update_fields contains only controlled column names
+                query = f"""
+                    UPDATE sessions
+                    SET {", ".join(update_fields)}
+                    WHERE id = %s
+                """  # noqa: S608
+
+                cur.execute(query, params)
+                updated = bool(cur.rowcount and cur.rowcount > 0)
+
+                if updated:
+                    logger.info(
+                        f"[METADATA] Saved fallback metadata for {session_id}: "
+                        f"fields={list(metadata.keys())}"
+                    )
+                else:
+                    logger.warning(f"[METADATA] Session {session_id} not found for metadata update")
+
+                return updated
+
+
+def extract_session_metadata(state: dict[str, Any]) -> dict[str, Any]:
+    """Extract persistable session metadata fields from graph state.
+
+    Pulls metadata fields that can be persisted to PostgreSQL for
+    Redis fallback scenarios. Only includes fields that have values.
+
+    Args:
+        state: DeliberationGraphState dict (or partial state snapshot)
+
+    Returns:
+        Dict of metadata fields suitable for save_metadata()
+
+    Example:
+        >>> state = {"round_number": 2, "current_phase": "exploration", "personas": [...]}
+        >>> metadata = extract_session_metadata(state)
+        >>> # Returns: {"phase": "exploration", "round_number": 2, "expert_count": 5}
+    """
+    metadata: dict[str, Any] = {}
+
+    # Phase: prefer current_phase, fall back to phase
+    if "current_phase" in state and state["current_phase"]:
+        metadata["phase"] = state["current_phase"]
+    elif "phase" in state and state["phase"]:
+        metadata["phase"] = state["phase"]
+
+    # Current node (for more granular tracking)
+    if "current_node" in state and state["current_node"]:
+        metadata["current_node"] = state["current_node"]
+
+    # Round number
+    if "round_number" in state and state["round_number"] is not None:
+        metadata["round_number"] = state["round_number"]
+
+    # Sub-problem index
+    if "sub_problem_index" in state and state["sub_problem_index"] is not None:
+        metadata["sub_problem_index"] = state["sub_problem_index"]
+
+    # Expert count from personas list
+    personas = state.get("personas", [])
+    if personas:
+        metadata["expert_count"] = len(personas)
+
+    # Contribution count from contributions list
+    contributions = state.get("contributions", [])
+    if contributions:
+        metadata["contribution_count"] = len(contributions)
+
+    # Focus area count from sub_problems list
+    sub_problems = state.get("sub_problems", [])
+    if sub_problems:
+        metadata["focus_area_count"] = len(sub_problems)
+
+    return metadata
 
 
 # Singleton instance for convenience

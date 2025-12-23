@@ -135,6 +135,16 @@ class VotingThresholds:
 # =============================================================================
 
 
+class ContributionPruning:
+    """Contribution pruning configuration for token optimization."""
+
+    RETENTION_COUNT = 6
+    """Number of contributions to retain after pruning (last 2 rounds worth)"""
+
+    PRUNE_AFTER_PHASE = "convergence"
+    """Phase after which pruning is applied (synthesis uses round_summaries)"""
+
+
 class GraphConfig:
     """Graph execution and round configuration."""
 
@@ -268,8 +278,8 @@ class EmbeddingsConfig:
     DIMENSIONS = 1024
     """Voyage-3 embedding dimensions"""
 
-    BATCH_SIZE = 5
-    """Number of texts to batch before API call"""
+    BATCH_SIZE = 20
+    """Number of texts to batch before API call (Voyage AI supports up to 128)"""
 
     BATCH_TIMEOUT_SECONDS = 60.0
     """Max wait time before flushing partial batch (high-traffic default)"""
@@ -371,7 +381,7 @@ class DatabaseConfig:
     POOL_MIN_CONNECTIONS = 1
     """Minimum connections in pool"""
 
-    POOL_MAX_CONNECTIONS = 20
+    POOL_MAX_CONNECTIONS = 75
     """Maximum connections in pool"""
 
     REDIS_DEFAULT_PORT = 6379
@@ -1151,6 +1161,16 @@ class UserContextCache:
         return os.getenv("USER_CONTEXT_CACHE_ENABLED", "true").lower() == "true"
 
 
+class ChallengePhaseConfig:
+    """Challenge phase validation configuration."""
+
+    ROUNDS = [3, 4]
+    """1-indexed rounds requiring challenge validation (challenge phase)"""
+
+    AGREEMENT_THRESHOLD = 0.6
+    """If >60% of content is agreement without challenge, reject (reserved for future use)"""
+
+
 class PoolDegradationConfig:
     """Database pool graceful degradation configuration."""
 
@@ -1171,3 +1191,46 @@ class PoolDegradationConfig:
 
     RETRY_AFTER_JITTER_SECONDS = 3
     """Random jitter to add to Retry-After (prevents thundering herd)"""
+
+
+class OutputLengthConfig:
+    """LLM output length validation configuration."""
+
+    VERBOSE_THRESHOLD = 0.5
+    """Warn if output uses <50% of max_tokens (response may be too brief)"""
+
+    TRUNCATION_THRESHOLD = 0.9
+    """Warn if output uses >90% of max_tokens (response may be truncated)"""
+
+    @staticmethod
+    def is_enabled() -> bool:
+        """Check if output length validation is enabled via env var."""
+        import os
+
+        return os.getenv("OUTPUT_LENGTH_VALIDATION_ENABLED", "true").lower() == "true"
+
+
+class LLMRateLimiterConfig:
+    """LLM rate limiter configuration for session-level call throttling.
+
+    Prevents runaway sessions from consuming excessive resources.
+    """
+
+    MAX_ROUNDS_PER_SESSION = 10
+    """Maximum rounds per session (hard cap)"""
+
+    MAX_CALLS_PER_MINUTE = 6
+    """Maximum LLM calls per minute per session (sliding window)"""
+
+    WINDOW_SECONDS = 60
+    """Sliding window size in seconds for call rate limiting"""
+
+    CLEANUP_MULTIPLIER = 2
+    """Cleanup stale entries after WINDOW_SECONDS * CLEANUP_MULTIPLIER"""
+
+    @staticmethod
+    def is_enabled() -> bool:
+        """Check if LLM rate limiter is enabled via env var."""
+        import os
+
+        return os.getenv("LLM_RATE_LIMITER_ENABLED", "true").lower() == "true"

@@ -16,6 +16,7 @@ from backend.api.dependencies import (
     VerifiedSession,
     get_redis_manager,
     get_session_manager,
+    get_session_metadata_cache,
 )
 from backend.api.metrics import track_api_call
 from backend.api.middleware.auth import get_current_user
@@ -55,6 +56,7 @@ from backend.services.session_share import SessionShareService
 from bo1.agents.task_extractor import sync_extract_tasks_from_synthesis
 from bo1.graph.execution import SessionManager
 from bo1.llm.cost_tracker import CostTracker
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.security import check_for_injection, sanitize_for_prompt
 from bo1.security.prompt_validation import PromptInjectionError, validate_problem_statement
 from bo1.state.redis_manager import RedisManager
@@ -405,7 +407,14 @@ async def create_session(
             record_session_created("created")
         except Exception as e:
             # PostgreSQL is primary storage - propagate error to client
-            logger.error(f"Failed to save session to PostgreSQL: {e}", exc_info=True)
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to save session to PostgreSQL: {e}",
+                exc_info=True,
+                session_id=session_id,
+                user_id=user_id,
+            )
             # Clean up Redis state since PostgreSQL failed
             try:
                 redis_manager.delete_session(session_id)
@@ -824,7 +833,12 @@ async def list_sessions(
             )
 
         except Exception as e:
-            logger.error(f"Failed to list sessions: {e}")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Failed to list sessions: {e}",
+                user_id=user_id,
+            )
             raise HTTPException(
                 status_code=500,
                 detail=f"Failed to list sessions: {str(e)}",
@@ -1097,7 +1111,12 @@ async def get_session(
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Failed to get session {session_id}: {e}")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Failed to get session {session_id}: {e}",
+                session_id=session_id,
+            )
             raise HTTPException(
                 status_code=500,
                 detail=f"Failed to get session: {str(e)}",
@@ -1182,6 +1201,8 @@ async def delete_session(
             # Also update PostgreSQL status to ensure consistency
             try:
                 session_repository.update_status(session_id=session_id, status="deleted")
+                # Invalidate cached metadata on status change
+                get_session_metadata_cache().invalidate(session_id)
             except Exception as pg_err:
                 logger.warning(f"Failed to update PostgreSQL status for {session_id}: {pg_err}")
                 # Continue - Redis is the source of truth for active sessions
@@ -1218,7 +1239,13 @@ async def delete_session(
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Failed to delete session {session_id}: {e}")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Failed to delete session {session_id}: {e}",
+                session_id=session_id,
+                user_id=user_id,
+            )
             raise HTTPException(
                 status_code=500,
                 detail=f"Failed to delete session: {str(e)}",
@@ -1339,6 +1366,9 @@ async def terminate_session(
         metadata["termination_type"] = termination_request.termination_type
         metadata["updated_at"] = now.isoformat()
         redis_manager.save_metadata(session_id, metadata)
+
+        # Invalidate cached metadata on status change
+        get_session_metadata_cache().invalidate(session_id)
 
         # Emit SSE termination event
         try:
@@ -1647,7 +1677,12 @@ async def extract_tasks(
                 )
                 logger.info(f"Saved extracted tasks to PostgreSQL for session {session_id}")
             except Exception as e:
-                logger.error(f"Failed to save tasks to PostgreSQL: {e}")
+                log_error(
+                    logger,
+                    ErrorCode.DB_WRITE_ERROR,
+                    f"Failed to save tasks to PostgreSQL: {e}",
+                    session_id=session_id,
+                )
 
             # 2. Cache in Redis with 24-hour TTL (SECONDARY cache for speed)
             try:
@@ -1664,7 +1699,12 @@ async def extract_tasks(
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Failed to extract tasks for session {session_id}: {e}")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Failed to extract tasks for session {session_id}: {e}",
+                session_id=session_id,
+            )
             raise HTTPException(
                 status_code=500,
                 detail=f"Task extraction failed: {str(e)}",
@@ -2169,7 +2209,12 @@ async def list_shares(
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Failed to list shares for session {session_id}: {e}")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Failed to list shares for session {session_id}: {e}",
+                session_id=session_id,
+            )
             raise HTTPException(
                 status_code=500,
                 detail="Failed to list shares",
@@ -2240,7 +2285,13 @@ async def revoke_share(
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Failed to revoke share {token}: {e}")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Failed to revoke share {token}: {e}",
+                session_id=session_id,
+                token=token,
+            )
             raise HTTPException(
                 status_code=500,
                 detail="Failed to revoke share",

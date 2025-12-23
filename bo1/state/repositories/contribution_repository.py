@@ -342,6 +342,7 @@ class ContributionRepository(BaseRepository):
         weight: float | None = None,
         sub_problem_index: int | None = None,
         persona_name: str | None = None,
+        user_id: str | None = None,
     ) -> dict[str, Any]:
         """Save an expert recommendation to PostgreSQL.
 
@@ -355,23 +356,35 @@ class ContributionRepository(BaseRepository):
             weight: Weight/importance of recommendation
             sub_problem_index: Sub-problem index (optional)
             persona_name: Display name of persona
+            user_id: User identifier (optional - fetched from session if not provided)
 
         Returns:
-            Saved recommendation record
+            Saved recommendation record with id, session_id, persona_code, user_id, created_at
         """
         self._validate_id(session_id, "session_id")
         self._validate_id(persona_code, "persona_code")
 
         with db_session() as conn:
             with conn.cursor() as cur:
+                # Fetch user_id from session if not provided
+                if user_id is None:
+                    cur.execute("SELECT user_id FROM sessions WHERE id = %s", (session_id,))
+                    result = cur.fetchone()
+                    if result:
+                        user_id = result["user_id"]
+                    else:
+                        logger.warning(
+                            f"Session {session_id} not found, cannot fetch user_id for recommendation"
+                        )
+
                 cur.execute(
                     """
                     INSERT INTO recommendations (
                         session_id, sub_problem_index, persona_code, persona_name,
-                        recommendation, reasoning, confidence, conditions, weight
+                        recommendation, reasoning, confidence, conditions, weight, user_id
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id, session_id, persona_code, created_at
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id, session_id, sub_problem_index, persona_code, user_id, created_at
                     """,
                     (
                         session_id,
@@ -383,10 +396,57 @@ class ContributionRepository(BaseRepository):
                         confidence,
                         Json(conditions) if conditions else None,
                         weight,
+                        user_id,
                     ),
                 )
                 result = cur.fetchone()
                 return dict(result) if result else {}
+
+    def get_recommendations_by_session(
+        self,
+        session_id: str,
+        sub_problem_index: int | None = None,
+        user_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get recommendations for a session with full DB fields.
+
+        Args:
+            session_id: Session identifier
+            sub_problem_index: Optional filter by sub-problem index
+            user_id: User ID for RLS context (passed to db_session)
+
+        Returns:
+            List of recommendation records with all DB-mapped fields
+        """
+        self._validate_id(session_id, "session_id")
+
+        with db_session(user_id=user_id) as conn:
+            with conn.cursor() as cur:
+                if sub_problem_index is not None:
+                    cur.execute(
+                        """
+                        SELECT id, session_id, sub_problem_index, persona_code, persona_name,
+                               recommendation, reasoning, confidence, conditions, weight,
+                               user_id, created_at
+                        FROM recommendations
+                        WHERE session_id = %s AND sub_problem_index = %s
+                        ORDER BY created_at ASC
+                        """,
+                        (session_id, sub_problem_index),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT id, session_id, sub_problem_index, persona_code, persona_name,
+                               recommendation, reasoning, confidence, conditions, weight,
+                               user_id, created_at
+                        FROM recommendations
+                        WHERE session_id = %s
+                        ORDER BY sub_problem_index NULLS FIRST, created_at ASC
+                        """,
+                        (session_id,),
+                    )
+                return [dict(row) for row in cur.fetchall()]
 
     # =========================================================================
     # Sub-Problem Result Operations

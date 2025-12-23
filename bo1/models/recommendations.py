@@ -4,6 +4,7 @@ Defines recommendation structure and aggregation mechanisms.
 Replaces the old binary voting system with flexible expert recommendations.
 """
 
+from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,6 +19,14 @@ class Recommendation(BaseModel):
     recommendations ("60% X, 40% Y hybrid").
     """
 
+    # DB-assigned fields (optional for API compatibility, populated on read)
+    id: int | None = Field(default=None, description="Database-assigned ID")
+    session_id: str | None = Field(default=None, description="Session identifier")
+    sub_problem_index: int | None = Field(default=None, description="Sub-problem index")
+    user_id: str | None = Field(default=None, description="User identifier for RLS")
+    created_at: datetime | None = Field(default=None, description="Creation timestamp")
+
+    # Core recommendation fields
     persona_code: str = Field(..., description="Code of the persona making the recommendation")
     persona_name: str = Field(..., description="Display name of the persona")
     recommendation: str = Field(

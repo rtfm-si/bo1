@@ -40,6 +40,7 @@ from bo1.llm.circuit_breaker import (
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
 from bo1.llm.embeddings import generate_embedding
+from bo1.prompts.sanitizer import sanitize_user_input
 from bo1.state.repositories import cache_repository
 
 logger = logging.getLogger(__name__)
@@ -633,8 +634,14 @@ class ResearcherAgent:
                 }
 
             # Step 2: Summarize with Haiku - Track cost
+            # Sanitize raw search snippets before LLM summarization (P0 security)
             context = "\n\n".join(
-                [f"**{r['title']}**\n{r['snippet']}\nSource: {r['url']}" for r in search_results]
+                [
+                    f"**{sanitize_user_input(r['title'], context='search_result_raw')}**\n"
+                    f"{sanitize_user_input(r['snippet'], context='search_result_raw')}\n"
+                    f"Source: {r['url']}"
+                    for r in search_results
+                ]
             )
 
             prompt = f"""You are a research assistant. Summarize the following search results to answer the question.
@@ -680,7 +687,9 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
 
             # Extract text from first content block (guaranteed to be TextBlock for text responses)
             first_block = message.content[0]
-            summary = first_block.text if hasattr(first_block, "text") else str(first_block)
+            raw_summary = first_block.text if hasattr(first_block, "text") else str(first_block)
+            # Sanitize LLM output before re-injection into prompts (P0 security)
+            summary = sanitize_user_input(raw_summary, context="search_result_summarized")
             tokens_used = message.usage.input_tokens + message.usage.output_tokens
 
             total_cost = search_cost_record.total_cost + llm_cost_record.total_cost
@@ -692,7 +701,10 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
 
             return {
                 "summary": summary,
-                "sources": [f"{r['title']} - {r['url']}" for r in search_results],
+                "sources": [
+                    f"{sanitize_user_input(r['title'], context='search_result_raw')} - {r['url']}"
+                    for r in search_results
+                ],
                 "confidence": "high" if len(search_results) >= 3 else "medium",
                 "tokens_used": tokens_used,
                 "cost": total_cost,
@@ -790,10 +802,16 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
                     breaker._record_success_sync()
                 # Cost is calculated automatically by CostTracker
 
-            summary = data.get("answer", "[No answer provided]")
+            raw_summary = data.get("answer", "[No answer provided]")
+            # Sanitize Tavily AI-generated answer before re-injection (P0 security)
+            summary = sanitize_user_input(raw_summary, context="search_result_summarized")
             results = data.get("results", [])
 
-            sources = [f"{r.get('title', 'Untitled')} - {r.get('url', '')}" for r in results]
+            # Sanitize source titles from external content
+            sources = [
+                f"{sanitize_user_input(r.get('title', 'Untitled'), context='search_result_raw')} - {r.get('url', '')}"
+                for r in results
+            ]
 
             tokens_used = len(summary.split())  # Approximate
 

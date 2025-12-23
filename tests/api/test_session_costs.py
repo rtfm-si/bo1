@@ -12,13 +12,14 @@ from unittest.mock import patch
 
 import pytest
 
+from backend.api.constants import COST_EVENT_TYPES, COST_FIELDS
 from backend.api.models import (
     PhaseCosts,
     ProviderCosts,
     SessionCostBreakdown,
     SubProblemCost,
 )
-from backend.api.streaming import COST_EVENT_TYPES, COST_FIELDS, strip_cost_data_from_event
+from backend.api.streaming import strip_cost_data_from_event
 from backend.api.utils.auth_helpers import is_admin
 
 

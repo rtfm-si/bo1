@@ -20,6 +20,7 @@ from backend.services.mentor_context import MentorContext, get_mentor_context_se
 from backend.services.mentor_conversation_repo import get_mentor_conversation_repo
 from backend.services.usage_tracking import UsageResult
 from bo1.llm.client import ClaudeClient
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.prompts.mentor import (
     build_mentor_prompt,
     format_active_actions,
@@ -171,7 +172,12 @@ async def _stream_analysis_response(
         yield f"event: done\ndata: {json.dumps({'conversation_id': conversation_id, 'persona': selected_persona, 'tokens': usage.total_tokens})}\n\n"
 
     except Exception as e:
-        logger.error(f"Error in analysis for user {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_ANALYSIS_ERROR,
+            f"Error in analysis for user {user_id}: {e}",
+            user_id=user_id,
+        )
         yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
 

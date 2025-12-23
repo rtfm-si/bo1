@@ -41,8 +41,13 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     """
     _start_time = time.perf_counter()
     session_id = state.get("session_id")
+    request_id = state.get("request_id")
     log_with_session(
-        logger, logging.INFO, session_id, "facilitator_decide_node: Making facilitator decision"
+        logger,
+        logging.INFO,
+        session_id,
+        "facilitator_decide_node: Making facilitator decision",
+        request_id=request_id,
     )
 
     # PROACTIVE RESEARCH EXECUTION: Check for pending research queries from previous round
@@ -116,18 +121,26 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     if decision.action == "continue":
         # Validate next_speaker exists in personas
         if not decision.next_speaker:
-            logger.error(
+            log_with_session(
+                logger,
+                logging.ERROR,
+                session_id,
                 "facilitator_decide_node: 'continue' action without next_speaker! "
-                "Falling back to first available persona."
+                "Falling back to first available persona.",
+                request_id=request_id,
             )
             # Fallback: select first persona
             decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
             decision.reasoning = f"ERROR RECOVERY: Selected {decision.next_speaker} due to missing next_speaker in facilitator decision"
 
         elif decision.next_speaker not in persona_codes:
-            logger.error(
+            log_with_session(
+                logger,
+                logging.ERROR,
+                session_id,
                 f"facilitator_decide_node: Invalid next_speaker '{decision.next_speaker}' "
-                f"not in selected personas: {persona_codes}. Falling back to first available persona."
+                f"not in selected personas: {persona_codes}. Falling back to first available persona.",
+                request_id=request_id,
             )
             # Fallback: select first persona
             decision.next_speaker = persona_codes[0] if persona_codes else "unknown"
@@ -136,9 +149,13 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     elif decision.action == "moderator":
         # Validate moderator_type exists
         if not decision.moderator_type:
-            logger.error(
+            log_with_session(
+                logger,
+                logging.ERROR,
+                session_id,
                 "facilitator_decide_node: 'moderator' action without moderator_type! "
-                "Defaulting to contrarian moderator."
+                "Defaulting to contrarian moderator.",
+                request_id=request_id,
             )
             # Fallback: default to contrarian
             decision.moderator_type = "contrarian"
@@ -147,9 +164,13 @@ async def facilitator_decide_node(state: DeliberationGraphState) -> dict[str, An
     elif decision.action == "research":
         # Validate research_query exists
         if not decision.research_query and not decision.reasoning:
-            logger.error(
+            log_with_session(
+                logger,
+                logging.ERROR,
+                session_id,
                 "facilitator_decide_node: 'research' action without research_query or reasoning! "
-                "Overriding to 'continue' to prevent failure."
+                "Overriding to 'continue' to prevent failure.",
+                request_id=request_id,
             )
             # Fallback: skip research, continue with discussion
             decision.action = "continue"

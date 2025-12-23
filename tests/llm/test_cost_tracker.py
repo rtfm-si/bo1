@@ -793,12 +793,210 @@ class TestLatencyMetricEmission:
             )
 
 
+class TestAggregationCache:
+    """Test aggregation cache for get_session_costs()."""
+
+    def setup_method(self):
+        """Clear cache before each test."""
+        from bo1.llm.cost_tracker import _session_costs_cache
+
+        _session_costs_cache.clear()
+
+    def teardown_method(self):
+        """Clear cache after each test."""
+        from bo1.llm.cost_tracker import _session_costs_cache
+
+        _session_costs_cache.clear()
+
+    def test_aggregation_cache_hit_returns_cached_result(self):
+        """Verify cache hit returns cached result without DB query."""
+        from bo1.llm.cost_tracker import _session_costs_cache
+
+        session_id = "test_cache_hit"
+        cached_result = {
+            "total_calls": 10,
+            "total_cost": 0.50,
+            "by_provider": {
+                "anthropic": 0.45,
+                "voyage": 0.03,
+                "brave": 0.01,
+                "tavily": 0.01,
+            },
+            "total_tokens": 10000,
+            "total_saved": 0.10,
+            "cache_hit_rate": 0.3,
+        }
+
+        # Pre-populate cache
+        _session_costs_cache.set(session_id, cached_result)
+
+        # Call should return cached result without DB call
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            result = CostTracker.get_session_costs(session_id)
+
+        # DB should not be called
+        mock_db.assert_not_called()
+
+        # Result should match cached value
+        assert result == cached_result
+
+    def test_aggregation_cache_miss_queries_db(self):
+        """Verify cache miss queries database and caches result."""
+        from bo1.llm.cost_tracker import _session_costs_cache
+
+        session_id = "test_cache_miss"
+        mock_row = (
+            5,  # total_calls
+            0.25,  # total_cost
+            0.20,  # anthropic_cost
+            0.03,  # voyage_cost
+            0.01,  # brave_cost
+            0.01,  # tavily_cost
+            5000,  # total_tokens
+            0.05,  # total_saved
+            0.4,  # cache_hit_rate
+        )
+
+        with patch("bo1.llm.cost_tracker.db_session") as mock_db:
+            mock_cursor = mock_db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+            mock_cursor.fetchone.return_value = mock_row
+
+            result = CostTracker.get_session_costs(session_id)
+
+        # DB should be called
+        mock_cursor.execute.assert_called_once()
+
+        # Result should be correct
+        assert result["total_calls"] == 5
+        assert result["total_cost"] == 0.25
+
+        # Cache should now contain the result
+        cached = _session_costs_cache.get(session_id)
+        assert cached is not None
+        assert cached["total_cost"] == 0.25
+
+    def test_aggregation_cache_expires_after_ttl(self):
+        """Verify cache entries expire after TTL."""
+        import time
+
+        from bo1.llm.cost_tracker import AggregationCache
+
+        # Create cache with very short TTL
+        cache = AggregationCache(ttl_seconds=1)
+
+        session_id = "test_ttl_expiry"
+        cache.set(session_id, {"total_cost": 0.50})
+
+        # Should be present immediately
+        assert cache.get(session_id) is not None
+
+        # Wait for expiry
+        time.sleep(1.1)
+
+        # Should be expired
+        assert cache.get(session_id) is None
+
+    def test_aggregation_cache_invalidated_on_flush(self):
+        """Verify cache is invalidated when new costs are flushed."""
+        from bo1.llm.cost_tracker import _session_costs_cache
+
+        session_id = "test_invalidate_on_flush"
+
+        # Pre-populate cache
+        _session_costs_cache.set(session_id, {"total_cost": 0.50})
+        assert _session_costs_cache.get(session_id) is not None
+
+        # Add cost record for this session
+        record = CostRecord(
+            provider="anthropic",
+            model_name="claude-sonnet-4-5-20250929",
+            operation_type="completion",
+            input_tokens=1000,
+            total_cost=0.003,
+            session_id=session_id,
+        )
+
+        # Buffer the record
+        with patch("bo1.llm.cost_tracker.db_session"):
+            CostTracker.log_cost(record)
+
+        # Flush to trigger cache invalidation
+        with patch("bo1.llm.cost_tracker.db_session"):
+            CostTracker.flush(session_id)
+
+        # Cache should be invalidated for this session
+        assert _session_costs_cache.get(session_id) is None
+
+    def test_aggregation_cache_thread_safe(self):
+        """Verify cache is thread-safe under concurrent access."""
+        import threading
+
+        from bo1.llm.cost_tracker import _session_costs_cache
+
+        errors = []
+        iterations = 100
+
+        def cache_operations():
+            try:
+                for i in range(iterations):
+                    session_id = f"thread_test_{i % 10}"
+                    # Concurrent set/get/invalidate
+                    _session_costs_cache.set(session_id, {"total_cost": float(i)})
+                    _session_costs_cache.get(session_id)
+                    if i % 3 == 0:
+                        _session_costs_cache.invalidate(session_id)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=cache_operations) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # No errors during concurrent access
+        assert len(errors) == 0
+
+    def test_invalidate_session_costs_cache_method(self):
+        """Verify invalidate_session_costs_cache() removes entry."""
+        from bo1.llm.cost_tracker import _session_costs_cache
+
+        session_id = "test_invalidate_method"
+
+        # Pre-populate cache
+        _session_costs_cache.set(session_id, {"total_cost": 0.50})
+        assert _session_costs_cache.get(session_id) is not None
+
+        # Invalidate via method
+        result = CostTracker.invalidate_session_costs_cache(session_id)
+
+        assert result is True
+        assert _session_costs_cache.get(session_id) is None
+
+    def test_invalidate_session_costs_cache_not_present(self):
+        """Verify invalidate returns False when session not in cache."""
+        result = CostTracker.invalidate_session_costs_cache("nonexistent_session")
+        assert result is False
+
+
 class TestPartitionPruning:
     """Test partition pruning for api_costs queries.
 
     Validates that queries on partitioned tables include created_at
     filters to enable partition pruning and avoid full table scans.
     """
+
+    def setup_method(self):
+        """Clear aggregation cache before each test."""
+        from bo1.llm.cost_tracker import _session_costs_cache
+
+        _session_costs_cache.clear()
+
+    def teardown_method(self):
+        """Clear aggregation cache after each test."""
+        from bo1.llm.cost_tracker import _session_costs_cache
+
+        _session_costs_cache.clear()
 
     def test_get_session_costs_includes_partition_filter(self):
         """Verify get_session_costs() includes created_at filter for partition pruning."""

@@ -384,9 +384,9 @@
 
 				<!-- Strategic Objectives -->
 				<div class="md:col-span-2">
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+					<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
 						Strategic Objectives
-					</label>
+					</span>
 					<p class="text-sm text-neutral-500 dark:text-neutral-400 mb-3">
 						Define up to 5 supporting objectives that help achieve your north star goal.
 					</p>

@@ -117,22 +117,28 @@
 </script>
 
 {#if true}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
 		onclick={handleBackdropClick}
-		role="button"
-		tabindex="-1"
+		onkeydown={(e) => e.key === 'Escape' && onclose?.()}
+		role="presentation"
 	>
+		<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events a11y_interactive_supports_focus -->
 		<div
 			class="bg-white dark:bg-neutral-800 rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col"
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
+			aria-modal="true"
+			aria-labelledby="blog-editor-title"
+			tabindex="-1"
 		>
 			<!-- Header -->
 			<div
 				class="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-700"
 			>
-				<h2 class="text-xl font-semibold text-neutral-900 dark:text-white">
+				<h2 id="blog-editor-title" class="text-xl font-semibold text-neutral-900 dark:text-white">
 					{isEditing ? 'Edit Post' : 'New Post'}
 				</h2>
 				<button
@@ -152,10 +158,11 @@
 
 				<!-- Title -->
 				<div>
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					<label for="blog-title" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 						Title <span class="text-red-500">*</span>
 					</label>
 					<input
+						id="blog-title"
 						type="text"
 						bind:value={title}
 						class="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
@@ -166,7 +173,7 @@
 				<!-- Content with tabs -->
 				<div>
 					<div class="flex items-center justify-between mb-1">
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+						<label for="blog-content" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 							Content <span class="text-red-500">*</span>
 						</label>
 						<div class="flex gap-2">
@@ -194,6 +201,7 @@
 					</div>
 					{#if activeTab === 'edit'}
 						<textarea
+							id="blog-content"
 							bind:value={content}
 							rows={12}
 							class="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent font-mono text-sm"
@@ -210,11 +218,12 @@
 
 				<!-- Excerpt -->
 				<div>
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+					<label for="blog-excerpt" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 						Excerpt
 						<span class="text-neutral-400 font-normal">(for previews)</span>
 					</label>
 					<textarea
+						id="blog-excerpt"
 						bind:value={excerpt}
 						rows={2}
 						class="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
@@ -225,10 +234,11 @@
 				<!-- Status & Schedule -->
 				<div class="grid grid-cols-2 gap-4">
 					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+						<label for="blog-status" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 							Status
 						</label>
 						<select
+							id="blog-status"
 							bind:value={status}
 							class="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500"
 						>
@@ -238,7 +248,7 @@
 						</select>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+						<label for="blog-publish-date" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 							<Calendar class="w-4 h-4 inline mr-1" />
 							Publish Date
 							{#if status === 'scheduled'}
@@ -246,6 +256,7 @@
 							{/if}
 						</label>
 						<input
+							id="blog-publish-date"
 							type="datetime-local"
 							bind:value={publishedAt}
 							class="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500"
@@ -262,11 +273,12 @@
 					</summary>
 					<div class="px-4 pb-4 space-y-4">
 						<div>
-							<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+							<label for="blog-seo-keywords" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 								Keywords
 								<span class="text-neutral-400 font-normal">(comma-separated)</span>
 							</label>
 							<input
+								id="blog-seo-keywords"
 								type="text"
 								bind:value={seoKeywords}
 								class="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500"
@@ -274,11 +286,12 @@
 							/>
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+							<label for="blog-meta-title" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 								Meta Title
 								<span class="text-neutral-400 font-normal">({metaTitle.length}/100)</span>
 							</label>
 							<input
+								id="blog-meta-title"
 								type="text"
 								bind:value={metaTitle}
 								maxlength={100}
@@ -287,11 +300,12 @@
 							/>
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+							<label for="blog-meta-desc" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 								Meta Description
 								<span class="text-neutral-400 font-normal">({metaDescription.length}/300)</span>
 							</label>
 							<textarea
+								id="blog-meta-desc"
 								bind:value={metaDescription}
 								rows={2}
 								maxlength={300}

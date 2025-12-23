@@ -14,6 +14,7 @@ from typing import Any
 from bo1.graph.nodes.utils import log_with_session
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_phase_cost
+from bo1.prompts.sanitizer import sanitize_user_input
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
@@ -37,8 +38,13 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
         Dictionary with state updates (problem with enriched context)
     """
     session_id = state.get("session_id")
+    request_id = state.get("request_id")
     log_with_session(
-        logger, logging.INFO, session_id, "context_collection_node: Starting context collection"
+        logger,
+        logging.INFO,
+        session_id,
+        "context_collection_node: Starting context collection",
+        request_id=request_id,
     )
 
     problem = state.get("problem")
@@ -66,23 +72,37 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
                 context_lines = [
                     "\n\n## Business Context",
                 ]
+                # Sanitize user-provided business context fields (P1 security)
                 if saved_context.get("business_model"):
-                    context_lines.append(f"- Business Model: {saved_context['business_model']}")
+                    context_lines.append(
+                        f"- Business Model: {sanitize_user_input(saved_context['business_model'], context='business_context')}"
+                    )
                 if saved_context.get("target_market"):
-                    context_lines.append(f"- Target Market: {saved_context['target_market']}")
+                    context_lines.append(
+                        f"- Target Market: {sanitize_user_input(saved_context['target_market'], context='business_context')}"
+                    )
                 if saved_context.get("revenue"):
-                    context_lines.append(f"- Revenue: {saved_context['revenue']}")
+                    context_lines.append(
+                        f"- Revenue: {sanitize_user_input(str(saved_context['revenue']), context='business_context')}"
+                    )
                 if saved_context.get("customers"):
-                    context_lines.append(f"- Customers: {saved_context['customers']}")
+                    context_lines.append(
+                        f"- Customers: {sanitize_user_input(str(saved_context['customers']), context='business_context')}"
+                    )
                 if saved_context.get("growth_rate"):
-                    context_lines.append(f"- Growth Rate: {saved_context['growth_rate']}")
+                    context_lines.append(
+                        f"- Growth Rate: {sanitize_user_input(str(saved_context['growth_rate']), context='business_context')}"
+                    )
 
                 # Strategic objectives (user-defined supporting goals)
                 strategic_objectives = saved_context.get("strategic_objectives")
                 if strategic_objectives and isinstance(strategic_objectives, list):
                     context_lines.append("\n## Strategic Objectives")
                     for obj in strategic_objectives[:5]:  # Max 5
-                        context_lines.append(f"- {obj}")
+                        # Sanitize each strategic objective (P1 security)
+                        context_lines.append(
+                            f"- {sanitize_user_input(str(obj), context='strategic_objective')}"
+                        )
                     logger.info(
                         f"Injected {len(strategic_objectives[:5])} strategic objectives into context"
                     )
@@ -184,8 +204,13 @@ async def context_collection_node(state: DeliberationGraphState) -> dict[str, An
                                 elif unit == "count":
                                     metric_str = f" ({val:,.0f})"
 
-                            context_lines.append(f"- Q: {question}{freshness}")
-                            context_lines.append(f"  A: {answer}{metric_str}")
+                            # Sanitize saved clarification question and answer (P1 security)
+                            context_lines.append(
+                                f"- Q: {sanitize_user_input(str(question), context='saved_clarification')}{freshness}"
+                            )
+                            context_lines.append(
+                                f"  A: {sanitize_user_input(str(answer), context='saved_clarification')}{metric_str}"
+                            )
                     logger.info(
                         f"Injected {len(clarifications)} previous clarifications (with freshness) into context"
                     )

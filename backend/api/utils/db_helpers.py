@@ -37,6 +37,7 @@ def execute_query(
     params: tuple = (),
     *,
     fetch: Literal["one"],
+    user_id: str | None = None,
 ) -> RealDictRow | None: ...
 
 
@@ -46,6 +47,7 @@ def execute_query(
     params: tuple = (),
     *,
     fetch: Literal["all"] = "all",
+    user_id: str | None = None,
 ) -> list[RealDictRow]: ...
 
 
@@ -55,6 +57,7 @@ def execute_query(
     params: tuple = (),
     *,
     fetch: Literal["none"],
+    user_id: str | None = None,
 ) -> None: ...
 
 
@@ -63,6 +66,7 @@ def execute_query(
     params: tuple = (),
     *,
     fetch: Literal["one", "all", "none"] = "all",
+    user_id: str | None = None,
 ) -> RealDictRow | list[RealDictRow] | None:
     """Execute a SQL query with standard connection handling.
 
@@ -74,6 +78,7 @@ def execute_query(
         params: Tuple of parameters for the query
         fetch: What to return - "one" for single row, "all" for all rows,
                "none" for write operations
+        user_id: Optional user ID for RLS context (sets app.current_user_id)
 
     Returns:
         - fetch="one": Single row dict or None
@@ -100,8 +105,16 @@ def execute_query(
         ...     (name, user_id),
         ...     fetch="none"
         ... )
+
+        >>> # With RLS context (for tables with row-level security)
+        >>> row = execute_query(
+        ...     "SELECT * FROM user_context WHERE user_id = %s",
+        ...     (user_id,),
+        ...     fetch="one",
+        ...     user_id=user_id
+        ... )
     """
-    with db_session() as conn:
+    with db_session(user_id=user_id) as conn:
         with conn.cursor() as cur:
             cur.execute(sql, params)
             if fetch == "one":

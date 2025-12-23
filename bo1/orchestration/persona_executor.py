@@ -21,7 +21,7 @@ from bo1.llm.client import ClaudeClient
 from bo1.llm.response import LLMResponse
 from bo1.llm.response_parser import ResponseParser
 from bo1.models.state import ContributionMessage, ContributionType
-from bo1.prompts.sanitizer import strip_prompt_artifacts
+from bo1.prompts.sanitizer import sanitize_user_input, strip_prompt_artifacts
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +140,36 @@ class PersonaExecutor:
 
         # Strip any leaked prompt artifacts from the contribution
         contribution = strip_prompt_artifacts(contribution)
+        # Sanitize LLM output before re-injection into subsequent prompts
+        contribution = sanitize_user_input(contribution, context="llm_output")
+
+        # Challenge phase validation (rounds 3-4, 1-indexed)
+        # Convert 0-indexed to 1-indexed for validation
+        round_number_1indexed = round_number + 1
+        is_valid_challenge, challenge_reason = ResponseParser.validate_challenge_phase_contribution(
+            contribution, round_number_1indexed, persona_profile.display_name
+        )
+        if not is_valid_challenge:
+            logger.warning(
+                f"⚠️ Challenge phase validation failed for {persona_profile.display_name}: {challenge_reason}"
+            )
+            # Retry with explicit challenge directive
+            (
+                contribution,
+                thinking,
+                retry_token_usage,
+                duration_ms,
+            ) = await self._retry_with_challenge_directive(
+                broker=broker,
+                system_prompt=system_prompt,
+                user_message=user_message,
+                persona_profile=persona_profile,
+                selected_model=selected_model,
+                round_config=round_config,
+                start_time=start_time,
+                original_token_usage=token_usage,
+            )
+            token_usage = retry_token_usage
 
         # Validate response - check for meta-discussion (persona confusion)
         if ResponseParser.is_meta_discussion(contribution):
@@ -281,6 +311,79 @@ class PersonaExecutor:
         thinking, contribution = ResponseParser.parse_persona_response(response_text)
 
         logger.info(f"Retry response from {persona_profile.display_name}: {contribution[:100]}...")
+
+        return contribution, thinking, original_token_usage, duration_ms
+
+    async def _retry_with_challenge_directive(
+        self,
+        broker: PromptBroker,
+        system_prompt: str,
+        user_message: str,
+        persona_profile: Any,
+        selected_model: str,
+        round_config: dict[str, Any],
+        start_time: datetime,
+        original_token_usage: Any,
+    ) -> tuple[str, str | None, Any, int]:
+        """Retry LLM call with explicit challenge directive for challenge phase.
+
+        Args:
+            broker: PromptBroker instance
+            system_prompt: Original system prompt
+            user_message: Original user message
+            persona_profile: Persona profile
+            selected_model: Model to use
+            round_config: Round configuration
+            start_time: Original call start time
+            original_token_usage: Token usage from original call
+
+        Returns:
+            Tuple of (contribution, thinking, token_usage, duration_ms)
+        """
+        # Add explicit challenge directive
+        challenge_msg = (
+            f"{user_message}\n\n"
+            "CRITICAL: This is the CHALLENGE PHASE. You MUST provide substantive critique. "
+            "Do NOT simply agree with previous speakers. Instead:\n"
+            "- Identify specific flaws, risks, or gaps in the arguments presented\n"
+            "- Present counterarguments or alternative perspectives\n"
+            "- Challenge assumptions that may not hold\n"
+            "- Highlight unintended consequences or edge cases\n"
+            "Your role is to stress-test ideas, not validate them."
+        )
+
+        # Use prompt caching based on settings, respecting runtime override
+        override_retry = get_effective_value("enable_prompt_cache")
+        cache_system = (
+            override_retry if override_retry is not None else get_settings().enable_prompt_cache
+        )
+
+        request_retry = PromptRequest(
+            system=system_prompt,
+            user_message=challenge_msg,
+            model=selected_model,
+            cache_system=cache_system,
+            temperature=round_config["temperature"] + 0.1,  # Slightly higher temp for diversity
+            max_tokens=round_config["max_tokens"],
+            phase="deliberation",
+            agent_type=f"persona_{persona_profile.code}_challenge_retry",
+        )
+
+        retry_response = await broker.call(request_retry)
+        response_text = retry_response.content
+
+        # Add retry tokens to total
+        original_token_usage.input_tokens += retry_response.token_usage.input_tokens
+        original_token_usage.output_tokens += retry_response.token_usage.output_tokens
+        duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+
+        thinking, contribution = ResponseParser.parse_persona_response(response_text)
+
+        # Accept second attempt regardless (no infinite loops)
+        logger.info(
+            f"Challenge phase retry response from {persona_profile.display_name}: "
+            f"{contribution[:100]}..."
+        )
 
         return contribution, thinking, original_token_usage, duration_ms
 

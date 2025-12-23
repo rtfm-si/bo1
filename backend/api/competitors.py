@@ -30,6 +30,7 @@ from backend.api.utils.db_helpers import (
 )
 from backend.api.utils.errors import handle_api_errors
 from bo1.config import get_settings
+from bo1.logging.errors import ErrorCode, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -474,13 +475,25 @@ async def enrich_competitor(
         )
 
     except httpx.HTTPError as e:
-        logger.error(f"HTTP error during enrichment: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"HTTP error during enrichment: {e}",
+            competitor_id=str(competitor_id),
+            competitor_name=row["name"],
+        )
         return EnrichResponse(
             success=False,
             error=f"Failed to connect to enrichment service: {e}",
         )
     except (DatabaseError, OperationalError) as e:
-        logger.error(f"Database error during enrichment: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Database error during enrichment: {e}",
+            competitor_id=str(competitor_id),
+            competitor_name=row["name"],
+        )
         return EnrichResponse(
             success=False,
             error="Database error during enrichment",
@@ -489,7 +502,14 @@ async def enrich_competitor(
         # Always re-raise CancelledError
         raise
     except Exception as e:
-        logger.error(f"Unexpected error during enrichment: {e}", exc_info=True)
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Unexpected error during enrichment: {e}",
+            exc_info=True,
+            competitor_id=str(competitor_id),
+            competitor_name=row["name"],
+        )
         return EnrichResponse(
             success=False,
             error=str(e),
@@ -563,7 +583,14 @@ async def enrich_all_competitors(
             # Always re-raise CancelledError
             raise
         except Exception as e:
-            logger.error(f"Unexpected error enriching {row['name']}: {e}", exc_info=True)
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Unexpected error enriching {row['name']}: {e}",
+                exc_info=True,
+                competitor_id=str(row["id"]),
+                competitor_name=row["name"],
+            )
             errors.append(f"{row['name']}: {str(e)}")
             enriched_competitors.append(row_to_profile(row))
 

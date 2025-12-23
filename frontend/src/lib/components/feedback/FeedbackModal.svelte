@@ -113,11 +113,11 @@
 			{/if}
 
 			<!-- Type Toggle -->
-			<div class="space-y-2">
-				<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+			<fieldset class="space-y-2">
+				<legend class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 					What type of feedback?
-				</label>
-				<div class="flex gap-2">
+				</legend>
+				<div class="flex gap-2" role="group">
 					<button
 						type="button"
 						class={[
@@ -145,7 +145,7 @@
 						Report a Problem
 					</button>
 				</div>
-			</div>
+			</fieldset>
 
 			<!-- Title -->
 			<div class="space-y-1">

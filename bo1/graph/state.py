@@ -16,6 +16,7 @@ State is organized into logical groups:
 - DataState: Dataset attachments and analysis results
 """
 
+import logging
 import warnings
 from typing import Any, TypedDict
 
@@ -27,6 +28,8 @@ from bo1.models.state import (
     DeliberationPhase,
     SubProblemResult,
 )
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # NESTED STATE TYPEDDICTS
@@ -160,6 +163,7 @@ class DeliberationGraphState(TypedDict, total=False):
 
     # Core identifiers
     session_id: str
+    request_id: str | None  # HTTP request ID for log correlation across graph nodes
 
     # Problem context
     problem: Problem
@@ -285,6 +289,7 @@ def create_initial_state(
     skip_clarification: bool = False,
     context_ids: dict[str, list[str]] | None = None,
     subscription_tier: str | None = None,
+    request_id: str | None = None,
 ) -> DeliberationGraphState:
     """Create initial graph state from a problem.
 
@@ -298,12 +303,14 @@ def create_initial_state(
         skip_clarification: Whether to skip pre-meeting clarifying questions (default: False)
         context_ids: Optional user-selected context {meetings: [...], actions: [...], datasets: [...]}
         subscription_tier: User's subscription tier for cost limit enforcement (default: "free")
+        request_id: HTTP request ID for log correlation across graph nodes
 
     Returns:
         Initial DeliberationGraphState ready for graph execution
     """
     return DeliberationGraphState(
         session_id=session_id,
+        request_id=request_id,
         problem=problem,
         current_sub_problem=None,
         personas=personas or [],
@@ -563,9 +570,54 @@ def deserialize_state_from_checkpoint(data: dict[str, Any]) -> dict[str, Any]:
     if "problem" in result and isinstance(result["problem"], dict):
         result["problem"] = Problem.model_validate(result["problem"])
 
-    # Deserialize current_sub_problem
+    # Deserialize current_sub_problem with corruption detection
+    # Check for corrupted id BEFORE model_validate (which would reject it)
     if "current_sub_problem" in result and isinstance(result["current_sub_problem"], dict):
-        result["current_sub_problem"] = SubProblem.model_validate(result["current_sub_problem"])
+        current_sp_dict = result["current_sub_problem"]
+        sp_id = current_sp_dict.get("id")
+
+        if isinstance(sp_id, list):
+            # Corrupted checkpoint - id is a type annotation path like
+            # ['bo1', 'models', 'problem', 'SubProblem']
+            logger.warning(
+                f"Corrupted current_sub_problem.id detected: {sp_id} - "
+                "attempting repair from problem.sub_problems"
+            )
+
+            # Attempt repair: get from problem.sub_problems by index
+            problem = result.get("problem")
+            sub_problem_index = result.get("sub_problem_index", 0)
+            repaired = False
+
+            if problem is not None:
+                sub_problems = (
+                    getattr(problem, "sub_problems", [])
+                    if hasattr(problem, "sub_problems")
+                    else problem.get("sub_problems", [])
+                    if isinstance(problem, dict)
+                    else []
+                )
+                if 0 <= sub_problem_index < len(sub_problems):
+                    repaired_sp = sub_problems[sub_problem_index]
+                    if isinstance(repaired_sp, dict):
+                        result["current_sub_problem"] = SubProblem.model_validate(repaired_sp)
+                    else:
+                        result["current_sub_problem"] = repaired_sp
+                    logger.info(f"Repaired current_sub_problem from index {sub_problem_index}")
+                    repaired = True
+                else:
+                    logger.error(
+                        f"Cannot repair current_sub_problem: index {sub_problem_index} "
+                        f"out of bounds for {len(sub_problems)} sub_problems"
+                    )
+
+            if not repaired:
+                # Cannot repair - remove corrupted data to avoid validation error
+                logger.error("Removing corrupted current_sub_problem (repair failed)")
+                result["current_sub_problem"] = None
+        else:
+            # Normal case - validate as usual
+            result["current_sub_problem"] = SubProblem.model_validate(current_sp_dict)
 
     # Deserialize personas list
     if "personas" in result and result["personas"]:
@@ -724,3 +776,85 @@ def get_data_state(state: DeliberationGraphState) -> DataState:
         attached_datasets=state.get("attached_datasets", []),
         data_analysis_results=state.get("data_analysis_results", []),
     )
+
+
+# =============================================================================
+# CONTRIBUTION PRUNING (TOKEN OPTIMIZATION)
+# =============================================================================
+
+
+def prune_contributions_for_phase(
+    state: DeliberationGraphState,
+    retain_count: int | None = None,
+) -> list[ContributionMessage]:
+    """Prune old contributions to reduce token usage.
+
+    Called at synthesis node entry after convergence phase. Pruning is safe
+    because synthesis uses round_summaries for context (not raw contributions).
+
+    Pruning strategy:
+    - Keep last `retain_count` contributions (default: 6 = ~2 rounds)
+    - Preserve all contributions from the current round (by round_number)
+    - Log pruned count for observability
+
+    Safety:
+    - Never prune if len(contributions) <= retain_count
+    - Only prune if phase >= SYNTHESIS (post-convergence)
+
+    Args:
+        state: Current graph state
+        retain_count: Number of contributions to retain (default: from config)
+
+    Returns:
+        Pruned contributions list (or original if no pruning needed)
+    """
+    from bo1.constants import ContributionPruning
+    from bo1.models.state import DeliberationPhase
+
+    if retain_count is None:
+        retain_count = ContributionPruning.RETENTION_COUNT
+
+    contributions = state.get("contributions", [])
+    current_phase = state.get("phase")
+    current_round = state.get("round_number", 0)
+    session_id = state.get("session_id")
+
+    # Safety: Don't prune if already small
+    if len(contributions) <= retain_count:
+        logger.debug(
+            f"prune_contributions_for_phase: No pruning needed "
+            f"(contributions={len(contributions)} <= retain_count={retain_count})"
+        )
+        return contributions
+
+    # Safety: Only prune at synthesis phase or later
+    if current_phase not in (DeliberationPhase.SYNTHESIS, DeliberationPhase.COMPLETE):
+        logger.debug(
+            f"prune_contributions_for_phase: Skipping pruning "
+            f"(phase={current_phase}, expected SYNTHESIS or COMPLETE)"
+        )
+        return contributions
+
+    # Preserve contributions from current round
+    current_round_contributions = [c for c in contributions if c.round_number == current_round]
+    other_contributions = [c for c in contributions if c.round_number != current_round]
+
+    # Calculate how many non-current-round contributions to keep
+    slots_for_others = max(0, retain_count - len(current_round_contributions))
+
+    # Keep the most recent non-current-round contributions
+    retained_others = other_contributions[-slots_for_others:] if slots_for_others > 0 else []
+
+    # Combine: current round + retained others (in chronological order)
+    pruned = retained_others + current_round_contributions
+
+    pruned_count = len(contributions) - len(pruned)
+    if pruned_count > 0:
+        logger.info(
+            f"prune_contributions_for_phase: session={session_id}, "
+            f"pruned={pruned_count}, retained={len(pruned)} "
+            f"(current_round={len(current_round_contributions)}, "
+            f"previous={len(retained_others)})"
+        )
+
+    return pruned

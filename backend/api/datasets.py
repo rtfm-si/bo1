@@ -53,6 +53,7 @@ from backend.services.spaces import SpacesError, get_spaces_client
 from backend.services.summary_generator import generate_dataset_summary, invalidate_summary_cache
 from backend.services.usage_tracking import UsageResult
 from bo1.llm.client import ClaudeClient
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.prompts.data_analyst import (
     DATA_ANALYST_SYSTEM,
     build_analyst_prompt,
@@ -222,7 +223,13 @@ async def upload_dataset(
         )
         logger.info(f"Uploaded CSV to Spaces: {file_key} ({file_size} bytes)")
     except SpacesError as e:
-        logger.error(f"Failed to upload to Spaces: {e}")
+        log_error(
+            logger,
+            ErrorCode.EXT_SPACES_ERROR,
+            f"Failed to upload to Spaces: {e}",
+            user_id=user_id,
+            file_key=file_key,
+        )
         raise HTTPException(status_code=502, detail="Failed to upload file to storage") from None
 
     # Create dataset record with storage_path for future hierarchical access
@@ -240,7 +247,13 @@ async def upload_dataset(
         )
     except Exception as e:
         # Cleanup Spaces file on database error
-        logger.error(f"Failed to create dataset record: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to create dataset record: {e}",
+            user_id=user_id,
+            file_key=file_key,
+        )
         try:
             spaces_client.delete_file(file_key)
         except SpacesError:
@@ -340,7 +353,13 @@ async def import_sheets(
         )
         logger.info(f"Uploaded sheets import to Spaces: {file_key} ({file_size} bytes)")
     except SpacesError as e:
-        logger.error(f"Failed to upload to Spaces: {e}")
+        log_error(
+            logger,
+            ErrorCode.EXT_SPACES_ERROR,
+            f"Failed to upload to Spaces: {e}",
+            user_id=user_id,
+            file_key=file_key,
+        )
         raise HTTPException(status_code=502, detail="Failed to upload file to storage") from None
 
     # Create dataset record with storage_path
@@ -359,7 +378,13 @@ async def import_sheets(
         )
     except Exception as e:
         # Cleanup Spaces file on database error
-        logger.error(f"Failed to create dataset record: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to create dataset record: {e}",
+            user_id=user_id,
+            file_key=file_key,
+        )
         try:
             spaces_client.delete_file(file_key)
         except SpacesError:
@@ -477,7 +502,13 @@ async def trigger_profile(
         profile = profile_dataset(dataset_id, user_id, dataset_repository)
         save_profile(profile, dataset_repository)
     except ProfileError as e:
-        logger.error(f"Failed to profile dataset {dataset_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_ANALYSIS_ERROR,
+            f"Failed to profile dataset {dataset_id}: {e}",
+            dataset_id=dataset_id,
+            user_id=user_id,
+        )
         raise HTTPException(status_code=422, detail=str(e)) from None
 
     # Generate summary (invalidate cache first since profile changed)
@@ -544,7 +575,14 @@ async def execute_dataset_query(
     try:
         df = load_dataframe(file_key, max_rows=None)
     except DataFrameLoadError as e:
-        logger.error(f"Failed to load dataset {dataset_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to load dataset {dataset_id}: {e}",
+            dataset_id=dataset_id,
+            user_id=user_id,
+            file_key=file_key,
+        )
         raise HTTPException(status_code=502, detail="Failed to load dataset") from None
 
     # Execute query
@@ -594,7 +632,14 @@ async def generate_dataset_chart(
     try:
         df = load_dataframe(file_key, max_rows=None)
     except DataFrameLoadError as e:
-        logger.error(f"Failed to load dataset {dataset_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to load dataset {dataset_id}: {e}",
+            dataset_id=dataset_id,
+            user_id=user_id,
+            file_key=file_key,
+        )
         raise HTTPException(status_code=502, detail="Failed to load dataset") from None
 
     # Generate chart JSON
@@ -955,7 +1000,13 @@ async def _stream_ask_response(
         yield f"event: done\ndata: {json.dumps({'conversation_id': conversation_id, 'tokens': usage.total_tokens})}\n\n"
 
     except Exception as e:
-        logger.error(f"Error in ask stream for dataset {dataset_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Error in ask stream for dataset {dataset_id}: {e}",
+            dataset_id=dataset_id,
+            user_id=user_id,
+        )
         yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
 

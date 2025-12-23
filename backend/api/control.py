@@ -19,18 +19,21 @@ from backend.api.dependencies import (
     VerifiedSession,
     get_redis_manager,
     get_session_manager,
+    get_session_metadata_cache,
 )
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import CONTROL_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
 from backend.api.utils.auth_helpers import extract_user_id
-from backend.api.utils.errors import handle_api_errors
+from backend.api.utils.errors import handle_api_errors, http_error
 from backend.api.utils.validation import validate_session_id
 from bo1.data import load_personas
 from bo1.graph.config import create_deliberation_graph
 from bo1.graph.execution import PermissionError, SessionManager
 from bo1.graph.state import create_initial_state
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.models.problem import Problem
+from bo1.prompts.sanitizer import sanitize_user_input
 from bo1.security import check_for_injection
 from bo1.state.database import db_session
 from bo1.state.redis_lock import LockTimeout, session_lock
@@ -216,18 +219,31 @@ def _recover_problem_from_postgres(session_id: str) -> Any:
         return problem
 
     except Exception as e:
-        logger.error(f"Failed to recover problem from PostgreSQL for {session_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to recover problem from PostgreSQL for {session_id}: {e}",
+            session_id=session_id,
+        )
         return None
 
 
-def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
-    """Reconstruct minimal deliberation state from PostgreSQL events.
+def _reconstruct_state_from_postgres(
+    session_id: str,
+    allow_failed: bool = False,
+) -> dict[str, Any] | None:
+    """Reconstruct minimal deliberation state from PostgreSQL events and metadata.
 
     Used when LangGraph checkpoint is missing but session data exists in PostgreSQL.
-    Reconstructs enough state to resume from clarification pause point.
+    Reconstructs enough state to resume from clarification pause point or retry failed.
+
+    Leverages denormalized session metadata (phase, round_number, expert_count,
+    contribution_count, focus_area_count) for more complete state reconstruction
+    when Redis checkpoint is unavailable.
 
     Args:
         session_id: Session identifier
+        allow_failed: If True, also allows reconstruction of failed sessions (for retry)
 
     Returns:
         Reconstructed state dict, or None if reconstruction not possible
@@ -236,11 +252,13 @@ def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
     from bo1.state.repositories import session_repository
 
     try:
-        # Get session metadata
+        # Get session metadata including denormalized counts
         with db_session() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """SELECT problem_statement, status, phase
+                    """SELECT problem_statement, problem_context, status, phase,
+                              round_number, expert_count, contribution_count,
+                              focus_area_count
                        FROM sessions WHERE id = %s""",
                     (session_id,),
                 )
@@ -250,11 +268,18 @@ def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
             logger.warning(f"Session {session_id} not found in PostgreSQL")
             return None
 
-        # Only reconstruct for sessions paused for clarification
-        if session_row["status"] != "paused" or session_row["phase"] != "clarification_needed":
+        status = session_row["status"]
+        phase = session_row["phase"]
+
+        # Determine valid reconstruction states
+        valid_for_reconstruction = (status == "paused" and phase == "clarification_needed") or (
+            allow_failed and status == "failed"
+        )
+
+        if not valid_for_reconstruction:
             logger.warning(
-                f"Session {session_id} not in clarification state "
-                f"(status={session_row['status']}, phase={session_row['phase']})"
+                f"Session {session_id} not in reconstructable state "
+                f"(status={status}, phase={phase}, allow_failed={allow_failed})"
             )
             return None
 
@@ -323,15 +348,28 @@ def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
 
         metrics = DeliberationMetrics()
 
-        # Reconstruct minimal state needed to resume from clarification
+        # Use denormalized metadata for better reconstruction
+        round_number = session_row.get("round_number", 0) or 0
+        problem_context = session_row.get("problem_context") or {}
+
+        # Get sub_problem_index from problem_context if persisted by fallback
+        sub_problem_index = 0
+        if isinstance(problem_context, dict):
+            sub_problem_index = problem_context.get("sub_problem_index", 0) or 0
+
+        # Determine stop_reason based on status
+        stop_reason = "clarification_needed" if status == "paused" else "failed"
+
+        # Reconstruct minimal state needed to resume from clarification or retry
         reconstructed_state = {
             "problem": problem,
-            "sub_problem_index": 0,
-            "round_number": 0,
+            "sub_problem_index": sub_problem_index,
+            "round_number": round_number,
             "should_stop": True,
-            "stop_reason": "clarification_needed",
+            "stop_reason": stop_reason,
             "pending_clarification": pending_clarification,
-            "current_node": "identify_gaps",
+            "current_node": phase or "identify_gaps",
+            "current_phase": phase or "exploration",
             "personas": [],
             "contributions": [],
             "metrics": metrics,
@@ -339,13 +377,19 @@ def _reconstruct_state_from_postgres(session_id: str) -> dict[str, Any] | None:
 
         logger.info(
             f"Reconstructed state for session {session_id} from PostgreSQL "
-            f"(sub_problems={len(sub_problems)}, has_clarification={pending_clarification is not None})"
+            f"(sub_problems={len(sub_problems)}, round={round_number}, "
+            f"phase={phase}, has_clarification={pending_clarification is not None})"
         )
 
         return reconstructed_state
 
     except Exception as e:
-        logger.error(f"Failed to reconstruct state from PostgreSQL for {session_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to reconstruct state from PostgreSQL for {session_id}: {e}",
+            session_id=session_id,
+        )
         return None
 
 
@@ -396,7 +440,12 @@ async def save_state_to_checkpoint(
         return True
 
     except Exception as e:
-        logger.error(f"Failed to save state to checkpoint for {session_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.GRAPH_CHECKPOINT_ERROR,
+            f"Failed to save state to checkpoint for {session_id}: {e}",
+            session_id=session_id,
+        )
         return False
 
 
@@ -559,31 +608,28 @@ async def start_deliberation(
                 )
             except MeetingCapExceededError as e:
                 logger.warning(f"Meeting cap exceeded for user {user_id}: {e}")
-                raise HTTPException(
-                    status_code=429,
-                    detail={
-                        "error": "meeting_cap_exceeded",
-                        "message": str(e),
-                        "reset_time": (
-                            e.status.reset_time.isoformat() if e.status.reset_time else None
-                        ),
-                        "limit": e.status.limit,
-                        "remaining": 0,
-                    },
+                raise http_error(
+                    ErrorCode.API_RATE_LIMIT,
+                    str(e),
+                    status=429,
+                    reset_time=(e.status.reset_time.isoformat() if e.status.reset_time else None),
+                    limit=e.status.limit,
+                    remaining=0,
                 ) from e
 
         # Check if already running
         if session_id in session_manager.active_executions:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Session {session_id} is already running",
+            raise http_error(
+                ErrorCode.API_CONFLICT,
+                f"Session {session_id} is already running",
+                status=409,
             )
 
         # Validate session status (status already loaded above for cap check)
         if status not in ["created", "paused"]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cannot start session with status: {status}",
+            raise http_error(
+                ErrorCode.API_BAD_REQUEST,
+                f"Cannot start session with status: {status}",
             )
 
         # Load problem from metadata
@@ -640,6 +686,9 @@ async def start_deliberation(
         # Load context_ids from metadata (user-selected meetings/actions/datasets)
         context_ids = metadata.get("context_ids")
 
+        # Extract request_id for correlation tracing through graph nodes
+        request_id = getattr(request.state, "request_id", None)
+
         # Create initial state
         state = create_initial_state(
             session_id=session_id,
@@ -649,6 +698,7 @@ async def start_deliberation(
             skip_clarification=skip_clarification,
             context_ids=context_ids,
             subscription_tier=subscription_tier,
+            request_id=request_id,
         )
 
         # Create graph
@@ -670,8 +720,6 @@ async def start_deliberation(
             "configurable": {"thread_id": session_id},
             "recursion_limit": DELIBERATION_RECURSION_LIMIT,
         }
-        # Extract request_id for correlation tracing
-        request_id = getattr(request.state, "request_id", None)
 
         coro = event_collector.collect_and_publish(
             session_id, graph, state, config, request_id=request_id
@@ -696,7 +744,12 @@ async def start_deliberation(
             logger.warning(f"Could not acquire lock for session {session_id} status update")
             # Don't fail - session is running, status update is secondary
         except Exception as e:
-            logger.error(f"Failed to update session status in PostgreSQL: {e}")
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to update session status in PostgreSQL: {e}",
+                session_id=session_id,
+            )
             # Don't fail the request - session is running in Redis
 
         return ControlResponse(
@@ -706,19 +759,25 @@ async def start_deliberation(
             message="Deliberation started in background",
         )
 
-    except HTTPException:
-        raise
     except LockTimeout as e:
         logger.warning(f"Lock timeout starting session {session_id}: {e}")
-        raise HTTPException(
-            status_code=409,
-            detail=f"Session {session_id} is being modified by another request",
+        raise http_error(
+            ErrorCode.API_CONFLICT,
+            f"Session {session_id} is being modified by another request",
+            status=409,
         ) from e
     except Exception as e:
-        logger.error(f"Failed to start deliberation for session {session_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to start deliberation: {str(e)}",
+        log_error(
+            logger,
+            ErrorCode.GRAPH_EXECUTION_ERROR,
+            f"Failed to start deliberation for session {session_id}: {e}",
+            session_id=session_id,
+            user_id=user_id,
+        )
+        raise http_error(
+            ErrorCode.GRAPH_EXECUTION_ERROR,
+            f"Failed to start deliberation: {str(e)}",
+            status=500,
         ) from e
 
 
@@ -782,10 +841,17 @@ async def pause_deliberation(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to pause deliberation for session {session_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to pause deliberation: {str(e)}",
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to pause deliberation for session {session_id}: {e}",
+            session_id=session_id,
+            user_id=user_id,
+        )
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to pause deliberation: {str(e)}",
+            status=500,
         ) from e
 
 
@@ -893,16 +959,17 @@ async def resume_deliberation(
         # Validate session status
         status = metadata.get("status")
         if status != "paused":
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cannot resume session with status: {status}. Session must be paused.",
+            raise http_error(
+                ErrorCode.API_BAD_REQUEST,
+                f"Cannot resume session with status: {status}. Session must be paused.",
             )
 
         # Check if already running
         if session_id in session_manager.active_executions:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Session {session_id} is already running",
+            raise http_error(
+                ErrorCode.API_CONFLICT,
+                f"Session {session_id} is already running",
+                status=409,
             )
 
         # Create graph with checkpointer for state access
@@ -970,8 +1037,11 @@ async def resume_deliberation(
                                 f"Recovered problem with {len(recovered_problem.sub_problems)} sub_problems from PostgreSQL"
                             )
                         else:
-                            logger.error(
-                                f"Failed to recover problem from PostgreSQL for {session_id}"
+                            log_error(
+                                logger,
+                                ErrorCode.DB_QUERY_ERROR,
+                                f"Failed to recover problem from PostgreSQL for {session_id}",
+                                session_id=session_id,
                             )
                 else:
                     # Fallback will be handled below
@@ -992,7 +1062,11 @@ async def resume_deliberation(
                     # Build answer context (same format as identify_gaps_node)
                     answer_context = "\n\n## User Clarifications\n"
                     for question, answer in clarification_answers.items():
-                        answer_context += f"- **Q:** {question}\n  **A:** {answer}\n"
+                        # Sanitize each answer to prevent indirect prompt injection
+                        sanitized_answer = sanitize_user_input(
+                            answer, context="clarification_answer"
+                        )
+                        answer_context += f"- **Q:** {question}\n  **A:** {sanitized_answer}\n"
 
                     # Inject into problem.context
                     if isinstance(problem, dict):
@@ -1083,10 +1157,11 @@ async def resume_deliberation(
                         message="Deliberation resumed (reconstructed from database)",
                     )
                 else:
-                    raise HTTPException(
-                        status_code=410,
-                        detail="Session checkpoint expired and cannot be reconstructed. "
+                    raise http_error(
+                        ErrorCode.API_SESSION_ERROR,
+                        "Session checkpoint expired and cannot be reconstructed. "
                         "Please start a new meeting.",
+                        status=410,
                     ) from e
 
             # Clear the pending flag from metadata
@@ -1125,13 +1200,18 @@ async def resume_deliberation(
             message="Deliberation resumed from checkpoint",
         )
 
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Failed to resume deliberation for session {session_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to resume deliberation: {str(e)}",
+        log_error(
+            logger,
+            ErrorCode.GRAPH_EXECUTION_ERROR,
+            f"Failed to resume deliberation for session {session_id}: {e}",
+            session_id=session_id,
+            user_id=user_id,
+        )
+        raise http_error(
+            ErrorCode.GRAPH_EXECUTION_ERROR,
+            f"Failed to resume deliberation: {str(e)}",
+            status=500,
         ) from e
 
 
@@ -1228,15 +1308,18 @@ async def kill_deliberation(
         killed = await session_manager.kill_session(session_id, user_id, reason)
 
         if not killed:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session not found or not running: {session_id}",
+            raise http_error(
+                ErrorCode.API_NOT_FOUND,
+                f"Session not found or not running: {session_id}",
+                status=404,
             )
 
         # Update session status to 'killed' in PostgreSQL (with distributed lock)
         try:
             with session_lock(redis_manager.redis, session_id, timeout_seconds=5.0):
                 session_repository.update_status(session_id=session_id, status="killed")
+                # Invalidate cached metadata on status change
+                get_session_metadata_cache().invalidate(session_id)
                 logger.info(
                     f"Killed deliberation for session {session_id}. Reason: {reason} (status updated in PostgreSQL)"
                 )
@@ -1244,7 +1327,12 @@ async def kill_deliberation(
             logger.warning(f"Could not acquire lock for session {session_id} killed status update")
             # Don't fail - session is already killed, status update is secondary
         except Exception as e:
-            logger.error(f"Failed to update killed session status in PostgreSQL: {e}")
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to update killed session status in PostgreSQL: {e}",
+                session_id=session_id,
+            )
             # Don't fail the request - session is already killed
 
         return ControlResponse(
@@ -1256,18 +1344,264 @@ async def kill_deliberation(
 
     except PermissionError as e:
         logger.warning(f"Permission denied to kill session {session_id}: {e}")
-        raise HTTPException(
-            status_code=403,
-            detail=str(e),
+        raise http_error(
+            ErrorCode.API_FORBIDDEN,
+            str(e),
+            status=403,
         ) from e
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Failed to kill deliberation for session {session_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to kill deliberation: {str(e)}",
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to kill deliberation for session {session_id}: {e}",
+            session_id=session_id,
+            user_id=user_id,
+        )
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to kill deliberation: {str(e)}",
+            status=500,
         ) from e
+
+
+@router.post(
+    "/{session_id}/retry",
+    response_model=ControlResponse,
+    status_code=202,
+    summary="Retry failed session from checkpoint",
+    description="Retry a failed deliberation session from its last successful checkpoint.",
+    responses={
+        202: {"description": "Deliberation retried from checkpoint"},
+        400: {
+            "description": "Invalid request - session not in failed status",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Cannot retry session with status: running. Session must be failed.",
+                        "session_id": "bo1_abc123",
+                        "status": "running",
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Session not found",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Session not found", "session_id": "bo1_abc123"}
+                }
+            },
+        },
+        409: {
+            "description": "Session already running",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Session bo1_abc123 is already running",
+                        "session_id": "bo1_abc123",
+                        "error_code": "SESSION_ALREADY_RUNNING",
+                    }
+                }
+            },
+        },
+        410: {
+            "description": "Checkpoint expired and cannot be reconstructed",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Session checkpoint expired and cannot be reconstructed. Please start a new meeting.",
+                        "error_code": "CHECKPOINT_EXPIRED",
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal server error",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Failed to retry deliberation: checkpoint load failed",
+                        "error_code": "CHECKPOINT_LOAD_FAILED",
+                    }
+                }
+            },
+        },
+    },
+)
+@limiter.limit(CONTROL_RATE_LIMIT)
+@handle_api_errors("retry deliberation")
+async def retry_deliberation(
+    request: Request,
+    session_id: str,
+    session_data: VerifiedSession,
+    session_manager: SessionManager = Depends(get_session_manager),
+    redis_manager: RedisManager = Depends(get_redis_manager),
+) -> ControlResponse:
+    """Retry a failed deliberation from its last checkpoint.
+
+    Unlike /resume (which handles paused sessions), /retry handles failed sessions
+    by loading the last checkpoint, resetting error state, and resuming execution.
+
+    Falls back to PostgreSQL reconstruction if the Redis checkpoint has expired.
+
+    Args:
+        request: FastAPI request object for rate limiting
+        session_id: Session identifier
+        session_data: Verified session (user_id, metadata) from dependency
+        session_manager: Session manager instance
+        redis_manager: Redis manager instance
+
+    Returns:
+        ControlResponse with retry confirmation
+
+    Raises:
+        HTTPException: If session not found, not failed, or retry fails
+    """
+    # Validate session ID format
+    session_id = validate_session_id(session_id)
+
+    # Unpack verified session data
+    user_id, metadata = session_data
+
+    # Validate session status - only allow retry for failed sessions
+    status = metadata.get("status")
+    if status != "failed":
+        raise http_error(
+            ErrorCode.API_BAD_REQUEST,
+            f"Cannot retry session with status: {status}. Session must be failed.",
+        )
+
+    # Check if already running (shouldn't happen for failed, but be safe)
+    if session_id in session_manager.active_executions:
+        raise http_error(
+            ErrorCode.API_CONFLICT,
+            f"Session {session_id} is already running",
+            status=409,
+        )
+
+    # Create graph with checkpointer for state access
+    checkpointer = await get_checkpointer()
+    graph = create_deliberation_graph(checkpointer=checkpointer)
+
+    from bo1.graph.safety.loop_prevention import DELIBERATION_RECURSION_LIMIT
+
+    config = {
+        "configurable": {"thread_id": session_id},
+        "recursion_limit": DELIBERATION_RECURSION_LIMIT,
+    }
+
+    # Try to load and prepare state from checkpoint
+    from bo1.graph.execution import resume_session_from_checkpoint
+
+    state = await resume_session_from_checkpoint(session_id, graph, config)
+
+    if not state:
+        # Checkpoint not found - try PostgreSQL reconstruction (allow_failed=True for retry)
+        logger.info(f"Checkpoint not found for {session_id}, attempting PostgreSQL reconstruction")
+        state = _reconstruct_state_from_postgres(session_id, allow_failed=True)
+
+        if not state:
+            raise http_error(
+                ErrorCode.API_SESSION_ERROR,
+                "Session checkpoint expired and cannot be reconstructed. "
+                "Please start a new meeting.",
+                status=410,
+            )
+
+        logger.info(f"Reconstructed state from PostgreSQL for retry of {session_id}")
+
+    # Check if sub_problems exist; if not, try to recover from PostgreSQL
+    problem = state.get("problem")
+    if problem:
+        if isinstance(problem, dict):
+            sub_problems = problem.get("sub_problems", [])
+        else:
+            sub_problems = getattr(problem, "sub_problems", []) or []
+
+        if not sub_problems:
+            logger.warning(
+                f"Checkpoint for {session_id} has problem but NO sub_problems! "
+                f"Recovering from PostgreSQL."
+            )
+            recovered_problem = _recover_problem_from_postgres(session_id)
+            if recovered_problem:
+                state["problem"] = recovered_problem
+                logger.info(
+                    f"Recovered problem with {len(recovered_problem.sub_problems)} sub_problems"
+                )
+            else:
+                raise http_error(
+                    ErrorCode.API_SESSION_ERROR,
+                    "Session state is incomplete and cannot be reconstructed. "
+                    "Please start a new meeting.",
+                    status=410,
+                )
+
+    # Create event collector for real-time streaming
+    from backend.api.dependencies import get_contribution_summarizer, get_event_publisher
+    from backend.api.event_collector import EventCollector
+
+    event_collector = EventCollector(
+        get_event_publisher(), get_contribution_summarizer(), session_repository
+    )
+
+    # Save the prepared state back to checkpoint so graph can resume from it
+    from bo1.graph.state import serialize_state_for_checkpoint
+
+    serialized_state = serialize_state_for_checkpoint(state)
+
+    # Use aupdate_state to set the state at the current node
+    # We need to determine where to resume from based on current_node in state
+    current_node = state.get("current_node", "decomposition")
+    await graph.aupdate_state(config, serialized_state, as_node=current_node)
+    logger.info(f"Saved prepared state for retry, will resume from {current_node}")
+
+    # Resume from checkpoint (None = use checkpoint, don't restart from entry)
+    request_id = getattr(request.state, "request_id", None)
+    coro = event_collector.collect_and_publish(
+        session_id, graph, None, config, request_id=request_id
+    )
+
+    # Start background task
+    await session_manager.start_session(session_id, user_id, coro)
+
+    # Update session status to 'running' in PostgreSQL
+    try:
+        with session_lock(redis_manager.redis, session_id, timeout_seconds=5.0):
+            session_repository.update_status(session_id=session_id, status="running")
+            logger.info(
+                f"Retried deliberation for session {session_id} (status updated in PostgreSQL)"
+            )
+    except LockTimeout:
+        logger.warning(f"Could not acquire lock for session {session_id} status update")
+    except Exception as e:
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to update session status in PostgreSQL: {e}",
+            session_id=session_id,
+        )
+
+    # Update Redis metadata
+    now = datetime.now(UTC)
+    metadata["status"] = "running"
+    metadata["retried_at"] = now.isoformat()
+    metadata["updated_at"] = now.isoformat()
+    redis_manager.save_metadata(session_id, metadata)
+
+    logger.info(f"Retried failed deliberation for session {session_id}")
+
+    return ControlResponse(
+        session_id=session_id,
+        action="retry",
+        status="success",
+        message="Deliberation retried from checkpoint",
+    )
 
 
 class ClarificationResponse(BaseModel):
@@ -1338,13 +1672,17 @@ async def get_pending_clarification(
                 has_pending=False,
             )
 
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Failed to get clarification for session {session_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get clarification: {str(e)}",
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to get clarification for session {session_id}: {e}",
+            session_id=session_id,
+        )
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to get clarification: {str(e)}",
+            status=500,
         ) from e
 
 
@@ -1536,8 +1874,11 @@ async def _submit_clarification_impl(
                                 f"Recovered problem with {len(recovered_problem.sub_problems)} sub_problems from PostgreSQL"
                             )
                         else:
-                            logger.error(
-                                f"Failed to recover problem from PostgreSQL for {session_id}"
+                            log_error(
+                                logger,
+                                ErrorCode.DB_QUERY_ERROR,
+                                f"Failed to recover problem from PostgreSQL for {session_id}",
+                                session_id=session_id,
                             )
                 else:
                     # Fallback: reconstruct from PostgreSQL
@@ -1593,9 +1934,9 @@ async def _submit_clarification_impl(
             answers_to_process = {question: request.answer}
 
         if not answers_to_process:
-            raise HTTPException(
-                status_code=400,
-                detail="No answers provided. Use 'answers' dict or 'skip': true",
+            raise http_error(
+                ErrorCode.API_BAD_REQUEST,
+                "No answers provided. Use 'answers' dict or 'skip': true",
             )
 
         # Prompt injection audit on all answers
@@ -1776,13 +2117,18 @@ async def _submit_clarification_impl(
             message=f"Clarification submitted ({len(answers_to_process)} answer(s)). Session ready to resume.",
         )
 
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Failed to submit clarification for session {session_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to submit clarification: {str(e)}",
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to submit clarification for session {session_id}: {e}",
+            session_id=session_id,
+            user_id=user_id,
+        )
+        raise http_error(
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to submit clarification: {str(e)}",
+            status=500,
         ) from e
 
 
@@ -1886,9 +2232,9 @@ async def raise_hand(
     # Validate session is running
     status = metadata.get("status")
     if status != "running":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot raise hand: session is not running (status: {status})",
+        raise http_error(
+            ErrorCode.API_BAD_REQUEST,
+            f"Cannot raise hand: session is not running (status: {status})",
         )
 
     # Prompt injection check
@@ -1901,29 +2247,32 @@ async def raise_hand(
     # Load current checkpoint state
     state = await load_state_from_checkpoint(session_id)
     if not state:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to load session state from checkpoint",
+        raise http_error(
+            ErrorCode.API_SESSION_ERROR,
+            "Failed to load session state from checkpoint",
+            status=500,
         )
 
     # Check for existing pending interjection (rate limit at state level)
     if state.get("needs_interjection_response"):
-        raise HTTPException(
-            status_code=429,
-            detail="An interjection is already pending. Please wait for experts to respond.",
+        raise http_error(
+            ErrorCode.API_RATE_LIMIT,
+            "An interjection is already pending. Please wait for experts to respond.",
+            status=429,
         )
 
-    # Update state with interjection
-    state["user_interjection"] = body.message
+    # Update state with interjection (sanitize to prevent indirect prompt injection)
+    state["user_interjection"] = sanitize_user_input(body.message, context="user_interjection")
     state["needs_interjection_response"] = True
     state["interjection_responses"] = []  # Clear previous responses
 
     # Save updated state to checkpoint
     saved = await save_state_to_checkpoint(session_id, state)
     if not saved:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to save interjection to session state",
+        raise http_error(
+            ErrorCode.API_SESSION_ERROR,
+            "Failed to save interjection to session state",
+            status=500,
         )
 
     # Emit SSE event for real-time UI update
@@ -2013,16 +2362,16 @@ async def submit_context_choice(
     # Validate choice
     valid_choices = {"provide_more", "continue", "end"}
     if request.choice not in valid_choices:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid choice: {request.choice}. Must be one of: {valid_choices}",
+        raise http_error(
+            ErrorCode.API_BAD_REQUEST,
+            f"Invalid choice: {request.choice}. Must be one of: {valid_choices}",
         )
 
     # Validate additional_context for provide_more choice
     if request.choice == "provide_more" and not request.additional_context:
-        raise HTTPException(
-            status_code=400,
-            detail="Additional context required when choice is 'provide_more'",
+        raise http_error(
+            ErrorCode.API_BAD_REQUEST,
+            "Additional context required when choice is 'provide_more'",
         )
 
     logger.info(f"Context choice received for session {session_id}: {request.choice}")
@@ -2141,5 +2490,10 @@ async def _update_checkpoint_for_context_choice(
         return await save_state_to_checkpoint(session_id, state)
 
     except Exception as e:
-        logger.error(f"Failed to update checkpoint for context choice: {e}")
+        log_error(
+            logger,
+            ErrorCode.GRAPH_CHECKPOINT_ERROR,
+            f"Failed to update checkpoint for context choice: {e}",
+            session_id=session_id,
+        )
         return False

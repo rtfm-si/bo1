@@ -180,8 +180,31 @@ class ActionRepository(BaseRepository):
 
         Returns:
             List of action records
+
+        Note:
+            When tag_ids provided, uses CTE + JOIN pattern for better query plan stability.
+            Expects idx_action_tags_action_id index for efficient tag filtering.
         """
-        query = """
+        params: list[Any] = []
+
+        # Build CTE prefix when tag filtering is active
+        # Uses materialized CTE to avoid per-row subquery re-evaluation
+        if tag_ids:
+            cte_prefix = """
+            WITH matched_actions AS (
+                SELECT at.action_id
+                FROM action_tags at
+                WHERE at.tag_id = ANY(%s)
+                GROUP BY at.action_id
+                HAVING COUNT(DISTINCT at.tag_id) = %s
+            )
+            """
+            params.extend([tag_ids, len(tag_ids)])
+        else:
+            cte_prefix = ""
+
+        # Main query - uses INNER JOIN on CTE when tag filtering
+        query = f"""{cte_prefix}
             SELECT DISTINCT a.id, a.user_id, a.source_session_id, a.project_id, a.title, a.description,
                    a.what_and_how, a.success_criteria, a.kill_criteria,
                    a.status, a.priority, a.category,
@@ -195,10 +218,11 @@ class ActionRepository(BaseRepository):
                    a.confidence, a.source_section, a.sub_problem_index,
                    a.sort_order, a.created_at, a.updated_at
             FROM actions a
+            {"INNER JOIN matched_actions ma ON a.id = ma.action_id" if tag_ids else ""}
             LEFT JOIN sessions s ON a.source_session_id = s.id
             WHERE a.user_id = %s
         """
-        params: list[Any] = [user_id]
+        params.append(user_id)
 
         # P1-007: Only show actions from completed or acknowledged-failed meetings
         # Actions from failed meetings become visible once user acknowledges the failure
@@ -224,19 +248,6 @@ class ActionRepository(BaseRepository):
         if session_id:
             query += " AND a.source_session_id = %s"
             params.append(session_id)
-
-        if tag_ids:
-            # Filter actions that have ALL specified tags (AND logic)
-            query += """
-                AND a.id IN (
-                    SELECT at.action_id
-                    FROM action_tags at
-                    WHERE at.tag_id = ANY(%s)
-                    GROUP BY at.action_id
-                    HAVING COUNT(DISTINCT at.tag_id) = %s
-                )
-            """
-            params.extend([tag_ids, len(tag_ids)])
 
         query += " ORDER BY a.sort_order ASC, a.created_at DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])

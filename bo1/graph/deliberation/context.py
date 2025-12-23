@@ -12,6 +12,7 @@ import re
 
 from bo1.models.problem import Problem, SubProblem
 from bo1.models.state import SubProblemResult
+from bo1.prompts.sanitizer import sanitize_user_input
 
 logger = logging.getLogger(__name__)
 
@@ -100,8 +101,9 @@ def build_dependency_context(
             logger.warning(f"No result found for dependency {dep_id}")
             continue
 
-        # Extract key recommendation from synthesis
+        # Extract key recommendation from synthesis and sanitize for re-injection
         recommendation = extract_recommendation_from_synthesis(dep_result.synthesis)
+        recommendation = sanitize_user_input(recommendation, context="synthesis_recommendation")
 
         context_parts.append(f"""
 **{dep_sp.goal}** (Resolved)

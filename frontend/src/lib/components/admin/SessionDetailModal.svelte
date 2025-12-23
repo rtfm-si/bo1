@@ -77,6 +77,7 @@
 	aria-modal="true"
 	tabindex="-1"
 >
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<!-- Modal Content -->
 	<div
 		class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"

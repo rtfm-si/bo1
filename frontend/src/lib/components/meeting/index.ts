@@ -26,3 +26,8 @@ export { default as MeetingError } from './MeetingError.svelte';
 export { default as MeetingSummaryCard } from './MeetingSummaryCard.svelte';
 export { default as MeetingSocialShare } from './MeetingSocialShare.svelte';
 export { default as RaiseHandButton } from './RaiseHandButton.svelte';
+export { default as PartialResultsPanel } from './PartialResultsPanel.svelte';
+export { default as SubProblemStatusBadge } from './SubProblemStatusBadge.svelte';
+
+// Re-export types
+export type { SubProblemResult } from './MeetingError.svelte';

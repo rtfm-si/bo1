@@ -6,8 +6,11 @@ import pytest
 
 from bo1.constants import TokenLimits
 from bo1.llm.response_parser import (
+    CHALLENGE_INDICATOR_PATTERNS,
+    GENERIC_AGREEMENT_PATTERNS,
     CitationValidationResult,
     ResponseParser,
+    XMLValidationError,
     XMLValidator,
     get_facilitator_parse_stats,
     reset_facilitator_parse_stats,
@@ -61,59 +64,63 @@ class TestParseFacilitatorDecision:
 
         assert result["action"] == "research"
 
-    def test_parse_action_from_option_a_keyword(self, mock_state):
-        """Verify 'Option A' keyword maps to continue."""
+    def test_parse_missing_action_tag_raises_error(self, mock_state):
+        """Verify missing <action> tag raises XMLValidationError."""
         content = """Based on the analysis, I choose Option A.
         The discussion should continue with the CTO."""
 
-        result = ResponseParser.parse_facilitator_decision(content, mock_state)
+        with pytest.raises(XMLValidationError) as exc_info:
+            ResponseParser.parse_facilitator_decision(content, mock_state)
 
-        assert result["action"] == "continue"
+        assert exc_info.value.tag == "action"
+        assert "Missing required" in str(exc_info.value)
 
-    def test_parse_action_from_option_b_keyword(self, mock_state):
-        """Verify 'Option B' keyword maps to vote."""
-        content = """After careful consideration, Option B is best.
-        We should transition to voting."""
+    def test_parse_invalid_action_value_raises_error(self, mock_state):
+        """Verify invalid action value raises XMLValidationError."""
+        content = """<thinking>Analysis</thinking>
+        <action>dance_party</action>"""
 
-        result = ResponseParser.parse_facilitator_decision(content, mock_state)
+        with pytest.raises(XMLValidationError) as exc_info:
+            ResponseParser.parse_facilitator_decision(content, mock_state)
 
-        assert result["action"] == "vote"
+        assert exc_info.value.tag == "action"
+        assert "dance_party" in str(exc_info.value)
 
-    def test_parse_action_from_research_keyword(self, mock_state):
-        """Verify 'research' keyword is detected."""
+    def test_parse_no_fallback_to_keyword(self, mock_state):
+        """Verify keyword-only content raises XMLValidationError (no fallback)."""
         content = """We need more research on the market trends
         before making a decision."""
 
-        result = ResponseParser.parse_facilitator_decision(content, mock_state)
+        with pytest.raises(XMLValidationError) as exc_info:
+            ResponseParser.parse_facilitator_decision(content, mock_state)
 
-        assert result["action"] == "research"
+        assert exc_info.value.tag == "action"
 
-    def test_parse_action_from_moderator_keyword(self, mock_state):
-        """Verify 'moderator' keyword is detected."""
+    def test_parse_no_fallback_to_moderator_keyword(self, mock_state):
+        """Verify moderator keyword without XML raises XMLValidationError."""
         content = """A moderator intervention is needed to
         challenge the current consensus."""
 
-        result = ResponseParser.parse_facilitator_decision(content, mock_state)
+        with pytest.raises(XMLValidationError):
+            ResponseParser.parse_facilitator_decision(content, mock_state)
 
-        assert result["action"] == "moderator"
-
-    def test_parse_action_from_clarify_keyword(self, mock_state):
-        """Verify 'clarify' or 'clarification' keyword is detected."""
+    def test_parse_no_fallback_to_clarify_keyword(self, mock_state):
+        """Verify clarify keyword without XML raises XMLValidationError."""
         content = """We need clarification from the user
         about their budget constraints."""
 
-        result = ResponseParser.parse_facilitator_decision(content, mock_state)
+        with pytest.raises(XMLValidationError):
+            ResponseParser.parse_facilitator_decision(content, mock_state)
 
-        assert result["action"] == "clarify"
-
-    def test_parse_invalid_defaults_to_continue(self, mock_state):
-        """Verify invalid/unclear input defaults to 'continue'."""
+    def test_parse_gibberish_raises_error(self, mock_state):
+        """Verify gibberish without action tag raises XMLValidationError."""
         content = """Some random gibberish that doesn't match
         any known action pattern or XML tag."""
 
-        result = ResponseParser.parse_facilitator_decision(content, mock_state)
+        with pytest.raises(XMLValidationError) as exc_info:
+            ResponseParser.parse_facilitator_decision(content, mock_state)
 
-        assert result["action"] == "continue"
+        assert exc_info.value.tag == "action"
 
     def test_parse_all_valid_actions(self, mock_state):
         """Verify all 5 valid actions parse correctly from XML."""
@@ -133,7 +140,8 @@ class TestParseFacilitatorDecision:
 
     def test_parse_reasoning_fallback_to_content(self, mock_state):
         """Verify reasoning falls back to content preview if no <thinking> tag."""
-        content = """Option A - continue discussion with CEO"""
+        content = """<action>continue</action>
+        Option A - continue discussion with CEO"""
 
         result = ResponseParser.parse_facilitator_decision(content, mock_state)
 
@@ -148,14 +156,16 @@ class TestParseFacilitatorDecision:
 
         assert result["action"] == "continue"
 
-    def test_invalid_xml_value_falls_back_to_keyword(self, mock_state):
-        """Verify invalid XML value triggers keyword fallback."""
+    def test_invalid_xml_value_raises_error(self, mock_state):
+        """Verify invalid XML value raises XMLValidationError (no keyword fallback)."""
         content = """<action>invalid_action</action>
         Let's vote on this proposal."""
 
-        result = ResponseParser.parse_facilitator_decision(content, mock_state)
+        with pytest.raises(XMLValidationError) as exc_info:
+            ResponseParser.parse_facilitator_decision(content, mock_state)
 
-        assert result["action"] == "vote"
+        assert exc_info.value.tag == "action"
+        assert "invalid_action" in str(exc_info.value)
 
 
 class TestValidateContributionContent:
@@ -354,27 +364,29 @@ class TestFacilitatorParseStats:
         assert stats["fallback"] == 0
         assert stats["invalid_action"] == 0
 
-    def test_stats_fallback_on_keyword_parse(self, mock_state):
-        """Verify fallback counter increments on keyword matching."""
+    def test_stats_invalid_on_missing_tag(self, mock_state):
+        """Verify invalid_action counter increments on missing action tag."""
         content = "We should continue discussion with the CEO."
-        ResponseParser.parse_facilitator_decision(content, mock_state)
+        with pytest.raises(XMLValidationError):
+            ResponseParser.parse_facilitator_decision(content, mock_state)
         stats = get_facilitator_parse_stats()
-        assert stats["fallback"] == 1
+        assert stats["invalid_action"] == 1
         assert stats["success"] == 0
 
     def test_stats_invalid_action_on_unknown(self, mock_state):
         """Verify invalid_action counter increments on unknown action."""
         content = "Random gibberish with no recognizable action"
-        ResponseParser.parse_facilitator_decision(content, mock_state)
+        with pytest.raises(XMLValidationError):
+            ResponseParser.parse_facilitator_decision(content, mock_state)
         stats = get_facilitator_parse_stats()
         assert stats["invalid_action"] == 1
 
     def test_stats_invalid_action_on_invalid_xml_value(self, mock_state):
         """Verify invalid_action counter increments on invalid XML value."""
         content = "<action>dance_party</action>"  # Not a valid action
-        ResponseParser.parse_facilitator_decision(content, mock_state)
+        with pytest.raises(XMLValidationError):
+            ResponseParser.parse_facilitator_decision(content, mock_state)
         stats = get_facilitator_parse_stats()
-        # This should try XML first (invalid value), then keyword (no match), then force continue
         assert stats["invalid_action"] == 1
 
     def test_analyze_data_action_valid(self, mock_state):
@@ -491,3 +503,207 @@ class TestValidateCitations:
         assert result.min_required == 3
         assert result.is_valid is True
         assert result.warning is None
+
+
+class TestChallengePhaseValidation:
+    """Test challenge phase contribution validation for rounds 3-4."""
+
+    def test_generic_agreement_detection_positive(self):
+        """Verify generic agreement patterns are detected."""
+        agreeable_content = (
+            "I agree with Henrik's excellent analysis. He makes a great point about the market. "
+            "Building on his insight, we should focus on user acquisition."
+        )
+        is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            agreeable_content, round_number=3
+        )
+        assert is_valid is False
+        assert "Challenge phase requires substantive critique" in reason
+
+    def test_generic_agreement_detection_negative(self):
+        """Verify challenge content passes validation."""
+        challenge_content = (
+            "However, Henrik overlooks a critical risk in this approach. "
+            "The market analysis fails to account for regulatory changes, "
+            "which could undermine the entire strategy."
+        )
+        is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            challenge_content, round_number=3
+        )
+        assert is_valid is True
+        assert reason == ""
+
+    def test_challenge_indicators_detected_disagree(self):
+        """Verify 'I disagree' is detected as challenge indicator."""
+        content = "I disagree with the proposed timeline. It's too aggressive."
+        is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            content, round_number=3
+        )
+        assert is_valid is True
+
+    def test_challenge_indicators_detected_flaw(self):
+        """Verify 'the flaw in' is detected as challenge indicator."""
+        content = "The flaw in this reasoning is the assumption about customer behavior."
+        is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            content, round_number=4
+        )
+        assert is_valid is True
+
+    def test_challenge_indicators_detected_what_about(self):
+        """Verify 'what about the risk' is detected as challenge indicator."""
+        content = "What about the risk of regulatory intervention?"
+        is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            content, round_number=3
+        )
+        assert is_valid is True
+
+    def test_valid_challenge_contribution(self):
+        """Verify contribution with explicit disagreement passes."""
+        content = (
+            "I strongly disagree with the current proposal. The assumptions underlying "
+            "the financial projections are flawed, and we're ignoring significant "
+            "competitive threats that could derail the entire initiative."
+        )
+        is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            content, round_number=3, persona_name="TestExpert"
+        )
+        assert is_valid is True
+        assert reason == ""
+
+    def test_invalid_agreeable_contribution(self):
+        """Verify pure agreement without challenge fails in round 3."""
+        content = (
+            "I fully agree with Sarah's view on this. She makes an excellent point "
+            "about customer segmentation. Well said, Sarah! Henrik is exactly right "
+            "about the timeline as well."
+        )
+        is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            content, round_number=3, persona_name="TestExpert"
+        )
+        assert is_valid is False
+        assert "Challenge phase requires substantive critique" in reason
+
+    def test_mixed_content_passes(self):
+        """Verify content with both agreement and challenge passes."""
+        content = (
+            "I agree with Henrik's point about market size. However, I disagree "
+            "with the go-to-market strategy. The flaw in this approach is that "
+            "it ignores enterprise customers entirely."
+        )
+        is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            content, round_number=3
+        )
+        assert is_valid is True
+
+    def test_non_challenge_round_passes_agreement(self):
+        """Verify agreement is allowed in non-challenge rounds."""
+        agreeable_content = (
+            "I agree with Henrik's analysis. Building on his excellent point, "
+            "we should consider additional market segments."
+        )
+        # Round 2 is not a challenge phase round
+        is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            agreeable_content, round_number=2
+        )
+        assert is_valid is True
+        assert reason == ""
+
+    def test_round_5_not_challenge_phase(self):
+        """Verify round 5 is not treated as challenge phase."""
+        agreeable_content = "I agree with the consensus. Great work everyone."
+        is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            agreeable_content, round_number=5
+        )
+        assert is_valid is True
+
+    def test_neutral_technical_content_passes(self):
+        """Verify neutral technical contribution without agreement passes."""
+        content = (
+            "Based on our financial analysis, the projected ROI is 15% over 3 years. "
+            "The break-even point occurs at month 18 assuming current burn rate."
+        )
+        is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            content, round_number=3
+        )
+        # No agreement patterns, no challenge indicators - should pass
+        assert is_valid is True
+
+
+class TestGenericAgreementPatterns:
+    """Test pattern coverage for generic agreement detection."""
+
+    def test_pattern_i_agree_with(self):
+        """Verify 'I agree with X' pattern matches."""
+        import re
+
+        text = "I agree with Henrik on this matter."
+        pattern = GENERIC_AGREEMENT_PATTERNS[0]  # "\bi\s+(?:fully\s+)?agree\s+with\s+\w+"
+        assert re.search(pattern, text.lower()) is not None
+
+    def test_pattern_building_on(self):
+        """Verify 'building on X's point' pattern matches."""
+        import re
+
+        text = "Building on Sarah's point about pricing..."
+        pattern = GENERIC_AGREEMENT_PATTERNS[1]
+        assert re.search(pattern, text.lower()) is not None
+
+    def test_pattern_great_point(self):
+        """Verify 'great point X' pattern matches."""
+        import re
+
+        text = "Great point by Henrik about the timeline."
+        pattern = GENERIC_AGREEMENT_PATTERNS[3]
+        assert re.search(pattern, text.lower()) is not None
+
+    def test_pattern_exactly_right(self):
+        """Verify 'X is exactly right' pattern matches."""
+        import re
+
+        text = "Sarah is exactly right about this issue."
+        pattern = GENERIC_AGREEMENT_PATTERNS[4]
+        assert re.search(pattern, text.lower()) is not None
+
+
+class TestChallengeIndicatorPatterns:
+    """Test pattern coverage for challenge indicator detection."""
+
+    def test_pattern_i_disagree(self):
+        """Verify 'I disagree' pattern matches."""
+        import re
+
+        text = "I disagree with the proposed approach."
+        pattern = CHALLENGE_INDICATOR_PATTERNS[0]
+        assert re.search(pattern, text.lower()) is not None
+
+    def test_pattern_however_argue(self):
+        """Verify 'however I would argue' pattern matches."""
+        import re
+
+        text = "However, I would argue that this overlooks key risks."
+        pattern = CHALLENGE_INDICATOR_PATTERNS[1]
+        assert re.search(pattern, text.lower()) is not None
+
+    def test_pattern_flaw_in(self):
+        """Verify 'the flaw in' pattern matches."""
+        import re
+
+        text = "The flaw in this reasoning is the market assumption."
+        pattern = CHALLENGE_INDICATOR_PATTERNS[2]
+        assert re.search(pattern, text.lower()) is not None
+
+    def test_pattern_critical_risk(self):
+        """Verify 'a critical risk' pattern matches."""
+        import re
+
+        text = "There is a critical risk we haven't addressed."
+        pattern = CHALLENGE_INDICATOR_PATTERNS[9]
+        assert re.search(pattern, text.lower()) is not None
+
+    def test_pattern_not_convinced(self):
+        """Verify 'I'm not convinced' pattern matches."""
+        import re
+
+        text = "I'm not convinced by this analysis."
+        pattern = CHALLENGE_INDICATOR_PATTERNS[11]
+        assert re.search(pattern, text.lower()) is not None

@@ -34,6 +34,7 @@ from backend.services.gdpr import GDPRError, collect_user_data, delete_user_data
 from backend.services.promotion_service import PromoValidationError, validate_and_apply_code
 from backend.services.usage_tracking import get_all_usage, get_effective_tier
 from bo1.constants import TierFeatureFlags, TierLimits
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.database import db_session
 
 logger = logging.getLogger(__name__)
@@ -136,7 +137,12 @@ async def record_gdpr_consent(
         }
 
     except Exception as e:
-        logger.error(f"Failed to record GDPR consent for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to record GDPR consent for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to record consent") from e
 
 
@@ -215,7 +221,12 @@ async def export_user_data(
         )
 
     except GDPRError as e:
-        logger.error(f"GDPR export failed for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"GDPR export failed for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -315,7 +326,12 @@ async def delete_user_account(
             details={"error": str(e)},
             ip_address=client_ip,
         )
-        logger.error(f"GDPR deletion failed for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"GDPR deletion failed for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -356,7 +372,12 @@ async def get_retention_setting(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get retention setting for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to get retention setting for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to get setting") from e
 
 
@@ -411,7 +432,12 @@ async def update_retention_setting(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update retention setting for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to update retention setting for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to update setting") from e
 
 
@@ -476,7 +502,12 @@ async def get_preferences(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get preferences for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to get preferences for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to get preferences") from e
 
 
@@ -552,7 +583,12 @@ async def update_preferences(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update preferences for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to update preferences for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to update preferences") from e
 
 
@@ -610,7 +646,12 @@ async def get_gantt_color_preference(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get Gantt color preference for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to get Gantt color preference for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to get preference") from e
 
 
@@ -665,7 +706,12 @@ async def update_gantt_color_preference(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update Gantt color preference for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to update Gantt color preference for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to update preference") from e
 
 
@@ -739,7 +785,12 @@ async def get_kanban_columns(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get kanban columns for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to get kanban columns for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to get preference") from e
 
 
@@ -799,7 +850,12 @@ async def update_kanban_columns(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update kanban columns for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to update kanban columns for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to update preference") from e
 
 
@@ -876,7 +932,12 @@ async def get_usage(
         )
 
     except Exception as e:
-        logger.error(f"Failed to get usage for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to get usage for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to get usage") from e
 
 
@@ -1042,7 +1103,12 @@ async def get_cost_calculator_defaults(
         return CostCalculatorDefaults(**defaults)
 
     except Exception as e:
-        logger.error(f"Failed to get cost calculator defaults for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to get cost calculator defaults for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to get defaults") from e
 
 
@@ -1091,7 +1157,12 @@ async def update_cost_calculator_defaults(
         return CostCalculatorDefaults(**defaults)
 
     except Exception as e:
-        logger.error(f"Failed to update cost calculator defaults for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to update cost calculator defaults for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to update defaults") from e
 
 
@@ -1224,5 +1295,10 @@ async def get_value_metrics(
         )
 
     except Exception as e:
-        logger.error(f"Failed to get value metrics for {user_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to get value metrics for {user_id}: {e}",
+            user_id=user_id,
+        )
         raise HTTPException(status_code=500, detail="Failed to get value metrics") from e

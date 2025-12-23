@@ -712,6 +712,169 @@ async def health_check_redis() -> ComponentHealthResponse:
         ) from e
 
 
+class RedisPoolHealthResponse(BaseModel):
+    """Redis connection pool health response.
+
+    Attributes:
+        status: Component health status
+        component: Component name (redis_pool)
+        healthy: Whether pool is healthy
+        used_connections: Connections currently in use
+        free_connections: Connections available in pool
+        max_connections: Maximum pool size
+        pool_utilization_pct: Pool utilization percentage (0-100)
+        message: Status message
+        error: Error message if unhealthy
+        timestamp: ISO 8601 timestamp
+    """
+
+    status: str = Field(..., description="Component health status")
+    component: str = Field(default="redis_pool", description="Component name")
+    healthy: bool = Field(..., description="Whether pool is healthy")
+    used_connections: int = Field(0, description="Connections currently in use")
+    free_connections: int = Field(0, description="Connections available in pool")
+    max_connections: int = Field(0, description="Maximum pool size")
+    pool_utilization_pct: float = Field(0.0, description="Pool utilization percentage (0-100)")
+    message: str | None = Field(None, description="Status message")
+    error: str | None = Field(None, description="Error message if unhealthy")
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+
+
+@router.get(
+    "/health/redis/pool",
+    response_model=RedisPoolHealthResponse,
+    summary="Redis pool health (public, no auth required)",
+    description="""
+    Check health of the Redis connection pool.
+
+    Tests:
+    - Pool initialization status
+    - Connection utilization metrics
+
+    **Use Cases:**
+    - Monitor Redis connection pool utilization
+    - Detect pool exhaustion before it causes failures
+    - Verify pool configuration
+    """,
+    responses={
+        200: {
+            "description": "Pool health status (may be healthy or unhealthy)",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "healthy": {
+                            "summary": "Healthy pool",
+                            "value": {
+                                "status": "healthy",
+                                "component": "redis_pool",
+                                "healthy": True,
+                                "used_connections": 2,
+                                "free_connections": 8,
+                                "max_connections": 10,
+                                "pool_utilization_pct": 20.0,
+                                "message": "Pool functioning correctly (20.0% utilization)",
+                                "error": None,
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                        "high_utilization": {
+                            "summary": "High utilization warning",
+                            "value": {
+                                "status": "warning",
+                                "component": "redis_pool",
+                                "healthy": True,
+                                "used_connections": 8,
+                                "free_connections": 2,
+                                "max_connections": 10,
+                                "pool_utilization_pct": 80.0,
+                                "message": "Pool healthy but high utilization (80.0%)",
+                                "error": None,
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                        "unhealthy": {
+                            "summary": "Unhealthy pool",
+                            "value": {
+                                "status": "unhealthy",
+                                "component": "redis_pool",
+                                "healthy": False,
+                                "used_connections": 0,
+                                "free_connections": 0,
+                                "max_connections": 0,
+                                "pool_utilization_pct": 0.0,
+                                "message": "Pool health check failed",
+                                "error": "Redis pool not available",
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+async def health_check_redis_pool() -> RedisPoolHealthResponse:
+    """Redis connection pool health check.
+
+    Returns:
+        Pool health status with configuration and utilization metrics
+    """
+    from backend.api.dependencies import get_redis_manager
+    from backend.api.middleware.metrics import update_redis_pool_metrics
+
+    try:
+        redis_manager = get_redis_manager()
+        health = redis_manager.get_pool_health()
+
+        status = "healthy" if health["healthy"] else "unhealthy"
+        utilization_pct = health.get("pool_utilization_pct", 0.0)
+
+        # Build status message
+        if health["healthy"]:
+            if utilization_pct >= 80:
+                status = "warning"
+                message = f"Pool healthy but high utilization ({utilization_pct}%)"
+            else:
+                message = f"Pool functioning correctly ({utilization_pct}% utilization)"
+        else:
+            message = "Pool health check failed"
+
+        # Update Prometheus metrics
+        update_redis_pool_metrics(
+            used_connections=health.get("used_connections", 0),
+            free_connections=health.get("free_connections", 0),
+            utilization_pct=utilization_pct,
+        )
+
+        return RedisPoolHealthResponse(
+            status=status,
+            component="redis_pool",
+            healthy=health["healthy"],
+            used_connections=health.get("used_connections", 0),
+            free_connections=health.get("free_connections", 0),
+            max_connections=health.get("max_connections", 0),
+            pool_utilization_pct=utilization_pct,
+            message=message,
+            error=health.get("error"),
+            timestamp=datetime.now(UTC).isoformat(),
+        )
+
+    except Exception as e:
+        logger.exception("Redis pool health check failed")
+        return RedisPoolHealthResponse(
+            status="unhealthy",
+            component="redis_pool",
+            healthy=False,
+            used_connections=0,
+            free_connections=0,
+            max_connections=0,
+            pool_utilization_pct=0.0,
+            message="Pool health check failed",
+            error=str(e),
+            timestamp=datetime.now(UTC).isoformat(),
+        )
+
+
 @router.get(
     "/health/anthropic",
     response_model=ComponentHealthResponse,

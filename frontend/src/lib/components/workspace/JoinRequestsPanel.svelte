@@ -244,11 +244,14 @@
 		onclick={closeRejectModal}
 		role="presentation"
 	>
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
 		<div
 			class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full"
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
+			tabindex="-1"
 		>
 			<div class="px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
 				<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">

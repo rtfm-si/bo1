@@ -38,6 +38,7 @@ from backend.api.admin import (
     ops,
     partitions,
     promotions,
+    queries,
     research_cache,
     runtime_config,
     session_control,
@@ -73,6 +74,7 @@ router.include_router(costs.router)
 router.include_router(email_stats.router)
 router.include_router(runtime_config.router)
 router.include_router(email.router)
+router.include_router(queries.router)
 
 # Re-export models for backward compatibility
 from backend.api.admin.models import (  # noqa: E402, F401

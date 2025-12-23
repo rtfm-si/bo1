@@ -18,6 +18,7 @@ from backend.api.event_publisher import (
     update_retry_event,
 )
 from backend.api.metrics import prom_metrics
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.redis_manager import RedisManager
 
 logger = logging.getLogger(__name__)
@@ -81,7 +82,12 @@ class PersistenceWorker:
             try:
                 await self._process_retry_batch()
             except Exception as e:
-                logger.error(f"Error in persistence worker loop: {e}", exc_info=True)
+                log_error(
+                    logger,
+                    ErrorCode.DB_WRITE_ERROR,
+                    f"Error in persistence worker loop: {e}",
+                    exc_info=True,
+                )
 
             # Wait before next cycle
             await asyncio.sleep(WORKER_INTERVAL_SECONDS)
@@ -129,8 +135,12 @@ class PersistenceWorker:
                         failure_count += 1
 
                 except Exception as e:
-                    logger.error(
-                        f"Failed to process retry for event {event.get('event_type')}: {e}"
+                    log_error(
+                        logger,
+                        ErrorCode.DB_WRITE_ERROR,
+                        f"Failed to process retry for event {event.get('event_type')}: {e}",
+                        session_id=event.get("session_id"),
+                        event_type=event.get("event_type"),
                     )
                     failure_count += 1
 
@@ -140,7 +150,12 @@ class PersistenceWorker:
                 )
 
         except Exception as e:
-            logger.error(f"Error processing retry batch: {e}", exc_info=True)
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Error processing retry batch: {e}",
+                exc_info=True,
+            )
 
 
 # Global worker instance
@@ -165,7 +180,11 @@ async def start_persistence_worker() -> PersistenceWorker:
     # Initialize Redis client
     redis_manager = RedisManager()
     if not redis_manager.is_available:
-        logger.error("Redis is not available, cannot start persistence worker")
+        log_error(
+            logger,
+            ErrorCode.REDIS_READ_ERROR,
+            "Redis is not available, cannot start persistence worker",
+        )
         raise RuntimeError("Redis is not available")
 
     # Create and start worker

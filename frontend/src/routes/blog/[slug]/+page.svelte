@@ -4,6 +4,7 @@
 	 */
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
+	import DOMPurify from 'isomorphic-dompurify';
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import { apiClient } from '$lib/api/client';
@@ -233,7 +234,7 @@
 
 				<!-- Content -->
 				<div class="prose prose-lg max-w-none">
-					{@html renderContent(post.content)}
+					{@html DOMPurify.sanitize(renderContent(post.content))}
 				</div>
 
 				<!-- Keywords -->

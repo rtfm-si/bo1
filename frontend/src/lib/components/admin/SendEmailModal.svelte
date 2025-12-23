@@ -171,10 +171,10 @@
 				{/if}
 
 				<!-- Template Type -->
-				<div>
-					<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+				<fieldset>
+					<legend class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
 						Email Template <span class="text-error-500">*</span>
-					</label>
+					</legend>
 					<div class="space-y-2">
 						{#each TEMPLATE_OPTIONS as option}
 							<label
@@ -197,7 +197,7 @@
 							</label>
 						{/each}
 					</div>
-				</div>
+				</fieldset>
 
 				<!-- Custom fields (only shown for custom template) -->
 				{#if templateType === 'custom'}

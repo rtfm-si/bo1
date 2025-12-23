@@ -13,6 +13,7 @@ from collections.abc import AsyncGenerator
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from backend.api.constants import COST_EVENT_TYPES, COST_FIELDS
 from backend.api.dependencies import VerifiedSession, get_redis_manager
 from backend.api.events import (
     error_event,
@@ -26,12 +27,7 @@ from backend.api.models import ErrorResponse, EventHistoryResponse
 from backend.api.utils.auth_helpers import is_admin
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.validation import validate_session_id
-
-# SSE event types that contain sensitive cost data (admin-only)
-COST_EVENT_TYPES = {"phase_cost_breakdown", "cost_anomaly"}
-
-# Fields within events that contain cost data (strip for non-admin)
-COST_FIELDS = {"cost", "total_cost", "phase_costs", "by_provider"}
+from bo1.logging.errors import ErrorCode, log_error
 
 
 def strip_cost_data_from_event(event: dict) -> dict:
@@ -192,7 +188,12 @@ async def get_event_history(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get event history for session {session_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.API_SSE_ERROR,
+            f"Failed to get event history for session {session_id}: {e}",
+            session_id=session_id,
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get event history: {str(e)}",
@@ -370,7 +371,10 @@ async def stream_session_events(
     last_event_id: str | None = None,
     strip_cost_data: bool = False,
 ) -> AsyncGenerator[str, None]:
-    r"""Stream deliberation events for a session via SSE using Redis PubSub.
+    r"""Stream deliberation events for a session via SSE.
+
+    Uses Redis PubSub when available, with automatic fallback to PostgreSQL
+    polling when Redis circuit breaker is open or connection fails.
 
     Supports session resume via Last-Event-ID header. If provided, replays
     any missed events from history before streaming new events.
@@ -392,19 +396,22 @@ async def stream_session_events(
         >>> async for event in stream_session_events("bo1_abc123", "bo1_abc123:5"):
         ...     print(event)  # Events with sequence > 5
     """
+    from backend.api.event_poller import SSEPollingFallback, is_redis_sse_available
     from backend.api.events import make_event_id, parse_event_id
+    from backend.api.middleware.metrics import (
+        decrement_sse_fallback_active,
+        increment_sse_fallback_active,
+        record_sse_fallback_activation,
+    )
 
     redis_manager = get_redis_manager()
-    redis_client = redis_manager.redis
-
-    # Create pubsub connection
-    pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
-    channel = f"events:{session_id}"
-    _history_key = f"events_history:{session_id}"  # noqa: F841 - reserved for gap detection
 
     # SSE lifecycle tracking (P1: observability)
     connect_time = time.time()
     events_sent = 0
+    using_fallback = False
+    pubsub = None
+    poller = None
 
     # Parse last_event_id to get resume sequence
     resume_from_sequence = 0
@@ -420,41 +427,68 @@ async def stream_session_events(
     # Track seen sequences to dedupe between replay and live
     seen_sequences: set[int] = set()
 
-    try:
-        # Subscribe to PubSub FIRST to avoid missing events during replay
-        pubsub.subscribe(channel)
+    # Check Redis availability upfront to decide streaming mode
+    redis_available = is_redis_sse_available()
 
+    try:
         # Increment active SSE connections metric
         metrics.increment("sse.connections.active")
+
+        if redis_available:
+            # Normal path: use Redis PubSub
+            redis_client = redis_manager.redis
+            pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
+            channel = f"events:{session_id}"
+            pubsub.subscribe(channel)
+            logger.info(
+                f"[SSE CONNECT] session={session_id}, channel={channel}, "
+                f"last_event_id={last_event_id}, mode=pubsub"
+            )
+        else:
+            # Fallback path: use PostgreSQL polling
+            using_fallback = True
+            poller = SSEPollingFallback(session_id)
+            poller.set_last_sequence(resume_from_sequence)
+            increment_sse_fallback_active()
+            record_sse_fallback_activation(session_id, "circuit_open")
+            logger.warning(
+                f"[SSE FALLBACK] session={session_id}, mode=polling, reason=redis_unavailable"
+            )
 
         # Send connection confirmation event
         yield node_start_event("stream_connected", session_id)
         events_sent += 1
 
-        # Log SSE connection lifecycle
-        logger.info(
-            f"[SSE CONNECT] session={session_id}, channel={channel}, "
-            f"last_event_id={last_event_id}, timestamp={connect_time:.3f}"
-        )
+        # Emit sse_fallback_activated event if using fallback
+        if using_fallback:
+            from backend.api import events as sse_events
+
+            fallback_event = sse_events.format_sse_event(
+                "sse_fallback_activated",
+                {"session_id": session_id, "mode": "polling", "reason": "redis_unavailable"},
+            )
+            yield fallback_event
+            events_sent += 1
 
         # REPLAY: If resuming, fetch missed events from history (with Redis/PostgreSQL fallback)
         if resume_from_sequence > 0:
             try:
                 from backend.api.event_publisher import get_event_history_with_fallback
 
-                # Use fallback function that handles Redis connection errors
+                redis_client_for_history = (
+                    redis_manager.redis if redis_manager.is_available else None
+                )
                 missed_events = await get_event_history_with_fallback(
-                    redis_client=redis_client if redis_manager.is_available else None,
+                    redis_client=redis_client_for_history,
                     session_id=session_id,
                     last_event_id=last_event_id,
                 )
 
-                # GAP DETECTION: Check for missing events between resume point and first replayed event
+                # GAP DETECTION
                 if missed_events:
                     first_seq = missed_events[0].get("sequence", 0)
                     expected_seq = resume_from_sequence + 1
 
-                    # Check for gap at the start (events lost before first replayed event)
                     if first_seq > expected_seq:
                         missed_count = first_seq - expected_seq
                         logger.warning(
@@ -463,12 +497,9 @@ async def stream_session_events(
                         )
                         metrics.increment("sse.sequence_gaps")
                         metrics.increment("sse.sequence_gaps.missed_events", missed_count)
-
-                        # Emit gap_detected event before replay
                         yield gap_detected_event(session_id, expected_seq, first_seq, missed_count)
                         events_sent += 1
 
-                    # Check for internal gaps in the replayed sequence
                     prev_seq = first_seq
                     for _i, payload in enumerate(missed_events[1:], start=1):
                         curr_seq = payload.get("sequence", 0)
@@ -482,26 +513,24 @@ async def stream_session_events(
                         prev_seq = curr_seq
 
                 replay_count = 0
+                max_replay_seq = resume_from_sequence
                 for payload in missed_events:
                     try:
                         seq = payload.get("sequence", 0)
                         event_type = payload.get("event_type")
                         data = payload.get("data", {})
 
-                        # Security: Filter cost data for non-admin users
                         if strip_cost_data:
                             if event_type in COST_EVENT_TYPES:
-                                continue  # Skip cost-only events entirely
+                                continue
                             data = strip_cost_data_from_event(data) or data
 
                         event_id = make_event_id(session_id, seq)
-
-                        # Track as seen to dedupe later
                         seen_sequences.add(seq)
+                        if seq > max_replay_seq:
+                            max_replay_seq = seq
 
-                        # Format and yield with event ID
                         sse_event = format_sse_for_type(event_type, data)
-                        # Inject event ID into SSE output
                         sse_event = f"id: {event_id}\n{sse_event}"
                         yield sse_event
                         events_sent += 1
@@ -515,114 +544,247 @@ async def stream_session_events(
                     )
                     metrics.increment("sse.events_replayed", replay_count)
 
+                # Update poller's last_sequence if using fallback
+                if poller and max_replay_seq > poller.last_sequence:
+                    poller.set_last_sequence(max_replay_seq)
+
             except Exception as e:
                 logger.warning(f"Failed to replay events for {session_id}: {e}")
 
         # Track keepalive timing
         last_keepalive = time.time()
-        keepalive_interval = 15  # Send keepalive every 15 seconds
+        keepalive_interval = 15
 
         # P2-005: Track time between messages for performance monitoring
         last_message_time = time.time()
 
-        # Stream events from Redis pubsub
-        while True:
-            # Check for message with timeout
-            # P2-005 Quick Win: Reduced from 1.0s to 0.1s for faster event delivery
-            message = pubsub.get_message(timeout=0.1)
+        # Main streaming loop - either PubSub or Polling
+        if using_fallback:
+            # POLLING FALLBACK LOOP
+            async for polled_events in poller.poll_loop():
+                for payload in polled_events:
+                    try:
+                        seq = payload.get("sequence", 0)
+                        event_type = payload.get("event_type")
+                        data = payload.get("data", {})
 
-            if message and message["type"] == "message":
-                # P2-005: Track SSE gap (time between messages)
-                now = time.time()
-                gap_ms = (now - last_message_time) * 1000
-                metrics.observe("sse.gap_ms", gap_ms)
-                last_message_time = now
+                        if seq in seen_sequences:
+                            continue
 
-                try:
-                    # Parse event payload
-                    payload = json.loads(message["data"])
-                    event_type = payload.get("event_type")
-                    data = payload.get("data", {})
-                    seq = payload.get("sequence", 0)
+                        if strip_cost_data:
+                            if event_type in COST_EVENT_TYPES:
+                                continue
+                            data = strip_cost_data_from_event(data) or data
 
-                    # Dedupe: skip if already sent during replay
-                    if seq in seen_sequences:
+                        event_id = make_event_id(session_id, seq) if seq > 0 else None
+                        seen_sequences.add(seq)
+
+                        sse_event = format_sse_for_type(event_type, data)
+                        if event_id:
+                            sse_event = f"id: {event_id}\n{sse_event}"
+
+                        yield sse_event
+                        events_sent += 1
+                        last_keepalive = time.time()
+
+                        if event_type == "complete":
+                            logger.info(f"Session {session_id} completed (polling), closing")
+                            yield format_sse_for_type(
+                                "stream_closed", {"reason": "session_complete"}
+                            )
+                            return
+
+                        if event_type == "error":
+                            logger.warning(f"Session {session_id} error (polling), closing")
+                            return
+
+                    except (json.JSONDecodeError, KeyError):
                         continue
 
-                    # Security: Filter cost data for non-admin users
-                    if strip_cost_data:
-                        if event_type in COST_EVENT_TYPES:
-                            continue  # Skip cost-only events entirely
-                        data = strip_cost_data_from_event(data) or data
+                # Send keepalive if needed
+                now = time.time()
+                if now - last_keepalive >= keepalive_interval:
+                    yield ": keepalive\n\n"
+                    last_keepalive = now
 
-                    # Create event ID for SSE resume support
-                    event_id = make_event_id(session_id, seq) if seq > 0 else None
+                # Check if Redis recovered - if so, could switch back (optional enhancement)
+                if poller.should_check_redis_recovery() and is_redis_sse_available():
+                    logger.info(
+                        f"[SSE FALLBACK] Redis recovered for {session_id}, "
+                        f"continuing polling (seamless)"
+                    )
+                    # Note: For simplicity, we continue polling until stream ends
+                    # A more complex implementation could switch back to PubSub
+        else:
+            # REDIS PUBSUB LOOP
+            while True:
+                try:
+                    message = pubsub.get_message(timeout=0.1)
+                except Exception as redis_error:
+                    # Mid-stream Redis failure - switch to polling fallback
+                    logger.warning(
+                        f"[SSE FALLBACK] Redis error mid-stream for {session_id}: {redis_error}"
+                    )
+                    record_sse_fallback_activation(session_id, "connection_error")
+                    increment_sse_fallback_active()
+                    using_fallback = True
 
-                    # Format as SSE using event formatters
-                    sse_event = format_sse_for_type(event_type, data)
+                    # Initialize poller with current sequence
+                    max_seen = max(seen_sequences) if seen_sequences else resume_from_sequence
+                    poller = SSEPollingFallback(session_id)
+                    poller.set_last_sequence(max_seen)
 
-                    # Inject event ID for resume support
-                    if event_id:
-                        sse_event = f"id: {event_id}\n{sse_event}"
+                    # Emit fallback event to client
+                    from backend.api import events as sse_events
 
-                    yield sse_event
+                    fallback_event = sse_events.format_sse_event(
+                        "sse_fallback_activated",
+                        {"session_id": session_id, "mode": "polling", "reason": "connection_error"},
+                    )
+                    yield fallback_event
                     events_sent += 1
 
-                    # Reset keepalive timer on message
-                    last_keepalive = time.time()
+                    # Continue with polling loop (recursive call to avoid code duplication)
+                    async for polled_events in poller.poll_loop():
+                        for payload in polled_events:
+                            try:
+                                seq = payload.get("sequence", 0)
+                                event_type = payload.get("event_type")
+                                data = payload.get("data", {})
 
-                    # If complete event, send explicit close and then break
-                    if event_type == "complete":
-                        logger.info(f"Session {session_id} completed, closing stream")
-                        yield format_sse_for_type("stream_closed", {"reason": "session_complete"})
-                        break
+                                if seq in seen_sequences:
+                                    continue
 
-                    # If error event that's not recoverable, close stream
-                    if event_type == "error":
-                        logger.warning(f"Session {session_id} error event, closing stream")
-                        break
+                                if strip_cost_data:
+                                    if event_type in COST_EVENT_TYPES:
+                                        continue
+                                    data = strip_cost_data_from_event(data) or data
 
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse event for session {session_id}: {e}")
-                    continue
-                except Exception as e:
-                    logger.error(f"Error processing event for session {session_id}: {e}")
-                    continue
+                                event_id = make_event_id(session_id, seq) if seq > 0 else None
+                                seen_sequences.add(seq)
 
-            # Send keepalive if interval elapsed
-            now = time.time()
-            if now - last_keepalive >= keepalive_interval:
-                yield ": keepalive\n\n"
-                last_keepalive = now
+                                sse_event = format_sse_for_type(event_type, data)
+                                if event_id:
+                                    sse_event = f"id: {event_id}\n{sse_event}"
 
-            # P2-005 Quick Win: Reduced from 0.1s to 0.01s for faster event delivery
-            await asyncio.sleep(0.01)
+                                yield sse_event
+                                events_sent += 1
+
+                                if event_type in ("complete", "error"):
+                                    if event_type == "complete":
+                                        yield format_sse_for_type(
+                                            "stream_closed", {"reason": "session_complete"}
+                                        )
+                                    return
+                            except (json.JSONDecodeError, KeyError):
+                                continue
+
+                        now = time.time()
+                        if now - last_keepalive >= keepalive_interval:
+                            yield ": keepalive\n\n"
+                            last_keepalive = now
+                    return
+
+                if message and message["type"] == "message":
+                    now = time.time()
+                    gap_ms = (now - last_message_time) * 1000
+                    metrics.observe("sse.gap_ms", gap_ms)
+                    last_message_time = now
+
+                    try:
+                        payload = json.loads(message["data"])
+                        event_type = payload.get("event_type")
+                        data = payload.get("data", {})
+                        seq = payload.get("sequence", 0)
+
+                        if seq in seen_sequences:
+                            continue
+
+                        if strip_cost_data:
+                            if event_type in COST_EVENT_TYPES:
+                                continue
+                            data = strip_cost_data_from_event(data) or data
+
+                        event_id = make_event_id(session_id, seq) if seq > 0 else None
+                        if seq > 0:
+                            seen_sequences.add(seq)
+
+                        sse_event = format_sse_for_type(event_type, data)
+                        if event_id:
+                            sse_event = f"id: {event_id}\n{sse_event}"
+
+                        yield sse_event
+                        events_sent += 1
+                        last_keepalive = time.time()
+
+                        if event_type == "complete":
+                            logger.info(f"Session {session_id} completed, closing stream")
+                            yield format_sse_for_type(
+                                "stream_closed", {"reason": "session_complete"}
+                            )
+                            break
+
+                        if event_type == "error":
+                            logger.warning(f"Session {session_id} error event, closing stream")
+                            break
+
+                    except json.JSONDecodeError as e:
+                        log_error(
+                            logger,
+                            ErrorCode.API_SSE_ERROR,
+                            f"Failed to parse event for session {session_id}: {e}",
+                            session_id=session_id,
+                        )
+                        continue
+                    except Exception as e:
+                        log_error(
+                            logger,
+                            ErrorCode.API_SSE_ERROR,
+                            f"Error processing event for session {session_id}: {e}",
+                            session_id=session_id,
+                        )
+                        continue
+
+                now = time.time()
+                if now - last_keepalive >= keepalive_interval:
+                    yield ": keepalive\n\n"
+                    last_keepalive = now
+
+                await asyncio.sleep(0.01)
 
     except asyncio.CancelledError:
-        # Client disconnected
         logger.info(f"Client disconnected from stream: {session_id}")
     except Exception as e:
-        logger.error(f"Error streaming session {session_id}: {e}", exc_info=True)
+        log_error(
+            logger,
+            ErrorCode.API_SSE_ERROR,
+            f"Error streaming session {session_id}: {e}",
+            exc_info=True,
+            session_id=session_id,
+        )
         yield error_event(session_id, str(e), error_type=type(e).__name__)
     finally:
-        # Calculate connection duration
         disconnect_time = time.time()
         duration_seconds = disconnect_time - connect_time
 
-        # Decrement active SSE connections metric
         metrics.decrement("sse.connections.active")
 
-        # Log SSE disconnect lifecycle
+        if using_fallback:
+            decrement_sse_fallback_active()
+            if poller:
+                poller.stop()
+
         logger.info(
             f"[SSE DISCONNECT] session={session_id}, duration_seconds={duration_seconds:.2f}, "
-            f"events_sent={events_sent}"
+            f"events_sent={events_sent}, mode={'polling' if using_fallback else 'pubsub'}"
         )
 
-        try:
-            pubsub.unsubscribe(channel)
-            pubsub.close()
-        except Exception as e:
-            logger.warning(f"Error closing pubsub for session {session_id}: {e}")
+        if pubsub:
+            try:
+                pubsub.unsubscribe(f"events:{session_id}")
+                pubsub.close()
+            except Exception as e:
+                logger.warning(f"Error closing pubsub for session {session_id}: {e}")
 
 
 @router.get(
@@ -807,7 +969,12 @@ async def stream_deliberation(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to start stream for session {session_id}: {e}")
+        log_error(
+            logger,
+            ErrorCode.API_SSE_ERROR,
+            f"Failed to start stream for session {session_id}: {e}",
+            session_id=session_id,
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Failed to start stream: {str(e)}",

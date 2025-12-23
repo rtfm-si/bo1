@@ -42,6 +42,7 @@ from backend.api.models import (
     SessionResponse,
 )
 from backend.api.utils.errors import handle_api_errors
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories.project_repository import ProjectRepository
 
 logger = logging.getLogger(__name__)
@@ -913,7 +914,12 @@ async def create_from_context_suggestions(
         )
 
         if not project:
-            logger.error(f"Failed to create project: {suggestion.name}")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Failed to create project: {suggestion.name}",
+                user_id=user_id,
+            )
             continue
 
         project_id = str(project["id"])

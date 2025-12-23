@@ -759,6 +759,18 @@ export class ApiClient {
 	}
 
 	/**
+	 * Retry a failed session from its last checkpoint.
+	 * Unlike resume (for paused sessions), retry handles failed sessions
+	 * by resetting error state and continuing from the last successful checkpoint.
+	 *
+	 * @param sessionId - Session identifier
+	 * @returns ControlResponse with retry confirmation
+	 */
+	async retrySession(sessionId: string): Promise<ControlResponse> {
+		return this.post<ControlResponse>(`/api/v1/sessions/${sessionId}/retry`);
+	}
+
+	/**
 	 * Raise hand to interject during an active meeting.
 	 * Experts will acknowledge and respond to the user's question/context.
 	 *

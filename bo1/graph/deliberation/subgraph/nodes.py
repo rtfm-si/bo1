@@ -28,7 +28,7 @@ from bo1.llm.response import LLMResponse
 from bo1.models.persona import PersonaProfile
 from bo1.models.state import ContributionMessage, ContributionType, DeliberationMetrics
 from bo1.orchestration.voting import collect_recommendations
-from bo1.prompts import SYNTHESIS_PROMPT_TEMPLATE
+from bo1.prompts import SYNTHESIS_LEAN_TEMPLATE, get_limited_context_sections
 from bo1.state.repositories import contribution_repository
 
 logger = logging.getLogger(__name__)
@@ -580,50 +580,87 @@ async def synthesize_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
         }
     )
 
-    # Format contributions and votes
-    all_contributions_and_votes = []
-    all_contributions_and_votes.append("=== DISCUSSION ===\n")
+    # Build round summaries from contributions grouped by round
+    rounds: dict[int, list[ContributionMessage]] = {}
     for contrib in contributions:
-        all_contributions_and_votes.append(
-            f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
-        )
+        rn = contrib.round_number
+        if rn not in rounds:
+            rounds[rn] = []
+        rounds[rn].append(contrib)
 
-    all_contributions_and_votes.append("\n=== RECOMMENDATIONS ===\n")
+    round_summaries_text = []
+    max_round = max(rounds.keys()) if rounds else 1
+
+    for rn in sorted(rounds.keys()):
+        if rn < max_round:
+            # Summarize earlier rounds
+            round_contribs = rounds[rn]
+            personas_in_round = [c.persona_name for c in round_contribs]
+            summary = f"Round {rn}: {', '.join(personas_in_round)} discussed; "
+            key_points = [
+                c.content[:150] + "..." if len(c.content) > 150 else c.content
+                for c in round_contribs[:2]
+            ]
+            summary += " | ".join(key_points)
+            round_summaries_text.append(summary)
+
+    if not round_summaries_text:
+        round_summaries_text.append("(No prior round summaries available)")
+
+    # Final round contributions (full detail)
+    final_round_contributions = []
+    final_round_contribs = rounds.get(max_round, [])
+    for contrib in final_round_contribs:
+        final_round_contributions.append(f"{contrib.persona_name}:\n{contrib.content}\n")
+
+    if not final_round_contributions:
+        # Fallback: use last 3 contributions
+        for contrib in contributions[-3:]:
+            final_round_contributions.append(
+                f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
+            )
+
+    # Format votes/recommendations
+    votes_text = []
     for vote in votes:
-        all_contributions_and_votes.append(
+        votes_text.append(
             f"{vote['persona_name']}: {vote['recommendation']} "
             f"(confidence: {vote['confidence']:.2f})\n"
             f"Reasoning: {vote['reasoning']}\n"
         )
         conditions = vote.get("conditions")
         if conditions and isinstance(conditions, list):
-            all_contributions_and_votes.append(
-                f"Conditions: {', '.join(str(c) for c in conditions)}\n"
-            )
-        all_contributions_and_votes.append("\n")
+            votes_text.append(f"Conditions: {', '.join(str(c) for c in conditions)}\n")
+        votes_text.append("\n")
 
-    full_context = "".join(all_contributions_and_votes)
+    # Get limited context sections (sub-problem inherits from parent state if available)
+    limited_context_mode = bool(state.get("limited_context_mode", False))
+    prompt_section, output_section = get_limited_context_sections(limited_context_mode)
 
-    synthesis_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(
+    synthesis_prompt = SYNTHESIS_LEAN_TEMPLATE.format(
         problem_statement=sub_problem.goal,
-        all_contributions_and_votes=full_context,
+        round_summaries="\n".join(round_summaries_text),
+        final_round_contributions="\n".join(final_round_contributions),
+        votes="\n".join(votes_text),
+        limited_context_section=prompt_section,
+        limited_context_output_section=output_section,
     )
 
     broker = PromptBroker()
     request = PromptRequest(
         system=synthesis_prompt,
-        user_message="Generate the synthesis report now.",
-        prefill="<thinking>",
+        user_message="Generate the executive brief now. Follow the output format exactly.",
+        prefill="## The Bottom Line",
         model=get_model_for_role("synthesis"),
         temperature=0.7,
-        max_tokens=4000,  # Increased from 3000 to avoid truncation
+        max_tokens=1500,  # Lean template produces ~800-1000 tokens
         phase="synthesis",
         agent_type="synthesizer",
         cache_system=True,
     )
 
     response = await broker.call(request)
-    synthesis = "<thinking>" + response.content
+    synthesis = "## The Bottom Line" + response.content
     track_phase_cost(metrics, "synthesis", response)
 
     # Emit synthesis_complete
@@ -670,12 +707,12 @@ async def synthesize_sp_node(state: SubProblemGraphState) -> dict[str, Any]:
 
     # Collect results and track costs
     for result in summary_results:
-        code: str
-        summary: str | None
+        result_code: str
+        result_summary: str | None
         llm_response: LLMResponse | None
-        code, summary, llm_response = result
-        if summary is not None and llm_response is not None:
-            expert_summaries[code] = summary
+        result_code, result_summary, llm_response = result
+        if result_summary is not None and llm_response is not None:
+            expert_summaries[result_code] = result_summary
             track_phase_cost(metrics, "expert_memory", llm_response)
 
     logger.info(

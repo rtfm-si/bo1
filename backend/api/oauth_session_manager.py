@@ -19,6 +19,7 @@ import secrets
 from datetime import UTC, datetime
 from typing import Any
 
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.redis_manager import RedisManager
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,11 @@ class SessionManager:
         """
         self.redis = redis_manager or RedisManager()
         if not self.redis.is_available:
-            logger.error("Redis not available - session management will fail!")
+            log_error(
+                logger,
+                ErrorCode.REDIS_CONNECTION_ERROR,
+                "Redis not available - session management will fail!",
+            )
 
     # OAuth Flow State Management
 
@@ -88,7 +93,7 @@ class SessionManager:
         # Save to Redis with short TTL
         key = f"oauth_state:{state_id}"
         if not self.redis.redis:
-            logger.error("Redis client not available")
+            log_error(logger, ErrorCode.REDIS_CONNECTION_ERROR, "Redis client not available")
             return state_id
 
         try:
@@ -101,7 +106,12 @@ class SessionManager:
             return state_id
 
         except Exception as e:
-            logger.error(f"Failed to create OAuth state: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"Failed to create OAuth state: {e}",
+                exc_info=True,
+            )
             raise
 
     def get_oauth_state(self, state_id: str) -> dict[str, Any] | None:
@@ -122,7 +132,7 @@ class SessionManager:
         """
         key = f"oauth_state:{state_id}"
         if not self.redis.redis:
-            logger.error("Redis client not available")
+            log_error(logger, ErrorCode.REDIS_CONNECTION_ERROR, "Redis client not available")
             return None
 
         try:
@@ -137,7 +147,9 @@ class SessionManager:
             return state_data
 
         except Exception as e:
-            logger.error(f"Failed to get OAuth state: {e}")
+            log_error(
+                logger, ErrorCode.REDIS_READ_ERROR, f"Failed to get OAuth state: {e}", exc_info=True
+            )
             return None
 
     def delete_oauth_state(self, state_id: str) -> bool:
@@ -155,7 +167,7 @@ class SessionManager:
         """
         key = f"oauth_state:{state_id}"
         if not self.redis.redis:
-            logger.error("Redis client not available")
+            log_error(logger, ErrorCode.REDIS_CONNECTION_ERROR, "Redis client not available")
             return False
 
         try:
@@ -165,7 +177,12 @@ class SessionManager:
             return bool(deleted)
 
         except Exception as e:
-            logger.error(f"Failed to delete OAuth state: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"Failed to delete OAuth state: {e}",
+                exc_info=True,
+            )
             return False
 
     # User Session Management
@@ -212,7 +229,12 @@ class SessionManager:
         # Save to Redis with TTL
         key = f"session:{session_id}"
         if not self.redis.redis:
-            logger.error("Redis client not available")
+            log_error(
+                logger,
+                ErrorCode.REDIS_CONNECTION_ERROR,
+                "Redis client not available",
+                user_id=user_id,
+            )
             return session_id
 
         try:
@@ -225,7 +247,14 @@ class SessionManager:
             return session_id
 
         except Exception as e:
-            logger.error(f"Failed to create session: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"Failed to create session: {e}",
+                exc_info=True,
+                user_id=user_id,
+                email=email,
+            )
             raise
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
@@ -247,7 +276,12 @@ class SessionManager:
         """
         key = f"session:{session_id}"
         if not self.redis.redis:
-            logger.error("Redis client not available")
+            log_error(
+                logger,
+                ErrorCode.REDIS_CONNECTION_ERROR,
+                "Redis client not available",
+                session_id=session_id,
+            )
             return None
 
         try:
@@ -264,7 +298,13 @@ class SessionManager:
             return session_data
 
         except Exception as e:
-            logger.error(f"Failed to get session: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_READ_ERROR,
+                f"Failed to get session: {e}",
+                exc_info=True,
+                session_id=session_id,
+            )
             return None
 
     def delete_session(self, session_id: str) -> bool:
@@ -282,7 +322,12 @@ class SessionManager:
         """
         key = f"session:{session_id}"
         if not self.redis.redis:
-            logger.error("Redis client not available")
+            log_error(
+                logger,
+                ErrorCode.REDIS_CONNECTION_ERROR,
+                "Redis client not available",
+                session_id=session_id,
+            )
             return False
 
         try:
@@ -292,7 +337,13 @@ class SessionManager:
             return bool(deleted)
 
         except Exception as e:
-            logger.error(f"Failed to delete session: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"Failed to delete session: {e}",
+                exc_info=True,
+                session_id=session_id,
+            )
             return False
 
     def refresh_session(self, session_id: str, new_tokens: dict[str, Any]) -> bool:
@@ -326,7 +377,12 @@ class SessionManager:
         # Save updated session
         key = f"session:{session_id}"
         if not self.redis.redis:
-            logger.error("Redis client not available")
+            log_error(
+                logger,
+                ErrorCode.REDIS_CONNECTION_ERROR,
+                "Redis client not available",
+                session_id=session_id,
+            )
             return False
 
         try:
@@ -339,5 +395,11 @@ class SessionManager:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to refresh session: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"Failed to refresh session: {e}",
+                exc_info=True,
+                session_id=session_id,
+            )
             return False

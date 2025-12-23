@@ -23,6 +23,7 @@ from tenacity import (
 from bo1.config import resolve_model_alias
 from bo1.llm.context import get_cost_context
 from bo1.llm.cost_tracker import CostTracker
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.models import ContributionSummary
 from bo1.utils.json_parsing import parse_json_with_fallback
 
@@ -174,7 +175,13 @@ class ContributionSummarizer:
             return self.create_fallback(persona_name, content)
 
         except Exception as e:
-            logger.error(f"Failed to summarize contribution for {persona_name}: {e}")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"Failed to summarize contribution for {persona_name}: {e}",
+                exc_info=True,
+                persona_name=persona_name,
+            )
             status = "error"
             return self.create_fallback(persona_name, content)
         finally:
@@ -210,7 +217,14 @@ class ContributionSummarizer:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 persona_name = items[i][1]
-                logger.error(f"Batch summarization failed for {persona_name}: {result}")
+                log_error(
+                    logger,
+                    ErrorCode.SERVICE_EXECUTION_ERROR,
+                    f"Batch summarization failed for {persona_name}: {result}",
+                    exc_info=True,
+                    persona_name=persona_name,
+                    batch_size=len(items),
+                )
                 summaries.append(self.create_fallback(persona_name, items[i][0]))
             else:
                 summaries.append(result)

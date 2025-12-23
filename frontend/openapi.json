@@ -3846,6 +3846,29 @@
             "description": "SEO metadata from website",
             "title": "Seo Structure"
           },
+          "strategic_objectives": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Supporting strategic objectives (up to 5) to complement the north star goal",
+            "examples": [
+              [
+                "Increase conversion rate",
+                "Reduce churn",
+                "Expand to EU market"
+              ]
+            ],
+            "title": "Strategic Objectives"
+          },
           "target_geography": {
             "anyOf": [
               {
@@ -13369,6 +13392,26 @@
         "title": "QuerySpec",
         "type": "object"
       },
+      "RaiseHandRequest": {
+        "description": "Request model for user interjection during deliberation.\n\nAllows users to interject with a question or context during an active meeting.",
+        "properties": {
+          "message": {
+            "description": "User's interjection message (question or context to add)",
+            "examples": [
+              "What about the regulatory compliance implications?"
+            ],
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "RaiseHandRequest",
+        "type": "object"
+      },
       "ReadinessResponse": {
         "description": "Readiness check response for k8s probes.\n\nAttributes:\n    status: Overall status (ok, degraded, unavailable)\n    ready: Whether the service is ready to accept traffic\n    checks: Individual component check results\n    services: Service health summaries\n    vendor_status: Overall LLM provider status\n    redis_state: Redis connection state (connected/disconnected/reconnecting)\n    timestamp: ISO 8601 timestamp",
         "properties": {
@@ -14913,6 +14956,93 @@
           "enabled"
         ],
         "title": "SetUserOverrideRequest",
+        "type": "object"
+      },
+      "SlowQueryListResponse": {
+        "description": "Response containing list of slow queries.",
+        "properties": {
+          "extension_available": {
+            "description": "Whether pg_stat_statements extension is available",
+            "title": "Extension Available",
+            "type": "boolean"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Status message (e.g., extension not configured)",
+            "title": "Message"
+          },
+          "queries": {
+            "description": "List of slow queries",
+            "items": {
+              "$ref": "#/components/schemas/SlowQueryResponse"
+            },
+            "title": "Queries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "queries",
+          "extension_available"
+        ],
+        "title": "SlowQueryListResponse",
+        "type": "object"
+      },
+      "SlowQueryResponse": {
+        "description": "Single slow query entry from pg_stat_statements.",
+        "properties": {
+          "calls": {
+            "description": "Number of times the query was executed",
+            "title": "Calls",
+            "type": "integer"
+          },
+          "mean_time_ms": {
+            "description": "Mean execution time in milliseconds",
+            "title": "Mean Time Ms",
+            "type": "number"
+          },
+          "query": {
+            "description": "SQL query text (may be truncated)",
+            "title": "Query",
+            "type": "string"
+          },
+          "rows": {
+            "description": "Total number of rows retrieved or affected",
+            "title": "Rows",
+            "type": "integer"
+          },
+          "shared_blks_hit": {
+            "description": "Shared blocks hit in buffer cache",
+            "title": "Shared Blks Hit",
+            "type": "integer"
+          },
+          "shared_blks_read": {
+            "description": "Shared blocks read from disk",
+            "title": "Shared Blks Read",
+            "type": "integer"
+          },
+          "total_time_ms": {
+            "description": "Total execution time in milliseconds",
+            "title": "Total Time Ms",
+            "type": "number"
+          }
+        },
+        "required": [
+          "query",
+          "calls",
+          "mean_time_ms",
+          "total_time_ms",
+          "rows",
+          "shared_blks_hit",
+          "shared_blks_read"
+        ],
+        "title": "SlowQueryResponse",
         "type": "object"
       },
       "SnoozeReminderRequest": {
@@ -24140,6 +24270,147 @@
           "admin",
           "admin",
           "Admin - Promotions"
+        ]
+      }
+    },
+    "/api/admin/queries/slow": {
+      "get": {
+        "description": "Get the top N slowest queries from pg_stat_statements ordered by mean execution time.\n\n    Returns:\n    - Query text (may be truncated for long queries)\n    - Call count\n    - Mean and total execution time\n    - Row count\n    - Buffer cache hit/read statistics\n\n    Note: Requires pg_stat_statements extension to be enabled.\n    If not available, returns empty list with extension_available=false.",
+        "operationId": "get_slow_queries_api_admin_queries_slow_get",
+        "parameters": [
+          {
+            "description": "Maximum number of queries to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of queries to return",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Minimum number of calls to include query",
+            "in": "query",
+            "name": "min_calls",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "Minimum number of calls to include query",
+              "minimum": 1,
+              "title": "Min Calls",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlowQueryListResponse"
+                }
+              }
+            },
+            "description": "Slow queries retrieved successfully"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Get slowest queries",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Query Performance"
+        ]
+      }
+    },
+    "/api/admin/queries/slow/reset": {
+      "post": {
+        "description": "Reset all query statistics in pg_stat_statements.\n\n    Use this after deploying optimizations to start fresh measurements.\n    Requires superuser or pg_stat_statements_reset privilege.",
+        "operationId": "reset_query_stats_api_admin_queries_slow_reset_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-key",
+            "required": false,
+            "schema": {
+              "title": "X-Admin-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Reset Query Stats Api Admin Queries Slow Reset Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Statistics reset successfully"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Reset query statistics",
+        "tags": [
+          "admin",
+          "admin",
+          "Admin - Query Performance"
         ]
       }
     },
@@ -35420,6 +35691,112 @@
         ]
       }
     },
+    "/api/v1/sessions/{session_id}/raise-hand": {
+      "post": {
+        "description": "Submit a question or context during an active meeting. Experts will acknowledge and respond.",
+        "operationId": "raise_hand_api_v1_sessions__session_id__raise_hand_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RaiseHandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlResponse"
+                }
+              }
+            },
+            "description": "Interjection submitted, experts will respond"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Cannot raise hand: session is not running",
+                  "session_id": "bo1_abc123",
+                  "status": "paused"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request or session not running"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Interjection message contains unsafe content",
+                  "error_code": "INJECTION_DETECTED"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Prompt injection detected"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Rate limit exceeded. Try again later."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Raise hand to interject during deliberation",
+        "tags": [
+          "deliberation-control",
+          "deliberation-control"
+        ]
+      }
+    },
     "/api/v1/sessions/{session_id}/resume": {
       "post": {
         "description": "Resume a paused deliberation session from its last checkpoint.",
@@ -35530,6 +35907,122 @@
           }
         },
         "summary": "Resume deliberation from checkpoint",
+        "tags": [
+          "deliberation-control",
+          "deliberation-control"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/retry": {
+      "post": {
+        "description": "Retry a failed deliberation session from its last successful checkpoint.",
+        "operationId": "retry_deliberation_api_v1_sessions__session_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlResponse"
+                }
+              }
+            },
+            "description": "Deliberation retried from checkpoint"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Cannot retry session with status: running. Session must be failed.",
+                  "session_id": "bo1_abc123",
+                  "status": "running"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request - session not in failed status"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Session not found",
+                  "session_id": "bo1_abc123"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Session bo1_abc123 is already running",
+                  "error_code": "SESSION_ALREADY_RUNNING",
+                  "session_id": "bo1_abc123"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Session already running"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Session checkpoint expired and cannot be reconstructed. Please start a new meeting.",
+                  "error_code": "CHECKPOINT_EXPIRED"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Checkpoint expired and cannot be reconstructed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Failed to retry deliberation: checkpoint load failed",
+                  "error_code": "CHECKPOINT_LOAD_FAILED"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Retry failed session from checkpoint",
         "tags": [
           "deliberation-control",
           "deliberation-control"

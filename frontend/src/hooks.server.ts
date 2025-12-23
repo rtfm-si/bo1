@@ -60,6 +60,46 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	// For non-API requests, proceed normally
-	return resolve(event);
+	// For non-API requests, inject CSP header for HTML responses
+	// This provides dev mode CSP consistency with production nginx
+	let nonce: string | undefined;
+
+	const response = await resolve(event, {
+		transformPageChunk: ({ html }) => {
+			// Extract nonce from SvelteKit's generated HTML
+			const nonceMatch = html.match(/nonce="([^"]+)"/);
+			if (nonceMatch) {
+				nonce = nonceMatch[1];
+			}
+			return html;
+		}
+	});
+
+	// Add CSP header to HTML responses (not assets/API)
+	const contentType = response.headers.get('content-type');
+	if (contentType?.includes('text/html') && nonce) {
+		const csp = [
+			`default-src 'self'`,
+			`script-src 'self' 'nonce-${nonce}' https://analytics.boardof.one`,
+			`style-src 'self' 'unsafe-inline'`,
+			`img-src 'self' data: https:`,
+			`font-src 'self' data:`,
+			`connect-src 'self' https: wss: http://localhost:* ws://localhost:*`,
+			`frame-ancestors 'none'`,
+			`base-uri 'self'`,
+			`form-action 'self'`
+		].join('; ');
+
+		// Clone response to add header
+		const newHeaders = new Headers(response.headers);
+		newHeaders.set('Content-Security-Policy', csp);
+
+		return new Response(response.body, {
+			status: response.status,
+			statusText: response.statusText,
+			headers: newHeaders
+		});
+	}
+
+	return response;
 };

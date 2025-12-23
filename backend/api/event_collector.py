@@ -6,14 +6,20 @@ Provides:
 
 import asyncio
 import logging
+import time
 from typing import TYPE_CHECKING, Any, Literal
 
-from backend.api.dependencies import get_redis_manager
+from backend.api.constants import GRAPH_EXECUTION_TIMEOUT_SECONDS
+from backend.api.dependencies import get_redis_manager, get_session_metadata_cache
 from backend.api.event_extractors import extract_persona_dict, get_event_registry
 from backend.api.event_publisher import EventPublisher, flush_session_events
+from backend.api.middleware.metrics import record_graph_execution_timeout
 from backend.services.event_batcher import flush_batcher, wait_for_all_flushes
 from bo1.context import set_request_id
 from bo1.llm.cost_tracker import CostTracker
+from bo1.logging.errors import ErrorCode, log_error
+from bo1.state.circuit_breaker_wrappers import is_redis_circuit_open
+from bo1.state.repositories.session_repository import extract_session_metadata
 from bo1.utils.async_context import create_task_with_context
 
 if TYPE_CHECKING:
@@ -107,6 +113,70 @@ class EventCollector:
         self.publisher = publisher
         self.summarizer = summarizer
         self.session_repo = session_repo
+        self._previous_node: str | None = None
+        self._redis_fallback_emitted: bool = False  # Track if fallback event already sent
+
+    def _save_metadata_fallback(
+        self,
+        session_id: str,
+        state: dict[str, Any],
+    ) -> None:
+        """Save session metadata to PostgreSQL when Redis circuit breaker is open.
+
+        Called after each node completion when Redis is unavailable. Extracts
+        persistable fields from graph state and writes to sessions table.
+
+        Args:
+            session_id: Session identifier
+            state: Current graph state dict
+        """
+        if not is_redis_circuit_open():
+            return  # Redis is available, no fallback needed
+
+        try:
+            # Extract metadata from state
+            metadata = extract_session_metadata(state)
+
+            if not metadata:
+                return  # No metadata to persist
+
+            # Save to PostgreSQL
+            success = self.session_repo.save_metadata(session_id, metadata)
+
+            if success:
+                logger.info(
+                    f"[REDIS_FALLBACK] Persisted metadata to PostgreSQL for {session_id}: "
+                    f"phase={metadata.get('phase')}, round={metadata.get('round_number')}"
+                )
+
+                # Emit redis_fallback_activated event (once per session)
+                if not self._redis_fallback_emitted:
+                    self._redis_fallback_emitted = True
+                    try:
+                        # Direct PostgreSQL event persistence (Redis unavailable)
+                        from bo1.state.repositories import session_repository
+
+                        session_repository.save_event(
+                            session_id=session_id,
+                            event_type="redis_fallback_activated",
+                            sequence=0,  # Special sequence for system events
+                            data={
+                                "message": "Redis unavailable - using PostgreSQL fallback",
+                                "fields_persisted": list(metadata.keys()),
+                            },
+                        )
+                    except Exception as event_err:
+                        logger.warning(f"Failed to save fallback event: {event_err}")
+            else:
+                logger.warning(f"[REDIS_FALLBACK] Failed to persist metadata for {session_id}")
+
+        except Exception as e:
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"[REDIS_FALLBACK] Error persisting metadata for {session_id}: {e}",
+                session_id=session_id,
+            )
 
     def _emit_working_status(
         self,
@@ -165,7 +235,40 @@ class EventCollector:
             },
         )
 
-    def _mark_session_failed(self, session_id: str, error: Exception) -> None:
+    def _emit_state_transition(
+        self,
+        session_id: str,
+        to_node: str,
+        sub_problem_index: int = 0,
+    ) -> None:
+        """Emit a state_transition event for progress visualization.
+
+        Tracks transitions between graph nodes for client-side progress UI.
+        Emits from_node (previous node, None for first) and to_node.
+
+        Args:
+            session_id: Session identifier
+            to_node: Name of the node transitioning to
+            sub_problem_index: Sub-problem index for tab filtering (default: 0)
+        """
+        self.publisher.publish_event(
+            session_id,
+            "state_transition",
+            {
+                "from_node": self._previous_node,
+                "to_node": to_node,
+                "sub_problem_index": sub_problem_index,
+            },
+        )
+        self._previous_node = to_node
+
+    def _mark_session_failed(
+        self,
+        session_id: str,
+        error: Exception,
+        timeout_exceeded: bool = False,
+        elapsed_seconds: float | None = None,
+    ) -> None:
         """Mark session as failed with error handling.
 
         Consolidates duplicate error handling pattern for session failures.
@@ -174,6 +277,8 @@ class EventCollector:
         Args:
             session_id: Session identifier
             error: The exception that caused the failure
+            timeout_exceeded: Whether failure was due to wall-clock timeout
+            elapsed_seconds: Time elapsed before timeout (only set if timeout_exceeded=True)
         """
         # Flush any pending cost records before marking failed
         try:
@@ -183,21 +288,61 @@ class EventCollector:
 
         error_type = type(error).__name__
 
-        # Publish error event to SSE stream
-        self.publisher.publish_event(
-            session_id,
-            "error",
-            {
-                "error": str(error),
-                "error_type": error_type,
-            },
-        )
+        # For timeout failures, emit specific timeout event first
+        if timeout_exceeded:
+            self.publisher.publish_event(
+                session_id,
+                "session_timeout",
+                {
+                    "elapsed_seconds": elapsed_seconds or 0,
+                    "timeout_threshold_seconds": GRAPH_EXECUTION_TIMEOUT_SECONDS,
+                    "reason": "Wall-clock timeout exceeded - session took too long",
+                },
+            )
+            # Record timeout metric
+            session_data = self.session_repo.get(session_id)
+            session_type = (
+                session_data.get("session_type", "standard") if session_data else "standard"
+            )
+            record_graph_execution_timeout(session_type)
+            logger.warning(
+                f"Session {session_id} timed out after {elapsed_seconds:.1f}s "
+                f"(threshold: {GRAPH_EXECUTION_TIMEOUT_SECONDS}s)"
+            )
 
-        # Update session status to 'failed' in PostgreSQL
+        # Publish error event to SSE stream
+        error_data: dict[str, Any] = {
+            "error": str(error),
+            "error_type": error_type,
+        }
+        if timeout_exceeded:
+            error_data["timeout_exceeded"] = True
+            error_data["elapsed_seconds"] = elapsed_seconds
+        self.publisher.publish_event(session_id, "error", error_data)
+
+        # Update session status to 'failed' in PostgreSQL with timeout metadata
         try:
-            self.session_repo.update_status(session_id=session_id, status="failed")
+            metadata = {}
+            if timeout_exceeded:
+                metadata = {
+                    "timeout_exceeded": True,
+                    "elapsed_seconds": elapsed_seconds,
+                    "timeout_threshold": GRAPH_EXECUTION_TIMEOUT_SECONDS,
+                }
+            self.session_repo.update_status(
+                session_id=session_id,
+                status="failed",
+                metadata=metadata if metadata else None,
+            )
+            # Invalidate cached metadata on status change
+            get_session_metadata_cache().invalidate(session_id)
         except Exception as db_error:
-            logger.error(f"Failed to update session {session_id} status to failed: {db_error}")
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to update session {session_id} status to failed: {db_error}",
+                session_id=session_id,
+            )
 
         # Send failure notification email (non-blocking)
         try:
@@ -209,7 +354,7 @@ class EventCollector:
                     user_id=session_data.get("user_id", ""),
                     session_id=session_id,
                     problem_statement=session_data.get("problem_statement", ""),
-                    error_type=error_type,
+                    error_type="timeout" if timeout_exceeded else error_type,
                 )
         except Exception as email_error:
             logger.warning(f"Failed to send meeting failed email: {email_error}")
@@ -258,8 +403,13 @@ class EventCollector:
             else:
                 # Issue #3 fix: Publish error event when extractor fails
                 error_msg = f"Event extraction failed for {event_type}"
-                logger.error(
-                    f"[EVENT ERROR] {error_msg} (registry_key={registry_key}). Output keys: {list(output.keys())}"
+                log_error(
+                    logger,
+                    ErrorCode.GRAPH_EXECUTION_ERROR,
+                    f"[EVENT ERROR] {error_msg} (registry_key={registry_key}). Output keys: {list(output.keys())}",
+                    session_id=session_id,
+                    event_type=event_type,
+                    registry_key=registry_key,
                 )
                 # Publish error event so UI knows something went wrong
                 self.publisher.publish_event(
@@ -274,9 +424,13 @@ class EventCollector:
                 )
         except Exception as e:
             # Issue #3 fix: Publish error event instead of swallowing the error
-            logger.error(
+            log_error(
+                logger,
+                ErrorCode.API_SSE_ERROR,
                 f"Failed to publish {event_type} for session {session_id}: {e}",
                 exc_info=True,
+                session_id=session_id,
+                event_type=event_type,
             )
             # Publish error event so frontend can display the failure
             self.publisher.publish_event(
@@ -362,6 +516,10 @@ class EventCollector:
         """
         from bo1.feature_flags import USE_SUBGRAPH_DELIBERATION
 
+        # Reset tracking for new session
+        self._previous_node = None
+        self._redis_fallback_emitted = False
+
         # Set request_id in context for propagation through graph execution
         token = set_request_id(request_id) if request_id else None
 
@@ -395,57 +553,89 @@ class EventCollector:
         - Custom events from get_stream_writer() (custom)
 
         This enables real-time per-expert streaming from subgraph nodes.
+        Enforces wall-clock timeout to prevent runaway sessions.
         """
         final_state = None
+        start_time = time.monotonic()
 
         try:
-            async for chunk in graph.astream(
-                initial_state,
-                config=config,
-                stream_mode=["updates", "custom"],
-                subgraphs=True,
-            ):
-                # LangGraph 1.x with subgraphs=True returns (namespace, mode, data)
-                # namespace: tuple of node path (empty for main graph)
-                # mode: "updates" or "custom"
-                # data: dict with node_name as key for updates, or custom event data
-                namespace, mode, data = chunk
+            async with asyncio.timeout(GRAPH_EXECUTION_TIMEOUT_SECONDS):
+                async for chunk in graph.astream(
+                    initial_state,
+                    config=config,
+                    stream_mode=["updates", "custom"],
+                    subgraphs=True,
+                ):
+                    # LangGraph 1.x with subgraphs=True returns (namespace, mode, data)
+                    # namespace: tuple of node path (empty for main graph)
+                    # mode: "updates" or "custom"
+                    # data: dict with node_name as key for updates, or custom event data
+                    namespace, mode, data = chunk
 
-                # For "updates" mode, data is {node_name: state_update}
-                # For "custom" mode, data is the custom event dict directly
-                if mode == "updates" and isinstance(data, dict):
-                    # Get the node name from the data keys
-                    node_names = list(data.keys())
-                    node_name = node_names[0] if node_names else None
-                    node_data = data.get(node_name, {}) if node_name else {}
-                else:
-                    node_name = None
-                    node_data = data
+                    # For "updates" mode, data is {node_name: state_update}
+                    # For "custom" mode, data is the custom event dict directly
+                    if mode == "updates" and isinstance(data, dict):
+                        # Get the node name from the data keys
+                        node_names = list(data.keys())
+                        node_name = node_names[0] if node_names else None
+                        node_data = data.get(node_name, {}) if node_name else {}
+                    else:
+                        node_name = None
+                        node_data = data
 
-                logger.debug(f"[STREAM] namespace={namespace}, mode={mode}, node={node_name}")
+                    logger.debug(f"[STREAM] namespace={namespace}, mode={mode}, node={node_name}")
 
-                # Handle custom events from get_stream_writer()
-                if mode == "custom" and isinstance(data, dict) and "event_type" in data:
-                    event_type = data.pop("event_type")
-                    logger.info(
-                        f"[CUSTOM EVENT] {event_type} | sub_problem_index={data.get('sub_problem_index')}"
-                    )
-                    self.publisher.publish_event(session_id, event_type, data)
+                    # Handle custom events from get_stream_writer()
+                    if mode == "custom" and isinstance(data, dict) and "event_type" in data:
+                        event_type = data.pop("event_type")
+                        logger.info(
+                            f"[CUSTOM EVENT] {event_type} | sub_problem_index={data.get('sub_problem_index')}"
+                        )
+                        self.publisher.publish_event(session_id, event_type, data)
 
-                # Handle state updates from nodes
-                elif mode == "updates" and node_name:
-                    # Dispatch to appropriate handler via registry
-                    await self._dispatch_node_handler(node_name, session_id, node_data)
+                    # Handle state updates from nodes
+                    elif mode == "updates" and node_name:
+                        # Emit state transition event for progress visualization
+                        sub_problem_index = node_data.get("sub_problem_index", 0)
+                        self._emit_state_transition(session_id, node_name, sub_problem_index)
 
-                    # Update final state with the node data
-                    final_state = node_data
+                        # Dispatch to appropriate handler via registry
+                        await self._dispatch_node_handler(node_name, session_id, node_data)
+
+                        # Update final state with the node data
+                        final_state = node_data
+
+                        # Redis fallback: persist metadata to PostgreSQL if Redis unavailable
+                        self._save_metadata_fallback(session_id, node_data)
 
             # Publish completion event
             if final_state:
                 await self._handle_completion(session_id, final_state)
 
+        except TimeoutError:
+            elapsed = time.monotonic() - start_time
+            timeout_error = TimeoutError(
+                f"Graph execution timed out after {elapsed:.1f}s "
+                f"(limit: {GRAPH_EXECUTION_TIMEOUT_SECONDS}s)"
+            )
+            log_error(
+                logger,
+                ErrorCode.GRAPH_EXECUTION_ERROR,
+                f"Timeout in custom event collection for session {session_id}: {timeout_error}",
+                session_id=session_id,
+                elapsed_seconds=elapsed,
+            )
+            self._mark_session_failed(
+                session_id, timeout_error, timeout_exceeded=True, elapsed_seconds=elapsed
+            )
+            raise
         except Exception as e:
-            logger.error(f"Error in custom event collection for session {session_id}: {e}")
+            log_error(
+                logger,
+                ErrorCode.GRAPH_EXECUTION_ERROR,
+                f"Error in custom event collection for session {session_id}: {e}",
+                session_id=session_id,
+            )
             self._mark_session_failed(session_id, e)
             raise
 
@@ -461,31 +651,63 @@ class EventCollector:
         """Execute graph using legacy astream_events() method.
 
         This is the original implementation using astream_events(version="v2").
+        Enforces wall-clock timeout to prevent runaway sessions.
         """
         final_state = None
+        start_time = time.monotonic()
 
         try:
-            # Stream events from LangGraph execution
-            async for event in graph.astream_events(initial_state, config=config, version="v2"):
-                event_type = event.get("event")
-                event_name = event.get("name", "")
+            async with asyncio.timeout(GRAPH_EXECUTION_TIMEOUT_SECONDS):
+                # Stream events from LangGraph execution
+                async for event in graph.astream_events(initial_state, config=config, version="v2"):
+                    event_type = event.get("event")
+                    event_name = event.get("name", "")
 
-                # Process node completions (on_chain_end has output data)
-                if event_type == "on_chain_end" and "data" in event:
-                    output = event.get("data", {}).get("output", {})
+                    # Process node completions (on_chain_end has output data)
+                    if event_type == "on_chain_end" and "data" in event:
+                        output = event.get("data", {}).get("output", {})
 
-                    # Dispatch to appropriate handler via registry
-                    if isinstance(output, dict):
-                        await self._dispatch_node_handler(event_name, session_id, output)
-                        # Capture final state
-                        final_state = output
+                        # Dispatch to appropriate handler via registry
+                        if isinstance(output, dict):
+                            # Emit state transition event for progress visualization
+                            sub_problem_index = output.get("sub_problem_index", 0)
+                            self._emit_state_transition(session_id, event_name, sub_problem_index)
+
+                            await self._dispatch_node_handler(event_name, session_id, output)
+                            # Capture final state
+                            final_state = output
+
+                            # Redis fallback: persist metadata to PostgreSQL if Redis unavailable
+                            self._save_metadata_fallback(session_id, output)
 
             # Publish completion event
             if final_state:
                 await self._handle_completion(session_id, final_state)
 
+        except TimeoutError:
+            elapsed = time.monotonic() - start_time
+            timeout_error = TimeoutError(
+                f"Graph execution timed out after {elapsed:.1f}s "
+                f"(limit: {GRAPH_EXECUTION_TIMEOUT_SECONDS}s)"
+            )
+            log_error(
+                logger,
+                ErrorCode.GRAPH_EXECUTION_ERROR,
+                f"Timeout in event collection for session {session_id}: {timeout_error}",
+                session_id=session_id,
+                elapsed_seconds=elapsed,
+            )
+            self._mark_session_failed(
+                session_id, timeout_error, timeout_exceeded=True, elapsed_seconds=elapsed
+            )
+            raise
         except Exception as e:
-            logger.error(f"Error in event collection for session {session_id}: {e}")
+            log_error(
+                logger,
+                ErrorCode.GRAPH_EXECUTION_ERROR,
+                f"Error in event collection for session {session_id}: {e}",
+                session_id=session_id,
+            )
             self._mark_session_failed(session_id, e)
             raise
 
@@ -926,7 +1148,12 @@ class EventCollector:
                 self.session_repo.save_synthesis(session_id, synthesis_text)
                 logger.info(f"Saved synthesis to PostgreSQL for session {session_id}")
             except Exception as e:
-                logger.error(f"Failed to save synthesis to PostgreSQL for {session_id}: {e}")
+                log_error(
+                    logger,
+                    ErrorCode.DB_WRITE_ERROR,
+                    f"Failed to save synthesis to PostgreSQL for {session_id}: {e}",
+                    session_id=session_id,
+                )
 
     async def _handle_subproblem_complete(self, session_id: str, output: dict) -> None:
         """Handle next_subproblem node completion - NO-OP to avoid duplicate events.
@@ -959,7 +1186,12 @@ class EventCollector:
                 self.session_repo.save_synthesis(session_id, synthesis_text)
                 logger.info(f"Saved meta-synthesis to PostgreSQL for session {session_id}")
             except Exception as e:
-                logger.error(f"Failed to save meta-synthesis to PostgreSQL for {session_id}: {e}")
+                log_error(
+                    logger,
+                    ErrorCode.DB_WRITE_ERROR,
+                    f"Failed to save meta-synthesis to PostgreSQL for {session_id}: {e}",
+                    session_id=session_id,
+                )
 
     async def _handle_research(self, session_id: str, output: dict) -> None:
         """Handle research node completion (P2-006).
@@ -1202,7 +1434,12 @@ class EventCollector:
                     },
                 )
         except Exception as e:
-            logger.error(f"Failed to check cost anomaly for session {session_id}: {e}")
+            log_error(
+                logger,
+                ErrorCode.COST_FLUSH_ERROR,
+                f"Failed to check cost anomaly for session {session_id}: {e}",
+                session_id=session_id,
+            )
 
     def _publish_completion_event(self, session_id: str, final_state: dict) -> None:
         """Publish completion event with extracted data from final state.
@@ -1281,6 +1518,8 @@ class EventCollector:
                     final_recommendation=final_recommendation,
                 )
                 status_update_success = True
+                # Invalidate cached metadata on status change
+                get_session_metadata_cache().invalidate(session_id)
                 if attempt > 0:
                     logger.info(
                         f"Session status update succeeded on attempt {attempt + 1} for {session_id}"
@@ -1299,10 +1538,13 @@ class EventCollector:
                     # BUG FIX: Use asyncio.sleep instead of time.sleep in async method
                     await asyncio.sleep(wait_time)
                 else:
-                    logger.error(
+                    log_error(
+                        logger,
+                        ErrorCode.DB_WRITE_ERROR,
                         f"CRITICAL: Failed to update session status after 3 attempts for "
                         f"{session_id}: {e}\n"
-                        f"Session completed but status may be inconsistent!"
+                        f"Session completed but status may be inconsistent!",
+                        session_id=session_id,
                     )
 
         # Send meeting completion notification (fire-and-forget)
@@ -1416,7 +1658,12 @@ class EventCollector:
                     },
                 )
             except Exception as emit_error:
-                logger.error(f"Failed to emit status error event: {emit_error}")
+                log_error(
+                    logger,
+                    ErrorCode.API_SSE_ERROR,
+                    f"Failed to emit status error event: {emit_error}",
+                    session_id=session_id,
+                )
 
     async def _persist_partial_costs(self, session_id: str, final_state: dict) -> None:
         """Persist partial costs to PostgreSQL for sessions that pause before completion.
@@ -1489,12 +1736,17 @@ class EventCollector:
             pg_event_count = len(pg_events)
 
             if pg_event_count < redis_event_count:
-                logger.error(
+                log_error(
+                    logger,
+                    ErrorCode.DB_WRITE_ERROR,
                     f"EVENT PERSISTENCE VERIFICATION FAILED for {session_id}:\n"
                     f"  Redis: {redis_event_count} events\n"
                     f"  PostgreSQL: {pg_event_count} events\n"
                     f"  MISSING: {redis_event_count - pg_event_count} events\n"
-                    f"This session will have incomplete history after Redis expires!"
+                    f"This session will have incomplete history after Redis expires!",
+                    session_id=session_id,
+                    redis_events=redis_event_count,
+                    postgres_events=pg_event_count,
                 )
                 # Emit warning event to frontend
                 self.publisher.publish_event(
@@ -1518,7 +1770,12 @@ class EventCollector:
                     f"{pg_event_count} events in PostgreSQL"
                 )
         except Exception as verify_error:
-            logger.error(f"Failed to verify event persistence for {session_id}: {verify_error}")
+            log_error(
+                logger,
+                ErrorCode.DB_QUERY_ERROR,
+                f"Failed to verify event persistence for {session_id}: {verify_error}",
+                session_id=session_id,
+            )
 
     async def _publish_contribution(
         self,

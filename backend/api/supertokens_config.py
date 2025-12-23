@@ -20,11 +20,12 @@ from fastapi import FastAPI
 from supertokens_python import InputAppInfo, SupertokensConfig, init
 from supertokens_python.framework.fastapi import get_middleware
 from supertokens_python.recipe import session, thirdparty
-from supertokens_python.recipe.session.interfaces import SessionContainer
+from supertokens_python.recipe.session.interfaces import SessionContainer, SignOutOkayResponse
 from supertokens_python.recipe.thirdparty.interfaces import (
     APIInterface,
     APIOptions,
     RecipeInterface,
+    SignInUpOkResult,
 )
 from supertokens_python.recipe.thirdparty.provider import (
     Provider,
@@ -34,6 +35,7 @@ from supertokens_python.recipe.thirdparty.provider import (
     UserInfoMap,
 )
 from supertokens_python.recipe.thirdparty.types import RawUserInfoFromProvider
+from supertokens_python.types import GeneralErrorResponse
 
 from backend.api.middleware.csrf import (
     clear_csrf_cookie_on_response,
@@ -52,6 +54,7 @@ from bo1.feature_flags import (
     LINKEDIN_OAUTH_ENABLED,
     TWITTER_OAUTH_ENABLED,
 )
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories import user_repository
 from bo1.state.repositories.workspace_repository import workspace_repository
 
@@ -134,7 +137,12 @@ def check_whitelist_db(email: str) -> bool:
             params=(email,),
         )
     except Exception as e:
-        logger.error(f"Error checking database whitelist: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Error checking database whitelist: {e}",
+            email=_mask_email(email),
+        )
         return False
 
 
@@ -176,7 +184,12 @@ def is_user_locked_or_deleted(user_id: str) -> bool:
             return row["is_locked"] or row["deleted_at"] is not None
         return False  # User not found in DB yet
     except Exception as e:
-        logger.error(f"Error checking user lock status: {e}")
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Error checking user lock status: {e}",
+            user_id=user_id,
+        )
         return False  # Fail open - don't block auth on DB errors
 
 
@@ -420,6 +433,10 @@ def override_thirdparty_functions(
         # Sync user to PostgreSQL on authentication (not on first session creation)
         # This ensures the user exists in the DB immediately after OAuth success
         # PostgreSQL is the source of truth for persistent data; Redis is for transient state
+        if not isinstance(result, SignInUpOkResult):
+            # SignInUpNotAllowed or LinkingToSessionUserFailedError - return as-is
+            return result
+
         try:
             user_id = result.user.id
             user_repository.ensure_exists(
@@ -469,7 +486,7 @@ def override_thirdparty_functions(
                 raise Exception(sanitize_supertokens_message("account locked"))
 
             # Send welcome email for new users (fire-and-forget)
-            if result.created_new_user:
+            if result.created_new_recipe_user:
                 try:
                     # Extract name from provider info if available
                     user_name = None
@@ -510,13 +527,19 @@ def override_thirdparty_functions(
             if "locked or deleted" in str(e):
                 raise
             # Log but don't block authentication - user will be synced on next API call
-            logger.error(f"Failed to sync user to PostgreSQL: {e}")
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to sync user to PostgreSQL: {e}",
+                user_id=user_id,
+                email=_mask_email(email),
+            )
 
         logger.info(f"User signed in: {_mask_email(email)} (user_id: {result.user.id})")
 
         return result
 
-    original_implementation.sign_in_up = sign_in_up
+    original_implementation.sign_in_up = sign_in_up  # type: ignore[method-assign]
     return original_implementation
 
 
@@ -597,7 +620,7 @@ def override_thirdparty_apis(original_implementation: APIInterface) -> APIInterf
                 auth_lockout_service.record_failed_attempt(client_ip, "auth_error")
             raise
 
-    original_implementation.sign_in_up_post = sign_in_up_post
+    original_implementation.sign_in_up_post = sign_in_up_post  # type: ignore[method-assign]
     return original_implementation
 
 
@@ -611,7 +634,7 @@ def override_session_apis(
         session_container: SessionContainer,
         api_options: session.interfaces.APIOptions,
         user_context: dict[str, Any],
-    ) -> session.interfaces.SignOutOkayResponse:
+    ) -> SignOutOkayResponse | GeneralErrorResponse:
         """Override signout_post to clear CSRF token on sign-out."""
         # Call original sign-out first
         result = await original_signout_post(session_container, api_options, user_context)
@@ -632,7 +655,7 @@ def override_session_apis(
 
         return result
 
-    original_implementation.signout_post = signout_post
+    original_implementation.signout_post = signout_post  # type: ignore[method-assign,assignment]
     return original_implementation
 
 
@@ -713,5 +736,5 @@ def add_supertokens_middleware(app: FastAPI) -> None:
     IMPORTANT: Add this BEFORE CORS middleware to ensure SuperTokens
     headers (rid, fdi-version, anti-csrf) are properly handled.
     """
-    app.add_middleware(get_middleware())
+    app.add_middleware(get_middleware())  # type: ignore[no-untyped-call]
     logger.info("SuperTokens middleware added to FastAPI app")

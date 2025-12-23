@@ -20,6 +20,7 @@ from backend.services.partition_manager import (
     get_all_partition_stats,
 )
 from bo1.constants import PartitionRetention
+from bo1.logging.errors import ErrorCode, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,12 @@ async def list_partitions(request: Request) -> AllPartitionsResponse:
         )
 
     except Exception as e:
-        logger.error(f"Failed to list partitions: {e}", exc_info=True)
+        log_error(
+            logger,
+            ErrorCode.DB_QUERY_ERROR,
+            f"Failed to list partitions: {e}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500, detail="Failed to retrieve partition information"
         ) from None
@@ -173,5 +179,12 @@ async def trigger_cleanup(request: Request, body: CleanupRequest) -> CleanupResu
         )
 
     except Exception as e:
-        logger.error(f"Failed to run partition cleanup: {e}", exc_info=True)
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Failed to run partition cleanup: {e}",
+            exc_info=True,
+            months_ahead=body.months_ahead,
+            dry_run=body.dry_run,
+        )
         raise HTTPException(status_code=500, detail="Failed to run partition cleanup") from None

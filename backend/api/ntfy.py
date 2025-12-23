@@ -13,6 +13,8 @@ from typing import Literal
 
 import httpx
 
+from bo1.logging.errors import ErrorCode, log_error
+
 logger = logging.getLogger(__name__)
 
 # Default ntfy server (self-hosted)
@@ -105,10 +107,24 @@ async def send_ntfy_alert(
         return True
 
     except httpx.HTTPError as e:
-        logger.error(f"Failed to send ntfy alert: {e}")
+        log_error(
+            logger,
+            ErrorCode.EXT_NTFY_ERROR,
+            f"Failed to send ntfy alert: {e}",
+            exc_info=True,
+            topic=topic,
+            title=safe_title,
+        )
         return False
     except Exception as e:
-        logger.error(f"Unexpected error sending ntfy alert: {e}")
+        log_error(
+            logger,
+            ErrorCode.EXT_NTFY_ERROR,
+            f"Unexpected error sending ntfy alert: {e}",
+            exc_info=True,
+            topic=topic,
+            title=safe_title,
+        )
         return False
 
 

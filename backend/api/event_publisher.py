@@ -18,6 +18,7 @@ import redis
 from backend.api.metrics import metrics
 from backend.services.event_batcher import get_batcher
 from bo1.context import get_request_id
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories import session_repository
 
 logger = logging.getLogger(__name__)
@@ -34,8 +35,8 @@ DLQ_ALERT_THRESHOLD = 10  # Warning log at this depth
 DLQ_CRITICAL_THRESHOLD = 50  # Error log at this depth
 
 # Semaphore to limit concurrent event persistence tasks
-# Set below pool max (20) to leave headroom for other operations
-PERSIST_SEMAPHORE_LIMIT = 15
+# Set below pool max (75) to leave headroom for other operations
+PERSIST_SEMAPHORE_LIMIT = 50
 _persist_semaphore: asyncio.Semaphore | None = None
 
 # Batch persistence configuration
@@ -101,7 +102,12 @@ async def _flush_batch() -> None:
             try:
                 session_repository.save_event(sid, etype, seq, data)
             except Exception as ind_error:
-                logger.error(f"Individual persist failed for {etype}: {ind_error}")
+                log_error(
+                    logger,
+                    ErrorCode.DB_WRITE_ERROR,
+                    f"Individual persist failed for {etype}: {ind_error}",
+                    event_type=etype,
+                )
                 metrics.increment("event.persist_failed")
 
 
@@ -112,7 +118,7 @@ async def _batch_flush_loop() -> None:
         try:
             await _flush_batch()
         except Exception as e:
-            logger.error(f"Batch flush loop error: {e}")
+            log_error(logger, ErrorCode.DB_WRITE_ERROR, f"Batch flush loop error: {e}")
 
 
 def start_batch_flush_task() -> None:
@@ -187,7 +193,12 @@ async def flush_session_events(session_id: str) -> None:
             session_repository.save_events_batch(session_events)
             logger.debug(f"Flushed {len(session_events)} events for session {session_id}")
         except Exception as e:
-            logger.error(f"Failed to flush session events: {e}")
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to flush session events: {e}",
+                session_id=session_id,
+            )
             # Fallback to individual
             for sid, etype, seq, data in session_events:
                 try:
@@ -238,7 +249,13 @@ async def queue_failed_event(
         )
         return True
     except Exception as e:
-        logger.error(f"Failed to queue failed event: {e}")
+        log_error(
+            logger,
+            ErrorCode.REDIS_WRITE_ERROR,
+            f"Failed to queue failed event: {e}",
+            session_id=session_id,
+            event_type=event_type,
+        )
         return False
 
 
@@ -280,7 +297,7 @@ async def get_pending_retries(
 
         return events
     except Exception as e:
-        logger.error(f"Failed to get pending retries: {e}")
+        log_error(logger, ErrorCode.REDIS_READ_ERROR, f"Failed to get pending retries: {e}")
         return []
 
 
@@ -361,7 +378,7 @@ async def update_retry_event(
             f"{event['event_type']} in {delay_seconds}s"
         )
     except Exception as e:
-        logger.error(f"Failed to update retry event: {e}")
+        log_error(logger, ErrorCode.REDIS_WRITE_ERROR, f"Failed to update retry event: {e}")
 
 
 async def move_to_dlq(
@@ -380,12 +397,16 @@ async def move_to_dlq(
         event["moved_to_dlq_at"] = datetime.now(UTC).isoformat()
         redis_client.zadd(FAILED_EVENTS_DLQ_KEY, {json.dumps(event): score})
 
-        logger.error(
-            f"CRITICAL: Event moved to DLQ after {MAX_RETRIES} failed retries: "
-            f"{event['event_type']} (session {event['session_id']}, seq {event['sequence']})"
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"CRITICAL: Event moved to DLQ after {MAX_RETRIES} failed retries: {event['event_type']}",
+            session_id=event["session_id"],
+            sequence=event["sequence"],
+            event_type=event["event_type"],
         )
     except Exception as e:
-        logger.error(f"Failed to move event to DLQ: {e}")
+        log_error(logger, ErrorCode.REDIS_WRITE_ERROR, f"Failed to move event to DLQ: {e}")
 
 
 async def get_queue_depth(redis_client: redis.Redis) -> int:  # type: ignore[type-arg]
@@ -400,7 +421,7 @@ async def get_queue_depth(redis_client: redis.Redis) -> int:  # type: ignore[typ
     try:
         return redis_client.zcard(FAILED_EVENTS_KEY)
     except Exception as e:
-        logger.error(f"Failed to get queue depth: {e}")
+        log_error(logger, ErrorCode.REDIS_READ_ERROR, f"Failed to get queue depth: {e}")
         return -1
 
 
@@ -416,7 +437,7 @@ async def get_dlq_depth(redis_client: redis.Redis) -> int:  # type: ignore[type-
     try:
         return redis_client.zcard(FAILED_EVENTS_DLQ_KEY)
     except Exception as e:
-        logger.error(f"Failed to get DLQ depth: {e}")
+        log_error(logger, ErrorCode.REDIS_READ_ERROR, f"Failed to get DLQ depth: {e}")
         return -1
 
 
@@ -431,10 +452,12 @@ def check_dlq_alerts(dlq_depth: int) -> None:
         return
 
     if dlq_depth >= DLQ_CRITICAL_THRESHOLD:
-        logger.error(
-            "[DLQ_ALERT] Critical: DLQ depth %d exceeds critical threshold %d",
-            dlq_depth,
-            DLQ_CRITICAL_THRESHOLD,
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"[DLQ_ALERT] Critical: DLQ depth {dlq_depth} exceeds critical threshold {DLQ_CRITICAL_THRESHOLD}",
+            dlq_depth=dlq_depth,
+            threshold=DLQ_CRITICAL_THRESHOLD,
         )
     elif dlq_depth >= DLQ_ALERT_THRESHOLD:
         logger.warning(
@@ -496,7 +519,12 @@ async def get_event_history_with_fallback(
             logger.warning(f"[REDIS_FALLBACK] Redis unavailable for {session_id}: {e}")
             used_fallback = True
         except Exception as e:
-            logger.error(f"[REDIS_FALLBACK] Unexpected Redis error for {session_id}: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_READ_ERROR,
+                f"[REDIS_FALLBACK] Unexpected Redis error for {session_id}: {e}",
+                session_id=session_id,
+            )
             used_fallback = True
     else:
         used_fallback = True
@@ -800,10 +828,13 @@ async def _persist_event_async(
         )
     except Exception as batch_error:
         last_error = batch_error
-        logger.error(
-            f"CRITICAL: Event batching failed for "
-            f"{event_type} (session {session_id}): {batch_error}\n"
-            f"This event will be LOST when Redis expires!"
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            "CRITICAL: Event batching failed - event will be LOST when Redis expires!",
+            exc_info=True,
+            session_id=session_id,
+            event_type=event_type,
         )
         metrics.increment("event.persist_failed")
 
@@ -820,7 +851,12 @@ async def _persist_event_async(
                 original_error=str(last_error),
             )
         except Exception as queue_error:
-            logger.error(f"Failed to queue failed event: {queue_error}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"Failed to queue failed event: {queue_error}",
+                session_id=session_id,
+            )
 
         # Emit error event to frontend
         try:
@@ -837,9 +873,20 @@ async def _persist_event_async(
             }
             error_message = json.dumps(error_payload)
             redis_client.publish(channel, error_message)
-            logger.error(f"Emitted persistence_error event for failed {event_type}")
+            log_error(
+                logger,
+                ErrorCode.API_SSE_ERROR,
+                f"Emitted persistence_error event for failed {event_type}",
+                session_id=session_id,
+                event_type=event_type,
+            )
         except Exception as emit_error:
-            logger.error(f"Failed to emit persistence error event: {emit_error}")
+            log_error(
+                logger,
+                ErrorCode.API_SSE_ERROR,
+                f"Failed to emit persistence error event: {emit_error}",
+                session_id=session_id,
+            )
 
 
 class EventPublisher:
@@ -965,10 +1012,13 @@ class EventPublisher:
                 self.redis.publish(channel, message)
 
                 flushed += 1
-            except Exception as e:
-                logger.error(
-                    f"[REDIS_BUFFER] Failed to flush buffered event "
-                    f"{event_type} (session {session_id}): {e}"
+            except Exception:
+                log_error(
+                    logger,
+                    ErrorCode.REDIS_WRITE_ERROR,
+                    f"[REDIS_BUFFER] Failed to flush buffered event {event_type}",
+                    session_id=session_id,
+                    event_type=event_type,
                 )
                 # Re-buffer failed events
                 async with self._buffer_lock:
@@ -1174,12 +1224,22 @@ class EventPublisher:
                         sequence=sequence,
                         data=payload,
                     )
-                except Exception as db_error:
-                    logger.error(
-                        f"CRITICAL: Sync fallback persistence failed for "
-                        f"{event_type} (session {session_id}): {db_error}"
+                except Exception:
+                    log_error(
+                        logger,
+                        ErrorCode.DB_WRITE_ERROR,
+                        f"CRITICAL: Sync fallback persistence failed for {event_type}",
+                        exc_info=True,
+                        session_id=session_id,
+                        event_type=event_type,
                     )
 
         except Exception as e:
-            logger.error(f"Failed to publish {event_type} to {channel}: {e}")
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"Failed to publish {event_type} to {channel}: {e}",
+                session_id=session_id,
+                event_type=event_type,
+            )
             # Don't raise - event publishing should not block graph execution

@@ -280,6 +280,202 @@ class TestMixedTypes:
         assert isinstance(deserialized["contributions"][1], ContributionMessage)
 
 
+class TestRequestIdField:
+    """Test request_id field in state."""
+
+    def test_create_initial_state_with_request_id(self, sample_problem: Problem) -> None:
+        """create_initial_state accepts and includes request_id."""
+        state = create_initial_state(
+            session_id="test_request_id",
+            problem=sample_problem,
+            request_id="req_abc123",
+        )
+        assert state["request_id"] == "req_abc123"
+
+    def test_create_initial_state_without_request_id(self, sample_problem: Problem) -> None:
+        """create_initial_state defaults request_id to None."""
+        state = create_initial_state(
+            session_id="test_no_request_id",
+            problem=sample_problem,
+        )
+        assert state["request_id"] is None
+
+    def test_request_id_roundtrip(self, sample_problem: Problem) -> None:
+        """request_id survives serialize/deserialize roundtrip."""
+        state = create_initial_state(
+            session_id="test_rid_roundtrip",
+            problem=sample_problem,
+            request_id="req_xyz789",
+        )
+
+        serialized = serialize_state_for_checkpoint(state)
+        assert serialized["request_id"] == "req_xyz789"
+
+        deserialized = deserialize_state_from_checkpoint(serialized)
+        assert deserialized["request_id"] == "req_xyz789"
+
+    def test_old_checkpoint_without_request_id(self) -> None:
+        """Old checkpoints without request_id field load correctly."""
+        # Simulate checkpoint from before request_id was added
+        minimal_checkpoint = {
+            "session_id": "old_session",
+            "problem": {
+                "title": "Test",
+                "description": "Test problem",
+                "context": "Test context",
+                "sub_problems": [],
+            },
+            "phase": DeliberationPhase.INTAKE,
+            "round_number": 0,
+            "max_rounds": 5,
+            # No request_id field
+        }
+
+        deserialized = deserialize_state_from_checkpoint(minimal_checkpoint)
+
+        # Should not raise, field simply absent
+        assert deserialized["session_id"] == "old_session"
+        assert "request_id" not in deserialized
+
+
+class TestCorruptedSubProblemId:
+    """Test handling of corrupted current_sub_problem.id in deserialization."""
+
+    def test_detect_corrupted_list_id(self) -> None:
+        """Detect corrupted current_sub_problem.id that is a list."""
+        # Simulate corrupted checkpoint where id became a type annotation path
+        corrupted_checkpoint = {
+            "session_id": "test_corrupted",
+            "problem": {
+                "title": "Test",
+                "description": "Test problem",
+                "context": "Test context",
+                "sub_problems": [
+                    {
+                        "id": "sp1",
+                        "goal": "First goal",
+                        "context": "ctx",
+                        "complexity_score": 5,
+                    },
+                    {
+                        "id": "sp2",
+                        "goal": "Second goal",
+                        "context": "ctx",
+                        "complexity_score": 5,
+                    },
+                ],
+            },
+            "current_sub_problem": {
+                # Corrupted id - list instead of string
+                "id": ["bo1", "models", "problem", "SubProblem"],
+                "goal": "Should not matter",
+                "context": "ctx",
+                "complexity_score": 5,
+            },
+            "sub_problem_index": 1,
+            "phase": DeliberationPhase.DISCUSSION,
+            "round_number": 2,
+            "max_rounds": 5,
+        }
+
+        # Should repair from problem.sub_problems using index
+        deserialized = deserialize_state_from_checkpoint(corrupted_checkpoint)
+
+        # Verify repair happened - should now have correct id from sp2
+        current_sp = deserialized.get("current_sub_problem")
+        assert current_sp is not None
+        assert isinstance(current_sp, SubProblem)
+        assert current_sp.id == "sp2"
+        assert current_sp.goal == "Second goal"
+
+    def test_corrupted_id_repair_uses_index(self) -> None:
+        """Verify repair uses sub_problem_index correctly."""
+        corrupted_checkpoint = {
+            "session_id": "test_index_repair",
+            "problem": {
+                "title": "Test",
+                "description": "Test problem",
+                "context": "Test context",
+                "sub_problems": [
+                    {
+                        "id": "sp_alpha",
+                        "goal": "Alpha goal",
+                        "context": "ctx",
+                        "complexity_score": 3,
+                    },
+                ],
+            },
+            "current_sub_problem": {
+                "id": ["corrupted", "list"],
+                "goal": "Ignored",
+                "context": "ctx",
+                "complexity_score": 5,
+            },
+            "sub_problem_index": 0,  # Should repair to sp_alpha
+            "phase": DeliberationPhase.DISCUSSION,
+            "round_number": 1,
+            "max_rounds": 5,
+        }
+
+        deserialized = deserialize_state_from_checkpoint(corrupted_checkpoint)
+
+        current_sp = deserialized.get("current_sub_problem")
+        assert current_sp is not None
+        assert current_sp.id == "sp_alpha"
+        assert current_sp.goal == "Alpha goal"
+
+    def test_corrupted_id_no_problem_sets_none(self) -> None:
+        """If problem is missing, cannot repair - current_sub_problem becomes None."""
+        # No problem field, so repair is impossible
+        corrupted_checkpoint = {
+            "session_id": "test_no_repair",
+            "current_sub_problem": {
+                "id": ["corrupted", "list"],
+                "goal": "Test",
+                "context": "ctx",
+                "complexity_score": 5,
+            },
+            "sub_problem_index": 0,
+            "phase": DeliberationPhase.DISCUSSION,
+            "round_number": 1,
+            "max_rounds": 5,
+        }
+
+        # Should not crash - corrupted data is removed
+        deserialized = deserialize_state_from_checkpoint(corrupted_checkpoint)
+
+        # current_sub_problem should be None (repair failed)
+        assert deserialized.get("current_sub_problem") is None
+
+    def test_valid_string_id_not_modified(self) -> None:
+        """Valid string id is not modified during deserialization."""
+        valid_checkpoint = {
+            "session_id": "test_valid",
+            "problem": {
+                "title": "Test",
+                "description": "Test problem",
+                "context": "Test context",
+                "sub_problems": [],
+            },
+            "current_sub_problem": {
+                "id": "sp_valid_123",
+                "goal": "Valid goal",
+                "context": "ctx",
+                "complexity_score": 5,
+            },
+            "phase": DeliberationPhase.DISCUSSION,
+            "round_number": 1,
+            "max_rounds": 5,
+        }
+
+        deserialized = deserialize_state_from_checkpoint(valid_checkpoint)
+
+        current_sp = deserialized.get("current_sub_problem")
+        assert current_sp is not None
+        assert isinstance(current_sp, SubProblem)
+        assert current_sp.id == "sp_valid_123"
+
+
 class TestSubProblemResultSerialization:
     """Test SubProblemResult serialization specifically."""
 

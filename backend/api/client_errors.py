@@ -15,6 +15,7 @@ from slowapi.util import get_remote_address
 
 from backend.api.middleware.rate_limit import limiter
 from backend.api.utils.db_helpers import execute_query
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -108,5 +109,5 @@ async def report_client_error(
 
     except Exception as e:
         # Don't fail the request if logging fails
-        logger.error(f"Failed to store client error: {e}")
+        log_error(logger, ErrorCode.SERVICE_EXECUTION_ERROR, f"Failed to store client error: {e}")
         return ClientErrorResponse(success=False, message="Failed to store error")

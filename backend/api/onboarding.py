@@ -19,6 +19,7 @@ from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import execute_query, get_single_value
 from backend.api.utils.errors import handle_api_errors
+from bo1.logging.errors import ErrorCode, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,12 @@ def _get_onboarding_record(user_id: str) -> dict[str, Any] | None:
         )
         return dict(row) if row else None
     except Exception as e:
-        logger.error(f"Failed to get onboarding record: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_ONBOARDING_ERROR,
+            f"Failed to get onboarding record: {e}",
+            user_id=user_id,
+        )
         return None
 
 
@@ -94,7 +100,12 @@ def _ensure_onboarding_record(user_id: str) -> dict[str, Any]:
         )
         return dict(row) if row else {}
     except Exception as e:
-        logger.error(f"Failed to ensure onboarding record: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_ONBOARDING_ERROR,
+            f"Failed to ensure onboarding record: {e}",
+            user_id=user_id,
+        )
         return {}
 
 
@@ -110,7 +121,12 @@ def _check_context_setup(user_id: str) -> bool:
             )
         )
     except Exception as e:
-        logger.error(f"Failed to check context setup: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_ONBOARDING_ERROR,
+            f"Failed to check context setup: {e}",
+            user_id=user_id,
+        )
         return False
 
 

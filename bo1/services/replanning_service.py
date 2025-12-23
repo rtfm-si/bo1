@@ -41,6 +41,45 @@ class ReplanningService:
             self._redis_manager = RedisManager()
         return self._redis_manager
 
+    def _rollback_session(self, session_id: str, user_id: str) -> None:
+        """Rollback a partially-created session by deleting from PostgreSQL and Redis.
+
+        Called when session creation fails after PostgreSQL insert but before completion.
+        Logs errors but does not re-raise to avoid masking the original failure.
+
+        Args:
+            session_id: Session ID to delete
+            user_id: User ID for Redis index cleanup
+        """
+        log_error(
+            logger,
+            ErrorCode.DB_WRITE_ERROR,
+            f"Rolling back session {session_id} due to partial creation failure",
+        )
+
+        # Delete from PostgreSQL (cascades to session_projects, session_events, etc.)
+        try:
+            session_repository.delete(session_id)
+            logger.info(f"Deleted session {session_id} from PostgreSQL during rollback")
+        except Exception as e:
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to delete session {session_id} from PostgreSQL during rollback: {e}",
+            )
+
+        # Delete from Redis
+        try:
+            self.redis_manager.delete_state(session_id)
+            self.redis_manager.remove_session_from_user_index(user_id, session_id)
+            logger.info(f"Deleted session {session_id} from Redis during rollback")
+        except Exception as e:
+            log_error(
+                logger,
+                ErrorCode.REDIS_WRITE_ERROR,
+                f"Failed to delete session {session_id} from Redis during rollback: {e}",
+            )
+
     def create_replan_session(
         self,
         action_id: str,
@@ -148,6 +187,7 @@ class ReplanningService:
             raise RuntimeError("Failed to create replanning session") from e
 
         # 4. Link session to project (if action has a project)
+        # On failure, rollback entire session to avoid orphans
         project_id = action.get("project_id")
         if project_id:
             try:
@@ -158,12 +198,16 @@ class ReplanningService:
                 )
                 logger.info(f"Linked replanning session {session_id} to project {project_id}")
             except Exception as e:
-                logger.warning(
-                    f"Failed to link replanning session to project: {e}. "
-                    "Session created but not linked."
+                log_error(
+                    logger,
+                    ErrorCode.DB_WRITE_ERROR,
+                    f"Failed to link replanning session to project: {e}. Rolling back session.",
                 )
+                self._rollback_session(session_id, user_id)
+                raise RuntimeError(f"Failed to link session to project {project_id}: {e}") from e
 
         # 5. Update action with replan_session_id
+        # On failure, unlink from project (if linked) and rollback session
         try:
             self._update_action_replan_fields(
                 action_id=action_id,
@@ -172,10 +216,25 @@ class ReplanningService:
                 replanning_reason=additional_context,
             )
         except Exception as e:
-            logger.warning(
-                f"Failed to update action with replanning info: {e}. "
-                "Session created but action not updated."
+            log_error(
+                logger,
+                ErrorCode.DB_WRITE_ERROR,
+                f"Failed to update action with replanning info: {e}. Rolling back session.",
             )
+            # Unlink from project if it was linked
+            if project_id:
+                try:
+                    project_repository.unlink_session(project_id, session_id)
+                except Exception as unlink_error:
+                    log_error(
+                        logger,
+                        ErrorCode.DB_WRITE_ERROR,
+                        f"Failed to unlink session from project during rollback: {unlink_error}",
+                    )
+            self._rollback_session(session_id, user_id)
+            raise RuntimeError(
+                f"Failed to update action {action_id} with replanning session: {e}"
+            ) from e
 
         # 6. Return session details
         return {

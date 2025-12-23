@@ -62,19 +62,25 @@ def log_with_session(
     level: int,
     session_id: str | None,
     msg: str,
+    request_id: str | None = None,
     **kwargs: Any,
 ) -> None:
-    """Log message with session correlation ID prefix.
+    """Log message with session and request correlation IDs.
 
     Args:
         log: Logger instance to use
         level: Logging level (e.g., logging.INFO)
         session_id: Session ID for correlation (truncated to 8 chars)
         msg: Log message
+        request_id: HTTP request ID for cross-system correlation
         **kwargs: Extra fields for structured logging
     """
     sid = (session_id or "unknown")[:8]
-    formatted_msg = f"[session={sid}] {msg}"
+    rid = request_id[:8] if request_id else None
+    if rid:
+        formatted_msg = f"[session={sid}][request={rid}] {msg}"
+    else:
+        formatted_msg = f"[session={sid}] {msg}"
     log.log(level, formatted_msg, **kwargs)
 
 

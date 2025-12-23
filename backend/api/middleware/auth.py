@@ -31,6 +31,7 @@ from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from bo1.config import get_settings
 from bo1.feature_flags import ENABLE_SUPERTOKENS_AUTH
+from bo1.logging.errors import ErrorCode, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,12 @@ async def _get_current_user_with_session(
         }
 
     except Exception as e:
-        logger.error(f"Failed to get user from SuperTokens session: {e}", exc_info=True)
+        log_error(
+            logger,
+            ErrorCode.AUTH_TOKEN_ERROR,
+            f"Failed to get user from SuperTokens session: {e}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=401,
             detail="Authentication failed",
@@ -143,7 +149,11 @@ async def _get_current_user_with_session(
 async def _get_current_user_mvp() -> dict[str, Any]:
     """MVP mode: Return hardcoded user without session verification."""
     if not DEBUG_MODE:
-        logger.error("Auth bypass attempted in non-DEBUG mode - rejecting")
+        log_error(
+            logger,
+            ErrorCode.AUTH_TOKEN_ERROR,
+            "Auth bypass attempted in non-DEBUG mode - rejecting",
+        )
         raise HTTPException(
             status_code=500,
             detail="Authentication misconfigured. Contact support.",

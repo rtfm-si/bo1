@@ -89,7 +89,9 @@ export type SSEEventType =
 	// User Interjection ("Raise Hand")
 	| 'user_interjection_raised'
 	| 'interjection_response'
-	| 'interjection_complete';
+	| 'interjection_complete'
+	// State transitions (progress visualization)
+	| 'state_transition';
 
 // =============================================================================
 // Lifecycle Events
@@ -636,6 +638,20 @@ export interface GapDetectedPayload {
 }
 
 // =============================================================================
+// State Transition Events (Progress Visualization)
+// =============================================================================
+
+/**
+ * State transition between graph nodes
+ * Emitted: When execution moves from one node to another
+ */
+export interface StateTransitionPayload {
+	from_node: string | null;
+	to_node: string;
+	sub_problem_index: number;
+}
+
+// =============================================================================
 // User Interjection Events ("Raise Hand")
 // =============================================================================
 
@@ -733,6 +749,8 @@ export interface SSEEventMap {
 	user_interjection_raised: UserInterjectionRaisedPayload;
 	interjection_response: InterjectionResponsePayload;
 	interjection_complete: InterjectionCompletePayload;
+	// State transitions
+	state_transition: StateTransitionPayload;
 }
 
 /**
@@ -923,6 +941,11 @@ export type InterjectionResponseEvent = SSEEvent<'interjection_response'>;
  */
 export type InterjectionCompleteEvent = SSEEvent<'interjection_complete'>;
 
+/**
+ * Typed state_transition event
+ */
+export type StateTransitionEvent = SSEEvent<'state_transition'>;
+
 // =============================================================================
 // Type Guards
 // =============================================================================
@@ -1079,6 +1102,13 @@ export function isInterjectionResponseEvent(event: SSEEvent): event is SSEEvent<
  */
 export function isInterjectionCompleteEvent(event: SSEEvent): event is SSEEvent<'interjection_complete'> {
 	return event.event_type === 'interjection_complete';
+}
+
+/**
+ * Type guard for state_transition events
+ */
+export function isStateTransitionEvent(event: SSEEvent): event is SSEEvent<'state_transition'> {
+	return event.event_type === 'state_transition';
 }
 
 /**

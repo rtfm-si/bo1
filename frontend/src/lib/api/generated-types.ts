@@ -1523,6 +1523,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/queries/slow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get slowest queries
+         * @description Get the top N slowest queries from pg_stat_statements ordered by mean execution time.
+         *
+         *         Returns:
+         *         - Query text (may be truncated for long queries)
+         *         - Call count
+         *         - Mean and total execution time
+         *         - Row count
+         *         - Buffer cache hit/read statistics
+         *
+         *         Note: Requires pg_stat_statements extension to be enabled.
+         *         If not available, returns empty list with extension_available=false.
+         */
+        get: operations["get_slow_queries_api_admin_queries_slow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/queries/slow/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset query statistics
+         * @description Reset all query statistics in pg_stat_statements.
+         *
+         *         Use this after deploying optimizations to start fresh measurements.
+         *         Requires superuser or pg_stat_statements_reset privilege.
+         */
+        post: operations["reset_query_stats_api_admin_queries_slow_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/research-cache/stale": {
         parameters: {
             query?: never;
@@ -5540,6 +5593,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/raise-hand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Raise hand to interject during deliberation
+         * @description Submit a question or context during an active meeting. Experts will acknowledge and respond.
+         */
+        post: operations["raise_hand_api_v1_sessions__session_id__raise_hand_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/resume": {
         parameters: {
             query?: never;
@@ -5554,6 +5627,26 @@ export interface paths {
          * @description Resume a paused deliberation session from its last checkpoint.
          */
         post: operations["resume_deliberation_api_v1_sessions__session_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{session_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry failed session from checkpoint
+         * @description Retry a failed deliberation session from its last successful checkpoint.
+         */
+        post: operations["retry_deliberation_api_v1_sessions__session_id__retry_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9386,6 +9479,16 @@ export interface components {
             seo_structure?: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Strategic Objectives
+             * @description Supporting strategic objectives (up to 5) to complement the north star goal
+             * @example [
+             *       "Increase conversion rate",
+             *       "Reduce churn",
+             *       "Expand to EU market"
+             *     ]
+             */
+            strategic_objectives?: string[] | null;
             /**
              * Target Geography
              * @description Target geography
@@ -15639,6 +15742,20 @@ export interface components {
             trend?: components["schemas"]["TrendSpec"] | null;
         };
         /**
+         * RaiseHandRequest
+         * @description Request model for user interjection during deliberation.
+         *
+         *     Allows users to interject with a question or context during an active meeting.
+         */
+        RaiseHandRequest: {
+            /**
+             * Message
+             * @description User's interjection message (question or context to add)
+             * @example What about the regulatory compliance implications?
+             */
+            message: string;
+        };
+        /**
          * ReadinessResponse
          * @description Readiness check response for k8s probes.
          *
@@ -16691,6 +16808,68 @@ export interface components {
              * @description User ID
              */
             user_id: string;
+        };
+        /**
+         * SlowQueryListResponse
+         * @description Response containing list of slow queries.
+         */
+        SlowQueryListResponse: {
+            /**
+             * Extension Available
+             * @description Whether pg_stat_statements extension is available
+             */
+            extension_available: boolean;
+            /**
+             * Message
+             * @description Status message (e.g., extension not configured)
+             */
+            message?: string | null;
+            /**
+             * Queries
+             * @description List of slow queries
+             */
+            queries: components["schemas"]["SlowQueryResponse"][];
+        };
+        /**
+         * SlowQueryResponse
+         * @description Single slow query entry from pg_stat_statements.
+         */
+        SlowQueryResponse: {
+            /**
+             * Calls
+             * @description Number of times the query was executed
+             */
+            calls: number;
+            /**
+             * Mean Time Ms
+             * @description Mean execution time in milliseconds
+             */
+            mean_time_ms: number;
+            /**
+             * Query
+             * @description SQL query text (may be truncated)
+             */
+            query: string;
+            /**
+             * Rows
+             * @description Total number of rows retrieved or affected
+             */
+            rows: number;
+            /**
+             * Shared Blks Hit
+             * @description Shared blocks hit in buffer cache
+             */
+            shared_blks_hit: number;
+            /**
+             * Shared Blks Read
+             * @description Shared blocks read from disk
+             */
+            shared_blks_read: number;
+            /**
+             * Total Time Ms
+             * @description Total execution time in milliseconds
+             */
+            total_time_ms: number;
         };
         /**
          * SnoozeReminderRequest
@@ -22606,6 +22785,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_slow_queries_api_admin_queries_slow_get: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of queries to return */
+                limit?: number;
+                /** @description Minimum number of calls to include query */
+                min_calls?: number;
+            };
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Slow queries retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlowQueryListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reset_query_stats_api_admin_queries_slow_reset_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Statistics reset successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -30705,6 +30971,95 @@ export interface operations {
             };
         };
     };
+    raise_hand_api_v1_sessions__session_id__raise_hand_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RaiseHandRequest"];
+            };
+        };
+        responses: {
+            /** @description Interjection submitted, experts will respond */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlResponse"];
+                };
+            };
+            /** @description Invalid request or session not running */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Cannot raise hand: session is not running",
+                     *       "session_id": "bo1_abc123",
+                     *       "status": "paused"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Prompt injection detected */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Interjection message contains unsafe content",
+                     *       "error_code": "INJECTION_DETECTED"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Rate limit exceeded. Try again later."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     resume_deliberation_api_v1_sessions__session_id__resume_post: {
         parameters: {
             query?: never;
@@ -30805,6 +31160,114 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "Failed to resume deliberation: checkpoint load failed",
+                     *       "error_code": "CHECKPOINT_LOAD_FAILED"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_deliberation_api_v1_sessions__session_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deliberation retried from checkpoint */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlResponse"];
+                };
+            };
+            /** @description Invalid request - session not in failed status */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Cannot retry session with status: running. Session must be failed.",
+                     *       "session_id": "bo1_abc123",
+                     *       "status": "running"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Session not found",
+                     *       "session_id": "bo1_abc123"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Session already running */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Session bo1_abc123 is already running",
+                     *       "error_code": "SESSION_ALREADY_RUNNING",
+                     *       "session_id": "bo1_abc123"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Checkpoint expired and cannot be reconstructed */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Session checkpoint expired and cannot be reconstructed. Please start a new meeting.",
+                     *       "error_code": "CHECKPOINT_EXPIRED"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Failed to retry deliberation: checkpoint load failed",
                      *       "error_code": "CHECKPOINT_LOAD_FAILED"
                      *     }
                      */

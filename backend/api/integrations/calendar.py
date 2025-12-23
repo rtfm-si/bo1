@@ -24,6 +24,7 @@ from backend.services.google_calendar import (
     get_auth_url,
 )
 from bo1.config import get_settings
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
@@ -169,7 +170,13 @@ async def calendar_oauth_callback(
         )
 
     if not code or not state:
-        logger.error("Calendar OAuth callback missing code or state")
+        log_error(
+            logger,
+            ErrorCode.EXT_CALENDAR_ERROR,
+            "Calendar OAuth callback missing code or state",
+            code=code,
+            state_present=bool(state),
+        )
         return RedirectResponse(
             url=f"{frontend_url}/settings/integrations?calendar_error=invalid_request",
             status_code=302,
@@ -180,7 +187,12 @@ async def calendar_oauth_callback(
     session_data = session_manager.get(f"calendar_oauth:{state}")
 
     if not session_data:
-        logger.error("Calendar OAuth callback: invalid or expired state")
+        log_error(
+            logger,
+            ErrorCode.EXT_CALENDAR_ERROR,
+            "Calendar OAuth callback: invalid or expired state",
+            state=state,
+        )
         return RedirectResponse(
             url=f"{frontend_url}/settings/integrations?calendar_error=invalid_state",
             status_code=302,
@@ -188,7 +200,12 @@ async def calendar_oauth_callback(
 
     user_id = session_data.get("user_id")
     if not user_id:
-        logger.error("Calendar OAuth callback: missing user_id in state")
+        log_error(
+            logger,
+            ErrorCode.EXT_CALENDAR_ERROR,
+            "Calendar OAuth callback: missing user_id in state",
+            state=state,
+        )
         return RedirectResponse(
             url=f"{frontend_url}/settings/integrations?calendar_error=invalid_state",
             status_code=302,
@@ -217,7 +234,12 @@ async def calendar_oauth_callback(
         )
 
     except CalendarError as e:
-        logger.error(f"Calendar OAuth token exchange failed: {e}")
+        log_error(
+            logger,
+            ErrorCode.EXT_CALENDAR_ERROR,
+            f"Calendar OAuth token exchange failed: {e}",
+            user_id=user_id,
+        )
         return RedirectResponse(
             url=f"{frontend_url}/settings/integrations?calendar_error=token_exchange_failed",
             status_code=302,

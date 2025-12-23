@@ -404,3 +404,148 @@ class TestAcknowledgedFailureVisibility:
         # 3. Failed sessions that are acknowledged
         assert "OR" in executed_query
         assert "s.id IS NULL" in executed_query
+
+
+class TestTagFilteringWithCTE:
+    """Test CTE + JOIN pattern for tag filtering."""
+
+    @pytest.fixture
+    def mock_cursor(self):
+        """Create a mock cursor."""
+        cursor = MagicMock()
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        cursor.fetchall.return_value = []
+        return cursor
+
+    @pytest.fixture
+    def mock_connection(self, mock_cursor):
+        """Create a mock connection."""
+        conn = MagicMock()
+        conn.__enter__ = MagicMock(return_value=conn)
+        conn.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = mock_cursor
+        return conn
+
+    def test_no_tag_filter_no_cte(self, mock_connection, mock_cursor):
+        """Verify query has no CTE when no tag_ids provided."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        with patch("bo1.state.repositories.base.db_session") as mock_db:
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_connection)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value = mock_connection
+
+            repo = ActionRepository()
+            repo.get_by_user("user_123")
+
+        executed_query = mock_cursor.execute.call_args[0][0]
+
+        # Should NOT have CTE or matched_actions join
+        assert "WITH matched_actions" not in executed_query
+        assert "INNER JOIN matched_actions" not in executed_query
+
+    def test_single_tag_filter_uses_cte(self, mock_connection, mock_cursor):
+        """Verify query uses CTE pattern when one tag_id is provided."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        with patch("bo1.state.repositories.base.db_session") as mock_db:
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_connection)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value = mock_connection
+
+            repo = ActionRepository()
+            repo.get_by_user("user_123", tag_ids=["tag_abc"])
+
+        executed_query = mock_cursor.execute.call_args[0][0]
+        params = mock_cursor.execute.call_args[0][1]
+
+        # Should have CTE and INNER JOIN
+        assert "WITH matched_actions AS" in executed_query
+        assert "INNER JOIN matched_actions ma ON a.id = ma.action_id" in executed_query
+        # CTE body should have correct structure
+        assert "at.tag_id = ANY(%s)" in executed_query
+        assert "GROUP BY at.action_id" in executed_query
+        assert "HAVING COUNT(DISTINCT at.tag_id) = %s" in executed_query
+        # Params: [tag_ids, len(tag_ids), user_id, limit, offset]
+        assert params[0] == ["tag_abc"]
+        assert params[1] == 1
+
+    def test_multiple_tags_filter_uses_cte(self, mock_connection, mock_cursor):
+        """Verify query uses CTE pattern when multiple tag_ids are provided."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        with patch("bo1.state.repositories.base.db_session") as mock_db:
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_connection)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value = mock_connection
+
+            repo = ActionRepository()
+            repo.get_by_user("user_123", tag_ids=["tag_abc", "tag_def"])
+
+        executed_query = mock_cursor.execute.call_args[0][0]
+        params = mock_cursor.execute.call_args[0][1]
+
+        # Should have CTE with correct count for AND logic
+        assert "WITH matched_actions AS" in executed_query
+        assert "HAVING COUNT(DISTINCT at.tag_id) = %s" in executed_query
+        # Params: [tag_ids, len(tag_ids)=2, user_id, limit, offset]
+        assert params[0] == ["tag_abc", "tag_def"]
+        assert params[1] == 2
+
+    def test_tag_filter_combined_with_status_filter(self, mock_connection, mock_cursor):
+        """Verify tag CTE works with status filter."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        with patch("bo1.state.repositories.base.db_session") as mock_db:
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_connection)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value = mock_connection
+
+            repo = ActionRepository()
+            repo.get_by_user("user_123", tag_ids=["tag_abc"], status_filter="todo")
+
+        executed_query = mock_cursor.execute.call_args[0][0]
+        params = mock_cursor.execute.call_args[0][1]
+
+        # Should have both CTE and status filter
+        assert "WITH matched_actions AS" in executed_query
+        assert "a.status = %s" in executed_query
+        # Params: [tag_ids, len(tag_ids), user_id, status_filter, limit, offset]
+        assert "todo" in params
+
+    def test_tag_filter_with_admin_excludes_visibility_filter(self, mock_connection, mock_cursor):
+        """Verify admin with tag filter doesn't have session status filter."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        with patch("bo1.state.repositories.base.db_session") as mock_db:
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_connection)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value = mock_connection
+
+            repo = ActionRepository()
+            repo.get_by_user("user_123", tag_ids=["tag_abc"], is_admin=True)
+
+        executed_query = mock_cursor.execute.call_args[0][0]
+
+        # Should have CTE but NOT session status filter
+        assert "WITH matched_actions AS" in executed_query
+        assert "s.status = 'completed'" not in executed_query
+
+    def test_tag_filter_preserves_no_correlated_subquery(self, mock_connection, mock_cursor):
+        """Verify the old correlated subquery pattern is NOT present."""
+        from bo1.state.repositories.action_repository import ActionRepository
+
+        with patch("bo1.state.repositories.base.db_session") as mock_db:
+            mock_db.return_value.__enter__ = MagicMock(return_value=mock_connection)
+            mock_db.return_value.__exit__ = MagicMock(return_value=False)
+            mock_db.return_value = mock_connection
+
+            repo = ActionRepository()
+            repo.get_by_user("user_123", tag_ids=["tag_abc"])
+
+        executed_query = mock_cursor.execute.call_args[0][0]
+
+        # Should NOT have the old correlated IN subquery pattern
+        assert "AND a.id IN (" not in executed_query
+        assert "a.id IN (SELECT at.action_id" not in executed_query

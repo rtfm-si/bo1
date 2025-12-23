@@ -463,6 +463,39 @@
 		}
 	}
 
+	/**
+	 * Retry a failed session from its last checkpoint.
+	 * This calls the /retry endpoint to resume from where the session failed.
+	 */
+	let isRetrying = $state(false);
+	async function handleRetryFailedSession() {
+		if (isRetrying) return;
+		isRetrying = true;
+
+		try {
+			// Clear error state
+			store.clearSessionError();
+
+			// Call retry API
+			await apiClient.retrySession(sessionId);
+
+			// Reload session to get updated status
+			await loadSession();
+
+			// Start event stream to receive new events
+			await startEventStream();
+		} catch (error) {
+			console.error('Failed to retry session:', error);
+			store.setSessionError({
+				type: 'RetryError',
+				message: error instanceof Error ? error.message : 'Failed to retry session',
+				timestamp: new Date().toISOString(),
+			});
+		} finally {
+			isRetrying = false;
+		}
+	}
+
 	// ============================================================================
 	// PDF EXPORT
 	// ============================================================================
@@ -629,8 +662,10 @@
 					errorType={sessionError.type}
 					errorMessage={sessionError.message}
 					{sessionId}
-					onRetry={handleRetryAfterError}
-					canRetry={session?.status !== 'failed'}
+					onRetry={session?.status === 'failed' ? handleRetryFailedSession : handleRetryAfterError}
+					canRetry={true}
+					subProblemResults={eventState.subProblemResultsForPartialSuccess}
+					totalSubProblems={eventState.totalSubProblemsCount}
 				/>
 			</div>
 		{/if}

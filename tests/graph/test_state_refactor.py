@@ -455,6 +455,7 @@ class TestFieldCount:
         # Core fields not in nested dicts
         core_fields = {
             "session_id",
+            "request_id",
             "user_id",
             "subscription_tier",
             "user_input",

@@ -47,6 +47,44 @@ class XMLValidationError(Exception):
         super().__init__(message)
 
 
+# =============================================================================
+# CHALLENGE PHASE VALIDATION PATTERNS
+# =============================================================================
+
+# Patterns indicating generic agreement (passive/sycophantic responses)
+GENERIC_AGREEMENT_PATTERNS = [
+    r"\bi\s+(?:fully\s+)?agree\s+with\s+\w+",  # "I agree with Henrik"
+    r"\bbuilding\s+on\s+\w+'?s?\s+(?:point|insight|analysis)",  # "building on X's point"
+    r"\bto\s+add\s+to\s+\w+'?s?\s+(?:excellent\s+)?(?:point|analysis)",  # "to add to X's point"
+    r"\b(?:great|excellent|fantastic|wonderful)\s+point\s+(?:by\s+)?\w+",  # "great point, X"
+    r"\b\w+\s+(?:is\s+)?(?:exactly|absolutely)\s+right",  # "X is exactly right"
+    r"\bi\s+(?:strongly\s+)?support\s+\w+'?s?\s+(?:view|position|recommendation)",  # "I support X's view"
+    r"\b(?:echoing|reinforcing)\s+what\s+\w+\s+said",  # "echoing what X said"
+    r"\b(?:as\s+)?\w+\s+(?:correctly|rightly)\s+(?:pointed\s+out|noted|observed)",  # "as X correctly noted"
+    r"\bwell\s+said,?\s+\w+",  # "well said, Henrik"
+    r"\b\w+\s+makes?\s+(?:an?\s+)?(?:excellent|great|valid)\s+point",  # "X makes an excellent point"
+]
+
+# Patterns indicating active challenge/critique (substantive engagement)
+CHALLENGE_INDICATOR_PATTERNS = [
+    r"\bi\s+disagree",  # "I disagree"
+    r"\bhowever,?\s+(?:i\s+)?(?:would\s+)?(?:argue|suggest|contend)",  # "however, I would argue"
+    r"\bthe\s+(?:flaw|problem|issue|weakness)\s+(?:in|with)",  # "the flaw in"
+    r"\bwhat\s+about\s+(?:the\s+)?(?:risk|case|scenario)",  # "what about the risk"
+    r"\bthis\s+(?:overlooks?|ignores?|misses?|neglects?)",  # "this overlooks"
+    r"\b(?:but|yet)\s+we?\s+(?:haven't|have\s+not)\s+(?:considered|addressed)",  # "but we haven't considered"
+    r"\b(?:i\s+)?(?:would\s+)?challenge\s+(?:the\s+)?(?:assumption|premise)",  # "I challenge the assumption"
+    r"\bcontrary\s+to\s+\w+'?s?\s+(?:view|position|assertion)",  # "contrary to X's view"
+    r"\b(?:playing\s+)?devil'?s?\s+advocate",  # "playing devil's advocate"
+    r"\b(?:a\s+)?(?:critical|key)\s+(?:risk|concern|gap|blind\s+spot)",  # "a critical risk"
+    r"\bwhat\s+if\s+(?:the\s+)?(?:assumption|premise|hypothesis)",  # "what if the assumption"
+    r"\b(?:i'm|i\s+am)\s+(?:not\s+)?(?:convinced|persuaded)",  # "I'm not convinced"
+    r"\b(?:an?\s+)?(?:alternative|opposing)\s+(?:view|perspective)",  # "an alternative view"
+    r"\b(?:the\s+)?(?:counterargument|counter-argument)",  # "the counterargument"
+    r"\bunintended\s+consequences?",  # "unintended consequences"
+]
+
+
 class ValidationConfig:
     """Configuration for LLM response validation with re-prompt behavior.
 
@@ -450,60 +488,51 @@ class ResponseParser:
             - clarification_reason: str | None (for "clarify")
         """
         action: str | None = None
-        used_fallback = False
+        extracted_value: str | None = None
 
-        # Step 1: Try XML tag extraction first (more reliable)
+        # Step 1: Try XML tag extraction
         for tag_name in ["action", "decision"]:
             extracted = extract_xml_tag(content, tag_name)
             if extracted:
-                normalized = extracted.lower().strip()
-                if normalized in VALID_FACILITATOR_ACTIONS:
-                    action = normalized
-                    break
+                extracted_value = extracted.lower().strip()
+                if extracted_value in VALID_FACILITATOR_ACTIONS:
+                    action = extracted_value
+                break  # Found a tag (valid or not), stop searching
 
-        # Step 2: Fall back to keyword matching if XML extraction failed
-        if action is None:
-            content_lower = content.lower()
-            used_fallback = True
-
-            if "option a" in content_lower or "continue discussion" in content_lower:
-                action = "continue"
-            elif (
-                "option b" in content_lower
-                or "transition" in content_lower
-                or "vote" in content_lower
-            ):
-                action = "vote"
-            elif "option c" in content_lower or "research" in content_lower:
-                action = "research"
-            elif "option d" in content_lower or "moderator" in content_lower:
-                action = "moderator"
-            elif "option e" in content_lower or "clarif" in content_lower:
-                action = "clarify"
-
-        # Step 3: Validate and default if still no valid action
+        # Step 2: Validate action - raise XMLValidationError if missing or invalid
         session_id = state.get("session_id", "unknown")
-        if action is None or action not in VALID_FACILITATOR_ACTIONS:
+
+        # Case A: No <action> or <decision> tag found at all
+        if extracted_value is None:
             _facilitator_parse_stats["invalid_action"] += 1
-            invalid_value = action if action else "[none extracted]"
             logger.warning(
-                f"[LLM_RELIABILITY] Facilitator invalid action. "
+                f"[LLM_RELIABILITY] Facilitator missing action tag. "
                 f"session_id={session_id}, "
-                f"invalid_value={invalid_value!r}, "
-                f"valid_actions={sorted(VALID_FACILITATOR_ACTIONS)}, "
-                f"content_preview={content[:150]!r}..., "
-                f"forcing action='continue'"
+                f"content_preview={content[:150]!r}..."
             )
-            action = "continue"
-        else:
-            if used_fallback:
-                _facilitator_parse_stats["fallback"] += 1
-                logger.info(
-                    f"[LLM_RELIABILITY] Facilitator action via keyword fallback. "
-                    f"session_id={session_id}, action={action}"
-                )
-            else:
-                _facilitator_parse_stats["success"] += 1
+            raise XMLValidationError(
+                "Missing required <action> tag in facilitator response",
+                tag="action",
+                details=f"Content preview: {content[:100]}...",
+            )
+
+        # Case B: Tag found but value is not valid
+        if action is None:
+            _facilitator_parse_stats["invalid_action"] += 1
+            logger.warning(
+                f"[LLM_RELIABILITY] Facilitator invalid action value. "
+                f"session_id={session_id}, "
+                f"invalid_value={extracted_value!r}, "
+                f"valid_actions={sorted(VALID_FACILITATOR_ACTIONS)}, "
+                f"content_preview={content[:150]!r}..."
+            )
+            raise XMLValidationError(
+                f"Invalid action value '{extracted_value}' - must be one of {sorted(VALID_FACILITATOR_ACTIONS)}",
+                tag="action",
+                details=f"Received: {extracted_value}",
+            )
+
+        _facilitator_parse_stats["success"] += 1
 
         # Extract reasoning
         reasoning = extract_xml_tag(content, "thinking") or content[:500]
@@ -686,6 +715,78 @@ class ResponseParser:
                 return False, "Meta-response: starts with defensive language"
 
         # All checks passed
+        return True, ""
+
+    @staticmethod
+    def validate_challenge_phase_contribution(
+        content: str, round_number: int, persona_name: str = ""
+    ) -> tuple[bool, str]:
+        """Validate that challenge phase contributions contain substantive critique.
+
+        In rounds 3-4 (1-indexed), contributions should actively challenge ideas
+        rather than passively agreeing. This prevents echo-chamber dynamics.
+
+        Args:
+            content: The contribution content to validate
+            round_number: Current round number (1-indexed)
+            persona_name: Name of the persona (for logging)
+
+        Returns:
+            Tuple of (is_valid: bool, rejection_reason: str)
+            - is_valid: True if contribution has substantive challenge content
+            - rejection_reason: Description of why rejected (empty if valid)
+
+        Example:
+            >>> is_valid, reason = ResponseParser.validate_challenge_phase_contribution(
+            ...     "I agree with Henrik's excellent analysis.", 3
+            ... )
+            >>> is_valid
+            False
+            >>> reason
+            'Challenge phase requires substantive critique'
+        """
+        from bo1.constants import ChallengePhaseConfig
+
+        # Only validate in challenge phase rounds
+        if round_number not in ChallengePhaseConfig.ROUNDS:
+            return True, ""
+
+        content_lower = content.lower()
+
+        # Count agreement patterns
+        agreement_matches = 0
+        for pattern in GENERIC_AGREEMENT_PATTERNS:
+            if re.search(pattern, content_lower):
+                agreement_matches += 1
+
+        # Count challenge indicators
+        challenge_matches = 0
+        for pattern in CHALLENGE_INDICATOR_PATTERNS:
+            if re.search(pattern, content_lower):
+                challenge_matches += 1
+
+        # If content has challenge indicators, it's valid regardless of agreement
+        if challenge_matches > 0:
+            logger.debug(
+                f"Challenge phase validation passed for {persona_name}: "
+                f"{challenge_matches} challenge indicator(s) found"
+            )
+            return True, ""
+
+        # If no challenge indicators but has agreement patterns, reject
+        if agreement_matches > 0:
+            logger.warning(
+                f"[CHALLENGE_PHASE] Contribution from {persona_name} in round {round_number} "
+                f"rejected: {agreement_matches} agreement pattern(s), 0 challenge indicators. "
+                f"Content preview: {content[:100]}..."
+            )
+            return False, "Challenge phase requires substantive critique"
+
+        # No agreement patterns and no challenge indicators - allow
+        # (could be neutral technical contribution)
+        logger.debug(
+            f"Challenge phase validation passed for {persona_name}: no agreement patterns detected"
+        )
         return True, ""
 
     @staticmethod

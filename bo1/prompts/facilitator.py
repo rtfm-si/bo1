@@ -325,23 +325,6 @@ ROTATION GUIDELINES:
                 "→ Consider prompting an expert to address these gaps before voting"
             )
 
-        metrics_lines.append("")
-        metrics_lines.append("INTERPRETATION:")
-        metrics_lines.append(
-            "- Low novelty (<0.30) + High convergence (>0.70) + Good exploration (>0.60) = Ready to vote"
-        )
-        metrics_lines.append("- Low novelty but exploration gaps = Continue with focused prompts")
-        metrics_lines.append("- High novelty + Low convergence = Healthy debate, continue")
-        metrics_lines.append(
-            "- High conflict (>0.70) + Low novelty (<0.40) = IMPASSE - guide toward resolution"
-        )
-        metrics_lines.append("")
-        metrics_lines.append("IMPASSE RESOLUTION (if high conflict + low novelty for 2+ rounds):")
-        metrics_lines.append("1. Find common ground: What do experts agree on?")
-        metrics_lines.append(
-            "2. Disagree-and-commit: Acknowledge disagreement, recommend majority view"
-        )
-        metrics_lines.append("3. Conditional recommendations: 'If X then A, if Y then B' format")
         metrics_lines.append("</quality_metrics>")
 
         metrics_context = "\n".join(metrics_lines)

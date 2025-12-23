@@ -270,6 +270,7 @@
 				<div class="relative">
 					<svg viewBox={scatterData.viewBox} class="w-full h-[500px]" preserveAspectRatio="xMidYMid">
 						{#each scatterData.scaled as point}
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<circle
 								cx={point.cx}
 								cy={point.cy}
@@ -277,6 +278,8 @@
 								fill={typeColors[point.type] || '#6b7280'}
 								opacity="0.7"
 								class="cursor-pointer hover:opacity-100 transition-opacity"
+								role="img"
+								aria-label={point.preview || point.type}
 								onmouseenter={(e) => handlePointHover(e, point)}
 								onmouseleave={() => handlePointHover(new MouseEvent('mouseleave'), null)}
 							/>

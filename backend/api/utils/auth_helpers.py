@@ -11,6 +11,8 @@ import logging
 
 from fastapi import HTTPException
 
+from bo1.logging.errors import ErrorCode, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,9 +51,11 @@ def extract_user_id(current_user: dict | None) -> str:
 
     if not user_id:
         # Missing user_id indicates malformed token
-        logger.error(
-            f"User ID extraction failed: token missing user_id claim. "
-            f"Token claims: {list(current_user.keys())}"
+        log_error(
+            logger,
+            ErrorCode.AUTH_TOKEN_ERROR,
+            "User ID extraction failed: token missing user_id claim",
+            token_claims=list(current_user.keys()),
         )
         raise HTTPException(
             status_code=401,
@@ -83,7 +87,11 @@ def extract_user_email(current_user: dict | None) -> str:
     email = current_user.get("email")
 
     if not email:
-        logger.error("Email extraction failed: token missing email claim")
+        log_error(
+            logger,
+            ErrorCode.AUTH_TOKEN_ERROR,
+            "Email extraction failed: token missing email claim",
+        )
         raise HTTPException(
             status_code=401,
             detail="Invalid authentication token: missing email claim",

@@ -10,6 +10,8 @@ import logging
 
 from fastapi import HTTPException
 
+from bo1.logging.errors import ErrorCode, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -146,7 +148,7 @@ def sanitize_error_for_production(
         }
     else:
         # Production: Return generic error (log details server-side)
-        logger.error(f"Internal error ({error_type}): {error}")
+        log_error(logger, ErrorCode.API_REQUEST_ERROR, f"Internal error ({error_type}): {error}")
         return {
             "error": "Internal server error",
             "message": "An unexpected error occurred. Please try again later.",

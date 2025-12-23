@@ -108,16 +108,22 @@
 </script>
 
 {#if true}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
 		onclick={handleBackdropClick}
-		role="button"
-		tabindex="-1"
+		onkeydown={(e) => e.key === 'Escape' && onclose?.()}
+		role="presentation"
 	>
+		<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events a11y_interactive_supports_focus -->
 		<div
 			class="bg-white dark:bg-neutral-800 rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col"
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
+			aria-modal="true"
+			aria-labelledby="blog-generate-title"
+			tabindex="-1"
 		>
 			<!-- Header -->
 			<div
@@ -125,7 +131,7 @@
 			>
 				<div class="flex items-center gap-2">
 					<Sparkles class="w-5 h-5 text-purple-500" />
-					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white">Generate Blog Post</h2>
+					<h2 id="blog-generate-title" class="text-xl font-semibold text-neutral-900 dark:text-white">Generate Blog Post</h2>
 				</div>
 				<button
 					class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
@@ -167,10 +173,11 @@
 				{#if activeTab === 'manual'}
 					<form onsubmit={handleGenerate} class="space-y-4">
 						<div>
-							<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+							<label for="generate-topic" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 								Topic <span class="text-red-500">*</span>
 							</label>
 							<input
+								id="generate-topic"
 								type="text"
 								bind:value={topic}
 								class="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
@@ -183,11 +190,12 @@
 						</div>
 
 						<div>
-							<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+							<label for="generate-keywords" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
 								Target Keywords
 								<span class="text-neutral-400 font-normal">(optional, comma-separated)</span>
 							</label>
 							<input
+								id="generate-keywords"
 								type="text"
 								bind:value={keywords}
 								class="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"

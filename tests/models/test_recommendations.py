@@ -1,6 +1,78 @@
 """Tests for recommendation models roundtrip serialization."""
 
+from datetime import UTC, datetime
+
 from bo1.models import ConsensusLevel, Recommendation, RecommendationAggregation
+
+
+class TestRecommendationDBFields:
+    """Test new DB-mapped fields on Recommendation model."""
+
+    def test_recommendation_with_db_fields(self) -> None:
+        """Recommendation model accepts DB-assigned fields."""
+        now = datetime.now(UTC)
+        rec = Recommendation(
+            id=42,
+            session_id="bo1_test123",
+            sub_problem_index=0,
+            user_id="user_abc",
+            created_at=now,
+            persona_code="ceo",
+            persona_name="CEO",
+            recommendation="Proceed",
+            reasoning="Because.",
+            confidence=0.9,
+        )
+
+        assert rec.id == 42
+        assert rec.session_id == "bo1_test123"
+        assert rec.sub_problem_index == 0
+        assert rec.user_id == "user_abc"
+        assert rec.created_at == now
+
+    def test_recommendation_db_fields_optional(self) -> None:
+        """DB fields default to None when not provided."""
+        rec = Recommendation(
+            persona_code="ceo",
+            persona_name="CEO",
+            recommendation="Proceed",
+            reasoning="Because.",
+            confidence=0.9,
+        )
+
+        assert rec.id is None
+        assert rec.session_id is None
+        assert rec.sub_problem_index is None
+        assert rec.user_id is None
+        assert rec.created_at is None
+
+    def test_recommendation_db_fields_roundtrip(self) -> None:
+        """DB fields roundtrip through JSON serialization."""
+        now = datetime.now(UTC)
+        rec = Recommendation(
+            id=100,
+            session_id="bo1_sess_xyz",
+            sub_problem_index=2,
+            user_id="user_123",
+            created_at=now,
+            persona_code="strategist",
+            persona_name="Strategic Planner",
+            recommendation="Expand to new market",
+            reasoning="Market research supports this.",
+            confidence=0.78,
+            conditions=["Complete pilot first"],
+        )
+
+        json_str = rec.model_dump_json()
+        restored = Recommendation.model_validate_json(json_str)
+
+        assert restored.id == 100
+        assert restored.session_id == "bo1_sess_xyz"
+        assert restored.sub_problem_index == 2
+        assert restored.user_id == "user_123"
+        assert restored.created_at == now
+        assert restored.persona_code == "strategist"
+        assert restored.recommendation == "Expand to new market"
 
 
 class TestRecommendationRoundtrip:

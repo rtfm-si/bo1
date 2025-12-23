@@ -489,11 +489,11 @@ Personas participating: {", ".join([p.code for p in personas])}
 Analyze the discussion and decide the next action."""
 
         # Validation config for facilitator action (auto-retry on missing action tag)
-        # non-strict: keyword fallback in parse_facilitator_decision still works
+        # strict=True: raise XMLValidationError if retries exhausted
         validation = ValidationConfig(
             required_tags=["action"],
             max_retries=1,
-            strict=False,  # Allow keyword fallback if retry also fails
+            strict=True,  # Require valid <action> tag; no keyword fallback
         )
 
         # Use validation-aware helper to auto-retry on XML issues
@@ -507,7 +507,7 @@ Analyze the discussion and decide the next action."""
             max_tokens=800,
         )
 
-        # Parse decision from response (includes keyword fallback)
+        # Parse decision from response (raises XMLValidationError if action missing/invalid)
         parsed = ResponseParser.parse_facilitator_decision(response.content, state)
         decision = FacilitatorDecision(**parsed)
 

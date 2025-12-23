@@ -96,13 +96,13 @@
 					</div>
 					<div class="p-6 space-y-4">
 						<div>
-							<label class="text-sm text-neutral-500 dark:text-neutral-400">Threshold</label>
+							<span class="text-sm text-neutral-500 dark:text-neutral-400">Threshold</span>
 							<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
 								{settings.auth_failure_threshold} failures
 							</p>
 						</div>
 						<div>
-							<label class="text-sm text-neutral-500 dark:text-neutral-400">Window</label>
+							<span class="text-sm text-neutral-500 dark:text-neutral-400">Window</span>
 							<p class="text-lg text-neutral-700 dark:text-neutral-300">
 								{settings.auth_failure_window_minutes} minutes
 							</p>
@@ -123,13 +123,13 @@
 					</div>
 					<div class="p-6 space-y-4">
 						<div>
-							<label class="text-sm text-neutral-500 dark:text-neutral-400">Threshold</label>
+							<span class="text-sm text-neutral-500 dark:text-neutral-400">Threshold</span>
 							<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
 								{settings.rate_limit_threshold} hits
 							</p>
 						</div>
 						<div>
-							<label class="text-sm text-neutral-500 dark:text-neutral-400">Window</label>
+							<span class="text-sm text-neutral-500 dark:text-neutral-400">Window</span>
 							<p class="text-lg text-neutral-700 dark:text-neutral-300">
 								{settings.rate_limit_window_minutes} minutes
 							</p>
@@ -150,7 +150,7 @@
 					</div>
 					<div class="p-6 space-y-4">
 						<div>
-							<label class="text-sm text-neutral-500 dark:text-neutral-400">Threshold</label>
+							<span class="text-sm text-neutral-500 dark:text-neutral-400">Threshold</span>
 							<p class="text-2xl font-semibold text-neutral-900 dark:text-white">
 								{settings.lockout_threshold} lockouts
 							</p>

@@ -22,6 +22,7 @@ from backend.api.models import (
     TagUpdate,
 )
 from backend.api.utils.errors import handle_api_errors
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories.tag_repository import tag_repository
 
 logger = logging.getLogger(__name__)
@@ -114,7 +115,13 @@ async def create_tag(
                 status_code=400,
                 detail=f"Tag '{tag_data.name}' already exists",
             ) from None
-        logger.error(f"Failed to create tag: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Failed to create tag: {e}",
+            user_id=user_id,
+            tag_name=tag_data.name,
+        )
         raise HTTPException(status_code=500, detail="Failed to create tag") from None
 
 

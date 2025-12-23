@@ -91,3 +91,48 @@ groups:
         annotations:
           summary: "Database connection pool queue backlog"
           description: "DB pool queue depth is {{ $value }} connections waiting (threshold: 10)"
+
+  - name: circuit_breaker_alerts
+    rules:
+      # Critical: Circuit breaker is OPEN for any LLM provider (Anthropic, OpenAI, Voyage)
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state{state="open"} == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker OPEN for {{ $labels.provider }}"
+          description: "Circuit breaker for {{ $labels.provider }} has been OPEN for >1 minute. Service is experiencing repeated failures and requests are being fast-failed."
+
+      # Warning: Circuit breaker is HALF_OPEN for extended period (recovery taking too long)
+      - alert: CircuitBreakerHalfOpen
+        expr: circuit_breaker_state{state="half_open"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker HALF_OPEN for {{ $labels.provider }} (extended recovery)"
+          description: "Circuit breaker for {{ $labels.provider }} has been in HALF_OPEN state for >5 minutes. Service recovery is taking longer than expected."
+
+      # Warning: High rate of circuit breaker trips
+      - alert: CircuitBreakerTripsHigh
+        expr: increase(bo1_circuit_breaker_trips_total[15m]) > 3
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Multiple circuit breaker trips for {{ $labels.service }}"
+          description: "Circuit breaker for {{ $labels.service }} has tripped {{ $value | printf \"%.0f\" }} times in the last 15 minutes. Provider may be unstable."
+
+      # Critical: All LLM providers down
+      - alert: AllLLMProvidersDown
+        expr: |
+          (circuit_breaker_state{provider="anthropic", state="open"} == 1)
+          and
+          (circuit_breaker_state{provider="openai", state="open"} == 1)
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "All LLM providers (Anthropic + OpenAI) are down"
+          description: "Both Anthropic and OpenAI circuit breakers are OPEN. No fallback available. User requests will fail."

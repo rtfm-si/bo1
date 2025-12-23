@@ -22,7 +22,8 @@ from bo1.models.persona import PersonaProfile
 from bo1.models.problem import Problem, SubProblem
 from bo1.models.state import DeliberationMetrics, DeliberationPhase, SubProblemResult
 from bo1.orchestration.voting import collect_recommendations
-from bo1.prompts import SYNTHESIS_PROMPT_TEMPLATE
+from bo1.prompts import SYNTHESIS_LEAN_TEMPLATE, get_limited_context_sections
+from bo1.utils.checkpoint_helpers import get_sub_problem_goal_safe, get_sub_problem_id_safe
 
 if TYPE_CHECKING:
     pass
@@ -129,47 +130,97 @@ async def _generate_synthesis(
     votes: list[dict[str, Any]],
     metrics: DeliberationMetrics,
     event_bridge: Any | None,
+    limited_context_mode: bool = False,
 ) -> str:
-    """Generate synthesis for a sub-problem."""
+    """Generate synthesis for a sub-problem using lean McKinsey-style template.
+
+    Uses hierarchical summarization:
+    - Round summaries for evolution of thinking
+    - Final round contributions for detail
+    - Lean output format (~800-1000 tokens)
+    """
     if event_bridge:
         event_bridge.emit("synthesis_started", {})
 
-    # Format context
-    context_parts = ["=== DISCUSSION ===\n"]
+    # Build round summaries from contributions grouped by round
+    rounds: dict[int, list[Any]] = {}
     for contrib in contributions:
-        context_parts.append(
-            f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
-        )
+        rn = contrib.round_number
+        if rn not in rounds:
+            rounds[rn] = []
+        rounds[rn].append(contrib)
 
-    context_parts.append("\n=== RECOMMENDATIONS ===\n")
+    round_summaries_text = []
+    max_round = max(rounds.keys()) if rounds else 1
+
+    for rn in sorted(rounds.keys()):
+        if rn < max_round:
+            # Summarize earlier rounds
+            round_contribs = rounds[rn]
+            personas_in_round = [c.persona_name for c in round_contribs]
+            summary = f"Round {rn}: {', '.join(personas_in_round)} discussed; "
+            key_points = [
+                c.content[:150] + "..." if len(c.content) > 150 else c.content
+                for c in round_contribs[:2]
+            ]
+            summary += " | ".join(key_points)
+            round_summaries_text.append(summary)
+
+    if not round_summaries_text:
+        round_summaries_text.append("(No prior round summaries available)")
+
+    # Final round contributions (full detail)
+    final_round_contributions = []
+    final_round_contribs = rounds.get(max_round, [])
+    for contrib in final_round_contribs:
+        final_round_contributions.append(f"{contrib.persona_name}:\n{contrib.content}\n")
+
+    if not final_round_contributions:
+        # Fallback: use last 3 contributions
+        for contrib in contributions[-3:]:
+            final_round_contributions.append(
+                f"Round {contrib.round_number} - {contrib.persona_name}:\n{contrib.content}\n"
+            )
+
+    # Format votes/recommendations
+    votes_text = []
     for vote in votes:
-        context_parts.append(
-            f"{vote['persona_name']}: {vote['recommendation']} (confidence: {vote['confidence']:.2f})\nReasoning: {vote['reasoning']}\n"
+        votes_text.append(
+            f"{vote['persona_name']}: {vote['recommendation']} "
+            f"(confidence: {vote['confidence']:.2f})\n"
+            f"Reasoning: {vote['reasoning']}\n"
         )
         if vote.get("conditions"):
-            context_parts.append(f"Conditions: {', '.join(str(c) for c in vote['conditions'])}\n")
-        context_parts.append("\n")
+            votes_text.append(f"Conditions: {', '.join(str(c) for c in vote['conditions'])}\n")
+        votes_text.append("\n")
 
-    synthesis_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(
+    # Get limited context sections
+    prompt_section, output_section = get_limited_context_sections(limited_context_mode)
+
+    synthesis_prompt = SYNTHESIS_LEAN_TEMPLATE.format(
         problem_statement=sub_problem.goal,
-        all_contributions_and_votes="".join(context_parts),
+        round_summaries="\n".join(round_summaries_text),
+        final_round_contributions="\n".join(final_round_contributions),
+        votes="\n".join(votes_text),
+        limited_context_section=prompt_section,
+        limited_context_output_section=output_section,
     )
 
     broker = PromptBroker()
     request = PromptRequest(
         system=synthesis_prompt,
-        user_message="Generate the synthesis report now.",
-        prefill="<thinking>",
+        user_message="Generate the executive brief now. Follow the output format exactly.",
+        prefill="## The Bottom Line",
         model=get_model_for_role("synthesis"),
         temperature=0.7,
-        max_tokens=4000,  # Increased from 3000 to avoid truncation
+        max_tokens=1500,  # Lean template produces ~800-1000 tokens
         phase="synthesis",
         agent_type="synthesizer",
         cache_system=True,
     )
 
     response = await broker.call(request)
-    synthesis = "<thinking>" + response.content
+    synthesis = "## The Bottom Line" + response.content
     track_phase_cost(metrics, "synthesis", response)
 
     if event_bridge:
@@ -448,10 +499,12 @@ async def deliberate_subproblem(
     # Calculate duration
     duration_seconds = time.time() - start_time
 
-    # Create result
+    # Create result - use safe accessors to handle corrupted checkpoint data
+    sub_problem_id = get_sub_problem_id_safe(sub_problem, logger)
+    sub_problem_goal = get_sub_problem_goal_safe(sub_problem, logger)
     result = SubProblemResult(
-        sub_problem_id=sub_problem.id,
-        sub_problem_goal=sub_problem.goal,
+        sub_problem_id=sub_problem_id,
+        sub_problem_goal=sub_problem_goal,
         synthesis=synthesis,
         votes=votes,
         contribution_count=len(contributions),
@@ -462,7 +515,7 @@ async def deliberate_subproblem(
     )
 
     logger.info(
-        f"deliberate_subproblem: Complete for {sub_problem.id} - "
+        f"deliberate_subproblem: Complete for {sub_problem_id} - "
         f"{len(contributions)} contributions, ${metrics.total_cost:.4f}, {duration_seconds:.1f}s"
     )
 

@@ -29,6 +29,7 @@ from slowapi.util import get_remote_address
 from bo1.config import get_settings
 from bo1.constants import RateLimiterHealth as RateLimiterHealthConfig
 from bo1.constants import RateLimits
+from bo1.logging.errors import ErrorCode, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -467,7 +468,14 @@ class UserRateLimiter:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"UserRateLimiter error: {e}")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"UserRateLimiter error: {e}",
+                exc_info=True,
+                user_id=user_id,
+                action=action,
+            )
             # Fail open on errors - track degraded state
             rate_limiter_health.record_failure()
             return True
@@ -600,7 +608,13 @@ class GlobalIPRateLimiter:
             return True, None
 
         except Exception as e:
-            logger.error(f"GlobalIPRateLimiter error: {e}")
+            log_error(
+                logger,
+                ErrorCode.SERVICE_EXECUTION_ERROR,
+                f"GlobalIPRateLimiter error: {e}",
+                exc_info=True,
+                ip=ip,
+            )
             rate_limiter_health.record_failure()
             return True, None  # Fail open
 

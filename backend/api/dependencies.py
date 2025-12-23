@@ -20,9 +20,14 @@ from typing import Annotated, Any
 from anthropic import AsyncAnthropic
 from fastapi import Depends, HTTPException
 
+from backend.api.constants import (
+    SESSION_METADATA_CACHE_MAX_SIZE,
+    SESSION_METADATA_CACHE_TTL_SECONDS,
+)
 from backend.api.contribution_summarizer import ContributionSummarizer
 from backend.api.event_publisher import EventPublisher
 from backend.api.middleware.auth import get_current_user
+from backend.api.session_cache import SessionMetadataCache
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.security import verify_session_ownership
 from bo1.config import get_settings
@@ -101,6 +106,22 @@ def get_contribution_summarizer() -> ContributionSummarizer:
     return ContributionSummarizer(client)
 
 
+@lru_cache(maxsize=1)
+def get_session_metadata_cache() -> SessionMetadataCache:
+    """Get singleton session metadata cache instance.
+
+    The cache stores session metadata with TTL to reduce Redis/PostgreSQL
+    lookups during SSE reconnections and repeated requests.
+
+    Returns:
+        SessionMetadataCache instance (cached)
+    """
+    return SessionMetadataCache(
+        max_size=SESSION_METADATA_CACHE_MAX_SIZE,
+        ttl_seconds=SESSION_METADATA_CACHE_TTL_SECONDS,
+    )
+
+
 async def get_verified_session(
     session_id: str,
     user: dict[str, Any] = Depends(get_current_user),
@@ -111,12 +132,11 @@ async def get_verified_session(
     This dependency combines:
     1. User authentication (via get_current_user)
     2. Redis availability check
-    3. Session metadata loading
+    3. Session metadata loading (with in-memory cache)
     4. Ownership verification
 
-    Use this dependency in authenticated endpoints that need to verify session
-    ownership. It consolidates the common pattern of extracting user_id,
-    checking Redis availability, loading metadata, and verifying ownership.
+    Uses SessionMetadataCache to reduce Redis lookups during SSE reconnections.
+    Cache is invalidated on session state changes (complete/fail/kill).
 
     Args:
         session_id: Session identifier from path parameter
@@ -148,7 +168,14 @@ async def get_verified_session(
         )
 
     user_id = extract_user_id(user)
-    metadata = redis_manager.load_metadata(session_id)
+
+    # Use cache to reduce Redis lookups
+    cache = get_session_metadata_cache()
+    metadata = cache.get_or_load(
+        session_id,
+        lambda sid: redis_manager.load_metadata(sid),
+    )
+
     metadata = await verify_session_ownership(session_id, user_id, metadata)
 
     return user_id, metadata

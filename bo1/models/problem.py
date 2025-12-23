@@ -6,7 +6,7 @@ Defines the core problem decomposition models.
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 
 class ConstraintType(str, Enum):
@@ -74,6 +74,35 @@ class SubProblem(BaseModel):
     id: str = Field(..., description="Unique identifier for this sub-problem")
     goal: str = Field(..., description="The specific goal or question to address")
     context: str = Field(..., description="Relevant context and background for this sub-problem")
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def validate_id_is_string(cls, v: Any) -> str:
+        """Validate that id is a string, not a corrupted list.
+
+        After LangGraph checkpoint restore, id may become a type annotation path like
+        ['bo1', 'models', 'problem', 'SubProblem']. This validator rejects such values.
+        """
+        if isinstance(v, list):
+            raise ValueError(
+                f"SubProblem.id must be a string, got list (likely corrupted checkpoint data): {v}"
+            )
+        if not isinstance(v, str):
+            raise ValueError(f"SubProblem.id must be a string, got {type(v).__name__}")
+        return v
+
+    @field_validator("goal", mode="before")
+    @classmethod
+    def validate_goal_is_string(cls, v: Any) -> str:
+        """Validate that goal is a string, not a corrupted list."""
+        if isinstance(v, list):
+            raise ValueError(
+                f"SubProblem.goal must be a string, got list (likely corrupted checkpoint data): {v}"
+            )
+        if not isinstance(v, str):
+            raise ValueError(f"SubProblem.goal must be a string, got {type(v).__name__}")
+        return v
+
     complexity_score: int = Field(
         ..., ge=1, le=10, description="Complexity rating from 1 (simple) to 10 (very complex)"
     )

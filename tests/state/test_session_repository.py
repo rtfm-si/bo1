@@ -125,12 +125,13 @@ class TestListByUserQuery:
         mock_cursor.execute.assert_called_once()
         executed_query = mock_cursor.execute.call_args[0][0]
 
-        # Verify denormalized columns are selected directly
+        # Verify all denormalized columns are selected directly (no JOINs)
         assert "s.expert_count" in executed_query
         assert "s.contribution_count" in executed_query
         assert "s.focus_area_count" in executed_query
-        # task_count still uses JOIN
-        assert "LEFT JOIN session_tasks" in executed_query
+        assert "s.task_count" in executed_query
+        # No JOIN needed - all counts are denormalized
+        assert "LEFT JOIN" not in executed_query
         # No aggregation needed for denormalized counts
         assert "GROUP BY" not in executed_query
 
@@ -165,74 +166,6 @@ class TestListByUserQuery:
         # user_id, status_filter, limit, offset
         assert params[0] == "user_test"
         assert "completed" in params
-
-    def test_list_by_user_with_task_count_includes_join(self, mock_connection, mock_cursor):
-        """Verify include_task_count=True uses LEFT JOIN to session_tasks."""
-        from bo1.state.repositories.session_repository import SessionRepository
-
-        mock_cursor.fetchall.return_value = []
-
-        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
-            mock_db.return_value = mock_connection
-
-            repo = SessionRepository()
-            repo.list_by_user("user_test", include_task_count=True)
-
-        executed_query = mock_cursor.execute.call_args[0][0]
-        assert "LEFT JOIN session_tasks" in executed_query
-        assert "COALESCE(st.total_tasks, 0)" in executed_query
-
-    def test_list_by_user_without_task_count_skips_join(self, mock_connection, mock_cursor):
-        """Verify include_task_count=False skips LEFT JOIN for performance."""
-        from bo1.state.repositories.session_repository import SessionRepository
-
-        mock_cursor.fetchall.return_value = []
-
-        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
-            mock_db.return_value = mock_connection
-
-            repo = SessionRepository()
-            repo.list_by_user("user_test", include_task_count=False)
-
-        executed_query = mock_cursor.execute.call_args[0][0]
-        assert "LEFT JOIN session_tasks" not in executed_query
-        # Should return 0 as task_count
-        assert "0 as task_count" in executed_query
-
-    def test_list_by_user_without_task_count_returns_zero(self, mock_connection, mock_cursor):
-        """Verify include_task_count=False returns task_count=0 for type consistency."""
-        from bo1.state.repositories.session_repository import SessionRepository
-
-        mock_row = {
-            "id": "bo1_test123",
-            "user_id": "user_abc",
-            "problem_statement": "Test problem",
-            "problem_context": None,
-            "status": "completed",
-            "phase": "synthesis",
-            "total_cost": 0.05,
-            "round_number": 3,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now(),
-            "synthesis_text": "Final synthesis",
-            "final_recommendation": "Do it",
-            "expert_count": 4,
-            "contribution_count": 12,
-            "task_count": 0,  # Always 0 when include_task_count=False
-            "focus_area_count": 2,
-            "workspace_id": None,
-        }
-        mock_cursor.fetchall.return_value = [mock_row]
-
-        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
-            mock_db.return_value = mock_connection
-
-            repo = SessionRepository()
-            results = repo.list_by_user("user_abc", include_task_count=False)
-
-        assert len(results) == 1
-        assert results[0]["task_count"] == 0
-        assert isinstance(results[0]["task_count"], int)
 
 
 class TestSaveEventCountIncrements:
@@ -480,9 +413,10 @@ class TestSessionModel:
         session = Session.from_db_row(row)
 
         assert session.problem_context is None
-        assert session.phase is None
-        assert session.total_cost is None
-        assert session.round_number is None
+        # phase, total_cost, round_number have defaults matching DB server_default
+        assert session.phase == "problem_decomposition"
+        assert session.total_cost == 0.0
+        assert session.round_number == 0
         assert session.synthesis_text is None
         assert session.final_recommendation is None
 
@@ -757,3 +691,239 @@ class TestPartitionPruning:
         assert "created_at >=" in query, (
             "get_events() query must include created_at filter for partition pruning"
         )
+
+
+class TestSaveMetadata:
+    """Test save_metadata() method for Redis fallback persistence."""
+
+    @pytest.fixture
+    def mock_cursor(self):
+        """Create a mock cursor with context manager support."""
+        cursor = MagicMock()
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        cursor.rowcount = 1  # Simulate successful update
+        return cursor
+
+    @pytest.fixture
+    def mock_connection(self, mock_cursor):
+        """Create a mock connection."""
+        conn = MagicMock()
+        conn.__enter__ = MagicMock(return_value=conn)
+        conn.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = mock_cursor
+        return conn
+
+    def test_save_metadata_updates_phase(self, mock_connection, mock_cursor):
+        """Verify phase is persisted to sessions table."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            result = repo.save_metadata("bo1_test", {"phase": "exploration"})
+
+        assert result is True
+        calls = mock_cursor.execute.call_args_list
+        update_call = [c for c in calls if "UPDATE sessions" in str(c)]
+        assert len(update_call) == 1
+        query = str(update_call[0])
+        assert "phase = %s" in query
+
+    def test_save_metadata_updates_round_number(self, mock_connection, mock_cursor):
+        """Verify round_number is persisted."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_metadata("bo1_test", {"round_number": 3})
+
+        calls = mock_cursor.execute.call_args_list
+        update_call = [c for c in calls if "UPDATE sessions" in str(c)]
+        query = str(update_call[0])
+        assert "round_number = %s" in query
+
+    def test_save_metadata_updates_denormalized_counts(self, mock_connection, mock_cursor):
+        """Verify expert_count, contribution_count, focus_area_count are persisted."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_metadata(
+                "bo1_test",
+                {"expert_count": 5, "contribution_count": 12, "focus_area_count": 3},
+            )
+
+        calls = mock_cursor.execute.call_args_list
+        update_call = [c for c in calls if "UPDATE sessions" in str(c)]
+        query = str(update_call[0])
+        assert "expert_count = %s" in query
+        assert "contribution_count = %s" in query
+        assert "focus_area_count = %s" in query
+
+    def test_save_metadata_stores_sub_problem_index_in_context(self, mock_connection, mock_cursor):
+        """Verify sub_problem_index is stored in problem_context JSONB."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_metadata("bo1_test", {"sub_problem_index": 2})
+
+        calls = mock_cursor.execute.call_args_list
+        update_call = [c for c in calls if "UPDATE sessions" in str(c)]
+        query = str(update_call[0])
+        assert "problem_context" in query
+        assert "::jsonb" in query
+
+    def test_save_metadata_returns_false_when_session_not_found(self, mock_connection, mock_cursor):
+        """Verify returns False when session doesn't exist."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        mock_cursor.rowcount = 0  # No rows updated
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            result = repo.save_metadata("bo1_nonexistent", {"phase": "test"})
+
+        assert result is False
+
+    def test_save_metadata_with_empty_dict_returns_true(self, mock_connection, mock_cursor):
+        """Verify empty metadata dict is handled gracefully."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            result = repo.save_metadata("bo1_test", {})
+
+        # Returns True but no UPDATE is executed (only updated_at)
+        assert result is True
+
+    def test_save_metadata_uses_current_node_as_phase_fallback(self, mock_connection, mock_cursor):
+        """Verify current_node is used as phase when phase not provided."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_metadata("bo1_test", {"current_node": "synthesis_node"})
+
+        calls = mock_cursor.execute.call_args_list
+        update_call = [c for c in calls if "UPDATE sessions" in str(c)]
+        query = str(update_call[0])
+        assert "phase = %s" in query
+
+    def test_save_metadata_prefers_phase_over_current_node(self, mock_connection, mock_cursor):
+        """Verify phase is preferred when both phase and current_node provided."""
+        from bo1.state.repositories.session_repository import SessionRepository
+
+        with patch("bo1.state.repositories.session_repository.db_session") as mock_db:
+            mock_db.return_value = mock_connection
+
+            repo = SessionRepository()
+            repo.save_metadata(
+                "bo1_test",
+                {"phase": "exploration", "current_node": "synthesis_node"},
+            )
+
+        calls = mock_cursor.execute.call_args_list
+        update_call = [c for c in calls if "UPDATE sessions" in str(c)]
+        # Should only have one phase = %s, not two
+        params = update_call[0][0][1]  # Get params tuple
+        assert "exploration" in params
+
+
+class TestExtractSessionMetadata:
+    """Test extract_session_metadata() helper function."""
+
+    def test_extract_metadata_from_full_state(self):
+        """Verify all metadata fields are extracted from state."""
+        from bo1.state.repositories.session_repository import extract_session_metadata
+
+        state = {
+            "current_phase": "exploration",
+            "current_node": "rounds_node",
+            "round_number": 2,
+            "sub_problem_index": 1,
+            "personas": [{"code": "CFO"}, {"code": "CTO"}, {"code": "CEO"}],
+            "contributions": [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}],
+            "sub_problems": [{"id": 1}, {"id": 2}],
+        }
+
+        metadata = extract_session_metadata(state)
+
+        assert metadata["phase"] == "exploration"
+        assert metadata["current_node"] == "rounds_node"
+        assert metadata["round_number"] == 2
+        assert metadata["sub_problem_index"] == 1
+        assert metadata["expert_count"] == 3
+        assert metadata["contribution_count"] == 5
+        assert metadata["focus_area_count"] == 2
+
+    def test_extract_metadata_uses_phase_fallback(self):
+        """Verify phase is extracted from 'phase' key if current_phase missing."""
+        from bo1.state.repositories.session_repository import extract_session_metadata
+
+        state = {"phase": "synthesis", "round_number": 3}
+
+        metadata = extract_session_metadata(state)
+
+        assert metadata["phase"] == "synthesis"
+        assert metadata["round_number"] == 3
+
+    def test_extract_metadata_empty_state(self):
+        """Verify empty state returns empty metadata dict."""
+        from bo1.state.repositories.session_repository import extract_session_metadata
+
+        metadata = extract_session_metadata({})
+
+        assert metadata == {}
+
+    def test_extract_metadata_partial_state(self):
+        """Verify partial state only extracts available fields."""
+        from bo1.state.repositories.session_repository import extract_session_metadata
+
+        state = {"round_number": 1, "personas": [{"code": "CFO"}]}
+
+        metadata = extract_session_metadata(state)
+
+        assert metadata == {"round_number": 1, "expert_count": 1}
+        assert "phase" not in metadata
+        assert "contribution_count" not in metadata
+
+    def test_extract_metadata_handles_none_values(self):
+        """Verify None values are skipped."""
+        from bo1.state.repositories.session_repository import extract_session_metadata
+
+        state = {
+            "current_phase": None,
+            "round_number": None,
+            "personas": [],
+        }
+
+        metadata = extract_session_metadata(state)
+
+        assert "phase" not in metadata
+        assert "round_number" not in metadata
+        assert "expert_count" not in metadata
+
+    def test_extract_metadata_current_phase_preferred_over_phase(self):
+        """Verify current_phase takes precedence over phase."""
+        from bo1.state.repositories.session_repository import extract_session_metadata
+
+        state = {"current_phase": "exploration", "phase": "synthesis"}
+
+        metadata = extract_session_metadata(state)
+
+        assert metadata["phase"] == "exploration"

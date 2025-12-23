@@ -28,6 +28,7 @@ from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
 from backend.api.oauth_session_manager import SessionManager
 from backend.api.utils.errors import handle_api_errors
 from backend.api.utils.oauth_errors import sanitize_oauth_error
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.state.repositories import user_repository
 
 logger = logging.getLogger(__name__)
@@ -244,7 +245,14 @@ async def sheets_connect_callback(
         )
 
         if token_response.status_code != 200:
-            logger.error(f"Token exchange failed: {token_response.text}")
+            log_error(
+                logger,
+                ErrorCode.AUTH_OAUTH_ERROR,
+                "Token exchange failed",
+                user_id=user_id,
+                status_code=token_response.status_code,
+                response=token_response.text[:200],
+            )
             return RedirectResponse(url=f"{datasets_url}?sheets_error=auth_failed", status_code=302)
 
         tokens = token_response.json()
@@ -254,7 +262,9 @@ async def sheets_connect_callback(
         scope = tokens.get("scope", "")
 
         if not access_token:
-            logger.error("No access token in response")
+            log_error(
+                logger, ErrorCode.AUTH_OAUTH_ERROR, "No access token in response", user_id=user_id
+            )
             return RedirectResponse(url=f"{datasets_url}?sheets_error=auth_failed", status_code=302)
 
         # Calculate expiry
@@ -275,7 +285,14 @@ async def sheets_connect_callback(
         return RedirectResponse(url=f"{datasets_url}?sheets_connected=true", status_code=302)
 
     except requests.RequestException as e:
-        logger.error(f"Token exchange request failed: {e}")
+        log_error(
+            logger,
+            ErrorCode.AUTH_OAUTH_ERROR,
+            "Token exchange request failed",
+            user_id=user_id,
+            error=str(e),
+            exc_info=True,
+        )
         return RedirectResponse(url=f"{datasets_url}?sheets_error=auth_failed", status_code=302)
 
 

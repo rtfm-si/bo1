@@ -16,6 +16,7 @@ from backend.api.models import ErrorResponse
 from backend.api.utils.errors import handle_api_errors
 from backend.services.email import send_email
 from backend.services.email_templates import render_admin_custom_email, render_welcome_email
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -167,7 +168,14 @@ async def send_user_email(
         )
         sent = result is not None
     except Exception as e:
-        logger.error(f"Failed to send admin email: {e}", exc_info=True)
+        log_error(
+            logger,
+            ErrorCode.EXT_EMAIL_ERROR,
+            f"Failed to send admin email: {e}",
+            exc_info=True,
+            user_id=user_id,
+            admin_id=admin_id,
+        )
         sent = False
 
     # Log admin action (audit trail)

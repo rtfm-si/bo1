@@ -407,8 +407,7 @@
 							</div>
 
 							<!-- Quick Actions -->
-							<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-							<div class="flex items-center gap-2" onclick={(e) => e.stopPropagation()}>
+							<div class="flex items-center gap-2" role="toolbar" aria-label="Quick actions">
 								{#if item.status === 'new'}
 									<Button variant="secondary" size="sm" onclick={() => updateStatus(item.id, 'reviewing')} disabled={isUpdating}>
 										{#snippet children()}Start Review{/snippet}

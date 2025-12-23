@@ -112,7 +112,6 @@ class MentorContextService:
                 user_id=user_id,
                 status_filter="completed",
                 limit=limit,
-                include_task_count=False,  # Mentor context doesn't need task counts
             )
             return sessions or []
         except Exception as e:

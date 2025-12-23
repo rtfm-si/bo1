@@ -66,6 +66,7 @@ from backend.api.middleware.auth import get_current_user
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import handle_api_errors
+from bo1.logging.errors import ErrorCode, log_error
 from bo1.services.enrichment import EnrichmentService
 from bo1.state.repositories import user_repository
 
@@ -332,7 +333,13 @@ async def enrich_context(
             error=f"Invalid URL: {str(e)}",
         )
     except Exception as e:
-        logger.error(f"Enrichment failed: {e}")
+        log_error(
+            logger,
+            ErrorCode.SERVICE_EXECUTION_ERROR,
+            f"Enrichment failed: {e}",
+            user_id=user_id,
+            url=request.website_url,
+        )
         return EnrichmentResponse(
             success=False,
             error=f"Enrichment failed: {str(e)}",
@@ -365,7 +372,7 @@ async def check_refresh_needed(
 
     user_id = extract_user_id(user)
 
-    # Get context with extended fields
+    # Get context with extended fields (requires RLS context)
     row = execute_query(
         """
         SELECT updated_at, last_refresh_prompt, onboarding_completed
@@ -374,6 +381,7 @@ async def check_refresh_needed(
         """,
         (user_id,),
         fetch="one",
+        user_id=user_id,
     )
 
     if not row:
@@ -517,7 +525,7 @@ async def dismiss_refresh_prompt(
 
     dismissed_until = datetime.now(UTC) + timedelta(days=expiry_days)
 
-    # Update timestamp in DB
+    # Update timestamp in DB (requires RLS context)
     result = execute_query(
         """
         UPDATE user_context
@@ -527,6 +535,7 @@ async def dismiss_refresh_prompt(
         """,
         (user_id,),
         fetch="one",
+        user_id=user_id,
     )
     if not result:
         raise HTTPException(status_code=404, detail="No context found")

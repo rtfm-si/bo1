@@ -110,6 +110,20 @@ class ContributionType(str, Enum):
     VOTE = "vote"  # Vote contribution
 
 
+class ContributionStatus(str, Enum):
+    """Status of a contribution for in-flight tracking.
+
+    Tracks contribution lifecycle through crash recovery:
+    - IN_FLIGHT: Written to DB but not yet confirmed
+    - COMMITTED: Successfully persisted and confirmed
+    - ROLLED_BACK: Discarded during crash recovery
+    """
+
+    IN_FLIGHT = "in_flight"
+    COMMITTED = "committed"
+    ROLLED_BACK = "rolled_back"
+
+
 class DeliberationPhaseType(str, Enum):
     """Phase of the deliberation within a round.
 
@@ -149,6 +163,10 @@ class ContributionMessage(BaseModel):
     # New fields aligned with DB schema
     id: int | None = Field(default=None, description="DB row ID (assigned by database)")
     session_id: str | None = Field(default=None, description="Session FK (set on persist)")
+    user_id: str | None = Field(default=None, description="User FK (set on persist)")
+    status: ContributionStatus = Field(
+        default=ContributionStatus.COMMITTED, description="In-flight tracking status"
+    )
     model: str | None = Field(
         default=None, description="LLM model used (e.g., claude-sonnet-4-20250514)"
     )
@@ -190,9 +208,20 @@ class ContributionMessage(BaseModel):
             except ValueError:
                 pass  # Keep as None if invalid phase value
 
+        # Convert status string to enum (default to COMMITTED for existing data)
+        status_str = row.get("status")
+        status_enum = ContributionStatus.COMMITTED
+        if status_str:
+            try:
+                status_enum = ContributionStatus(status_str)
+            except ValueError:
+                pass  # Keep default COMMITTED if invalid status value
+
         return cls(
             id=row.get("id"),
             session_id=row.get("session_id"),
+            user_id=row.get("user_id"),
+            status=status_enum,
             persona_code=row["persona_code"],
             persona_name=row.get("persona_name", row["persona_code"]),  # Fallback to code
             content=row["content"],

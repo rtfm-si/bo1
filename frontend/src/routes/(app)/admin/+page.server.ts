@@ -1,4 +1,5 @@
 import { error, isHttpError } from '@sveltejs/kit';
+import { env } from '$env/dynamic/public';
 import { adminFetch } from '$lib/server/admin-fetch';
 import type { PageServerLoad } from './$types';
 
@@ -7,6 +8,19 @@ export const ssr = true;
 export const prerender = false;
 
 export const load: PageServerLoad = async ({ request }) => {
+	// E2E mode: return mock stats (no backend available)
+	if (env.PUBLIC_E2E_MODE === 'true') {
+		return {
+			stats: {
+				totalUsers: 100,
+				totalMeetings: 500,
+				totalCost: 150.0,
+				whitelistCount: 25,
+				waitlistPending: 5
+			}
+		};
+	}
+
 	try {
 		const cookieHeader = request.headers.get('cookie') || '';
 

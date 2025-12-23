@@ -205,6 +205,7 @@
 				{#each tabConfig as tab}
 					{@const count = getItemCount(tab.id)}
 					{@const limit = LIMITS[tab.id]}
+					{@const Icon = tab.icon}
 					<button
 						type="button"
 						onclick={() => handleTabChange(tab.id)}
@@ -213,7 +214,7 @@
 							? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500 -mb-px bg-blue-50 dark:bg-blue-900/20'
 							: 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'}"
 					>
-						<svelte:component this={tab.icon} class="w-4 h-4" />
+						<Icon class="w-4 h-4" />
 						{tab.label}
 						{#if count > 0}
 							<span

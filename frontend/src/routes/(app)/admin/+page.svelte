@@ -24,14 +24,14 @@
 
 	let { data } = $props<{ data: { stats?: AdminStats } }>();
 
-	let stats = $state<AdminStats>(data?.stats ?? defaultStats);
+	let stats = $state<AdminStats>(defaultStats);
 	let emailStats = $state<EmailStatsResponse | null>(null);
 	let emailStatsLoading = $state(true);
 	let cacheStats = $state<ResearchCacheStats | null>(null);
 	let cacheStatsLoading = $state(true);
 	let observabilityLinks = $state<ObservabilityLinksResponse | null>(null);
 
-	// Update local state when data changes
+	// Sync stats when data prop changes
 	$effect(() => {
 		stats = data?.stats ?? defaultStats;
 	});

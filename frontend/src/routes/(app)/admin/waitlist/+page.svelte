@@ -16,10 +16,10 @@
 
 	let { data, form } = $props();
 
-	let entries = $state<WaitlistEntry[]>(data.entries || []);
-	let totalCount = $state(data.totalCount || 0);
-	let pendingCount = $state(data.pendingCount || 0);
-	let statusFilter = $state<string>(data.statusFilter || 'pending');
+	let entries = $state<WaitlistEntry[]>([]);
+	let totalCount = $state(0);
+	let pendingCount = $state(0);
+	let statusFilter = $state<string>('pending');
 	let approvingEmail = $state<string | null>(null);
 	let approveResult = $state<{ email: string; message: string; success: boolean } | null>(null);
 

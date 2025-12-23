@@ -12,10 +12,13 @@
 
 	let { timestamp }: Props = $props();
 
-	let relativeTime = $state(formatRelativeTime(timestamp));
+	let relativeTime = $state('');
 
-	// Update every minute
+	// Update on timestamp change and every minute
 	$effect(() => {
+		// Initial update - reactive to timestamp changes
+		relativeTime = formatRelativeTime(timestamp);
+
 		const interval = setInterval(() => {
 			relativeTime = formatRelativeTime(timestamp);
 		}, 60000); // 60 seconds

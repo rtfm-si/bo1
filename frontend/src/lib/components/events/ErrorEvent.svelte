@@ -51,10 +51,11 @@
 	];
 
 	// Select a consistent message based on session_id (same session = same message)
-	const messageIndex =
+	const messageIndex = $derived(
 		(event.session_id?.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) ?? 0) %
-			friendlyMessages.length || 0;
-	const friendlyError = friendlyMessages[messageIndex];
+			friendlyMessages.length || 0
+	);
+	const friendlyError = $derived(friendlyMessages[messageIndex]);
 </script>
 
 <div class="space-y-3">

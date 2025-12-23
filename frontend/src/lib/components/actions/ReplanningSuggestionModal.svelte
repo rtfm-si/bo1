@@ -40,8 +40,9 @@
 	}: Props = $props();
 
 	let useOriginalProblem = $state(true);
-	let refinedProblem = $state(problemStatement);
+	let refinedProblem = $state('');
 
+	// Sync refinedProblem when problemStatement prop changes
 	$effect(() => {
 		refinedProblem = problemStatement;
 	});

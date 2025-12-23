@@ -15,7 +15,12 @@
 	let showDetails = $state(false);
 	const isAdmin = $derived($user?.is_admin ?? false);
 
-	const { failed_count, failed_goals, completed_count, total_count, reason } = event.data;
+	// Derive values from event.data to stay reactive
+	const failed_count = $derived(event.data.failed_count);
+	const failed_goals = $derived(event.data.failed_goals);
+	const completed_count = $derived(event.data.completed_count);
+	const total_count = $derived(event.data.total_count);
+	const reason = $derived(event.data.reason);
 </script>
 
 <div class="space-y-3">

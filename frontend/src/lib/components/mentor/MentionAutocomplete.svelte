@@ -141,6 +141,7 @@
 		<!-- Tabs -->
 		<div class="flex border-b border-neutral-200 dark:border-neutral-700">
 			{#each tabConfig as tab}
+				{@const Icon = tab.icon}
 				<button
 					type="button"
 					onclick={() => handleTabChange(tab.id)}
@@ -149,7 +150,7 @@
 						? 'text-brand-600 dark:text-brand-400 border-b-2 border-brand-500 -mb-px bg-brand-50 dark:bg-brand-900/20'
 						: 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/50'}"
 				>
-					<svelte:component this={tab.icon} class="w-3.5 h-3.5" />
+					<Icon class="w-3.5 h-3.5" />
 					{tab.label}
 				</button>
 			{/each}

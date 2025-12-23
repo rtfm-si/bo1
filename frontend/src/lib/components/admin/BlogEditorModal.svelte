@@ -16,15 +16,27 @@
 
 	let { post, onclose, onsave }: Props = $props();
 
-	// Form state
-	let title = $state(post?.title || '');
-	let content = $state(post?.content || '');
-	let excerpt = $state(post?.excerpt || '');
-	let status = $state<'draft' | 'scheduled' | 'published'>(post?.status || 'draft');
-	let publishedAt = $state(post?.published_at ? post.published_at.slice(0, 16) : '');
-	let seoKeywords = $state(post?.seo_keywords?.join(', ') || '');
-	let metaTitle = $state(post?.meta_title || '');
-	let metaDescription = $state(post?.meta_description || '');
+	// Form state - initialized empty, synced via $effect
+	let title = $state('');
+	let content = $state('');
+	let excerpt = $state('');
+	let status = $state<'draft' | 'scheduled' | 'published'>('draft');
+	let publishedAt = $state('');
+	let seoKeywords = $state('');
+	let metaTitle = $state('');
+	let metaDescription = $state('');
+
+	// Sync form state when post prop changes
+	$effect(() => {
+		title = post?.title || '';
+		content = post?.content || '';
+		excerpt = post?.excerpt || '';
+		status = post?.status || 'draft';
+		publishedAt = post?.published_at ? post.published_at.slice(0, 16) : '';
+		seoKeywords = post?.seo_keywords?.join(', ') || '';
+		metaTitle = post?.meta_title || '';
+		metaDescription = post?.meta_description || '';
+	});
 
 	let isSubmitting = $state(false);
 	let error = $state<string | null>(null);

@@ -13,8 +13,8 @@
 
 	let { data, form } = $props();
 
-	let entries = $state<WhitelistEntry[]>(data.entries || []);
-	let totalCount = $state(data.totalCount || 0);
+	let entries = $state<WhitelistEntry[]>([]);
+	let totalCount = $state(0);
 	let newEmail = $state('');
 	let newNotes = $state('');
 	let isAdding = $state(false);

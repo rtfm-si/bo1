@@ -10,11 +10,19 @@
 
 	let { data } = $props();
 
-	let users = $state(data.users || []);
-	let totalCount = $state(data.totalCount || 0);
-	let currentPage = $state(data.page || 1);
-	let perPage = $state(data.perPage || 20);
+	let users = $state<typeof data.users>([]);
+	let totalCount = $state(0);
+	let currentPage = $state(1);
+	let perPage = $state(20);
 	let searchEmail = $state($page.url.searchParams.get('email') || '');
+
+	// Sync state when data prop changes
+	$effect(() => {
+		users = data.users || [];
+		totalCount = data.totalCount || 0;
+		currentPage = data.page || 1;
+		perPage = data.perPage || 20;
+	});
 
 	// Edit state
 	let editingUserId = $state<string | null>(null);

@@ -12,7 +12,7 @@
 	let { grafana_url, prometheus_url, sentry_url, status_url, analytics_url }: Props = $props();
 
 	// Only show card if at least one URL is configured
-	const hasAnyLinks = grafana_url || prometheus_url || sentry_url || status_url || analytics_url;
+	const hasAnyLinks = $derived(grafana_url || prometheus_url || sentry_url || status_url || analytics_url);
 </script>
 
 {#if hasAnyLinks}

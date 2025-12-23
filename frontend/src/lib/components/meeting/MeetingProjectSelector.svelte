@@ -37,7 +37,12 @@
 	let isLoading = $state(false);
 	let availableProjects = $state<AvailableProjectItem[]>([]);
 	let linkedProjects = $state<SessionProjectItem[]>([]);
-	let selectedIds = $state<Set<string>>(new Set(selectedProjectIds));
+	let selectedIds = $state<Set<string>>(new Set());
+
+	// Sync selectedIds when selectedProjectIds prop changes
+	$effect(() => {
+		selectedIds = new Set(selectedProjectIds);
+	});
 
 	// Track current mode - are we managing an existing session or creating new?
 	let isExistingSession = $derived(!!sessionId);

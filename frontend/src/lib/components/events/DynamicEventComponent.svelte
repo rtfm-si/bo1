@@ -121,8 +121,8 @@
 		}
 	}
 
-	// Load the component
-	const componentPromise = getComponentForEvent(eventType);
+	// Load the component - reactive to eventType changes
+	const componentPromise = $derived(getComponentForEvent(eventType));
 </script>
 
 {#await componentPromise}

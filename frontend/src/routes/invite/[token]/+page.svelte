@@ -19,9 +19,15 @@
 
 	let { data }: Props = $props();
 
-	let invitation = $state(data.invitation);
-	let error = $state(data.error);
+	let invitation = $state<InvitationResponse | null>(null);
+	let error = $state<string | undefined>(undefined);
 	let isAccepting = $state(false);
+
+	// Sync state when data prop changes
+	$effect(() => {
+		invitation = data.invitation;
+		error = data.error;
+	});
 	let isDeclining = $state(false);
 	let actionResult = $state<'accepted' | 'declined' | null>(null);
 	let actionError = $state<string | null>(null);

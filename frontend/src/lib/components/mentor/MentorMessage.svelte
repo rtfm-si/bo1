@@ -14,7 +14,7 @@
 		isStreaming?: boolean;
 	} = $props();
 
-	const isUser = message.role === 'user';
+	const isUser = $derived(message.role === 'user');
 
 	function getPersonaIcon(persona: string | null | undefined) {
 		switch (persona) {
@@ -27,7 +27,7 @@
 		}
 	}
 
-	const PersonaIcon = getPersonaIcon(message.persona);
+	const PersonaIcon = $derived(getPersonaIcon(message.persona));
 
 	// Parse @mentions in user content for display as chips
 	interface ParsedMention {
@@ -115,7 +115,7 @@
 							title="View {mention.type}"
 						>
 							{#if MentionIcon}
-								<svelte:component this={MentionIcon} class="w-3 h-3" />
+								<MentionIcon class="w-3 h-3" />
 							{/if}
 							<span class="capitalize">{mention.type}</span>
 						</a>

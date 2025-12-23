@@ -19,7 +19,7 @@
 	let error = $state<string | null>(null);
 
 	// If no configuration provided, show placeholder
-	const isConfigured = statusPageUrl || monitorApiKey;
+	const isConfigured = $derived(statusPageUrl || monitorApiKey);
 </script>
 
 {#if isConfigured}

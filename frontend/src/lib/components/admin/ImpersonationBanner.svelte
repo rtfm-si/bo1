@@ -22,8 +22,13 @@
 	let { session, onEnd }: Props = $props();
 
 	// State
-	let remainingSeconds = $state(session.remaining_seconds);
+	let remainingSeconds = $state(0);
 	let isEnding = $state(false);
+
+	// Sync remaining seconds when session prop changes
+	$effect(() => {
+		remainingSeconds = session.remaining_seconds;
+	});
 	let intervalId: ReturnType<typeof setInterval> | null = null;
 
 	// Computed

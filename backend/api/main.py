@@ -72,6 +72,7 @@ from backend.api import (  # noqa: E402
     status,
     streaming,
     tags,
+    templates,
     user,
     waitlist,
     workspaces,
@@ -196,6 +197,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print("✓ Batch event persistence task started")
     _track_startup_time("batch_flush_task", op_start)
 
+    # Start LLM health probe (background provider probing)
+    op_start = time.perf_counter()
+    from backend.api.llm_health_probe import get_llm_health_probe
+
+    try:
+        llm_probe = get_llm_health_probe()
+        await llm_probe.start()
+        app.state.llm_health_probe = llm_probe
+        print("✓ LLM health probe started")
+    except Exception as e:
+        print(f"⚠️  Failed to start LLM health probe: {e}")
+    _track_startup_time("llm_health_probe", op_start)
+
     # Start session share cleanup job (daily)
     op_start = time.perf_counter()
     from backend.jobs.session_share_cleanup import cleanup_expired_shares
@@ -277,6 +291,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         else:
             print("✓ All in-flight requests completed")
 
+    # Stop LLM health probe
+    try:
+        if hasattr(app.state, "llm_health_probe"):
+            await app.state.llm_health_probe.stop()
+            print("✓ LLM health probe stopped")
+    except Exception as e:
+        print(f"⚠️  Failed to stop LLM health probe: {e}")
+
     # Stop batch event persistence task and flush remaining events
     from backend.api.event_publisher import _flush_batch, stop_batch_flush_task
 
@@ -324,13 +346,22 @@ app = FastAPI(
 
     ## Authentication
 
-    - **User Endpoints**: Currently use hardcoded user ID (test_user_1) for MVP
-    - **Admin Endpoints**: Require X-Admin-Key header with valid admin API key
+    This API uses cookie-based session authentication via SuperTokens.
+
+    - **User Endpoints**: Require valid `sAccessToken` session cookie
+    - **Admin Endpoints**: Require session cookie with admin privileges (is_admin=true)
+
+    Authentication flow:
+    1. User authenticates via OAuth (Google, LinkedIn, etc.) at `/auth/*` endpoints
+    2. SuperTokens sets httpOnly `sAccessToken` cookie on successful auth
+    3. All subsequent requests include cookie automatically
+    4. Session is validated on each request
 
     ## Rate Limits
 
-    - No rate limits enforced in v1.0 (MVP)
-    - Will be added in v2.0 with Stripe integration
+    - Global: 500 requests/minute per IP
+    - Control endpoints: 30 requests/minute per user
+    - SSE: 5 concurrent connections per user
 
     ## Support
 
@@ -550,6 +581,7 @@ app.include_router(calendar_router, prefix="/api", tags=["integrations"])
 app.include_router(page_analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(page_analytics.admin_router, prefix="/api", tags=["admin"])
 app.include_router(blog.router, prefix="/api", tags=["blog"])
+app.include_router(templates.router, prefix="/api", tags=["templates"])
 
 _startup_times["router_registration"] = (time.perf_counter() - _routers_start) * 1000
 print(f"⏱️  Router registration: {_startup_times['router_registration']:.1f}ms")
@@ -590,6 +622,8 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     """
     import logging
 
+    from backend.api.middleware.metrics import record_api_endpoint_error
+
     logger = logging.getLogger(__name__)
 
     # Get settings to check debug mode
@@ -606,6 +640,9 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         request_path=request.url.path,
         request_method=request.method,
     )
+
+    # Record error metric
+    record_api_endpoint_error(request.url.path, 500)
 
     if settings.debug:
         # Development: Return full error details
@@ -636,14 +673,41 @@ async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded)
     """Handle rate limit exceeded exceptions from SlowAPI.
 
     Returns 429 Too Many Requests with Retry-After header.
+    Calculates Retry-After from the rate limit window when available.
     """
+    from backend.api.middleware.metrics import record_api_endpoint_error
+
+    # Record error metric
+    record_api_endpoint_error(request.url.path, 429)
+
+    # Try to extract retry time from slowapi exception
+    # Format: "N per M second/minute/hour" - extract window in seconds
+    retry_after = 60  # default fallback
+    try:
+        if hasattr(exc, "detail") and exc.detail:
+            detail_str = str(exc.detail)
+            # Parse rate limit format: "5 per 1 minute" -> extract window
+            if "per" in detail_str.lower():
+                parts = detail_str.lower().split("per")
+                if len(parts) == 2:
+                    time_part = parts[1].strip()
+                    if "second" in time_part:
+                        retry_after = int(time_part.split()[0])
+                    elif "minute" in time_part:
+                        retry_after = int(time_part.split()[0]) * 60
+                    elif "hour" in time_part:
+                        retry_after = int(time_part.split()[0]) * 3600
+    except (ValueError, IndexError, AttributeError):
+        pass  # Use default 60 seconds
+
     return JSONResponse(
         status_code=429,
         content={
             "detail": "Too many requests. Please try again later.",
             "error_code": "rate_limited",
+            "retry_after": retry_after,  # Also include in body for client convenience
         },
-        headers={"Retry-After": "60"},  # Suggest retry after 60 seconds
+        headers={"Retry-After": str(retry_after)},
     )
 
 
@@ -661,6 +725,12 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     Returns:
         JSON error response with consistent shape
     """
+    from backend.api.middleware.metrics import record_api_endpoint_error
+
+    # Record error metric for 4xx and 5xx responses
+    if exc.status_code >= 400:
+        record_api_endpoint_error(request.url.path, exc.status_code)
+
     # Check if detail is already structured (dict with error_code)
     if isinstance(exc.detail, dict) and "error_code" in exc.detail:
         return JSONResponse(
@@ -783,6 +853,66 @@ async def api_redoc(user: dict[str, Any] = Depends(require_admin)) -> HTMLRespon
     )
 
 
+def custom_openapi() -> dict[str, Any]:
+    """Generate custom OpenAPI schema with security schemes.
+
+    Adds sessionAuth (cookie-based) and adminAuth security schemes to the
+    OpenAPI specification. This documents the SuperTokens session cookie
+    authentication used by the API.
+
+    Returns:
+        OpenAPI schema dict with security schemes
+    """
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    from fastapi.openapi.utils import get_openapi
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+        tags=app.openapi_tags,
+    )
+
+    # Add security schemes to components
+    openapi_schema["components"] = openapi_schema.get("components", {})
+    openapi_schema["components"]["securitySchemes"] = {
+        "sessionAuth": {
+            "type": "apiKey",
+            "in": "cookie",
+            "name": "sAccessToken",
+            "description": (
+                "SuperTokens session cookie. Set automatically after OAuth login. "
+                "Contains encrypted session token validated on each request."
+            ),
+        },
+        "csrfToken": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "description": (
+                "CSRF protection token. Must match the value in the csrf_token cookie. "
+                "Required for all mutating requests (POST, PUT, DELETE, PATCH)."
+            ),
+        },
+    }
+
+    # Add global security requirement (most endpoints require auth)
+    openapi_schema["security"] = [{"sessionAuth": [], "csrfToken": []}]
+
+    # Add version metadata
+    openapi_schema["info"]["x-api-version"] = API_VERSION
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+# Override FastAPI's default openapi() method
+app.openapi = custom_openapi  # type: ignore[method-assign]
+
+
 @app.get("/api/v1/openapi.json", include_in_schema=False)
 async def api_openapi(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     """Admin-only OpenAPI specification with version metadata.
@@ -793,12 +923,7 @@ async def api_openapi(user: dict[str, Any] = Depends(require_admin)) -> dict[str
     Returns:
         OpenAPI JSON spec with version info
     """
-    spec = app.openapi()
-    # Ensure version info is in spec
-    if "info" in spec:
-        spec["info"]["version"] = app.version
-        spec["info"]["x-api-version"] = API_VERSION
-    return spec
+    return app.openapi()
 
 
 if __name__ == "__main__":

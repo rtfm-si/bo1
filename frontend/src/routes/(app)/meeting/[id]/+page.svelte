@@ -337,11 +337,11 @@
 				id: sessionData.id,
 				status: sessionData.status,
 				phase: sessionData.phase,
-				round_number: sessionData.round_number || sessionData.state?.round_number || undefined,
+				round_number: (sessionData as { round_number?: number }).round_number || sessionData.state?.round_number || undefined,
 				created_at: sessionData.created_at,
 				problem: sessionData.problem,
 			};
-			store.setSession(mappedSession);
+			store.setSession(mappedSession as Parameters<typeof store.setSession>[0]);
 			store.setIsLoading(false);
 			// Check if session was already in failed state
 			if (sessionData.status === 'failed') {
@@ -526,7 +526,7 @@
 						status: task.status,
 						priority: (task.priority as 'high' | 'medium' | 'low') || 'medium',
 						timeline: task.timeline || '',
-						target_end_date: task.suggested_completion_date || null,
+						target_end_date: (task as { suggested_completion_date?: string }).suggested_completion_date || null,
 						// Extended fields for full PDF details
 						what_and_how: task.what_and_how || [],
 						success_criteria: task.success_criteria || [],

@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from backend.api.dependencies import (
     VerifiedSession,
@@ -24,8 +24,16 @@ from backend.api.dependencies import (
 from backend.api.middleware.auth import get_current_user
 from backend.api.middleware.rate_limit import CONTROL_RATE_LIMIT, limiter
 from backend.api.models import ControlResponse, ErrorResponse
+from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.auth_helpers import extract_user_id
 from backend.api.utils.errors import handle_api_errors, http_error
+from backend.api.utils.responses import (
+    ERROR_400_RESPONSE,
+    ERROR_403_RESPONSE,
+    ERROR_404_RESPONSE,
+    ERROR_409_RESPONSE,
+    ERROR_500_RESPONSE,
+)
 from backend.api.utils.validation import validate_session_id
 from bo1.data import load_personas
 from bo1.graph.config import create_deliberation_graph
@@ -471,7 +479,7 @@ class ClarificationRequest(BaseModel):
     )
     answers: dict[str, str] | None = Field(
         None,
-        description="Dict of question->answer pairs for multiple questions",
+        description="Dict of question->answer pairs for multiple questions (max 5000 chars per answer)",
         examples=[
             {"What is your monthly churn rate?": "3.5%", "What is your current ARR?": "$500K"}
         ],
@@ -480,6 +488,18 @@ class ClarificationRequest(BaseModel):
         False,
         description="Skip all questions without answering",
     )
+
+    @field_validator("answers")
+    @classmethod
+    def validate_answer_lengths(cls, v: dict[str, str] | None) -> dict[str, str] | None:
+        """Validate that each answer in the dict doesn't exceed max length."""
+        if v is None:
+            return v
+        max_len = 5000
+        for question, answer in v.items():
+            if len(answer) > max_len:
+                raise ValueError(f"Answer for '{question[:50]}...' exceeds {max_len} characters")
+        return v
 
 
 class KillRequest(BaseModel):
@@ -505,60 +525,12 @@ class KillRequest(BaseModel):
     description="Start a deliberation session as a background task. Returns 202 Accepted immediately.",
     responses={
         202: {"description": "Deliberation started in background"},
-        400: {
-            "description": "Invalid request",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Cannot start session with status: completed",
-                        "session_id": "bo1_abc123",
-                        "status": "completed",
-                    }
-                }
-            },
-        },
-        404: {
-            "description": "Session not found",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Session not found", "session_id": "bo1_abc123"}
-                }
-            },
-        },
-        409: {
-            "description": "Session already running",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Session bo1_abc123 is already running",
-                        "session_id": "bo1_abc123",
-                        "error_code": "SESSION_ALREADY_RUNNING",
-                    }
-                }
-            },
-        },
-        429: {
-            "description": "Rate limit exceeded",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {"example": {"detail": "Rate limit exceeded. Try again later."}}
-            },
-        },
-        500: {
-            "description": "Internal server error",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Failed to start deliberation: graph execution failed",
-                        "error_code": "GRAPH_EXECUTION_FAILED",
-                    }
-                }
-            },
-        },
+        400: ERROR_400_RESPONSE,
+        404: ERROR_404_RESPONSE,
+        403: ERROR_403_RESPONSE,
+        409: ERROR_409_RESPONSE,
+        429: RATE_LIMIT_RESPONSE,
+        500: ERROR_500_RESPONSE,
     },
 )
 @limiter.limit(CONTROL_RATE_LIMIT)
@@ -788,8 +760,8 @@ async def start_deliberation(
     description="Pause a running deliberation session. Checkpoint is auto-saved by LangGraph.",
     responses={
         200: {"description": "Deliberation paused successfully"},
-        404: {"description": "Session not found", "model": ErrorResponse},
-        500: {"description": "Internal server error", "model": ErrorResponse},
+        404: ERROR_404_RESPONSE,
+        500: ERROR_500_RESPONSE,
     },
 )
 @handle_api_errors("pause deliberation")
@@ -863,65 +835,14 @@ async def pause_deliberation(
     description="Resume a paused deliberation session from its last checkpoint.",
     responses={
         202: {"description": "Deliberation resumed in background"},
-        400: {
-            "description": "Invalid request",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Cannot resume session with status: completed. Session must be paused.",
-                        "session_id": "bo1_abc123",
-                        "status": "completed",
-                    }
-                }
-            },
-        },
-        404: {
-            "description": "Session not found",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Session not found", "session_id": "bo1_abc123"}
-                }
-            },
-        },
-        409: {
-            "description": "Session already running",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Session bo1_abc123 is already running",
-                        "session_id": "bo1_abc123",
-                        "error_code": "SESSION_ALREADY_RUNNING",
-                    }
-                }
-            },
-        },
+        400: ERROR_400_RESPONSE,
+        404: ERROR_404_RESPONSE,
+        409: ERROR_409_RESPONSE,
         410: {
             "description": "Session checkpoint expired",
             "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Session checkpoint expired and cannot be reconstructed. Please start a new meeting.",
-                        "error_code": "CHECKPOINT_EXPIRED",
-                    }
-                }
-            },
         },
-        500: {
-            "description": "Internal server error",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Failed to resume deliberation: checkpoint load failed",
-                        "error_code": "CHECKPOINT_LOAD_FAILED",
-                    }
-                }
-            },
-        },
+        500: ERROR_500_RESPONSE,
     },
 )
 @handle_api_errors("resume deliberation")
@@ -1222,49 +1143,10 @@ async def resume_deliberation(
     description="Kill a running deliberation session. Requires user ownership of the session.",
     responses={
         200: {"description": "Deliberation killed successfully"},
-        403: {
-            "description": "User does not own this session",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Not authorized to kill this session",
-                        "error_code": "FORBIDDEN",
-                    }
-                }
-            },
-        },
-        404: {
-            "description": "Session not found or not running",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Session not found or not running: bo1_abc123",
-                        "session_id": "bo1_abc123",
-                    }
-                }
-            },
-        },
-        429: {
-            "description": "Rate limit exceeded",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {"example": {"detail": "Rate limit exceeded. Try again later."}}
-            },
-        },
-        500: {
-            "description": "Internal server error",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Failed to kill deliberation: task cancellation failed",
-                        "error_code": "KILL_FAILED",
-                    }
-                }
-            },
-        },
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
+        429: RATE_LIMIT_RESPONSE,
+        500: ERROR_500_RESPONSE,
     },
 )
 @limiter.limit(CONTROL_RATE_LIMIT)
@@ -1372,65 +1254,15 @@ async def kill_deliberation(
     description="Retry a failed deliberation session from its last successful checkpoint.",
     responses={
         202: {"description": "Deliberation retried from checkpoint"},
-        400: {
-            "description": "Invalid request - session not in failed status",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Cannot retry session with status: running. Session must be failed.",
-                        "session_id": "bo1_abc123",
-                        "status": "running",
-                    }
-                }
-            },
-        },
-        404: {
-            "description": "Session not found",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Session not found", "session_id": "bo1_abc123"}
-                }
-            },
-        },
-        409: {
-            "description": "Session already running",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Session bo1_abc123 is already running",
-                        "session_id": "bo1_abc123",
-                        "error_code": "SESSION_ALREADY_RUNNING",
-                    }
-                }
-            },
-        },
+        400: ERROR_400_RESPONSE,
+        404: ERROR_404_RESPONSE,
+        409: ERROR_409_RESPONSE,
         410: {
             "description": "Checkpoint expired and cannot be reconstructed",
             "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Session checkpoint expired and cannot be reconstructed. Please start a new meeting.",
-                        "error_code": "CHECKPOINT_EXPIRED",
-                    }
-                }
-            },
         },
-        500: {
-            "description": "Internal server error",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Failed to retry deliberation: checkpoint load failed",
-                        "error_code": "CHECKPOINT_LOAD_FAILED",
-                    }
-                }
-            },
-        },
+        429: RATE_LIMIT_RESPONSE,
+        500: ERROR_500_RESPONSE,
     },
 )
 @limiter.limit(CONTROL_RATE_LIMIT)
@@ -1629,7 +1461,8 @@ class ClarificationResponse(BaseModel):
     description="Check if there's a pending clarification question for this session.",
     responses={
         200: {"description": "Clarification status returned"},
-        404: {"description": "Session not found", "model": ErrorResponse},
+        404: ERROR_404_RESPONSE,
+        500: ERROR_500_RESPONSE,
     },
 )
 @handle_api_errors("get pending clarification")
@@ -1694,57 +1527,14 @@ async def get_pending_clarification(
     description="Submit an answer to a pending clarification question and resume deliberation.",
     responses={
         202: {"description": "Clarification submitted, deliberation resumed"},
-        400: {
-            "description": "Invalid request",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "No answers provided. Use 'answers' dict or 'skip': true",
-                    }
-                }
-            },
-        },
-        403: {
-            "description": "User does not own this session",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {"example": {"detail": "Not authorized to access this session"}}
-            },
-        },
-        404: {
-            "description": "Session not found",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Session not found", "session_id": "bo1_abc123"}
-                }
-            },
-        },
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
         422: {
             "description": "Prompt injection detected",
             "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Clarification answer contains unsafe content",
-                        "error_code": "INJECTION_DETECTED",
-                    }
-                }
-            },
         },
-        500: {
-            "description": "Internal server error",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Failed to submit clarification: checkpoint update failed",
-                        "error_code": "CHECKPOINT_UPDATE_FAILED",
-                    }
-                }
-            },
-        },
+        500: ERROR_500_RESPONSE,
     },
 )
 @handle_api_errors("submit clarification")
@@ -1769,10 +1559,10 @@ async def submit_clarification_new(
     description="Submit an answer to a pending clarification question and resume deliberation.",
     responses={
         202: {"description": "Clarification submitted, deliberation resumed"},
-        400: {"description": "Invalid request", "model": ErrorResponse},
-        403: {"description": "User does not own this session", "model": ErrorResponse},
-        404: {"description": "Session not found", "model": ErrorResponse},
-        500: {"description": "Internal server error", "model": ErrorResponse},
+        400: ERROR_400_RESPONSE,
+        403: ERROR_403_RESPONSE,
+        404: ERROR_404_RESPONSE,
+        500: ERROR_500_RESPONSE,
     },
     deprecated=True,
 )
@@ -2160,40 +1950,14 @@ class RaiseHandRequest(BaseModel):
     description="Submit a question or context during an active meeting. Experts will acknowledge and respond.",
     responses={
         202: {"description": "Interjection submitted, experts will respond"},
-        400: {
-            "description": "Invalid request or session not running",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Cannot raise hand: session is not running",
-                        "session_id": "bo1_abc123",
-                        "status": "paused",
-                    }
-                }
-            },
-        },
-        404: {"description": "Session not found", "model": ErrorResponse},
+        400: ERROR_400_RESPONSE,
+        404: ERROR_404_RESPONSE,
         422: {
             "description": "Prompt injection detected",
             "model": ErrorResponse,
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Interjection message contains unsafe content",
-                        "error_code": "INJECTION_DETECTED",
-                    }
-                }
-            },
         },
-        429: {
-            "description": "Rate limit exceeded",
-            "model": ErrorResponse,
-            "content": {
-                "application/json": {"example": {"detail": "Rate limit exceeded. Try again later."}}
-            },
-        },
-        500: {"description": "Internal server error", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
+        500: ERROR_500_RESPONSE,
     },
 )
 @limiter.limit(CONTROL_RATE_LIMIT)

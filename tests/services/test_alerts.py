@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from backend.services.alerts import (
+    alert_cost_anomaly,
     alert_kill_all_sessions,
     alert_runaway_session,
     alert_runaway_sessions_batch,
@@ -241,3 +242,204 @@ class TestAlertKillAllSessions:
         assert "EMERGENCY" in call_args.kwargs["title"]
         assert call_args.kwargs["priority"] == "urgent"
         assert "5 sessions" in call_args.kwargs["message"]
+
+
+class TestCostAnomalyAlert:
+    """Tests for alert_cost_anomaly function."""
+
+    @pytest.mark.asyncio
+    @patch("backend.services.alerts._get_ntfy_alerts_topic")
+    @patch("backend.services.alerts.send_ntfy_alert")
+    @patch("backend.services.alerts.log_alert")
+    async def test_sends_alert_for_negative_cost(
+        self,
+        mock_log_alert: AsyncMock,
+        mock_send: AsyncMock,
+        mock_get_topic: MagicMock,
+    ) -> None:
+        """Test alert is sent with urgent priority for negative cost."""
+        mock_get_topic.return_value = "test-alerts"
+        mock_send.return_value = True
+        mock_log_alert.return_value = None
+
+        result = await alert_cost_anomaly(
+            anomaly_type="negative_cost",
+            session_id="session-123456789abc",
+            cost=-0.50,
+            model="claude-sonnet-4-5-20250929",
+            provider="anthropic",
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        assert "CRITICAL" in call_args.kwargs["title"]
+        assert "Negative Cost" in call_args.kwargs["title"]
+        assert call_args.kwargs["priority"] == "urgent"
+        assert "rotating_light" in call_args.kwargs["tags"]
+        assert "moneybag" in call_args.kwargs["tags"]
+
+    @pytest.mark.asyncio
+    @patch("backend.services.alerts._get_ntfy_alerts_topic")
+    @patch("backend.services.alerts.send_ntfy_alert")
+    @patch("backend.services.alerts.log_alert")
+    async def test_sends_alert_for_high_single_call(
+        self,
+        mock_log_alert: AsyncMock,
+        mock_send: AsyncMock,
+        mock_get_topic: MagicMock,
+    ) -> None:
+        """Test alert is sent with high priority for high single call cost."""
+        mock_get_topic.return_value = "test-alerts"
+        mock_send.return_value = True
+        mock_log_alert.return_value = None
+
+        result = await alert_cost_anomaly(
+            anomaly_type="high_single_call",
+            session_id="session-123456789abc",
+            cost=1.50,
+            model="claude-opus-4-20250514",
+            provider="anthropic",
+            input_tokens=50000,
+            output_tokens=2000,
+            threshold=0.50,
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        assert "High Single Call Cost" in call_args.kwargs["title"]
+        assert call_args.kwargs["priority"] == "high"
+        assert "$1.5000" in call_args.kwargs["message"]
+        assert "$0.50" in call_args.kwargs["message"]  # threshold
+        assert "50,000" in call_args.kwargs["message"]  # input tokens formatted
+
+    @pytest.mark.asyncio
+    @patch("backend.services.alerts._get_ntfy_alerts_topic")
+    @patch("backend.services.alerts.send_ntfy_alert")
+    @patch("backend.services.alerts.log_alert")
+    async def test_sends_alert_for_high_session_total(
+        self,
+        mock_log_alert: AsyncMock,
+        mock_send: AsyncMock,
+        mock_get_topic: MagicMock,
+    ) -> None:
+        """Test alert is sent with high priority for high session total."""
+        mock_get_topic.return_value = "test-alerts"
+        mock_send.return_value = True
+        mock_log_alert.return_value = None
+
+        result = await alert_cost_anomaly(
+            anomaly_type="high_session_total",
+            session_id="session-123456789abc",
+            cost=8.50,
+            threshold=5.00,
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        assert "High Session Total Cost" in call_args.kwargs["title"]
+        assert call_args.kwargs["priority"] == "high"
+
+    @pytest.mark.asyncio
+    @patch("backend.services.alerts._get_ntfy_alerts_topic")
+    async def test_skips_alert_when_no_topic(
+        self,
+        mock_get_topic: MagicMock,
+    ) -> None:
+        """Test alert is skipped when no topic configured."""
+        mock_get_topic.return_value = ""
+
+        result = await alert_cost_anomaly(
+            anomaly_type="high_single_call",
+            session_id="session-123",
+            cost=1.00,
+        )
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    @patch("backend.services.alerts._get_ntfy_alerts_topic")
+    @patch("backend.services.alerts.send_ntfy_alert")
+    @patch("backend.services.alerts.log_alert")
+    async def test_logs_alert_to_database(
+        self,
+        mock_log_alert: AsyncMock,
+        mock_send: AsyncMock,
+        mock_get_topic: MagicMock,
+    ) -> None:
+        """Test alert is logged to database with correct metadata."""
+        mock_get_topic.return_value = "test-alerts"
+        mock_send.return_value = True
+        mock_log_alert.return_value = None
+
+        await alert_cost_anomaly(
+            anomaly_type="high_single_call",
+            session_id="session-123",
+            cost=1.50,
+            model="claude-sonnet-4-5-20250929",
+            provider="anthropic",
+            input_tokens=10000,
+            output_tokens=500,
+            threshold=0.50,
+        )
+
+        mock_log_alert.assert_called_once()
+        call_args = mock_log_alert.call_args
+        assert call_args.kwargs["alert_type"] == "cost_anomaly"
+        assert call_args.kwargs["severity"] == "high"
+        metadata = call_args.kwargs["metadata"]
+        assert metadata["anomaly_type"] == "high_single_call"
+        assert metadata["session_id"] == "session-123"
+        assert metadata["cost"] == 1.50
+        assert metadata["threshold"] == 0.50
+
+    @pytest.mark.asyncio
+    @patch("backend.services.alerts._get_ntfy_alerts_topic")
+    @patch("backend.services.alerts.send_ntfy_alert")
+    @patch("backend.services.alerts.log_alert")
+    async def test_handles_missing_optional_fields(
+        self,
+        mock_log_alert: AsyncMock,
+        mock_send: AsyncMock,
+        mock_get_topic: MagicMock,
+    ) -> None:
+        """Test alert works with minimal required fields."""
+        mock_get_topic.return_value = "test-alerts"
+        mock_send.return_value = True
+        mock_log_alert.return_value = None
+
+        result = await alert_cost_anomaly(
+            anomaly_type="high_single_call",
+            cost=1.00,
+        )
+
+        assert result is True
+        call_args = mock_send.call_args
+        # Session should show N/A when not provided
+        assert "N/A" in call_args.kwargs["message"]
+
+    @pytest.mark.asyncio
+    @patch("backend.services.alerts._get_ntfy_alerts_topic")
+    @patch("backend.services.alerts.send_ntfy_alert")
+    @patch("backend.services.alerts.log_alert")
+    async def test_unknown_anomaly_type_uses_default_priority(
+        self,
+        mock_log_alert: AsyncMock,
+        mock_send: AsyncMock,
+        mock_get_topic: MagicMock,
+    ) -> None:
+        """Test unknown anomaly types use default priority."""
+        mock_get_topic.return_value = "test-alerts"
+        mock_send.return_value = True
+        mock_log_alert.return_value = None
+
+        await alert_cost_anomaly(
+            anomaly_type="unknown_anomaly",
+            cost=1.00,
+        )
+
+        call_args = mock_send.call_args
+        assert call_args.kwargs["priority"] == "default"
+        assert "unknown_anomaly" in call_args.kwargs["title"]

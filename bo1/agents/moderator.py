@@ -108,6 +108,7 @@ question or challenge, then return focus to the standard expert personas."""
             system=system_prompt,
             user_message=user_message,
             phase="moderator_intervention",
+            prefill="<thinking>",  # Consistent reasoning pattern
             temperature=1.0,
             max_tokens=1024,
         )

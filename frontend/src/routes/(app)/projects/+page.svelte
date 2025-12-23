@@ -314,7 +314,7 @@
 						<!-- Footer with actions -->
 						<div class="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
 							<span class="text-xs text-neutral-500 dark:text-neutral-500">
-								Updated {formatDate(project.updated_at)}
+								Updated {formatDate(project.updated_at ?? null)}
 							</span>
 							<button
 								onclick={(e) => handleDeleteProject(project.id, e)}

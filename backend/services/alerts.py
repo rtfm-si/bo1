@@ -713,3 +713,103 @@ async def alert_lockout_spike(
     )
 
     return delivered
+
+
+# =============================================================================
+# COST ANOMALY ALERTS
+# =============================================================================
+
+
+async def alert_cost_anomaly(
+    anomaly_type: str,
+    session_id: str | None = None,
+    cost: float = 0.0,
+    model: str | None = None,
+    provider: str | None = None,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    threshold: float | None = None,
+) -> bool:
+    """Send alert for cost anomaly detection.
+
+    Args:
+        anomaly_type: Type of anomaly (negative_cost, high_single_call, high_session_total)
+        session_id: Session identifier (optional)
+        cost: Anomalous cost value
+        model: Model name (optional)
+        provider: Provider name (optional)
+        input_tokens: Input token count (optional)
+        output_tokens: Output token count (optional)
+        threshold: Threshold that was exceeded (optional)
+
+    Returns:
+        True if alert sent successfully
+    """
+    topic = _get_ntfy_alerts_topic()
+    if not topic:
+        logger.debug("No alerts topic configured - skipping cost anomaly alert")
+        return False
+
+    # Map anomaly types to priority and tags
+    if anomaly_type == "negative_cost":
+        priority = "urgent"
+        tags = ["rotating_light", "moneybag"]
+        title = "CRITICAL: Negative Cost Detected"
+        severity = "critical"
+    elif anomaly_type == "high_single_call":
+        priority = "high"
+        tags = ["warning", "moneybag"]
+        title = "High Single Call Cost"
+        severity = "high"
+    elif anomaly_type == "high_session_total":
+        priority = "high"
+        tags = ["warning", "moneybag"]
+        title = "High Session Total Cost"
+        severity = "high"
+    else:
+        priority = "default"
+        tags = ["warning", "moneybag"]
+        title = f"Cost Anomaly: {anomaly_type}"
+        severity = "warning"
+
+    # Build message
+    session_display = session_id[:12] + "..." if session_id else "N/A"
+    message = f"Type: {anomaly_type}\nSession: {session_display}\nCost: ${cost:.4f}"
+    if threshold:
+        message += f"\nThreshold: ${threshold:.2f}"
+    if model:
+        message += f"\nModel: {model}"
+    if provider:
+        message += f"\nProvider: {provider}"
+    if input_tokens is not None:
+        message += f"\nInput tokens: {input_tokens:,}"
+    if output_tokens is not None:
+        message += f"\nOutput tokens: {output_tokens:,}"
+
+    delivered = await send_ntfy_alert(
+        topic=topic,
+        title=title,
+        message=message,
+        priority=priority,
+        tags=tags,
+    )
+
+    await log_alert(
+        alert_type="cost_anomaly",
+        severity=severity,
+        title=title,
+        message=message,
+        delivered=delivered,
+        metadata={
+            "anomaly_type": anomaly_type,
+            "session_id": session_id,
+            "cost": cost,
+            "model": model,
+            "provider": provider,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "threshold": threshold,
+        },
+    )
+
+    return delivered

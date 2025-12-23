@@ -611,11 +611,11 @@
 										class="flex-1 min-w-0 text-left hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
 									>
 										<div class="font-medium text-neutral-900 dark:text-white truncate">
-											{session.problem_statement}
+											{(session as ProjectSessionLink & { problem_statement?: string }).problem_statement ?? 'Untitled Meeting'}
 										</div>
 										<div class="flex items-center gap-3 text-sm text-neutral-500 dark:text-neutral-400 mt-1">
 											<span class="capitalize">{session.relationship.replace('_', ' ')}</span>
-											<span>{formatDate(session.created_at)}</span>
+											<span>{formatDate((session as ProjectSessionLink & { created_at?: string }).created_at ?? null)}</span>
 										</div>
 									</button>
 									<button

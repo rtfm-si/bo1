@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { ActionDetailResponse, ActionUpdateResponse, ActionUpdateCreateRequest, DependencyListResponse } from '$lib/api/types';
+	import type { ActionDetailExtended, ActionUpdateResponse, ActionUpdateCreateRequest, DependencyListResponse } from '$lib/api/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import ActivityTimeline from '$lib/components/actions/ActivityTimeline.svelte';
 	import UpdateInput from '$lib/components/actions/UpdateInput.svelte';
@@ -56,7 +56,7 @@
 	}
 
 	// Check if action has any date information
-	function hasAnyDates(action: ActionDetailResponse): boolean {
+	function hasAnyDates(action: ActionDetailExtended): boolean {
 		return !!(
 			action.target_start_date ||
 			action.target_end_date ||
@@ -70,7 +70,7 @@
 
 	const actionId = $page.params.action_id!;
 
-	let action = $state<ActionDetailResponse | null>(null);
+	let action = $state<ActionDetailExtended | null>(null);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let isUpdatingStatus = $state(false);
@@ -1182,7 +1182,7 @@
 				</div>
 
 				<!-- Steps (What & How) -->
-				{#if action.what_and_how.length > 0}
+				{#if (action.what_and_how?.length ?? 0) > 0}
 					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
 						<h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-3">
 							Steps to Complete
@@ -1209,7 +1209,7 @@
 				{/if}
 
 				<!-- Success Criteria -->
-				{#if action.success_criteria.length > 0}
+				{#if (action.success_criteria?.length ?? 0) > 0}
 					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
 						<h2 class="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-3">
 							<Target class="w-4 h-4 text-success-500" />
@@ -1227,7 +1227,7 @@
 				{/if}
 
 				<!-- Kill Criteria -->
-				{#if action.kill_criteria.length > 0}
+				{#if (action.kill_criteria?.length ?? 0) > 0}
 					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
 						<h2 class="flex items-center gap-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-3">
 							<XCircle class="w-4 h-4 text-error-500" />
@@ -1270,7 +1270,7 @@
 				{/if}
 
 				<!-- Legacy Dependencies (from synthesis, text-based) -->
-				{#if action.dependencies.length > 0}
+				{#if (action.dependencies?.length ?? 0) > 0}
 					<div class="bg-white dark:bg-neutral-900 rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-800">
 						<h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-3">
 							Related Prerequisites

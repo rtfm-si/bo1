@@ -145,7 +145,10 @@ import type {
 	KanbanColumnsResponse,
 	// Public Blog types
 	PublicBlogPost,
-	PublicBlogPostListResponse
+	PublicBlogPostListResponse,
+	// Meeting Template types
+	MeetingTemplate,
+	MeetingTemplateListResponse
 } from './types';
 
 // Re-export types that are used by other modules
@@ -2634,6 +2637,32 @@ export class ApiClient {
 	 */
 	async getBlogPostBySlug(slug: string): Promise<PublicBlogPost> {
 		return this.fetch<PublicBlogPost>(`/api/v1/blog/posts/${slug}`);
+	}
+
+	// =========================================================================
+	// Meeting Templates (public read, no auth required for list/get)
+	// =========================================================================
+
+	/**
+	 * List active meeting templates for the template gallery
+	 */
+	async listMeetingTemplates(params?: {
+		category?: string;
+	}): Promise<MeetingTemplateListResponse> {
+		const searchParams = new URLSearchParams();
+		if (params?.category) searchParams.set('category', params.category);
+
+		const query = searchParams.toString();
+		return this.fetch<MeetingTemplateListResponse>(
+			`/api/v1/templates${query ? `?${query}` : ''}`
+		);
+	}
+
+	/**
+	 * Get a meeting template by slug
+	 */
+	async getMeetingTemplateBySlug(slug: string): Promise<MeetingTemplate> {
+		return this.fetch<MeetingTemplate>(`/api/v1/templates/${slug}`);
 	}
 }
 

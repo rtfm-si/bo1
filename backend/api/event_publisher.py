@@ -75,6 +75,8 @@ async def _flush_batch() -> None:
     Called periodically or when buffer reaches threshold.
     Falls back to individual inserts on batch failure.
     """
+    from backend.api.middleware.metrics import record_event_persistence_batch
+
     global _batch_buffer
     lock = _get_batch_lock()
 
@@ -88,12 +90,16 @@ async def _flush_batch() -> None:
     if not events_to_flush:
         return
 
+    batch_size = len(events_to_flush)
     flush_start = time.perf_counter()
     try:
         count = session_repository.save_events_batch(events_to_flush)
-        flush_ms = (time.perf_counter() - flush_start) * 1000
+        flush_duration = time.perf_counter() - flush_start
+        flush_ms = flush_duration * 1000
         metrics.observe("event.batch_persist_ms", flush_ms)
         metrics.increment("event.batch_persisted", count)
+        # OBS-P1: Record event persistence metrics
+        record_event_persistence_batch(batch_size, flush_duration)
         logger.debug(f"Batch persisted {count} events in {flush_ms:.1f}ms")
     except Exception as e:
         logger.warning(f"Batch persist failed, falling back to individual: {e}")
@@ -314,6 +320,8 @@ async def retry_event(
     Returns:
         True if persistence succeeded, False otherwise
     """
+    from backend.api.middleware.metrics import record_event_persistence_retry
+
     try:
         # Attempt to persist to PostgreSQL
         session_repository.save_event(
@@ -327,12 +335,16 @@ async def retry_event(
             f"Successfully retried event persistence: {event['event_type']} "
             f"(session {event['session_id']}, retry {event['retry_count'] + 1})"
         )
+        # OBS-P1: Record successful retry
+        record_event_persistence_retry(success=True)
         return True
     except Exception as e:
         logger.warning(
             f"Retry attempt {event['retry_count'] + 1}/{MAX_RETRIES} failed for "
             f"{event['event_type']}: {e}"
         )
+        # OBS-P1: Record failed retry
+        record_event_persistence_retry(success=False)
         return False
 
 
@@ -412,14 +424,21 @@ async def move_to_dlq(
 async def get_queue_depth(redis_client: redis.Redis) -> int:  # type: ignore[type-arg]
     """Get number of events in retry queue.
 
+    Also updates the Prometheus gauge for monitoring.
+
     Args:
         redis_client: Redis client instance
 
     Returns:
         Number of events in queue
     """
+    from backend.api.middleware.metrics import set_event_persistence_retry_queue_depth
+
     try:
-        return redis_client.zcard(FAILED_EVENTS_KEY)
+        depth = redis_client.zcard(FAILED_EVENTS_KEY)
+        # OBS-P1: Update retry queue depth gauge
+        set_event_persistence_retry_queue_depth(depth)
+        return depth
     except Exception as e:
         log_error(logger, ErrorCode.REDIS_READ_ERROR, f"Failed to get queue depth: {e}")
         return -1
@@ -1193,8 +1212,18 @@ class EventPublisher:
 
             # P2-005: Track Redis publish latency (should be <10ms)
             publish_duration_ms = (time.perf_counter() - publish_start) * 1000
+            publish_duration_seconds = publish_duration_ms / 1000.0
             metrics.observe("event.redis_publish_ms", publish_duration_ms)
             metrics.increment("event.published")
+
+            # OBS-P2: Record event stream metrics
+            from backend.api.middleware.metrics import (
+                record_event_publish_latency,
+                record_event_type_published,
+            )
+
+            record_event_publish_latency(publish_duration_seconds)
+            record_event_type_published(event_type)
 
             logger.debug(f"Published {event_type} to {channel} and stored in history")
 

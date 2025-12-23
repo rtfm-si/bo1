@@ -111,13 +111,14 @@
 	// Get unique meetings for filter dropdown
 	const meetings = $derived<{ id: string; title: string; taskCount: number }[]>(
 		actionsData?.sessions
-			? actionsData.sessions.map((s) => ({
-					id: s.session_id,
-					title: s.problem_statement.length > 50
-						? s.problem_statement.substring(0, 50) + '...'
-						: s.problem_statement,
-					taskCount: s.task_count
-				}))
+			? actionsData.sessions.map((s) => {
+					const statement = String(s.problem_statement ?? '');
+					return {
+						id: s.session_id as string,
+						title: statement.length > 50 ? statement.substring(0, 50) + '...' : statement,
+						taskCount: s.task_count as number
+					};
+				})
 			: []
 	);
 

@@ -96,6 +96,7 @@ class ResearchDetector:
                 user_id=ctx.get("user_id"),
                 node_name="research_detector",
                 phase=ctx.get("phase"),
+                prompt_type="research_detection",
                 persona_name=contribution.persona_name,
                 round_number=ctx.get("round_number"),
                 sub_problem_index=ctx.get("sub_problem_index"),

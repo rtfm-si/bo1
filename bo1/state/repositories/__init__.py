@@ -36,6 +36,10 @@ from bo1.state.repositories.session_repository import (
     SessionRepository,
     session_repository,
 )
+from bo1.state.repositories.template_repository import (
+    TemplateRepository,
+    template_repository,
+)
 from bo1.state.repositories.user_repository import UserRepository, user_repository
 
 __all__ = [
@@ -52,4 +56,6 @@ __all__ = [
     "feedback_repository",
     "PromotionRepository",
     "promotion_repository",
+    "TemplateRepository",
+    "template_repository",
 ]

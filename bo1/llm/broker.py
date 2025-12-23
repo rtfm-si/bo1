@@ -149,6 +149,12 @@ class PromptRequest(BaseModel):
     request_id: str = Field(
         default_factory=lambda: str(uuid.uuid4()), description="Unique request ID"
     )
+    prompt_type: str | None = Field(
+        default=None,
+        description="Prompt type for per-prompt-type cache analysis. Valid values: "
+        "persona_contribution, facilitator_decision, synthesis, decomposition, "
+        "context_collection, clarification, research_summary, task_extraction, embedding, search",
+    )
 
     @field_validator("temperature", mode="before")
     @classmethod
@@ -324,6 +330,7 @@ class PromptBroker:
                     user_id=cost_ctx.get("user_id"),
                     node_name=cost_ctx.get("node_name"),
                     phase=cost_ctx.get("phase") or request.phase,
+                    prompt_type=cost_ctx.get("prompt_type") or request.prompt_type,
                     persona_name=cost_ctx.get("persona_name"),
                     round_number=cost_ctx.get("round_number"),
                     sub_problem_index=cost_ctx.get("sub_problem_index"),
@@ -592,6 +599,7 @@ class PromptBroker:
             user_id=cost_ctx.get("user_id"),
             node_name=cost_ctx.get("node_name"),
             phase=cost_ctx.get("phase") or request.phase,
+            prompt_type=cost_ctx.get("prompt_type") or request.prompt_type,
             persona_name=cost_ctx.get("persona_name"),
             round_number=cost_ctx.get("round_number"),
             sub_problem_index=cost_ctx.get("sub_problem_index"),

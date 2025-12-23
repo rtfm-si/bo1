@@ -134,7 +134,7 @@
 			const sessionData = await apiClient.createSession({
 				problem_statement: problemStatement.trim(),
 				dataset_id: selectedDatasetId || undefined,
-				context_ids: hasContext ? selectedContext : undefined,
+				context_ids: hasContext ? (selectedContext as Record<string, string[]>) : undefined,
 				...honeypotValues
 			});
 
@@ -161,7 +161,7 @@
 			// Check for stale insights warning
 			if (sessionData.stale_insights && sessionData.stale_insights.length > 0) {
 				pendingSessionId = sessionId;
-				staleInsights = sessionData.stale_insights;
+				staleInsights = sessionData.stale_insights as unknown as typeof staleInsights;
 				showStalenessWarning = true;
 				isSubmitting = false;
 				return;

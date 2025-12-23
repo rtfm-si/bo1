@@ -59,11 +59,11 @@
 			]);
 
 			industry = insightsRes.industry;
-			insights = insightsRes.insights;
+			insights = insightsRes.insights ?? [];
 			tier = insightsRes.user_tier;
 			lockedCount = insightsRes.locked_count;
 			upgradePrompt = insightsRes.upgrade_prompt || null;
-			comparisons = comparisonRes.comparisons;
+			comparisons = comparisonRes.comparisons ?? [];
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load benchmarks';
 		} finally {

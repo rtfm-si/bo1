@@ -1,4 +1,4 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, isHttpError } from '@sveltejs/kit';
 import { adminFetch } from '$lib/server/admin-fetch';
 import type { PageServerLoad, Actions } from './$types';
 
@@ -12,6 +12,7 @@ export const load: PageServerLoad = async ({ request }) => {
 
 		if (!response.ok) {
 			const errorData = await response.json().catch(() => ({ detail: 'Failed to load whitelist' }));
+			console.error('[admin/whitelist] API error:', response.status, errorData);
 			throw error(response.status, errorData.detail || 'Failed to load whitelist');
 		}
 
@@ -22,6 +23,10 @@ export const load: PageServerLoad = async ({ request }) => {
 			totalCount: data.total_count || 0
 		};
 	} catch (err) {
+		if (isHttpError(err)) {
+			throw err;
+		}
+		console.error('[admin/whitelist] Unexpected error:', err);
 		throw error(500, 'Failed to load whitelist');
 	}
 };

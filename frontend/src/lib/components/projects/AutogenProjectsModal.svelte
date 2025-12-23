@@ -80,7 +80,7 @@
 
 		try {
 			const response = await apiClient.getAutogenSuggestions();
-			actionsSuggestions = response.suggestions;
+			actionsSuggestions = response.suggestions ?? [];
 			unassignedCount = response.unassigned_count;
 			minRequired = response.min_required;
 		} catch (e) {
@@ -96,10 +96,10 @@
 
 		try {
 			const response = await apiClient.getContextProjectSuggestions();
-			contextSuggestions = response.suggestions;
+			contextSuggestions = response.suggestions ?? [];
 			contextCompleteness = response.context_completeness;
 			hasMinimumContext = response.has_minimum_context;
-			missingFields = response.missing_fields;
+			missingFields = response.missing_fields ?? [];
 		} catch (e) {
 			contextError = e instanceof Error ? e.message : 'Failed to generate suggestions';
 		} finally {
@@ -154,12 +154,12 @@
 				const selectedSuggestions = actionsSuggestions.filter((s) => actionsSelectedIds.has(s.id));
 				const response = await apiClient.createFromAutogenSuggestions(selectedSuggestions);
 				open = false;
-				onsuccess?.(response.created_projects);
+				onsuccess?.(response.created_projects ?? []);
 			} else {
 				const selectedSuggestions = contextSuggestions.filter((s) => contextSelectedIds.has(s.id));
 				const response = await apiClient.createFromContextSuggestions(selectedSuggestions);
 				open = false;
-				onsuccess?.(response.created_projects);
+				onsuccess?.(response.created_projects ?? []);
 			}
 		} catch (e) {
 			if (activeTab === 'actions') {
@@ -184,7 +184,7 @@
 	let totalActionCount = $derived(
 		actionsSuggestions
 			.filter((s) => actionsSelectedIds.has(s.id))
-			.reduce((sum, s) => sum + s.action_ids.length, 0)
+			.reduce((sum, s) => sum + (s.action_ids?.length ?? 0), 0)
 	);
 
 	function getConfidenceColor(confidence: number): string {
@@ -363,7 +363,7 @@
 													d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
 												/>
 											</svg>
-											{suggestion.action_ids.length} action{suggestion.action_ids.length === 1
+											{suggestion.action_ids?.length ?? 0} action{(suggestion.action_ids?.length ?? 0) === 1
 												? ''
 												: 's'}
 										</span>

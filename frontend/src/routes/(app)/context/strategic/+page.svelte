@@ -68,7 +68,7 @@
 				// Value Proposition
 				mainValueProposition = ctx.main_value_proposition || '';
 				brandPositioning = ctx.brand_positioning || '';
-				brandTone = ctx.brand_tone;
+				brandTone = ctx.brand_tone ?? undefined;
 				pricingModel = ctx.pricing_model || '';
 				// Competitors
 				competitorsText = ctx.competitors || '';
@@ -76,7 +76,7 @@
 				// ICP
 				idealCustomerProfile = ctx.ideal_customer_profile || '';
 				targetGeography = ctx.target_geography || '';
-				teamSize = ctx.team_size;
+				teamSize = ctx.team_size ?? undefined;
 				// Constraints
 				budgetConstraints = ctx.budget_constraints || '';
 				timeConstraints = ctx.time_constraints || '';

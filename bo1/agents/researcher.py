@@ -599,6 +599,7 @@ class ResearcherAgent:
                 user_id=ctx.get("user_id"),
                 node_name=ctx.get("node_name", "research_node"),
                 phase=ctx.get("phase"),
+                prompt_type="search",
                 metadata={"query": question[:100]},
             ) as search_cost_record:
                 async with httpx.AsyncClient() as client:
@@ -666,6 +667,7 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
                 user_id=ctx.get("user_id"),
                 node_name=ctx.get("node_name", "research_node"),
                 phase=ctx.get("phase"),
+                prompt_type="research_summary",
                 metadata={"query": question[:100], "search_provider": "brave"},
             ) as llm_cost_record:
                 message = await anthropic_client.messages.create(
@@ -780,6 +782,7 @@ Provide a concise 200-300 word summary with key facts and statistics. Be direct 
                     user_id=ctx.get("user_id"),
                     node_name=ctx.get("node_name", "research_node"),
                     phase=ctx.get("phase"),
+                    prompt_type="search",
                     metadata={"query": question[:100], "depth": "advanced"},
                 ) as cost_record
             ):

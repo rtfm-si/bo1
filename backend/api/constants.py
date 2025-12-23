@@ -71,3 +71,22 @@ SESSION_METADATA_CACHE_MAX_SIZE = int(os.environ.get("SESSION_METADATA_CACHE_MAX
 COST_EVENT_TYPES: set[str] = {"phase_cost_breakdown", "cost_anomaly"}
 # Fields within events that contain cost data and should be stripped for non-admin users
 COST_FIELDS: set[str] = {"cost", "total_cost", "phase_costs", "by_provider"}
+
+# SSE Schema Versioning
+# Current schema version - increment on breaking changes
+SSE_SCHEMA_VERSION: int = 1
+# Minimum supported version for backwards compatibility
+SSE_MIN_SUPPORTED_VERSION: int = 1
+# Deprecated fields with sunset dates (field_name -> ISO date string)
+# Format: {"field_name": "2025-06-01"} means field will be removed after June 1, 2025
+SSE_DEPRECATED_FIELDS: dict[str, str] = {}
+
+# SSE Reconnect Tracking
+# Redis key: {session_id}:reconnects
+# TTL matches session TTL
+SSE_RECONNECT_TRACKING_ENABLED: bool = (
+    os.environ.get("SSE_RECONNECT_TRACKING_ENABLED", "true").lower() == "true"
+)
+SSE_RECONNECT_TTL_SECONDS: int = int(
+    os.environ.get("SSE_RECONNECT_TTL_SECONDS", str(REDIS_SESSION_TTL_SECONDS))
+)

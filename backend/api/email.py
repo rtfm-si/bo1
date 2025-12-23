@@ -18,6 +18,7 @@ from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from backend.api.middleware.rate_limit import AUTH_RATE_LIMIT, limiter
+from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors
 from backend.services.email import validate_unsubscribe_token
 from bo1.config import get_settings
@@ -241,7 +242,11 @@ class EmailPreferencesResponse(BaseModel):
     preferences: EmailPreferences
 
 
-@router.get("/v1/user/email-preferences", response_model=EmailPreferencesResponse)
+@router.get(
+    "/v1/user/email-preferences",
+    response_model=EmailPreferencesResponse,
+    responses={429: RATE_LIMIT_RESPONSE},
+)
 @limiter.limit(AUTH_RATE_LIMIT)
 @handle_api_errors("get email preferences")
 async def get_email_preferences(
@@ -277,7 +282,11 @@ async def get_email_preferences(
         raise HTTPException(status_code=500, detail="Failed to get email preferences") from None
 
 
-@router.patch("/v1/user/email-preferences", response_model=EmailPreferencesResponse)
+@router.patch(
+    "/v1/user/email-preferences",
+    response_model=EmailPreferencesResponse,
+    responses={429: RATE_LIMIT_RESPONSE},
+)
 @limiter.limit(AUTH_RATE_LIMIT)
 @handle_api_errors("update email preferences")
 async def update_email_preferences(
@@ -321,7 +330,9 @@ async def update_email_preferences(
         raise HTTPException(status_code=500, detail="Failed to update email preferences") from None
 
 
-@router.get("/v1/email/unsubscribe", response_class=HTMLResponse)
+@router.get(
+    "/v1/email/unsubscribe", response_class=HTMLResponse, responses={429: RATE_LIMIT_RESPONSE}
+)
 @limiter.limit("10/minute")
 async def unsubscribe(
     request: Request,

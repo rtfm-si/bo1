@@ -9,7 +9,7 @@
 	 * - Drag-to-reschedule (optional)
 	 * - Click to navigate to action details
 	 */
-	import type { GanttResponse, GanttActionData, ActionStatus } from '$lib/api/types';
+	import type { GanttResponse, GanttActionData, GanttDependency, ActionStatus } from '$lib/api/types';
 	import type { Action } from 'svelte/action';
 
 	interface Props {
@@ -42,25 +42,26 @@
 	};
 
 	// Convert our action data to frappe-gantt task format
-	function convertToGanttTasks(actions: GanttActionData[], dependencies: GanttResponse['dependencies']) {
+	function convertToGanttTasks(actions: GanttActionData[], dependencies: GanttDependency[]) {
 		// Create a map of action ID to its dependency sources
+		// GanttDependency: action_id (target) depends on depends_on_id (source)
 		const depMap: Record<string, string[]> = {};
 		for (const dep of dependencies) {
-			if (!depMap[dep.to]) {
-				depMap[dep.to] = [];
+			if (!depMap[dep.action_id]) {
+				depMap[dep.action_id] = [];
 			}
-			depMap[dep.to].push(dep.from);
+			depMap[dep.action_id].push(dep.depends_on_id);
 		}
 
 		return actions
-			.filter((action) => action.estimated_start_date && action.estimated_end_date)
+			.filter((action) => action.start && action.end)
 			.map((action) => {
 				const deps = depMap[action.id] || [];
 				return {
 					id: action.id,
-					name: action.title,
-					start: action.actual_start_date || action.estimated_start_date,
-					end: action.actual_end_date || action.estimated_end_date,
+					name: action.name,
+					start: action.start,
+					end: action.end,
 					progress: action.status === 'done' ? 100 : action.status === 'in_progress' ? 50 : 0,
 					dependencies: deps.join(', '),
 					custom_class: `gantt-status-${action.status}`
@@ -266,7 +267,6 @@
 						<div class="gantt-popup">
 							<h4 class="gantt-popup-title">${task.name}</h4>
 							<div class="gantt-popup-status gantt-status-${action.status}">${statusLabel}</div>
-							${action.blocking_reason ? `<div class="gantt-popup-blocked">${action.blocking_reason}</div>` : ''}
 							<div class="gantt-popup-dates">
 								<span>${formatDate(task._start)}</span>
 								<span>&rarr;</span>
@@ -322,7 +322,7 @@
 
 	// Determine if we have any tasks to display
 	const hasTasks = $derived(
-		data.actions.some((a) => a.estimated_start_date && a.estimated_end_date)
+		data.actions.some((a) => a.start && a.end)
 	);
 </script>
 

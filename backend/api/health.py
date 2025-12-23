@@ -56,6 +56,38 @@ def get_build_info() -> dict[str, str]:
     return _build_info
 
 
+class SystemMetrics(BaseModel):
+    """Process-level system metrics.
+
+    Attributes:
+        cpu_percent: CPU utilization percentage (0-100)
+        memory_percent: Memory utilization percentage (0-100)
+        memory_rss_mb: Resident Set Size memory in MB
+        open_fds: Number of open file descriptors
+        threads: Number of threads
+    """
+
+    cpu_percent: float | None = Field(None, description="CPU utilization percentage (0-100)")
+    memory_percent: float | None = Field(None, description="Memory utilization percentage (0-100)")
+    memory_rss_mb: float | None = Field(None, description="Resident Set Size memory in MB")
+    open_fds: int | None = Field(None, description="Number of open file descriptors")
+    threads: int | None = Field(None, description="Number of threads")
+
+
+class LLMProviderStatus(BaseModel):
+    """LLM provider health status from background probe.
+
+    Attributes:
+        healthy: Whether the provider is healthy
+        latency_ms: Probe latency in milliseconds
+        error: Error message if unhealthy (None if healthy)
+    """
+
+    healthy: bool = Field(..., description="Whether the provider is healthy")
+    latency_ms: float = Field(..., description="Probe latency in milliseconds")
+    error: str | None = Field(None, description="Error message if unhealthy")
+
+
 class HealthResponse(BaseModel):
     """Health check response model.
 
@@ -63,6 +95,8 @@ class HealthResponse(BaseModel):
         status: Overall health status
         timestamp: ISO 8601 timestamp of health check
         details: Optional health details
+        system: Process-level system metrics (CPU, memory, etc.)
+        llm_providers: LLM provider health status from background probe
     """
 
     status: str = Field(..., description="Overall health status", examples=["healthy"])
@@ -72,6 +106,14 @@ class HealthResponse(BaseModel):
         description="Optional health details",
         examples=[{"version": "1.0.0", "api": "Board of One"}],
     )
+    system: SystemMetrics | None = Field(
+        None,
+        description="Process-level system metrics",
+    )
+    llm_providers: dict[str, LLMProviderStatus] | None = Field(
+        None,
+        description="LLM provider health status from background probe",
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -80,6 +122,17 @@ class HealthResponse(BaseModel):
                     "status": "healthy",
                     "timestamp": "2025-01-15T12:00:00.000000",
                     "details": {"version": "1.0.0", "api": "Board of One"},
+                    "system": {
+                        "cpu_percent": 5.2,
+                        "memory_percent": 12.3,
+                        "memory_rss_mb": 256.5,
+                        "open_fds": 42,
+                        "threads": 8,
+                    },
+                    "llm_providers": {
+                        "anthropic": {"healthy": True, "latency_ms": 234.5, "error": None},
+                        "openai": {"healthy": True, "latency_ms": 189.2, "error": None},
+                    },
                 }
             ]
         }
@@ -295,6 +348,19 @@ async def readiness_check() -> ReadinessResponse:
         services = None
         vendor_status = None
 
+    # Check LLM providers health from background probe
+    try:
+        from backend.api.llm_health_probe import get_llm_health_probe
+
+        probe = get_llm_health_probe()
+        cached_statuses = probe.get_all_cached_statuses()
+        if cached_statuses:
+            # Service is degraded (but still ready) if ALL providers are down
+            any_provider_healthy = any(result.healthy for result in cached_statuses.values())
+            checks["llm_providers"] = any_provider_healthy
+    except Exception:  # noqa: S110 - fail-open for readiness, probe unavailable is acceptable
+        pass
+
     # Determine overall status
     all_ok = all(checks.values())
     any_ok = any(checks.values())
@@ -303,8 +369,15 @@ async def readiness_check() -> ReadinessResponse:
         status = "ok"
         ready = True
     elif any_ok:
-        status = "degraded"
-        ready = False  # Not ready if any critical dependency fails
+        # Still ready if at least Postgres and Redis are up, even if LLM providers are down
+        # LLM operations will fail gracefully but API can still serve other requests
+        core_deps_ok = checks.get("postgres", False) and checks.get("redis", False)
+        if core_deps_ok:
+            status = "degraded"
+            ready = True  # Degraded but ready - LLM operations may fail
+        else:
+            status = "degraded"
+            ready = False  # Not ready if any critical dependency fails
     else:
         status = "unavailable"
         ready = False
@@ -360,11 +433,78 @@ async def health_check() -> HealthResponse:
     """Basic health check endpoint.
 
     Returns:
-        Health status response indicating API is online
+        Health status response indicating API is online with system metrics
     """
+    import time
+
+    from backend.api.health_history import HealthCheckRecord, get_health_history
+    from backend.api.llm_health_probe import get_llm_health_probe
+    from backend.api.middleware.metrics import (
+        bo1_health_check_latency_seconds,
+        bo1_health_check_total,
+        update_process_metrics,
+    )
+    from backend.api.system_metrics import get_process_metrics
+
+    start_time = time.perf_counter()
     build_info = get_build_info()
+
+    # Collect process metrics and update Prometheus gauges
+    process_metrics = get_process_metrics()
+    update_process_metrics(
+        cpu_percent=process_metrics.cpu_percent,
+        memory_percent=process_metrics.memory_percent,
+        memory_rss_mb=process_metrics.memory_rss_mb,
+        open_fds=process_metrics.open_fds,
+        threads=process_metrics.threads,
+    )
+
+    # Get LLM provider health from background probe (non-blocking)
+    llm_providers_status: dict[str, LLMProviderStatus] | None = None
+    components: dict[str, Any] = {}
+    try:
+        probe = get_llm_health_probe()
+        cached_statuses = probe.get_all_cached_statuses()
+        if cached_statuses:
+            llm_providers_status = {
+                provider: LLMProviderStatus(
+                    healthy=result.healthy,
+                    latency_ms=round(result.latency_ms, 1),
+                    error=result.error,
+                )
+                for provider, result in cached_statuses.items()
+            }
+            # Record component statuses for history
+            for provider, result in cached_statuses.items():
+                components[f"llm_{provider}"] = result.healthy
+    except Exception:  # noqa: S110 - probe unavailable is acceptable
+        pass
+
+    # Calculate latency
+    latency_seconds = time.perf_counter() - start_time
+    latency_ms = latency_seconds * 1000
+
+    # Record health check metrics
+    status = "healthy"
+    bo1_health_check_total.labels(status=status).inc()
+    bo1_health_check_latency_seconds.observe(latency_seconds)
+
+    # Record to history (non-blocking)
+    try:
+        history = get_health_history()
+        record = HealthCheckRecord(
+            timestamp=datetime.now(UTC),
+            status=status,
+            components=components,
+            latency_ms=latency_ms,
+        )
+        history.record(record)
+    except Exception:
+        # Don't fail health check if history recording fails
+        logger.debug("Failed to record health check to history")
+
     return HealthResponse(
-        status="healthy",
+        status=status,
         timestamp=datetime.now(UTC).isoformat(),
         details={
             "version": "1.0.0",
@@ -372,6 +512,14 @@ async def health_check() -> HealthResponse:
             "build_timestamp": build_info.get("build_timestamp", "unknown"),
             "git_commit": build_info.get("git_commit", "unknown"),
         },
+        system=SystemMetrics(
+            cpu_percent=process_metrics.cpu_percent,
+            memory_percent=process_metrics.memory_percent,
+            memory_rss_mb=process_metrics.memory_rss_mb,
+            open_fds=process_metrics.open_fds,
+            threads=process_metrics.threads,
+        ),
+        llm_providers=llm_providers_status,
     )
 
 
@@ -2057,4 +2205,257 @@ async def health_check_hsts() -> HSTSCheckResponse:
         message=message,
         submission_url=submission_url,
         timestamp=datetime.now(UTC).isoformat(),
+    )
+
+
+class HealthCheckRecordResponse(BaseModel):
+    """Single health check record in history.
+
+    Attributes:
+        timestamp: ISO 8601 timestamp when check was performed
+        status: Health status (healthy/degraded/unhealthy)
+        components: Per-component health status
+        latency_ms: Health check latency in milliseconds
+    """
+
+    timestamp: str = Field(..., description="ISO 8601 timestamp of health check")
+    status: str = Field(..., description="Health status: healthy, degraded, unhealthy")
+    components: dict[str, Any] = Field(..., description="Per-component health status")
+    latency_ms: float = Field(..., description="Health check latency in milliseconds")
+
+
+class HealthHistoryResponse(BaseModel):
+    """Health check history response.
+
+    Attributes:
+        count: Number of records in history
+        max_size: Maximum records stored
+        oldest_timestamp: Oldest record timestamp (None if empty)
+        newest_timestamp: Newest record timestamp (None if empty)
+        records: List of health check records (newest first)
+    """
+
+    count: int = Field(..., description="Number of records in history")
+    max_size: int = Field(..., description="Maximum records stored")
+    oldest_timestamp: str | None = Field(None, description="Oldest record timestamp")
+    newest_timestamp: str | None = Field(None, description="Newest record timestamp")
+    records: list[HealthCheckRecordResponse] = Field(..., description="Records, newest first")
+
+
+@router.get(
+    "/health/history",
+    response_model=HealthHistoryResponse,
+    summary="Health check history (public, no auth required)",
+    description="""
+    Retrieve the last 5 health check results with timestamps.
+
+    Useful for debugging intermittent health issues by preserving recent state.
+    Records are returned newest first.
+
+    **Use Cases:**
+    - Debug intermittent health issues
+    - Analyze health check latency trends
+    - Verify system stability over time
+    """,
+    responses={
+        200: {
+            "description": "Health check history",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "count": 3,
+                        "max_size": 5,
+                        "oldest_timestamp": "2025-01-15T11:58:00.000000",
+                        "newest_timestamp": "2025-01-15T12:00:00.000000",
+                        "records": [
+                            {
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                                "status": "healthy",
+                                "components": {"llm_anthropic": True, "llm_openai": True},
+                                "latency_ms": 5.2,
+                            },
+                            {
+                                "timestamp": "2025-01-15T11:59:00.000000",
+                                "status": "healthy",
+                                "components": {"llm_anthropic": True, "llm_openai": True},
+                                "latency_ms": 4.8,
+                            },
+                            {
+                                "timestamp": "2025-01-15T11:58:00.000000",
+                                "status": "healthy",
+                                "components": {"llm_anthropic": True, "llm_openai": True},
+                                "latency_ms": 5.1,
+                            },
+                        ],
+                    }
+                }
+            },
+        },
+    },
+)
+async def health_check_history() -> HealthHistoryResponse:
+    """Retrieve health check history.
+
+    Returns the last 5 health check results with timestamps, newest first.
+
+    Returns:
+        HealthHistoryResponse with recent health check records
+    """
+    from backend.api.health_history import get_health_history
+
+    history = get_health_history()
+    records = history.get_history()
+    oldest, newest = history.get_time_window()
+
+    return HealthHistoryResponse(
+        count=len(records),
+        max_size=history.max_size,
+        oldest_timestamp=oldest.isoformat() if oldest else None,
+        newest_timestamp=newest.isoformat() if newest else None,
+        records=[
+            HealthCheckRecordResponse(
+                timestamp=r.timestamp.isoformat(),
+                status=r.status,
+                components=r.components,
+                latency_ms=round(r.latency_ms, 2),
+            )
+            for r in records
+        ],
+    )
+
+
+class ClamAVHealthResponse(BaseModel):
+    """ClamAV antivirus scanner health response.
+
+    Attributes:
+        status: Health status (healthy/unavailable/disabled)
+        component: Component name (clamav)
+        healthy: Whether ClamAV is healthy
+        available: Whether ClamAV daemon is reachable
+        required: Whether ClamAV is required for uploads
+        version: ClamAV version string (if available)
+        message: Status message
+        timestamp: ISO 8601 timestamp
+    """
+
+    status: str = Field(..., description="Health status")
+    component: str = Field(default="clamav", description="Component name")
+    healthy: bool = Field(..., description="Whether ClamAV is healthy")
+    available: bool = Field(..., description="Whether ClamAV daemon is reachable")
+    required: bool = Field(..., description="Whether scanning is required for uploads")
+    version: str | None = Field(None, description="ClamAV version string")
+    message: str = Field(..., description="Status message")
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+
+
+@router.get(
+    "/health/clamav",
+    response_model=ClamAVHealthResponse,
+    summary="ClamAV antivirus health (public, no auth required)",
+    description="""
+    Check if ClamAV antivirus daemon is running and responsive.
+
+    Tests:
+    - ClamAV daemon connectivity (PING command)
+    - Version and virus database info
+
+    **Configuration:**
+    - CLAMAV_HOST: ClamAV daemon hostname (default: clamav)
+    - CLAMAV_PORT: ClamAV daemon port (default: 3310)
+    - CLAMAV_REQUIRED: Whether scanning is mandatory (default: false)
+
+    **Use Cases:**
+    - Verify ClamAV availability before uploads
+    - Monitor antivirus database freshness
+    - Security audit verification
+    """,
+    responses={
+        200: {
+            "description": "ClamAV health status",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "healthy": {
+                            "summary": "Healthy and available",
+                            "value": {
+                                "status": "healthy",
+                                "component": "clamav",
+                                "healthy": True,
+                                "available": True,
+                                "required": False,
+                                "version": "ClamAV 1.4.0/27189/Wed Dec 18 09:24:00 2024",
+                                "message": "ClamAV daemon is healthy",
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                        "unavailable_optional": {
+                            "summary": "Unavailable but optional",
+                            "value": {
+                                "status": "unavailable",
+                                "component": "clamav",
+                                "healthy": True,
+                                "available": False,
+                                "required": False,
+                                "version": None,
+                                "message": "ClamAV unavailable (optional - uploads allowed)",
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                        "unavailable_required": {
+                            "summary": "Unavailable but required",
+                            "value": {
+                                "status": "unhealthy",
+                                "component": "clamav",
+                                "healthy": False,
+                                "available": False,
+                                "required": True,
+                                "version": None,
+                                "message": "ClamAV unavailable (required - uploads blocked)",
+                                "timestamp": "2025-01-15T12:00:00.000000",
+                            },
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+async def health_check_clamav() -> ClamAVHealthResponse:
+    """ClamAV antivirus daemon health check.
+
+    Returns:
+        ClamAV health status with version and availability info
+    """
+    from backend.services.antivirus import ClamAVScanner, get_scanner
+
+    scanner = get_scanner()
+    timestamp = datetime.now(UTC).isoformat()
+    required = ClamAVScanner.CLAMAV_REQUIRED
+
+    # Check if ClamAV is healthy
+    available = await scanner.is_healthy()
+    version = await scanner.get_version() if available else None
+
+    if available:
+        status = "healthy"
+        healthy = True
+        message = "ClamAV daemon is healthy"
+    elif not required:
+        status = "unavailable"
+        healthy = True  # Healthy because it's optional
+        message = "ClamAV unavailable (optional - uploads allowed)"
+    else:
+        status = "unhealthy"
+        healthy = False
+        message = "ClamAV unavailable (required - uploads blocked)"
+
+    return ClamAVHealthResponse(
+        status=status,
+        component="clamav",
+        healthy=healthy,
+        available=available,
+        required=required,
+        version=version,
+        message=message,
+        timestamp=timestamp,
     )

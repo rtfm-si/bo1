@@ -42,6 +42,7 @@ from backend.api.admin import (
     research_cache,
     runtime_config,
     session_control,
+    templates,
     user_metrics,
     users,
     waitlist,
@@ -75,6 +76,7 @@ router.include_router(email_stats.router)
 router.include_router(runtime_config.router)
 router.include_router(email.router)
 router.include_router(queries.router)
+router.include_router(templates.router)
 
 # Re-export models for backward compatibility
 from backend.api.admin.models import (  # noqa: E402, F401

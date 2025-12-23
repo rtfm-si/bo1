@@ -5,18 +5,18 @@
 	 * Fetches available personas from API and allows manual selection.
 	 * Includes "Auto" option that lets AI select based on question.
 	 */
-	import type { MentorPersonaId, MentorPersonaDetail } from '$lib/api/types';
+	import type { MentorPersonaDetail } from '$lib/api/types';
 	import { apiClient } from '$lib/api/client';
 	import { User, Target, BarChart3, Sparkles, Briefcase, CheckCircle, ChevronDown } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 
 	let {
-		selected = null as MentorPersonaId | null,
+		selected = null as string | null,
 		onChange,
 		showDescription = false
 	}: {
-		selected: MentorPersonaId | null;
-		onChange: (persona: MentorPersonaId | null) => void;
+		selected: string | null;
+		onChange: (persona: string | null) => void;
 		showDescription?: boolean;
 	} = $props();
 
@@ -80,7 +80,7 @@
 		return persona?.name || 'Auto (AI chooses)';
 	}
 
-	function handleSelect(personaId: MentorPersonaId | null) {
+	function handleSelect(personaId: string | null) {
 		onChange(personaId);
 		expanded = false;
 	}

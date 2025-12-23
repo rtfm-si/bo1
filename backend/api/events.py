@@ -39,11 +39,13 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from backend.api.constants import SSE_SCHEMA_VERSION
+
 logger = logging.getLogger(__name__)
 
 
-# SSE event version for forward compatibility
-SSE_EVENT_VERSION = 1
+# SSE event version for forward compatibility (imported from constants for DRY)
+SSE_EVENT_VERSION = SSE_SCHEMA_VERSION
 
 
 def get_next_sequence(redis_client: Any, session_id: str) -> int:

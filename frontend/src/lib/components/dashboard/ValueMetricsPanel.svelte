@@ -14,7 +14,7 @@
 	}
 
 	// Derived state
-	const metrics = $derived<ValueMetric[]>(metricsData.data?.metrics || []);
+	const metrics = $derived<ValueMetric[]>((metricsData.data?.metrics ?? []) as ValueMetric[]);
 	const hasContext = $derived(metricsData.data?.has_context ?? false);
 	const hasHistory = $derived(metricsData.data?.has_history ?? false);
 	const isLoading = $derived(metricsData.isLoading);

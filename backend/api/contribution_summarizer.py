@@ -86,6 +86,7 @@ class ContributionSummarizer:
             user_id=ctx.get("user_id"),
             node_name="contribution_summarizer",
             phase=ctx.get("phase"),
+            prompt_type="contribution_summary",
             persona_name=persona_name,
             round_number=ctx.get("round_number"),
             sub_problem_index=ctx.get("sub_problem_index"),

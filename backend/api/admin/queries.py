@@ -15,6 +15,7 @@ from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.utils.db_helpers import execute_query
 from backend.api.utils.errors import handle_api_errors
+from bo1.constants import StatementTimeoutConfig
 from bo1.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -55,6 +56,7 @@ def _check_extension_available() -> bool:
             SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'
             """,
             fetch="one",
+            statement_timeout_ms=StatementTimeoutConfig.get_interactive_timeout(),
         )
         return result is not None
     except Exception:
@@ -114,6 +116,7 @@ async def get_slow_queries(
         )
 
     # Query pg_stat_statements for slowest queries
+    # Use default batch timeout (30s) as this can be slow on large datasets
     try:
         rows = execute_query(
             """
@@ -132,6 +135,7 @@ async def get_slow_queries(
             """,
             (min_calls, limit),
             fetch="all",
+            statement_timeout_ms=StatementTimeoutConfig.get_default_timeout(),
         )
 
         queries = [
@@ -197,7 +201,11 @@ async def reset_query_stats(
         }
 
     try:
-        execute_query("SELECT pg_stat_statements_reset()", fetch="none")
+        execute_query(
+            "SELECT pg_stat_statements_reset()",
+            fetch="none",
+            statement_timeout_ms=StatementTimeoutConfig.get_interactive_timeout(),
+        )
         logger.info("Admin: Reset pg_stat_statements")
         return {
             "status": "success",

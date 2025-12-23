@@ -34,7 +34,7 @@
 		analysesError = null;
 		try {
 			const response = await apiClient.getDatasetAnalyses(datasetId);
-			analyses = response.analyses;
+			analyses = (response.analyses ?? []) as typeof analyses;
 		} catch (err) {
 			analysesError = err instanceof Error ? err.message : 'Failed to load analyses';
 		} finally {
@@ -191,7 +191,7 @@
 					<div class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg p-4">
 						<div class="text-sm text-neutral-500 dark:text-neutral-400">File Size</div>
 						<div class="text-xl font-semibold text-neutral-900 dark:text-white">
-							{formatBytes(dataset.file_size_bytes)}
+							{formatBytes(dataset.file_size_bytes ?? null)}
 						</div>
 					</div>
 					<div class="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg p-4">
@@ -227,7 +227,7 @@
 						</svg>
 						Column Profiles
 					</h2>
-					{#if dataset.profiles.length === 0}
+					{#if (dataset.profiles?.length ?? 0) === 0}
 						<Button variant="brand" size="md" onclick={handleProfile} disabled={isProfiling}>
 							{#snippet children()}
 								{#if isProfiling}
@@ -250,7 +250,7 @@
 					</div>
 				{/if}
 
-				{#if dataset.profiles.length === 0}
+				{#if (dataset.profiles?.length ?? 0) === 0}
 					<div class="text-center py-8">
 						<svg class="w-12 h-12 mx-auto text-neutral-400 dark:text-neutral-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

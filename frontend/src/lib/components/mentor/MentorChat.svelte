@@ -4,7 +4,7 @@
 	 */
 	import { onMount } from 'svelte';
 	import { apiClient } from '$lib/api/client';
-	import type { MentorMessage as MessageType, MentorPersonaId, ResolvedMentions, HoneypotFields as HoneypotFieldsType } from '$lib/api/types';
+	import type { MentorMessage as MessageType, ResolvedMentions, HoneypotFields as HoneypotFieldsType } from '$lib/api/types';
 	import { Button } from '$lib/components/ui';
 	import HoneypotFields from '$lib/components/ui/HoneypotFields.svelte';
 	import MentorMessage from './MentorMessage.svelte';
@@ -16,7 +16,7 @@
 	// Props for pre-filling from URL query params
 	interface Props {
 		initialMessage?: string;
-		initialPersona?: MentorPersonaId;
+		initialPersona?: string;
 	}
 	let { initialMessage, initialPersona }: Props = $props();
 
@@ -28,8 +28,8 @@
 	let error = $state<string | null>(null);
 	let conversationId = $state<string | null>(null);
 	let streamingContent = $state('');
-	let selectedPersona = $state<MentorPersonaId | null>(null); // null = auto-select
-	let activePersona = $state<MentorPersonaId | null>(null); // Actual persona being used
+	let selectedPersona = $state<string | null>(null); // null = auto-select
+	let activePersona = $state<string | null>(null); // Actual persona being used
 	let contextSources = $state<string[]>([]);
 	let messagesContainer: HTMLDivElement;
 	let textareaElement: HTMLTextAreaElement;
@@ -276,7 +276,7 @@
 		activePersona = null;
 	}
 
-	function handlePersonaChange(persona: MentorPersonaId | null) {
+	function handlePersonaChange(persona: string | null) {
 		// If changing persona mid-conversation, warn and start new conversation
 		if (messages.length > 0 && persona !== selectedPersona) {
 			// Clear conversation when switching persona

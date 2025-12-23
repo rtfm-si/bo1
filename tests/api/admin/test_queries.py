@@ -201,7 +201,7 @@ class TestResetQueryStatsEndpoint:
             assert data["status"] == "success"
 
             # Verify pg_stat_statements_reset was called
-            mock_execute.assert_called_once_with(
-                "SELECT pg_stat_statements_reset()",
-                fetch="none",
-            )
+            mock_execute.assert_called_once()
+            call_args = mock_execute.call_args
+            assert call_args[0][0] == "SELECT pg_stat_statements_reset()"
+            assert call_args[1]["fetch"] == "none"

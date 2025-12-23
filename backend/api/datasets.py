@@ -42,7 +42,9 @@ from backend.api.models import (
     QueryResultResponse,
     QuerySpec,
 )
+from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors
+from backend.services.antivirus import ClamAVError, ScanStatus, scan_upload
 from backend.services.chart_generator import ChartError, generate_chart_json, generate_chart_png
 from backend.services.conversation_repo import ConversationRepository
 from backend.services.csv_utils import CSVValidationError, validate_csv_structure
@@ -156,6 +158,7 @@ async def list_datasets(
     status_code=201,
     summary="Upload CSV dataset",
     description="Upload a CSV file to create a new dataset. Rate limited to 10 uploads per hour per IP.",
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(UPLOAD_RATE_LIMIT)
 @handle_api_errors("upload dataset")
@@ -202,18 +205,58 @@ async def upload_dataset(
     except CSVValidationError as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
 
-    # Generate Spaces key with user_id prefix for organization
+    # Generate Spaces key with user_id prefix for organization (needed for pending scan tracking)
     dataset_id = str(uuid.uuid4())
     storage_prefix = f"datasets/{user_id}"
-    filename = f"{dataset_id}.csv"
-    file_key = f"{storage_prefix}/{filename}"
+    storage_filename = f"{dataset_id}.csv"
+    file_key = f"{storage_prefix}/{storage_filename}"
+
+    # Scan for malware before storage
+    try:
+        scan_result = await scan_upload(
+            content,
+            file.filename or "upload.csv",
+            user_id=user_id,
+            content_type=content_type,
+            source_ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            file_key=file_key,  # For pending scan tracking if ClamAV unavailable
+        )
+        if scan_result.status == ScanStatus.INFECTED:
+            logger.warning(
+                f"Malware detected in upload from user {user_id}: {scan_result.threat_name}"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error_code": "MALWARE_DETECTED",
+                    "message": "File rejected: malware detected",
+                    "threat_name": scan_result.threat_name,
+                },
+            )
+        # PENDING status means ClamAV was unavailable - file will be scanned later
+        if scan_result.status == ScanStatus.PENDING:
+            logger.info(f"File {file_key} queued for pending scan (ClamAV unavailable)")
+    except ClamAVError as e:
+        # ClamAV required but unavailable - block upload
+        log_error(
+            logger,
+            ErrorCode.EXT_SERVICE_ERROR,
+            f"ClamAV scan failed: {e}",
+            user_id=user_id,
+            filename=file.filename,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="File scanning service unavailable. Please try again later.",
+        ) from None
 
     # Upload to Spaces using new put_file method
     try:
         spaces_client = get_spaces_client()
         spaces_client.put_file(
             prefix=storage_prefix,
-            filename=filename,
+            filename=storage_filename,
             data=content,
             content_type="text/csv",
             metadata={

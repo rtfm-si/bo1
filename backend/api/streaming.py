@@ -4,16 +4,29 @@ Provides:
 - GET /api/v1/sessions/{session_id}/stream - Stream deliberation events via SSE
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import time
 from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+
+if TYPE_CHECKING:
+    from bo1.state.redis_manager import RedisManager
 from fastapi.responses import StreamingResponse
 
-from backend.api.constants import COST_EVENT_TYPES, COST_FIELDS
+from backend.api.constants import (
+    COST_EVENT_TYPES,
+    COST_FIELDS,
+    SSE_MIN_SUPPORTED_VERSION,
+    SSE_RECONNECT_TRACKING_ENABLED,
+    SSE_RECONNECT_TTL_SECONDS,
+    SSE_SCHEMA_VERSION,
+)
 from backend.api.dependencies import VerifiedSession, get_redis_manager
 from backend.api.events import (
     error_event,
@@ -366,6 +379,128 @@ def format_sse_for_type(event_type: str, data: dict) -> str:
         return events.format_sse_event(event_type, data)
 
 
+async def _track_reconnection(
+    redis_manager: RedisManager,
+    session_id: str,
+    connect_time: float,
+) -> None:
+    """Track SSE reconnection in Redis and emit Prometheus metrics.
+
+    Stores reconnection metadata in Redis key {session_id}:reconnects:
+    - count: Total reconnection attempts
+    - last_at: Timestamp of last reconnection
+    - client_ids: List of last N client reconnection timestamps
+
+    Also calculates gap duration if previous disconnect time is available.
+
+    Args:
+        redis_manager: Redis manager instance
+        session_id: Session identifier
+        connect_time: Unix timestamp of this connection
+    """
+    from backend.api.middleware.metrics import record_sse_reconnect
+
+    if not redis_manager.is_available:
+        # Emit metric even if Redis is unavailable
+        record_sse_reconnect(session_id, gap_seconds=None)
+        return
+
+    try:
+        redis_client = redis_manager.redis
+        reconnect_key = f"{session_id}:reconnects"
+
+        # Get previous disconnect time for gap calculation
+        prev_data = redis_client.hgetall(reconnect_key)
+        gap_seconds: float | None = None
+
+        if prev_data and b"last_disconnect_at" in prev_data:
+            try:
+                last_disconnect = float(prev_data[b"last_disconnect_at"])
+                gap_seconds = connect_time - last_disconnect
+            except (ValueError, TypeError):
+                pass
+
+        # Update reconnection metadata
+        pipeline = redis_client.pipeline()
+        pipeline.hincrby(reconnect_key, "count", 1)
+        pipeline.hset(reconnect_key, "last_at", str(connect_time))
+        # Keep track of recent reconnect timestamps (last 10)
+        pipeline.lpush(f"{reconnect_key}:history", str(connect_time))
+        pipeline.ltrim(f"{reconnect_key}:history", 0, 9)
+        pipeline.expire(reconnect_key, SSE_RECONNECT_TTL_SECONDS)
+        pipeline.expire(f"{reconnect_key}:history", SSE_RECONNECT_TTL_SECONDS)
+        pipeline.execute()
+
+        # Emit Prometheus metrics
+        record_sse_reconnect(session_id, gap_seconds)
+
+        gap_str = f"{gap_seconds:.2f}" if gap_seconds else "unknown"
+        logger.debug(f"[SSE RECONNECT] session={session_id}, gap_seconds={gap_str}")
+
+    except Exception as e:
+        # Non-blocking - just log and emit metric without gap
+        logger.warning(f"Failed to track reconnection for {session_id}: {e}")
+        record_sse_reconnect(session_id, gap_seconds=None)
+
+
+async def _track_disconnect(
+    redis_manager: RedisManager,
+    session_id: str,
+    disconnect_time: float,
+) -> None:
+    """Track SSE disconnect time in Redis for gap calculation.
+
+    Args:
+        redis_manager: Redis manager instance
+        session_id: Session identifier
+        disconnect_time: Unix timestamp of disconnection
+    """
+    if not redis_manager.is_available:
+        return
+
+    try:
+        redis_client = redis_manager.redis
+        reconnect_key = f"{session_id}:reconnects"
+        redis_client.hset(reconnect_key, "last_disconnect_at", str(disconnect_time))
+        redis_client.expire(reconnect_key, SSE_RECONNECT_TTL_SECONDS)
+    except Exception as e:
+        logger.warning(f"Failed to track disconnect for {session_id}: {e}")
+
+
+async def get_reconnect_info(session_id: str) -> dict | None:
+    """Get reconnection metadata for a session.
+
+    Args:
+        session_id: Session identifier
+
+    Returns:
+        Dict with reconnect_count, last_reconnect_at, or None if not available
+    """
+    redis_manager = get_redis_manager()
+    if not redis_manager.is_available:
+        return None
+
+    try:
+        redis_client = redis_manager.redis
+        reconnect_key = f"{session_id}:reconnects"
+        data = redis_client.hgetall(reconnect_key)
+
+        if not data:
+            return None
+
+        result = {}
+        if b"count" in data:
+            result["reconnect_count"] = int(data[b"count"])
+        if b"last_at" in data:
+            result["last_reconnect_at"] = float(data[b"last_at"])
+
+        return result if result else None
+
+    except Exception as e:
+        logger.warning(f"Failed to get reconnect info for {session_id}: {e}")
+        return None
+
+
 async def stream_session_events(
     session_id: str,
     last_event_id: str | None = None,
@@ -412,6 +547,7 @@ async def stream_session_events(
     using_fallback = False
     pubsub = None
     poller = None
+    is_reconnect = False
 
     # Parse last_event_id to get resume sequence
     resume_from_sequence = 0
@@ -419,10 +555,15 @@ async def stream_session_events(
         parsed = parse_event_id(last_event_id)
         if parsed:
             _, resume_from_sequence = parsed
+            is_reconnect = True
             logger.info(
                 f"[SSE RESUME] session={session_id}, resuming from sequence {resume_from_sequence}"
             )
             metrics.increment("sse.resume_attempts")
+
+            # Track reconnection in Redis and emit Prometheus metric
+            if SSE_RECONNECT_TRACKING_ENABLED:
+                await _track_reconnection(redis_manager, session_id, connect_time)
 
     # Track seen sequences to dedupe between replay and live
     seen_sequences: set[int] = set()
@@ -774,9 +915,14 @@ async def stream_session_events(
             if poller:
                 poller.stop()
 
+        # Track disconnect time for gap calculation on reconnect
+        if SSE_RECONNECT_TRACKING_ENABLED:
+            await _track_disconnect(redis_manager, session_id, disconnect_time)
+
         logger.info(
             f"[SSE DISCONNECT] session={session_id}, duration_seconds={duration_seconds:.2f}, "
-            f"events_sent={events_sent}, mode={'polling' if using_fallback else 'pubsub'}"
+            f"events_sent={events_sent}, mode={'polling' if using_fallback else 'pubsub'}, "
+            f"was_reconnect={is_reconnect}"
         )
 
         if pubsub:
@@ -877,6 +1023,30 @@ async def stream_session_events(
         },
     },
 )
+def parse_accept_sse_version(header_value: str | None) -> int:
+    """Parse Accept-SSE-Version header value.
+
+    Args:
+        header_value: Header value (e.g., "1" or None)
+
+    Returns:
+        Requested version or current version if not specified/invalid
+    """
+    if not header_value:
+        return SSE_SCHEMA_VERSION
+    try:
+        version = int(header_value.strip())
+        if version < SSE_MIN_SUPPORTED_VERSION:
+            logger.warning(
+                f"[SSE VERSION] Requested version {version} below minimum {SSE_MIN_SUPPORTED_VERSION}"
+            )
+            return SSE_MIN_SUPPORTED_VERSION
+        return version
+    except ValueError:
+        logger.warning(f"[SSE VERSION] Invalid version header: {header_value}")
+        return SSE_SCHEMA_VERSION
+
+
 @limiter.limit(STREAMING_RATE_LIMIT)
 async def stream_deliberation(
     request: Request,
@@ -884,6 +1054,7 @@ async def stream_deliberation(
     session_data: VerifiedSession,
     current_user: dict = Depends(get_current_user),
     last_event_id: str | None = Header(None, alias="Last-Event-ID"),
+    accept_sse_version: str | None = Header(None, alias="Accept-SSE-Version"),
 ) -> StreamingResponse:
     """Stream deliberation events via Server-Sent Events.
 
@@ -898,6 +1069,7 @@ async def stream_deliberation(
         session_data: Verified session (user_id, metadata) from dependency
         current_user: Current authenticated user (for admin check)
         last_event_id: Optional Last-Event-ID header for resume support
+        accept_sse_version: Optional Accept-SSE-Version header for schema version
 
     Returns:
         StreamingResponse with SSE events
@@ -947,9 +1119,19 @@ async def stream_deliberation(
 
         # Status is "running" or "completed" - proceed to streaming
         # Events flow through Redis PubSub, and history is available via /events endpoint
+
+        # Parse and validate version negotiation
+        requested_version = parse_accept_sse_version(accept_sse_version)
+        if requested_version != SSE_SCHEMA_VERSION:
+            logger.info(
+                f"[SSE VERSION] session={session_id}, "
+                f"requested={requested_version}, current={SSE_SCHEMA_VERSION}"
+            )
+            metrics.increment("sse.version_mismatch")
+
         logger.info(
             f"SSE connection established for session {session_id} "
-            f"(status: {status}, last_event_id: {last_event_id})"
+            f"(status: {status}, last_event_id: {last_event_id}, version={SSE_SCHEMA_VERSION})"
         )
 
         # Return streaming response with resume support
@@ -963,6 +1145,7 @@ async def stream_deliberation(
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",  # Disable nginx buffering
+                "X-SSE-Schema-Version": str(SSE_SCHEMA_VERSION),
             },
         )
 

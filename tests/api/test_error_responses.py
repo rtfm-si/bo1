@@ -160,25 +160,25 @@ class TestErrorResponseModel:
 
         assert ErrorResponse is not None
 
-    def test_error_response_has_detail_field(self):
-        """ErrorResponse should have detail field."""
+    def test_error_response_has_required_fields(self):
+        """ErrorResponse should have error_code and message fields."""
         from backend.api.models import ErrorResponse
 
         # Create instance to verify structure
-        error = ErrorResponse(detail="Test error")
-        assert error.detail == "Test error"
+        error = ErrorResponse(error_code="TEST_ERROR", message="Test error message")
+        assert error.error_code == "TEST_ERROR"
+        assert error.message == "Test error message"
 
-    def test_error_response_optional_fields(self):
-        """ErrorResponse should support optional fields."""
+    def test_error_response_structure(self):
+        """ErrorResponse should have proper structure for API consistency."""
         from backend.api.models import ErrorResponse
 
         error = ErrorResponse(
-            detail="Test error",
-            error_code="TEST_ERROR",
-            session_id="bo1_abc123",
+            error_code="API_NOT_FOUND",
+            message="Session not found",
         )
-        assert error.error_code == "TEST_ERROR"
-        assert error.session_id == "bo1_abc123"
+        assert error.error_code == "API_NOT_FOUND"
+        assert error.message == "Session not found"
 
 
 class TestActionsEndpointResponses:

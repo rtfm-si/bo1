@@ -6,9 +6,17 @@ import pytest
 from pydantic import ValidationError
 
 from backend.api.models import (
+    BadRequestErrorResponse,
+    ConflictErrorResponse,
     CreateSessionRequest,
+    ErrorResponse,
+    ForbiddenErrorResponse,
+    InternalErrorResponse,
     MessageResponse,
+    NotFoundErrorResponse,
+    RateLimitResponse,
     TerminationResponse,
+    UnauthorizedErrorResponse,
     WhitelistCheckResponse,
 )
 
@@ -206,3 +214,238 @@ class TestTerminationResponseSerialization:
             TerminationResponse(billable_portion=-0.1, **base_args)
         with pytest.raises(ValidationError):
             TerminationResponse(billable_portion=1.1, **base_args)
+
+
+class TestRateLimitResponse:
+    """Test RateLimitResponse model for 429 responses."""
+
+    def test_model_serialization(self):
+        """Test RateLimitResponse serializes correctly."""
+        response = RateLimitResponse(retry_after=60)
+        data = response.model_dump()
+
+        assert data["detail"] == "Too many requests. Please try again later."
+        assert data["error_code"] == "rate_limited"
+        assert data["retry_after"] == 60
+
+    def test_model_with_custom_values(self):
+        """Test RateLimitResponse with custom values."""
+        response = RateLimitResponse(
+            detail="Custom rate limit message",
+            error_code="custom_rate_limit",
+            retry_after=120,
+        )
+        data = response.model_dump()
+
+        assert data["detail"] == "Custom rate limit message"
+        assert data["error_code"] == "custom_rate_limit"
+        assert data["retry_after"] == 120
+
+    def test_retry_after_required(self):
+        """Test that retry_after is required."""
+        # Default values allow constructing without detail/error_code
+        response = RateLimitResponse(retry_after=30)
+        assert response.retry_after == 30
+
+    def test_json_schema_example(self):
+        """Test that model has expected JSON schema example."""
+        schema = RateLimitResponse.model_json_schema()
+        assert "examples" in schema
+        assert len(schema["examples"]) > 0
+
+        example = schema["examples"][0]
+        assert example["detail"] == "Too many requests. Please try again later."
+        assert example["error_code"] == "rate_limited"
+        assert example["retry_after"] == 60
+
+
+class TestErrorResponse:
+    """Test ErrorResponse model and its variants."""
+
+    def test_error_response_serialization(self):
+        """Test ErrorResponse serializes with error_code and message."""
+        response = ErrorResponse(
+            error_code="API_NOT_FOUND",
+            message="Session not found",
+        )
+        data = response.model_dump()
+
+        assert data["error_code"] == "API_NOT_FOUND"
+        assert data["message"] == "Session not found"
+
+    def test_error_response_schema_has_examples(self):
+        """Test ErrorResponse has proper JSON schema examples."""
+        schema = ErrorResponse.model_json_schema()
+        assert "examples" in schema
+        assert len(schema["examples"]) >= 1
+
+        # Verify examples have the correct structure
+        for example in schema["examples"]:
+            assert "error_code" in example
+            assert "message" in example
+
+    def test_not_found_error_response(self):
+        """Test NotFoundErrorResponse has correct defaults."""
+        response = NotFoundErrorResponse()
+        data = response.model_dump()
+
+        assert data["error_code"] == "API_NOT_FOUND"
+        assert "not found" in data["message"].lower()
+
+    def test_not_found_error_response_custom_message(self):
+        """Test NotFoundErrorResponse with custom message."""
+        response = NotFoundErrorResponse(
+            message="Custom not found message",
+        )
+        data = response.model_dump()
+
+        assert data["error_code"] == "API_NOT_FOUND"
+        assert data["message"] == "Custom not found message"
+
+    def test_forbidden_error_response(self):
+        """Test ForbiddenErrorResponse has correct defaults."""
+        response = ForbiddenErrorResponse()
+        data = response.model_dump()
+
+        assert data["error_code"] == "API_FORBIDDEN"
+        assert "denied" in data["message"].lower() or "access" in data["message"].lower()
+
+    def test_unauthorized_error_response(self):
+        """Test UnauthorizedErrorResponse has correct defaults."""
+        response = UnauthorizedErrorResponse()
+        data = response.model_dump()
+
+        assert data["error_code"] == "API_UNAUTHORIZED"
+        assert "authentication" in data["message"].lower() or "required" in data["message"].lower()
+
+    def test_bad_request_error_response(self):
+        """Test BadRequestErrorResponse has correct defaults."""
+        response = BadRequestErrorResponse()
+        data = response.model_dump()
+
+        assert data["error_code"] == "API_BAD_REQUEST"
+        assert "invalid" in data["message"].lower() or "request" in data["message"].lower()
+
+    def test_conflict_error_response(self):
+        """Test ConflictErrorResponse has correct defaults."""
+        response = ConflictErrorResponse()
+        data = response.model_dump()
+
+        assert data["error_code"] == "API_CONFLICT"
+        assert "conflict" in data["message"].lower()
+
+    def test_internal_error_response(self):
+        """Test InternalErrorResponse has correct defaults."""
+        response = InternalErrorResponse()
+        data = response.model_dump()
+
+        assert data["error_code"] == "API_REQUEST_ERROR"
+        assert "error" in data["message"].lower()
+
+    def test_all_error_variants_inherit_from_error_response(self):
+        """Test all error variants are subclasses of ErrorResponse."""
+        variants = [
+            NotFoundErrorResponse,
+            ForbiddenErrorResponse,
+            UnauthorizedErrorResponse,
+            BadRequestErrorResponse,
+            ConflictErrorResponse,
+            InternalErrorResponse,
+        ]
+
+        for variant in variants:
+            assert issubclass(variant, ErrorResponse)
+            instance = variant()
+            assert isinstance(instance, ErrorResponse)
+
+    def test_error_response_required_fields(self):
+        """Test ErrorResponse requires both error_code and message."""
+        with pytest.raises(ValidationError):
+            ErrorResponse()  # type: ignore
+
+        with pytest.raises(ValidationError):
+            ErrorResponse(error_code="TEST")  # type: ignore
+
+        with pytest.raises(ValidationError):
+            ErrorResponse(message="Test message")  # type: ignore
+
+
+class TestErrorResponseHelpers:
+    """Test error response helpers in responses.py."""
+
+    def test_error_400_response_structure(self):
+        """Test ERROR_400_RESPONSE has correct structure."""
+        from backend.api.utils.responses import ERROR_400_RESPONSE
+
+        assert "model" in ERROR_400_RESPONSE
+        assert ERROR_400_RESPONSE["model"] == BadRequestErrorResponse
+        assert "description" in ERROR_400_RESPONSE
+        assert (
+            "400" in ERROR_400_RESPONSE["description"].lower()
+            or "bad" in ERROR_400_RESPONSE["description"].lower()
+        )
+
+    def test_error_401_response_structure(self):
+        """Test ERROR_401_RESPONSE has correct structure."""
+        from backend.api.utils.responses import ERROR_401_RESPONSE
+
+        assert "model" in ERROR_401_RESPONSE
+        assert ERROR_401_RESPONSE["model"] == UnauthorizedErrorResponse
+        assert "description" in ERROR_401_RESPONSE
+
+    def test_error_403_response_structure(self):
+        """Test ERROR_403_RESPONSE has correct structure."""
+        from backend.api.utils.responses import ERROR_403_RESPONSE
+
+        assert "model" in ERROR_403_RESPONSE
+        assert ERROR_403_RESPONSE["model"] == ForbiddenErrorResponse
+        assert "description" in ERROR_403_RESPONSE
+
+    def test_error_404_response_structure(self):
+        """Test ERROR_404_RESPONSE has correct structure."""
+        from backend.api.utils.responses import ERROR_404_RESPONSE
+
+        assert "model" in ERROR_404_RESPONSE
+        assert ERROR_404_RESPONSE["model"] == NotFoundErrorResponse
+        assert "description" in ERROR_404_RESPONSE
+
+    def test_error_409_response_structure(self):
+        """Test ERROR_409_RESPONSE has correct structure."""
+        from backend.api.utils.responses import ERROR_409_RESPONSE
+
+        assert "model" in ERROR_409_RESPONSE
+        assert ERROR_409_RESPONSE["model"] == ConflictErrorResponse
+        assert "description" in ERROR_409_RESPONSE
+
+    def test_error_500_response_structure(self):
+        """Test ERROR_500_RESPONSE has correct structure."""
+        from backend.api.utils.responses import ERROR_500_RESPONSE
+
+        assert "model" in ERROR_500_RESPONSE
+        assert ERROR_500_RESPONSE["model"] == InternalErrorResponse
+        assert "description" in ERROR_500_RESPONSE
+
+    def test_all_error_helpers_are_dict(self):
+        """Test all error response helpers are dictionaries."""
+        from backend.api.utils.responses import (
+            ERROR_400_RESPONSE,
+            ERROR_401_RESPONSE,
+            ERROR_403_RESPONSE,
+            ERROR_404_RESPONSE,
+            ERROR_409_RESPONSE,
+            ERROR_500_RESPONSE,
+        )
+
+        helpers = [
+            ERROR_400_RESPONSE,
+            ERROR_401_RESPONSE,
+            ERROR_403_RESPONSE,
+            ERROR_404_RESPONSE,
+            ERROR_409_RESPONSE,
+            ERROR_500_RESPONSE,
+        ]
+
+        for helper in helpers:
+            assert isinstance(helper, dict)
+            assert "model" in helper
+            assert "description" in helper

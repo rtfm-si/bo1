@@ -125,6 +125,7 @@ async def extract_tasks_from_synthesis(
         user_id=ctx.get("user_id"),
         node_name="task_extractor",
         phase="synthesis",
+        prompt_type="task_extraction",
     ) as cost_record:
         response = await client.messages.create(
             model=model,
@@ -221,6 +222,7 @@ def sync_extract_tasks_from_synthesis(
         user_id=ctx.get("user_id"),
         node_name="task_extractor",
         phase="synthesis",
+        prompt_type="task_extraction",
     ) as cost_record:
         response = client.messages.create(
             model=model,

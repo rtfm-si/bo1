@@ -16,7 +16,7 @@
 
 	const isUser = message.role === 'user';
 
-	function getPersonaIcon(persona: MentorPersonaId | null | undefined) {
+	function getPersonaIcon(persona: string | null | undefined) {
 		switch (persona) {
 			case 'action_coach':
 				return Target;

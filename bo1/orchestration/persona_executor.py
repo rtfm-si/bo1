@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any
 
 from backend.services.runtime_config import get_effective_value
+from bo1.agents.base import validate_trait_consistency
 from bo1.config import MODEL_BY_ROLE, get_settings, resolve_model_alias
 from bo1.constants import LLMConfig, TokenLimits
 from bo1.graph.state import DeliberationGraphState
@@ -194,6 +195,26 @@ class PersonaExecutor:
                 original_token_usage=token_usage,
             )
             token_usage = retry_token_usage
+
+        # Trait consistency validation (non-blocking)
+        if hasattr(persona_profile, "traits"):
+            traits_dict = (
+                persona_profile.traits
+                if isinstance(persona_profile.traits, dict)
+                else persona_profile.traits.model_dump()
+                if hasattr(persona_profile.traits, "model_dump")
+                else {}
+            )
+            if traits_dict:
+                is_consistent, trait_reason = validate_trait_consistency(
+                    contribution,
+                    traits_dict,
+                    persona_profile.display_name,
+                    strict=False,  # Log warning only, don't reject
+                )
+                # Log for observability, but don't block the contribution
+                if trait_reason:
+                    logger.debug(f"Trait validation note: {trait_reason}")
 
         # Check for overlength contribution
         word_count = len(contribution.split())

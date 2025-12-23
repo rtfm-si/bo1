@@ -64,7 +64,7 @@
 
 	{#if expanded}
 		<div class="task-details">
-			{#if task.what_and_how.length > 0}
+			{#if task.what_and_how && task.what_and_how.length > 0}
 				<div class="detail-section">
 					<strong>How to do it:</strong>
 					<ul>
@@ -75,7 +75,7 @@
 				</div>
 			{/if}
 
-			{#if task.success_criteria.length > 0}
+			{#if task.success_criteria && task.success_criteria.length > 0}
 				<div class="detail-section">
 					<strong>Success looks like:</strong>
 					<ul>
@@ -86,7 +86,7 @@
 				</div>
 			{/if}
 
-			{#if task.kill_criteria.length > 0}
+			{#if task.kill_criteria && task.kill_criteria.length > 0}
 				<div class="detail-section">
 					<strong>Stop if:</strong>
 					<ul>
@@ -97,7 +97,7 @@
 				</div>
 			{/if}
 
-			{#if task.dependencies.length > 0}
+			{#if task.dependencies && task.dependencies.length > 0}
 				<div class="detail-section">
 					<strong>Depends on:</strong>
 					<ul>

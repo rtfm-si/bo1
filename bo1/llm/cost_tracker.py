@@ -46,6 +46,7 @@ from typing import Any
 
 from prometheus_client import Counter
 
+from bo1.constants import CostAnomalyConfig
 from bo1.logging import ErrorCode, log_error
 from bo1.state.database import db_session
 
@@ -330,6 +331,10 @@ class CostRecord:
     persona_name: str | None = None
     round_number: int | None = None
     sub_problem_index: int | None = None
+    # prompt_type categorizes LLM calls for per-prompt-type cache analysis
+    # Valid values: persona_contribution, facilitator_decision, synthesis, decomposition,
+    # context_collection, clarification, research_summary, task_extraction, embedding, search
+    prompt_type: str | None = None
 
     # Performance
     latency_ms: int | None = None
@@ -650,6 +655,7 @@ class CostTracker:
 
         Uses executemany() for efficient batch insertion.
         Thread-safe: acquires lock to swap buffer.
+        Instrumented with Prometheus metrics for observability.
 
         Returns:
             Number of records flushed
@@ -665,6 +671,9 @@ class CostTracker:
         batch_size = len(to_flush)
         logger.info(f"Flushing {batch_size} cost records to database")
 
+        # Start timing for metrics
+        flush_start = time.perf_counter()
+
         try:
             with db_session() as conn:
                 with conn.cursor() as cur:
@@ -672,6 +681,10 @@ class CostTracker:
                     insert_data = []
                     for record in to_flush:
                         request_id = record.metadata.get("request_id", str(uuid.uuid4()))
+                        # Merge prompt_type into metadata for per-prompt-type cache analysis
+                        metadata = dict(record.metadata)
+                        if record.prompt_type:
+                            metadata["prompt_type"] = record.prompt_type
                         insert_data.append(
                             (
                                 request_id,
@@ -701,7 +714,7 @@ class CostTracker:
                                 record.latency_ms,
                                 record.status,
                                 record.error_message,
-                                json.dumps(record.metadata),
+                                json.dumps(metadata),
                             )
                         )
 
@@ -737,6 +750,10 @@ class CostTracker:
                         insert_data,
                     )
 
+            # Record metrics on success
+            flush_duration = time.perf_counter() - flush_start
+            cls._record_flush_metrics(flush_duration, success=True)
+
             # Invalidate aggregation cache for affected sessions
             session_ids = {r.session_id for r in to_flush if r.session_id}
             for sid in session_ids:
@@ -748,6 +765,10 @@ class CostTracker:
             return batch_size
 
         except Exception as e:
+            # Record metrics on failure
+            flush_duration = time.perf_counter() - flush_start
+            cls._record_flush_metrics(flush_duration, success=False)
+
             log_error(
                 logger,
                 ErrorCode.COST_FLUSH_ERROR,
@@ -818,6 +839,206 @@ class CostTracker:
             cls._pending_costs = []
             cls._last_flush_time = datetime.now(UTC)
 
+    @staticmethod
+    def _record_flush_metrics(duration_seconds: float, success: bool) -> None:
+        """Record Prometheus metrics for cost flush operation.
+
+        Args:
+            duration_seconds: Time taken to flush batch
+            success: Whether flush succeeded
+        """
+        try:
+            from backend.api.middleware.metrics import (
+                record_cost_flush,
+                record_cost_flush_duration,
+            )
+
+            record_cost_flush_duration(duration_seconds)
+            record_cost_flush(success)
+        except ImportError:
+            # Metrics not available (e.g., in CLI mode)
+            pass
+        except Exception as e:
+            logger.debug(f"Failed to record flush metrics: {e}")
+
+    @staticmethod
+    def _update_retry_queue_metric(queue_depth: int) -> None:
+        """Update Prometheus gauge for retry queue depth.
+
+        Args:
+            queue_depth: Current retry queue depth
+        """
+        try:
+            from backend.api.middleware.metrics import set_cost_retry_queue_depth
+
+            set_cost_retry_queue_depth(queue_depth)
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"Failed to update retry queue metric: {e}")
+
+    @classmethod
+    def check_anomaly(
+        cls,
+        record: CostRecord,
+        session_total: float | None = None,
+    ) -> list[str]:
+        """Check for cost anomalies and emit metrics/alerts.
+
+        Called during record() to detect unusual cost patterns.
+
+        Args:
+            record: CostRecord to check
+            session_total: Optional cumulative session cost (if known)
+
+        Returns:
+            List of anomaly types detected (empty if none)
+        """
+        if not CostAnomalyConfig.is_enabled():
+            return []
+
+        anomalies: list[str] = []
+
+        # Check for negative cost (data corruption)
+        if record.total_cost < 0:
+            anomalies.append("negative_cost")
+            log_error(
+                logger,
+                ErrorCode.COST_ANOMALY,
+                f"Negative cost detected: ${record.total_cost:.6f}",
+                session_id=record.session_id,
+                model=record.model_name,
+                provider=record.provider,
+            )
+
+        # Check single call threshold
+        single_threshold = CostAnomalyConfig.get_single_call_threshold()
+        if record.total_cost > single_threshold:
+            anomalies.append("high_single_call")
+            log_error(
+                logger,
+                ErrorCode.COST_ANOMALY,
+                f"High single call cost: ${record.total_cost:.4f} (threshold: ${single_threshold:.2f})",
+                session_id=record.session_id,
+                model=record.model_name,
+                input_tokens=record.input_tokens,
+                output_tokens=record.output_tokens,
+            )
+
+        # Check session total threshold
+        if session_total is not None:
+            session_threshold = CostAnomalyConfig.get_session_total_threshold()
+            if session_total > session_threshold:
+                anomalies.append("high_session_total")
+                log_error(
+                    logger,
+                    ErrorCode.COST_ANOMALY,
+                    f"High session total: ${session_total:.4f} (threshold: ${session_threshold:.2f})",
+                    session_id=record.session_id,
+                )
+
+        # Emit Prometheus metrics for detected anomalies
+        cls._record_anomaly_metrics(anomalies)
+
+        # Send ntfy alerts for anomalies (non-blocking)
+        if anomalies and CostAnomalyConfig.are_alerts_enabled():
+            cls._send_anomaly_alerts(anomalies, record, session_total)
+
+        return anomalies
+
+    @classmethod
+    def _send_anomaly_alerts(
+        cls,
+        anomalies: list[str],
+        record: CostRecord,
+        session_total: float | None = None,
+    ) -> None:
+        """Send ntfy alerts for detected anomalies (fire-and-forget).
+
+        Uses asyncio to send alerts without blocking cost tracking.
+        Failures are logged but do not propagate.
+
+        Args:
+            anomalies: List of anomaly types detected
+            record: CostRecord with details
+            session_total: Optional session total cost
+        """
+        import asyncio
+
+        try:
+            from backend.services.alerts import alert_cost_anomaly
+
+            # Determine thresholds for context
+            single_threshold = CostAnomalyConfig.get_single_call_threshold()
+            session_threshold = CostAnomalyConfig.get_session_total_threshold()
+
+            for anomaly_type in anomalies:
+                # Determine threshold to include in alert
+                threshold = None
+                cost = record.total_cost
+                if anomaly_type == "high_single_call":
+                    threshold = single_threshold
+                elif anomaly_type == "high_session_total":
+                    cost = session_total or record.total_cost
+                    threshold = session_threshold
+
+                # Fire-and-forget async alert
+                try:
+                    loop = asyncio.get_running_loop()
+                    # If in async context, schedule as task
+                    loop.create_task(
+                        alert_cost_anomaly(
+                            anomaly_type=anomaly_type,
+                            session_id=record.session_id,
+                            cost=cost,
+                            model=record.model_name,
+                            provider=record.provider,
+                            input_tokens=record.input_tokens,
+                            output_tokens=record.output_tokens,
+                            threshold=threshold,
+                        )
+                    )
+                except RuntimeError:
+                    # No running loop - run in new loop (sync context)
+                    asyncio.run(
+                        alert_cost_anomaly(
+                            anomaly_type=anomaly_type,
+                            session_id=record.session_id,
+                            cost=cost,
+                            model=record.model_name,
+                            provider=record.provider,
+                            input_tokens=record.input_tokens,
+                            output_tokens=record.output_tokens,
+                            threshold=threshold,
+                        )
+                    )
+
+        except ImportError:
+            logger.debug("Alert service not available for cost anomaly alerts")
+        except Exception as e:
+            # Never fail cost tracking due to alerting failure
+            logger.debug(f"Failed to send cost anomaly alert: {e}")
+
+    @staticmethod
+    def _record_anomaly_metrics(anomalies: list[str]) -> None:
+        """Emit Prometheus counter for each anomaly type.
+
+        Args:
+            anomalies: List of anomaly types detected
+        """
+        if not anomalies:
+            return
+
+        try:
+            from backend.api.middleware.metrics import record_cost_anomaly
+
+            for anomaly_type in anomalies:
+                record_cost_anomaly(anomaly_type)
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"Failed to record anomaly metrics: {e}")
+
     @classmethod
     def _push_to_retry_queue(cls, records: list[CostRecord]) -> int:
         """Push failed cost records to Redis retry queue.
@@ -859,6 +1080,10 @@ class CostTracker:
 
             # Check queue depth and alert if too deep
             queue_depth = redis_client.llen(COST_RETRY_QUEUE_KEY)
+
+            # Update Prometheus gauge
+            cls._update_retry_queue_metric(queue_depth)
+
             if queue_depth > COST_RETRY_ALERT_THRESHOLD:
                 logger.warning(
                     f"Cost retry queue depth ({queue_depth}) exceeds threshold "
@@ -1023,6 +1248,7 @@ class CostTracker:
         user_id: str | None = None,
         node_name: str | None = None,
         phase: str | None = None,
+        prompt_type: str | None = None,
         **context: Any,
     ) -> Generator[CostRecord, None, None]:
         """Context manager to track an API call.
@@ -1037,6 +1263,10 @@ class CostTracker:
             user_id: User identifier (optional)
             node_name: Graph node name (optional)
             phase: Deliberation phase (optional)
+            prompt_type: Prompt type for cache analysis (optional). Valid values:
+                persona_contribution, facilitator_decision, synthesis, decomposition,
+                context_collection, clarification, research_summary, task_extraction,
+                embedding, search
             **context: Additional context fields (persona_name, round_number, etc.)
 
         Yields:
@@ -1049,7 +1279,8 @@ class CostTracker:
             ...     model_name="claude-sonnet-4-5-20250929",
             ...     session_id=session_id,
             ...     node_name="parallel_round_node",
-            ...     phase="deliberation"
+            ...     phase="deliberation",
+            ...     prompt_type="persona_contribution"
             ... ) as record:
             ...     response = await client.call(...)
             ...     record.input_tokens = response.usage.input_tokens
@@ -1064,6 +1295,7 @@ class CostTracker:
             user_id=user_id,
             node_name=node_name,
             phase=phase,
+            prompt_type=prompt_type,
             persona_name=context.get("persona_name"),
             round_number=context.get("round_number"),
             sub_problem_index=context.get("sub_problem_index"),
@@ -1134,6 +1366,9 @@ class CostTracker:
 
             # Emit Prometheus metrics for Grafana dashboards
             CostTracker._emit_prometheus_metrics(record)
+
+            # Check for cost anomalies (high single call, negative cost)
+            CostTracker.check_anomaly(record)
 
             # Log to database
             CostTracker.log_cost(record)

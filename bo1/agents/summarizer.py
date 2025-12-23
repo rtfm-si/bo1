@@ -109,6 +109,7 @@ class SummarizerAgent(BaseAgent):
                 system=SUMMARIZER_SYSTEM_PROMPT,
                 user_message=user_message,
                 phase="summarization",
+                prefill="<thinking>",  # Consistent reasoning pattern
                 temperature=0.3,
                 max_tokens=target + 50,
             )
@@ -315,6 +316,7 @@ class SummarizerAgent(BaseAgent):
                 system=SUMMARIZER_SYSTEM_PROMPT,
                 user_message=enhanced_message,
                 phase="summarization_retry",
+                prefill="<thinking>",  # Consistent reasoning pattern
                 temperature=0.3,
                 max_tokens=target + 50,
             )

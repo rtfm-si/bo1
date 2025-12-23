@@ -169,7 +169,7 @@
 									{config.label}
 								</span>
 								<span class="text-xs text-neutral-500 dark:text-neutral-400">
-									{formatDependencyType(dep.dependency_type)}
+									{formatDependencyType(dep.dependency_type as DependencyType)}
 								</span>
 								{#if dep.lag_days > 0}
 									<span class="inline-flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">

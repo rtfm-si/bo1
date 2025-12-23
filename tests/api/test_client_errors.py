@@ -218,13 +218,13 @@ class TestClientErrorEndpoint:
 
 
 class TestClientErrorCSRFExemption:
-    """Tests verifying /api/v1/errors is CSRF exempt."""
+    """Tests verifying /api/errors is CSRF exempt."""
 
     def test_errors_endpoint_csrf_exempt(self) -> None:
-        """Verify /api/v1/errors is in CSRF exempt prefixes."""
+        """Verify /api/errors is in CSRF exempt prefixes."""
         from backend.api.middleware.csrf import CSRF_EXEMPT_PREFIXES
 
-        # The endpoint should be CSRF exempt
-        assert any("/api/v1/errors".startswith(prefix) for prefix in CSRF_EXEMPT_PREFIXES), (
-            "/api/v1/errors should be CSRF exempt"
+        # The endpoint should be CSRF exempt (mounted at /api/errors, not /api/v1/errors)
+        assert any("/api/errors".startswith(prefix) for prefix in CSRF_EXEMPT_PREFIXES), (
+            "/api/errors should be CSRF exempt"
         )

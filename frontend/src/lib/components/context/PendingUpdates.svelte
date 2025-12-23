@@ -50,7 +50,7 @@
 
 		try {
 			const response = await apiClient.getPendingUpdates();
-			suggestions = response.suggestions;
+			suggestions = response.suggestions ?? [];
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load pending updates';
 			console.error('Failed to load pending updates:', e);

@@ -1,1 +1,1 @@
-# Tests for backend scripts
+# Tests for scripts/

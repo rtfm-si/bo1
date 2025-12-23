@@ -163,7 +163,12 @@ async def analyze_dependencies_node(state: DeliberationGraphState) -> dict[str, 
 
     except ValueError as e:
         # Circular dependency detected
-        logger.error(f"analyze_dependencies_node: {e}. Falling back to sequential execution.")
+        log_with_session(
+            logger,
+            logging.ERROR,
+            session_id,
+            f"analyze_dependencies_node: {e}. Falling back to sequential execution.",
+        )
 
         # BUG FIX (P0 #1): Also set current_sub_problem in fallback case
         first_sub_problem = sub_problems[0] if sub_problems else None  # Already normalized
@@ -399,15 +404,23 @@ async def _execute_batch(
     batch_results: list[tuple[int, SubProblemResult]] = []
     failed_count = 0
 
-    for raw_result in batch_results_raw:
+    for idx, raw_result in enumerate(batch_results_raw):
+        sp_idx = batch[idx]  # Get actual sub-problem index from batch
         if isinstance(raw_result, BaseException):
             failed_count += 1
-            logger.error(f"Sub-problem failed: {raw_result}")
+            log_with_session(
+                logger,
+                logging.ERROR,
+                session_id,
+                f"Sub-problem failed: {raw_result}",
+                sub_problem_index=sp_idx,
+            )
             writer(
                 {
                     "event_type": "subproblem_failed",
                     "error": str(raw_result),
                     "error_type": type(raw_result).__name__,
+                    "sub_problem_index": sp_idx,
                 }
             )
         else:
@@ -748,15 +761,22 @@ async def _execute_speculative_parallel(
     results: list[tuple[int, SubProblemResult]] = []
     failed_count = 0
 
-    for raw_result in results_raw:
+    for sp_idx, raw_result in enumerate(results_raw):
         if isinstance(raw_result, BaseException):
             failed_count += 1
-            logger.error(f"Sub-problem failed in speculative execution: {raw_result}")
+            log_with_session(
+                logger,
+                logging.ERROR,
+                session_id,
+                f"Sub-problem failed in speculative execution: {raw_result}",
+                sub_problem_index=sp_idx,
+            )
             writer(
                 {
                     "event_type": "subproblem_failed",
                     "error": str(raw_result),
                     "error_type": type(raw_result).__name__,
+                    "sub_problem_index": sp_idx,
                 }
             )
         else:

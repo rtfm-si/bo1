@@ -126,7 +126,7 @@ export async function loadWorkspaces(): Promise<void> {
 		workspaceStore.set({
 			workspaces: workspaceList,
 			currentWorkspace: selected,
-			defaultWorkspaceId: defaultWorkspaceId,
+			defaultWorkspaceId: defaultWorkspaceId ?? null,
 			isLoading: false,
 			error: null,
 		});

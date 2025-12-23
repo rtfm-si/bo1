@@ -551,6 +551,79 @@ Emitted when the facilitator makes a decision.
 }
 ```
 
+### Expert Event Buffering
+
+The SSE stream implements micro-batching optimization for expert contribution events to reduce frame volume and network overhead.
+
+#### Buffer Behavior
+
+- **Buffer window:** 50ms per-expert
+- **Per-expert queuing:** Events are grouped by `expert_id`
+- **Merge pattern:** `expert_started` → `expert_reasoning` → `expert_conclusion` → `expert_contribution_complete`
+
+When three consecutive events from the same expert follow the standard contribution sequence, they are merged into a single `expert_contribution_complete` event.
+
+#### Merged Event Schema
+
+#### `expert_contribution_complete`
+Emitted when buffered expert events are merged (optimization).
+
+```json
+{
+  "session_id": "bo1_abc123",
+  "expert_id": "CFO",
+  "round": 2,
+  "phase": "thinking",
+  "reasoning": "From a financial perspective, we need to consider ROI timelines...",
+  "confidence_score": 0.85,
+  "recommendation": "Proceed with phased market entry",
+  "merged": true
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `expert_id` | string | Expert identifier (persona code) |
+| `round` | integer | Current deliberation round |
+| `phase` | string | Expert's processing phase |
+| `reasoning` | string | Expert's reasoning/analysis |
+| `confidence_score` | float | Expert's confidence (0.0-1.0) |
+| `recommendation` | string | Expert's recommendation |
+| `merged` | boolean | Always `true` for merged events |
+
+#### Critical Event Bypass
+
+The following event types **flush the buffer immediately** and bypass buffering:
+
+- `round_start` / `round_end` - Round boundaries
+- `subproblem_waiting` - Sub-problem state changes
+- `synthesis_complete` / `meta_synthesis_complete` - Synthesis events
+- `meeting_complete` / `complete` - Session completion
+- `facilitator_decision` - Facilitator actions
+- `error` - Error events
+
+These events cannot be buffered because they represent state transitions that clients must receive immediately.
+
+#### Client Handling Guidance
+
+Clients may receive **either** merged or unmerged event sequences depending on timing:
+
+**Unmerged sequence (3 events):**
+```
+expert_started → expert_reasoning → expert_conclusion
+```
+
+**Merged sequence (1 event):**
+```
+expert_contribution_complete
+```
+
+**Recommended client implementation:**
+1. Handle both `expert_contribution_complete` and the individual events (`expert_started`, `expert_reasoning`, `expert_conclusion`)
+2. Check for the `merged: true` field to identify merged events
+3. For UI updates, treat `expert_contribution_complete` as equivalent to receiving all three individual events
+4. If building a replay mechanism, account for both patterns
+
 ## Event Count Summary
 
 | Category | Events |
@@ -571,7 +644,8 @@ Emitted when the facilitator makes a decision.
 | Cost | 1 |
 | Node | 2 |
 | Facilitator | 1 |
-| **Total** | **30** |
+| Expert Buffering | 1 |
+| **Total** | **31** |
 
 ## JSON Schema Export
 
@@ -583,6 +657,99 @@ from bo1.events.schemas import get_event_json_schemas
 schemas = get_event_json_schemas()
 # Returns: {"session_started": {...}, "contribution": {...}, ...}
 ```
+
+## Schema Evolution
+
+### Overview
+
+SSE events include an `event_version` field for forward compatibility. Clients should check this field and handle version mismatches gracefully.
+
+### Version Negotiation
+
+**Request Header:** `Accept-SSE-Version`
+- Clients can request a specific version via this header
+- Format: integer (e.g., `Accept-SSE-Version: 1`)
+- If omitted, defaults to current version
+
+**Response Header:** `X-SSE-Schema-Version`
+- Server returns current schema version in response headers
+- Clients should check this on stream connect
+
+### Breaking vs Non-Breaking Changes
+
+**Non-Breaking (additive):**
+- New event types
+- New optional fields in existing events
+- New enum values (if client handles unknown values)
+
+**Breaking (requires version bump):**
+- Removing event types
+- Removing required fields
+- Changing field types
+- Renaming fields
+
+### Deprecation Lifecycle
+
+1. **Announce** - Field/event marked deprecated in docs, `SSE_DEPRECATED_FIELDS` updated
+2. **Warn** - 90 days: Events include `_deprecated` metadata, console warnings in clients
+3. **Sunset** - 180 days: Field/event removed, version incremented
+
+### Version Compatibility Matrix
+
+| Client Version | Server Version | Behavior |
+|----------------|----------------|----------|
+| 1 | 1 | Full compatibility |
+| 1 | 2+ | Works (additive changes only), client logs warnings for unknown fields |
+| 2+ | 1 | Client should handle gracefully (missing new fields) |
+
+### Migration Guide Template
+
+When bumping versions:
+
+1. Document all changes in Version History
+2. Update `SSE_SCHEMA_VERSION` in `backend/api/constants.py`
+3. Update `EXPECTED_SSE_VERSION` in `frontend/src/lib/api/sse-events.ts`
+4. Add deprecated field mappings to `SSE_DEPRECATED_FIELDS`
+5. Update TypeScript interfaces for new/changed fields
+6. Run test suite to verify backwards compatibility
+
+## Grafana Queries for Cost Analysis
+
+The `api_costs` table stores per-call cost data with `prompt_type` in the JSONB `metadata` column.
+
+### Cache Hit Rate by Prompt Type
+
+```sql
+SELECT
+  metadata->>'prompt_type' AS prompt_type,
+  COUNT(*) AS total_calls,
+  SUM(CASE WHEN cache_hit THEN 1 ELSE 0 END) AS cache_hits,
+  AVG(CASE WHEN cache_hit THEN 1.0 ELSE 0.0 END) AS cache_hit_rate,
+  SUM(total_cost) AS total_cost,
+  SUM(COALESCE(cost_without_optimization, total_cost) - total_cost) AS cost_saved
+FROM api_costs
+WHERE created_at > NOW() - INTERVAL '24 hours'
+  AND metadata->>'prompt_type' IS NOT NULL
+GROUP BY 1
+ORDER BY total_calls DESC;
+```
+
+### Valid prompt_type Values
+
+| Value | Description |
+|-------|-------------|
+| `persona_contribution` | Expert persona deliberation responses |
+| `facilitator_decision` | Facilitator round decisions |
+| `synthesis` | Final synthesis generation |
+| `decomposition` | Problem decomposition |
+| `context_collection` | Context gathering |
+| `clarification` | Clarification handling |
+| `research_summary` | Research result summarization |
+| `research_detection` | Proactive research detection |
+| `task_extraction` | Task extraction from synthesis |
+| `embedding` | Voyage AI embeddings |
+| `search` | Brave/Tavily web search |
+| `contribution_summary` | Contribution summarization |
 
 ## Version History
 

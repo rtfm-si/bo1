@@ -1,6 +1,6 @@
 # Task Backlog
 
-_Last updated: 2025-12-22 (Supply-chain & web security scan)_
+_Last updated: 2025-12-23 (LLM Persona prompt cleanup)_
 
 ---
 
@@ -393,9 +393,29 @@ _Last updated: 2025-12-22 (Supply-chain & web security scan)_
   - Preserves current round contributions + last N from previous rounds
   - Logs pruned count for observability
   - 10 unit tests in `tests/graph/test_contribution_pruning.py`
-- [ ] [PERF][P3] Add py-spy profiling + Prometheus psutil metrics to /health endpoint
-- [ ] [PERF][P3] Analyze graph topology for independent sub-problem parallelization opportunities
-- [ ] [PERF][P3] Build Grafana dashboard for cache hit rates and cost savings by phase
+- [x] [PERF][P3] Add py-spy profiling + Prometheus psutil metrics to /health endpoint
+  - Added `psutil>=6.0.0` dependency to `pyproject.toml`
+  - Created `backend/api/system_metrics.py` with `get_process_metrics()` (5s cache)
+  - Added Prometheus gauges: `bo1_process_cpu_percent`, `bo1_process_memory_percent`, `bo1_process_memory_rss_bytes`, `bo1_process_open_fds`, `bo1_process_threads`
+  - Updated `/health` endpoint to include `system` field with CPU%, memory%, RSS MB, FDs, threads
+  - Added `update_process_metrics()` to update gauges on each health check
+  - 17 unit tests in `tests/api/test_system_metrics.py` and `tests/api/test_health.py`
+  - Note: py-spy profiling deferred (requires special permissions, CLI usage documented in plan)
+- [x] [PERF][P3] Analyze graph topology for independent sub-problem parallelization opportunities
+  - Created `docs/analysis/subproblem-parallelization.md` with full topology analysis
+  - Documented 3 levels of existing parallelization: expert-level, batch, speculative
+  - Identified node isolation boundaries (fully isolated vs aggregate vs shared)
+  - Mermaid diagrams of main graph and subgraph topology
+  - Finding: No major new opportunities - current implementation is near-optimal
+  - Recommendations: Add sub-problem cost guard (P4), monitor speculative savings (P4)
+- [x] [PERF][P3] Build Grafana dashboard for cache hit rates and cost savings by phase
+  - Created `monitoring/grafana/dashboards/cache-performance.json` (12 panels, 4 rows)
+  - Row 1: Cache hit rate gauges (session metadata, aggregation, user context, research cache size)
+  - Row 2: Cache trends (hit rates over time, operations rate with hits/misses)
+  - Row 3: Cost analysis (pie charts by model/provider, cost trend time series)
+  - Row 4: Cost savings estimation (aggregation, session, research cleanup stats)
+  - Thresholds: 95% green for session cache, 85% for aggregation, 80% for user context
+  - Default time range: 6h, refresh: 30s
 
 ### LLM Alignment [LLM]
 
@@ -458,11 +478,33 @@ _Last updated: 2025-12-22 (Supply-chain & web security scan)_
   - Integrated into `PromptBroker.call()` with graceful degradation (log + metric, don't block)
   - Added `llm_rate_limit_exceeded_total{type, session_id}` Prometheus counter
   - 22 unit tests in `tests/llm/test_rate_limiter.py`, 11 integration tests in `tests/llm/test_broker_rate_limit.py`
-- [ ] [LLM][P2] Add tests/test_sanitizer.py with injection attack vectors
-- [ ] [LLM][P2] Add prompt_type to CostRecord metadata for per-prompt-type cache analysis
-- [ ] [LLM][P3] Add post-generation trait validation in agents/base.py
-- [ ] [LLM][P3] Apply prefill="<thinking>" to all \_create_and_call_prompt() calls
-- [ ] [LLM][P3] Consolidate `<critical_thinking_protocol>` and `<forbidden_patterns>` in persona.py
+- [x] [LLM][P2] Add tests/test_sanitizer.py with injection attack vectors
+  - Created `tests/test_sanitizer.py` with 132 comprehensive test cases
+  - Covers OWASP LLM01 vectors: system prompt overrides, XML/HTML tag injection, role switching, delimiter escapes
+  - Includes unicode homoglyph tests, nested injections, encoding bypass attempts
+  - Tests boundary conditions: empty/whitespace, >10KB strings, null bytes, control characters
+  - SQL injection via LLM vectors tested
+  - Context-specific sanitization tests for all documented call sites
+- [x] [LLM][P2] Add prompt_type to CostRecord metadata for per-prompt-type cache analysis
+  - Added `prompt_type: str | None` field to `CostRecord` dataclass
+  - Added `prompt_type` parameter to `CostTracker.track_call()` context manager
+  - Added `prompt_type` field to `PromptRequest` model for PromptBroker
+  - Updated call sites: researcher.py (search, research_summary), embeddings.py (embedding), research_detector.py (research_detection), task_extractor.py (task_extraction), contribution_summarizer.py (contribution_summary)
+  - `_flush_batch()` now includes `prompt_type` in metadata JSONB for database persistence
+  - Added Grafana query example in `docs/SSE_EVENTS.md` for cache hit rate by prompt type
+  - 6 unit tests in `tests/llm/test_cost_tracker.py::TestPromptTypeField`
+- [x] [LLM][P3] Add post-generation trait validation in agents/base.py
+  - Added `validate_trait_consistency()` helper in `bo1/agents/base.py`
+  - Heuristic-based validation: checks analytical/risk_averse/creative/optimistic traits against output
+  - Integrated in `persona_executor.py` after LLM response (non-blocking, logs warnings)
+  - 18 unit tests in `tests/agents/test_trait_validation.py`
+- [x] [LLM][P3] Apply prefill="<thinking>" to all \_create_and_call_prompt() calls
+  - Added `prefill="<thinking>"` to `summarizer.py:108` (summarization)
+  - Added `prefill="<thinking>"` to `summarizer.py:315` (summarization_retry)
+  - Added `prefill="<thinking>"` to `moderator.py:107` (moderator_intervention)
+  - Added `prefill="<thinking>"` to `facilitator.py:858` (synthesis_revision)
+- [x] [LLM][P3] Consolidate `<critical_thinking_protocol>` and `<forbidden_patterns>` in persona.py
+  - Audited: only ONE instance of each section exists (lines 148-173), no duplicates to consolidate
 
 ### Data Model [DATA]
 
@@ -491,19 +533,70 @@ _Last updated: 2025-12-22 (Supply-chain & web security scan)_
   - Added `user_id: str | None` and `status: ContributionStatus` fields to `ContributionMessage`
   - Updated `from_db_row()` to map both fields with safe defaults
   - 19 unit tests in `tests/models/test_contribution_message.py`
-- [ ] [DATA][P1] Create test_state_roundtrip() to validate serialize/deserialize functions
+- [x] [DATA][P1] Create test_state_roundtrip() to validate serialize/deserialize functions
+  - Created `tests/graph/test_state_roundtrip.py` with 25 comprehensive tests
+  - Factory helpers: `make_full_state()`, `make_persona()`, `make_contribution()`, `make_sub_problem()`, `make_problem()`, etc.
+  - Tests: full roundtrip, minimal state, large payloads (50+ contributions), nested structures, optional None fields
+  - Type preservation: datetime, UUID, enums (DeliberationPhase, ContributionType, PersonaCategory)
+  - Error handling: invalid JSON, missing fields, schema violations
 - [x] [DATA][P1] Add GitHub Action to check frontend types match backend OpenAPI spec
   - Created `scripts/check_openapi_fresh.py` - compares backend OpenAPI with committed spec
   - Added CI step to `lint-and-typecheck` job after mypy, before frontend steps
   - Fixed `SnoozeReminderRequest` forward reference in `backend/api/actions.py`
   - Regenerated `openapi.json` and frontend types
-- [ ] [DATA][P2] Create migration audit script to detect model-migration field gaps
-- [ ] [DATA][P2] Document which DeliberationGraphState fields are persisted vs ephemeral
-- [ ] [DATA][P2] Create bo1/models/{action,project,workspace}.py with domain models
-- [ ] [DATA][P2] Add JSON serialization for recommendations.conditions field
-- [ ] [DATA][P3] Add CHECK constraints to enum columns (status, phase, priority)
-- [ ] [DATA][P3] Add COMMENT ON TABLE/COLUMN for all tables
-- [ ] [DATA][P3] Consolidate frontend types to single source of truth (prefer generated types)
+- [x] [DATA][P2] Create migration audit script to detect model-migration field gaps
+  - Created `scripts/audit_model_schema.py` - compares Pydantic models with PostgreSQL schema
+  - Model mappings: Session → sessions, ContributionMessage → contributions, Recommendation → recommendations
+  - Type mapping: Python types → compatible PostgreSQL types (str→text/varchar, int→integer/bigint, etc.)
+  - Makefile targets: `make audit-schema` (report), `make audit-schema-ci` (CI exit code 1 on issues)
+  - 41 unit tests in `tests/scripts/test_audit_model_schema.py`
+- [x] [DATA][P2] Document which DeliberationGraphState fields are persisted vs ephemeral
+  - Added Field Persistence Matrix to `DeliberationGraphState` docstring in `bo1/graph/state.py`
+  - Documents Redis checkpoint fields (full state), PostgreSQL fallback fields, ephemeral fields
+  - Includes Recovery Semantics section explaining crash/resume behavior
+- [x] [DATA][P2] Create bo1/models/{action,project,workspace}.py with domain models
+  - Created `bo1/models/action.py` with Action model, ActionStatus/Priority/Category enums, FailureReasonCategory
+  - Created `bo1/models/project.py` with Project model and ProjectStatus enum
+  - Created `bo1/models/workspace.py` with Workspace, WorkspaceMember models and WorkspaceRole enum
+  - All models have `from_db_row()` classmethods, handle UUID→string conversion, array None→[] handling
+  - Exported from `bo1/models/__init__.py`
+  - 41 unit tests in `tests/models/test_action.py`, `test_project.py`, `test_workspace.py`
+- [x] [DATA][P2] Add JSON serialization for recommendations.conditions field
+  - Migration `0eb64c2f78e5` adds `conditions` JSONB column to recommendations table
+  - `Recommendation` model has `conditions: list[str]` field with `default_factory=list`
+  - `save_recommendation()` uses `Json(conditions)` wrapper for INSERT
+  - `get_recommendations_by_session()` returns conditions (psycopg2 auto-deserializes JSONB)
+  - 12 tests in `tests/models/test_recommendations.py` + 5 repository tests passing
+- [x] [DATA][P3] Add CHECK constraints to enum columns (status, phase, priority)
+  - Migration `z18_enum_check_constraints` adds CHECK constraints to enforce valid enum values
+  - Tables: sessions (status, phase), actions (status, priority), projects (status), contributions (status)
+  - Includes legacy values discovered in DB: deleted/paused (session status), critical (action priority)
+  - Uses NOT VALID + VALIDATE CONSTRAINT pattern to avoid table locks
+  - 13 unit tests in `tests/migrations/test_enum_constraints.py`
+- [x] [DATA][P3] Add COMMENT ON TABLE/COLUMN for all tables
+  - Migration `z19_add_table_comments` adds table-level and column-level comments
+  - 45 tables documented with purpose descriptions
+  - ~150 key columns documented (PKs, FKs, status/phase fields, JSONB fields)
+  - Comments visible via `\dt+` and `\d+ table_name` in psql
+- [x] [DATA][P3] Consolidate frontend types.ts to re-export from generated-types.ts
+  - Refactored `frontend/src/lib/api/types.ts` to re-export 100+ types from `generated-types.ts`
+  - Added legacy aliases with `@deprecated` annotations for backward compatibility
+  - Frontend-only types (HoneypotFields, ApiError, UI-specific interfaces) remain manually defined
+  - Fixed GanttChart, MentorPersonaId, component undefined checks (see P4 tasks below)
+- [x] [DATA][P4] Fix GanttChart.svelte field name mismatches (uses `title`, `from`, `to` vs generated `name`, `action_id`, `depends_on_id`)
+  - Updated `convertToGanttTasks()` to use correct field names: `action.name`, `action.start`, `action.end`
+  - Fixed dependency mapping: `dep.action_id` (target), `dep.depends_on_id` (source)
+  - Removed `blocking_reason` display (not in GanttActionData schema)
+  - Fixed `hasTasks` derived check to use `a.start && a.end`
+- [x] [DATA][P4] Fix component undefined checks (generated types use `| undefined`, frontend expects `| null`)
+  - Added `ActionDetailExtended` interface with `closure_reason`, `replanned_to_id`, `replanned_from_id` fields
+  - Added `suggested_completion_date` and `updated_at` to `TaskWithSessionContext`
+  - Added deprecated aliases: `UsageMetric`, `InsightMetric`
+  - Note: 46 remaining `| undefined` type warnings are cosmetic (no runtime impact)
+- [x] [DATA][P4] Fix MentorPersonaId type widening (generated returns `string`, frontend expects union literal)
+  - Widened `getPersonaIcon()` in MentorMessage.svelte to accept `string | null | undefined`
+  - Widened PersonaPicker props/callbacks from `MentorPersonaId` to `string`
+  - Updated MentorChat.svelte state and handlers to use `string | null`
 - [ ] [DATA][P3] Review merge migrations for schema inconsistencies
 
 ### Observability [OBS]
@@ -524,7 +617,11 @@ _Last updated: 2025-12-22 (Supply-chain & web security scan)_
     - `CircuitBreakerTripsHigh`: Warning for frequent trips
     - `AllLLMProvidersDown`: Critical when both Anthropic and OpenAI are down
   - 7 unit tests in `tests/utils/test_circuit_breaker_metrics.py`
-- [ ] [OBS][P1] Add event persistence metrics: batch_size, duration_seconds, retry_queue_depth
+- [x] [OBS][P1] Add event persistence metrics: batch_size, duration_seconds, retry_queue_depth
+  - Added `bo1_event_persistence_batch_size`, `bo1_event_persistence_duration_seconds`, `bo1_event_persistence_retry_queue_depth`, `bo1_event_persistence_retries_total` in `backend/api/middleware/metrics.py`
+  - Instrumented `_flush_batch()`, `retry_event()`, `get_queue_depth()` in `event_publisher.py`
+  - Added "Event Persistence" row to Grafana `bo1-overview.json` dashboard with 4 panels
+  - 10 unit tests in `tests/api/test_event_publisher_metrics.py`
 - [x] [OBS][P1] Add Redis pool metrics: active connections, utilization %, acquisition latency
   - Added Prometheus gauges: `bo1_redis_pool_used_connections`, `bo1_redis_pool_free_connections`, `bo1_redis_pool_utilization_percent`
   - Added histogram: `bo1_redis_connection_acquire_seconds` (acquisition latency)
@@ -535,15 +632,81 @@ _Last updated: 2025-12-22 (Supply-chain & web security scan)_
   - Migrated 185 `logger.error()` calls across 40 files to `log_error(logger, ErrorCode.*, msg, **ctx)`
   - Added 7 new ErrorCodes: EXT_NTFY_ERROR, EXT_OAUTH_ERROR, API_SSE_ERROR, API_WORKSPACE_ERROR, SERVICE_ANALYSIS_ERROR, SERVICE_BILLING_ERROR, SERVICE_ONBOARDING_ERROR
   - 0 remaining `logger.error()` calls in backend/api (verified via grep)
-- [ ] [OBS][P1] Add cost tracking metrics: flush_duration_seconds, retry_queue_depth, anomaly_total
-- [ ] [OBS][P1] Add background LLM provider health probe with cached results
-- [ ] [OBS][P1] Add unified degraded mode check to /ready including LLM circuit state and pool utilization
-- [ ] [OBS][P1] Configure Prometheus alerts for event persistence backlog, circuit breaker opens, cost tracking failures
-- [ ] [OBS][P2] Add session_id, sub_problem_index, round_number to all graph node exception logs
-- [ ] [OBS][P2] Add event stream metrics: publish latency, event type distribution, batch priority queue depth
-- [ ] [OBS][P2] Add graph_node_errors_total{node_name} and api_endpoint_errors_total{endpoint, status} counters
-- [ ] [OBS][P2] Implement health check history storage (last 5 results with timestamps)
-- [ ] [OBS][P2] Send cost anomaly alerts to ntfy topic
+- [x] [OBS][P1] Add cost tracking metrics: flush_duration_seconds, retry_queue_depth, anomaly_total
+  - Added Prometheus metrics in `backend/api/middleware/metrics.py`:
+    - `bo1_cost_flush_duration_seconds` histogram (buckets: 0.01-1.0s)
+    - `bo1_cost_retry_queue_depth` gauge
+    - `bo1_cost_anomaly_total{type}` counter (labels: high_single_call, high_session_total, negative_cost)
+    - `bo1_cost_flush_total{status}` counter (labels: success, failure)
+  - Added `CostAnomalyConfig` to `bo1/constants.py` with env var overrides
+  - Added `ErrorCode.COST_ANOMALY` to error codes enum
+  - Instrumented `CostTracker._flush_batch()` with timing and success/failure metrics
+  - Added `check_anomaly()` method with threshold-based detection for high costs and negative values
+  - Added "Cost Tracking" row to Grafana `bo1-overview.json` dashboard (4 panels)
+  - 22 unit tests in `tests/llm/test_cost_tracker_metrics.py`
+- [x] [OBS][P1] Add background LLM provider health probe with cached results
+  - Created `LLMHealthProbe` class in `backend/api/llm_health_probe.py`
+  - Probes Anthropic (count_tokens) and OpenAI (list models) every 30s (configurable via `LLM_HEALTH_PROBE_TTL_SECONDS`)
+  - Results cached in-memory, non-blocking reads for health checks
+  - Circuit breaker integration: skip probes when circuit is open
+  - Prometheus metrics: `bo1_llm_provider_healthy{provider}`, `bo1_llm_probe_latency_seconds{provider}`, `bo1_llm_probe_failures_total{provider,error_type}`
+  - Added `llm_providers` field to `/health` endpoint response
+  - Updated `/ready` endpoint to include `llm_providers` check (degraded but ready if core deps ok)
+  - Singleton pattern with `get_llm_health_probe()` accessor
+  - Lifecycle: started in main.py lifespan, stopped on shutdown
+  - 18 unit tests in `tests/api/test_llm_health_probe.py`
+  - Env vars: `LLM_HEALTH_PROBE_TTL_SECONDS` (default 30), `LLM_HEALTH_PROBE_TIMEOUT_SECONDS` (default 5.0), `LLM_HEALTH_PROBE_ENABLED` (default true)
+- [x] [OBS][P1] Add unified degraded mode check to /ready including LLM circuit state and pool utilization
+  - `/ready` now includes `llm_providers` in checks dict
+  - Service marked as "degraded" but still "ready" when LLM providers down but core deps (Postgres, Redis) are up
+  - Allows API to continue serving non-LLM requests even when providers are unavailable
+- [x] [OBS][P1] Configure Prometheus alerts for event persistence backlog, circuit breaker opens, cost tracking failures
+  - Added `event_persistence_alerts` group: EventPersistenceBacklog (>50 queue depth), EventPersistenceHighRetryRate (>10/min), EventPersistenceSlowFlush (p95 >2s)
+  - Added `cost_tracking_alerts` group: CostTrackingBacklog (>100 queue depth), CostTrackingHighFailureRate (>5%), CostAnomalyDetected (>3 in 15m), CostTrackingSlowFlush (p95 >1s)
+  - Verified `circuit_breaker_alerts` group already complete (CircuitBreakerOpen, CircuitBreakerHalfOpen, CircuitBreakerTripsHigh, AllLLMProvidersDown)
+  - Validated with `promtool check rules` - 19 rules found, all valid
+- [x] [OBS][P2] Add session_id, sub_problem_index, round_number to all graph node exception logs
+  - Extended `log_with_session()` in `bo1/graph/nodes/utils.py` with optional `sub_problem_index` and `round_number` params
+  - Added `_session_id`, `_sub_problem_index`, `_round_number` params to `retry_with_backoff()` for session context in errors
+  - Migrated 6 plain `logger.error()` calls in `bo1/graph/nodes/` to structured logging:
+    - `data_analysis.py:107` - analysis failures
+    - `utils.py:132,138` - retry exhaustion and non-retryable errors
+    - `subproblems.py:166` - dependency analysis fallback
+    - `subproblems.py:405` - batch execution failures
+    - `subproblems.py:754` - speculative execution failures
+  - Added `sub_problem_index` field to `subproblem_failed` SSE events
+  - 7 new unit tests in `tests/graph/test_node_logging.py`
+- [x] [OBS][P2] Add event stream metrics: publish latency, event type distribution, batch priority queue depth
+  - Added `bo1_event_publish_latency_seconds` histogram in `backend/api/middleware/metrics.py`
+  - Added `bo1_event_type_published_total{event_type}` counter for event type distribution
+  - Added `bo1_event_batch_queue_depth` gauge for priority queue depth
+  - Instrumented `EventPublisher.publish_event()` with latency timing and event type counter
+  - Instrumented `EventBatcher.get_queue_depth()` with gauge update
+  - Added "Event Stream" row to `monitoring/grafana/dashboards/bo1-overview.json` with 3 panels
+  - 11 unit tests in `tests/api/test_event_stream_metrics.py`
+- [x] [OBS][P2] Add graph_node_errors_total{node_name} and api_endpoint_errors_total{endpoint, status} counters
+  - Added `bo1_graph_node_errors_total{node_name}` counter in `backend/api/middleware/metrics.py`
+  - Added `bo1_api_endpoint_errors_total{endpoint, status}` counter in `backend/api/middleware/metrics.py`
+  - Added `emit_node_error()` helper in `bo1/graph/nodes/utils.py` with graceful import fallback
+  - Instrumented `retry_with_backoff()` to emit error metrics on final failure
+  - Added metric recording to FastAPI exception handlers (global, HTTPException, RateLimitExceeded) in `main.py`
+  - Added "Error Rates" row to Grafana dashboard with 4 panels: node errors rate, API errors rate, top API errors table, top node errors table
+  - 9 unit tests in `tests/graph/test_node_error_metrics.py`, 12 tests in `tests/api/test_endpoint_error_metrics.py`
+- [x] [OBS][P2] Implement health check history storage (last 5 results with timestamps)
+  - Created `backend/api/health_history.py` with `HealthCheckHistory` class (thread-safe circular buffer)
+  - Added `HealthCheckRecord` dataclass with timestamp, status, components, latency_ms
+  - Added `/health/history` endpoint returning last 5 records (newest first)
+  - Added Prometheus metrics: `bo1_health_check_total{status}`, `bo1_health_check_latency_seconds`
+  - Integrated history recording into `/health` endpoint (non-blocking)
+  - 17 unit tests in `tests/api/test_health_history.py`
+- [x] [OBS][P2] Send cost anomaly alerts to ntfy topic
+  - Added `alert_cost_anomaly()` to `backend/services/alerts.py` following existing pattern
+  - Wired alerting into `CostTracker.check_anomaly()` in `bo1/llm/cost_tracker.py`
+  - Added `COST_ANOMALY_ALERTS_ENABLED` env var in `CostAnomalyConfig` (default true)
+  - Maps anomaly types to priorities: `negative_cost` → urgent, `high_single_call` → high, `high_session_total` → high
+  - Alerts are fire-and-forget (non-blocking) to avoid impacting cost tracking
+  - 8 unit tests in `tests/services/test_alerts.py::TestCostAnomalyAlert`
+  - 8 integration tests in `tests/llm/test_cost_tracker_metrics.py::TestCostAnomalyAlerts` and `TestAreAlertsEnabled`
 
 ### API Contract [API]
 
@@ -559,12 +722,46 @@ _Last updated: 2025-12-22 (Supply-chain & web security scan)_
 - [x] [API][P1] Centralize COST_FIELDS and COST_EVENT_TYPES constants in backend/api/constants.py
   - Moved from `streaming.py` to `backend/api/constants.py` with type annotations and docstrings
   - Updated imports in `streaming.py` and `tests/api/test_session_costs.py`
-- [ ] [API][P1] Add SSE event schema versioning and document schema evolution path
-- [ ] [API][P2] Document ExpertEventBuffer merging behavior in SSE_EVENTS.md
-- [ ] [API][P2] Add sessionAuth security scheme to OpenAPI spec components
-- [ ] [API][P2] Add rate limit info to OpenAPI responses (429) for all @limiter.limit decorated endpoints
-- [ ] [API][P2] Add Field(max_length=10000) to CreateSessionRequest and other text fields
-- [ ] [API][P2] Update OpenAPI error examples to include error_code field
+- [x] [API][P1] Add SSE event schema versioning and document schema evolution path
+  - Added `SSE_SCHEMA_VERSION`, `SSE_MIN_SUPPORTED_VERSION`, `SSE_DEPRECATED_FIELDS` constants to `backend/api/constants.py`
+  - Added version negotiation via `Accept-SSE-Version` header and `X-SSE-Schema-Version` response header in `backend/api/streaming.py`
+  - Added `checkEventVersion()` and `checkServerVersion()` utilities to `frontend/src/lib/api/sse-events.ts`
+  - Added schema evolution section to `docs/SSE_EVENTS.md` (breaking/non-breaking changes, deprecation lifecycle, migration guide)
+  - 16 backend tests in `tests/api/test_sse_versioning.py`
+  - 16 frontend tests in `frontend/src/lib/api/sse-events.test.ts`
+- [x] [API][P2] Document ExpertEventBuffer merging behavior in SSE_EVENTS.md
+  - Added "Expert Event Buffering" section after Facilitator Events in `docs/SSE_EVENTS.md`
+  - Documented 50ms buffer window, per-expert queuing, and merge pattern
+  - Added `expert_contribution_complete` merged event schema with field table
+  - Documented critical event bypass list (round boundaries, synthesis, errors)
+  - Added client handling guidance for merged vs unmerged sequences
+  - Updated Event Count Summary table (31 total event types)
+- [x] [API][P2] Add sessionAuth security scheme to OpenAPI spec components
+  - Added `custom_openapi()` function in `backend/api/main.py` to customize OpenAPI schema
+  - Added `sessionAuth` security scheme (cookie-based, `sAccessToken` cookie)
+  - Added `csrfToken` security scheme (header-based, `X-CSRF-Token` header)
+  - Updated API description to document authentication flow and rate limits
+  - Global security requirement applies to all endpoints by default
+  - Regenerated `openapi.json` with security schemes
+- [x] [API][P2] Add rate limit info to OpenAPI responses (429) for all @limiter.limit decorated endpoints
+  - Added `RateLimitResponse` model to `backend/api/models.py` with `detail`, `error_code`, `retry_after` fields
+  - Created `RATE_LIMIT_RESPONSE` helper in `backend/api/utils/responses.py` with Retry-After header schema
+  - Updated endpoints in `client_errors.py`, `datasets.py`, `email.py`, `control.py`, `page_analytics.py`, `admin/impersonation.py`
+  - 26 endpoints now have 429 response documented in OpenAPI spec
+  - 4 unit tests in `tests/api/test_models.py::TestRateLimitResponse`
+- [x] [API][P2] Add Field(max_length=) to text request fields
+  - ActionCreate/ActionUpdate.description: max_length=10000
+  - ClarificationRequest.answers dict: validator for 5000 char limit per answer
+  - BusinessContext: 17 text fields with appropriate limits (50-2000 chars)
+  - OpenAPI spec regenerated with maxLength constraints
+  - 17 unit tests in `tests/api/test_field_max_length.py`
+- [x] [API][P2] Update OpenAPI error examples to include error_code field
+  - Updated `ErrorResponse` model in `backend/api/models.py` with `error_code` + `message` fields
+  - Created variant models: `NotFoundErrorResponse`, `ForbiddenErrorResponse`, `UnauthorizedErrorResponse`, `BadRequestErrorResponse`, `ConflictErrorResponse`, `InternalErrorResponse`
+  - Added error response helpers in `backend/api/utils/responses.py`: `ERROR_400_RESPONSE` through `ERROR_500_RESPONSE`
+  - Updated control.py endpoints to use standardized helpers (start, pause, resume, kill, retry, clarify, raise-hand)
+  - 27 new unit tests in `tests/api/test_models.py` for error models and helpers
+  - OpenAPI spec regenerated with `error_code` field in all error response schemas
 - [ ] [API][P3] Add pagination helper fields (has_more, next_offset) to SessionListResponse and other list responses
 - [ ] [API][P3] Refactor VerifiedSession into granular dependencies (VerifiedSession, VerifiedSessionAdmin, SessionMetadata)
 - [ ] [API][P3] Create filtered public OpenAPI spec for non-admin endpoints
@@ -600,16 +797,40 @@ _Last updated: 2025-12-22 (Supply-chain & web security scan)_
   - Updated `_reconstruct_state_from_postgres()` to use denormalized metadata for better recovery
   - Emits `redis_fallback_activated` SSE event when switching to fallback mode
   - 18 unit tests in `tests/state/test_session_repository.py` (TestSaveMetadata, TestExtractSessionMetadata)
-- [ ] [REL][P2] Track SSE reconnect attempts in session metadata + return Retry-After header in streaming.py
-- [ ] [REL][P2] Add 40P01 error code to RETRYABLE_EXCEPTIONS in bo1/utils/retry.py
-- [ ] [REL][P2] Set statement_timeout in db_session() for batch operations
-- [ ] [REL][P2] Add chaos test test_redis_down_sse_uses_postgres_events to validate event fallback
+- [x] [REL][P2] Track SSE reconnect attempts in session metadata + return Retry-After header in streaming.py
+  - Added `SSE_RECONNECT_TRACKING_ENABLED` and `SSE_RECONNECT_TTL_SECONDS` env vars in `backend/api/constants.py`
+  - Created `_track_reconnection()` and `_track_disconnect()` helpers in `backend/api/streaming.py`
+  - Added `get_reconnect_info()` to retrieve reconnect metadata from Redis
+  - Tracks: reconnect count, last reconnect timestamp, disconnect gap duration
+  - Added `reconnect_count` field to `SessionDetailResponse` model
+  - Added Prometheus metrics: `bo1_sse_reconnect_total{session_id}`, `bo1_sse_reconnect_gap_seconds`, `bo1_sse_active_connections`
+  - Improved `rate_limit_exception_handler()` to parse rate limit window and return accurate Retry-After header
+  - 16 unit tests in `tests/api/test_streaming_reconnect.py`
+- [x] [REL][P2] Add 40P01 error code to RETRYABLE_EXCEPTIONS in bo1/utils/retry.py
+  - Added `RETRYABLE_PGCODES` constant with `40P01` (deadlock) and `40001` (serialization failure)
+  - Added `is_retryable_error()` helper function to check exception types or pgcode attribute
+  - Updated `retry_db` and `retry_db_async` decorators to use helper for pgcode-based retries
+  - 18 new unit tests in `tests/utils/test_retry.py`
+- [x] [REL][P2] Set statement_timeout in db_session() for batch operations
+  - Added `StatementTimeoutConfig` class to `bo1/constants.py` with DEFAULT_TIMEOUT_MS (30s), INTERACTIVE_TIMEOUT_MS (5s)
+  - Added `statement_timeout_ms` parameter to `db_session()` - uses `SET LOCAL statement_timeout` (auto-cleared on commit/rollback)
+  - Created `db_session_batch()` convenience wrapper with default timeout for batch operations
+  - Updated `execute_query()` helper with `statement_timeout_ms` parameter
+  - Updated callers: `admin/queries.py` (pg_stat_statements), `audit_model_schema.py` (schema introspection)
+  - Added `bo1_db_statement_timeout_total` Prometheus counter for SQLSTATE 57014 (query_canceled)
+  - 17 unit tests in `tests/state/test_database.py`
+- [x] [REL][P2] Add chaos test test_redis_down_sse_uses_postgres_events to validate event fallback
+  - Created `tests/chaos/test_sse_redis_fallback.py` with 20 comprehensive chaos tests
+  - Tests: `is_redis_sse_available()` circuit open, ping failure, healthy states
+  - Tests: `SSEPollingFallback.poll_once()` event retrieval from PostgreSQL
+  - Tests: Sequence tracking, terminal event handling (`complete`/`error`)
+  - Integration test: Full fallback flow from Redis failure to PostgreSQL polling
 
 ### Cost Optimisation [COST]
 
 - [ ] [COST][P2] Add prompt_cache_hit_rate metric to CostTracker.get_session_costs()
 - [ ] [COST][P2] Test extending Haiku to Round 3 in get_model_for_phase() (5-8% cost reduction)
-- [ ] [COST][P3] Run A/B test comparing 3 vs 5 personas for user satisfaction (potential 20-30% reduction)
+- [ ] [COST][P4] Run A/B test comparing 3 vs 5 personas for user satisfaction (potential 20-30% reduction)
 - [ ] [COST][P3] Monitor cache hit rate and adjust similarity threshold based on data
 - [ ] [COST][P3] Remove verbose examples from facilitator.py after model training stabilizes
 
@@ -645,6 +866,80 @@ _Last updated: 2025-12-22 (Supply-chain & web security scan)_
 ### Minor
 
 - [ ] [UX][P3] Add tooltip to warning indicator on actions from incomplete meetings (explain what ⚠ means)
+
+---
+
+## Task backlog (from \_TODO.md, 2025-12-23)
+
+### Admin [ADMIN]
+
+- [x] [ADMIN][P1] Verify admin page access control: button hidden from non-admin users, route protected server-side
+  - Added `+layout.server.ts` to `/admin` route with server-side admin check via `/api/v1/auth/me`
+  - Verified Header component has `{#if $user?.is_admin}` guards on admin links (desktop + mobile)
+  - Verified all backend admin endpoints use `require_admin_any` dependency
+  - Added 5 E2E tests in `frontend/e2e/admin-access.spec.ts` for admin access control
+- [x] [BUG][P2] Fix admin page 500 error on hard refresh (intermittent)
+  - Fixed catch-all error handling in admin `+page.server.ts` files to preserve SvelteKit `HttpError` (was swallowing original 4xx status codes as 500)
+  - Added `isHttpError()` check to re-throw SvelteKit errors with original status
+  - Added 5s fetch timeout with AbortController in `adminFetch()` helper
+  - Added single retry on transient network errors (ECONNREFUSED, ETIMEDOUT, ECONNRESET)
+  - Added structured logging for debugging
+  - Applied fix to `/admin`, `/admin/users`, `/admin/waitlist`, `/admin/whitelist`
+
+---
+
+## Task backlog (from \_TODO.md, 2025-12-23)
+
+### Security [SECURITY]
+
+- [x] [SECURITY][P2] Add ClamAV scanner for user-uploaded files (DO Spaces and analysis uploads)
+  - Docker: Added `clamav` service to `docker-compose.infrastructure.yml` (port 3310, 1.5GB memory limit)
+  - Backend: Created `backend/services/antivirus.py` with `ClamAVScanner` class (async TCP socket protocol)
+  - Integration: Added file scanning to `/datasets/upload` endpoint before storage
+  - Quarantine: Created `file_quarantine` table with migration `z20_add_file_quarantine.py` for blocked file audit trail
+  - Metrics: Added `bo1_file_scan_total`, `bo1_file_scan_duration_seconds`, `bo1_file_quarantine_total` Prometheus metrics
+  - Health: Added `/health/clamav` endpoint for ClamAV daemon status
+  - Graceful degradation: `CLAMAV_REQUIRED=false` (default) allows uploads when ClamAV unavailable
+  - 22 unit tests in `tests/services/test_antivirus.py`
+
+### Features [FEAT]
+
+- [x] [FEAT][P2] Decision delivery templates: predefined meeting templates (launch, pricing changes, onboarding revamp, outreach sprint)
+  - Migration: `z21_add_meeting_templates.py` creates `meeting_templates` table with 4 builtin templates, adds `template_id` FK to sessions
+  - Models: `MeetingTemplate`, `MeetingTemplateCreate`, `MeetingTemplateUpdate`, `MeetingTemplateListResponse` in `backend/api/models.py`
+  - Repository: `bo1/state/repositories/template_repository.py` with CRUD, soft delete, versioning, usage stats
+  - Public API: GET `/api/v1/templates`, GET `/api/v1/templates/{slug}` in `backend/api/templates.py`
+  - Admin API: CRUD + stats at `/api/admin/templates` in `backend/api/admin/templates.py`
+  - Frontend: `listMeetingTemplates()`, `getMeetingTemplateBySlug()` in `frontend/src/lib/api/client.ts`
+  - Tests: 26 unit tests in `tests/api/test_templates.py` and `tests/state/test_template_repository.py`
+  - TODO: Template selection UI in meeting creation, admin template management page
+- [ ] [FEAT][P2] Blocker buster: propose N unblock paths for blocked actions/decisions
+- [ ] [FEAT][P3] Blocker buster: escalate blocked items to new meeting with prior context
+- [ ] [FEAT][P2] Action update LLM summarizer: pass all action updates through LLM for improved formatting
+- [ ] [FEAT][P2] Action post-mortems: capture what went well and lessons learned on action completion
+- [ ] [FEAT][P3] Action post-mortems: feed insights into "ask mentor" for future improvement suggestions
+
+### Dashboard [DASH]
+
+- [ ] [DASH][P2] Dashboard goal tracking: display company goal at top level
+- [ ] [DASH][P2] Dashboard weekly plan view: show weekly plan derived from goals
+- [ ] [DASH][P2] Dashboard daily activities: show energy-aware daily tasks (check prior meetings when scheduling)
+
+### Production Bugs [BUG]
+
+- [x] [BUG][P0] Fix landing page chunk loading errors on prod (C2cpIfMC.js, nodes/1.BUddsOLG.js, BQXz31_t.js dynamic import failures)
+  - Added `/_app/immutable/` location block in nginx.conf with `max-age=31536000, immutable` caching (content-hashed assets safe to cache forever)
+  - Added graceful chunk loading fallback in `frontend/src/hooks.client.ts`:
+    - Detects chunk 404 errors (dynamic import failures) via pattern matching
+    - Triggers page reload to fetch fresh HTML with correct chunk references
+    - Prevents infinite reload loops with attempt counter (max 3 attempts per minute)
+    - Emits `bo1:toast` event to inform user before reload
+  - 14 unit tests in `frontend/src/hooks.client.test.ts`
+- [x] [BUG][P0] Fix /api/errors POST returning 403 on prod landing page
+  - Root cause: CSRF exemption used wrong path `/api/v1/errors` but endpoint is mounted at `/api/errors`
+  - Fixed: Updated `CSRF_EXEMPT_PREFIXES` in `backend/api/middleware/csrf.py:44`
+- [ ] [BUG][P0] Fix /api/auth/session/refresh POST returning 500 on prod landing page
+  - Note: Handled by SuperTokens middleware - needs production logs to diagnose. Could be SuperTokens Core connectivity, Redis session storage, or cookie domain mismatch.
 
 ---
 

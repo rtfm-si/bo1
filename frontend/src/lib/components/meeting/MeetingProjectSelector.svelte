@@ -64,7 +64,7 @@
 				availableProjects = projectsResp.projects.map((p) => ({
 					id: p.id,
 					name: p.name,
-					description: p.description,
+					description: p.description ?? null,
 					status: p.status,
 					progress_percent: p.progress_percent,
 					is_linked: selectedIds.has(p.id)

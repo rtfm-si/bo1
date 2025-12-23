@@ -1049,3 +1049,88 @@ class TestPartitionPruning:
         assert "created_at >=" in query, (
             "get_subproblem_costs() query must include created_at filter for partition pruning"
         )
+
+
+class TestPromptTypeField:
+    """Tests for prompt_type field on CostRecord and track_call()."""
+
+    def test_prompt_type_field_on_cost_record(self):
+        """CostRecord should have prompt_type field."""
+        record = CostRecord(
+            provider="anthropic",
+            model_name="claude-sonnet-4-5-20250929",
+            operation_type="completion",
+            prompt_type="persona_contribution",
+        )
+        assert record.prompt_type == "persona_contribution"
+
+    def test_prompt_type_none_by_default(self):
+        """prompt_type should default to None."""
+        record = CostRecord(
+            provider="anthropic",
+            model_name="claude-haiku-4-5-20251001",
+            operation_type="completion",
+        )
+        assert record.prompt_type is None
+
+    def test_track_call_accepts_prompt_type(self):
+        """track_call() context manager should accept prompt_type parameter."""
+        with CostTracker.track_call(
+            provider="anthropic",
+            operation_type="completion",
+            model_name="claude-sonnet-4-5-20250929",
+            session_id="test_session",
+            prompt_type="synthesis",
+        ) as record:
+            record.input_tokens = 100
+            record.output_tokens = 50
+
+        assert record.prompt_type == "synthesis"
+
+    def test_prompt_type_flows_through_track_call(self):
+        """prompt_type should flow from track_call to CostRecord."""
+        with CostTracker.track_call(
+            provider="voyage",
+            operation_type="embedding",
+            prompt_type="embedding",
+        ) as record:
+            record.input_tokens = 500
+
+        assert record.prompt_type == "embedding"
+        assert record.provider == "voyage"
+        assert record.operation_type == "embedding"
+
+    def test_prompt_type_none_when_not_specified(self):
+        """prompt_type should be None when not specified in track_call."""
+        with CostTracker.track_call(
+            provider="brave",
+            operation_type="web_search",
+        ) as record:
+            pass
+
+        assert record.prompt_type is None
+
+    def test_valid_prompt_types(self):
+        """Verify common prompt_type values work correctly."""
+        valid_types = [
+            "persona_contribution",
+            "facilitator_decision",
+            "synthesis",
+            "decomposition",
+            "context_collection",
+            "clarification",
+            "research_summary",
+            "research_detection",
+            "task_extraction",
+            "embedding",
+            "search",
+            "contribution_summary",
+        ]
+        for prompt_type in valid_types:
+            record = CostRecord(
+                provider="anthropic",
+                model_name="claude-sonnet-4-5-20250929",
+                operation_type="completion",
+                prompt_type=prompt_type,
+            )
+            assert record.prompt_type == prompt_type

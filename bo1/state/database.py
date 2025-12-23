@@ -259,6 +259,7 @@ def db_session(
     user_id: str | None = None,
     timeout: float = DEFAULT_CONNECTION_TIMEOUT,
     allow_degraded: bool = False,
+    statement_timeout_ms: int | None = None,
 ) -> Generator[Any, None, None]:
     """Context manager for database transactions with RLS support.
 
@@ -273,6 +274,9 @@ def db_session(
         allow_degraded: If True, allows request to queue when pool is exhausted.
                        When False (default), raises PoolExhaustionError immediately
                        if degradation manager indicates load shedding.
+        statement_timeout_ms: Optional per-transaction statement timeout in milliseconds.
+                             Uses PostgreSQL SET LOCAL, auto-cleared on commit/rollback.
+                             Pass StatementTimeoutConfig.DEFAULT_TIMEOUT_MS for batch ops.
 
     Yields:
         psycopg2.extensions.connection: PostgreSQL connection from pool
@@ -280,6 +284,7 @@ def db_session(
     Raises:
         ConnectionTimeoutError: If pool is exhausted and timeout exceeded
         PoolExhaustionError: If pool is severely exhausted and allow_degraded=False
+        QueryCanceled: If statement_timeout exceeded (SQLSTATE 57014)
     """
     from bo1.state.pool_degradation import (
         get_degradation_manager,
@@ -307,15 +312,71 @@ def db_session(
         conn = _getconn_with_timeout(pool_instance, timeout)
 
     try:
-        if user_id:
-            with conn.cursor() as cur:
+        with conn.cursor() as cur:
+            # Set RLS context if user_id provided
+            if user_id:
                 cur.execute("SET LOCAL app.current_user_id = %s", (user_id,))
                 logger.debug(f"RLS context set for user: {user_id}")
 
+            # Set statement timeout if provided (after RLS context)
+            if statement_timeout_ms is not None:
+                cur.execute("SET LOCAL statement_timeout = %s", (statement_timeout_ms,))
+                logger.debug(f"Statement timeout set to {statement_timeout_ms}ms")
+
         yield conn
         conn.commit()
-    except Exception:
+    except Exception as e:
         conn.rollback()
+        # Check for query timeout (SQLSTATE 57014 = query_canceled)
+        if hasattr(e, "pgcode") and e.pgcode == "57014":
+            _record_statement_timeout()
         raise
     finally:
         pool_instance.putconn(conn)
+
+
+@contextmanager
+def db_session_batch(
+    user_id: str | None = None,
+    timeout: float = DEFAULT_CONNECTION_TIMEOUT,
+    allow_degraded: bool = True,
+) -> Generator[Any, None, None]:
+    """Convenience wrapper for batch/long-running operations with default timeout.
+
+    Uses StatementTimeoutConfig.get_default_timeout() for the statement timeout.
+    Batch operations default to allow_degraded=True to queue rather than fail fast.
+
+    Use this for:
+    - Migrations and bulk updates
+    - Report generation
+    - Admin queries (pg_stat_statements, etc.)
+    - Model introspection scripts
+
+    Args:
+        user_id: Optional user ID for RLS policies
+        timeout: Pool connection timeout (default: 5s)
+        allow_degraded: Allow queuing under pool pressure (default: True for batch)
+
+    Yields:
+        psycopg2.extensions.connection: PostgreSQL connection from pool
+    """
+    from bo1.constants import StatementTimeoutConfig
+
+    with db_session(
+        user_id=user_id,
+        timeout=timeout,
+        allow_degraded=allow_degraded,
+        statement_timeout_ms=StatementTimeoutConfig.get_default_timeout(),
+    ) as conn:
+        yield conn
+
+
+def _record_statement_timeout() -> None:
+    """Record statement timeout occurrence in Prometheus metrics."""
+    try:
+        from backend.api.middleware.metrics import bo1_db_statement_timeout_total
+
+        bo1_db_statement_timeout_total.inc()
+    except ImportError:
+        # Metrics not available (e.g., running outside API context)
+        pass

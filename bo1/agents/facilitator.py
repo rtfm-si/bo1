@@ -859,6 +859,7 @@ Output the complete revised <synthesis_report>...</synthesis_report>."""
             system=system_prompt,
             user_message=user_message,
             phase="synthesis_revision",
+            prefill="<thinking>",  # Consistent reasoning pattern
             temperature=0.7,
             max_tokens=4096,
         )

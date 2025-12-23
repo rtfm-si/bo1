@@ -53,7 +53,7 @@
 	}
 
 	// Format status for display
-	function formatStatus(status: string | null): string {
+	function formatStatus(status: string | null | undefined): string {
 		if (!status) return '';
 		return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 	}
@@ -92,7 +92,7 @@
 	{:else}
 		<ul class="timeline-list">
 			{#each updates as update (update.id)}
-				{@const style = getUpdateStyle(update.update_type)}
+				{@const style = getUpdateStyle(update.update_type as ActionUpdateType)}
 				<li class="timeline-item" style="--update-color: {style.color}">
 					<div class="timeline-marker">
 						<span class="marker-dot"></span>

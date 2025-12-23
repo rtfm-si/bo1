@@ -111,6 +111,8 @@ class TestSSENonOwnedSession:
                 session_id=session_id,
                 session_data=mock_session_data,
                 current_user=mock_current_user,
+                last_event_id=None,
+                accept_sse_version=None,
             )
 
             # Should return StreamingResponse (not raise exception)
@@ -195,6 +197,8 @@ class TestSSEUninitializedState:
                         session_id=session_id,
                         session_data=mock_session_data,
                         current_user=mock_current_user,
+                        last_event_id=None,
+                        accept_sse_version=None,
                     )
 
                 # Should return 409 (Conflict) - state not initialized yet
@@ -241,6 +245,8 @@ class TestSSEUninitializedState:
                         session_id=session_id,
                         session_data=mock_session_data,
                         current_user=mock_current_user,
+                        last_event_id=None,
+                        accept_sse_version=None,
                     )
 
                 # Should return 500 - session failed to initialize
@@ -283,6 +289,8 @@ class TestSSEUninitializedState:
                         session_id=session_id,
                         session_data=mock_session_data,
                         current_user=mock_current_user,
+                        last_event_id=None,
+                        accept_sse_version=None,
                     )
 
                 # Should return 404 - session doesn't exist

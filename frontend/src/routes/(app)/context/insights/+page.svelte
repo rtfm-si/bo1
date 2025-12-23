@@ -66,7 +66,7 @@
 
 		try {
 			const response = await apiClient.getInsights();
-			insights = response.clarifications;
+			insights = response.clarifications ?? [];
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load insights';
 			console.error('Failed to load insights:', e);
@@ -215,7 +215,7 @@
 			{#each insights as insight (insight.question)}
 				{@const category = insight.category || 'uncategorized'}
 				{@const config = categoryConfig[category]}
-				{@const metricDisplay = formatMetric(insight.metric)}
+				{@const metricDisplay = formatMetric(insight.metric ?? undefined)}
 				<div class="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
 					<div class="flex items-start justify-between gap-4">
 						<div class="flex-1 min-w-0">

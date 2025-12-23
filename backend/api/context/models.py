@@ -48,41 +48,49 @@ class BusinessContext(BaseModel):
     # =========================================================================
     business_model: str | None = Field(
         None,
+        max_length=500,
         description="Business model (e.g., B2B SaaS, marketplace)",
         examples=["B2B SaaS"],
     )
     target_market: str | None = Field(
         None,
+        max_length=1000,
         description="Target market description",
         examples=["Small businesses in North America"],
     )
     product_description: str | None = Field(
         None,
+        max_length=2000,
         description="Product/service description",
         examples=["AI-powered project management tool"],
     )
     revenue: str | None = Field(
         None,
+        max_length=200,
         description="Monthly/annual revenue",
         examples=["$50,000 MRR"],
     )
     customers: str | None = Field(
         None,
+        max_length=200,
         description="Number of active customers",
         examples=["150"],
     )
     growth_rate: str | None = Field(
         None,
+        max_length=200,
         description="Growth rate percentage",
         examples=["15% MoM"],
     )
     competitors: str | None = Field(
         None,
+        max_length=2000,
         description="List of competitors (comma-separated or JSON)",
         examples=["Asana, Monday.com, Jira"],
     )
     website: str | None = Field(
         None,
+        max_length=500,
         description="Website URL",
         examples=["https://example.com"],
     )
@@ -92,6 +100,7 @@ class BusinessContext(BaseModel):
     # =========================================================================
     company_name: str | None = Field(
         None,
+        max_length=200,
         description="Company name",
         examples=["Acme Inc"],
     )
@@ -105,6 +114,7 @@ class BusinessContext(BaseModel):
     )
     industry: str | None = Field(
         None,
+        max_length=200,
         description="Industry vertical",
         examples=["Software", "Healthcare", "Finance"],
     )
@@ -115,20 +125,24 @@ class BusinessContext(BaseModel):
     )
     pricing_model: str | None = Field(
         None,
+        max_length=200,
         description="Pricing model",
         examples=["Subscription", "Freemium", "Usage-based"],
     )
     brand_positioning: str | None = Field(
         None,
+        max_length=1000,
         description="Brand positioning statement",
     )
     brand_tone: str | None = Field(
         None,
+        max_length=200,
         description="Brand tone/voice",
         examples=["Professional", "Friendly", "Technical"],
     )
     brand_maturity: str | None = Field(
         None,
+        max_length=100,
         description="Brand maturity level",
         examples=["startup", "emerging", "established", "mature"],
     )
@@ -147,6 +161,7 @@ class BusinessContext(BaseModel):
     )
     ideal_customer_profile: str | None = Field(
         None,
+        max_length=2000,
         description="Ideal customer profile description",
     )
     keywords: list[str] | None = Field(
@@ -155,42 +170,51 @@ class BusinessContext(BaseModel):
     )
     target_geography: str | None = Field(
         None,
+        max_length=500,
         description="Target geography",
         examples=["North America", "Global", "Europe"],
     )
     traffic_range: str | None = Field(
         None,
+        max_length=50,
         description="Website traffic range",
         examples=["<1k", "1k-10k", "10k-100k", "100k+"],
     )
     mau_bucket: str | None = Field(
         None,
+        max_length=50,
         description="Monthly active users bucket",
     )
     revenue_stage: str | None = Field(
         None,
+        max_length=50,
         description="Revenue stage",
         examples=["pre-revenue", "early", "growth", "mature"],
     )
     main_value_proposition: str | None = Field(
         None,
+        max_length=1000,
         description="Main value proposition",
     )
     team_size: str | None = Field(
         None,
+        max_length=100,
         description="Team size",
         examples=["solo", "small (2-5)", "medium (6-20)", "large (20+)"],
     )
     budget_constraints: str | None = Field(
         None,
+        max_length=500,
         description="Budget constraints",
     )
     time_constraints: str | None = Field(
         None,
+        max_length=500,
         description="Time constraints",
     )
     regulatory_constraints: str | None = Field(
         None,
+        max_length=1000,
         description="Regulatory constraints",
     )
 

@@ -324,10 +324,16 @@ class EventBatcher:
     def get_queue_depth(self) -> int:
         """Get the current number of events in the buffer.
 
+        Also updates the Prometheus gauge for monitoring.
+
         Returns:
             Number of pending events waiting to be flushed
         """
-        return len(self._buffer)
+        from backend.api.middleware.metrics import set_event_batch_queue_depth
+
+        depth = len(self._buffer)
+        set_event_batch_queue_depth(depth)
+        return depth
 
     def get_stats(self) -> EventBatcherStats:
         """Get comprehensive statistics for the event batcher.

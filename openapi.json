@@ -2543,6 +2543,35 @@
         "title": "AutogenSuggestionsResponse",
         "type": "object"
       },
+      "BadRequestErrorResponse": {
+        "description": "Error response for 400 Bad Request.\n\nUsed for validation errors and malformed requests.",
+        "examples": [
+          {
+            "error_code": "API_BAD_REQUEST",
+            "message": "Cannot start session with status: completed"
+          },
+          {
+            "error_code": "VALIDATION_ERROR",
+            "message": "Invalid session ID format"
+          }
+        ],
+        "properties": {
+          "error_code": {
+            "default": "API_BAD_REQUEST",
+            "description": "Error code for bad request errors",
+            "title": "Error Code",
+            "type": "string"
+          },
+          "message": {
+            "default": "Invalid request",
+            "description": "Bad request error message",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "BadRequestErrorResponse",
+        "type": "object"
+      },
       "BenchmarkCategory": {
         "description": "Benchmark metric categories.",
         "enum": [
@@ -3446,6 +3475,7 @@
           "brand_maturity": {
             "anyOf": [
               {
+                "maxLength": 100,
                 "type": "string"
               },
               {
@@ -3464,6 +3494,7 @@
           "brand_positioning": {
             "anyOf": [
               {
+                "maxLength": 1000,
                 "type": "string"
               },
               {
@@ -3476,6 +3507,7 @@
           "brand_tone": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -3493,6 +3525,7 @@
           "budget_constraints": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -3505,6 +3538,7 @@
           "business_model": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -3531,6 +3565,7 @@
           "company_name": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -3546,6 +3581,7 @@
           "competitors": {
             "anyOf": [
               {
+                "maxLength": 2000,
                 "type": "string"
               },
               {
@@ -3561,6 +3597,7 @@
           "customers": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -3615,6 +3652,7 @@
           "growth_rate": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -3630,6 +3668,7 @@
           "ideal_customer_profile": {
             "anyOf": [
               {
+                "maxLength": 2000,
                 "type": "string"
               },
               {
@@ -3642,6 +3681,7 @@
           "industry": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -3674,6 +3714,7 @@
           "main_value_proposition": {
             "anyOf": [
               {
+                "maxLength": 1000,
                 "type": "string"
               },
               {
@@ -3686,6 +3727,7 @@
           "mau_bucket": {
             "anyOf": [
               {
+                "maxLength": 50,
                 "type": "string"
               },
               {
@@ -3727,6 +3769,7 @@
           "pricing_model": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -3776,6 +3819,7 @@
           "product_description": {
             "anyOf": [
               {
+                "maxLength": 2000,
                 "type": "string"
               },
               {
@@ -3791,6 +3835,7 @@
           "regulatory_constraints": {
             "anyOf": [
               {
+                "maxLength": 1000,
                 "type": "string"
               },
               {
@@ -3803,6 +3848,7 @@
           "revenue": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -3818,6 +3864,7 @@
           "revenue_stage": {
             "anyOf": [
               {
+                "maxLength": 50,
                 "type": "string"
               },
               {
@@ -3872,6 +3919,7 @@
           "target_geography": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -3889,6 +3937,7 @@
           "target_market": {
             "anyOf": [
               {
+                "maxLength": 1000,
                 "type": "string"
               },
               {
@@ -3904,6 +3953,7 @@
           "team_size": {
             "anyOf": [
               {
+                "maxLength": 100,
                 "type": "string"
               },
               {
@@ -3944,6 +3994,7 @@
           "time_constraints": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -3956,6 +4007,7 @@
           "traffic_range": {
             "anyOf": [
               {
+                "maxLength": 50,
                 "type": "string"
               },
               {
@@ -3974,6 +4026,7 @@
           "website": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -4459,6 +4512,69 @@
         "title": "CircuitBreakersHealthResponse",
         "type": "object"
       },
+      "ClamAVHealthResponse": {
+        "description": "ClamAV antivirus scanner health response.\n\nAttributes:\n    status: Health status (healthy/unavailable/disabled)\n    component: Component name (clamav)\n    healthy: Whether ClamAV is healthy\n    available: Whether ClamAV daemon is reachable\n    required: Whether ClamAV is required for uploads\n    version: ClamAV version string (if available)\n    message: Status message\n    timestamp: ISO 8601 timestamp",
+        "properties": {
+          "available": {
+            "description": "Whether ClamAV daemon is reachable",
+            "title": "Available",
+            "type": "boolean"
+          },
+          "component": {
+            "default": "clamav",
+            "description": "Component name",
+            "title": "Component",
+            "type": "string"
+          },
+          "healthy": {
+            "description": "Whether ClamAV is healthy",
+            "title": "Healthy",
+            "type": "boolean"
+          },
+          "message": {
+            "description": "Status message",
+            "title": "Message",
+            "type": "string"
+          },
+          "required": {
+            "description": "Whether scanning is required for uploads",
+            "title": "Required",
+            "type": "boolean"
+          },
+          "status": {
+            "description": "Health status",
+            "title": "Status",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ClamAV version string",
+            "title": "Version"
+          }
+        },
+        "required": [
+          "status",
+          "healthy",
+          "available",
+          "required",
+          "message",
+          "timestamp"
+        ],
+        "title": "ClamAVHealthResponse",
+        "type": "object"
+      },
       "ClarificationInsight": {
         "description": "A clarification answer from a meeting.\n\nCaptures user responses to clarifying questions asked during meetings.\nThese insights are accumulated over time and help improve future meetings.",
         "properties": {
@@ -4612,7 +4728,7 @@
                 "type": "null"
               }
             ],
-            "description": "Dict of question->answer pairs for multiple questions",
+            "description": "Dict of question->answer pairs for multiple questions (max 5000 chars per answer)",
             "examples": [
               {
                 "What is your current ARR?": "$500K",
@@ -5357,6 +5473,35 @@
           "timestamp"
         ],
         "title": "ComponentHealthResponse",
+        "type": "object"
+      },
+      "ConflictErrorResponse": {
+        "description": "Error response for 409 Conflict.\n\nUsed when the request conflicts with current state.",
+        "examples": [
+          {
+            "error_code": "API_CONFLICT",
+            "message": "Session is already running"
+          },
+          {
+            "error_code": "API_CONFLICT",
+            "message": "Action already completed"
+          }
+        ],
+        "properties": {
+          "error_code": {
+            "default": "API_CONFLICT",
+            "description": "Error code for conflict errors",
+            "title": "Error Code",
+            "type": "string"
+          },
+          "message": {
+            "default": "Resource conflict",
+            "description": "Conflict error message",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ConflictErrorResponse",
         "type": "object"
       },
       "ContextChoiceRequest": {
@@ -6632,6 +6777,18 @@
             "minLength": 10,
             "title": "Problem Statement",
             "type": "string"
+          },
+          "template_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional template UUID to track which template was used to create this session",
+            "title": "Template Id"
           },
           "workspace_id": {
             "anyOf": [
@@ -8316,72 +8473,46 @@
         "type": "object"
       },
       "ErrorResponse": {
-        "description": "Response model for API errors.\n\nAttributes:\n    detail: Error message (FastAPI HTTPException format)\n    error_code: Optional structured error code for client handling\n    session_id: Optional session ID for context\n    status: Optional status field for conflict errors",
+        "description": "Standard API error response with structured error code.\n\nThis matches the format produced by `http_error()` helper.\nAll API errors return this structure for consistent client handling.\n\nAttributes:\n    error_code: Machine-readable error code from ErrorCode enum\n    message: Human-readable error message",
         "examples": [
           {
-            "detail": "Session not found",
-            "session_id": "bo1_abc123"
+            "error_code": "API_NOT_FOUND",
+            "message": "Session not found"
           },
           {
-            "detail": "Not authorized to access this session",
-            "error_code": "FORBIDDEN"
+            "error_code": "API_FORBIDDEN",
+            "message": "Not authorized to access this resource"
           },
           {
-            "detail": "Session already completed",
-            "error_code": "SESSION_ALREADY_COMPLETED",
-            "session_id": "bo1_abc123",
-            "status": "completed"
-          },
-          {
-            "detail": "Internal server error",
-            "error_code": "GRAPH_EXECUTION_FAILED"
+            "error_code": "API_BAD_REQUEST",
+            "message": "Invalid session status for this operation"
           }
         ],
         "properties": {
-          "detail": {
-            "description": "Error message",
-            "title": "Detail",
+          "error_code": {
+            "description": "Machine-readable error code for client handling and log aggregation",
+            "examples": [
+              "API_NOT_FOUND",
+              "API_FORBIDDEN",
+              "API_BAD_REQUEST"
+            ],
+            "title": "Error Code",
             "type": "string"
           },
-          "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+          "message": {
+            "description": "Human-readable error description",
+            "examples": [
+              "Session not found",
+              "Access denied",
+              "Invalid request parameters"
             ],
-            "description": "Structured error code for client handling",
-            "title": "Error Code"
-          },
-          "session_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Session ID for context",
-            "title": "Session Id"
-          },
-          "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Session status (for conflict errors)",
-            "title": "Status"
+            "title": "Message",
+            "type": "string"
           }
         },
         "required": [
-          "detail"
+          "error_code",
+          "message"
         ],
         "title": "ErrorResponse",
         "type": "object"
@@ -9083,6 +9214,35 @@
         "title": "FixedCostsResponse",
         "type": "object"
       },
+      "ForbiddenErrorResponse": {
+        "description": "Error response for 403 Forbidden.\n\nUsed when the user is authenticated but lacks permission.",
+        "examples": [
+          {
+            "error_code": "API_FORBIDDEN",
+            "message": "Not authorized to access this session"
+          },
+          {
+            "error_code": "API_FORBIDDEN",
+            "message": "Workspace access required"
+          }
+        ],
+        "properties": {
+          "error_code": {
+            "default": "API_FORBIDDEN",
+            "description": "Error code for authorization failures",
+            "title": "Error Code",
+            "type": "string"
+          },
+          "message": {
+            "default": "Access denied",
+            "description": "Forbidden error message",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ForbiddenErrorResponse",
+        "type": "object"
+      },
       "FullSessionResponse": {
         "description": "Response model for full session details.\n\nAttributes:\n    session_id: Session identifier\n    metadata: Full session metadata\n    state: Full deliberation state\n    is_active: Whether session is currently running",
         "properties": {
@@ -9568,15 +9728,120 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HealthCheckRecordResponse": {
+        "description": "Single health check record in history.\n\nAttributes:\n    timestamp: ISO 8601 timestamp when check was performed\n    status: Health status (healthy/degraded/unhealthy)\n    components: Per-component health status\n    latency_ms: Health check latency in milliseconds",
+        "properties": {
+          "components": {
+            "additionalProperties": true,
+            "description": "Per-component health status",
+            "title": "Components",
+            "type": "object"
+          },
+          "latency_ms": {
+            "description": "Health check latency in milliseconds",
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "status": {
+            "description": "Health status: healthy, degraded, unhealthy",
+            "title": "Status",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp of health check",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timestamp",
+          "status",
+          "components",
+          "latency_ms"
+        ],
+        "title": "HealthCheckRecordResponse",
+        "type": "object"
+      },
+      "HealthHistoryResponse": {
+        "description": "Health check history response.\n\nAttributes:\n    count: Number of records in history\n    max_size: Maximum records stored\n    oldest_timestamp: Oldest record timestamp (None if empty)\n    newest_timestamp: Newest record timestamp (None if empty)\n    records: List of health check records (newest first)",
+        "properties": {
+          "count": {
+            "description": "Number of records in history",
+            "title": "Count",
+            "type": "integer"
+          },
+          "max_size": {
+            "description": "Maximum records stored",
+            "title": "Max Size",
+            "type": "integer"
+          },
+          "newest_timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Newest record timestamp",
+            "title": "Newest Timestamp"
+          },
+          "oldest_timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Oldest record timestamp",
+            "title": "Oldest Timestamp"
+          },
+          "records": {
+            "description": "Records, newest first",
+            "items": {
+              "$ref": "#/components/schemas/HealthCheckRecordResponse"
+            },
+            "title": "Records",
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "max_size",
+          "records"
+        ],
+        "title": "HealthHistoryResponse",
+        "type": "object"
+      },
       "HealthResponse": {
-        "description": "Health check response model.\n\nAttributes:\n    status: Overall health status\n    timestamp: ISO 8601 timestamp of health check\n    details: Optional health details",
+        "description": "Health check response model.\n\nAttributes:\n    status: Overall health status\n    timestamp: ISO 8601 timestamp of health check\n    details: Optional health details\n    system: Process-level system metrics (CPU, memory, etc.)\n    llm_providers: LLM provider health status from background probe",
         "examples": [
           {
             "details": {
               "api": "Board of One",
               "version": "1.0.0"
             },
+            "llm_providers": {
+              "anthropic": {
+                "healthy": true,
+                "latency_ms": 234.5
+              },
+              "openai": {
+                "healthy": true,
+                "latency_ms": 189.2
+              }
+            },
             "status": "healthy",
+            "system": {
+              "cpu_percent": 5.2,
+              "memory_percent": 12.3,
+              "memory_rss_mb": 256.5,
+              "open_fds": 42,
+              "threads": 8
+            },
             "timestamp": "2025-01-15T12:00:00.000000"
           }
         ],
@@ -9609,6 +9874,21 @@
             ],
             "title": "Details"
           },
+          "llm_providers": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/LLMProviderStatus"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "LLM provider health status from background probe",
+            "title": "Llm Providers"
+          },
           "status": {
             "description": "Overall health status",
             "examples": [
@@ -9616,6 +9896,17 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "system": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SystemMetrics"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Process-level system metrics"
           },
           "timestamp": {
             "description": "ISO 8601 timestamp of health check",
@@ -10246,6 +10537,35 @@
         "title": "InsightsResponse",
         "type": "object"
       },
+      "InternalErrorResponse": {
+        "description": "Error response for 500 Internal Server Error.\n\nUsed for unexpected server-side failures.",
+        "examples": [
+          {
+            "error_code": "API_REQUEST_ERROR",
+            "message": "An unexpected error occurred"
+          },
+          {
+            "error_code": "GRAPH_EXECUTION_FAILED",
+            "message": "Failed to execute deliberation graph"
+          }
+        ],
+        "properties": {
+          "error_code": {
+            "default": "API_REQUEST_ERROR",
+            "description": "Error code for internal server errors",
+            "title": "Error Code",
+            "type": "string"
+          },
+          "message": {
+            "default": "An unexpected error occurred",
+            "description": "Internal error message",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "InternalErrorResponse",
+        "type": "object"
+      },
       "InvitationAcceptRequest": {
         "description": "Request model for accepting an invitation.",
         "properties": {
@@ -10726,6 +11046,39 @@
         "title": "KillRequest",
         "type": "object"
       },
+      "LLMProviderStatus": {
+        "description": "LLM provider health status from background probe.\n\nAttributes:\n    healthy: Whether the provider is healthy\n    latency_ms: Probe latency in milliseconds\n    error: Error message if unhealthy (None if healthy)",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if unhealthy",
+            "title": "Error"
+          },
+          "healthy": {
+            "description": "Whether the provider is healthy",
+            "title": "Healthy",
+            "type": "boolean"
+          },
+          "latency_ms": {
+            "description": "Probe latency in milliseconds",
+            "title": "Latency Ms",
+            "type": "number"
+          }
+        },
+        "required": [
+          "healthy",
+          "latency_ms"
+        ],
+        "title": "LLMProviderStatus",
+        "type": "object"
+      },
       "LandingPageMetricsResponse": {
         "description": "Aggregated landing page metrics for admin dashboard.",
         "properties": {
@@ -10927,6 +11280,297 @@
           "by_phase"
         ],
         "title": "MeetingCostResponse",
+        "type": "object"
+      },
+      "MeetingTemplate": {
+        "description": "Response model for a meeting template.\n\nTemplates pre-populate problem statements and suggest context for common\ndecision scenarios like product launches, pricing changes, etc.",
+        "properties": {
+          "category": {
+            "description": "Template category (strategy, pricing, product, growth)",
+            "title": "Category",
+            "type": "string"
+          },
+          "context_hints": {
+            "description": "Suggested context fields to fill",
+            "items": {
+              "type": "string"
+            },
+            "title": "Context Hints",
+            "type": "array"
+          },
+          "created_at": {
+            "description": "Creation timestamp",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "description": "Short description for gallery",
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "description": "Template UUID",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_builtin": {
+            "default": false,
+            "description": "True for system templates",
+            "title": "Is Builtin",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Display name",
+            "title": "Name",
+            "type": "string"
+          },
+          "problem_statement_template": {
+            "description": "Pre-filled problem statement with placeholders",
+            "title": "Problem Statement Template",
+            "type": "string"
+          },
+          "slug": {
+            "description": "URL-friendly identifier",
+            "title": "Slug",
+            "type": "string"
+          },
+          "suggested_persona_traits": {
+            "description": "Traits for persona hints",
+            "items": {
+              "type": "string"
+            },
+            "title": "Suggested Persona Traits",
+            "type": "array"
+          },
+          "updated_at": {
+            "description": "Last update timestamp",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "default": 1,
+            "description": "Template version",
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "description",
+          "category",
+          "problem_statement_template",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MeetingTemplate",
+        "type": "object"
+      },
+      "MeetingTemplateCreate": {
+        "description": "Request model for creating a meeting template (admin only).\n\nAttributes:\n    name: Display name (2-100 chars)\n    slug: URL-friendly identifier (2-50 chars, alphanumeric + hyphens)\n    description: Gallery description (10-500 chars)\n    category: Template category\n    problem_statement_template: Pre-filled problem statement with [placeholders]\n    context_hints: Suggested context fields\n    suggested_persona_traits: Traits for persona generation",
+        "properties": {
+          "category": {
+            "description": "Template category",
+            "pattern": "^(strategy|pricing|product|growth|operations|team)$",
+            "title": "Category",
+            "type": "string"
+          },
+          "context_hints": {
+            "description": "Suggested context fields (max 20)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Context Hints",
+            "type": "array"
+          },
+          "description": {
+            "description": "Gallery description",
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "description": "Display name",
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "problem_statement_template": {
+            "description": "Problem statement with [placeholders]",
+            "maxLength": 2000,
+            "minLength": 20,
+            "title": "Problem Statement Template",
+            "type": "string"
+          },
+          "slug": {
+            "description": "URL-friendly identifier (lowercase, hyphens allowed)",
+            "maxLength": 50,
+            "minLength": 2,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "suggested_persona_traits": {
+            "description": "Persona trait hints (max 10)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Suggested Persona Traits",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "slug",
+          "description",
+          "category",
+          "problem_statement_template"
+        ],
+        "title": "MeetingTemplateCreate",
+        "type": "object"
+      },
+      "MeetingTemplateListResponse": {
+        "description": "Response model for template gallery.",
+        "properties": {
+          "categories": {
+            "description": "Available categories for filtering",
+            "items": {
+              "type": "string"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "templates": {
+            "description": "List of templates",
+            "items": {
+              "$ref": "#/components/schemas/MeetingTemplate"
+            },
+            "title": "Templates",
+            "type": "array"
+          },
+          "total": {
+            "description": "Total count",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "templates",
+          "total",
+          "categories"
+        ],
+        "title": "MeetingTemplateListResponse",
+        "type": "object"
+      },
+      "MeetingTemplateUpdate": {
+        "description": "Request model for updating a meeting template (admin only).",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "pattern": "^(strategy|pricing|product|growth|operations|team)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated category",
+            "title": "Category"
+          },
+          "context_hints": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated context hints",
+            "title": "Context Hints"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated description",
+            "title": "Description"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Activate/deactivate template",
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated name",
+            "title": "Name"
+          },
+          "problem_statement_template": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated problem statement",
+            "title": "Problem Statement Template"
+          },
+          "suggested_persona_traits": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Updated traits",
+            "title": "Suggested Persona Traits"
+          }
+        },
+        "title": "MeetingTemplateUpdate",
         "type": "object"
       },
       "MemberRole": {
@@ -11534,6 +12178,35 @@
           "templates"
         ],
         "title": "MetricsResponse",
+        "type": "object"
+      },
+      "NotFoundErrorResponse": {
+        "description": "Error response for 404 Not Found.\n\nUsed when a requested resource doesn't exist.",
+        "examples": [
+          {
+            "error_code": "API_NOT_FOUND",
+            "message": "Session not found"
+          },
+          {
+            "error_code": "API_NOT_FOUND",
+            "message": "Action not found"
+          }
+        ],
+        "properties": {
+          "error_code": {
+            "default": "API_NOT_FOUND",
+            "description": "Error code for not found errors",
+            "title": "Error Code",
+            "type": "string"
+          },
+          "message": {
+            "default": "Resource not found",
+            "description": "Not found error message",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "NotFoundErrorResponse",
         "type": "object"
       },
       "ObservabilityLinks": {
@@ -13412,6 +14085,43 @@
         "title": "RaiseHandRequest",
         "type": "object"
       },
+      "RateLimitResponse": {
+        "description": "Response model for rate limit exceeded (HTTP 429).\n\nThis model documents the shape of rate limit error responses for OpenAPI.\nUsed in `responses={429: {\"model\": RateLimitResponse}}` on rate-limited endpoints.\n\nAttributes:\n    detail: Human-readable error message\n    error_code: Machine-readable error code (\"rate_limited\")\n    retry_after: Seconds until rate limit resets (also in Retry-After header)",
+        "examples": [
+          {
+            "detail": "Too many requests. Please try again later.",
+            "error_code": "rate_limited",
+            "retry_after": 60
+          }
+        ],
+        "properties": {
+          "detail": {
+            "default": "Too many requests. Please try again later.",
+            "description": "Human-readable error message",
+            "title": "Detail",
+            "type": "string"
+          },
+          "error_code": {
+            "default": "rate_limited",
+            "description": "Machine-readable error code for client handling",
+            "title": "Error Code",
+            "type": "string"
+          },
+          "retry_after": {
+            "description": "Seconds until the rate limit window resets. Also provided in Retry-After header.",
+            "examples": [
+              60
+            ],
+            "title": "Retry After",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "retry_after"
+        ],
+        "title": "RateLimitResponse",
+        "type": "object"
+      },
       "ReadinessResponse": {
         "description": "Readiness check response for k8s probes.\n\nAttributes:\n    status: Overall status (ok, degraded, unavailable)\n    ready: Whether the service is ready to accept traffic\n    checks: Individual component check results\n    services: Service health summaries\n    vendor_status: Overall LLM provider status\n    redis_state: Redis connection state (connected/disconnected/reconnecting)\n    timestamp: ISO 8601 timestamp",
         "properties": {
@@ -14528,7 +15238,7 @@
         "type": "object"
       },
       "SessionDetailResponse": {
-        "description": "Response model for detailed session information.\n\nAttributes:\n    id: Session identifier\n    status: Current status\n    phase: Current phase\n    created_at: Creation timestamp\n    updated_at: Last update timestamp\n    problem: Problem details\n    state: Full deliberation state (if available)\n    metrics: Session metrics (rounds, costs, etc.)",
+        "description": "Response model for detailed session information.\n\nAttributes:\n    id: Session identifier\n    status: Current status\n    phase: Current phase\n    created_at: Creation timestamp\n    updated_at: Last update timestamp\n    problem: Problem details\n    state: Full deliberation state (if available)\n    metrics: Session metrics (rounds, costs, etc.)\n    reconnect_count: Number of SSE reconnections (admin debugging)",
         "properties": {
           "created_at": {
             "description": "Creation timestamp",
@@ -14571,6 +15281,18 @@
             "description": "Problem details",
             "title": "Problem",
             "type": "object"
+          },
+          "reconnect_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SSE reconnection count (admin only)",
+            "title": "Reconnect Count"
           },
           "state": {
             "anyOf": [
@@ -15532,6 +16254,73 @@
           "components"
         ],
         "title": "SystemHealthResponse",
+        "type": "object"
+      },
+      "SystemMetrics": {
+        "description": "Process-level system metrics.\n\nAttributes:\n    cpu_percent: CPU utilization percentage (0-100)\n    memory_percent: Memory utilization percentage (0-100)\n    memory_rss_mb: Resident Set Size memory in MB\n    open_fds: Number of open file descriptors\n    threads: Number of threads",
+        "properties": {
+          "cpu_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CPU utilization percentage (0-100)",
+            "title": "Cpu Percent"
+          },
+          "memory_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Memory utilization percentage (0-100)",
+            "title": "Memory Percent"
+          },
+          "memory_rss_mb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Resident Set Size memory in MB",
+            "title": "Memory Rss Mb"
+          },
+          "open_fds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Number of open file descriptors",
+            "title": "Open Fds"
+          },
+          "threads": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Number of threads",
+            "title": "Threads"
+          }
+        },
+        "title": "SystemMetrics",
         "type": "object"
       },
       "TablePartitionsResponse": {
@@ -18530,12 +19319,27 @@
         "title": "WaitlistResponse",
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "csrfToken": {
+        "description": "CSRF protection token. Must match the value in the csrf_token cookie. Required for all mutating requests (POST, PUT, DELETE, PATCH).",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "type": "apiKey"
+      },
+      "sessionAuth": {
+        "description": "SuperTokens session cookie. Set automatically after OAuth login. Contains encrypted session token validated on each request.",
+        "in": "cookie",
+        "name": "sAccessToken",
+        "type": "apiKey"
+      }
     }
   },
   "info": {
-    "description": "\n    **Board of One** is a multi-agent deliberation system that uses AI personas\n    to provide strategic decision-making insights through structured debate and synthesis.\n\n    ## Features\n\n    - **Multi-Agent Deliberation**: 3-5 expert personas debate your decision\n    - **Structured Synthesis**: AI-powered consensus building\n    - **Real-time Streaming**: Server-Sent Events (SSE) for live updates\n    - **Context Management**: Business context and clarification support\n    - **Session Control**: Pause, resume, and kill deliberations\n    - **Admin Monitoring**: Track and manage all active sessions\n\n    ## Authentication\n\n    - **User Endpoints**: Currently use hardcoded user ID (test_user_1) for MVP\n    - **Admin Endpoints**: Require X-Admin-Key header with valid admin API key\n\n    ## Rate Limits\n\n    - No rate limits enforced in v1.0 (MVP)\n    - Will be added in v2.0 with Stripe integration\n\n    ## Support\n\n    - Documentation: [GitHub](https://github.com/anthropics/board-of-one)\n    - Issues: [GitHub Issues](https://github.com/anthropics/board-of-one/issues)\n    ",
+    "description": "\n    **Board of One** is a multi-agent deliberation system that uses AI personas\n    to provide strategic decision-making insights through structured debate and synthesis.\n\n    ## Features\n\n    - **Multi-Agent Deliberation**: 3-5 expert personas debate your decision\n    - **Structured Synthesis**: AI-powered consensus building\n    - **Real-time Streaming**: Server-Sent Events (SSE) for live updates\n    - **Context Management**: Business context and clarification support\n    - **Session Control**: Pause, resume, and kill deliberations\n    - **Admin Monitoring**: Track and manage all active sessions\n\n    ## Authentication\n\n    This API uses cookie-based session authentication via SuperTokens.\n\n    - **User Endpoints**: Require valid `sAccessToken` session cookie\n    - **Admin Endpoints**: Require session cookie with admin privileges (is_admin=true)\n\n    Authentication flow:\n    1. User authenticates via OAuth (Google, LinkedIn, etc.) at `/auth/*` endpoints\n    2. SuperTokens sets httpOnly `sAccessToken` cookie on successful auth\n    3. All subsequent requests include cookie automatically\n    4. Session is validated on each request\n\n    ## Rate Limits\n\n    - Global: 500 requests/minute per IP\n    - Control endpoints: 30 requests/minute per user\n    - SSE: 5 concurrent connections per user\n\n    ## Support\n\n    - Documentation: [GitHub](https://github.com/anthropics/board-of-one)\n    - Issues: [GitHub Issues](https://github.com/anthropics/board-of-one/issues)\n    ",
     "title": "Board of One API",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "x-api-version": "1.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -18884,6 +19688,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Get bounce rate",
@@ -19278,6 +20101,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Get daily page view stats",
@@ -19362,6 +20204,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Get conversion funnel stats",
@@ -19463,6 +20324,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Get visitor geo breakdown",
@@ -19545,6 +20425,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Get landing page metrics",
@@ -22610,6 +23509,25 @@
             },
             "description": "Validation Error"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          },
           "500": {
             "content": {
               "application/json": {
@@ -22735,6 +23653,25 @@
             },
             "description": "Validation Error"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          },
           "500": {
             "content": {
               "application/json": {
@@ -22809,6 +23746,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "500": {
             "content": {
@@ -22923,6 +23879,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "500": {
             "content": {
@@ -25545,6 +26520,305 @@
         ]
       }
     },
+    "/api/admin/templates": {
+      "get": {
+        "description": "Get all templates including inactive ones for management.",
+        "operationId": "list_templates_admin_api_admin_templates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Inactive",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingTemplateListResponse"
+                }
+              }
+            },
+            "description": "Templates retrieved successfully"
+          },
+          "403": {
+            "description": "Admin access required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List all templates (admin)",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-templates"
+        ]
+      },
+      "post": {
+        "description": "Create a new meeting template.",
+        "operationId": "create_template_api_admin_templates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeetingTemplateCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingTemplate"
+                }
+              }
+            },
+            "description": "Template created successfully"
+          },
+          "400": {
+            "description": "Slug already exists"
+          },
+          "403": {
+            "description": "Admin access required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create a template",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-templates"
+        ]
+      }
+    },
+    "/api/admin/templates/stats": {
+      "get": {
+        "description": "Get usage statistics for all templates.",
+        "operationId": "get_template_stats_api_admin_templates_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Template Stats Api Admin Templates Stats Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Stats retrieved successfully"
+          },
+          "403": {
+            "description": "Admin access required"
+          }
+        },
+        "summary": "Get template usage statistics",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-templates"
+        ]
+      }
+    },
+    "/api/admin/templates/{template_id}": {
+      "delete": {
+        "description": "Delete a custom template or deactivate a builtin template.",
+        "operationId": "delete_template_api_admin_templates__template_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hard_delete",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Hard Delete",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Template Api Admin Templates  Template Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Template deleted/deactivated successfully"
+          },
+          "403": {
+            "description": "Admin access required"
+          },
+          "404": {
+            "description": "Template not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete or deactivate a template",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-templates"
+        ]
+      },
+      "patch": {
+        "description": "Update an existing meeting template.",
+        "operationId": "update_template_api_admin_templates__template_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeetingTemplateUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingTemplate"
+                }
+              }
+            },
+            "description": "Template updated successfully"
+          },
+          "403": {
+            "description": "Admin access required"
+          },
+          "404": {
+            "description": "Template not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update a template",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-templates"
+        ]
+      }
+    },
+    "/api/admin/templates/{template_id}/activate": {
+      "post": {
+        "description": "Reactivate a deactivated template.",
+        "operationId": "activate_template_api_admin_templates__template_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingTemplate"
+                }
+              }
+            },
+            "description": "Template activated successfully"
+          },
+          "403": {
+            "description": "Admin access required"
+          },
+          "404": {
+            "description": "Template not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activate a template",
+        "tags": [
+          "admin",
+          "admin",
+          "admin-templates"
+        ]
+      }
+    },
     "/api/admin/users": {
       "get": {
         "description": "List all users with metrics (total meetings, costs, last activity).",
@@ -26824,6 +28098,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Report client-side error",
@@ -27022,6 +28315,67 @@
         ]
       }
     },
+    "/api/health/clamav": {
+      "get": {
+        "description": "Check if ClamAV antivirus daemon is running and responsive.\n\n    Tests:\n    - ClamAV daemon connectivity (PING command)\n    - Version and virus database info\n\n    **Configuration:**\n    - CLAMAV_HOST: ClamAV daemon hostname (default: clamav)\n    - CLAMAV_PORT: ClamAV daemon port (default: 3310)\n    - CLAMAV_REQUIRED: Whether scanning is mandatory (default: false)\n\n    **Use Cases:**\n    - Verify ClamAV availability before uploads\n    - Monitor antivirus database freshness\n    - Security audit verification",
+        "operationId": "health_check_clamav_api_health_clamav_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "healthy": {
+                    "summary": "Healthy and available",
+                    "value": {
+                      "available": true,
+                      "component": "clamav",
+                      "healthy": true,
+                      "message": "ClamAV daemon is healthy",
+                      "required": false,
+                      "status": "healthy",
+                      "timestamp": "2025-01-15T12:00:00.000000",
+                      "version": "ClamAV 1.4.0/27189/Wed Dec 18 09:24:00 2024"
+                    }
+                  },
+                  "unavailable_optional": {
+                    "summary": "Unavailable but optional",
+                    "value": {
+                      "available": false,
+                      "component": "clamav",
+                      "healthy": true,
+                      "message": "ClamAV unavailable (optional - uploads allowed)",
+                      "required": false,
+                      "status": "unavailable",
+                      "timestamp": "2025-01-15T12:00:00.000000"
+                    }
+                  },
+                  "unavailable_required": {
+                    "summary": "Unavailable but required",
+                    "value": {
+                      "available": false,
+                      "component": "clamav",
+                      "healthy": false,
+                      "message": "ClamAV unavailable (required - uploads blocked)",
+                      "required": true,
+                      "status": "unhealthy",
+                      "timestamp": "2025-01-15T12:00:00.000000"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ClamAVHealthResponse"
+                }
+              }
+            },
+            "description": "ClamAV health status"
+          }
+        },
+        "summary": "ClamAV antivirus health (public, no auth required)",
+        "tags": [
+          "health"
+        ]
+      }
+    },
     "/api/health/db": {
       "get": {
         "description": "Check if PostgreSQL database is online and accepting connections.\n\n    Tests:\n    - Database connection via DATABASE_URL\n    - Simple SELECT query execution\n\n    **Use Cases:**\n    - Pre-deployment database connectivity verification\n    - Monitoring database availability\n    - Troubleshooting connection issues",
@@ -27185,6 +28539,63 @@
           }
         },
         "summary": "Detailed health (public, no auth required)",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/health/history": {
+      "get": {
+        "description": "Retrieve the last 5 health check results with timestamps.\n\n    Useful for debugging intermittent health issues by preserving recent state.\n    Records are returned newest first.\n\n    **Use Cases:**\n    - Debug intermittent health issues\n    - Analyze health check latency trends\n    - Verify system stability over time",
+        "operationId": "health_check_history_api_health_history_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "count": 3,
+                  "max_size": 5,
+                  "newest_timestamp": "2025-01-15T12:00:00.000000",
+                  "oldest_timestamp": "2025-01-15T11:58:00.000000",
+                  "records": [
+                    {
+                      "components": {
+                        "llm_anthropic": true,
+                        "llm_openai": true
+                      },
+                      "latency_ms": 5.2,
+                      "status": "healthy",
+                      "timestamp": "2025-01-15T12:00:00.000000"
+                    },
+                    {
+                      "components": {
+                        "llm_anthropic": true,
+                        "llm_openai": true
+                      },
+                      "latency_ms": 4.8,
+                      "status": "healthy",
+                      "timestamp": "2025-01-15T11:59:00.000000"
+                    },
+                    {
+                      "components": {
+                        "llm_anthropic": true,
+                        "llm_openai": true
+                      },
+                      "latency_ms": 5.1,
+                      "status": "healthy",
+                      "timestamp": "2025-01-15T11:58:00.000000"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/HealthHistoryResponse"
+                }
+              }
+            },
+            "description": "Health check history"
+          }
+        },
+        "summary": "Health check history (public, no auth required)",
         "tags": [
           "health"
         ]
@@ -29354,6 +30765,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Record conversion event (public, no auth required)",
@@ -29415,6 +30845,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Record page view (public, no auth required)",
@@ -31290,6 +32739,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Upload CSV dataset",
@@ -31835,6 +33303,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Unsubscribe",
@@ -34754,11 +36241,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
                 }
               }
             },
-            "description": "Session not found"
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -34769,6 +36256,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
         "summary": "Get pending clarification question",
@@ -34815,50 +36312,36 @@
           "400": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "No answers provided. Use 'answers' dict or 'skip': true"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
                 }
               }
             },
-            "description": "Invalid request"
+            "description": "Bad request - validation failed or invalid parameters"
           },
           "403": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Not authorized to access this session"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
                 }
               }
             },
-            "description": "User does not own this session"
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "404": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Session not found",
-                  "session_id": "bo1_abc123"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
                 }
               }
             },
-            "description": "Session not found"
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Clarification answer contains unsafe content",
-                  "error_code": "INJECTION_DETECTED"
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
@@ -34869,16 +36352,12 @@
           "500": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Failed to submit clarification: checkpoint update failed",
-                  "error_code": "CHECKPOINT_UPDATE_FAILED"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/InternalErrorResponse"
                 }
               }
             },
-            "description": "Internal server error"
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
         "summary": "Submit clarification answer",
@@ -34929,31 +36408,31 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
                 }
               }
             },
-            "description": "Invalid request"
+            "description": "Bad request - validation failed or invalid parameters"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
                 }
               }
             },
-            "description": "User does not own this session"
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "404": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
                 }
               }
             },
-            "description": "Session not found"
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -34969,11 +36448,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/InternalErrorResponse"
                 }
               }
             },
-            "description": "Internal server error"
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
         "summary": "Submit clarification answer (legacy)",
@@ -35499,30 +36978,22 @@
           "403": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Not authorized to kill this session",
-                  "error_code": "FORBIDDEN"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
                 }
               }
             },
-            "description": "User does not own this session"
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "404": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Session not found or not running: bo1_abc123",
-                  "session_id": "bo1_abc123"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
                 }
               }
             },
-            "description": "Session not found or not running"
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -35537,29 +37008,31 @@
           "429": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Rate limit exceeded. Try again later."
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/RateLimitResponse"
                 }
               }
             },
-            "description": "Rate limit exceeded"
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "500": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Failed to kill deliberation: task cancellation failed",
-                  "error_code": "KILL_FAILED"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/InternalErrorResponse"
                 }
               }
             },
-            "description": "Internal server error"
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
         "summary": "Kill deliberation",
@@ -35599,11 +37072,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
                 }
               }
             },
-            "description": "Session not found"
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
@@ -35619,11 +37092,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/InternalErrorResponse"
                 }
               }
             },
-            "description": "Internal server error"
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
         "summary": "Pause deliberation",
@@ -35878,35 +37351,26 @@
           "400": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Cannot raise hand: session is not running",
-                  "session_id": "bo1_abc123",
-                  "status": "paused"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
                 }
               }
             },
-            "description": "Invalid request or session not running"
+            "description": "Bad request - validation failed or invalid parameters"
           },
           "404": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
                 }
               }
             },
-            "description": "Session not found"
+            "description": "Not found - the requested resource does not exist"
           },
           "422": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Interjection message contains unsafe content",
-                  "error_code": "INJECTION_DETECTED"
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
@@ -35917,25 +37381,31 @@
           "429": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Rate limit exceeded. Try again later."
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/RateLimitResponse"
                 }
               }
             },
-            "description": "Rate limit exceeded"
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "500": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/InternalErrorResponse"
                 }
               }
             },
-            "description": "Internal server error"
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
         "summary": "Raise hand to interject during deliberation",
@@ -35974,54 +37444,36 @@
           "400": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Cannot resume session with status: completed. Session must be paused.",
-                  "session_id": "bo1_abc123",
-                  "status": "completed"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
                 }
               }
             },
-            "description": "Invalid request"
+            "description": "Bad request - validation failed or invalid parameters"
           },
           "404": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Session not found",
-                  "session_id": "bo1_abc123"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
                 }
               }
             },
-            "description": "Session not found"
+            "description": "Not found - the requested resource does not exist"
           },
           "409": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Session bo1_abc123 is already running",
-                  "error_code": "SESSION_ALREADY_RUNNING",
-                  "session_id": "bo1_abc123"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ConflictErrorResponse"
                 }
               }
             },
-            "description": "Session already running"
+            "description": "Conflict - request conflicts with current resource state"
           },
           "410": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Session checkpoint expired and cannot be reconstructed. Please start a new meeting.",
-                  "error_code": "CHECKPOINT_EXPIRED"
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
@@ -36042,16 +37494,12 @@
           "500": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Failed to resume deliberation: checkpoint load failed",
-                  "error_code": "CHECKPOINT_LOAD_FAILED"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/InternalErrorResponse"
                 }
               }
             },
-            "description": "Internal server error"
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
         "summary": "Resume deliberation from checkpoint",
@@ -36090,54 +37538,36 @@
           "400": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Cannot retry session with status: running. Session must be failed.",
-                  "session_id": "bo1_abc123",
-                  "status": "running"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
                 }
               }
             },
-            "description": "Invalid request - session not in failed status"
+            "description": "Bad request - validation failed or invalid parameters"
           },
           "404": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Session not found",
-                  "session_id": "bo1_abc123"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
                 }
               }
             },
-            "description": "Session not found"
+            "description": "Not found - the requested resource does not exist"
           },
           "409": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Session bo1_abc123 is already running",
-                  "error_code": "SESSION_ALREADY_RUNNING",
-                  "session_id": "bo1_abc123"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ConflictErrorResponse"
                 }
               }
             },
-            "description": "Session already running"
+            "description": "Conflict - request conflicts with current resource state"
           },
           "410": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Session checkpoint expired and cannot be reconstructed. Please start a new meeting.",
-                  "error_code": "CHECKPOINT_EXPIRED"
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
@@ -36155,19 +37585,34 @@
             },
             "description": "Validation Error"
           },
-          "500": {
+          "429": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Failed to retry deliberation: checkpoint load failed",
-                  "error_code": "CHECKPOINT_LOAD_FAILED"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/RateLimitResponse"
                 }
               }
             },
-            "description": "Internal server error"
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
         "summary": "Retry failed session from checkpoint",
@@ -36444,46 +37889,42 @@
           "400": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Cannot start session with status: completed",
-                  "session_id": "bo1_abc123",
-                  "status": "completed"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
                 }
               }
             },
-            "description": "Invalid request"
+            "description": "Bad request - validation failed or invalid parameters"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden - user lacks permission to access this resource"
           },
           "404": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Session not found",
-                  "session_id": "bo1_abc123"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
                 }
               }
             },
-            "description": "Session not found"
+            "description": "Not found - the requested resource does not exist"
           },
           "409": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Session bo1_abc123 is already running",
-                  "error_code": "SESSION_ALREADY_RUNNING",
-                  "session_id": "bo1_abc123"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/ConflictErrorResponse"
                 }
               }
             },
-            "description": "Session already running"
+            "description": "Conflict - request conflicts with current resource state"
           },
           "422": {
             "content": {
@@ -36498,29 +37939,31 @@
           "429": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Rate limit exceeded. Try again later."
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/RateLimitResponse"
                 }
               }
             },
-            "description": "Rate limit exceeded"
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "500": {
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "Failed to start deliberation: graph execution failed",
-                  "error_code": "GRAPH_EXECUTION_FAILED"
-                },
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/InternalErrorResponse"
                 }
               }
             },
-            "description": "Internal server error"
+            "description": "Internal server error - an unexpected error occurred"
           }
         },
         "summary": "Start deliberation in background",
@@ -36533,21 +37976,12 @@
     "/api/v1/sessions/{session_id}/stream": {
       "get": {
         "description": "Stream real-time deliberation events for a session using Server-Sent Events (SSE).\n\n    **Rate Limited:** 5 connections per minute per IP to prevent connection exhaustion.\n\n    **Session Resume Support:**\n    If the client disconnects and reconnects, include the `Last-Event-ID` header\n    with the ID from the last received event. The server will replay any missed\n    events before resuming live streaming.\n\n    Event types:\n    - `node_start` - Node execution started\n    - `node_end` - Node execution completed\n    - `contribution` - Persona contributed to discussion\n    - `facilitator_decision` - Facilitator made a decision\n    - `convergence` - Convergence check result\n    - `complete` - Deliberation finished\n    - `error` - Error occurred\n\n    The connection will remain open until the deliberation completes or\n    the client disconnects.",
-        "operationId": "stream_deliberation_api_v1_sessions__session_id__stream_get",
+        "operationId": "parse_accept_sse_version_api_v1_sessions__session_id__stream_get",
         "parameters": [
           {
-            "in": "path",
-            "name": "session_id",
+            "in": "query",
+            "name": "header_value",
             "required": true,
-            "schema": {
-              "title": "Session Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Last-Event-ID",
-            "required": false,
             "schema": {
               "anyOf": [
                 {
@@ -36557,7 +37991,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Last-Event-Id"
+              "title": "Header Value"
             }
           }
         ],
@@ -36565,7 +37999,10 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "title": "Response Parse Accept Sse Version Api V1 Sessions  Session Id  Stream Get",
+                  "type": "integer"
+                }
               },
               "text/event-stream": {
                 "example": "id: bo1_abc123:1\nevent: node_start\ndata: {...}\n\n"
@@ -37087,6 +38524,104 @@
         ]
       }
     },
+    "/api/v1/templates": {
+      "get": {
+        "description": "Get all active meeting templates for the template gallery.",
+        "operationId": "list_templates_api_v1_templates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingTemplateListResponse"
+                }
+              }
+            },
+            "description": "Templates retrieved successfully"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List meeting templates",
+        "tags": [
+          "templates",
+          "templates"
+        ]
+      }
+    },
+    "/api/v1/templates/{slug}": {
+      "get": {
+        "description": "Get a specific template by its URL slug.",
+        "operationId": "get_template_api_v1_templates__slug__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingTemplate"
+                }
+              }
+            },
+            "description": "Template retrieved successfully"
+          },
+          "404": {
+            "description": "Template not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get template by slug",
+        "tags": [
+          "templates",
+          "templates"
+        ]
+      }
+    },
     "/api/v1/user/cost-calculator-defaults": {
       "get": {
         "description": "Get the user's saved defaults for the meeting cost calculator widget.",
@@ -37230,6 +38765,25 @@
               }
             },
             "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Get Email Preferences",
@@ -37271,6 +38825,25 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded. The Retry-After header indicates when to retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Number of seconds until the rate limit window resets",
+                "schema": {
+                  "example": 60,
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Update Email Preferences",
@@ -39245,6 +40818,12 @@
       }
     }
   },
+  "security": [
+    {
+      "csrfToken": [],
+      "sessionAuth": []
+    }
+  ],
   "tags": [
     {
       "description": "Health check endpoints for monitoring system status",

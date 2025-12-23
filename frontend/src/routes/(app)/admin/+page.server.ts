@@ -1,4 +1,4 @@
-import { error } from '@sveltejs/kit';
+import { error, isHttpError } from '@sveltejs/kit';
 import { adminFetch } from '$lib/server/admin-fetch';
 import type { PageServerLoad } from './$types';
 
@@ -16,6 +16,7 @@ export const load: PageServerLoad = async ({ request }) => {
 
 		if (!response.ok) {
 			const errorText = await response.text();
+			console.error('[admin/+page.server] Stats API error:', response.status, errorText);
 			throw error(response.status, `Failed to load admin stats: ${errorText}`);
 		}
 
@@ -31,6 +32,11 @@ export const load: PageServerLoad = async ({ request }) => {
 			}
 		};
 	} catch (err) {
+		// Re-throw SvelteKit HttpError to preserve original status code
+		if (isHttpError(err)) {
+			throw err;
+		}
+		console.error('[admin/+page.server] Unexpected error loading stats:', err);
 		throw error(500, 'Failed to load admin stats');
 	}
 };

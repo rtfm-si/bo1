@@ -59,6 +59,8 @@ class Session(BaseModel):
     failure_acknowledged_at: datetime | None = Field(
         None, description="When user acknowledged failed session"
     )
+    # Meeting template (from z21_add_meeting_templates migration)
+    template_id: str | None = Field(None, description="Template used to create this session")
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -126,4 +128,6 @@ class Session(BaseModel):
             recovery_needed=row.get("recovery_needed", False),
             # Failure acknowledgment
             failure_acknowledged_at=row.get("failure_acknowledged_at"),
+            # Meeting template
+            template_id=row.get("template_id"),
         )

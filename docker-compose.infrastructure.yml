@@ -256,6 +256,32 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # ClamAV: Antivirus scanning for user-uploaded files
+  # ---------------------------------------------------------------------------
+  clamav:
+    image: clamav/clamav:1.4
+    volumes:
+      - clamav-data:/var/lib/clamav
+    ports:
+      - "127.0.0.1:3310:3310"
+    healthcheck:
+      test: ["CMD", "clamdscan", "--version"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # Virus DB download takes time
+    networks:
+      - bo1-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1536M  # ClamAV requires ~1GB for virus DB
+        reservations:
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
   # Uptime Kuma: Status page and uptime monitoring
   # ---------------------------------------------------------------------------
   uptime-kuma:
@@ -297,6 +323,8 @@ volumes:
   promtail-positions:
     driver: local
   uptime-kuma-data:
+    driver: local
+  clamav-data:
     driver: local
 
 networks:

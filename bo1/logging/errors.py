@@ -111,6 +111,7 @@ class ErrorCode(str, Enum):
     # Cost tracking errors
     COST_FLUSH_ERROR = "COST_FLUSH_ERROR"
     COST_RETRY_ERROR = "COST_RETRY_ERROR"
+    COST_ANOMALY = "COST_ANOMALY"
 
 
 def log_error(

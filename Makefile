@@ -570,6 +570,17 @@ osv-scan: ## Run OSV scanner for malware/typosquatting detection
 	osv-scanner --lockfile=uv.lock --lockfile=frontend/package-lock.json --config=.osv-scanner.toml
 	@echo "✓ OSV scan complete"
 
+.PHONY: audit-schema
+audit-schema: ## Audit Pydantic models against PostgreSQL schema (detects migration gaps)
+	@echo "🔍 Auditing Pydantic models vs database schema..."
+	@mkdir -p audits/reports
+	docker-compose run --rm bo1 python scripts/audit_model_schema.py --output audits/reports/schema-audit.report.md
+	@echo "✓ Schema audit complete. Report: audits/reports/schema-audit.report.md"
+
+.PHONY: audit-schema-ci
+audit-schema-ci: ## Schema audit for CI (exits 1 on issues)
+	docker-compose run --rm bo1 python scripts/audit_model_schema.py --ci
+
 # =============================================================================
 # Email Deliverability Testing
 # =============================================================================

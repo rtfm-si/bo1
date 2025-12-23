@@ -67,8 +67,8 @@
 				const ctx = response.context;
 				companyName = ctx.company_name || '';
 				websiteUrl = ctx.website || '';
-				businessStage = ctx.business_stage;
-				primaryObjective = ctx.primary_objective;
+				businessStage = ctx.business_stage ?? undefined;
+				primaryObjective = ctx.primary_objective ?? undefined;
 				northStarGoal = ctx.north_star_goal || '';
 				strategicObjectives = ctx.strategic_objectives || [];
 				businessModel = ctx.business_model || '';

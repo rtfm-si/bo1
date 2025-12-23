@@ -5,6 +5,11 @@
  * - backend/api/event_collector.py (graph node handlers)
  * - backend/api/event_extractors.py (data extraction)
  *
+ * Schema Versioning:
+ * - EXPECTED_SSE_VERSION: The version this client expects
+ * - MIN_SUPPORTED_VERSION: Minimum version client can handle
+ * - checkEventVersion(): Utility to validate and warn on mismatches
+ *
  * Event categories:
  * - Lifecycle: working_status, complete, error, session_status_error
  * - Decomposition: decomposition_complete, comparison_detected
@@ -19,6 +24,22 @@
  * - Persistence: persistence_verification_warning
  * - Interjection: user_interjection_raised, interjection_response, interjection_complete
  */
+
+// =============================================================================
+// Schema Versioning Constants
+// =============================================================================
+
+/**
+ * Expected SSE schema version - client expects server to send this version
+ * Update this when upgrading to a new schema version
+ */
+export const EXPECTED_SSE_VERSION = 1;
+
+/**
+ * Minimum supported SSE schema version - client can handle down to this version
+ * Older events may be missing fields but should still work
+ */
+export const MIN_SUPPORTED_VERSION = 1;
 
 // =============================================================================
 // Core Event Types
@@ -1128,4 +1149,122 @@ export function hasPayloadProperty<K extends string>(
 	key: K
 ): event is SSEEvent & { data: Record<K, unknown> } {
 	return event.data !== null && typeof event.data === 'object' && key in event.data;
+}
+
+// =============================================================================
+// Version Checking Utilities
+// =============================================================================
+
+/**
+ * Version check result for SSE events
+ */
+export interface VersionCheckResult {
+	isCompatible: boolean;
+	eventVersion: number;
+	expectedVersion: number;
+	minSupported: number;
+	warning?: string;
+}
+
+/**
+ * Check if an SSE event version is compatible with this client.
+ *
+ * Logs console warnings for:
+ * - Events with version below MIN_SUPPORTED_VERSION
+ * - Events with version above EXPECTED_SSE_VERSION (future version)
+ *
+ * @param event - SSE event to check (must have event_version in data)
+ * @returns Version check result with compatibility status and any warnings
+ *
+ * @example
+ * const result = checkEventVersion(event);
+ * if (!result.isCompatible) {
+ *   console.warn(result.warning);
+ * }
+ */
+export function checkEventVersion(event: SSEEvent): VersionCheckResult {
+	// Get event_version from the data payload
+	const eventVersion =
+		typeof event.data === 'object' && event.data !== null
+			? ((event.data as Record<string, unknown>).event_version as number | undefined)
+			: undefined;
+
+	// Default to expected version if not present (backwards compatibility)
+	const version = eventVersion ?? EXPECTED_SSE_VERSION;
+
+	const result: VersionCheckResult = {
+		isCompatible: true,
+		eventVersion: version,
+		expectedVersion: EXPECTED_SSE_VERSION,
+		minSupported: MIN_SUPPORTED_VERSION
+	};
+
+	// Check if version is too old
+	if (version < MIN_SUPPORTED_VERSION) {
+		result.isCompatible = false;
+		result.warning = `SSE event version ${version} is below minimum supported version ${MIN_SUPPORTED_VERSION}. Some features may not work correctly.`;
+		if (typeof console !== 'undefined') {
+			console.warn(`[SSE VERSION] ${result.warning}`, { event_type: event.event_type });
+		}
+	}
+	// Check if version is newer than expected (future version)
+	else if (version > EXPECTED_SSE_VERSION) {
+		// Still compatible (additive changes), but log for awareness
+		result.warning = `SSE event version ${version} is newer than expected ${EXPECTED_SSE_VERSION}. Client may be outdated.`;
+		if (typeof console !== 'undefined') {
+			console.info(`[SSE VERSION] ${result.warning}`, { event_type: event.event_type });
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Check if the server's SSE schema version (from X-SSE-Schema-Version header) is compatible.
+ *
+ * Call this when establishing an SSE connection to validate server compatibility.
+ *
+ * @param headerValue - Value of X-SSE-Schema-Version response header
+ * @returns Version check result
+ *
+ * @example
+ * const response = await fetch('/api/v1/sessions/123/stream');
+ * const serverVersion = response.headers.get('X-SSE-Schema-Version');
+ * const result = checkServerVersion(serverVersion);
+ * if (result.warning) {
+ *   console.warn(result.warning);
+ * }
+ */
+export function checkServerVersion(headerValue: string | null): VersionCheckResult {
+	const version = headerValue ? parseInt(headerValue, 10) : EXPECTED_SSE_VERSION;
+
+	const result: VersionCheckResult = {
+		isCompatible: true,
+		eventVersion: version,
+		expectedVersion: EXPECTED_SSE_VERSION,
+		minSupported: MIN_SUPPORTED_VERSION
+	};
+
+	if (isNaN(version)) {
+		result.warning = `Invalid X-SSE-Schema-Version header: ${headerValue}`;
+		if (typeof console !== 'undefined') {
+			console.warn(`[SSE VERSION] ${result.warning}`);
+		}
+		return result;
+	}
+
+	if (version < MIN_SUPPORTED_VERSION) {
+		result.isCompatible = false;
+		result.warning = `Server SSE schema version ${version} is below minimum supported ${MIN_SUPPORTED_VERSION}`;
+		if (typeof console !== 'undefined') {
+			console.warn(`[SSE VERSION] ${result.warning}`);
+		}
+	} else if (version > EXPECTED_SSE_VERSION) {
+		result.warning = `Server SSE schema version ${version} is newer than client expected ${EXPECTED_SSE_VERSION}. Consider updating client.`;
+		if (typeof console !== 'undefined') {
+			console.info(`[SSE VERSION] ${result.warning}`);
+		}
+	}
+
+	return result;
 }

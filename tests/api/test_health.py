@@ -47,6 +47,42 @@ class TestHealthEndpoint:
         assert "version" in details
         assert "api" in details
 
+    def test_health_includes_system_metrics(self, client: TestClient):
+        """Health endpoint should include system metrics."""
+        response = client.get("/api/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert "system" in data
+        system = data["system"]
+        assert "cpu_percent" in system
+        assert "memory_percent" in system
+        assert "memory_rss_mb" in system
+        assert "open_fds" in system
+        assert "threads" in system
+
+    def test_health_system_metrics_are_valid(self, client: TestClient):
+        """Health endpoint system metrics should have valid values."""
+        # Reset the metrics cache to get fresh values
+        import backend.api.system_metrics as sm
+
+        sm._last_metrics = None
+        sm._last_fetch_time = 0.0
+
+        response = client.get("/api/health")
+        assert response.status_code == 200
+        data = response.json()
+        system = data["system"]
+
+        # Memory metrics should be present and positive
+        assert system["memory_percent"] is not None
+        assert system["memory_percent"] >= 0
+        assert system["memory_rss_mb"] is not None
+        assert system["memory_rss_mb"] > 0
+
+        # Thread count should be at least 1
+        assert system["threads"] is not None
+        assert system["threads"] >= 1
+
 
 class TestReadyEndpoint:
     """Tests for /api/ready readiness probe."""

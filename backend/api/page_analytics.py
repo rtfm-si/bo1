@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
+from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors
 from backend.services import page_analytics
 from bo1.utils.logging import get_logger
@@ -120,6 +121,7 @@ def get_client_ip(request: Request) -> str | None:
     response_model=PageViewResponse,
     summary="Record page view (public, no auth required)",
     description="Record a page view event. Rate limited to 10/minute per IP. No authentication required.",
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(PAGE_VIEW_RATE_LIMIT)
 @handle_api_errors("record page view")
@@ -157,6 +159,7 @@ async def record_page_view(
     summary="Update page view (public, no auth required)",
     description="Update page view with duration/scroll data (call on page unload). Supports POST for sendBeacon. No authentication required.",
     include_in_schema=False,  # Exclude to avoid duplicate operation ID (PATCH + POST)
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(PAGE_VIEW_RATE_LIMIT)
 @handle_api_errors("update page view")
@@ -188,6 +191,7 @@ async def update_page_view(
     response_model=ConversionResponse,
     summary="Record conversion event (public, no auth required)",
     description="Record a conversion event (signup click, etc.). Rate limited to 5/minute per IP. No authentication required.",
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(CONVERSION_RATE_LIMIT)
 @handle_api_errors("record conversion")
@@ -224,6 +228,7 @@ async def record_conversion(
     summary="Get landing page metrics",
     description="Get aggregated landing page analytics (admin only).",
     dependencies=[Depends(require_admin_any)],
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get landing page metrics")
@@ -242,6 +247,7 @@ async def get_landing_page_metrics(
     summary="Get daily page view stats",
     description="Get daily page view statistics (admin only).",
     dependencies=[Depends(require_admin_any)],
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get daily stats")
@@ -260,6 +266,7 @@ async def get_daily_stats(
     summary="Get visitor geo breakdown",
     description="Get visitor breakdown by country (admin only).",
     dependencies=[Depends(require_admin_any)],
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get geo breakdown")
@@ -278,6 +285,7 @@ async def get_geo_breakdown(
     summary="Get conversion funnel stats",
     description="Get conversion funnel statistics (admin only).",
     dependencies=[Depends(require_admin_any)],
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get funnel stats")
@@ -295,6 +303,7 @@ async def get_funnel_stats(
     summary="Get bounce rate",
     description="Get bounce rate for a specific page (admin only).",
     dependencies=[Depends(require_admin_any)],
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit(ADMIN_RATE_LIMIT)
 @handle_api_errors("get bounce rate")

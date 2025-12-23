@@ -396,6 +396,7 @@ async def create_session(
                 workspace_id=validated_workspace_id,
                 used_promo_credit=tier_usage.uses_promo_credit,
                 context_ids=validated_context_ids,
+                template_id=session_request.template_id,
             )
             logger.info(
                 f"Created session: {session_id} for user: {user_id} (saved to both Redis and PostgreSQL)"
@@ -1097,6 +1098,17 @@ async def get_session(
                     "contributions_count": len(state_dict.get("contributions", [])),
                 }
 
+            # Get reconnect info for admin debugging (optional)
+            reconnect_count = None
+            try:
+                from backend.api.streaming import get_reconnect_info
+
+                reconnect_info = await get_reconnect_info(session_id)
+                if reconnect_info:
+                    reconnect_count = reconnect_info.get("reconnect_count")
+            except Exception as e:
+                logger.debug(f"Failed to get reconnect info for {session_id}: {e}")
+
             return SessionDetailResponse(
                 id=session_id,
                 status=metadata.get("status", "unknown"),
@@ -1106,6 +1118,7 @@ async def get_session(
                 problem=problem_dict,
                 state=state_dict,
                 metrics=metrics,
+                reconnect_count=reconnect_count,
             )
 
         except HTTPException:

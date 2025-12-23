@@ -1,50 +1,78 @@
-# Plan: [OBS][P1] Redis Pool Metrics
+# Plan: [FEAT][P2] Decision Delivery Templates
 
 ## Summary
 
-- Add Prometheus metrics for Redis connection pool: active connections, utilization %, acquisition latency
-- Wire metrics into RedisManager for automatic tracking
-- Expose via /health/redis/pool endpoint
-- Add tests for new metrics
+- Add predefined meeting templates (launch, pricing changes, onboarding revamp, outreach sprint)
+- Templates pre-populate problem statement, context hints, and suggested personas
+- Admin can create/edit templates; users select from template gallery when starting a meeting
+- Reduces cognitive load and ensures consistent decision quality for common scenarios
 
 ## Implementation Steps
 
-1. **Add Redis pool metrics to `backend/api/middleware/metrics.py`**
-   - `bo1_redis_pool_used_connections` Gauge
-   - `bo1_redis_pool_free_connections` Gauge
-   - `bo1_redis_pool_utilization_percent` Gauge
-   - `bo1_redis_connection_acquire_seconds` Histogram (for acquisition latency)
-   - Add `update_redis_pool_metrics()` helper (mirrors existing `update_pool_metrics()`)
+1. **Database schema for templates**
+   - File: `migrations/versions/z21_add_meeting_templates.py`
+   - Create `meeting_templates` table: id, name, slug, description, category, problem_statement_template, context_hints (JSONB), suggested_persona_traits (JSONB), is_active, created_at, updated_at
+   - Seed built-in templates (launch, pricing_changes, onboarding_revamp, outreach_sprint)
 
-2. **Add pool health method to `bo1/state/redis_manager.py`**
-   - `get_pool_health() -> dict` - returns used/free connections, utilization %
-   - Use `redis.connection_pool.connection_kwargs` or pool internals to get counts
-   - Note: redis-py uses `ConnectionPool` with `_in_use_connections` and `_available_connections`
+2. **Pydantic models**
+   - File: `backend/api/models.py`
+   - Add `MeetingTemplate`, `MeetingTemplateCreate`, `MeetingTemplateResponse` models
+   - Add `TemplateListResponse` for gallery
 
-3. **Add latency tracking wrapper in `bo1/state/redis_manager.py`**
-   - Wrap `getconn()` or equivalent to track acquisition latency
-   - Observe into `bo1_redis_connection_acquire_seconds` histogram
+3. **Backend API endpoints**
+   - File: `backend/api/templates.py` (new)
+   - GET `/api/v1/templates` - list active templates (public)
+   - GET `/api/v1/templates/{slug}` - get template by slug (public)
+   - POST `/api/admin/templates` - create template (admin)
+   - PATCH `/api/admin/templates/{id}` - update template (admin)
+   - DELETE `/api/admin/templates/{id}` - soft-delete/deactivate (admin)
 
-4. **Add `/health/redis/pool` endpoint to `backend/api/health.py`**
-   - Return `RedisPoolHealthResponse` with used/free/utilization fields
-   - Call `update_redis_pool_metrics()` on each health check
+4. **Repository layer**
+   - File: `bo1/state/template_repository.py` (new)
+   - CRUD operations with RLS-safe queries
+   - Seed data initialization on first run
 
-5. **Wire metrics update in health check loop**
-   - Update Redis pool metrics in existing periodic health checks
+5. **Frontend API client**
+   - File: `frontend/src/lib/api/templates.ts` (new)
+   - `listTemplates()`, `getTemplate(slug)` methods
+
+6. **Template selection UI**
+   - File: `frontend/src/routes/(app)/meetings/new/+page.svelte`
+   - Add template gallery grid before "Start from scratch" option
+   - Show template cards with name, description, category badge
+   - On select: pre-fill problem statement, show context hints, suggest personas
+
+7. **Admin template management**
+   - File: `frontend/src/routes/(app)/admin/templates/+page.svelte` (new)
+   - List all templates with edit/delete actions
+   - Create/edit form with live preview
+
+8. **Wire template to session creation**
+   - File: `backend/api/control.py`
+   - Add optional `template_id` to session create request
+   - Store `template_id` in session metadata for analytics
 
 ## Tests
 
-- Unit tests in `tests/state/test_redis_pool_metrics.py`:
-  - Test `get_pool_health()` returns expected fields
-  - Test utilization calculation (used/total * 100)
-  - Test zero handling (empty pool)
-- Integration test:
-  - Test `/health/redis/pool` endpoint returns metrics
-  - Test Prometheus gauges are set correctly
+- Unit tests:
+  - `tests/api/test_templates.py` - API CRUD operations (8 tests)
+  - `tests/state/test_template_repository.py` - repository layer (6 tests)
+
+- Integration/flow tests:
+  - `frontend/e2e/meeting-templates.spec.ts` - template selection flow (3 tests)
+
+- Manual validation:
+  - Create meeting via "Launch" template, verify pre-fill
+  - Admin creates custom template, appears in gallery
+  - Template deletion hides from gallery but preserves data
 
 ## Dependencies & Risks
 
-- Dependencies: redis-py ConnectionPool internals (may vary by version)
-- Risks:
-  - redis-py pool internals are not public API - need to verify attribute names
-  - Connection pool may be lazily initialized - handle None case
+- Dependencies:
+  - Session creation endpoint already accepts `problem_statement`
+  - Admin authorization patterns established
+
+- Risks/edge cases:
+  - Template versioning if we update built-ins (track version, don't overwrite user edits)
+  - Long problem_statement_template may need textarea vs input
+  - Category filtering UX (defer to v2 if >10 templates)

@@ -35,6 +35,32 @@ def emit_node_duration(node_name: str, duration_ms: float) -> None:
     logger.debug(f"Node {node_name} completed in {duration_ms:.1f}ms")
 
 
+def emit_node_error(
+    node_name: str,
+    session_id: str | None = None,
+    error_type: str | None = None,
+) -> None:
+    """Emit counter metric for graph node error.
+
+    Args:
+        node_name: Name of the node that failed (e.g., "decompose_node")
+        session_id: Session ID for logging context (optional)
+        error_type: Type of error for logging (optional)
+    """
+    # Emit Prometheus metric
+    try:
+        from backend.api.middleware.metrics import record_graph_node_error
+
+        record_graph_node_error(node_name)
+    except ImportError:
+        pass  # Metrics not available (CLI context)
+
+    # Log for observability
+    sid = (session_id or "unknown")[:8]
+    err = error_type or "unknown"
+    logger.error(f"[session={sid}] Node {node_name} failed with {err}")
+
+
 @contextmanager
 def node_timer(node_name: str) -> Generator[None, None, None]:
     """Context manager for timing graph node execution.
@@ -63,6 +89,8 @@ def log_with_session(
     session_id: str | None,
     msg: str,
     request_id: str | None = None,
+    sub_problem_index: int | None = None,
+    round_number: int | None = None,
     **kwargs: Any,
 ) -> None:
     """Log message with session and request correlation IDs.
@@ -73,14 +101,23 @@ def log_with_session(
         session_id: Session ID for correlation (truncated to 8 chars)
         msg: Log message
         request_id: HTTP request ID for cross-system correlation
+        sub_problem_index: Current sub-problem index (0-based)
+        round_number: Current deliberation round number
         **kwargs: Extra fields for structured logging
     """
     sid = (session_id or "unknown")[:8]
     rid = request_id[:8] if request_id else None
+
+    # Build prefix with available context
+    prefix_parts = [f"[session={sid}]"]
     if rid:
-        formatted_msg = f"[session={sid}][request={rid}] {msg}"
-    else:
-        formatted_msg = f"[session={sid}] {msg}"
+        prefix_parts.append(f"[request={rid}]")
+    if sub_problem_index is not None:
+        prefix_parts.append(f"[sp={sub_problem_index}]")
+    if round_number is not None:
+        prefix_parts.append(f"[round={round_number}]")
+
+    formatted_msg = f"{''.join(prefix_parts)} {msg}"
     log.log(level, formatted_msg, **kwargs)
 
 
@@ -90,6 +127,10 @@ async def retry_with_backoff(
     max_retries: int = 3,
     initial_delay: float = 2.0,
     backoff_factor: float = 2.0,
+    _session_id: str | None = None,
+    _sub_problem_index: int | None = None,
+    _round_number: int | None = None,
+    _node_name: str | None = None,
     **kwargs: Any,
 ) -> Any:
     """Retry an async function with exponential backoff.
@@ -100,6 +141,10 @@ async def retry_with_backoff(
         max_retries: Maximum number of retry attempts (default: 3)
         initial_delay: Initial delay in seconds before first retry (default: 2.0)
         backoff_factor: Multiplier for delay on each retry (default: 2.0)
+        _session_id: Optional session ID for structured error logging (not passed to func)
+        _sub_problem_index: Optional sub-problem index for structured logging (not passed to func)
+        _round_number: Optional round number for structured logging (not passed to func)
+        _node_name: Optional node name for error metrics (not passed to func)
         **kwargs: Keyword arguments to pass to func
 
     Returns:
@@ -114,6 +159,8 @@ async def retry_with_backoff(
     """
     last_exception = None
     delay = initial_delay
+    # Derive node name from function if not provided
+    node_name = _node_name or func.__name__
 
     for attempt in range(max_retries + 1):  # +1 for initial attempt
         try:
@@ -129,13 +176,29 @@ async def retry_with_backoff(
                 await asyncio.sleep(delay)
                 delay *= backoff_factor
             else:
-                logger.error(
-                    f"All {max_retries + 1} attempts failed for {func.__name__}. Last error: {e}"
+                log_with_session(
+                    logger,
+                    logging.ERROR,
+                    _session_id,
+                    f"All {max_retries + 1} attempts failed for {func.__name__}. Last error: {e}",
+                    sub_problem_index=_sub_problem_index,
+                    round_number=_round_number,
                 )
+                # Emit error metric on final failure
+                emit_node_error(node_name, _session_id, type(e).__name__)
                 raise
         except Exception as e:
             # Don't retry on non-timeout errors (e.g., validation errors, logic errors)
-            logger.error(f"Non-retryable error in {func.__name__}: {type(e).__name__}: {e}")
+            log_with_session(
+                logger,
+                logging.ERROR,
+                _session_id,
+                f"Non-retryable error in {func.__name__}: {type(e).__name__}: {e}",
+                sub_problem_index=_sub_problem_index,
+                round_number=_round_number,
+            )
+            # Emit error metric for non-retryable errors
+            emit_node_error(node_name, _session_id, type(e).__name__)
             raise
 
     # Should never reach here, but just in case

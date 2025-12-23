@@ -1234,3 +1234,85 @@ class LLMRateLimiterConfig:
         import os
 
         return os.getenv("LLM_RATE_LIMITER_ENABLED", "true").lower() == "true"
+
+
+class StatementTimeoutConfig:
+    """Database statement timeout configuration.
+
+    Prevents runaway queries from blocking connections indefinitely.
+    Uses PostgreSQL's statement_timeout setting (per-transaction via SET LOCAL).
+    """
+
+    DEFAULT_TIMEOUT_MS = 30000
+    """Default timeout for batch operations (30 seconds)"""
+
+    INTERACTIVE_TIMEOUT_MS = 5000
+    """Timeout for user-facing/interactive queries (5 seconds)"""
+
+    @staticmethod
+    def get_default_timeout() -> int:
+        """Get default timeout from env or constant."""
+        import os
+
+        return int(
+            os.getenv("DB_STATEMENT_TIMEOUT_MS", str(StatementTimeoutConfig.DEFAULT_TIMEOUT_MS))
+        )
+
+    @staticmethod
+    def get_interactive_timeout() -> int:
+        """Get interactive timeout from env or constant."""
+        import os
+
+        return int(
+            os.getenv(
+                "DB_INTERACTIVE_TIMEOUT_MS", str(StatementTimeoutConfig.INTERACTIVE_TIMEOUT_MS)
+            )
+        )
+
+
+class CostAnomalyConfig:
+    """Cost anomaly detection configuration.
+
+    Tracks unusual cost patterns that may indicate issues:
+    - high_single_call: Single API call exceeds threshold (runaway prompt)
+    - high_session_total: Session total exceeds threshold (stuck loop)
+    - negative_cost: Negative cost detected (data corruption)
+    """
+
+    SINGLE_CALL_THRESHOLD_USD = 0.50
+    """Alert if single LLM call costs more than this (default $0.50)"""
+
+    SESSION_TOTAL_THRESHOLD_USD = 5.00
+    """Alert if session total exceeds this (default $5.00)"""
+
+    @staticmethod
+    def get_single_call_threshold() -> float:
+        """Get single call threshold from env or default."""
+        import os
+
+        return float(os.getenv("COST_ANOMALY_SINGLE_CALL_THRESHOLD", "0.50"))
+
+    @staticmethod
+    def get_session_total_threshold() -> float:
+        """Get session total threshold from env or default."""
+        import os
+
+        return float(os.getenv("COST_ANOMALY_SESSION_TOTAL_THRESHOLD", "5.00"))
+
+    @staticmethod
+    def is_enabled() -> bool:
+        """Check if cost anomaly detection is enabled via env var."""
+        import os
+
+        return os.getenv("COST_ANOMALY_DETECTION_ENABLED", "true").lower() == "true"
+
+    @staticmethod
+    def are_alerts_enabled() -> bool:
+        """Check if cost anomaly ntfy alerts are enabled.
+
+        Allows disabling ntfy alerts while keeping Prometheus metrics.
+        Default: true (alerts enabled when anomaly detection is enabled)
+        """
+        import os
+
+        return os.getenv("COST_ANOMALY_ALERTS_ENABLED", "true").lower() == "true"

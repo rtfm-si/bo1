@@ -104,7 +104,16 @@ async def data_analysis_node(state: DeliberationGraphState) -> dict[str, Any]:
             auth_token=None,  # Internal calls don't need auth token
         )
     except DataAnalysisError as e:
-        logger.error(f"[DATA_ANALYSIS] Analysis failed: {e}")
+        sp_idx = state.get("current_sub_problem_index")
+        round_num = state.get("round_number")
+        log_with_session(
+            logger,
+            logging.ERROR,
+            session_id,
+            f"[DATA_ANALYSIS] Analysis failed: {e}",
+            sub_problem_index=sp_idx if isinstance(sp_idx, int) else None,
+            round_number=round_num if isinstance(round_num, int) else None,
+        )
         results = [
             {
                 "question": q,

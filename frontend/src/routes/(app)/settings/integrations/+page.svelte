@@ -56,7 +56,7 @@
 		try {
 			const status = await apiClient.getCalendarStatus();
 			calendarConnected = status.connected;
-			calendarConnectedAt = status.connected_at;
+			calendarConnectedAt = status.connected_at ?? null;
 			calendarFeatureEnabled = status.feature_enabled;
 			calendarSyncEnabled = status.sync_enabled;
 		} catch (e) {

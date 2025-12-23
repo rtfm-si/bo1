@@ -38,6 +38,7 @@ def execute_query(
     *,
     fetch: Literal["one"],
     user_id: str | None = None,
+    statement_timeout_ms: int | None = None,
 ) -> RealDictRow | None: ...
 
 
@@ -48,6 +49,7 @@ def execute_query(
     *,
     fetch: Literal["all"] = "all",
     user_id: str | None = None,
+    statement_timeout_ms: int | None = None,
 ) -> list[RealDictRow]: ...
 
 
@@ -58,6 +60,7 @@ def execute_query(
     *,
     fetch: Literal["none"],
     user_id: str | None = None,
+    statement_timeout_ms: int | None = None,
 ) -> None: ...
 
 
@@ -67,6 +70,7 @@ def execute_query(
     *,
     fetch: Literal["one", "all", "none"] = "all",
     user_id: str | None = None,
+    statement_timeout_ms: int | None = None,
 ) -> RealDictRow | list[RealDictRow] | None:
     """Execute a SQL query with standard connection handling.
 
@@ -79,6 +83,8 @@ def execute_query(
         fetch: What to return - "one" for single row, "all" for all rows,
                "none" for write operations
         user_id: Optional user ID for RLS context (sets app.current_user_id)
+        statement_timeout_ms: Optional statement timeout in ms (for batch ops).
+                             Use StatementTimeoutConfig.get_default_timeout() for admin queries.
 
     Returns:
         - fetch="one": Single row dict or None
@@ -113,8 +119,16 @@ def execute_query(
         ...     fetch="one",
         ...     user_id=user_id
         ... )
+
+        >>> # With statement timeout for admin/batch queries
+        >>> from bo1.constants import StatementTimeoutConfig
+        >>> rows = execute_query(
+        ...     "SELECT * FROM pg_stat_statements LIMIT 20",
+        ...     fetch="all",
+        ...     statement_timeout_ms=StatementTimeoutConfig.get_default_timeout()
+        ... )
     """
-    with db_session(user_id=user_id) as conn:
+    with db_session(user_id=user_id, statement_timeout_ms=statement_timeout_ms) as conn:
         with conn.cursor() as cur:
             cur.execute(sql, params)
             if fetch == "one":

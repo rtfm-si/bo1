@@ -64,8 +64,8 @@
 				const ctx = contextResponse.context;
 				companyName = ctx.company_name || '';
 				websiteUrl = ctx.website || '';
-				businessStage = ctx.business_stage;
-				primaryObjective = ctx.primary_objective;
+				businessStage = ctx.business_stage ?? undefined;
+				primaryObjective = ctx.primary_objective ?? undefined;
 			}
 		} catch (error) {
 			console.error('Failed to check onboarding status:', error);

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from slowapi.util import get_remote_address
 
 from backend.api.middleware.rate_limit import limiter
+from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.db_helpers import execute_query
 from bo1.logging.errors import ErrorCode, log_error
 from bo1.utils.logging import get_logger
@@ -55,6 +56,7 @@ class ClientErrorResponse(BaseModel):
     - resource_type: "frontend"
     """,
     response_model=ClientErrorResponse,
+    responses={429: RATE_LIMIT_RESPONSE},
 )
 @limiter.limit("10/minute")
 async def report_client_error(

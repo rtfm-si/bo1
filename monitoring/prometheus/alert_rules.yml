@@ -136,3 +136,81 @@ groups:
         annotations:
           summary: "All LLM providers (Anthropic + OpenAI) are down"
           description: "Both Anthropic and OpenAI circuit breakers are OPEN. No fallback available. User requests will fail."
+
+  - name: event_persistence_alerts
+    rules:
+      # Warning: Event persistence retry queue backing up
+      - alert: EventPersistenceBacklog
+        expr: bo1_event_persistence_retry_queue_depth > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Event persistence retry queue backlog"
+          description: "Event persistence retry queue depth is {{ $value }} (threshold: 50). Events may be delayed."
+
+      # Warning: High rate of event persistence retries
+      - alert: EventPersistenceHighRetryRate
+        expr: rate(bo1_event_persistence_retries_total[5m]) * 60 > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High event persistence retry rate"
+          description: "Event persistence retry rate is {{ $value | printf \"%.1f\" }}/min (threshold: 10/min). Database may be under stress."
+
+      # Warning: Event persistence flush latency is high
+      - alert: EventPersistenceSlowFlush
+        expr: histogram_quantile(0.95, sum(rate(bo1_event_persistence_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Event persistence flush latency is high"
+          description: "Event persistence p95 flush duration is {{ $value | printf \"%.2f\" }}s (threshold: 2s)."
+
+  - name: cost_tracking_alerts
+    rules:
+      # Warning: Cost tracking retry queue backing up
+      - alert: CostTrackingBacklog
+        expr: bo1_cost_retry_queue_depth > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cost tracking retry queue backlog"
+          description: "Cost tracking retry queue depth is {{ $value }} (threshold: 100). Cost records may be delayed."
+
+      # Warning: High cost tracking failure rate
+      - alert: CostTrackingHighFailureRate
+        expr: |
+          rate(bo1_cost_flush_total{status="failure"}[5m])
+          /
+          (rate(bo1_cost_flush_total{status="success"}[5m]) + rate(bo1_cost_flush_total{status="failure"}[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High cost tracking failure rate"
+          description: "Cost tracking failure rate is {{ $value | printf \"%.1f%%\" }} (threshold: 5%)."
+
+      # Warning: Cost anomalies detected
+      - alert: CostAnomalyDetected
+        expr: increase(bo1_cost_anomaly_total[15m]) > 3
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cost anomalies detected"
+          description: "{{ $value | printf \"%.0f\" }} cost anomalies detected in the last 15 minutes (threshold: 3). Check for unusual LLM usage patterns."
+
+      # Warning: Cost tracking flush latency is high
+      - alert: CostTrackingSlowFlush
+        expr: histogram_quantile(0.95, sum(rate(bo1_cost_flush_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cost tracking flush latency is high"
+          description: "Cost tracking p95 flush duration is {{ $value | printf \"%.2f\" }}s (threshold: 1s)."

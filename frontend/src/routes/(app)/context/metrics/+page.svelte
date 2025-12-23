@@ -108,7 +108,7 @@
 		try {
 			const response = await apiClient.getIndustryInsights('benchmark');
 			insightsIndustry = response.industry;
-			benchmarks = response.insights;
+			benchmarks = response.insights ?? [];
 		} catch (e) {
 			console.error('Failed to load benchmarks:', e);
 			// Don't show error - benchmarks are optional

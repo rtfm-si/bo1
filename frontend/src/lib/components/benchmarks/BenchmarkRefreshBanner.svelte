@@ -42,7 +42,7 @@
 		try {
 			const response: StaleBenchmarksResponse = await apiClient.getStaleBenchmarks();
 			hasStaleBenchmarks = response.has_stale_benchmarks;
-			staleBenchmarks = response.stale_benchmarks;
+			staleBenchmarks = response.stale_benchmarks ?? [];
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to check benchmarks';
 		} finally {

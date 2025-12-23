@@ -25,6 +25,7 @@ from backend.api.middleware.admin import require_admin_any
 from backend.api.middleware.rate_limit import ADMIN_RATE_LIMIT, limiter
 from backend.api.models import ErrorResponse
 from backend.api.ntfy import notify_admin_impersonation
+from backend.api.utils import RATE_LIMIT_RESPONSE
 from backend.api.utils.errors import handle_api_errors
 from backend.services.admin_impersonation import (
     ImpersonationSession,
@@ -67,6 +68,7 @@ def _session_to_response(session: ImpersonationSession) -> ImpersonationSessionR
         401: {"description": "Admin authentication required", "model": ErrorResponse},
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
         404: {"description": "Target user not found", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
@@ -158,6 +160,7 @@ async def start_impersonation_endpoint(
         200: {"description": "Impersonation ended successfully"},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
@@ -199,6 +202,7 @@ async def end_impersonation_endpoint(
         200: {"description": "Status retrieved successfully"},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )
@@ -232,6 +236,7 @@ async def get_impersonation_status(
         200: {"description": "History retrieved successfully"},
         401: {"description": "Admin authentication required", "model": ErrorResponse},
         403: {"description": "Insufficient permissions", "model": ErrorResponse},
+        429: RATE_LIMIT_RESPONSE,
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
 )

@@ -30,6 +30,43 @@ DEFAULT_TOTAL_TIMEOUT = RetryConfig.TOTAL_TIMEOUT
 # Exceptions that trigger retry (transient DB errors)
 RETRYABLE_EXCEPTIONS = (OperationalError, InterfaceError, PoolError)
 
+# PostgreSQL SQLSTATE codes that are retryable
+# 40P01 = deadlock_detected
+# 40001 = serialization_failure
+RETRYABLE_PGCODES: frozenset[str] = frozenset({"40P01", "40001"})
+
+
+def is_retryable_error(exc: BaseException) -> bool:
+    """Check if an exception is retryable.
+
+    Returns True if:
+    - Exception is an instance of RETRYABLE_EXCEPTIONS (OperationalError, InterfaceError, PoolError)
+    - Exception has a pgcode attribute matching RETRYABLE_PGCODES (deadlock, serialization failure)
+
+    Args:
+        exc: The exception to check
+
+    Returns:
+        True if the exception should trigger a retry, False otherwise
+
+    Example:
+        try:
+            cursor.execute(...)
+        except Exception as e:
+            if is_retryable_error(e):
+                # retry logic
+    """
+    # Check base retryable exception types
+    if isinstance(exc, RETRYABLE_EXCEPTIONS):
+        return True
+
+    # Check PostgreSQL error codes (psycopg2 errors have pgcode attribute)
+    pgcode = getattr(exc, "pgcode", None)
+    if pgcode is not None and pgcode in RETRYABLE_PGCODES:
+        return True
+
+    return False
+
 
 def retry_db(
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
@@ -93,7 +130,11 @@ def retry_db(
 
                 try:
                     return func(*args, **kwargs)
-                except exceptions as e:
+                except Exception as e:
+                    # Check if exception is retryable (type-based or pgcode-based)
+                    if not (isinstance(e, exceptions) or is_retryable_error(e)):
+                        raise
+
                     last_exception = e
 
                     if attempt == max_attempts:
@@ -171,7 +212,11 @@ def retry_db_async(
 
                 try:
                     return await func(*args, **kwargs)
-                except exceptions as e:
+                except Exception as e:
+                    # Check if exception is retryable (type-based or pgcode-based)
+                    if not (isinstance(e, exceptions) or is_retryable_error(e)):
+                        raise
+
                     last_exception = e
 
                     if attempt == max_attempts:

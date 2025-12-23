@@ -51,6 +51,10 @@ class CreateSessionRequest(HoneypotMixin):
         description="Optional context to inject: {meetings: [...ids], actions: [...ids], datasets: [...ids]}",
         examples=[{"meetings": ["bo1_abc123"], "actions": ["uuid-1"], "datasets": ["uuid-2"]}],
     )
+    template_id: str | None = Field(
+        None,
+        description="Optional template UUID to track which template was used to create this session",
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -237,6 +241,7 @@ class SessionDetailResponse(BaseModel):
         problem: Problem details
         state: Full deliberation state (if available)
         metrics: Session metrics (rounds, costs, etc.)
+        reconnect_count: Number of SSE reconnections (admin debugging)
     """
 
     id: str = Field(..., description="Session identifier")
@@ -247,6 +252,7 @@ class SessionDetailResponse(BaseModel):
     problem: dict[str, Any] = Field(..., description="Problem details")
     state: dict[str, Any] | None = Field(None, description="Full deliberation state")
     metrics: dict[str, Any] | None = Field(None, description="Session metrics")
+    reconnect_count: int | None = Field(None, description="SSE reconnection count (admin only)")
 
 
 class ControlResponse(BaseModel):
@@ -287,40 +293,266 @@ class ControlResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """Response model for API errors.
+    """Standard API error response with structured error code.
+
+    This matches the format produced by `http_error()` helper.
+    All API errors return this structure for consistent client handling.
 
     Attributes:
-        detail: Error message (FastAPI HTTPException format)
-        error_code: Optional structured error code for client handling
-        session_id: Optional session ID for context
-        status: Optional status field for conflict errors
+        error_code: Machine-readable error code from ErrorCode enum
+        message: Human-readable error message
     """
 
-    detail: str = Field(..., description="Error message")
-    error_code: str | None = Field(None, description="Structured error code for client handling")
-    session_id: str | None = Field(None, description="Session ID for context")
-    status: str | None = Field(None, description="Session status (for conflict errors)")
+    error_code: str = Field(
+        ...,
+        description="Machine-readable error code for client handling and log aggregation",
+        examples=["API_NOT_FOUND", "API_FORBIDDEN", "API_BAD_REQUEST"],
+    )
+    message: str = Field(
+        ...,
+        description="Human-readable error description",
+        examples=["Session not found", "Access denied", "Invalid request parameters"],
+    )
 
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
-                    "detail": "Session not found",
-                    "session_id": "bo1_abc123",
+                    "error_code": "API_NOT_FOUND",
+                    "message": "Session not found",
                 },
                 {
-                    "detail": "Not authorized to access this session",
-                    "error_code": "FORBIDDEN",
+                    "error_code": "API_FORBIDDEN",
+                    "message": "Not authorized to access this resource",
                 },
                 {
-                    "detail": "Session already completed",
-                    "status": "completed",
-                    "session_id": "bo1_abc123",
-                    "error_code": "SESSION_ALREADY_COMPLETED",
+                    "error_code": "API_BAD_REQUEST",
+                    "message": "Invalid session status for this operation",
+                },
+            ]
+        }
+    }
+
+
+class NotFoundErrorResponse(ErrorResponse):
+    """Error response for 404 Not Found.
+
+    Used when a requested resource doesn't exist.
+    """
+
+    error_code: str = Field(
+        "API_NOT_FOUND",
+        description="Error code for not found errors",
+    )
+    message: str = Field(
+        "Resource not found",
+        description="Not found error message",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "error_code": "API_NOT_FOUND",
+                    "message": "Session not found",
                 },
                 {
-                    "detail": "Internal server error",
+                    "error_code": "API_NOT_FOUND",
+                    "message": "Action not found",
+                },
+            ]
+        }
+    }
+
+
+class ForbiddenErrorResponse(ErrorResponse):
+    """Error response for 403 Forbidden.
+
+    Used when the user is authenticated but lacks permission.
+    """
+
+    error_code: str = Field(
+        "API_FORBIDDEN",
+        description="Error code for authorization failures",
+    )
+    message: str = Field(
+        "Access denied",
+        description="Forbidden error message",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "error_code": "API_FORBIDDEN",
+                    "message": "Not authorized to access this session",
+                },
+                {
+                    "error_code": "API_FORBIDDEN",
+                    "message": "Workspace access required",
+                },
+            ]
+        }
+    }
+
+
+class UnauthorizedErrorResponse(ErrorResponse):
+    """Error response for 401 Unauthorized.
+
+    Used when authentication is missing or invalid.
+    """
+
+    error_code: str = Field(
+        "API_UNAUTHORIZED",
+        description="Error code for authentication failures",
+    )
+    message: str = Field(
+        "Authentication required",
+        description="Unauthorized error message",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "error_code": "API_UNAUTHORIZED",
+                    "message": "Authentication required",
+                },
+                {
+                    "error_code": "AUTH_TOKEN_ERROR",
+                    "message": "Invalid or expired token",
+                },
+            ]
+        }
+    }
+
+
+class BadRequestErrorResponse(ErrorResponse):
+    """Error response for 400 Bad Request.
+
+    Used for validation errors and malformed requests.
+    """
+
+    error_code: str = Field(
+        "API_BAD_REQUEST",
+        description="Error code for bad request errors",
+    )
+    message: str = Field(
+        "Invalid request",
+        description="Bad request error message",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "error_code": "API_BAD_REQUEST",
+                    "message": "Cannot start session with status: completed",
+                },
+                {
+                    "error_code": "VALIDATION_ERROR",
+                    "message": "Invalid session ID format",
+                },
+            ]
+        }
+    }
+
+
+class ConflictErrorResponse(ErrorResponse):
+    """Error response for 409 Conflict.
+
+    Used when the request conflicts with current state.
+    """
+
+    error_code: str = Field(
+        "API_CONFLICT",
+        description="Error code for conflict errors",
+    )
+    message: str = Field(
+        "Resource conflict",
+        description="Conflict error message",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "error_code": "API_CONFLICT",
+                    "message": "Session is already running",
+                },
+                {
+                    "error_code": "API_CONFLICT",
+                    "message": "Action already completed",
+                },
+            ]
+        }
+    }
+
+
+class InternalErrorResponse(ErrorResponse):
+    """Error response for 500 Internal Server Error.
+
+    Used for unexpected server-side failures.
+    """
+
+    error_code: str = Field(
+        "API_REQUEST_ERROR",
+        description="Error code for internal server errors",
+    )
+    message: str = Field(
+        "An unexpected error occurred",
+        description="Internal error message",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "error_code": "API_REQUEST_ERROR",
+                    "message": "An unexpected error occurred",
+                },
+                {
                     "error_code": "GRAPH_EXECUTION_FAILED",
+                    "message": "Failed to execute deliberation graph",
+                },
+            ]
+        }
+    }
+
+
+class RateLimitResponse(BaseModel):
+    """Response model for rate limit exceeded (HTTP 429).
+
+    This model documents the shape of rate limit error responses for OpenAPI.
+    Used in `responses={429: {"model": RateLimitResponse}}` on rate-limited endpoints.
+
+    Attributes:
+        detail: Human-readable error message
+        error_code: Machine-readable error code ("rate_limited")
+        retry_after: Seconds until rate limit resets (also in Retry-After header)
+    """
+
+    detail: str = Field(
+        "Too many requests. Please try again later.",
+        description="Human-readable error message",
+    )
+    error_code: str = Field(
+        "rate_limited",
+        description="Machine-readable error code for client handling",
+    )
+    retry_after: int = Field(
+        ...,
+        description="Seconds until the rate limit window resets. Also provided in Retry-After header.",
+        examples=[60],
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "detail": "Too many requests. Please try again later.",
+                    "error_code": "rate_limited",
+                    "retry_after": 60,
                 },
             ]
         }
@@ -556,7 +788,7 @@ class ActionCreate(BaseModel):
     """
 
     title: str = Field(..., min_length=1, max_length=500, description="Action title")
-    description: str = Field(..., min_length=1, description="Action description")
+    description: str = Field(..., min_length=1, max_length=10000, description="Action description")
     what_and_how: list[str] = Field(default_factory=list, description="Steps to complete")
     success_criteria: list[str] = Field(default_factory=list, description="Success measures")
     kill_criteria: list[str] = Field(default_factory=list, description="Abandonment conditions")
@@ -592,7 +824,9 @@ class ActionUpdate(BaseModel):
     """
 
     title: str | None = Field(None, min_length=1, max_length=500, description="Updated title")
-    description: str | None = Field(None, min_length=1, description="Updated description")
+    description: str | None = Field(
+        None, min_length=1, max_length=10000, description="Updated description"
+    )
     what_and_how: list[str] | None = Field(None, description="Updated steps")
     success_criteria: list[str] | None = Field(None, description="Updated success measures")
     kill_criteria: list[str] | None = Field(None, description="Updated abandonment conditions")
@@ -3594,3 +3828,133 @@ class EventHistoryResponse(BaseModel):
     count: int = Field(..., description="Number of events returned")
     last_event_id: str | None = Field(None, description="Last event ID for resume support")
     can_resume: bool = Field(..., description="Whether session can be resumed")
+
+
+# =============================================================================
+# Meeting Templates
+# =============================================================================
+
+
+class MeetingTemplate(BaseModel):
+    """Response model for a meeting template.
+
+    Templates pre-populate problem statements and suggest context for common
+    decision scenarios like product launches, pricing changes, etc.
+    """
+
+    id: str = Field(..., description="Template UUID")
+    name: str = Field(..., description="Display name")
+    slug: str = Field(..., description="URL-friendly identifier")
+    description: str = Field(..., description="Short description for gallery")
+    category: str = Field(..., description="Template category (strategy, pricing, product, growth)")
+    problem_statement_template: str = Field(
+        ..., description="Pre-filled problem statement with placeholders"
+    )
+    context_hints: list[str] = Field(
+        default_factory=list, description="Suggested context fields to fill"
+    )
+    suggested_persona_traits: list[str] = Field(
+        default_factory=list, description="Traits for persona hints"
+    )
+    is_builtin: bool = Field(default=False, description="True for system templates")
+    version: int = Field(default=1, description="Template version")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+
+class MeetingTemplateCreate(BaseModel):
+    """Request model for creating a meeting template (admin only).
+
+    Attributes:
+        name: Display name (2-100 chars)
+        slug: URL-friendly identifier (2-50 chars, alphanumeric + hyphens)
+        description: Gallery description (10-500 chars)
+        category: Template category
+        problem_statement_template: Pre-filled problem statement with [placeholders]
+        context_hints: Suggested context fields
+        suggested_persona_traits: Traits for persona generation
+    """
+
+    name: str = Field(..., min_length=2, max_length=100, description="Display name")
+    slug: str = Field(
+        ...,
+        min_length=2,
+        max_length=50,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        description="URL-friendly identifier (lowercase, hyphens allowed)",
+    )
+    description: str = Field(..., min_length=10, max_length=500, description="Gallery description")
+    category: str = Field(
+        ...,
+        pattern=r"^(strategy|pricing|product|growth|operations|team)$",
+        description="Template category",
+    )
+    problem_statement_template: str = Field(
+        ...,
+        min_length=20,
+        max_length=2000,
+        description="Problem statement with [placeholders]",
+    )
+    context_hints: list[str] = Field(
+        default_factory=list,
+        max_length=20,
+        description="Suggested context fields (max 20)",
+    )
+    suggested_persona_traits: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description="Persona trait hints (max 10)",
+    )
+
+    @field_validator("context_hints")
+    @classmethod
+    def validate_context_hints(cls, v: list[str]) -> list[str]:
+        """Validate context hints are reasonable."""
+        if len(v) > 20:
+            raise ValueError("Maximum 20 context hints allowed")
+        for hint in v:
+            if len(hint) > 100:
+                raise ValueError("Context hint too long (max 100 chars)")
+        return v
+
+    @field_validator("suggested_persona_traits")
+    @classmethod
+    def validate_persona_traits(cls, v: list[str]) -> list[str]:
+        """Validate persona traits are reasonable."""
+        if len(v) > 10:
+            raise ValueError("Maximum 10 persona traits allowed")
+        for trait in v:
+            if len(trait) > 50:
+                raise ValueError("Persona trait too long (max 50 chars)")
+        return v
+
+
+class MeetingTemplateUpdate(BaseModel):
+    """Request model for updating a meeting template (admin only)."""
+
+    name: str | None = Field(None, min_length=2, max_length=100, description="Updated name")
+    description: str | None = Field(
+        None, min_length=10, max_length=500, description="Updated description"
+    )
+    category: str | None = Field(
+        None,
+        pattern=r"^(strategy|pricing|product|growth|operations|team)$",
+        description="Updated category",
+    )
+    problem_statement_template: str | None = Field(
+        None,
+        min_length=20,
+        max_length=2000,
+        description="Updated problem statement",
+    )
+    context_hints: list[str] | None = Field(None, description="Updated context hints")
+    suggested_persona_traits: list[str] | None = Field(None, description="Updated traits")
+    is_active: bool | None = Field(None, description="Activate/deactivate template")
+
+
+class MeetingTemplateListResponse(BaseModel):
+    """Response model for template gallery."""
+
+    templates: list[MeetingTemplate] = Field(..., description="List of templates")
+    total: int = Field(..., description="Total count")
+    categories: list[str] = Field(..., description="Available categories for filtering")

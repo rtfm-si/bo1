@@ -1849,6 +1849,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all templates (admin)
+         * @description Get all templates including inactive ones for management.
+         */
+        get: operations["list_templates_admin_api_admin_templates_get"];
+        put?: never;
+        /**
+         * Create a template
+         * @description Create a new meeting template.
+         */
+        post: operations["create_template_api_admin_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/templates/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get template usage statistics
+         * @description Get usage statistics for all templates.
+         */
+        get: operations["get_template_stats_api_admin_templates_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete or deactivate a template
+         * @description Delete a custom template or deactivate a builtin template.
+         */
+        delete: operations["delete_template_api_admin_templates__template_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a template
+         * @description Update an existing meeting template.
+         */
+        patch: operations["update_template_api_admin_templates__template_id__patch"];
+        trace?: never;
+    };
+    "/api/admin/templates/{template_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate a template
+         * @description Reactivate a deactivated template.
+         */
+        post: operations["activate_template_api_admin_templates__template_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users": {
         parameters: {
             query?: never;
@@ -2214,6 +2302,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/health/clamav": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ClamAV antivirus health (public, no auth required)
+         * @description Check if ClamAV antivirus daemon is running and responsive.
+         *
+         *         Tests:
+         *         - ClamAV daemon connectivity (PING command)
+         *         - Version and virus database info
+         *
+         *         **Configuration:**
+         *         - CLAMAV_HOST: ClamAV daemon hostname (default: clamav)
+         *         - CLAMAV_PORT: ClamAV daemon port (default: 3310)
+         *         - CLAMAV_REQUIRED: Whether scanning is mandatory (default: false)
+         *
+         *         **Use Cases:**
+         *         - Verify ClamAV availability before uploads
+         *         - Monitor antivirus database freshness
+         *         - Security audit verification
+         */
+        get: operations["health_check_clamav_api_health_clamav_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health/db": {
         parameters: {
             query?: never;
@@ -2297,6 +2419,34 @@ export interface paths {
          *         - Alerting integration
          */
         get: operations["health_check_detailed_api_health_detailed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health check history (public, no auth required)
+         * @description Retrieve the last 5 health check results with timestamps.
+         *
+         *         Useful for debugging intermittent health issues by preserving recent state.
+         *         Records are returned newest first.
+         *
+         *         **Use Cases:**
+         *         - Debug intermittent health issues
+         *         - Analyze health check latency trends
+         *         - Verify system stability over time
+         */
+        get: operations["health_check_history_api_health_history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5776,7 +5926,7 @@ export interface paths {
          *         The connection will remain open until the deliberation completes or
          *         the client disconnects.
          */
-        get: operations["stream_deliberation_api_v1_sessions__session_id__stream_get"];
+        get: operations["parse_accept_sse_version_api_v1_sessions__session_id__stream_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5921,6 +6071,46 @@ export interface paths {
          * @description Update an existing tag.
          */
         patch: operations["update_tag_api_v1_tags__tag_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List meeting templates
+         * @description Get all active meeting templates for the template gallery.
+         */
+        get: operations["list_templates_api_v1_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get template by slug
+         * @description Get a specific template by its URL slug.
+         */
+        get: operations["get_template_api_v1_templates__slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/user/cost-calculator-defaults": {
@@ -8817,6 +9007,34 @@ export interface components {
             unassigned_count: number;
         };
         /**
+         * BadRequestErrorResponse
+         * @description Error response for 400 Bad Request.
+         *
+         *     Used for validation errors and malformed requests.
+         * @example {
+         *       "error_code": "API_BAD_REQUEST",
+         *       "message": "Cannot start session with status: completed"
+         *     }
+         * @example {
+         *       "error_code": "VALIDATION_ERROR",
+         *       "message": "Invalid session ID format"
+         *     }
+         */
+        BadRequestErrorResponse: {
+            /**
+             * Error Code
+             * @description Error code for bad request errors
+             * @default API_BAD_REQUEST
+             */
+            error_code: string;
+            /**
+             * Message
+             * @description Bad request error message
+             * @default Invalid request
+             */
+            message: string;
+        };
+        /**
          * BenchmarkCategory
          * @description Benchmark metric categories.
          * @enum {string}
@@ -9923,6 +10141,63 @@ export interface components {
             timestamp: string;
         };
         /**
+         * ClamAVHealthResponse
+         * @description ClamAV antivirus scanner health response.
+         *
+         *     Attributes:
+         *         status: Health status (healthy/unavailable/disabled)
+         *         component: Component name (clamav)
+         *         healthy: Whether ClamAV is healthy
+         *         available: Whether ClamAV daemon is reachable
+         *         required: Whether ClamAV is required for uploads
+         *         version: ClamAV version string (if available)
+         *         message: Status message
+         *         timestamp: ISO 8601 timestamp
+         */
+        ClamAVHealthResponse: {
+            /**
+             * Available
+             * @description Whether ClamAV daemon is reachable
+             */
+            available: boolean;
+            /**
+             * Component
+             * @description Component name
+             * @default clamav
+             */
+            component: string;
+            /**
+             * Healthy
+             * @description Whether ClamAV is healthy
+             */
+            healthy: boolean;
+            /**
+             * Message
+             * @description Status message
+             */
+            message: string;
+            /**
+             * Required
+             * @description Whether scanning is required for uploads
+             */
+            required: boolean;
+            /**
+             * Status
+             * @description Health status
+             */
+            status: string;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp: string;
+            /**
+             * Version
+             * @description ClamAV version string
+             */
+            version?: string | null;
+        };
+        /**
          * ClarificationInsight
          * @description A clarification answer from a meeting.
          *
@@ -9995,7 +10270,7 @@ export interface components {
             answer?: string | null;
             /**
              * Answers
-             * @description Dict of question->answer pairs for multiple questions
+             * @description Dict of question->answer pairs for multiple questions (max 5000 chars per answer)
              * @example {
              *       "What is your current ARR?": "$500K",
              *       "What is your monthly churn rate?": "3.5%"
@@ -10359,6 +10634,34 @@ export interface components {
              * @description ISO 8601 timestamp of health check
              */
             timestamp: string;
+        };
+        /**
+         * ConflictErrorResponse
+         * @description Error response for 409 Conflict.
+         *
+         *     Used when the request conflicts with current state.
+         * @example {
+         *       "error_code": "API_CONFLICT",
+         *       "message": "Session is already running"
+         *     }
+         * @example {
+         *       "error_code": "API_CONFLICT",
+         *       "message": "Action already completed"
+         *     }
+         */
+        ConflictErrorResponse: {
+            /**
+             * Error Code
+             * @description Error code for conflict errors
+             * @default API_CONFLICT
+             */
+            error_code: string;
+            /**
+             * Message
+             * @description Conflict error message
+             * @default Resource conflict
+             */
+            message: string;
         };
         /**
          * ContextChoiceRequest
@@ -11247,6 +11550,11 @@ export interface components {
              * @example Should we invest $500K in expanding to the European market?
              */
             problem_statement: string;
+            /**
+             * Template Id
+             * @description Optional template UUID to track which template was used to create this session
+             */
+            template_id?: string | null;
             /**
              * Workspace Id
              * @description Optional workspace UUID to scope the session to a team workspace
@@ -12377,53 +12685,44 @@ export interface components {
         };
         /**
          * ErrorResponse
-         * @description Response model for API errors.
+         * @description Standard API error response with structured error code.
+         *
+         *     This matches the format produced by `http_error()` helper.
+         *     All API errors return this structure for consistent client handling.
          *
          *     Attributes:
-         *         detail: Error message (FastAPI HTTPException format)
-         *         error_code: Optional structured error code for client handling
-         *         session_id: Optional session ID for context
-         *         status: Optional status field for conflict errors
+         *         error_code: Machine-readable error code from ErrorCode enum
+         *         message: Human-readable error message
          * @example {
-         *       "detail": "Session not found",
-         *       "session_id": "bo1_abc123"
+         *       "error_code": "API_NOT_FOUND",
+         *       "message": "Session not found"
          *     }
          * @example {
-         *       "detail": "Not authorized to access this session",
-         *       "error_code": "FORBIDDEN"
+         *       "error_code": "API_FORBIDDEN",
+         *       "message": "Not authorized to access this resource"
          *     }
          * @example {
-         *       "detail": "Session already completed",
-         *       "error_code": "SESSION_ALREADY_COMPLETED",
-         *       "session_id": "bo1_abc123",
-         *       "status": "completed"
-         *     }
-         * @example {
-         *       "detail": "Internal server error",
-         *       "error_code": "GRAPH_EXECUTION_FAILED"
+         *       "error_code": "API_BAD_REQUEST",
+         *       "message": "Invalid session status for this operation"
          *     }
          */
         ErrorResponse: {
             /**
-             * Detail
-             * @description Error message
-             */
-            detail: string;
-            /**
              * Error Code
-             * @description Structured error code for client handling
+             * @description Machine-readable error code for client handling and log aggregation
+             * @example API_NOT_FOUND
+             * @example API_FORBIDDEN
+             * @example API_BAD_REQUEST
              */
-            error_code?: string | null;
+            error_code: string;
             /**
-             * Session Id
-             * @description Session ID for context
+             * Message
+             * @description Human-readable error description
+             * @example Session not found
+             * @example Access denied
+             * @example Invalid request parameters
              */
-            session_id?: string | null;
-            /**
-             * Status
-             * @description Session status (for conflict errors)
-             */
-            status?: string | null;
+            message: string;
         };
         /**
          * EventHistoryResponse
@@ -12931,6 +13230,34 @@ export interface components {
             monthly_total: number;
         };
         /**
+         * ForbiddenErrorResponse
+         * @description Error response for 403 Forbidden.
+         *
+         *     Used when the user is authenticated but lacks permission.
+         * @example {
+         *       "error_code": "API_FORBIDDEN",
+         *       "message": "Not authorized to access this session"
+         *     }
+         * @example {
+         *       "error_code": "API_FORBIDDEN",
+         *       "message": "Workspace access required"
+         *     }
+         */
+        ForbiddenErrorResponse: {
+            /**
+             * Error Code
+             * @description Error code for authorization failures
+             * @default API_FORBIDDEN
+             */
+            error_code: string;
+            /**
+             * Message
+             * @description Forbidden error message
+             * @default Access denied
+             */
+            message: string;
+        };
+        /**
          * FullSessionResponse
          * @description Response model for full session details.
          *
@@ -13310,6 +13637,78 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * HealthCheckRecordResponse
+         * @description Single health check record in history.
+         *
+         *     Attributes:
+         *         timestamp: ISO 8601 timestamp when check was performed
+         *         status: Health status (healthy/degraded/unhealthy)
+         *         components: Per-component health status
+         *         latency_ms: Health check latency in milliseconds
+         */
+        HealthCheckRecordResponse: {
+            /**
+             * Components
+             * @description Per-component health status
+             */
+            components: {
+                [key: string]: unknown;
+            };
+            /**
+             * Latency Ms
+             * @description Health check latency in milliseconds
+             */
+            latency_ms: number;
+            /**
+             * Status
+             * @description Health status: healthy, degraded, unhealthy
+             */
+            status: string;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp of health check
+             */
+            timestamp: string;
+        };
+        /**
+         * HealthHistoryResponse
+         * @description Health check history response.
+         *
+         *     Attributes:
+         *         count: Number of records in history
+         *         max_size: Maximum records stored
+         *         oldest_timestamp: Oldest record timestamp (None if empty)
+         *         newest_timestamp: Newest record timestamp (None if empty)
+         *         records: List of health check records (newest first)
+         */
+        HealthHistoryResponse: {
+            /**
+             * Count
+             * @description Number of records in history
+             */
+            count: number;
+            /**
+             * Max Size
+             * @description Maximum records stored
+             */
+            max_size: number;
+            /**
+             * Newest Timestamp
+             * @description Newest record timestamp
+             */
+            newest_timestamp?: string | null;
+            /**
+             * Oldest Timestamp
+             * @description Oldest record timestamp
+             */
+            oldest_timestamp?: string | null;
+            /**
+             * Records
+             * @description Records, newest first
+             */
+            records: components["schemas"]["HealthCheckRecordResponse"][];
+        };
+        /**
          * HealthResponse
          * @description Health check response model.
          *
@@ -13317,12 +13716,31 @@ export interface components {
          *         status: Overall health status
          *         timestamp: ISO 8601 timestamp of health check
          *         details: Optional health details
+         *         system: Process-level system metrics (CPU, memory, etc.)
+         *         llm_providers: LLM provider health status from background probe
          * @example {
          *       "details": {
          *         "api": "Board of One",
          *         "version": "1.0.0"
          *       },
+         *       "llm_providers": {
+         *         "anthropic": {
+         *           "healthy": true,
+         *           "latency_ms": 234.5
+         *         },
+         *         "openai": {
+         *           "healthy": true,
+         *           "latency_ms": 189.2
+         *         }
+         *       },
          *       "status": "healthy",
+         *       "system": {
+         *         "cpu_percent": 5.2,
+         *         "memory_percent": 12.3,
+         *         "memory_rss_mb": 256.5,
+         *         "open_fds": 42,
+         *         "threads": 8
+         *       },
          *       "timestamp": "2025-01-15T12:00:00.000000"
          *     }
          */
@@ -13339,11 +13757,20 @@ export interface components {
                 [key: string]: string | boolean;
             } | null;
             /**
+             * Llm Providers
+             * @description LLM provider health status from background probe
+             */
+            llm_providers?: {
+                [key: string]: components["schemas"]["LLMProviderStatus"];
+            } | null;
+            /**
              * Status
              * @description Overall health status
              * @example healthy
              */
             status: string;
+            /** @description Process-level system metrics */
+            system?: components["schemas"]["SystemMetrics"] | null;
             /**
              * Timestamp
              * @description ISO 8601 timestamp of health check
@@ -13804,6 +14231,34 @@ export interface components {
             total_count: number;
         };
         /**
+         * InternalErrorResponse
+         * @description Error response for 500 Internal Server Error.
+         *
+         *     Used for unexpected server-side failures.
+         * @example {
+         *       "error_code": "API_REQUEST_ERROR",
+         *       "message": "An unexpected error occurred"
+         *     }
+         * @example {
+         *       "error_code": "GRAPH_EXECUTION_FAILED",
+         *       "message": "Failed to execute deliberation graph"
+         *     }
+         */
+        InternalErrorResponse: {
+            /**
+             * Error Code
+             * @description Error code for internal server errors
+             * @default API_REQUEST_ERROR
+             */
+            error_code: string;
+            /**
+             * Message
+             * @description Internal error message
+             * @default An unexpected error occurred
+             */
+            message: string;
+        };
+        /**
          * InvitationAcceptRequest
          * @description Request model for accepting an invitation.
          */
@@ -14058,6 +14513,32 @@ export interface components {
             reason?: string | null;
         };
         /**
+         * LLMProviderStatus
+         * @description LLM provider health status from background probe.
+         *
+         *     Attributes:
+         *         healthy: Whether the provider is healthy
+         *         latency_ms: Probe latency in milliseconds
+         *         error: Error message if unhealthy (None if healthy)
+         */
+        LLMProviderStatus: {
+            /**
+             * Error
+             * @description Error message if unhealthy
+             */
+            error?: string | null;
+            /**
+             * Healthy
+             * @description Whether the provider is healthy
+             */
+            healthy: boolean;
+            /**
+             * Latency Ms
+             * @description Probe latency in milliseconds
+             */
+            latency_ms: number;
+        };
+        /**
          * LandingPageMetricsResponse
          * @description Aggregated landing page metrics for admin dashboard.
          */
@@ -14192,6 +14673,191 @@ export interface components {
             session_id: string;
             /** Total Cost */
             total_cost: number;
+        };
+        /**
+         * MeetingTemplate
+         * @description Response model for a meeting template.
+         *
+         *     Templates pre-populate problem statements and suggest context for common
+         *     decision scenarios like product launches, pricing changes, etc.
+         */
+        MeetingTemplate: {
+            /**
+             * Category
+             * @description Template category (strategy, pricing, product, growth)
+             */
+            category: string;
+            /**
+             * Context Hints
+             * @description Suggested context fields to fill
+             */
+            context_hints?: string[];
+            /**
+             * Created At
+             * Format: date-time
+             * @description Creation timestamp
+             */
+            created_at: string;
+            /**
+             * Description
+             * @description Short description for gallery
+             */
+            description: string;
+            /**
+             * Id
+             * @description Template UUID
+             */
+            id: string;
+            /**
+             * Is Builtin
+             * @description True for system templates
+             * @default false
+             */
+            is_builtin: boolean;
+            /**
+             * Name
+             * @description Display name
+             */
+            name: string;
+            /**
+             * Problem Statement Template
+             * @description Pre-filled problem statement with placeholders
+             */
+            problem_statement_template: string;
+            /**
+             * Slug
+             * @description URL-friendly identifier
+             */
+            slug: string;
+            /**
+             * Suggested Persona Traits
+             * @description Traits for persona hints
+             */
+            suggested_persona_traits?: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             * @description Last update timestamp
+             */
+            updated_at: string;
+            /**
+             * Version
+             * @description Template version
+             * @default 1
+             */
+            version: number;
+        };
+        /**
+         * MeetingTemplateCreate
+         * @description Request model for creating a meeting template (admin only).
+         *
+         *     Attributes:
+         *         name: Display name (2-100 chars)
+         *         slug: URL-friendly identifier (2-50 chars, alphanumeric + hyphens)
+         *         description: Gallery description (10-500 chars)
+         *         category: Template category
+         *         problem_statement_template: Pre-filled problem statement with [placeholders]
+         *         context_hints: Suggested context fields
+         *         suggested_persona_traits: Traits for persona generation
+         */
+        MeetingTemplateCreate: {
+            /**
+             * Category
+             * @description Template category
+             */
+            category: string;
+            /**
+             * Context Hints
+             * @description Suggested context fields (max 20)
+             */
+            context_hints?: string[];
+            /**
+             * Description
+             * @description Gallery description
+             */
+            description: string;
+            /**
+             * Name
+             * @description Display name
+             */
+            name: string;
+            /**
+             * Problem Statement Template
+             * @description Problem statement with [placeholders]
+             */
+            problem_statement_template: string;
+            /**
+             * Slug
+             * @description URL-friendly identifier (lowercase, hyphens allowed)
+             */
+            slug: string;
+            /**
+             * Suggested Persona Traits
+             * @description Persona trait hints (max 10)
+             */
+            suggested_persona_traits?: string[];
+        };
+        /**
+         * MeetingTemplateListResponse
+         * @description Response model for template gallery.
+         */
+        MeetingTemplateListResponse: {
+            /**
+             * Categories
+             * @description Available categories for filtering
+             */
+            categories: string[];
+            /**
+             * Templates
+             * @description List of templates
+             */
+            templates: components["schemas"]["MeetingTemplate"][];
+            /**
+             * Total
+             * @description Total count
+             */
+            total: number;
+        };
+        /**
+         * MeetingTemplateUpdate
+         * @description Request model for updating a meeting template (admin only).
+         */
+        MeetingTemplateUpdate: {
+            /**
+             * Category
+             * @description Updated category
+             */
+            category?: string | null;
+            /**
+             * Context Hints
+             * @description Updated context hints
+             */
+            context_hints?: string[] | null;
+            /**
+             * Description
+             * @description Updated description
+             */
+            description?: string | null;
+            /**
+             * Is Active
+             * @description Activate/deactivate template
+             */
+            is_active?: boolean | null;
+            /**
+             * Name
+             * @description Updated name
+             */
+            name?: string | null;
+            /**
+             * Problem Statement Template
+             * @description Updated problem statement
+             */
+            problem_statement_template?: string | null;
+            /**
+             * Suggested Persona Traits
+             * @description Updated traits
+             */
+            suggested_persona_traits?: string[] | null;
         };
         /**
          * MemberRole
@@ -14507,6 +15173,34 @@ export interface components {
              * @description Unfilled template metrics
              */
             templates: components["schemas"]["MetricTemplate"][];
+        };
+        /**
+         * NotFoundErrorResponse
+         * @description Error response for 404 Not Found.
+         *
+         *     Used when a requested resource doesn't exist.
+         * @example {
+         *       "error_code": "API_NOT_FOUND",
+         *       "message": "Session not found"
+         *     }
+         * @example {
+         *       "error_code": "API_NOT_FOUND",
+         *       "message": "Action not found"
+         *     }
+         */
+        NotFoundErrorResponse: {
+            /**
+             * Error Code
+             * @description Error code for not found errors
+             * @default API_NOT_FOUND
+             */
+            error_code: string;
+            /**
+             * Message
+             * @description Not found error message
+             * @default Resource not found
+             */
+            message: string;
         };
         /**
          * ObservabilityLinks
@@ -15785,6 +16479,43 @@ export interface components {
             message: string;
         };
         /**
+         * RateLimitResponse
+         * @description Response model for rate limit exceeded (HTTP 429).
+         *
+         *     This model documents the shape of rate limit error responses for OpenAPI.
+         *     Used in `responses={429: {"model": RateLimitResponse}}` on rate-limited endpoints.
+         *
+         *     Attributes:
+         *         detail: Human-readable error message
+         *         error_code: Machine-readable error code ("rate_limited")
+         *         retry_after: Seconds until rate limit resets (also in Retry-After header)
+         * @example {
+         *       "detail": "Too many requests. Please try again later.",
+         *       "error_code": "rate_limited",
+         *       "retry_after": 60
+         *     }
+         */
+        RateLimitResponse: {
+            /**
+             * Detail
+             * @description Human-readable error message
+             * @default Too many requests. Please try again later.
+             */
+            detail: string;
+            /**
+             * Error Code
+             * @description Machine-readable error code for client handling
+             * @default rate_limited
+             */
+            error_code: string;
+            /**
+             * Retry After
+             * @description Seconds until the rate limit window resets. Also provided in Retry-After header.
+             * @example 60
+             */
+            retry_after: number;
+        };
+        /**
          * ReadinessResponse
          * @description Readiness check response for k8s probes.
          *
@@ -16554,6 +17285,7 @@ export interface components {
          *         problem: Problem details
          *         state: Full deliberation state (if available)
          *         metrics: Session metrics (rounds, costs, etc.)
+         *         reconnect_count: Number of SSE reconnections (admin debugging)
          */
         SessionDetailResponse: {
             /**
@@ -16586,6 +17318,11 @@ export interface components {
             problem: {
                 [key: string]: unknown;
             };
+            /**
+             * Reconnect Count
+             * @description SSE reconnection count (admin only)
+             */
+            reconnect_count?: number | null;
             /**
              * State
              * @description Full deliberation state
@@ -17258,6 +17995,44 @@ export interface components {
             recent_remediations?: {
                 [key: string]: number;
             };
+        };
+        /**
+         * SystemMetrics
+         * @description Process-level system metrics.
+         *
+         *     Attributes:
+         *         cpu_percent: CPU utilization percentage (0-100)
+         *         memory_percent: Memory utilization percentage (0-100)
+         *         memory_rss_mb: Resident Set Size memory in MB
+         *         open_fds: Number of open file descriptors
+         *         threads: Number of threads
+         */
+        SystemMetrics: {
+            /**
+             * Cpu Percent
+             * @description CPU utilization percentage (0-100)
+             */
+            cpu_percent?: number | null;
+            /**
+             * Memory Percent
+             * @description Memory utilization percentage (0-100)
+             */
+            memory_percent?: number | null;
+            /**
+             * Memory Rss Mb
+             * @description Resident Set Size memory in MB
+             */
+            memory_rss_mb?: number | null;
+            /**
+             * Open Fds
+             * @description Number of open file descriptors
+             */
+            open_fds?: number | null;
+            /**
+             * Threads
+             * @description Number of threads
+             */
+            threads?: number | null;
         };
         /**
          * TablePartitionsResponse
@@ -19407,6 +20182,17 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
         };
     };
     get_cost_summary_api_admin_analytics_costs_get: {
@@ -19607,6 +20393,17 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
         };
     };
     get_funnel_stats_api_admin_analytics_funnel_get: {
@@ -19643,6 +20440,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
         };
@@ -19685,6 +20493,17 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
         };
     };
     get_landing_page_metrics_api_admin_analytics_landing_page_get: {
@@ -19719,6 +20538,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
         };
@@ -21733,6 +22563,17 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
             /** @description Internal server error */
             500: {
                 headers: {
@@ -21798,6 +22639,17 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
             /** @description Internal server error */
             500: {
                 headers: {
@@ -21854,6 +22706,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
             /** @description Internal server error */
@@ -21936,6 +22799,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
             /** @description Internal server error */
@@ -23716,6 +24590,263 @@ export interface operations {
             };
         };
     };
+    list_templates_admin_api_admin_templates_get: {
+        parameters: {
+            query?: {
+                include_inactive?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Templates retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingTemplateListResponse"];
+                };
+            };
+            /** @description Admin access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_template_api_admin_templates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeetingTemplateCreate"];
+            };
+        };
+        responses: {
+            /** @description Template created successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingTemplate"];
+                };
+            };
+            /** @description Slug already exists */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_template_stats_api_admin_templates_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stats retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Admin access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_template_api_admin_templates__template_id__delete: {
+        parameters: {
+            query?: {
+                hard_delete?: boolean;
+            };
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template deleted/deactivated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Admin access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Template not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_template_api_admin_templates__template_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeetingTemplateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Template updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingTemplate"];
+                };
+            };
+            /** @description Admin access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Template not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_template_api_admin_templates__template_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template activated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingTemplate"];
+                };
+            };
+            /** @description Admin access required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Template not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_users_api_admin_users_get: {
         parameters: {
             query?: {
@@ -24628,6 +25759,17 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
         };
     };
     health_check_api_health_get: {
@@ -24829,6 +25971,26 @@ export interface operations {
             };
         };
     };
+    health_check_clamav_api_health_clamav_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ClamAV health status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClamAVHealthResponse"];
+                };
+            };
+        };
+    };
     health_check_db_api_health_db_get: {
         parameters: {
             query?: never;
@@ -24968,6 +26130,63 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    health_check_history_api_health_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Health check history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "count": 3,
+                     *       "max_size": 5,
+                     *       "newest_timestamp": "2025-01-15T12:00:00.000000",
+                     *       "oldest_timestamp": "2025-01-15T11:58:00.000000",
+                     *       "records": [
+                     *         {
+                     *           "components": {
+                     *             "llm_anthropic": true,
+                     *             "llm_openai": true
+                     *           },
+                     *           "latency_ms": 5.2,
+                     *           "status": "healthy",
+                     *           "timestamp": "2025-01-15T12:00:00.000000"
+                     *         },
+                     *         {
+                     *           "components": {
+                     *             "llm_anthropic": true,
+                     *             "llm_openai": true
+                     *           },
+                     *           "latency_ms": 4.8,
+                     *           "status": "healthy",
+                     *           "timestamp": "2025-01-15T11:59:00.000000"
+                     *         },
+                     *         {
+                     *           "components": {
+                     *             "llm_anthropic": true,
+                     *             "llm_openai": true
+                     *           },
+                     *           "latency_ms": 5.1,
+                     *           "status": "healthy",
+                     *           "timestamp": "2025-01-15T11:58:00.000000"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["HealthHistoryResponse"];
                 };
             };
         };
@@ -26518,6 +27737,17 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
         };
     };
     record_page_view_api_v1_analytics_page_view_post: {
@@ -26551,6 +27781,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
         };
@@ -27908,6 +29149,17 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
         };
     };
     get_dataset_api_v1_datasets__dataset_id__get: {
@@ -28269,6 +29521,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": components["schemas"]["RateLimitResponse"];
                 };
             };
         };
@@ -30235,13 +31498,13 @@ export interface operations {
                     "application/json": components["schemas"]["ClarificationResponse"];
                 };
             };
-            /** @description Session not found */
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30251,6 +31514,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal server error - an unexpected error occurred */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -30279,47 +31551,31 @@ export interface operations {
                     "application/json": components["schemas"]["ControlResponse"];
                 };
             };
-            /** @description Invalid request */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "No answers provided. Use 'answers' dict or 'skip': true"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
                 };
             };
-            /** @description User does not own this session */
+            /** @description Forbidden - user lacks permission to access this resource */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Not authorized to access this session"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
-            /** @description Session not found */
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Session not found",
-                     *       "session_id": "bo1_abc123"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Prompt injection detected */
@@ -30328,28 +31584,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Clarification answer contains unsafe content",
-                     *       "error_code": "INJECTION_DETECTED"
-                     *     }
-                     */
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Internal server error */
+            /** @description Internal server error - an unexpected error occurred */
             500: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Failed to submit clarification: checkpoint update failed",
-                     *       "error_code": "CHECKPOINT_UPDATE_FAILED"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -30378,31 +31622,31 @@ export interface operations {
                     "application/json": components["schemas"]["ControlResponse"];
                 };
             };
-            /** @description Invalid request */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
                 };
             };
-            /** @description User does not own this session */
+            /** @description Forbidden - user lacks permission to access this resource */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
-            /** @description Session not found */
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30414,13 +31658,13 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Internal server error */
+            /** @description Internal server error - an unexpected error occurred */
             500: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -30815,34 +32059,22 @@ export interface operations {
                     "application/json": components["schemas"]["ControlResponse"];
                 };
             };
-            /** @description User does not own this session */
+            /** @description Forbidden - user lacks permission to access this resource */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Not authorized to kill this session",
-                     *       "error_code": "FORBIDDEN"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
                 };
             };
-            /** @description Session not found or not running */
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Session not found or not running: bo1_abc123",
-                     *       "session_id": "bo1_abc123"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30854,33 +32086,24 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Rate limit exceeded */
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
             429: {
                 headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Rate limit exceeded. Try again later."
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
-            /** @description Internal server error */
+            /** @description Internal server error - an unexpected error occurred */
             500: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Failed to kill deliberation: task cancellation failed",
-                     *       "error_code": "KILL_FAILED"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -30905,13 +32128,13 @@ export interface operations {
                     "application/json": components["schemas"]["ControlResponse"];
                 };
             };
-            /** @description Session not found */
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30923,13 +32146,13 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Internal server error */
+            /** @description Internal server error - an unexpected error occurred */
             500: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -31117,29 +32340,22 @@ export interface operations {
                     "application/json": components["schemas"]["ControlResponse"];
                 };
             };
-            /** @description Invalid request or session not running */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Cannot raise hand: session is not running",
-                     *       "session_id": "bo1_abc123",
-                     *       "status": "paused"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
                 };
             };
-            /** @description Session not found */
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
             /** @description Prompt injection detected */
@@ -31148,36 +32364,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Interjection message contains unsafe content",
-                     *       "error_code": "INJECTION_DETECTED"
-                     *     }
-                     */
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Rate limit exceeded */
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
             429: {
                 headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Rate limit exceeded. Try again later."
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
-            /** @description Internal server error */
+            /** @description Internal server error - an unexpected error occurred */
             500: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -31202,51 +32409,31 @@ export interface operations {
                     "application/json": components["schemas"]["ControlResponse"];
                 };
             };
-            /** @description Invalid request */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Cannot resume session with status: completed. Session must be paused.",
-                     *       "session_id": "bo1_abc123",
-                     *       "status": "completed"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
                 };
             };
-            /** @description Session not found */
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Session not found",
-                     *       "session_id": "bo1_abc123"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
-            /** @description Session already running */
+            /** @description Conflict - request conflicts with current resource state */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Session bo1_abc123 is already running",
-                     *       "error_code": "SESSION_ALREADY_RUNNING",
-                     *       "session_id": "bo1_abc123"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
                 };
             };
             /** @description Session checkpoint expired */
@@ -31255,12 +32442,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Session checkpoint expired and cannot be reconstructed. Please start a new meeting.",
-                     *       "error_code": "CHECKPOINT_EXPIRED"
-                     *     }
-                     */
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
@@ -31273,19 +32454,13 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Internal server error */
+            /** @description Internal server error - an unexpected error occurred */
             500: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Failed to resume deliberation: checkpoint load failed",
-                     *       "error_code": "CHECKPOINT_LOAD_FAILED"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -31310,51 +32485,31 @@ export interface operations {
                     "application/json": components["schemas"]["ControlResponse"];
                 };
             };
-            /** @description Invalid request - session not in failed status */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Cannot retry session with status: running. Session must be failed.",
-                     *       "session_id": "bo1_abc123",
-                     *       "status": "running"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
                 };
             };
-            /** @description Session not found */
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Session not found",
-                     *       "session_id": "bo1_abc123"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
-            /** @description Session already running */
+            /** @description Conflict - request conflicts with current resource state */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Session bo1_abc123 is already running",
-                     *       "error_code": "SESSION_ALREADY_RUNNING",
-                     *       "session_id": "bo1_abc123"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
                 };
             };
             /** @description Checkpoint expired and cannot be reconstructed */
@@ -31363,12 +32518,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Session checkpoint expired and cannot be reconstructed. Please start a new meeting.",
-                     *       "error_code": "CHECKPOINT_EXPIRED"
-                     *     }
-                     */
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
@@ -31381,19 +32530,24 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Internal server error */
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
+            /** @description Internal server error - an unexpected error occurred */
             500: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Failed to retry deliberation: checkpoint load failed",
-                     *       "error_code": "CHECKPOINT_LOAD_FAILED"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
@@ -31604,51 +32758,40 @@ export interface operations {
                     "application/json": components["schemas"]["ControlResponse"];
                 };
             };
-            /** @description Invalid request */
+            /** @description Bad request - validation failed or invalid parameters */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Cannot start session with status: completed",
-                     *       "session_id": "bo1_abc123",
-                     *       "status": "completed"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["BadRequestErrorResponse"];
                 };
             };
-            /** @description Session not found */
+            /** @description Forbidden - user lacks permission to access this resource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenErrorResponse"];
+                };
+            };
+            /** @description Not found - the requested resource does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Session not found",
-                     *       "session_id": "bo1_abc123"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["NotFoundErrorResponse"];
                 };
             };
-            /** @description Session already running */
+            /** @description Conflict - request conflicts with current resource state */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Session bo1_abc123 is already running",
-                     *       "error_code": "SESSION_ALREADY_RUNNING",
-                     *       "session_id": "bo1_abc123"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ConflictErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -31660,46 +32803,35 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Rate limit exceeded */
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
             429: {
                 headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Rate limit exceeded. Try again later."
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
-            /** @description Internal server error */
+            /** @description Internal server error - an unexpected error occurred */
             500: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "detail": "Failed to start deliberation: graph execution failed",
-                     *       "error_code": "GRAPH_EXECUTION_FAILED"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["InternalErrorResponse"];
                 };
             };
         };
     };
-    stream_deliberation_api_v1_sessions__session_id__stream_get: {
+    parse_accept_sse_version_api_v1_sessions__session_id__stream_get: {
         parameters: {
-            query?: never;
-            header?: {
-                "Last-Event-ID"?: string | null;
+            query: {
+                header_value: string | null;
             };
-            path: {
-                session_id: string;
-            };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -31710,7 +32842,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": number;
                     /**
                      * @example id: bo1_abc123:1
                      *     event: node_start
@@ -32119,6 +33251,75 @@ export interface operations {
             };
         };
     };
+    list_templates_api_v1_templates_get: {
+        parameters: {
+            query?: {
+                category?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Templates retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingTemplateListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_template_api_v1_templates__slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingTemplate"];
+                };
+            };
+            /** @description Template not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_cost_calculator_defaults_api_v1_user_cost_calculator_defaults_get: {
         parameters: {
             query?: never;
@@ -32248,6 +33449,17 @@ export interface operations {
                     "application/json": components["schemas"]["EmailPreferencesResponse"];
                 };
             };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
+                };
+            };
         };
     };
     update_email_preferences_api_v1_user_email_preferences_patch: {
@@ -32279,6 +33491,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded. The Retry-After header indicates when to retry. */
+            429: {
+                headers: {
+                    /** @description Number of seconds until the rate limit window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitResponse"];
                 };
             };
         };

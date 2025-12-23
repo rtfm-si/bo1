@@ -125,6 +125,30 @@ bo1_pending_events = Gauge(
     "Current number of events pending in batch buffer",
 )
 
+# Event persistence metrics (OBS-P1)
+bo1_event_persistence_batch_size = Histogram(
+    "bo1_event_persistence_batch_size",
+    "Number of events in each persistence batch",
+    buckets=(1, 5, 10, 25, 50, 100),
+)
+
+bo1_event_persistence_duration_seconds = Histogram(
+    "bo1_event_persistence_duration_seconds",
+    "Duration of event batch persistence to PostgreSQL in seconds",
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5),
+)
+
+bo1_event_persistence_retry_queue_depth = Gauge(
+    "bo1_event_persistence_retry_queue_depth",
+    "Number of events in the retry queue awaiting persistence",
+)
+
+bo1_event_persistence_retries_total = Counter(
+    "bo1_event_persistence_retries_total",
+    "Total event persistence retry attempts",
+    ["outcome"],  # "success" or "failure"
+)
+
 # Expert event buffer metrics (P2-PERF stream optimization)
 bo1_event_buffer_size = Gauge(
     "bo1_event_buffer_size",
@@ -290,6 +314,169 @@ bo1_redis_connection_acquire_seconds = Histogram(
     "bo1_redis_connection_acquire_seconds",
     "Redis connection acquisition latency in seconds",
     buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+
+# Cost tracking metrics (OBS-P1)
+bo1_cost_flush_duration_seconds = Histogram(
+    "bo1_cost_flush_duration_seconds",
+    "Duration of cost batch flush to database in seconds",
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+
+bo1_cost_retry_queue_depth = Gauge(
+    "bo1_cost_retry_queue_depth",
+    "Number of cost records in the retry queue awaiting persistence",
+)
+
+bo1_cost_anomaly_total = Counter(
+    "bo1_cost_anomaly_total",
+    "Total cost anomalies detected",
+    ["type"],  # high_single_call, high_session_total, negative_cost
+)
+
+bo1_cost_flush_total = Counter(
+    "bo1_cost_flush_total",
+    "Total cost flush operations",
+    ["status"],  # success, failure
+)
+
+# LLM Health Probe metrics
+bo1_llm_provider_healthy = Gauge(
+    "bo1_llm_provider_healthy",
+    "LLM provider health status (1=healthy, 0=unhealthy)",
+    ["provider"],
+)
+
+bo1_llm_probe_latency_seconds = Histogram(
+    "bo1_llm_probe_latency_seconds",
+    "LLM provider probe latency in seconds",
+    ["provider"],
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.0, 5.0),
+)
+
+bo1_llm_probe_failures_total = Counter(
+    "bo1_llm_probe_failures_total",
+    "Total LLM provider probe failures",
+    ["provider", "error_type"],
+)
+
+# Event stream metrics (OBS-P2)
+bo1_event_publish_latency_seconds = Histogram(
+    "bo1_event_publish_latency_seconds",
+    "Event publish latency in seconds (from publish call to queue)",
+    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5),
+)
+
+bo1_event_type_published_total = Counter(
+    "bo1_event_type_published_total",
+    "Total events published by event type",
+    ["event_type"],
+)
+
+bo1_event_batch_queue_depth = Gauge(
+    "bo1_event_batch_queue_depth",
+    "Current depth of the event batch priority queue",
+)
+
+# Graph node error metrics (OBS-P2)
+bo1_graph_node_errors_total = Counter(
+    "bo1_graph_node_errors_total",
+    "Total errors by graph node",
+    ["node_name"],
+)
+
+# API endpoint error metrics (OBS-P2)
+bo1_api_endpoint_errors_total = Counter(
+    "bo1_api_endpoint_errors_total",
+    "Total API endpoint errors by path and status code",
+    ["endpoint", "status"],
+)
+
+# Process-level system metrics (psutil)
+bo1_process_cpu_percent = Gauge(
+    "bo1_process_cpu_percent",
+    "CPU utilization percentage for the current process",
+)
+
+bo1_process_memory_percent = Gauge(
+    "bo1_process_memory_percent",
+    "Memory utilization percentage for the current process",
+)
+
+bo1_process_memory_rss_bytes = Gauge(
+    "bo1_process_memory_rss_bytes",
+    "Resident Set Size (RSS) memory in bytes for the current process",
+)
+
+bo1_process_open_fds = Gauge(
+    "bo1_process_open_fds",
+    "Number of open file descriptors for the current process",
+)
+
+bo1_process_threads = Gauge(
+    "bo1_process_threads",
+    "Number of threads in the current process",
+)
+
+# Health check metrics
+bo1_health_check_total = Counter(
+    "bo1_health_check_total",
+    "Total health checks by status",
+    ["status"],  # healthy, degraded, unhealthy
+)
+
+bo1_health_check_latency_seconds = Histogram(
+    "bo1_health_check_latency_seconds",
+    "Health check latency in seconds",
+    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+
+# SSE Reconnect metrics
+bo1_sse_reconnect_total = Counter(
+    "bo1_sse_reconnect_total",
+    "Total SSE reconnections detected via Last-Event-ID header",
+    ["session_id"],
+)
+
+bo1_sse_reconnect_gap_seconds = Histogram(
+    "bo1_sse_reconnect_gap_seconds",
+    "Time between SSE disconnect and reconnect in seconds",
+    buckets=(0.5, 1, 2, 5, 10, 30, 60, 120, 300),
+)
+
+bo1_sse_active_connections = Gauge(
+    "bo1_sse_active_connections",
+    "Number of active SSE connections (alias for sse_connections)",
+)
+
+# Database statement timeout metrics
+bo1_db_statement_timeout_total = Counter(
+    "bo1_db_statement_timeout_total",
+    "Total database queries cancelled due to statement_timeout (SQLSTATE 57014)",
+)
+
+# File scan metrics (ClamAV antivirus)
+bo1_file_scan_total = Counter(
+    "bo1_file_scan_total",
+    "Total file scans performed by ClamAV",
+    ["result"],  # clean, infected, error, pending
+)
+
+bo1_file_pending_scan_total = Counter(
+    "bo1_file_pending_scan_total",
+    "Files queued for deferred scan when ClamAV unavailable",
+)
+
+bo1_file_scan_duration_seconds = Histogram(
+    "bo1_file_scan_duration_seconds",
+    "Duration of file scans in seconds",
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
+)
+
+bo1_file_quarantine_total = Counter(
+    "bo1_file_quarantine_total",
+    "Total files quarantined due to malware detection",
+    ["threat_type"],  # First part of threat name (e.g., "Win.Test" -> "Win")
 )
 
 
@@ -630,3 +817,171 @@ def record_redis_connection_acquire_latency(duration_seconds: float) -> None:
         duration_seconds: Time taken to acquire a connection from the pool
     """
     bo1_redis_connection_acquire_seconds.observe(duration_seconds)
+
+
+def update_process_metrics(
+    cpu_percent: float | None,
+    memory_percent: float | None,
+    memory_rss_mb: float | None,
+    open_fds: int | None,
+    threads: int | None,
+) -> None:
+    """Update process-level system metrics from psutil.
+
+    Args:
+        cpu_percent: CPU utilization percentage (0-100)
+        memory_percent: Memory utilization percentage (0-100)
+        memory_rss_mb: Resident Set Size memory in MB
+        open_fds: Number of open file descriptors
+        threads: Number of threads
+    """
+    if cpu_percent is not None:
+        bo1_process_cpu_percent.set(cpu_percent)
+    if memory_percent is not None:
+        bo1_process_memory_percent.set(memory_percent)
+    if memory_rss_mb is not None:
+        # Convert MB to bytes for metric
+        bo1_process_memory_rss_bytes.set(memory_rss_mb * 1024 * 1024)
+    if open_fds is not None:
+        bo1_process_open_fds.set(open_fds)
+    if threads is not None:
+        bo1_process_threads.set(threads)
+
+
+def record_event_persistence_batch(batch_size: int, duration_seconds: float) -> None:
+    """Record event persistence batch metrics.
+
+    Args:
+        batch_size: Number of events in the batch
+        duration_seconds: Time taken to persist the batch
+    """
+    bo1_event_persistence_batch_size.observe(batch_size)
+    bo1_event_persistence_duration_seconds.observe(duration_seconds)
+
+
+def set_event_persistence_retry_queue_depth(depth: int) -> None:
+    """Set the current retry queue depth.
+
+    Args:
+        depth: Number of events waiting for retry
+    """
+    bo1_event_persistence_retry_queue_depth.set(depth)
+
+
+def record_event_persistence_retry(success: bool) -> None:
+    """Record an event persistence retry attempt.
+
+    Args:
+        success: Whether the retry succeeded
+    """
+    outcome = "success" if success else "failure"
+    bo1_event_persistence_retries_total.labels(outcome=outcome).inc()
+
+
+def record_cost_flush_duration(duration_seconds: float) -> None:
+    """Record cost batch flush duration.
+
+    Args:
+        duration_seconds: Time taken to flush cost batch to database
+    """
+    bo1_cost_flush_duration_seconds.observe(duration_seconds)
+
+
+def set_cost_retry_queue_depth(depth: int) -> None:
+    """Set the current cost retry queue depth.
+
+    Args:
+        depth: Number of cost records waiting for retry
+    """
+    bo1_cost_retry_queue_depth.set(depth)
+
+
+def record_cost_anomaly(anomaly_type: str) -> None:
+    """Record a cost anomaly detection.
+
+    Args:
+        anomaly_type: Type of anomaly (high_single_call, high_session_total, negative_cost)
+    """
+    bo1_cost_anomaly_total.labels(type=anomaly_type).inc()
+
+
+def record_cost_flush(success: bool) -> None:
+    """Record a cost flush operation result.
+
+    Args:
+        success: Whether the flush succeeded
+    """
+    status = "success" if success else "failure"
+    bo1_cost_flush_total.labels(status=status).inc()
+
+
+def record_event_publish_latency(latency_seconds: float) -> None:
+    """Record event publish latency.
+
+    Args:
+        latency_seconds: Time taken to publish event to queue
+    """
+    bo1_event_publish_latency_seconds.observe(latency_seconds)
+
+
+def record_event_type_published(event_type: str) -> None:
+    """Record an event published by type.
+
+    Args:
+        event_type: Type of event published (e.g., "contribution", "round_start")
+    """
+    bo1_event_type_published_total.labels(event_type=event_type).inc()
+
+
+def set_event_batch_queue_depth(depth: int) -> None:
+    """Set the current event batch queue depth.
+
+    Args:
+        depth: Number of events in the batch priority queue
+    """
+    bo1_event_batch_queue_depth.set(depth)
+
+
+def record_graph_node_error(node_name: str) -> None:
+    """Record an error from a graph node.
+
+    Args:
+        node_name: Name of the node that encountered an error
+    """
+    bo1_graph_node_errors_total.labels(node_name=node_name).inc()
+
+
+def record_api_endpoint_error(endpoint: str, status: int) -> None:
+    """Record an API endpoint error.
+
+    Args:
+        endpoint: Normalized endpoint path (e.g., "/sessions/:id")
+        status: HTTP status code (e.g., 400, 404, 500)
+    """
+    # Normalize endpoint path for low cardinality
+    normalized = normalize_path(endpoint)
+    bo1_api_endpoint_errors_total.labels(endpoint=normalized, status=str(status)).inc()
+
+
+def record_sse_reconnect(session_id: str, gap_seconds: float | None = None) -> None:
+    """Record an SSE reconnection event.
+
+    Args:
+        session_id: Session identifier (truncated for cardinality)
+        gap_seconds: Optional time since last disconnect in seconds
+    """
+    from bo1.utils.metrics import truncate_label
+
+    bo1_sse_reconnect_total.labels(session_id=truncate_label(session_id)).inc()
+    if gap_seconds is not None and gap_seconds > 0:
+        bo1_sse_reconnect_gap_seconds.observe(gap_seconds)
+
+
+def increment_sse_active_connections() -> None:
+    """Increment active SSE connections gauge."""
+    bo1_sse_active_connections.inc()
+
+
+def decrement_sse_active_connections() -> None:
+    """Decrement active SSE connections gauge."""
+    bo1_sse_active_connections.dec()

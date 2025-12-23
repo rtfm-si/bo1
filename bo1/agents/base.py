@@ -16,6 +16,134 @@ from bo1.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+# =============================================================================
+# Trait Validation Helper
+# =============================================================================
+
+
+def validate_trait_consistency(
+    contribution: str,
+    traits: dict[str, float],
+    persona_name: str,
+    *,
+    strict: bool = False,
+) -> tuple[bool, str | None]:
+    """Validate that persona output is consistent with declared traits.
+
+    Checks for obvious mismatches between persona traits and generated output.
+    Uses heuristic analysis rather than LLM calls for efficiency.
+
+    Args:
+        contribution: The persona's generated contribution text
+        traits: Dict of trait names to scores (0.0-1.0), e.g. {"analytical": 0.9}
+        persona_name: Name of the persona for logging
+        strict: If True, fail validation on mismatch. If False, log warning only.
+
+    Returns:
+        Tuple of (is_valid, reason). reason is None if valid, else explanation.
+
+    Examples:
+        >>> traits = {"analytical": 0.9, "creative": 0.3}
+        >>> is_valid, reason = validate_trait_consistency(
+        ...     "I think we should explore creative options!",
+        ...     traits,
+        ...     "Maria"
+        ... )
+    """
+    issues: list[str] = []
+    contribution_lower = contribution.lower()
+
+    # High analytical (>=0.7) should include data/evidence language
+    analytical_score = traits.get("analytical", 0.5)
+    if analytical_score >= 0.7:
+        analytical_markers = [
+            "data",
+            "evidence",
+            "analysis",
+            "metric",
+            "number",
+            "percentage",
+            "statistic",
+            "research",
+            "benchmark",
+            "measure",
+        ]
+        has_analytical = any(m in contribution_lower for m in analytical_markers)
+        if not has_analytical and len(contribution) > 200:
+            issues.append(
+                f"High analytical trait ({analytical_score:.1f}) but no data/evidence language"
+            )
+
+    # High risk_averse (>=0.7) should mention risks/concerns
+    risk_averse_score = traits.get("risk_averse", 0.5)
+    if risk_averse_score >= 0.7:
+        risk_markers = [
+            "risk",
+            "concern",
+            "careful",
+            "caution",
+            "potential issue",
+            "downside",
+            "challenge",
+            "threat",
+            "liability",
+        ]
+        has_risk = any(m in contribution_lower for m in risk_markers)
+        if not has_risk and len(contribution) > 200:
+            issues.append(f"High risk_averse trait ({risk_averse_score:.1f}) but no risk language")
+
+    # Low creative (<0.3) shouldn't use highly creative language patterns
+    creative_score = traits.get("creative", 0.5)
+    if creative_score < 0.3:
+        creative_markers = [
+            "imagine",
+            "revolutionary",
+            "wild idea",
+            "blue sky",
+            "brainstorm",
+            "disrupt",
+        ]
+        has_creative = any(m in contribution_lower for m in creative_markers)
+        if has_creative:
+            issues.append(
+                f"Low creative trait ({creative_score:.1f}) but uses highly creative language"
+            )
+
+    # High optimistic (>=0.7) should reflect positive framing
+    optimistic_score = traits.get("optimistic", 0.5)
+    if optimistic_score >= 0.7:
+        optimistic_markers = [
+            "opportunity",
+            "growth",
+            "potential",
+            "succeed",
+            "positive",
+            "promising",
+            "advantage",
+            "benefit",
+        ]
+        pessimistic_markers = [
+            "doomed",
+            "fail",
+            "impossible",
+            "never work",
+            "disaster",
+        ]
+        has_optimistic = any(m in contribution_lower for m in optimistic_markers)
+        has_pessimistic = any(m in contribution_lower for m in pessimistic_markers)
+        if has_pessimistic and not has_optimistic and len(contribution) > 200:
+            issues.append(
+                f"High optimistic trait ({optimistic_score:.1f}) but uses pessimistic framing"
+            )
+
+    if issues:
+        reason = f"Trait inconsistency for {persona_name}: {'; '.join(issues)}"
+        logger.warning(f"⚠️ {reason}")
+        return (False, reason) if strict else (True, reason)
+
+    return True, None
+
+
 class BaseAgent(ABC):
     """Abstract base class for all deliberation agents.
 

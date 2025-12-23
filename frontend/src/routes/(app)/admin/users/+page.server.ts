@@ -1,4 +1,4 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, isHttpError } from '@sveltejs/kit';
 import { adminFetch } from '$lib/server/admin-fetch';
 import type { PageServerLoad, Actions } from './$types';
 
@@ -21,6 +21,7 @@ export const load: PageServerLoad = async ({ url, request }) => {
 
 		if (!response.ok) {
 			const errorData = await response.json().catch(() => ({ detail: 'Failed to load users' }));
+			console.error('[admin/users] API error:', response.status, errorData);
 			throw error(response.status, errorData.detail || 'Failed to load users');
 		}
 
@@ -33,6 +34,10 @@ export const load: PageServerLoad = async ({ url, request }) => {
 			perPage: data.per_page
 		};
 	} catch (err) {
+		if (isHttpError(err)) {
+			throw err;
+		}
+		console.error('[admin/users] Unexpected error:', err);
 		throw error(500, 'Failed to load users');
 	}
 };

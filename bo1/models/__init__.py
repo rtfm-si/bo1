@@ -1,5 +1,12 @@
 """Domain models for Board of One."""
 
+from .action import (
+    Action,
+    ActionCategory,
+    ActionPriority,
+    ActionStatus,
+    FailureReasonCategory,
+)
 from .contribution import ContributionSummary
 from .persona import (
     PersonaCategory,
@@ -9,6 +16,7 @@ from .persona import (
     ResponseStyle,
 )
 from .problem import Constraint, ConstraintType, Problem, SubProblem
+from .project import Project, ProjectStatus
 from .recommendations import (
     ConsensusLevel,
     Recommendation,
@@ -22,8 +30,15 @@ from .state import (
     DeliberationPhase,
     DeliberationPhaseType,
 )
+from .workspace import Workspace, WorkspaceMember, WorkspaceRole
 
 __all__ = [
+    # Action models
+    "Action",
+    "ActionStatus",
+    "ActionPriority",
+    "ActionCategory",
+    "FailureReasonCategory",
     # Contribution models
     "ContributionSummary",
     # Persona models
@@ -37,6 +52,9 @@ __all__ = [
     "SubProblem",
     "Constraint",
     "ConstraintType",
+    # Project models
+    "Project",
+    "ProjectStatus",
     # Session models
     "Session",
     "SessionStatus",
@@ -50,4 +68,8 @@ __all__ = [
     "Recommendation",
     "RecommendationAggregation",
     "ConsensusLevel",
+    # Workspace models
+    "Workspace",
+    "WorkspaceMember",
+    "WorkspaceRole",
 ]

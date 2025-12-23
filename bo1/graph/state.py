@@ -159,6 +159,86 @@ class DeliberationGraphState(TypedDict, total=False):
 
     Note: TypedDict with total=False allows optional fields while maintaining
     type safety for LangGraph's state management.
+
+    Field Persistence Matrix
+    ========================
+
+    Each field is classified by where it's persisted and what's recoverable on resume/crash:
+
+    REDIS CHECKPOINT (full state, via serialize_state_for_checkpoint):
+    +-------------------------+------------------+----------------------------------+
+    | Field                   | Type             | Notes                            |
+    +-------------------------+------------------+----------------------------------+
+    | session_id              | str              | Primary key                      |
+    | problem                 | Problem          | Pydantic → dict on serialize     |
+    | current_sub_problem     | SubProblem|None  | Pydantic → dict on serialize     |
+    | personas                | list[Persona]    | Pydantic → dict on serialize     |
+    | contributions           | list[Contrib]    | Pydantic → dict on serialize     |
+    | round_summaries         | list[str]        | Pass-through                     |
+    | phase                   | DeliberationPhase| Pass-through                     |
+    | round_number            | int              | Pass-through                     |
+    | max_rounds              | int              | Pass-through                     |
+    | metrics                 | DelibMetrics     | Pydantic → dict on serialize     |
+    | sub_problem_results     | list[SPResult]   | Pydantic → dict on serialize     |
+    | votes                   | list[dict]       | Pass-through                     |
+    | synthesis               | str|None         | Pass-through                     |
+    | All other fields        | various          | Pass-through (primitives/dicts)  |
+    +-------------------------+------------------+----------------------------------+
+
+    POSTGRESQL FALLBACK (partial recovery via save_metadata when Redis down):
+    +-------------------------+------------------+----------------------------------+
+    | Field                   | DB Column        | Notes                            |
+    +-------------------------+------------------+----------------------------------+
+    | phase/current_phase     | sessions.phase   | str                              |
+    | round_number            | sessions.round_number | int                         |
+    | current_node            | sessions.phase   | fallback if phase not set        |
+    | len(personas)           | sessions.expert_count | derived count               |
+    | len(contributions)      | sessions.contribution_count | derived count          |
+    | len(sub_problems)       | sessions.focus_area_count | derived count            |
+    | sub_problem_index       | sessions.problem_context | JSONB                     |
+    | synthesis               | sessions.synthesis_text | via save_synthesis()       |
+    | (via events)            | session_events   | event log for replay             |
+    +-------------------------+------------------+----------------------------------+
+
+    EPHEMERAL (runtime-only, lost on crash/restart):
+    +-------------------------+------------------+----------------------------------+
+    | Field                   | Type             | Why Ephemeral                    |
+    +-------------------------+------------------+----------------------------------+
+    | request_id              | str|None         | Per-HTTP-request correlation     |
+    | current_node            | str              | Graph execution position         |
+    | pending_clarification   | dict|None        | Transient UI state               |
+    | facilitator_decision    | dict|None        | Intermediate decision            |
+    | user_input              | str|None         | Transient user input             |
+    | facilitator_guidance    | dict|None        | Inter-node guidance              |
+    | context_insufficient_*  | bool/dict        | Flow control flags               |
+    | user_context_choice     | str|None         | Transient user choice            |
+    | best_effort_prompt_*    | bool             | Flow control flags               |
+    | needs_interjection_*    | bool             | Flow control flags               |
+    +-------------------------+------------------+----------------------------------+
+
+    Recovery Semantics
+    ==================
+
+    On Redis AVAILABLE (normal path):
+    - Full state restored via deserialize_state_from_checkpoint()
+    - Resume from exact checkpoint with all data intact
+
+    On Redis DOWN (fallback path):
+    - PostgreSQL has: phase, round_number, counts, synthesis, events
+    - Can reconstruct partial state via _reconstruct_state_from_postgres()
+    - Contributions reconstructed from session_events (event_type='contribution')
+    - Synthesis preserved; may lose intermediate deliberation state
+
+    On CRASH during execution:
+    - Ephemeral fields lost (request_id, pending_clarification, etc.)
+    - Last checkpoint state is recoverable (Redis or Postgres)
+    - Clarifications in progress may need re-submission
+
+    See Also:
+    - serialize_state_for_checkpoint(): State → Redis serialization
+    - deserialize_state_from_checkpoint(): Redis → State deserialization
+    - session_repository.save_metadata(): PostgreSQL fallback persistence
+    - extract_session_metadata(): State → PostgreSQL field extraction
     """
 
     # Core identifiers

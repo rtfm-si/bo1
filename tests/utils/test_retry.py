@@ -9,7 +9,13 @@ from psycopg2 import InterfaceError, OperationalError
 from psycopg2.pool import PoolError
 
 from bo1.state.database import ConnectionTimeoutError
-from bo1.utils.retry import DEFAULT_TOTAL_TIMEOUT, retry_db, retry_db_async
+from bo1.utils.retry import (
+    DEFAULT_TOTAL_TIMEOUT,
+    RETRYABLE_PGCODES,
+    is_retryable_error,
+    retry_db,
+    retry_db_async,
+)
 
 
 class TestRetryDb:
@@ -283,3 +289,195 @@ class TestConnectionTimeoutError:
         """Should be a standard Exception subclass."""
         error = ConnectionTimeoutError("test")
         assert isinstance(error, Exception)
+
+
+class TestIsRetryableError:
+    """Tests for is_retryable_error() helper function."""
+
+    def test_deadlock_detected_is_retryable(self):
+        """40P01 (deadlock_detected) should be retryable."""
+        # Create mock exception with pgcode attribute
+        exc = Exception("deadlock detected")
+        exc.pgcode = "40P01"  # type: ignore[attr-defined]
+
+        assert is_retryable_error(exc) is True
+
+    def test_serialization_failure_is_retryable(self):
+        """40001 (serialization_failure) should be retryable."""
+        exc = Exception("could not serialize")
+        exc.pgcode = "40001"  # type: ignore[attr-defined]
+
+        assert is_retryable_error(exc) is True
+
+    def test_unique_violation_not_retryable(self):
+        """23505 (unique_violation) should NOT be retryable."""
+        exc = Exception("duplicate key")
+        exc.pgcode = "23505"  # type: ignore[attr-defined]
+
+        assert is_retryable_error(exc) is False
+
+    def test_foreign_key_violation_not_retryable(self):
+        """23503 (foreign_key_violation) should NOT be retryable."""
+        exc = Exception("foreign key violation")
+        exc.pgcode = "23503"  # type: ignore[attr-defined]
+
+        assert is_retryable_error(exc) is False
+
+    def test_operational_error_is_retryable(self):
+        """OperationalError should be retryable (base exception type)."""
+        exc = OperationalError("connection lost")
+        assert is_retryable_error(exc) is True
+
+    def test_interface_error_is_retryable(self):
+        """InterfaceError should be retryable (base exception type)."""
+        exc = InterfaceError("interface error")
+        assert is_retryable_error(exc) is True
+
+    def test_pool_error_is_retryable(self):
+        """PoolError should be retryable (base exception type)."""
+        exc = PoolError("pool exhausted")
+        assert is_retryable_error(exc) is True
+
+    def test_value_error_not_retryable(self):
+        """ValueError should NOT be retryable."""
+        exc = ValueError("invalid value")
+        assert is_retryable_error(exc) is False
+
+    def test_exception_without_pgcode_attribute(self):
+        """Exception without pgcode should not crash and return False."""
+        exc = Exception("generic error")
+        # Ensure no pgcode attribute
+        assert not hasattr(exc, "pgcode")
+        assert is_retryable_error(exc) is False
+
+    def test_exception_with_none_pgcode(self):
+        """Exception with pgcode=None should return False."""
+        exc = Exception("error with None pgcode")
+        exc.pgcode = None  # type: ignore[attr-defined]
+        assert is_retryable_error(exc) is False
+
+
+class TestRetryableConstants:
+    """Tests for RETRYABLE_PGCODES constant."""
+
+    def test_deadlock_in_retryable_codes(self):
+        """40P01 should be in RETRYABLE_PGCODES."""
+        assert "40P01" in RETRYABLE_PGCODES
+
+    def test_serialization_in_retryable_codes(self):
+        """40001 should be in RETRYABLE_PGCODES."""
+        assert "40001" in RETRYABLE_PGCODES
+
+    def test_unique_violation_not_in_retryable_codes(self):
+        """23505 should NOT be in RETRYABLE_PGCODES."""
+        assert "23505" not in RETRYABLE_PGCODES
+
+
+class TestRetryDbWithPgcode:
+    """Tests for @retry_db decorator with pgcode-based retries."""
+
+    def test_retry_on_deadlock_pgcode(self):
+        """Should retry on exception with 40P01 pgcode."""
+        call_count = 0
+
+        def failing_func():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                exc = Exception("deadlock detected")
+                exc.pgcode = "40P01"  # type: ignore[attr-defined]
+                raise exc
+            return "success"
+
+        decorated = retry_db(max_attempts=3, base_delay=0.01)(failing_func)
+        result = decorated()
+
+        assert result == "success"
+        assert call_count == 2
+
+    def test_retry_on_serialization_pgcode(self):
+        """Should retry on exception with 40001 pgcode."""
+        call_count = 0
+
+        def failing_func():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                exc = Exception("could not serialize")
+                exc.pgcode = "40001"  # type: ignore[attr-defined]
+                raise exc
+            return "success"
+
+        decorated = retry_db(max_attempts=3, base_delay=0.01)(failing_func)
+        result = decorated()
+
+        assert result == "success"
+        assert call_count == 2
+
+    def test_no_retry_on_constraint_violation_pgcode(self):
+        """Should NOT retry on exception with 23505 pgcode."""
+
+        def failing_func():
+            exc = Exception("duplicate key value")
+            exc.pgcode = "23505"  # type: ignore[attr-defined]
+            raise exc
+
+        decorated = retry_db(max_attempts=3, base_delay=0.01)(failing_func)
+
+        with pytest.raises(Exception, match="duplicate key value"):
+            decorated()
+
+    def test_max_attempts_on_persistent_deadlock(self):
+        """Should exhaust max_attempts on persistent deadlock."""
+        call_count = 0
+
+        def always_deadlock():
+            nonlocal call_count
+            call_count += 1
+            exc = Exception("deadlock detected")
+            exc.pgcode = "40P01"  # type: ignore[attr-defined]
+            raise exc
+
+        decorated = retry_db(max_attempts=3, base_delay=0.01)(always_deadlock)
+
+        with pytest.raises(Exception, match="deadlock detected"):
+            decorated()
+
+        assert call_count == 3
+
+
+class TestRetryDbAsyncWithPgcode:
+    """Tests for @retry_db_async decorator with pgcode-based retries."""
+
+    @pytest.mark.asyncio
+    async def test_retry_on_deadlock_pgcode_async(self):
+        """Should retry on exception with 40P01 pgcode (async)."""
+        call_count = 0
+
+        @retry_db_async(max_attempts=3, base_delay=0.01)
+        async def failing_func():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                exc = Exception("deadlock detected")
+                exc.pgcode = "40P01"  # type: ignore[attr-defined]
+                raise exc
+            return "success"
+
+        result = await failing_func()
+
+        assert result == "success"
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_no_retry_on_constraint_violation_pgcode_async(self):
+        """Should NOT retry on exception with 23505 pgcode (async)."""
+
+        @retry_db_async(max_attempts=3, base_delay=0.01)
+        async def failing_func():
+            exc = Exception("unique violation")
+            exc.pgcode = "23505"  # type: ignore[attr-defined]
+            raise exc
+
+        with pytest.raises(Exception, match="unique violation"):
+            await failing_func()

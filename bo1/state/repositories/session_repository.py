@@ -39,6 +39,7 @@ class SessionRepository(BaseRepository):
         workspace_id: str | None = None,
         used_promo_credit: bool = False,
         context_ids: dict[str, list[str]] | None = None,
+        template_id: str | None = None,
     ) -> dict[str, Any]:
         """Save a new session to PostgreSQL.
 
@@ -52,6 +53,7 @@ class SessionRepository(BaseRepository):
             workspace_id: Optional workspace UUID to scope session to a team
             used_promo_credit: Whether session uses promo credit vs tier allowance
             context_ids: Optional user-selected context {meetings: [...], actions: [...], datasets: [...]}
+            template_id: Optional template UUID used to create this session
 
         Returns:
             Saved session record with timestamps
@@ -62,9 +64,9 @@ class SessionRepository(BaseRepository):
                     """
                     INSERT INTO sessions (
                         id, user_id, problem_statement, problem_context, status,
-                        dataset_id, workspace_id, used_promo_credit, context_ids
+                        dataset_id, workspace_id, used_promo_credit, context_ids, template_id
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO UPDATE
                     SET user_id = EXCLUDED.user_id,
                         problem_statement = EXCLUDED.problem_statement,
@@ -74,10 +76,11 @@ class SessionRepository(BaseRepository):
                         workspace_id = EXCLUDED.workspace_id,
                         used_promo_credit = EXCLUDED.used_promo_credit,
                         context_ids = EXCLUDED.context_ids,
+                        template_id = EXCLUDED.template_id,
                         updated_at = NOW()
                     RETURNING id, user_id, problem_statement, problem_context, status,
                               phase, total_cost, round_number, created_at, updated_at,
-                              dataset_id, workspace_id, used_promo_credit, context_ids
+                              dataset_id, workspace_id, used_promo_credit, context_ids, template_id
                     """,
                     (
                         session_id,
@@ -89,6 +92,7 @@ class SessionRepository(BaseRepository):
                         workspace_id,
                         used_promo_credit,
                         Json(context_ids) if context_ids else None,
+                        template_id,
                     ),
                 )
                 result = cur.fetchone()

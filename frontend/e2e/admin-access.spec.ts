@@ -51,6 +51,19 @@ test.describe('Admin Access Control - Admin User', () => {
 			})
 		);
 
+		// Mock onboarding status to skip tour (tour blocks clicks)
+		await page.route('**/api/v1/onboarding/status', (route) =>
+			route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					needs_onboarding: false,
+					tour_completed: true,
+					steps_completed: ['welcome', 'create_meeting', 'tour']
+				})
+			})
+		);
+
 		// Mock admin stats endpoint
 		await page.route('**/api/admin/stats', (route) =>
 			route.fulfill({

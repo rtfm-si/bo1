@@ -189,9 +189,6 @@ def upgrade() -> None:
     op.execute(
         "COMMENT ON COLUMN sub_problem_results.cost IS 'LLM cost for this sub-problem (USD).'"
     )
-    op.execute(
-        "COMMENT ON COLUMN sub_problem_results.user_id IS 'FK to users.id (denormalized for RLS).'"
-    )
 
     # =====================
     # SESSION LIFECYCLE

@@ -42,7 +42,7 @@ def upgrade() -> None:
     # phase: includes current DeliberationPhase values plus legacy values found in DB
     # Current: intake, decomposition, selection, initial_round, discussion, voting, synthesis, complete
     # Legacy: problem_decomposition, context_collection, convergence, exploration, identify_gaps,
-    #         clarification_needed
+    #         clarification_needed, challenge, recommendations
     op.execute("""
         ALTER TABLE sessions
         ADD CONSTRAINT sessions_phase_check
@@ -50,7 +50,8 @@ def upgrade() -> None:
             'intake', 'decomposition', 'selection', 'initial_round',
             'discussion', 'voting', 'synthesis', 'complete',
             'problem_decomposition', 'context_collection', 'convergence',
-            'exploration', 'identify_gaps', 'clarification_needed'
+            'exploration', 'identify_gaps', 'clarification_needed',
+            'challenge', 'recommendations'
         ))
         NOT VALID
     """)

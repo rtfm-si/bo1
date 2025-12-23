@@ -89,7 +89,7 @@ class LLMHealthProbe:
             bo1_llm_probe_latency_seconds,
             bo1_llm_provider_healthy,
         )
-        from bo1.llm.circuit_breaker import get_service_circuit_breaker
+        from bo1.llm.circuit_breaker import CircuitState, get_service_circuit_breaker
 
         start_time = time.perf_counter()
         error_msg: str | None = None
@@ -98,7 +98,7 @@ class LLMHealthProbe:
         try:
             # Check circuit breaker first - if open, skip actual probe
             cb = get_service_circuit_breaker(provider)
-            if cb.is_open:
+            if cb.state == CircuitState.OPEN:
                 error_msg = "circuit_breaker_open"
                 return ProbeResult(
                     healthy=False,

@@ -116,7 +116,7 @@ class TestProbeProvider:
         with (
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}),
             patch("anthropic.AsyncAnthropic") as mock_client_class,
-            patch("bo1.llm.circuit_breaker.get_circuit_breaker") as mock_get_cb,
+            patch("bo1.llm.circuit_breaker.get_service_circuit_breaker") as mock_get_cb,
         ):
             # Setup mocks
             mock_cb = MagicMock()
@@ -137,9 +137,11 @@ class TestProbeProvider:
     @pytest.mark.asyncio
     async def test_probe_anthropic_circuit_open(self, probe):
         """Test Anthropic probe when circuit breaker is open."""
-        with patch("bo1.llm.circuit_breaker.get_circuit_breaker") as mock_get_cb:
+        from bo1.llm.circuit_breaker import CircuitState
+
+        with patch("bo1.llm.circuit_breaker.get_service_circuit_breaker") as mock_get_cb:
             mock_cb = MagicMock()
-            mock_cb.is_open = True
+            mock_cb.state = CircuitState.OPEN
             mock_get_cb.return_value = mock_cb
 
             result = await probe.probe_provider("anthropic")
@@ -153,7 +155,7 @@ class TestProbeProvider:
         """Test Anthropic probe when API key is not configured."""
         with (
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""}, clear=False),
-            patch("bo1.llm.circuit_breaker.get_circuit_breaker") as mock_get_cb,
+            patch("bo1.llm.circuit_breaker.get_service_circuit_breaker") as mock_get_cb,
         ):
             mock_cb = MagicMock()
             mock_cb.is_open = False
@@ -179,7 +181,7 @@ class TestProbeProvider:
         with (
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
             patch("openai.AsyncOpenAI") as mock_client_class,
-            patch("bo1.llm.circuit_breaker.get_circuit_breaker") as mock_get_cb,
+            patch("bo1.llm.circuit_breaker.get_service_circuit_breaker") as mock_get_cb,
         ):
             mock_cb = MagicMock()
             mock_cb.is_open = False
@@ -205,7 +207,7 @@ class TestProbeProvider:
         with (
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}),
             patch("anthropic.AsyncAnthropic") as mock_client_class,
-            patch("bo1.llm.circuit_breaker.get_circuit_breaker") as mock_get_cb,
+            patch("bo1.llm.circuit_breaker.get_service_circuit_breaker") as mock_get_cb,
         ):
             mock_cb = MagicMock()
             mock_cb.is_open = False
@@ -331,7 +333,7 @@ class TestMetricsIntegration:
         with (
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
             patch("openai.AsyncOpenAI") as mock_client_class,
-            patch("bo1.llm.circuit_breaker.get_circuit_breaker") as mock_get_cb,
+            patch("bo1.llm.circuit_breaker.get_service_circuit_breaker") as mock_get_cb,
             patch("backend.api.middleware.metrics.bo1_llm_probe_latency_seconds") as mock_histogram,
             patch("backend.api.middleware.metrics.bo1_llm_provider_healthy") as mock_gauge,
         ):
@@ -359,7 +361,7 @@ class TestMetricsIntegration:
         with (
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}),
             patch("anthropic.AsyncAnthropic") as mock_client_class,
-            patch("bo1.llm.circuit_breaker.get_circuit_breaker") as mock_get_cb,
+            patch("bo1.llm.circuit_breaker.get_service_circuit_breaker") as mock_get_cb,
         ):
             mock_cb = MagicMock()
             mock_cb.is_open = False

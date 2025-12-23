@@ -90,7 +90,7 @@ class TestAnthropicCircuitOpenTriggersOpenAIFallback:
             # Setup mocks
             mock_settings.return_value = _create_mock_settings()
             mock_provider.return_value = "anthropic"
-            mock_resolve.return_value = "claude-3-5-sonnet-20241022"
+            mock_resolve.return_value = "claude-sonnet-4-5-20250929"
             mock_cost_ctx.return_value = {}
 
             # Cache returns None (no hit)
@@ -151,7 +151,7 @@ class TestAnthropicCircuitOpenTriggersOpenAIFallback:
             # Setup - OpenAI is primary
             mock_settings.return_value = _create_mock_settings(primary="openai")
             mock_provider.return_value = "openai"
-            mock_resolve.return_value = "gpt-4o"
+            mock_resolve.return_value = "gpt-5.1-2025-04-14"
             mock_cost_ctx.return_value = {}
 
             mock_cache_instance = AsyncMock()
@@ -210,7 +210,7 @@ class TestFallbackDisabledRaisesError:
             # Fallback disabled
             mock_settings.return_value = _create_mock_settings(fallback_enabled=False)
             mock_provider.return_value = "anthropic"
-            mock_resolve.return_value = "claude-3-5-sonnet-20241022"
+            mock_resolve.return_value = "claude-sonnet-4-5-20250929"
             mock_cost_ctx.return_value = {}
 
             mock_cache_instance = AsyncMock()
@@ -261,7 +261,7 @@ class TestBothProvidersDownRaisesError:
         ):
             mock_settings.return_value = _create_mock_settings()
             mock_provider.return_value = "anthropic"
-            mock_resolve.return_value = "claude-3-5-sonnet-20241022"
+            mock_resolve.return_value = "claude-sonnet-4-5-20250929"
             mock_cost_ctx.return_value = {}
 
             mock_cache_instance = AsyncMock()
@@ -325,7 +325,7 @@ class TestFallbackPreventsDoubleRetry:
         ):
             mock_settings.return_value = _create_mock_settings()
             mock_provider.return_value = "anthropic"
-            mock_resolve.return_value = "claude-3-5-sonnet-20241022"
+            mock_resolve.return_value = "claude-sonnet-4-5-20250929"
             mock_cost_ctx.return_value = {}
 
             mock_cache_instance = AsyncMock()
@@ -380,7 +380,7 @@ class TestFallbackIncrementsPrometheusCounter:
         ):
             mock_settings.return_value = _create_mock_settings()
             mock_provider.return_value = "anthropic"
-            mock_resolve.return_value = "claude-3-5-sonnet-20241022"
+            mock_resolve.return_value = "claude-sonnet-4-5-20250929"
             mock_cost_ctx.return_value = {}
 
             mock_cache_instance = AsyncMock()

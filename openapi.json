@@ -13487,6 +13487,87 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "RedisPoolHealthResponse": {
+        "description": "Redis connection pool health response.\n\nAttributes:\n    status: Component health status\n    component: Component name (redis_pool)\n    healthy: Whether pool is healthy\n    used_connections: Connections currently in use\n    free_connections: Connections available in pool\n    max_connections: Maximum pool size\n    pool_utilization_pct: Pool utilization percentage (0-100)\n    message: Status message\n    error: Error message if unhealthy\n    timestamp: ISO 8601 timestamp",
+        "properties": {
+          "component": {
+            "default": "redis_pool",
+            "description": "Component name",
+            "title": "Component",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Error message if unhealthy",
+            "title": "Error"
+          },
+          "free_connections": {
+            "default": 0,
+            "description": "Connections available in pool",
+            "title": "Free Connections",
+            "type": "integer"
+          },
+          "healthy": {
+            "description": "Whether pool is healthy",
+            "title": "Healthy",
+            "type": "boolean"
+          },
+          "max_connections": {
+            "default": 0,
+            "description": "Maximum pool size",
+            "title": "Max Connections",
+            "type": "integer"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Status message",
+            "title": "Message"
+          },
+          "pool_utilization_pct": {
+            "default": 0.0,
+            "description": "Pool utilization percentage (0-100)",
+            "title": "Pool Utilization Pct",
+            "type": "number"
+          },
+          "status": {
+            "description": "Component health status",
+            "title": "Status",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "ISO 8601 timestamp",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "used_connections": {
+            "default": 0,
+            "description": "Connections currently in use",
+            "title": "Used Connections",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "healthy",
+          "timestamp"
+        ],
+        "title": "RedisPoolHealthResponse",
+        "type": "object"
+      },
       "RefreshCheckResponse": {
         "description": "Response for refresh check endpoint.",
         "properties": {
@@ -27295,6 +27376,73 @@
           }
         },
         "summary": "Redis health (public, no auth required)",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/health/redis/pool": {
+      "get": {
+        "description": "Check health of the Redis connection pool.\n\n    Tests:\n    - Pool initialization status\n    - Connection utilization metrics\n\n    **Use Cases:**\n    - Monitor Redis connection pool utilization\n    - Detect pool exhaustion before it causes failures\n    - Verify pool configuration",
+        "operationId": "health_check_redis_pool_api_health_redis_pool_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "healthy": {
+                    "summary": "Healthy pool",
+                    "value": {
+                      "component": "redis_pool",
+                      "free_connections": 8,
+                      "healthy": true,
+                      "max_connections": 10,
+                      "message": "Pool functioning correctly (20.0% utilization)",
+                      "pool_utilization_pct": 20.0,
+                      "status": "healthy",
+                      "timestamp": "2025-01-15T12:00:00.000000",
+                      "used_connections": 2
+                    }
+                  },
+                  "high_utilization": {
+                    "summary": "High utilization warning",
+                    "value": {
+                      "component": "redis_pool",
+                      "free_connections": 2,
+                      "healthy": true,
+                      "max_connections": 10,
+                      "message": "Pool healthy but high utilization (80.0%)",
+                      "pool_utilization_pct": 80.0,
+                      "status": "warning",
+                      "timestamp": "2025-01-15T12:00:00.000000",
+                      "used_connections": 8
+                    }
+                  },
+                  "unhealthy": {
+                    "summary": "Unhealthy pool",
+                    "value": {
+                      "component": "redis_pool",
+                      "error": "Redis pool not available",
+                      "free_connections": 0,
+                      "healthy": false,
+                      "max_connections": 0,
+                      "message": "Pool health check failed",
+                      "pool_utilization_pct": 0.0,
+                      "status": "unhealthy",
+                      "timestamp": "2025-01-15T12:00:00.000000",
+                      "used_connections": 0
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RedisPoolHealthResponse"
+                }
+              }
+            },
+            "description": "Pool health status (may be healthy or unhealthy)"
+          }
+        },
+        "summary": "Redis pool health (public, no auth required)",
         "tags": [
           "health"
         ]

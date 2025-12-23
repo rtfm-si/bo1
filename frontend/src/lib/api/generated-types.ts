@@ -2404,6 +2404,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/health/redis/pool": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Redis pool health (public, no auth required)
+         * @description Check health of the Redis connection pool.
+         *
+         *         Tests:
+         *         - Pool initialization status
+         *         - Connection utilization metrics
+         *
+         *         **Use Cases:**
+         *         - Monitor Redis connection pool utilization
+         *         - Detect pool exhaustion before it causes failures
+         *         - Verify pool configuration
+         */
+        get: operations["health_check_redis_pool_api_health_redis_pool_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health/voyage": {
         parameters: {
             query?: never;
@@ -15808,6 +15837,79 @@ export interface components {
             vendor_status?: string | null;
         };
         /**
+         * RedisPoolHealthResponse
+         * @description Redis connection pool health response.
+         *
+         *     Attributes:
+         *         status: Component health status
+         *         component: Component name (redis_pool)
+         *         healthy: Whether pool is healthy
+         *         used_connections: Connections currently in use
+         *         free_connections: Connections available in pool
+         *         max_connections: Maximum pool size
+         *         pool_utilization_pct: Pool utilization percentage (0-100)
+         *         message: Status message
+         *         error: Error message if unhealthy
+         *         timestamp: ISO 8601 timestamp
+         */
+        RedisPoolHealthResponse: {
+            /**
+             * Component
+             * @description Component name
+             * @default redis_pool
+             */
+            component: string;
+            /**
+             * Error
+             * @description Error message if unhealthy
+             */
+            error?: string | null;
+            /**
+             * Free Connections
+             * @description Connections available in pool
+             * @default 0
+             */
+            free_connections: number;
+            /**
+             * Healthy
+             * @description Whether pool is healthy
+             */
+            healthy: boolean;
+            /**
+             * Max Connections
+             * @description Maximum pool size
+             * @default 0
+             */
+            max_connections: number;
+            /**
+             * Message
+             * @description Status message
+             */
+            message?: string | null;
+            /**
+             * Pool Utilization Pct
+             * @description Pool utilization percentage (0-100)
+             * @default 0
+             */
+            pool_utilization_pct: number;
+            /**
+             * Status
+             * @description Component health status
+             */
+            status: string;
+            /**
+             * Timestamp
+             * @description ISO 8601 timestamp
+             */
+            timestamp: string;
+            /**
+             * Used Connections
+             * @description Connections currently in use
+             * @default 0
+             */
+            used_connections: number;
+        };
+        /**
          * RefreshCheckResponse
          * @description Response for refresh check endpoint.
          */
@@ -24985,6 +25087,26 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    health_check_redis_pool_api_health_redis_pool_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pool health status (may be healthy or unhealthy) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedisPoolHealthResponse"];
                 };
             };
         };

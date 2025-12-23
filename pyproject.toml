@@ -30,7 +30,7 @@ dependencies = [
     "email-validator>=2.0.0", # Email validation for Pydantic EmailStr
     "python-dotenv>=1.0.0", # Stable env loading
     # Web API
-    "fastapi>=0.121.3,<1.0", # Web API framework (0.121.3)
+    "fastapi>=0.124.4", # Web API framework (0.121.3)
     "uvicorn[standard]>=0.27.0,<1.0", # ASGI server
     "sse-starlette>=3.0.3,<4.0", # SSE streaming support (3.0.3 - automatic event loop management)
     "python-multipart>=0.0.9", # Form data parsing

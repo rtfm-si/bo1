@@ -933,6 +933,30 @@ async def stream_session_events(
                 logger.warning(f"Error closing pubsub for session {session_id}: {e}")
 
 
+def parse_accept_sse_version(header_value: str | None) -> int:
+    """Parse Accept-SSE-Version header value.
+
+    Args:
+        header_value: Header value (e.g., "1" or None)
+
+    Returns:
+        Requested version or current version if not specified/invalid
+    """
+    if not header_value:
+        return SSE_SCHEMA_VERSION
+    try:
+        version = int(header_value.strip())
+        if version < SSE_MIN_SUPPORTED_VERSION:
+            logger.warning(
+                f"[SSE VERSION] Requested version {version} below minimum {SSE_MIN_SUPPORTED_VERSION}"
+            )
+            return SSE_MIN_SUPPORTED_VERSION
+        return version
+    except ValueError:
+        logger.warning(f"[SSE VERSION] Invalid version header: {header_value}")
+        return SSE_SCHEMA_VERSION
+
+
 @router.get(
     "/{session_id}/stream",
     summary="Stream deliberation events via SSE",
@@ -1023,30 +1047,6 @@ async def stream_session_events(
         },
     },
 )
-def parse_accept_sse_version(header_value: str | None) -> int:
-    """Parse Accept-SSE-Version header value.
-
-    Args:
-        header_value: Header value (e.g., "1" or None)
-
-    Returns:
-        Requested version or current version if not specified/invalid
-    """
-    if not header_value:
-        return SSE_SCHEMA_VERSION
-    try:
-        version = int(header_value.strip())
-        if version < SSE_MIN_SUPPORTED_VERSION:
-            logger.warning(
-                f"[SSE VERSION] Requested version {version} below minimum {SSE_MIN_SUPPORTED_VERSION}"
-            )
-            return SSE_MIN_SUPPORTED_VERSION
-        return version
-    except ValueError:
-        logger.warning(f"[SSE VERSION] Invalid version header: {header_value}")
-        return SSE_SCHEMA_VERSION
-
-
 @limiter.limit(STREAMING_RATE_LIMIT)
 async def stream_deliberation(
     request: Request,

@@ -494,6 +494,14 @@ class SessionManager:
 
         self._save_session_metadata(session_id, metadata)
 
+        # Sync status to PostgreSQL to prevent Redis/PostgreSQL desync
+        # This ensures SSE endpoint sees consistent status regardless of which store it checks
+        try:
+            session_repository.update_status(session_id=session_id, status=status)
+        except Exception as e:
+            # Log but don't fail - Redis is primary for live sessions
+            logger.warning(f"[{session_id}] Failed to sync status '{status}' to PostgreSQL: {e}")
+
         # Schedule Redis cleanup for terminal states
         # This ensures completed meetings are read from Postgres after grace period
         terminal_states = {"completed", "failed", "killed"}

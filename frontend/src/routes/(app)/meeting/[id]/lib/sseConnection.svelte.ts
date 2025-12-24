@@ -14,6 +14,8 @@ export interface SSEConnectionConfig {
 	onEvent: (event: SSEEvent) => void;
 	onWorkingStatus?: (phase: string | null, estimatedDuration?: string) => void;
 	onSessionError?: (errorType: string, errorMessage: string) => void;
+	/** Called when SSE is rejected because session is paused (e.g., for clarification) */
+	onSessionPaused?: () => Promise<void>;
 }
 
 // Event types to listen for
@@ -68,7 +70,7 @@ const CLEAR_WORKING_STATUS_EVENTS = [
  * Creates an SSE connection manager for a meeting session
  */
 export function createSSEConnection(config: SSEConnectionConfig) {
-	const { sessionId, store, maxRetries = 3, onEvent, onWorkingStatus, onSessionError } = config;
+	const { sessionId, store, maxRetries = 3, onEvent, onWorkingStatus, onSessionError, onSessionPaused } = config;
 
 	let sseClient: SSEClient | null = null;
 	let lastEventId: string | null = null;
@@ -168,8 +170,20 @@ export function createSSEConnection(config: SSEConnectionConfig) {
 				store.setRetryCount(0);
 				store.setConnectionStatus('connected');
 			},
-			onError: (err) => {
+			onError: async (err) => {
 				console.error('[SSE] Connection error:', err, 'retry count:', store.retryCount);
+
+				// Check if this is a 409 rejection due to paused session
+				const errorWithStatus = err as Error & { status?: number; sessionStatus?: string };
+				if (errorWithStatus.status === 409 && errorWithStatus.sessionStatus === 'paused') {
+					console.log('[SSE] Session is paused - reloading session state for clarification UI');
+					store.setConnectionStatus('connected'); // Don't show error state
+					// Reload session to get clarification questions
+					if (onSessionPaused) {
+						await onSessionPaused();
+					}
+					return; // Don't retry - session is paused, not errored
+				}
 
 				// Preserve lastEventId before closing
 				if (sseClient) {

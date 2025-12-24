@@ -406,6 +406,12 @@
 						timestamp: new Date().toISOString(),
 					});
 				},
+				onSessionPaused: async () => {
+					// Session is paused (e.g., for clarification) - reload state to show clarification UI
+					console.log('[Events] Session paused detected, reloading session and events...');
+					await loadSession();
+					await loadHistoricalEvents();
+				},
 			});
 		}
 		await sseConnection.connect();

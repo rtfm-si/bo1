@@ -74,6 +74,28 @@ export class SSEClient {
 			});
 
 			if (!response.ok) {
+				// For 409 responses, parse body to get reason (paused vs failed)
+				if (response.status === 409) {
+					try {
+						const errorBody = await response.json();
+						const detail = errorBody.detail || '';
+						// Include status info in error for special handling
+						const error = new Error(`SSE connection rejected: ${detail}`) as Error & { status?: number; sessionStatus?: string };
+						error.status = 409;
+						// Detect if session is paused vs other rejection reasons
+						if (detail.toLowerCase().includes('paused')) {
+							error.sessionStatus = 'paused';
+						} else if (detail.toLowerCase().includes('not been started')) {
+							error.sessionStatus = 'created';
+						}
+						throw error;
+					} catch (parseErr) {
+						if (parseErr instanceof Error && (parseErr as Error & { status?: number }).status === 409) {
+							throw parseErr; // Re-throw our structured error
+						}
+						throw new Error(`SSE connection failed: ${response.status} ${response.statusText}`);
+					}
+				}
 				throw new Error(`SSE connection failed: ${response.status} ${response.statusText}`);
 			}
 

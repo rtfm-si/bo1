@@ -25,6 +25,21 @@
 	import EventCardSkeleton from '$lib/components/ui/skeletons/EventCardSkeleton.svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 
+	// Static imports for critical components (fallback if dynamic import fails)
+	// These ensure essential components are bundled in the main chunk
+	import DecompositionComplete from './DecompositionComplete.svelte';
+	import SynthesisComplete from './SynthesisComplete.svelte';
+	import ErrorEvent from './ErrorEvent.svelte';
+	import MeetingFailedEvent from './MeetingFailedEvent.svelte';
+
+	// Map of static fallback components for critical event types
+	const staticFallbacks: Record<string, any> = {
+		decomposition_complete: DecompositionComplete,
+		synthesis_complete: SynthesisComplete,
+		error: ErrorEvent,
+		meeting_failed: MeetingFailedEvent
+	};
+
 	interface Props {
 		/** The SSE event to render */
 		event: SSEEvent;
@@ -117,6 +132,15 @@
 			return component;
 		} catch (error) {
 			console.error(`Failed to load component for ${type}:`, error);
+
+			// Use static fallback if available (critical components)
+			const staticComponent = staticFallbacks[type];
+			if (staticComponent) {
+				console.debug(`Using static fallback for ${type}`);
+				componentCache.set(type, staticComponent);
+				return staticComponent;
+			}
+
 			return GenericEvent;
 		}
 	}

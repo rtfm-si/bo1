@@ -6,6 +6,7 @@
 import { SSEClient } from '$lib/utils/sse';
 import type { SSEEvent, SSEEventType } from '$lib/api/sse-events';
 import type { SessionStore } from './sessionStore.svelte';
+import { apiClient } from '$lib/api/client';
 
 export interface SSEConnectionConfig {
 	sessionId: string;
@@ -201,7 +202,22 @@ export function createSSEConnection(config: SSEConnectionConfig) {
 						connect();
 					}, delay);
 				} else {
-					console.error('[SSE] Max retries reached');
+					console.error('[SSE] Max retries reached - polling session for clarification state');
+					// Before showing error, poll session API to check if it's paused for clarification
+					try {
+						const session = await apiClient.getSession(sessionId);
+						if (session.status === 'paused' && session.phase === 'clarification_needed') {
+							console.log('[SSE] Session is paused for clarification - triggering clarification UI');
+							store.setConnectionStatus('connected'); // Don't show error
+							if (onSessionPaused) {
+								await onSessionPaused();
+							}
+							return; // Don't show error - session is waiting for user input
+						}
+					} catch (pollErr) {
+						console.warn('[SSE] Failed to poll session state:', pollErr);
+					}
+					// Session is not in clarification state - show error
 					store.setConnectionStatus('error');
 					store.setError('Failed to connect to session stream. Please refresh the page.');
 					// Notify via session error callback for UI display

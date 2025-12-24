@@ -192,6 +192,19 @@ class SessionRepository(BaseRepository):
         """
         with db_session() as conn:
             with conn.cursor() as cur:
+                # Defense-in-depth: Don't change to "completed" if session is paused for clarification
+                if status == "completed":
+                    cur.execute(
+                        "SELECT status, phase FROM sessions WHERE id = %s",
+                        (session_id,),
+                    )
+                    row = cur.fetchone()
+                    if row and row["status"] == "paused" and row["phase"] == "clarification_needed":
+                        logger.warning(
+                            f"Blocking status change to 'completed' for {session_id} - "
+                            f"session is paused for clarification"
+                        )
+                        return False
                 # Build dynamic UPDATE query based on provided fields
                 update_fields = ["status = %s", "updated_at = NOW()"]
                 params: list[Any] = [status]

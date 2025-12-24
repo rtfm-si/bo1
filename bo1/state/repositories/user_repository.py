@@ -267,6 +267,7 @@ class UserRepository(BaseRepository):
             WHERE user_id = %s
             """,
             (user_id,),
+            user_id=user_id,  # Enable RLS policy
         )
 
         # Cache result on miss (if we got data)
@@ -309,6 +310,7 @@ class UserRepository(BaseRepository):
                 RETURNING {return_fields}
                 """,
                 (user_id,),
+                user_id=user_id,  # Enable RLS policy
             )
             self._invalidate_context_cache(user_id)
             return result
@@ -351,7 +353,7 @@ class UserRepository(BaseRepository):
             RETURNING {return_fields}
         """
 
-        result = self._execute_returning(sql, (user_id, *values))
+        result = self._execute_returning(sql, (user_id, *values), user_id=user_id)
 
         # Invalidate cache after successful write
         self._invalidate_context_cache(user_id)

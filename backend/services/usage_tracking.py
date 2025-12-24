@@ -90,7 +90,7 @@ def increment_usage(user_id: str, metric: str, count: int = 1) -> int:
         logger.debug(f"Usage incremented: user={user_id} metric={metric} count={new_count}")
         return new_count
     except Exception as e:
-        logger.error(f"Redis increment failed: {e}")
+        logger.warning(f"Redis increment failed, falling back to Postgres: {e}")
         return _increment_postgres(user_id, metric, count)
 
 
@@ -118,7 +118,7 @@ def get_usage(user_id: str, metric: str) -> int:
         value = redis.get(key)
         return int(value) if value else 0
     except Exception as e:
-        logger.error(f"Redis get failed: {e}")
+        logger.warning(f"Redis get failed, falling back to Postgres: {e}")
         return _get_postgres_usage(user_id, metric)
 
 
@@ -271,6 +271,16 @@ def _increment_postgres(user_id: str, metric: str, count: int) -> int:
     try:
         with db_session() as conn:
             with conn.cursor() as cur:
+                # Ensure user exists first (FK constraint on user_usage.user_id)
+                cur.execute(
+                    """
+                    INSERT INTO users (id, email, auth_provider, subscription_tier)
+                    VALUES (%s, %s || '@placeholder.local', 'system', 'free')
+                    ON CONFLICT (id) DO NOTHING
+                    """,
+                    (user_id, user_id),
+                )
+                # Now upsert usage
                 cur.execute(
                     """
                     INSERT INTO user_usage (user_id, metric, period, count, updated_at)
@@ -284,7 +294,8 @@ def _increment_postgres(user_id: str, metric: str, count: int) -> int:
                 result = cur.fetchone()
                 return result[0] if result else count
     except Exception as e:
-        logger.error(f"Postgres increment failed: {e}")
+        # Log as warning since usage tracking is non-blocking
+        logger.warning(f"Usage tracking degraded (Postgres increment): {e}")
         return count
 
 
@@ -318,7 +329,7 @@ def _get_postgres_usage(user_id: str, metric: str) -> int:
                 row = cur.fetchone()
                 return row[0] if row else 0
     except Exception as e:
-        logger.error(f"Postgres get failed: {e}")
+        logger.warning(f"Usage tracking degraded (Postgres get): {e}")
         return 0
 
 

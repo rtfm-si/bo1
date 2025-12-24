@@ -706,14 +706,19 @@ async def start_deliberation(
         create_task_with_context(notify_meeting_started(session_id, problem_statement))
 
         # Update session status to 'running' in PostgreSQL (with distributed lock)
+        # Also invalidate cache to ensure SSE endpoint sees new status
         try:
             with session_lock(redis_manager.redis, session_id, timeout_seconds=5.0):
                 session_repository.update_status(session_id=session_id, status="running")
+                # Invalidate cached metadata so SSE sees "running" not stale "created"
+                get_session_metadata_cache().invalidate(session_id)
                 logger.info(
                     f"Started deliberation for session {session_id} (status updated in PostgreSQL)"
                 )
         except LockTimeout:
             logger.warning(f"Could not acquire lock for session {session_id} status update")
+            # Still invalidate cache - Redis is already updated to "running"
+            get_session_metadata_cache().invalidate(session_id)
             # Don't fail - session is running, status update is secondary
         except Exception as e:
             log_error(
@@ -722,6 +727,8 @@ async def start_deliberation(
                 f"Failed to update session status in PostgreSQL: {e}",
                 session_id=session_id,
             )
+            # Still invalidate cache - Redis is already updated to "running"
+            get_session_metadata_cache().invalidate(session_id)
             # Don't fail the request - session is running in Redis
 
         return ControlResponse(

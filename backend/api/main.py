@@ -59,6 +59,7 @@ from backend.api import (  # noqa: E402
     control,
     csp_reports,
     datasets,
+    e2e_auth,
     email,
     feedback,
     health,
@@ -582,6 +583,7 @@ app.include_router(page_analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(page_analytics.admin_router, prefix="/api", tags=["admin"])
 app.include_router(blog.router, prefix="/api", tags=["blog"])
 app.include_router(templates.router, prefix="/api", tags=["templates"])
+app.include_router(e2e_auth.router, prefix="/api", tags=["e2e"])
 
 _startup_times["router_registration"] = (time.perf_counter() - _routers_start) * 1000
 print(f"⏱️  Router registration: {_startup_times['router_registration']:.1f}ms")

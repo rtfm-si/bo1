@@ -1111,10 +1111,32 @@ async def stream_deliberation(
             )
 
         if status == "paused":
-            # Session is paused - frontend should call /resume first
-            raise HTTPException(
-                status_code=409,
-                detail=f"Session {session_id} is paused. Call /resume endpoint to continue.",
+            phase = metadata.get("phase") if metadata else None
+
+            # ISS-001 FIX: Check PostgreSQL as fallback when Redis phase is stale
+            # _handle_identify_gaps updates PostgreSQL first, Redis may lag behind
+            if phase != "clarification_needed":
+                from bo1.state.repositories import session_repository
+
+                db_session = session_repository.get(session_id)
+                if db_session and db_session.get("phase") == "clarification_needed":
+                    phase = "clarification_needed"
+                    logger.info(
+                        f"SSE: Using PostgreSQL phase for {session_id} "
+                        f"(Redis phase was '{metadata.get('phase')}')"
+                    )
+
+            # Allow SSE for clarification sessions - they need to receive questions
+            if phase != "clarification_needed":
+                # Session is paused for other reasons - frontend should call /resume first
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Session {session_id} is paused. Call /resume endpoint to continue.",
+                )
+            # else: continue to streaming for clarification sessions
+            logger.info(
+                f"SSE connection allowed for paused session {session_id} "
+                f"(phase={phase}) - awaiting clarification"
             )
 
         # Status is "running" or "completed" - proceed to streaming

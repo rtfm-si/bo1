@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { isAuthenticated, isLoading } from '$lib/stores/auth';
+	import { isAuthenticated, isLoading, user } from '$lib/stores/auth';
 	import { loadWorkspaces } from '$lib/stores/workspace';
 	import { ActivityStatus, LOADING_MESSAGES } from '$lib/components/ui/loading';
 	import { createLogger } from '$lib/utils/debug';
@@ -36,6 +36,10 @@
 
 	// Check for active impersonation session (admin only)
 	async function checkImpersonation() {
+		// ISS-005 FIX: Only check for admins to avoid 403 noise for non-admin users
+		if (!$user?.is_admin) {
+			return;
+		}
 		try {
 			const status = await adminApi.getImpersonationStatus();
 			if (status.is_impersonating && status.session) {
@@ -43,7 +47,7 @@
 				log.log('Active impersonation session detected:', status.session.target_email);
 			}
 		} catch {
-			// Not an admin or no active session - ignore silently
+			// No active session or API error - ignore silently
 		}
 	}
 

@@ -232,6 +232,35 @@ class SessionManager:
                 result = await coro
                 logger.info(f"[{session_id}] Graph execution completed successfully")
 
+                # Validate graph produced synthesis before marking completed
+                state = result if isinstance(result, dict) else {}
+                has_synthesis = bool(state.get("synthesis"))
+                has_sub_problem_results = bool(state.get("sub_problem_results"))
+                pending_clarification = bool(state.get("pending_clarification"))
+
+                if not has_synthesis and not has_sub_problem_results and not pending_clarification:
+                    # Graph exited early without producing synthesis
+                    logger.error(
+                        f"[{session_id}] Graph completed without synthesis - marking as failed. "
+                        f"Last node: {state.get('current_node', 'unknown')}"
+                    )
+                    self._update_session_status(
+                        session_id,
+                        "failed",
+                        error="Meeting completed without generating synthesis. Please retry.",
+                    )
+                    return result
+
+                # ISS-002 FIX: Don't mark as completed if paused for clarification
+                # _handle_identify_gaps already set status=paused, phase=clarification_needed
+                stop_reason = state.get("stop_reason")
+                if pending_clarification or stop_reason == "clarification_needed":
+                    logger.info(
+                        f"[{session_id}] Graph paused for clarification - "
+                        f"keeping paused status (stop_reason={stop_reason})"
+                    )
+                    return result  # Early return - don't overwrite paused status
+
                 # Update metadata on successful completion
                 self._update_session_status(session_id, "completed")
                 return result

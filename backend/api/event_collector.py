@@ -792,6 +792,8 @@ class EventCollector:
                     logger.info(
                         f"Updated Redis metadata for {session_id}: status=paused, phase=clarification_needed"
                     )
+                # ISS-001 FIX: Invalidate session metadata cache to prevent stale reads
+                get_session_metadata_cache().invalidate(session_id)
             except Exception as e:
                 logger.warning(f"Failed to update Redis metadata for {session_id}: {e}")
         else:
@@ -1716,6 +1718,9 @@ class EventCollector:
             session_id: Session identifier
         """
         try:
+            # First, force-flush any pending events in the batcher
+            await flush_batcher()
+
             # Wait for all pending flushes to complete (deterministic)
             # This replaces the non-deterministic asyncio.sleep() delay
             flush_completed = await wait_for_all_flushes(timeout=5.0)
@@ -1730,16 +1735,18 @@ class EventCollector:
             pg_event_count = len(pg_events)
 
             # If mismatch detected, retry with exponential backoff to handle race condition
-            max_retries = 2
-            retry_delay = 1.0  # seconds
+            max_retries = 3
+            retry_delay = 0.5  # seconds (will double each retry: 0.5, 1.0, 2.0)
             for retry in range(max_retries):
                 if pg_event_count >= redis_event_count:
                     break
+                current_delay = retry_delay * (2**retry)  # Exponential backoff
                 logger.info(
                     f"[VERIFY] Mismatch for {session_id} (attempt {retry + 1}/{max_retries}): "
-                    f"Redis={redis_event_count}, PostgreSQL={pg_event_count}, retrying..."
+                    f"Redis={redis_event_count}, PostgreSQL={pg_event_count}, "
+                    f"retrying in {current_delay}s..."
                 )
-                await asyncio.sleep(retry_delay)
+                await asyncio.sleep(current_delay)
                 pg_events = self.session_repo.get_events(session_id)
                 pg_event_count = len(pg_events)
 

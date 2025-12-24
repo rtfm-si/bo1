@@ -282,8 +282,10 @@ jobs:
             cd /opt/boardofone
 
             # Pull latest configuration (stash any local changes first)
+            # Use fetch + reset to handle force pushes gracefully
             git stash --include-untracked || true
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             # Verify .env exists (fail fast if missing)
             if [ ! -f ".env" ]; then

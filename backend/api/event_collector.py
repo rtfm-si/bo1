@@ -1716,7 +1716,8 @@ class EventCollector:
         to detect persistence failures. Emits warning events if discrepancies are found.
 
         Note: Uses deterministic flush completion tracking instead of fixed sleep delay.
-        Falls back to legacy delay if flush tracking times out.
+        Falls back to legacy delay if flush tracking times out. Includes retry logic
+        to handle race conditions between final flush and verification.
 
         Args:
             session_id: Session identifier
@@ -1734,6 +1735,20 @@ class EventCollector:
             redis_event_count = self.publisher.redis.llen(f"events_history:{session_id}")
             pg_events = self.session_repo.get_events(session_id)
             pg_event_count = len(pg_events)
+
+            # If mismatch detected, retry with exponential backoff to handle race condition
+            max_retries = 2
+            retry_delay = 1.0  # seconds
+            for retry in range(max_retries):
+                if pg_event_count >= redis_event_count:
+                    break
+                logger.info(
+                    f"[VERIFY] Mismatch for {session_id} (attempt {retry + 1}/{max_retries}): "
+                    f"Redis={redis_event_count}, PostgreSQL={pg_event_count}, retrying..."
+                )
+                await asyncio.sleep(retry_delay)
+                pg_events = self.session_repo.get_events(session_id)
+                pg_event_count = len(pg_events)
 
             if pg_event_count < redis_event_count:
                 log_error(

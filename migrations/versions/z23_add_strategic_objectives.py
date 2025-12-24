@@ -18,9 +18,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Add strategic_objectives column."""
+    """Add strategic_objectives column to user_context table."""
+    # Note: Originally added to users table, but CONTEXT_FIELDS queries user_context
     op.add_column(
-        "users",
+        "user_context",
         sa.Column(
             "strategic_objectives",
             sa.ARRAY(sa.Text()),
@@ -32,4 +33,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove strategic_objectives column."""
-    op.drop_column("users", "strategic_objectives")
+    op.drop_column("user_context", "strategic_objectives")

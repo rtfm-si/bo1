@@ -7984,6 +7984,51 @@
         "title": "DismissRefreshRequest",
         "type": "object"
       },
+      "E2EAuthRequest": {
+        "description": "Request body for E2E authentication.",
+        "properties": {
+          "secret": {
+            "description": "E2E auth secret key",
+            "title": "Secret",
+            "type": "string"
+          },
+          "user_id": {
+            "description": "User ID to create session for",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "secret"
+        ],
+        "title": "E2EAuthRequest",
+        "type": "object"
+      },
+      "E2EAuthResponse": {
+        "description": "Response for successful E2E authentication.",
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "user_id",
+          "message"
+        ],
+        "title": "E2EAuthResponse",
+        "type": "object"
+      },
       "EmailPeriodCounts": {
         "description": "Counts for different time periods.",
         "properties": {
@@ -28064,6 +28109,49 @@
         ]
       }
     },
+    "/api/e2e/session": {
+      "post": {
+        "description": "Creates an authenticated session for E2E testing. Requires E2E_AUTH_SECRET.",
+        "operationId": "create_e2e_session_api_e2e_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/E2EAuthRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/E2EAuthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create E2E test session",
+        "tags": [
+          "e2e",
+          "e2e"
+        ]
+      }
+    },
     "/api/errors": {
       "post": {
         "description": "Report a JavaScript error from the frontend for logging and monitoring.\n\n    No authentication required (errors may occur before/without auth).\n    Rate limited to 10 errors per minute per IP to prevent abuse.\n\n    Errors are stored in the audit_log table with:\n    - action: \"client_error\"\n    - resource_type: \"frontend\"",
@@ -37976,12 +38064,21 @@
     "/api/v1/sessions/{session_id}/stream": {
       "get": {
         "description": "Stream real-time deliberation events for a session using Server-Sent Events (SSE).\n\n    **Rate Limited:** 5 connections per minute per IP to prevent connection exhaustion.\n\n    **Session Resume Support:**\n    If the client disconnects and reconnects, include the `Last-Event-ID` header\n    with the ID from the last received event. The server will replay any missed\n    events before resuming live streaming.\n\n    Event types:\n    - `node_start` - Node execution started\n    - `node_end` - Node execution completed\n    - `contribution` - Persona contributed to discussion\n    - `facilitator_decision` - Facilitator made a decision\n    - `convergence` - Convergence check result\n    - `complete` - Deliberation finished\n    - `error` - Error occurred\n\n    The connection will remain open until the deliberation completes or\n    the client disconnects.",
-        "operationId": "parse_accept_sse_version_api_v1_sessions__session_id__stream_get",
+        "operationId": "stream_deliberation_api_v1_sessions__session_id__stream_get",
         "parameters": [
           {
-            "in": "query",
-            "name": "header_value",
+            "in": "path",
+            "name": "session_id",
             "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
             "schema": {
               "anyOf": [
                 {
@@ -37991,7 +38088,23 @@
                   "type": "null"
                 }
               ],
-              "title": "Header Value"
+              "title": "Last-Event-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-SSE-Version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Sse-Version"
             }
           }
         ],
@@ -37999,10 +38112,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "title": "Response Parse Accept Sse Version Api V1 Sessions  Session Id  Stream Get",
-                  "type": "integer"
-                }
+                "schema": {}
               },
               "text/event-stream": {
                 "example": "id: bo1_abc123:1\nevent: node_start\ndata: {...}\n\n"

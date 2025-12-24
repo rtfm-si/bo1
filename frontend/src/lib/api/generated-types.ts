@@ -2113,6 +2113,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/e2e/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create E2E test session
+         * @description Creates an authenticated session for E2E testing. Requires E2E_AUTH_SECRET.
+         */
+        post: operations["create_e2e_session_api_e2e_session_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/errors": {
         parameters: {
             query?: never;
@@ -5926,7 +5946,7 @@ export interface paths {
          *         The connection will remain open until the deliberation completes or
          *         the client disconnects.
          */
-        get: operations["parse_accept_sse_version_api_v1_sessions__session_id__stream_get"];
+        get: operations["stream_deliberation_api_v1_sessions__session_id__stream_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12399,6 +12419,34 @@ export interface components {
              * @default moderate
              */
             volatility: string;
+        };
+        /**
+         * E2EAuthRequest
+         * @description Request body for E2E authentication.
+         */
+        E2EAuthRequest: {
+            /**
+             * Secret
+             * @description E2E auth secret key
+             */
+            secret: string;
+            /**
+             * User Id
+             * @description User ID to create session for
+             */
+            user_id: string;
+        };
+        /**
+         * E2EAuthResponse
+         * @description Response for successful E2E authentication.
+         */
+        E2EAuthResponse: {
+            /** Message */
+            message: string;
+            /** Success */
+            success: boolean;
+            /** User Id */
+            user_id: string;
         };
         /**
          * EmailPeriodCounts
@@ -25728,6 +25776,39 @@ export interface operations {
             };
         };
     };
+    create_e2e_session_api_e2e_session_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["E2EAuthRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["E2EAuthResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     report_client_error_api_errors_post: {
         parameters: {
             query?: never;
@@ -32825,13 +32906,16 @@ export interface operations {
             };
         };
     };
-    parse_accept_sse_version_api_v1_sessions__session_id__stream_get: {
+    stream_deliberation_api_v1_sessions__session_id__stream_get: {
         parameters: {
-            query: {
-                header_value: string | null;
+            query?: never;
+            header?: {
+                "Last-Event-ID"?: string | null;
+                "Accept-SSE-Version"?: string | null;
             };
-            header?: never;
-            path?: never;
+            path: {
+                session_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -32842,7 +32926,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": number;
+                    "application/json": unknown;
                     /**
                      * @example id: bo1_abc123:1
                      *     event: node_start

@@ -772,12 +772,11 @@ async def test_collect_with_custom_events_timeout():
 
     # The TimeoutError is raised by asyncio.timeout, then wrapped by our code
     # The logs show our message is in the wrapped exception
-    # Verify session was marked as failed with timeout flag
+    # Verify session was marked as failed
     mock_session_repo.update_status.assert_called()
     update_call = mock_session_repo.update_status.call_args
     assert update_call[1]["status"] == "failed"
-    metadata = update_call[1].get("metadata", {})
-    assert metadata.get("timeout_exceeded") is True
+    # Note: timeout metadata is included in the error event, not update_status
 
     # Verify session_timeout event was published
     timeout_event_calls = [

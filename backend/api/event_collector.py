@@ -320,19 +320,12 @@ class EventCollector:
             error_data["elapsed_seconds"] = elapsed_seconds
         self.publisher.publish_event(session_id, "error", error_data)
 
-        # Update session status to 'failed' in PostgreSQL with timeout metadata
+        # Update session status to 'failed' in PostgreSQL
+        # Note: timeout metadata is already included in the error event above
         try:
-            metadata = {}
-            if timeout_exceeded:
-                metadata = {
-                    "timeout_exceeded": True,
-                    "elapsed_seconds": elapsed_seconds,
-                    "timeout_threshold": GRAPH_EXECUTION_TIMEOUT_SECONDS,
-                }
             self.session_repo.update_status(
                 session_id=session_id,
                 status="failed",
-                metadata=metadata if metadata else None,
             )
             # Invalidate cached metadata on status change
             get_session_metadata_cache().invalidate(session_id)

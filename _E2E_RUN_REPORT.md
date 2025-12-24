@@ -1,7 +1,7 @@
 ---
-run_id: e2e-run-20251222-001
-started_at_utc: 2024-12-22T10:15:00Z
-ended_at_utc: 2024-12-22T10:25:00Z
+run_id: e2e-prod-20241224-140053
+started_at_utc: 2024-12-24T13:45:00Z
+ended_at_utc: 2024-12-24T14:05:00Z
 env:
   base_url: https://boardof.one
   browser: chromium
@@ -15,191 +15,207 @@ scenario: golden_meeting_v1
 
 ## Summary
 
-- Result: **WARN**
+- Result: **FAIL**
 - Total issues: 4
-- Critical: 1 / Major: 2 / Minor: 1
+- Critical: 2 / Major: 1 / Minor: 1
 - Top 3 problems:
-  1. SubProblemResult validation fails with list instead of string for sub_problem_id
-  2. Context API endpoints return 500 errors on dashboard load
-  3. Meeting fails during multi-sub-problem transition despite partial success
+  1. SSE stream returns 409 due to Redis/PostgreSQL status desync - meetings cannot complete
+  2. Missing clarification UI - session pauses but frontend shows "Meeting Failed"
+  3. Context endpoints return 500 errors on dashboard load
 
 ## Timeline
 
-| Step | Action | Expected | Observed | Duration | Evidence |
-|-----:|--------|----------|----------|----------:|----------|
-| 0.x | Session inject | Cookies set | Skipped - existing session | - | - |
-| 1 | Verify auth | Dashboard loads | Dashboard loaded, user si@boardof.one authenticated | 2s | screenshot: step1-auth-verified.png |
-| 2 | New meeting nav | Creation page | Navigation successful, /meeting/new loaded | 3s | screenshot: step2-new-meeting-page.png |
-| 3 | Enter problem | Text accepted | 284-char problem entered successfully | 2s | screenshot: step3-problem-entered.png |
-| 4 | Start meeting | Meeting begins | Meeting started, session bo1_e61dfebd-ca87-4707-90d0-7fb6e679e9ea | 3s | screenshot: step4-meeting-started.png |
-| 5 | Wait completion | Meeting completes | PARTIAL - Sub-problem 1 completed with 8 recommendations, then ValidationError | ~5m | screenshot: step5-meeting-failed.png |
-| 6 | View results | Report visible | Results visible despite failure alert, 8 recommended actions shown | 5s | screenshot: step6-results-visible.png |
-| 7 | Create action | Action created | Changed action status from Pending to Accepted | 3s | screenshot: step7-action-accepted.png |
-| 8 | Verify action | Action in list | Action visible in /actions, 26 total actions, 8 from this meeting | 3s | screenshot: step8-actions-list.png |
-| 9 | End session | Browser closed | Clean close | 1s | - |
+| Step | Action          | Expected          | Observed        | Duration | Evidence               |
+| ---: | --------------- | ----------------- | --------------- | -------: | ---------------------- |
+|  0.x | Session inject  | Cookies set       | Failed - OAuth required | 120s | Multiple cookie conflicts |
+|    1 | OAuth login     | Dashboard loads   | Success after cookie clear | 60s | screenshot: e2e-002-dashboard.png |
+|    2 | New meeting nav | Creation page     | Success | 5s | screenshot: e2e-003-new-meeting.png |
+|    3 | Enter problem   | Text accepted     | Success | 3s | screenshot: e2e-003-new-meeting.png |
+|    4 | Start meeting   | Meeting begins    | 409 on SSE stream | 10s | screenshot: e2e-004-meeting-started.png |
+|    5 | Wait completion | Meeting completes | **BLOCKED** - Redis status "failed" | 180s | screenshot: e2e-007-final-state.png |
+|    6 | View results    | Report visible    | **SKIPPED** | - | - |
+|    7 | Create action   | Action created    | **SKIPPED** | - | - |
+|    8 | Verify action   | Action in list    | **SKIPPED** | - | - |
+|    9 | End session     | Browser closed    | Pending | - | - |
 
 ## Issues
 
-### ISS-001 — SubProblemResult Pydantic validation failure
+### ISS-001 — SSE Stream 409 Due to Redis/PostgreSQL Status Desync (CRITICAL)
 
 - Severity: **Critical**
-- Category: Backend
-- Where: Meeting orchestration, multi-sub-problem transition
+- Category: Backend / Data
+- Where: `/api/v1/sessions/{id}/stream` + Redis metadata store
 - Repro steps:
-  1. Start meeting with complex problem that decomposes into multiple sub-problems
-  2. Wait for first sub-problem synthesis to complete
-  3. Observe failure when transitioning to next sub-problem
+  1. Create new meeting via UI
+  2. Start meeting (POST /start returns 202)
+  3. Frontend connects to SSE stream
+  4. SSE returns 409 Conflict
 - Observed:
-  - Error: `1 validation error for SubProblemResult sub_problem_id Input should be a valid string [type=string_type, input_value=['bo1', 'models', 'problem', 'SubProblem'], input_type=list]`
-  - Meeting marked as "Failed" after completing sub-problem 1
-  - The `sub_problem_id` field receives a Python module path list instead of the actual ID string
+  - PostgreSQL `sessions` table shows `status = 'running'`
+  - Redis `metadata:{session_id}` shows `{"status": "failed", "phase": null}`
+  - SSE endpoint checks Redis status and returns 409 when not "running"
+  - Frontend shows "Meeting Failed" with "Connection Failed"
 - Expected:
-  - Sub-problem transition should work, `sub_problem_id` should be a string UUID or identifier
+  - Redis and PostgreSQL should be in sync
+  - If session started successfully, both should show "running"
 - Evidence:
-  - Screenshot: step5-error-details.png
-  - Console: `ValidationError for SubProblemResult`
-  - Network: SSE stream terminated with error payload
+  - Screenshot: `e2e-007-final-state.png`
+  - Console: `[ERROR] [SSE] Connection error: Error: SSE connection failed: 409`
+  - Network: `GET /api/v1/sessions/bo1_1e8f11c6-df7b-4b1d-92a0-3d3e066a9bfe/stream => [409]` (5 retries)
+  - Redis query: `GET "metadata:bo1_1e8f11c6-df7b-4b1d-92a0-3d3e066a9bfe"` → `{"status": "failed", "phase": null}`
+  - PostgreSQL: `SELECT status FROM sessions WHERE id = '...'` → `running`
 - Likely cause (hypothesis):
-  - Type annotation or import path being passed instead of the actual sub_problem_id value
-  - Possibly incorrect field assignment in synthesis node or state serialization
+  - Graph execution fails silently after session start
+  - Redis gets updated to "failed" but PostgreSQL transaction isn't rolled back
+  - Possible race condition or error in LangGraph callback that updates Redis
 - Suggested improvements / fixes (no code):
-  - Inspect `bo1/models/problem.py` SubProblemResult class
-  - Trace where sub_problem_id is assigned during synthesis
-  - Add validation/logging at assignment point
+  - Add atomic status updates across Redis and PostgreSQL
+  - Include error details in Redis metadata when status becomes "failed"
+  - SSE endpoint should return the actual error reason, not generic 409
+  - Add logging to trace status transitions between datastores
 - Workaround (if any):
-  - Sub-problem 1 results are still accessible despite failure
+  - Manual Redis status correction (not practical for users)
 
-### ISS-002 — Context API endpoints return 500 errors
+### ISS-002 — Missing Clarification UI When Session Paused (CRITICAL)
+
+- Severity: **Critical**
+- Category: UI / UX
+- Where: `/meeting/{id}` route, meeting progress component
+- Repro steps:
+  1. Start a meeting with a complex problem
+  2. Session pauses for clarification (status = "paused")
+  3. SSE returns 409 with "Session is paused"
+- Observed:
+  - First meeting (bo1_7d49325c) paused with 3 clarification questions
+  - Frontend shows "Meeting Failed" error state instead of clarification form
+  - No way for user to answer questions or skip clarification
+  - Session stuck in "paused" state indefinitely
+- Expected:
+  - Frontend should detect "paused" status and show clarification UI
+  - Questions should be displayed with input fields
+  - User should be able to answer or skip each question
+- Evidence:
+  - Screenshot: `e2e-006-paused-no-clarification-ui.png`
+  - API response: `409 - Session {id} is paused. Call /resume endpoint to continue.`
+  - PostgreSQL `clarification_questions` table has 3 pending questions
+- Likely cause (hypothesis):
+  - Frontend SSE handler treats all 409 errors as failures
+  - No specific handling for "paused" status
+  - Clarification component may exist but is never rendered
+- Suggested improvements / fixes (no code):
+  - SSE endpoint should return structured error with status type
+  - Frontend should check for "paused" status on 409 and fetch clarification questions
+  - Add polling fallback to detect paused state
+  - Implement `/clarifications` endpoint integration in frontend
+
+### ISS-003 — Context/Metrics Endpoints Return 500 (MAJOR)
 
 - Severity: **Major**
-- Category: Network / Backend
-- Where: Dashboard load, /api/v1/context/* endpoints
+- Category: Backend / Network
+- Where: `/api/v1/context/*` endpoints
 - Repro steps:
-  1. Log in to application
-  2. Navigate to dashboard
-  3. Observe network requests
+  1. Login to dashboard
+  2. Dashboard attempts to load user context
 - Observed:
-  - `/api/v1/context/refresh-check` → 500
-  - `/api/v1/user/value-metrics` → 500
-  - `/api/v1/context` → 500
+  - Multiple 500 errors on context-related endpoints during dashboard load
+  - Errors visible in earlier screenshot
+  - Dashboard still functional but missing context data
 - Expected:
-  - All context endpoints should return 200 with data
+  - Context endpoints should return 200 with data or 404 if not found
+  - Graceful handling if context service unavailable
 - Evidence:
-  - Screenshot: step2-dashboard.png
-  - Network: 3x 500 errors captured via browser_network_requests
+  - Console: 500 errors on context endpoints
+  - Network log shows multiple failed requests
 - Likely cause (hypothesis):
-  - Missing user context data, database query failure, or unhandled null case
+  - Context feature may be partially deployed or misconfigured
+  - Database tables or required data may be missing
 - Suggested improvements / fixes (no code):
-  - Check backend logs for stack traces on these endpoints
-  - Ensure graceful handling when user has no context data
-- Workaround (if any):
-  - Dashboard still functional, core meeting flow unaffected
+  - Add health checks for context service dependencies
+  - Return empty response instead of 500 if data unavailable
+  - Add feature flag to disable context if not ready
 
-### ISS-003 — Meeting shows "Failed" despite partial success
-
-- Severity: **Major**
-- Category: UX
-- Where: Meeting results page
-- Repro steps:
-  1. Complete a meeting that fails during multi-sub-problem processing
-  2. View results
-- Observed:
-  - Red "Meeting Failed" alert displayed prominently
-  - However, sub-problem 1 results are complete and visible
-  - 8 recommended actions successfully created
-- Expected:
-  - Partial success should be communicated more clearly
-  - Users should understand that useful results exist despite the error
-- Evidence:
-  - Screenshot: step5-meeting-failed.png
-  - Screenshot: step6-results-visible.png
-- Likely cause (hypothesis):
-  - Binary success/fail status doesn't account for partial completion
-- Suggested improvements / fixes (no code):
-  - Add "partially complete" status
-  - Show which sub-problems succeeded vs failed
-  - Don't hide useful results behind failure messaging
-- Workaround (if any):
-  - Scroll down to see results despite alert
-
-### ISS-004 — Actions from failed meetings show warning indicator
+### ISS-004 — GDPR Consent Endpoint Returns 403 (MINOR)
 
 - Severity: **Minor**
-- Category: UI
-- Where: /actions list page
+- Category: Backend / Network
+- Where: `/api/v1/auth/gdpr-consent`
 - Repro steps:
-  1. Create meeting that fails
-  2. Navigate to /actions
+  1. Complete OAuth login flow
+  2. System checks GDPR consent status
 - Observed:
-  - Actions from failed meeting show ⚠ warning icon
-  - No tooltip explaining what the warning means
+  - POST to GDPR consent endpoint returns 403 Forbidden
+  - Did not block login but may indicate missing consent record
 - Expected:
-  - Warning should have explanation on hover
+  - Should return 200 or create consent record if missing
 - Evidence:
-  - Screenshot: step8-actions-list.png
+  - Network: `POST /api/v1/auth/gdpr-consent => [403]`
 - Likely cause (hypothesis):
-  - Warning indicator added but tooltip not implemented
+  - CSRF token mismatch or missing
+  - Endpoint expects specific headers or body format
 - Suggested improvements / fixes (no code):
-  - Add tooltip: "Action created from incomplete meeting"
-- Workaround (if any):
-  - Actions still fully functional
+  - Review GDPR consent endpoint authentication requirements
+  - Ensure frontend sends correct CSRF token
+  - Add fallback handling if consent endpoint fails
 
 ## Recommendations (Prioritized)
 
-1. **Fix SubProblemResult validation** (Critical) - Investigate why sub_problem_id receives module path list instead of string ID. This blocks multi-sub-problem meetings entirely.
+1. **Fix Redis/PostgreSQL status sync (ISS-001)** - This is blocking all meetings from completing. Investigate why Redis shows "failed" when PostgreSQL shows "running". Add transaction-like semantics or at minimum detailed error logging.
 
-2. **Fix context API 500 errors** (Major) - These errors fire on every dashboard load and may indicate missing data handling.
+2. **Implement clarification UI (ISS-002)** - Users cannot complete meetings that require clarification. The backend supports it but frontend doesn't handle the paused state.
 
-3. **Improve partial failure UX** (Major) - When 1 of N sub-problems complete, show partial success rather than binary failure.
+3. **Fix context endpoints (ISS-003)** - While not blocking, 500 errors indicate backend issues that should be resolved.
 
-4. **Add warning tooltips** (Minor) - Explain the ⚠ indicator on actions from incomplete meetings.
+4. **Review GDPR consent flow (ISS-004)** - Minor but could have compliance implications.
 
 ## Appendix
 
 ### Console excerpts
 
 ```txt
-[Error] 1 validation error for SubProblemResult
-sub_problem_id
-  Input should be a valid string [type=string_type, input_value=['bo1', 'models', 'problem', 'SubProblem'], input_type=list]
-    For further information visit https://errors.pydantic.dev/2.10/v/string_type
+[ERROR] Failed to load resource: the server responded with a status of 409 () @ https://boardof.one/api/v1/sessions/bo1_1e8f11c6-df7b-4b1d-92a0-3d3e066a9bfe/stream:0
+[ERROR] [SSE] Connection error: Error: SSE connection failed: 409
+    at Jl.connect (https://boardof.one/_app/immutable/chunks/Dhp7w3sM.js:850:14156)
+    at async Object.C [as connect] (https://boardof.one/_app/immutable/chunks/Dhp7w3sM.js:853:3946)
+    at async j (https://boardof.one/_app/immutable/chunks/Dhp7w3sM.js:853:26483)
+    at async https://boardof.one/_app/immutable/chunks/Dhp7w3sM.js:853:28829 retry count: 0
+[ERROR] [SSE] Max retries reached
 ```
 
 ### Network failures
 
 | Method | URL | Status | Notes |
-|--------|-----|--------|-------|
-| GET | /api/v1/context/refresh-check | 500 | Dashboard load |
-| GET | /api/v1/user/value-metrics | 500 | Dashboard load |
-| GET | /api/v1/context | 500 | Dashboard load |
+| ------ | --- | ------ | ----- |
+| GET | /api/v1/sessions/{id}/stream | 409 | Session status desync (5 retries) |
+| POST | /api/v1/auth/gdpr-consent | 403 | Forbidden - CSRF or auth issue |
+| GET | /api/v1/context/* | 500 | Context service errors (multiple) |
 
-### Meeting Flow Observed
+### Database State Evidence
 
-- **Focus Areas**: 3 sub-problems identified
-  1. Revenue and Financial Analysis
-  2. Market and Customer Analysis
-  3. Operational and Strategic Feasibility
-- **Expert Panel**: Dr. Amara Okafor, Chris Anderson, Dr. Adrian Cole
-- **Rounds Completed**: 3 rounds with 8 contributions
-- **Voting**: Completed successfully
-- **Synthesis**: Sub-problem 1 completed with 8 recommended actions
-- **Failure Point**: Transition to sub-problem 2
+**PostgreSQL:**
+```sql
+SELECT id, status, created_at FROM sessions
+WHERE id = 'bo1_1e8f11c6-df7b-4b1d-92a0-3d3e066a9bfe';
+-- Result: status = 'running'
+```
+
+**Redis:**
+```bash
+GET "metadata:bo1_1e8f11c6-df7b-4b1d-92a0-3d3e066a9bfe"
+# Result: {"status": "failed", "phase": null}
+```
 
 ### Screenshots
 
-All screenshots saved to `.playwright-mcp/` directory:
-- step1-auth-verified.png
-- step2-dashboard.png
-- step2-new-meeting-page.png
-- step3-problem-entered.png
-- step4-meeting-started.png
-- step5-focus-areas.png
-- step5-clarification-questions.png
-- step5-round1-contributions.png
-- step5-round3.png
-- step5-subproblem1-complete-with-error.png
-- step5-error-details.png
-- step5-meeting-failed.png
-- step6-results-visible.png
-- step7-action-accepted.png
-- step8-actions-list.png
+| Filename | Description |
+| -------- | ----------- |
+| e2e-002-dashboard.png | Dashboard after successful OAuth login |
+| e2e-003-new-meeting.png | New meeting creation form with problem entered |
+| e2e-004-meeting-started.png | Meeting page immediately after start |
+| e2e-006-paused-no-clarification-ui.png | First meeting paused without clarification UI |
+| e2e-007-final-state.png | Final state showing "Meeting Failed" |
+
+---
+
+*Report generated by Automated E2E Explorer*
+*Scenario: golden_meeting_v1*
+*Environment: Production (https://boardof.one)*

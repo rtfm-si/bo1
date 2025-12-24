@@ -12,6 +12,7 @@ import os
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from supertokens_python.recipe.session.asyncio import create_new_session
+from supertokens_python.types import RecipeUserId
 
 logger = logging.getLogger(__name__)
 
@@ -78,12 +79,11 @@ async def create_e2e_session(
 
     try:
         # Create SuperTokens session - this sets all the proper cookies
+        # Signature: create_new_session(request, tenant_id, recipe_user_id, ...)
         session = await create_new_session(
-            request=request,
-            tenant_id="public",
-            user_id=body.user_id,
-            access_token_payload={},
-            session_data_in_database={},
+            request,
+            "public",
+            RecipeUserId(body.user_id),
         )
 
         logger.info(f"E2E session created for user {body.user_id}, handle: {session.get_handle()}")

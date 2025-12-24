@@ -818,7 +818,7 @@ class TestRateLimitConstants:
         assert RateLimits.SESSION_FREE == "5/minute"
         assert RateLimits.SESSION_PRO == "20/minute"
         assert RateLimits.SESSION_ENTERPRISE == "100/minute"
-        assert RateLimits.STREAMING == "5/minute"
+        assert RateLimits.STREAMING == "20/minute"
         assert RateLimits.UPLOAD == "10/hour"
         assert RateLimits.GENERAL == "60/minute"
         assert RateLimits.CONTROL == "20/minute"

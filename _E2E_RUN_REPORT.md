@@ -1,13 +1,14 @@
 ---
-run_id: e2e-prod-20241224-140053
-started_at_utc: 2024-12-24T13:45:00Z
-ended_at_utc: 2024-12-24T14:05:00Z
+run_id: e2e-prod-20241224-191300
+started_at_utc: 2024-12-24T19:13:00Z
+ended_at_utc: 2024-12-24T19:17:30Z
 env:
   base_url: https://boardof.one
   browser: chromium
   viewport: 1440x900
 account:
-  user: si@boardof.one
+  user: e2e.test@boardof.one
+  user_id: 991cac1b-a2e9-4164-a7fe-66082180e035
 scenario: golden_meeting_v1
 ---
 
@@ -16,203 +17,235 @@ scenario: golden_meeting_v1
 ## Summary
 
 - Result: **FAIL**
-- Total issues: 4
-- Critical: 2 / Major: 1 / Minor: 1
+- Total issues: 5
+- Critical: 2 / Major: 2 / Minor: 1
 - Top 3 problems:
-  1. SSE stream returns 409 due to Redis/PostgreSQL status desync - meetings cannot complete
-  2. Missing clarification UI - session pauses but frontend shows "Meeting Failed"
-  3. Context endpoints return 500 errors on dashboard load
+  1. SSE stream returns 409 for paused sessions, frontend treats as fatal error
+  2. SSE rate limit (5/min) too restrictive, causes 429 during reconnect attempts
+  3. Dashboard API errors (500) on value-metrics and context endpoints
 
 ## Timeline
 
-| Step | Action          | Expected          | Observed        | Duration | Evidence               |
-| ---: | --------------- | ----------------- | --------------- | -------: | ---------------------- |
-|  0.x | Session inject  | Cookies set       | Failed - OAuth required | 120s | Multiple cookie conflicts |
-|    1 | OAuth login     | Dashboard loads   | Success after cookie clear | 60s | screenshot: e2e-002-dashboard.png |
-|    2 | New meeting nav | Creation page     | Success | 5s | screenshot: e2e-003-new-meeting.png |
-|    3 | Enter problem   | Text accepted     | Success | 3s | screenshot: e2e-003-new-meeting.png |
-|    4 | Start meeting   | Meeting begins    | 409 on SSE stream | 10s | screenshot: e2e-004-meeting-started.png |
-|    5 | Wait completion | Meeting completes | **BLOCKED** - Redis status "failed" | 180s | screenshot: e2e-007-final-state.png |
-|    6 | View results    | Report visible    | **SKIPPED** | - | - |
-|    7 | Create action   | Action created    | **SKIPPED** | - | - |
-|    8 | Verify action   | Action in list    | **SKIPPED** | - | - |
-|    9 | End session     | Browser closed    | Pending | - | - |
+| Step | Action | Expected | Observed | Duration | Evidence |
+|-----:|--------|----------|----------|----------|----------|
+| 0.1 | E2E session endpoint | Cookies set | Session created successfully via new `/api/e2e/session` endpoint | 2s | screenshot: e2e-step1-authenticated.png |
+| 1 | Verify auth | Dashboard loads | Authenticated as e2e.test@boardof.one | 3s | screenshot: e2e-step2-dashboard-new-meeting-dialog.png |
+| 2 | New meeting nav | Creation page | Onboarding dialog appeared, navigated to /meeting/new | 5s | screenshot: e2e-step2-dashboard-new-meeting-dialog.png |
+| 3 | Enter problem | Text accepted | Problem text entered (198 chars), Start button enabled | 3s | screenshot: e2e-step3-problem-entered.png |
+| 4 | Start meeting | Meeting begins | Session created (201), started (202), SSE 409 errors began | 2s | screenshot: e2e-step4-meeting-started-sse-error.png |
+| 5 | Wait completion | Meeting completes | Session progressed through decomposition (36s), then paused for clarification. Frontend shows "Meeting Failed" due to SSE 409 | 2m | screenshot: e2e-step5-meeting-failed-sse-409.png |
+| 6 | View results | Report visible | **BLOCKED** - Could not proceed due to SSE failure | - | - |
+| 7 | Create action | Action created | **BLOCKED** | - | - |
+| 8 | Verify action | Action in list | **BLOCKED** | - | - |
+| 9 | End session | Browser closed | Closed after capturing evidence | 1s | screenshot: e2e-final-state.png |
 
 ## Issues
 
-### ISS-001 — SSE Stream 409 Due to Redis/PostgreSQL Status Desync (CRITICAL)
+### ISS-001 — SSE returns 409 for paused sessions, frontend shows "Meeting Failed"
 
 - Severity: **Critical**
-- Category: Backend / Data
-- Where: `/api/v1/sessions/{id}/stream` + Redis metadata store
+- Category: Backend/UX
+- Where: `/api/v1/sessions/{id}/stream` + Meeting progress page
 - Repro steps:
-  1. Create new meeting via UI
-  2. Start meeting (POST /start returns 202)
-  3. Frontend connects to SSE stream
-  4. SSE returns 409 Conflict
+  1. Start a new meeting
+  2. Wait for session to reach clarification_needed phase
+  3. Backend pauses session and returns 409 on SSE stream
+  4. Frontend shows "Meeting Failed" error instead of clarification UI
 - Observed:
-  - PostgreSQL `sessions` table shows `status = 'running'`
-  - Redis `metadata:{session_id}` shows `{"status": "failed", "phase": null}`
-  - SSE endpoint checks Redis status and returns 409 when not "running"
-  - Frontend shows "Meeting Failed" with "Connection Failed"
+  - Backend correctly pauses session and returns 409 with message "Session is paused. Call /resume endpoint to continue."
+  - Frontend treats 409 as a fatal connection error
+  - Meeting progress visible (3 focus areas) but user cannot interact
 - Expected:
-  - Redis and PostgreSQL should be in sync
-  - If session started successfully, both should show "running"
+  - Frontend should check session status when receiving 409
+  - If paused, show clarification UI instead of error
 - Evidence:
-  - Screenshot: `e2e-007-final-state.png`
-  - Console: `[ERROR] [SSE] Connection error: Error: SSE connection failed: 409`
-  - Network: `GET /api/v1/sessions/bo1_1e8f11c6-df7b-4b1d-92a0-3d3e066a9bfe/stream => [409]` (5 retries)
-  - Redis query: `GET "metadata:bo1_1e8f11c6-df7b-4b1d-92a0-3d3e066a9bfe"` → `{"status": "failed", "phase": null}`
-  - PostgreSQL: `SELECT status FROM sessions WHERE id = '...'` → `running`
-- Likely cause (hypothesis):
-  - Graph execution fails silently after session start
-  - Redis gets updated to "failed" but PostgreSQL transaction isn't rolled back
-  - Possible race condition or error in LangGraph callback that updates Redis
-- Suggested improvements / fixes (no code):
-  - Add atomic status updates across Redis and PostgreSQL
-  - Include error details in Redis metadata when status becomes "failed"
-  - SSE endpoint should return the actual error reason, not generic 409
-  - Add logging to trace status transitions between datastores
-- Workaround (if any):
-  - Manual Redis status correction (not practical for users)
+  - Screenshot: e2e-step5-meeting-failed-sse-409.png
+  - Console: `[SSE] Connection error: Error: SSE connection failed: 409`
+  - Network: `GET /api/v1/sessions/.../stream => 409`
+  - API logs: `status=paused, phase=clarification_needed`
+- Likely cause:
+  - Frontend SSE client treats all non-200 responses as errors
+  - Missing logic to distinguish "paused" 409 from actual conflicts
+- Suggested improvements:
+  - Frontend: When SSE returns 409, fetch session status via `/sessions/{id}` endpoint
+  - Frontend: If status is "paused", show clarification prompt instead of error
+  - Alternative: Backend could return 200 with SSE event `type: paused` instead of closing connection
+- Workaround:
+  - None available to end users
 
-### ISS-002 — Missing Clarification UI When Session Paused (CRITICAL)
+### ISS-002 — SSE rate limit too restrictive (5/min causes 429 during retries)
 
 - Severity: **Critical**
-- Category: UI / UX
-- Where: `/meeting/{id}` route, meeting progress component
+- Category: Backend/Performance
+- Where: `/api/v1/sessions/{id}/stream` rate limiter
 - Repro steps:
-  1. Start a meeting with a complex problem
-  2. Session pauses for clarification (status = "paused")
-  3. SSE returns 409 with "Session is paused"
+  1. SSE connection fails (e.g., due to 409)
+  2. Frontend retries with exponential backoff
+  3. After 5 attempts within 1 minute, 429 rate limit kicks in
+  4. All further reconnection attempts fail
 - Observed:
-  - First meeting (bo1_7d49325c) paused with 3 clarification questions
-  - Frontend shows "Meeting Failed" error state instead of clarification form
-  - No way for user to answer questions or skip clarification
-  - Session stuck in "paused" state indefinitely
+  - `ratelimit 5 per 1 minute (172.19.0.1) exceeded at endpoint: /api/v1/sessions/.../stream`
+  - User cannot recover from transient errors
 - Expected:
-  - Frontend should detect "paused" status and show clarification UI
-  - Questions should be displayed with input fields
-  - User should be able to answer or skip each question
+  - SSE endpoint should allow reconnection attempts
+  - Rate limit should be per-session, not global per-IP
 - Evidence:
-  - Screenshot: `e2e-006-paused-no-clarification-ui.png`
-  - API response: `409 - Session {id} is paused. Call /resume endpoint to continue.`
-  - PostgreSQL `clarification_questions` table has 3 pending questions
-- Likely cause (hypothesis):
-  - Frontend SSE handler treats all 409 errors as failures
-  - No specific handling for "paused" status
-  - Clarification component may exist but is never rendered
-- Suggested improvements / fixes (no code):
-  - SSE endpoint should return structured error with status type
-  - Frontend should check for "paused" status on 409 and fetch clarification questions
-  - Add polling fallback to detect paused state
-  - Implement `/clarifications` endpoint integration in frontend
+  - Console: `[SSE] Connection error: Error: SSE connection failed: 429`
+  - API logs: `slowapi | ratelimit 5 per 1 minute exceeded`
+- Likely cause:
+  - Rate limit configured too aggressively for SSE which requires reconnection
+- Suggested improvements:
+  - Increase rate limit to 20/min for SSE stream endpoint
+  - Or implement per-session rate limiting instead of per-IP
+  - Frontend: Implement longer backoff after 429 (e.g., 30s)
+- Workaround:
+  - Wait 1 minute before refreshing page
 
-### ISS-003 — Context/Metrics Endpoints Return 500 (MAJOR)
+### ISS-003 — Dashboard API 500 errors on value-metrics and context endpoints
 
 - Severity: **Major**
-- Category: Backend / Network
-- Where: `/api/v1/context/*` endpoints
+- Category: Backend
+- Where: `/api/v1/user/value-metrics`, `/api/v1/context`
 - Repro steps:
-  1. Login to dashboard
-  2. Dashboard attempts to load user context
+  1. Login as e2e.test@boardof.one
+  2. Navigate to dashboard
+  3. Observe network errors
 - Observed:
-  - Multiple 500 errors on context-related endpoints during dashboard load
-  - Errors visible in earlier screenshot
-  - Dashboard still functional but missing context data
+  - `GET /api/v1/user/value-metrics => 500`
+  - `GET /api/v1/context => 500`
+  - Dashboard still loads but with missing data
 - Expected:
-  - Context endpoints should return 200 with data or 404 if not found
-  - Graceful handling if context service unavailable
+  - Endpoints should return 200 with empty/default data for new users
 - Evidence:
-  - Console: 500 errors on context endpoints
-  - Network log shows multiple failed requests
-- Likely cause (hypothesis):
-  - Context feature may be partially deployed or misconfigured
-  - Database tables or required data may be missing
-- Suggested improvements / fixes (no code):
-  - Add health checks for context service dependencies
-  - Return empty response instead of 500 if data unavailable
-  - Add feature flag to disable context if not ready
+  - Network: `GET /api/v1/user/value-metrics => [500]`
+  - Network: `GET /api/v1/context => [500]`
+  - Console: `Data fetch failed: ApiClientError: Failed to get value metrics`
+- Likely cause:
+  - Missing null/empty handling for users without value metrics or context
+- Suggested improvements:
+  - Return empty array/object with 200 for users without data
+  - Add proper error handling for missing user data
+- Workaround:
+  - Errors don't block dashboard usage, just hide some widgets
 
-### ISS-004 — GDPR Consent Endpoint Returns 403 (MINOR)
+### ISS-004 — Event persistence verification failed (Redis/PostgreSQL mismatch)
+
+- Severity: **Major**
+- Category: Backend/Data
+- Where: `backend/api/event_collector.py`
+- Repro steps:
+  1. Start meeting
+  2. Let it progress through decomposition
+  3. Check API logs
+- Observed:
+  - `[VERIFY] Mismatch for session: Redis=9, PostgreSQL=7`
+  - `[DB_WRITE_ERROR] EVENT PERSISTENCE VERIFICATION FAILED`
+- Expected:
+  - Event counts should match between Redis and PostgreSQL
+- Evidence:
+  - API logs: `Mismatch for bo1_301e07c4-a1ee-4db7-967d-2baa04f9b99b (attempt 2/2): Redis=9, PostgreSQL=7`
+- Likely cause:
+  - Race condition in event persistence
+  - Some events written to Redis but not synced to PostgreSQL before verification
+- Suggested improvements:
+  - Increase verification retry delay
+  - Or implement eventual consistency model with background sync
+- Workaround:
+  - Events are in Redis; meeting can continue even if PostgreSQL sync fails
+
+### ISS-005 — Onboarding dialog blocks direct navigation
 
 - Severity: **Minor**
-- Category: Backend / Network
-- Where: `/api/v1/auth/gdpr-consent`
+- Category: UX
+- Where: Dashboard onboarding tour
 - Repro steps:
-  1. Complete OAuth login flow
-  2. System checks GDPR consent status
+  1. Login as new user
+  2. Click "Start New Meeting" card on dashboard
+  3. Onboarding dialog appears instead of navigation
+  4. Must dismiss or complete tour to navigate
 - Observed:
-  - POST to GDPR consent endpoint returns 403 Forbidden
-  - Did not block login but may indicate missing consent record
+  - "beforeunload" dialog: "The onboarding tour is in progress. Leave the tour and navigate away?"
 - Expected:
-  - Should return 200 or create consent record if missing
+  - Direct navigation should work without modal interruption
 - Evidence:
-  - Network: `POST /api/v1/auth/gdpr-consent => [403]`
-- Likely cause (hypothesis):
-  - CSRF token mismatch or missing
-  - Endpoint expects specific headers or body format
-- Suggested improvements / fixes (no code):
-  - Review GDPR consent endpoint authentication requirements
-  - Ensure frontend sends correct CSRF token
-  - Add fallback handling if consent endpoint fails
+  - Console: `Blocked confirm('The onboarding tour is in progress...')`
+- Likely cause:
+  - Onboarding tour has beforeunload handler
+- Suggested improvements:
+  - Allow navigation to key flows (new meeting) without tour completion
+  - Or auto-dismiss tour when user clicks primary CTA
+- Workaround:
+  - Accept the dialog to proceed
+
+## Positive Observations
+
+1. **E2E Session Injection Works**: New `/api/e2e/session` endpoint successfully creates authenticated sessions without OAuth flow
+2. **Meeting Creation Flow Works**: Problem text entry, validation, and session creation all function correctly
+3. **Backend Deliberation Runs**: LLM calls complete successfully (decomposition in 36s, $0.0454 cost)
+4. **Focus Areas Generated**: 3 sub-problems correctly identified from the problem statement
+5. **Session State Preserved**: Paused session with clarification correctly persists in Redis
 
 ## Recommendations (Prioritized)
 
-1. **Fix Redis/PostgreSQL status sync (ISS-001)** - This is blocking all meetings from completing. Investigate why Redis shows "failed" when PostgreSQL shows "running". Add transaction-like semantics or at minimum detailed error logging.
-
-2. **Implement clarification UI (ISS-002)** - Users cannot complete meetings that require clarification. The backend supports it but frontend doesn't handle the paused state.
-
-3. **Fix context endpoints (ISS-003)** - While not blocking, 500 errors indicate backend issues that should be resolved.
-
-4. **Review GDPR consent flow (ISS-004)** - Minor but could have compliance implications.
+1. **[P0] Fix SSE 409 handling**: Frontend must distinguish paused-session 409 from errors and show clarification UI
+2. **[P0] Increase SSE rate limit**: Change from 5/min to 20/min or implement per-session limits
+3. **[P1] Fix dashboard 500 errors**: Handle missing user data gracefully
+4. **[P1] Investigate event persistence mismatch**: Ensure Redis→PostgreSQL sync reliability
+5. **[P2] Improve onboarding UX**: Don't block navigation to primary user flows
 
 ## Appendix
 
 ### Console excerpts
 
 ```txt
-[ERROR] Failed to load resource: the server responded with a status of 409 () @ https://boardof.one/api/v1/sessions/bo1_1e8f11c6-df7b-4b1d-92a0-3d3e066a9bfe/stream:0
 [ERROR] [SSE] Connection error: Error: SSE connection failed: 409
     at Jl.connect (https://boardof.one/_app/immutable/chunks/Dhp7w3sM.js:850:14156)
-    at async Object.C [as connect] (https://boardof.one/_app/immutable/chunks/Dhp7w3sM.js:853:3946)
-    at async j (https://boardof.one/_app/immutable/chunks/Dhp7w3sM.js:853:26483)
-    at async https://boardof.one/_app/immutable/chunks/Dhp7w3sM.js:853:28829 retry count: 0
 [ERROR] [SSE] Max retries reached
+[ERROR] Failed to load resource: the server responded with a status of 429 ()
+[ERROR] Data fetch failed: ApiClientError: Failed to get value metrics
 ```
 
 ### Network failures
 
 | Method | URL | Status | Notes |
-| ------ | --- | ------ | ----- |
-| GET | /api/v1/sessions/{id}/stream | 409 | Session status desync (5 retries) |
-| POST | /api/v1/auth/gdpr-consent | 403 | Forbidden - CSRF or auth issue |
-| GET | /api/v1/context/* | 500 | Context service errors (multiple) |
+|--------|-----|--------|-------|
+| GET | /api/v1/user/value-metrics | 500 | Missing user data handling |
+| GET | /api/v1/context | 500 | Missing context handling |
+| GET | /api/v1/sessions/.../stream | 409 | Session paused |
+| GET | /api/v1/sessions/.../stream | 429 | Rate limit exceeded |
+| GET | /api/admin/impersonate/status | 403 | Expected (non-admin user) |
 
-### Database State Evidence
+### Backend logs excerpt
 
-**PostgreSQL:**
-```sql
-SELECT id, status, created_at FROM sessions
-WHERE id = 'bo1_1e8f11c6-df7b-4b1d-92a0-3d3e066a9bfe';
--- Result: status = 'running'
+```txt
+19:13:45 | INFO  | Started session bo1_301e07c4-a1ee-4db7-967d-2baa04f9b99b
+19:14:22 | INFO  | LLM call complete | model=claude-sonnet-4-5-20250929 cost=$0.0454
+19:14:31 | WARN  | ratelimit 5 per 1 minute exceeded at endpoint: /stream
+19:14:47 | INFO  | Updated Redis metadata: status=paused, phase=clarification_needed
+19:14:49 | ERROR | EVENT PERSISTENCE VERIFICATION FAILED
+19:14:49 | INFO  | Graph execution completed successfully
 ```
 
-**Redis:**
-```bash
-GET "metadata:bo1_1e8f11c6-df7b-4b1d-92a0-3d3e066a9bfe"
-# Result: {"status": "failed", "phase": null}
-```
+### Session details
+
+- Session ID: `bo1_301e07c4-a1ee-4db7-967d-2baa04f9b99b`
+- Final status: `paused`
+- Phase: `clarification_needed`
+- Focus areas: 3
+- Cost: $0.0654
+- Duration: ~64 seconds until pause
 
 ### Screenshots
 
 | Filename | Description |
-| -------- | ----------- |
-| e2e-002-dashboard.png | Dashboard after successful OAuth login |
-| e2e-003-new-meeting.png | New meeting creation form with problem entered |
-| e2e-004-meeting-started.png | Meeting page immediately after start |
-| e2e-006-paused-no-clarification-ui.png | First meeting paused without clarification UI |
-| e2e-007-final-state.png | Final state showing "Meeting Failed" |
+|----------|-------------|
+| e2e-step1-authenticated.png | E2E user authenticated via session injection |
+| e2e-step2-dashboard-new-meeting-dialog.png | Dashboard with onboarding dialog |
+| e2e-step3-problem-entered.png | New meeting form with problem entered |
+| e2e-step4-meeting-started-sse-error.png | Meeting started, SSE errors began |
+| e2e-step5-meeting-failed-sse-409.png | Meeting Failed alert, SSE 409 |
+| e2e-step5-meeting-progress-sse-fail.png | Meeting progress visible despite error |
+| e2e-final-state.png | Final state before browser close |
 
 ---
 

@@ -349,8 +349,8 @@ class RateLimits:
     SESSION_ENTERPRISE = "100/minute"
     """Session creation for enterprise tier users"""
 
-    STREAMING = "5/minute"
-    """SSE streaming endpoints (prevents connection exhaustion)"""
+    STREAMING = "20/minute"
+    """SSE streaming endpoints (allows reconnection during network issues)"""
 
     UPLOAD = "10/hour"
     """Dataset upload endpoint (prevents storage abuse)"""

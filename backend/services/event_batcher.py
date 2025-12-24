@@ -473,7 +473,21 @@ async def wait_for_all_flushes(timeout: float = 5.0) -> bool:
         timeout: Maximum time to wait in seconds (default 5.0)
 
     Returns:
-        True if all flushes completed, False if timeout exceeded
+        True if all flushes completed and buffer empty, False if timeout exceeded
     """
+    import time
+
     batcher = get_batcher()
-    return await batcher.wait_for_flush_complete(timeout)
+    start = time.monotonic()
+
+    # First wait for any in-flight flushes to complete
+    if not await batcher.wait_for_flush_complete(timeout):
+        return False
+
+    # Also ensure buffer is drained (events may be queued but not yet flushing)
+    remaining = timeout - (time.monotonic() - start)
+    while batcher._buffer and remaining > 0:
+        await asyncio.sleep(0.05)  # Wait for 50ms window to expire
+        remaining = timeout - (time.monotonic() - start)
+
+    return len(batcher._buffer) == 0

@@ -146,8 +146,12 @@ async def get_context(user: dict[str, Any] = Depends(get_current_user)) -> Conte
     if not context_data:
         return ContextResponse(exists=False, context=None, updated_at=None)
 
-    # Parse into BusinessContext
-    context = context_data_to_model(context_data)
+    # Parse into BusinessContext - handle incomplete data gracefully
+    try:
+        context = context_data_to_model(context_data)
+    except Exception:
+        # Incomplete or malformed context data - treat as non-existent
+        return ContextResponse(exists=False, context=None, updated_at=None)
 
     # Parse benchmark timestamps from raw data
     benchmark_timestamps = context_data.get("benchmark_timestamps")

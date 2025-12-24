@@ -407,8 +407,9 @@
 					});
 				},
 				onSessionPaused: async () => {
-					// Session is paused (e.g., for clarification) - reload state to show clarification UI
-					console.log('[Events] Session paused detected, reloading session and events...');
+					// Session is paused (e.g., for clarification) - clear error and reload state
+					console.log('[Events] Session paused detected, clearing error and reloading...');
+					store.clearSessionError();
 					await loadSession();
 					await loadHistoricalEvents();
 				},

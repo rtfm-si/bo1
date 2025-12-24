@@ -1295,10 +1295,11 @@ async def get_value_metrics(
         )
 
     except Exception as e:
+        # Log but return empty metrics instead of 500 - graceful degradation
         log_error(
             logger,
             ErrorCode.SERVICE_EXECUTION_ERROR,
             f"Failed to get value metrics for {user_id}: {e}",
             user_id=user_id,
         )
-        raise HTTPException(status_code=500, detail="Failed to get value metrics") from e
+        return ValueMetricsResponse(metrics=[], has_context=False, has_history=False)

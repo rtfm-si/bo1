@@ -83,6 +83,9 @@ services:
       - NTFY_TOPIC_MEETING=${NTFY_TOPIC_MEETING}
       - NTFY_TOPIC_REPORTS=${NTFY_TOPIC_REPORTS}
       - NTFY_TOPIC_ALERTS=${NTFY_TOPIC_ALERTS}
+
+      # E2E Testing (protected by secret)
+      - E2E_AUTH_SECRET=${E2E_AUTH_SECRET:-}
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     networks:

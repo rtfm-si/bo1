@@ -33,15 +33,34 @@
 	import MeetingFailedEvent from './MeetingFailedEvent.svelte';
 	import ExpertPanel from './ExpertPanel.svelte';
 	import ExpertPerspectiveCard from './ExpertPerspectiveCard.svelte';
+	import PersonaSelection from './PersonaSelection.svelte';
+	import ConvergenceCheck from './ConvergenceCheck.svelte';
+	import FacilitatorDecision from './FacilitatorDecision.svelte';
+	import ModeratorIntervention from './ModeratorIntervention.svelte';
+	import RecommendationResults from './RecommendationResults.svelte';
+	import PersonaRecommendation from './PersonaRecommendation.svelte';
+	import ActionPlan from './ActionPlan.svelte';
+	import SubProblemProgress from './SubProblemProgress.svelte';
+	import DeliberationComplete from './DeliberationComplete.svelte';
 
 	// Map of static fallback components for critical event types
+	// All critical meeting event types are statically imported to avoid dynamic loading issues
 	const staticFallbacks: Record<string, any> = {
 		decomposition_complete: DecompositionComplete,
 		synthesis_complete: SynthesisComplete,
 		error: ErrorEvent,
 		meeting_failed: MeetingFailedEvent,
 		expert_panel: ExpertPanel,
-		contribution: ExpertPerspectiveCard
+		contribution: ExpertPerspectiveCard,
+		persona_selected: PersonaSelection,
+		convergence: ConvergenceCheck,
+		facilitator_decision: FacilitatorDecision,
+		moderator_intervention: ModeratorIntervention,
+		voting_complete: RecommendationResults,
+		persona_vote: PersonaRecommendation,
+		meta_synthesis_complete: ActionPlan,
+		subproblem_complete: SubProblemProgress,
+		complete: DeliberationComplete
 	};
 
 	interface Props {
@@ -158,23 +177,22 @@
 	const componentPromise = $derived(getComponentForEvent(eventType));
 </script>
 
-{#await componentPromise}
-	<!-- Loading state: show skeleton -->
-	<EventCardSkeleton {...skeletonProps} />
-{:then Component}
-	<!-- Success: render the component -->
-	{#if Component}
-		<Component {event} {...componentProps} />
-	{:else}
-		<!-- Fallback if component is null/undefined -->
+<!-- Static fallbacks render synchronously without async issues -->
+{#if staticFallbacks[eventType]}
+	{@const StaticComponent = staticFallbacks[eventType]}
+	<StaticComponent {event} {...componentProps} />
+{:else}
+	<!-- Dynamic loading only for non-critical event types -->
+	{#await componentPromise}
+		<EventCardSkeleton {...skeletonProps} />
+	{:then Component}
+		{#if Component}
+			<Component {event} {...componentProps} />
+		{:else}
+			<GenericEvent {event} />
+		{/if}
+	{:catch}
+		<!-- Silent fallback - no error banner for unknown types -->
 		<GenericEvent {event} />
-	{/if}
-{:catch error}
-	<!-- Error state: show error message + fallback -->
-	<div class="bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-700 rounded-lg p-4 mb-2">
-		<p class="text-sm text-warning-800 dark:text-warning-200">
-			Failed to load component for event type: <code>{eventType}</code>
-		</p>
-	</div>
-	<GenericEvent {event} />
-{/await}
+	{/await}
+{/if}

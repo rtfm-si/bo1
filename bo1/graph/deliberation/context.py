@@ -9,6 +9,7 @@ Fixes Issue #22: Context passing between sub-problems.
 
 import logging
 import re
+from typing import Any
 
 from bo1.models.problem import Problem, SubProblem
 from bo1.models.state import SubProblemResult
@@ -53,7 +54,9 @@ def extract_recommendation_from_synthesis(synthesis: str) -> str:
 
 
 def build_dependency_context(
-    current_sp: SubProblem, sub_problem_results: list[SubProblemResult], problem: Problem
+    current_sp: SubProblem,
+    sub_problem_results: list[SubProblemResult],
+    problem: Problem | dict[str, Any],
 ) -> str | None:
     """Build context from dependent sub-problems.
 
@@ -65,7 +68,7 @@ def build_dependency_context(
     Args:
         current_sp: The current sub-problem being deliberated
         sub_problem_results: Results from completed sub-problems
-        problem: The parent problem (contains all sub-problem metadata)
+        problem: The parent problem (contains all sub-problem metadata, may be dict after checkpoint)
 
     Returns:
         Formatted dependency context string, or None if no dependencies
@@ -84,13 +87,27 @@ def build_dependency_context(
     if not current_sp.dependencies:
         return None
 
+    # Handle both dict (from checkpoint) and Problem object
+    if isinstance(problem, dict):
+        sub_problems_raw = problem.get("sub_problems", []) or []
+    else:
+        sub_problems_raw = problem.sub_problems or []
+
+    # Normalize sub_problems to SubProblem objects (may be dicts after checkpoint)
+    sub_problems: list[SubProblem] = []
+    for sp in sub_problems_raw:
+        if isinstance(sp, dict):
+            sub_problems.append(SubProblem.model_validate(sp))
+        else:
+            sub_problems.append(sp)
+
     context_parts = []
     context_parts.append("<dependent_conclusions>")
     context_parts.append("This sub-problem depends on conclusions from earlier sub-problems:\n")
 
     for dep_id in current_sp.dependencies:
         # Find the dependency sub-problem
-        dep_sp = next((sp for sp in problem.sub_problems if sp.id == dep_id), None)
+        dep_sp = next((sp for sp in sub_problems if sp.id == dep_id), None)
         if not dep_sp:
             logger.warning(f"Dependency {dep_id} not found in problem.sub_problems")
             continue

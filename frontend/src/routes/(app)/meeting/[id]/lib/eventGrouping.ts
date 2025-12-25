@@ -22,6 +22,8 @@ export const INTERNAL_EVENTS = ['node_start', 'node_end'];
 
 // Status noise events to hide (UX redesign - these don't provide actionable info)
 export const STATUS_NOISE_EVENTS = [
+	'state_transition', // Hidden - internal graph node transitions
+	'parallel_round_start', // Hidden - internal round orchestration
 	'decomposition_started',
 	'persona_selection_started',
 	// NOTE: persona_selection_complete removed - used as flush trigger for expert panel

@@ -42,9 +42,30 @@ RESEARCH_CACHE_DEFAULT_FRESHNESS_DAYS = 90
 # Event persistence retry settings
 EVENT_PERSISTENCE_MAX_ATTEMPTS = 3
 
-# Graph execution timeout (wall-clock)
-# Default 10 minutes - prevents runaway sessions from blocking resources
-GRAPH_EXECUTION_TIMEOUT_SECONDS = int(os.environ.get("GRAPH_EXECUTION_TIMEOUT_SECONDS", "600"))
+# Graph execution timeout architecture
+# Hard ceiling: absolute maximum time a meeting can run (safety stop)
+GRAPH_HARD_TIMEOUT_SECONDS = int(os.environ.get("GRAPH_HARD_TIMEOUT_SECONDS", "1800"))  # 30 min
+
+# Liveness timeout: max time between meaningful events before killing
+# If no meaningful events for this duration, meeting is considered stuck
+GRAPH_LIVENESS_TIMEOUT_SECONDS = int(
+    os.environ.get("GRAPH_LIVENESS_TIMEOUT_SECONDS", "600")
+)  # 10 min
+
+# Legacy alias for backwards compatibility
+GRAPH_EXECUTION_TIMEOUT_SECONDS = GRAPH_HARD_TIMEOUT_SECONDS
+
+# Events that indicate meeting is making progress (reset liveness timer)
+MEANINGFUL_PROGRESS_EVENTS: set[str] = {
+    "contribution",
+    "persona_selected",
+    "synthesis_complete",
+    "voting_complete",
+    "subproblem_started",
+    "decomposition_complete",
+    "context_collection_complete",
+    "persona_selection_complete",
+}
 
 # Competitor tier limits
 TIER_LIMITS = {

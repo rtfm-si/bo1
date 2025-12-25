@@ -9,7 +9,11 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any, Literal
 
-from backend.api.constants import GRAPH_EXECUTION_TIMEOUT_SECONDS
+from backend.api.constants import (
+    GRAPH_HARD_TIMEOUT_SECONDS,
+    GRAPH_LIVENESS_TIMEOUT_SECONDS,
+    MEANINGFUL_PROGRESS_EVENTS,
+)
 from backend.api.dependencies import get_redis_manager, get_session_metadata_cache
 from backend.api.event_extractors import extract_persona_dict, get_event_registry
 from backend.api.event_publisher import EventPublisher, flush_session_events
@@ -295,7 +299,7 @@ class EventCollector:
                 "session_timeout",
                 {
                     "elapsed_seconds": elapsed_seconds or 0,
-                    "timeout_threshold_seconds": GRAPH_EXECUTION_TIMEOUT_SECONDS,
+                    "timeout_threshold_seconds": GRAPH_HARD_TIMEOUT_SECONDS,
                     "reason": "Wall-clock timeout exceeded - session took too long",
                 },
             )
@@ -307,7 +311,7 @@ class EventCollector:
             record_graph_execution_timeout(session_type)
             logger.warning(
                 f"Session {session_id} timed out after {elapsed_seconds:.1f}s "
-                f"(threshold: {GRAPH_EXECUTION_TIMEOUT_SECONDS}s)"
+                f"(threshold: {GRAPH_HARD_TIMEOUT_SECONDS}s)"
             )
 
         # Publish error event to SSE stream
@@ -546,13 +550,19 @@ class EventCollector:
         - Custom events from get_stream_writer() (custom)
 
         This enables real-time per-expert streaming from subgraph nodes.
-        Enforces wall-clock timeout to prevent runaway sessions.
+
+        Timeout architecture:
+        - Hard ceiling (30 min): Absolute maximum meeting duration
+        - Liveness timeout (10 min): Max time between meaningful events
+        - If meaningful events keep flowing, meeting can run up to hard ceiling
+        - If no meaningful events for liveness timeout, meeting is killed as stuck
         """
         final_state = None
         start_time = time.monotonic()
+        last_meaningful_event_time = start_time
 
         try:
-            async with asyncio.timeout(GRAPH_EXECUTION_TIMEOUT_SECONDS):
+            async with asyncio.timeout(GRAPH_HARD_TIMEOUT_SECONDS):
                 async for chunk in graph.astream(
                     initial_state,
                     config=config,
@@ -578,9 +588,13 @@ class EventCollector:
 
                     logger.debug(f"[STREAM] namespace={namespace}, mode={mode}, node={node_name}")
 
+                    # Track event type for liveness check
+                    event_type_for_liveness: str | None = None
+
                     # Handle custom events from get_stream_writer()
                     if mode == "custom" and isinstance(data, dict) and "event_type" in data:
                         event_type = data.pop("event_type")
+                        event_type_for_liveness = event_type
                         logger.info(
                             f"[CUSTOM EVENT] {event_type} | sub_problem_index={data.get('sub_problem_index')}"
                         )
@@ -601,27 +615,53 @@ class EventCollector:
                         # Redis fallback: persist metadata to PostgreSQL if Redis unavailable
                         self._save_metadata_fallback(session_id, node_data)
 
+                    # Liveness check: update timer if meaningful event, or check for stuck
+                    now = time.monotonic()
+                    if (
+                        event_type_for_liveness
+                        and event_type_for_liveness in MEANINGFUL_PROGRESS_EVENTS
+                    ):
+                        last_meaningful_event_time = now
+                        logger.debug(
+                            f"[LIVENESS] Meaningful event '{event_type_for_liveness}' - timer reset"
+                        )
+
+                    # Check if we've exceeded liveness timeout
+                    time_since_meaningful = now - last_meaningful_event_time
+                    if time_since_meaningful > GRAPH_LIVENESS_TIMEOUT_SECONDS:
+                        elapsed = now - start_time
+                        raise TimeoutError(
+                            f"No meaningful progress for {time_since_meaningful:.1f}s "
+                            f"(liveness limit: {GRAPH_LIVENESS_TIMEOUT_SECONDS}s, "
+                            f"total elapsed: {elapsed:.1f}s)"
+                        )
+
             # Publish completion event
             if final_state:
                 await self._handle_completion(session_id, final_state)
 
-        except TimeoutError:
+        except TimeoutError as te:
             elapsed = time.monotonic() - start_time
+            # Determine if this was a hard timeout or liveness timeout
+            is_liveness_timeout = "liveness" in str(te) or "meaningful" in str(te)
+            timeout_type = "liveness" if is_liveness_timeout else "hard ceiling"
             timeout_error = TimeoutError(
                 f"Graph execution timed out after {elapsed:.1f}s "
-                f"(limit: {GRAPH_EXECUTION_TIMEOUT_SECONDS}s)"
+                f"({timeout_type}, limit: {GRAPH_HARD_TIMEOUT_SECONDS}s hard / "
+                f"{GRAPH_LIVENESS_TIMEOUT_SECONDS}s liveness)"
             )
             log_error(
                 logger,
                 ErrorCode.GRAPH_EXECUTION_ERROR,
-                f"Timeout in custom event collection for session {session_id}: {timeout_error}",
+                f"Timeout in custom event collection for session {session_id}: {te}",
                 session_id=session_id,
                 elapsed_seconds=elapsed,
+                timeout_type=timeout_type,
             )
             self._mark_session_failed(
                 session_id, timeout_error, timeout_exceeded=True, elapsed_seconds=elapsed
             )
-            raise
+            raise timeout_error from te
         except Exception as e:
             log_error(
                 logger,
@@ -644,13 +684,19 @@ class EventCollector:
         """Execute graph using legacy astream_events() method.
 
         This is the original implementation using astream_events(version="v2").
-        Enforces wall-clock timeout to prevent runaway sessions.
+
+        Timeout architecture (same as custom events):
+        - Hard ceiling (30 min): Absolute maximum meeting duration
+        - Liveness timeout (10 min): Max time between node completions
+        - If nodes keep completing, meeting can run up to hard ceiling
+        - If no node completions for liveness timeout, meeting is killed as stuck
         """
         final_state = None
         start_time = time.monotonic()
+        last_node_completion_time = start_time
 
         try:
-            async with asyncio.timeout(GRAPH_EXECUTION_TIMEOUT_SECONDS):
+            async with asyncio.timeout(GRAPH_HARD_TIMEOUT_SECONDS):
                 # Stream events from LangGraph execution
                 async for event in graph.astream_events(initial_state, config=config, version="v2"):
                     event_type = event.get("event")
@@ -673,27 +719,45 @@ class EventCollector:
                             # Redis fallback: persist metadata to PostgreSQL if Redis unavailable
                             self._save_metadata_fallback(session_id, output)
 
+                            # Liveness: any node completion counts as progress
+                            last_node_completion_time = time.monotonic()
+
+                    # Check liveness timeout (no node completions for too long)
+                    now = time.monotonic()
+                    time_since_completion = now - last_node_completion_time
+                    if time_since_completion > GRAPH_LIVENESS_TIMEOUT_SECONDS:
+                        elapsed = now - start_time
+                        raise TimeoutError(
+                            f"No node completions for {time_since_completion:.1f}s "
+                            f"(liveness limit: {GRAPH_LIVENESS_TIMEOUT_SECONDS}s, "
+                            f"total elapsed: {elapsed:.1f}s)"
+                        )
+
             # Publish completion event
             if final_state:
                 await self._handle_completion(session_id, final_state)
 
-        except TimeoutError:
+        except TimeoutError as te:
             elapsed = time.monotonic() - start_time
+            is_liveness_timeout = "liveness" in str(te) or "completions" in str(te)
+            timeout_type = "liveness" if is_liveness_timeout else "hard ceiling"
             timeout_error = TimeoutError(
                 f"Graph execution timed out after {elapsed:.1f}s "
-                f"(limit: {GRAPH_EXECUTION_TIMEOUT_SECONDS}s)"
+                f"({timeout_type}, limit: {GRAPH_HARD_TIMEOUT_SECONDS}s hard / "
+                f"{GRAPH_LIVENESS_TIMEOUT_SECONDS}s liveness)"
             )
             log_error(
                 logger,
                 ErrorCode.GRAPH_EXECUTION_ERROR,
-                f"Timeout in event collection for session {session_id}: {timeout_error}",
+                f"Timeout in event collection for session {session_id}: {te}",
                 session_id=session_id,
                 elapsed_seconds=elapsed,
+                timeout_type=timeout_type,
             )
             self._mark_session_failed(
                 session_id, timeout_error, timeout_exceeded=True, elapsed_seconds=elapsed
             )
-            raise
+            raise timeout_error from te
         except Exception as e:
             log_error(
                 logger,

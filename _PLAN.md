@@ -217,3 +217,121 @@ After implementation, re-run E2E `golden_meeting_v1` scenario:
 - [ ] Full deliberation cycle completes (personas, rounds, synthesis)
 - [ ] Context API returns 200
 - [ ] No 403 errors in console for non-admin users
+
+---
+
+# Plan: Fix Event Masking and Timeout Scaling
+
+_Added: 2025-12-25 based on meeting investigation `bo1_35448e5b-0023-4cbc-a0a7-5cbae8ba4ddb`_
+
+## Problem Analysis
+
+**Meeting**: `bo1_35448e5b-0023-4cbc-a0a7-5cbae8ba4ddb`
+
+### Issue 1: Internal Events Leaking to Users
+- `state_transition` (33 events) shown to users - should be masked
+- `parallel_round_start` (6 events) - also internal, consider masking
+
+### Issue 2: Timeout Too Short for Multi-Sub-Problem Meetings
+- 3 sub-problems defined
+- sp_001: completed in ~4.5 min (synthesis at 15:39:21)
+- sp_002: started at 15:40:09, timeout at 15:43:30 (3.5 min, incomplete)
+- sp_003: never started
+- **Math**: 3 × 4.5 min = 13.5 min needed, but timeout = 10 min (600s)
+
+---
+
+## Fix 1: Mask Internal Events (Frontend)
+
+**File**: `frontend/src/routes/(app)/meeting/[id]/lib/eventGrouping.ts`
+
+Add to `STATUS_NOISE_EVENTS` (line 24-40):
+```typescript
+export const STATUS_NOISE_EVENTS = [
+  'state_transition',       // ADD: internal graph node transitions
+  'parallel_round_start',   // ADD: internal round orchestration
+  // ... existing entries
+];
+```
+
+**Impact**: Immediate, no backend changes needed.
+
+---
+
+## Fix 2: Liveness-Based Timeout Architecture
+
+**Current**: 600s (10 min) wall-clock timeout - kills meetings regardless of progress
+
+**Proposed**: Three-tier timeout with liveness tracking
+
+| Timeout | Value | Purpose |
+|---------|-------|---------|
+| **Hard ceiling** | 1800s (30 min) | Absolute safety stop, never exceeded |
+| **Liveness timeout** | 600s (10 min) | Kill if no meaningful events |
+| **Round timeout** | 600s (10 min) | Kill stuck individual round |
+
+### Implementation
+
+**File**: `backend/api/constants.py`
+```python
+# Timeout architecture
+GRAPH_HARD_TIMEOUT_SECONDS = int(os.environ.get("GRAPH_HARD_TIMEOUT_SECONDS", "1800"))  # 30 min
+GRAPH_LIVENESS_TIMEOUT_SECONDS = int(os.environ.get("GRAPH_LIVENESS_TIMEOUT_SECONDS", "600"))  # 10 min
+```
+
+**File**: `backend/api/event_collector.py`
+```python
+# Track last meaningful event time
+MEANINGFUL_EVENTS = {
+    "contribution",
+    "persona_selected",
+    "synthesis_complete",
+    "voting_complete",
+    "subproblem_started",
+    "decomposition_complete",
+}
+
+# In _handle_xxx methods, update last_meaningful_event_time when event_type in MEANINGFUL_EVENTS
+# In timeout check, compare: now - last_meaningful_event_time > LIVENESS_TIMEOUT
+```
+
+**Behavior**:
+1. Meeting starts, clock begins
+2. Each meaningful event resets liveness timer
+3. If no meaningful event for 10 min → kill (stuck)
+4. If meaningful events flowing → continue up to 30 min hard ceiling
+5. At 30 min → hard stop regardless of progress
+
+**Benefits**:
+- 3 sub-problem meetings (like this one) can complete if progressing
+- Stuck meetings still get killed after 10 min of silence
+- Hard ceiling prevents runaway cost
+
+---
+
+## Fix 3: Partial Completion Handling (Future)
+
+If `synthesis_complete` exists for ANY sub-problem:
+1. Show partial results instead of "Meeting Failed"
+2. Status: "Partial" (1 of 3 topics completed)
+3. User can view completed synthesis
+4. Offer "Resume" for remaining topics
+
+---
+
+## Execution Order
+
+1. **Immediate** (5 min): Add `state_transition`, `parallel_round_start` to noise filter
+2. **Short-term** (1-2 hrs): Implement liveness-based timeout architecture
+3. **UX** (later): Partial completion handling
+
+---
+
+## Acceptance Criteria
+
+- [ ] `state_transition` events not visible in meeting UI
+- [ ] `parallel_round_start` events not visible in meeting UI
+- [ ] Meetings with steady progress can run up to 30 min
+- [ ] Stuck meetings (no meaningful events for 10 min) get killed
+- [ ] 3 sub-problem meetings complete successfully
+- [ ] Partial synthesis visible even if meeting times out (future)

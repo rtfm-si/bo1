@@ -759,7 +759,7 @@ async def test_collect_with_custom_events_timeout():
 
     # Patch timeout to 0.1 seconds for fast test
     with (
-        patch("backend.api.event_collector.GRAPH_EXECUTION_TIMEOUT_SECONDS", 0.1),
+        patch("backend.api.event_collector.GRAPH_HARD_TIMEOUT_SECONDS", 0.1),
         patch("backend.api.event_collector.record_graph_execution_timeout"),
     ):
         with pytest.raises(TimeoutError):
@@ -814,7 +814,7 @@ async def test_collect_with_astream_events_timeout():
     mock_graph.astream_events = slow_astream_events
 
     with (
-        patch("backend.api.event_collector.GRAPH_EXECUTION_TIMEOUT_SECONDS", 0.1),
+        patch("backend.api.event_collector.GRAPH_HARD_TIMEOUT_SECONDS", 0.1),
         patch("backend.api.event_collector.record_graph_execution_timeout"),
     ):
         with pytest.raises(TimeoutError):
@@ -902,7 +902,7 @@ async def test_collect_with_custom_events_success_no_timeout():
     mock_graph = MagicMock()
     mock_graph.astream = fast_astream
 
-    with patch("backend.api.event_collector.GRAPH_EXECUTION_TIMEOUT_SECONDS", 10):
+    with patch("backend.api.event_collector.GRAPH_HARD_TIMEOUT_SECONDS", 10):
         result = await collector._collect_with_custom_events(
             session_id="test-session",
             graph=mock_graph,
@@ -923,11 +923,16 @@ async def test_collect_with_custom_events_success_no_timeout():
 
 @pytest.mark.unit
 def test_timeout_config_default():
-    """Test that GRAPH_EXECUTION_TIMEOUT_SECONDS has correct default value."""
-    from backend.api.constants import GRAPH_EXECUTION_TIMEOUT_SECONDS
+    """Test that timeout constants have correct default values."""
+    from backend.api.constants import (
+        GRAPH_HARD_TIMEOUT_SECONDS,
+        GRAPH_LIVENESS_TIMEOUT_SECONDS,
+    )
 
-    # Default should be 600 seconds (10 minutes)
-    assert GRAPH_EXECUTION_TIMEOUT_SECONDS == 600
+    # Hard ceiling default: 1800 seconds (30 minutes)
+    assert GRAPH_HARD_TIMEOUT_SECONDS == 1800
+    # Liveness timeout default: 600 seconds (10 minutes between meaningful events)
+    assert GRAPH_LIVENESS_TIMEOUT_SECONDS == 600
 
 
 # ============================================================================
@@ -1122,7 +1127,7 @@ async def test_collect_with_custom_events_emits_transitions():
     mock_graph = MagicMock()
     mock_graph.astream = multi_node_astream
 
-    with patch("backend.api.event_collector.GRAPH_EXECUTION_TIMEOUT_SECONDS", 10):
+    with patch("backend.api.event_collector.GRAPH_HARD_TIMEOUT_SECONDS", 10):
         await collector._collect_with_custom_events(
             session_id="test-session",
             graph=mock_graph,

@@ -148,7 +148,7 @@ class ActionRepository(BaseRepository):
                    replan_session_id, replan_requested_at, replanning_reason,
                    cancellation_reason, cancelled_at,
                    confidence, source_section, sub_problem_index,
-                   sort_order, created_at, updated_at
+                   sort_order, created_at, updated_at, deleted_at
             FROM actions
             WHERE id = %s
             """,

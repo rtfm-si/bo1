@@ -15,7 +15,7 @@ from bo1.agents.base import BaseAgent
 from bo1.graph.state import DeliberationGraphState
 from bo1.llm.broker import PromptBroker
 from bo1.llm.response import LLMResponse
-from bo1.llm.response_parser import ResponseParser, ValidationConfig
+from bo1.llm.response_parser import ResponseParser, ValidationConfig, XMLValidationError
 from bo1.prompts import compose_facilitator_prompt
 from bo1.state.discussion_formatter import format_discussion_history
 from bo1.utils.deliberation_analysis import DeliberationAnalyzer
@@ -497,19 +497,33 @@ Analyze the discussion and decide the next action."""
         )
 
         # Use validation-aware helper to auto-retry on XML issues
-        response = await self._create_and_call_prompt_with_validation(
-            system=system_prompt,
-            user_message=user_message,
-            phase="facilitator_decision",
-            validation=validation,
-            prefill="<thinking>",  # Force character consistency and proper XML structure
-            temperature=1.0,
-            max_tokens=800,
-        )
+        # Wrap in try-except to provide graceful fallback on validation failure
+        try:
+            response = await self._create_and_call_prompt_with_validation(
+                system=system_prompt,
+                user_message=user_message,
+                phase="facilitator_decision",
+                validation=validation,
+                prefill="<thinking>",  # Force character consistency and proper XML structure
+                temperature=1.0,
+                max_tokens=800,
+            )
 
-        # Parse decision from response (raises XMLValidationError if action missing/invalid)
-        parsed = ResponseParser.parse_facilitator_decision(response.content, state)
-        decision = FacilitatorDecision(**parsed)
+            # Parse decision from response (raises XMLValidationError if action missing/invalid)
+            parsed = ResponseParser.parse_facilitator_decision(response.content, state)
+            decision = FacilitatorDecision(**parsed)
+        except XMLValidationError as e:
+            # FALLBACK: When XML validation fails after retries, default to "continue"
+            # This prevents meetings from crashing due to LLM format issues
+            logger.warning(
+                f"XML validation failed for facilitator decision, using fallback 'continue': {e}"
+            )
+            decision = FacilitatorDecision(
+                action="continue",
+                reasoning="Continuing discussion (facilitator decision parsing failed, using safe fallback)",
+                next_speaker=personas[0].code if personas else None,
+            )
+            response = None  # No valid LLM response
 
         # Log decision details using LogHelper
         details = {}

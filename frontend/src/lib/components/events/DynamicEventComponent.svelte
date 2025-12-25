@@ -31,13 +31,17 @@
 	import SynthesisComplete from './SynthesisComplete.svelte';
 	import ErrorEvent from './ErrorEvent.svelte';
 	import MeetingFailedEvent from './MeetingFailedEvent.svelte';
+	import ExpertPanel from './ExpertPanel.svelte';
+	import ExpertPerspectiveCard from './ExpertPerspectiveCard.svelte';
 
 	// Map of static fallback components for critical event types
 	const staticFallbacks: Record<string, any> = {
 		decomposition_complete: DecompositionComplete,
 		synthesis_complete: SynthesisComplete,
 		error: ErrorEvent,
-		meeting_failed: MeetingFailedEvent
+		meeting_failed: MeetingFailedEvent,
+		expert_panel: ExpertPanel,
+		contribution: ExpertPerspectiveCard
 	};
 
 	interface Props {

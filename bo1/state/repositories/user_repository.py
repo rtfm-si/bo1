@@ -331,6 +331,7 @@ class UserRepository(BaseRepository):
             "context_metric_history",
             "pending_updates",
             "benchmark_timestamps",
+            "benchmark_history",
             "strategic_objectives",
         }
 

@@ -233,9 +233,9 @@ class ActionRepository(BaseRepository):
                 OR (s.status = 'failed' AND s.failure_acknowledged_at IS NOT NULL)
             )"""
 
-        # P1-005: Exclude soft-deleted actions for non-admin users
-        if not is_admin:
-            query += " AND a.deleted_at IS NULL"
+        # Always exclude soft-deleted actions from list view
+        # Admins can use admin/restore endpoint to view/restore deleted actions
+        query += " AND a.deleted_at IS NULL"
 
         if status_filter:
             query += " AND a.status = %s"

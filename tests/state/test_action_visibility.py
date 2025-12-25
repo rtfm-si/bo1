@@ -89,8 +89,11 @@ class TestActionVisibilityBySessionStatus:
         # Non-admin should exclude soft-deleted actions
         assert "deleted_at IS NULL" in executed_query
 
-    def test_admin_can_see_soft_deleted_actions(self, mock_connection, mock_cursor):
-        """Verify admin query does not exclude soft-deleted actions."""
+    def test_admin_also_excludes_soft_deleted_actions(self, mock_connection, mock_cursor):
+        """Verify admin query also excludes soft-deleted actions from list view.
+
+        Admins can use separate restore endpoint to view/restore deleted actions.
+        """
         from bo1.state.repositories.action_repository import ActionRepository
 
         with patch("bo1.state.repositories.base.db_session") as mock_db:
@@ -103,8 +106,8 @@ class TestActionVisibilityBySessionStatus:
 
         executed_query = mock_cursor.execute.call_args[0][0]
 
-        # Admin should NOT have deleted_at filter
-        assert "a.deleted_at IS NULL" not in executed_query
+        # Admin should also have deleted_at filter (always applied now)
+        assert "a.deleted_at IS NULL" in executed_query
 
 
 class TestActionVisibilityWithFilters:

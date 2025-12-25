@@ -1418,6 +1418,14 @@ async def delete_action(
     if action.get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="Action not found")
 
+    # Check if already deleted (idempotent delete)
+    if action.get("deleted_at") is not None:
+        logger.info(f"Action {action_id} already deleted, returning success")
+        return ActionDeletedResponse(
+            message="Action deleted successfully",
+            action_id=action_id,
+        )
+
     # Soft delete
     success = action_repository.delete(action_id)
     if not success:

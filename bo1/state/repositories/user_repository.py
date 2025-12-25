@@ -321,6 +321,8 @@ class UserRepository(BaseRepository):
         update_clause = ", ".join([f"{f} = EXCLUDED.{f}" for f in valid_fields])
 
         # Prepare values, converting lists/dicts to JSON for JSONB columns
+        # Note: strategic_objectives is text[] (Postgres array), not jsonb
+        # psycopg2 handles Python lists → Postgres arrays automatically
         jsonb_fields = {
             "product_categories",
             "tech_stack",
@@ -332,7 +334,6 @@ class UserRepository(BaseRepository):
             "pending_updates",
             "benchmark_timestamps",
             "benchmark_history",
-            "strategic_objectives",
         }
 
         values = []

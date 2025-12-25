@@ -27,6 +27,7 @@ from bo1.graph.nodes.utils import (
 from bo1.graph.quality.stopping_rules import update_stalled_disagreement_counter
 from bo1.graph.state import DeliberationGraphState
 from bo1.graph.utils import ensure_metrics, track_accumulated_cost
+from bo1.models.problem import SubProblem
 from bo1.models.state import DeliberationPhase
 from bo1.prompts.sanitizer import sanitize_user_input
 from bo1.utils.checkpoint_helpers import get_problem_context, get_problem_description
@@ -356,8 +357,16 @@ async def _generate_parallel_contributions(
 
     # Build context
     sub_problem_results = state.get("sub_problem_results", [])
-    current_sub_problem = state.get("current_sub_problem")
+    current_sub_problem_raw = state.get("current_sub_problem")
     research_results = state.get("research_results", [])
+
+    # Validate current_sub_problem - may be dict after checkpoint restore
+    current_sub_problem = None
+    if current_sub_problem_raw:
+        if isinstance(current_sub_problem_raw, dict):
+            current_sub_problem = SubProblem.model_validate(current_sub_problem_raw)
+        else:
+            current_sub_problem = current_sub_problem_raw
 
     dependency_context = None
     if current_sub_problem and sub_problem_results and problem:

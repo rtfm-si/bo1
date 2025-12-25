@@ -98,6 +98,12 @@
 	 * Get component for event type with dynamic loading.
 	 * Returns GenericEvent as fallback for unknown types.
 	 *
+	 * Priority:
+	 * 1. Cache (already loaded)
+	 * 2. Static fallbacks (bundled, instant, reliable)
+	 * 3. Dynamic import (lazy-loaded)
+	 * 4. GenericEvent (ultimate fallback)
+	 *
 	 * Uses LRU (Least Recently Used) cache eviction strategy.
 	 */
 	async function getComponentForEvent(type: string): Promise<SvelteComponent> {
@@ -110,7 +116,15 @@
 			return component;
 		}
 
-		// Load component
+		// For critical event types, prefer static fallbacks first (more reliable)
+		// This avoids dynamic import failures in E2E/SSR/bundler edge cases
+		const staticComponent = staticFallbacks[type];
+		if (staticComponent) {
+			componentCache.set(type, staticComponent);
+			return staticComponent;
+		}
+
+		// Try dynamic import for non-critical components
 		const loader = componentLoaders[type];
 		if (!loader) {
 			console.debug(`Unknown event type: ${type}, using GenericEvent`);
@@ -136,15 +150,6 @@
 			return component;
 		} catch (error) {
 			console.error(`Failed to load component for ${type}:`, error);
-
-			// Use static fallback if available (critical components)
-			const staticComponent = staticFallbacks[type];
-			if (staticComponent) {
-				console.debug(`Using static fallback for ${type}`);
-				componentCache.set(type, staticComponent);
-				return staticComponent;
-			}
-
 			return GenericEvent;
 		}
 	}
